@@ -258,7 +258,7 @@ arena_extents_dirty_dalloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	extents_dalloc(tsdn, arena, ehooks, &arena->ecache_dirty, edata);
+	ecache_dalloc(tsdn, arena, ehooks, &arena->ecache_dirty, edata);
 	if (arena_dirty_decay_ms_get(arena) == 0) {
 		arena_decay_dirty(tsdn, arena, false, true);
 	} else {
@@ -434,17 +434,16 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 	szind_t szind = sz_size2index(usize);
 	size_t mapped_add;
 	bool commit = true;
-	edata_t *edata = extents_alloc(tsdn, arena, ehooks,
-	    &arena->ecache_dirty, NULL, usize, sz_large_pad, alignment, false,
-	    szind, zero, &commit);
+	edata_t *edata = ecache_alloc(tsdn, arena, ehooks, &arena->ecache_dirty,
+	    NULL, usize, sz_large_pad, alignment, false, szind, zero, &commit);
 	if (edata == NULL && arena_may_have_muzzy(arena)) {
-		edata = extents_alloc(tsdn, arena, ehooks, &arena->ecache_muzzy,
+		edata = ecache_alloc(tsdn, arena, ehooks, &arena->ecache_muzzy,
 		    NULL, usize, sz_large_pad, alignment, false, szind, zero,
 		    &commit);
 	}
 	size_t size = usize + sz_large_pad;
 	if (edata == NULL) {
-		edata = extents_alloc_grow(tsdn, arena, ehooks,
+		edata = ecache_alloc_grow(tsdn, arena, ehooks,
 		    &arena->ecache_retained, NULL, usize, sz_large_pad,
 		    alignment, false, szind, zero, &commit);
 		if (config_stats) {
@@ -828,7 +827,7 @@ arena_stash_decayed(tsdn_t *tsdn, arena_t *arena,
 	size_t nstashed = 0;
 	edata_t *edata;
 	while (nstashed < npages_decay_max &&
-	    (edata = extents_evict(tsdn, arena, ehooks, ecache, npages_limit))
+	    (edata = ecache_evict(tsdn, arena, ehooks, ecache, npages_limit))
 	    != NULL) {
 		edata_list_append(decay_extents, edata);
 		nstashed += edata_size_get(edata) >> LG_PAGE;
@@ -865,7 +864,7 @@ arena_decay_stashed(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 			if (!all && muzzy_decay_ms != 0 &&
 			    !extent_purge_lazy_wrapper(tsdn, arena,
 			    ehooks, edata, 0, edata_size_get(edata))) {
-				extents_dalloc(tsdn, arena, ehooks,
+				ecache_dalloc(tsdn, arena, ehooks,
 				    &arena->ecache_muzzy, edata);
 				arena_background_thread_inactivity_check(tsdn,
 				    arena, is_background_thread);
@@ -1158,7 +1157,7 @@ arena_destroy_retained(tsdn_t *tsdn, arena_t *arena) {
 	 */
 	ehooks_t *ehooks = arena_get_ehooks(arena);
 	edata_t *edata;
-	while ((edata = extents_evict(tsdn, arena, ehooks,
+	while ((edata = ecache_evict(tsdn, arena, ehooks,
 	    &arena->ecache_retained, 0)) != NULL) {
 		extent_destroy_wrapper(tsdn, arena, ehooks, edata);
 	}
@@ -1211,7 +1210,7 @@ arena_slab_alloc_hard(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 
 	zero = false;
 	commit = true;
-	slab = extents_alloc_grow(tsdn, arena, ehooks, &arena->ecache_retained,
+	slab = ecache_alloc_grow(tsdn, arena, ehooks, &arena->ecache_retained,
 	    NULL, bin_info->slab_size, 0, PAGE, true, szind, &zero, &commit);
 
 	if (config_stats && slab != NULL) {
@@ -1232,10 +1231,10 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned binshard
 	szind_t szind = sz_size2index(bin_info->reg_size);
 	bool zero = false;
 	bool commit = true;
-	edata_t *slab = extents_alloc(tsdn, arena, ehooks, &arena->ecache_dirty,
+	edata_t *slab = ecache_alloc(tsdn, arena, ehooks, &arena->ecache_dirty,
 	    NULL, bin_info->slab_size, 0, PAGE, true, binind, &zero, &commit);
 	if (slab == NULL && arena_may_have_muzzy(arena)) {
-		slab = extents_alloc(tsdn, arena, ehooks, &arena->ecache_muzzy,
+		slab = ecache_alloc(tsdn, arena, ehooks, &arena->ecache_muzzy,
 		    NULL, bin_info->slab_size, 0, PAGE, true, binind, &zero,
 		    &commit);
 	}
