@@ -38,7 +38,7 @@ static char log_filename[
     1];
 
 /* Timestamp for most recent call to log_start(). */
-static nstime_t log_start_timestamp = NSTIME_ZERO_INITIALIZER;
+static nstime_t log_start_timestamp;
 
 /* Increment these when adding to the log_bt and log_thr linked lists. */
 static size_t log_bt_index = 0;
@@ -231,8 +231,8 @@ prof_try_log(tsd_t *tsd, size_t usize, prof_info_t *prof_info) {
 	}
 
 	nstime_t alloc_time = prof_info->alloc_time;
-	nstime_t free_time = NSTIME_ZERO_INITIALIZER;
-	nstime_update(&free_time);
+	nstime_t free_time;
+	nstime_init_update(&free_time);
 
 	size_t sz = sizeof(prof_alloc_node_t);
 	prof_alloc_node_t *new_node = (prof_alloc_node_t *)
@@ -556,9 +556,9 @@ static void
 prof_log_emit_metadata(emitter_t *emitter) {
 	emitter_json_object_kv_begin(emitter, "info");
 
-	nstime_t now = NSTIME_ZERO_INITIALIZER;
+	nstime_t now;
 
-	nstime_update(&now);
+	nstime_init_update(&now);
 	uint64_t ns = nstime_ns(&now) - nstime_ns(&log_start_timestamp);
 	emitter_json_kv(emitter, "duration", emitter_type_uint64, &ns);
 
@@ -701,6 +701,8 @@ bool prof_log_init(tsd_t *tsd) {
 	    prof_thr_node_hash, prof_thr_node_keycomp)) {
 		return true;
 	}
+
+	nstime_init_zero(&log_start_timestamp);
 
 	log_tables_initialized = true;
 	return false;

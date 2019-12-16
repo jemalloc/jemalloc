@@ -1037,7 +1037,7 @@ ctl_background_thread_stats_read(tsdn_t *tsdn) {
 	if (!have_background_thread ||
 	    background_thread_stats_read(tsdn, stats)) {
 		memset(stats, 0, sizeof(background_thread_stats_t));
-		nstime_init(&stats->run_interval, 0);
+		nstime_init_zero(&stats->run_interval);
 	}
 	malloc_mutex_prof_copy(
 	    &ctl_stats->mutex_prof_data[global_prof_mutex_max_per_bg_thd],

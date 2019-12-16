@@ -74,7 +74,7 @@ background_thread_info_init(tsdn_t *tsdn, background_thread_info_t *info) {
 	info->npages_to_purge_new = 0;
 	if (config_stats) {
 		info->tot_n_runs = 0;
-		nstime_init(&info->tot_sleep_time, 0);
+		nstime_init_zero(&info->tot_sleep_time);
 	}
 }
 
@@ -236,8 +236,7 @@ background_thread_sleep(tsdn_t *tsdn, background_thread_info_t *info,
 		    interval <= BACKGROUND_THREAD_INDEFINITE_SLEEP);
 		/* We need malloc clock (can be different from tv). */
 		nstime_t next_wakeup;
-		nstime_init(&next_wakeup, 0);
-		nstime_update(&next_wakeup);
+		nstime_init_update(&next_wakeup);
 		nstime_iadd(&next_wakeup, interval);
 		assert(nstime_ns(&next_wakeup) <
 		    BACKGROUND_THREAD_INDEFINITE_SLEEP);
@@ -794,7 +793,7 @@ background_thread_stats_read(tsdn_t *tsdn, background_thread_stats_t *stats) {
 		return true;
 	}
 
-	nstime_init(&stats->run_interval, 0);
+	nstime_init_zero(&stats->run_interval);
 	memset(&stats->max_counter_per_bg_thd, 0, sizeof(mutex_prof_data_t));
 
 	uint64_t num_runs = 0;

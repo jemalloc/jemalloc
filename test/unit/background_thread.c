@@ -83,9 +83,8 @@ TEST_BEGIN(test_background_thread_running) {
 	assert_b_eq(info->state, background_thread_started,
 	    "Background_thread did not start.\n");
 
-	nstime_t start, now;
-	nstime_init(&start, 0);
-	nstime_update(&start);
+	nstime_t start;
+	nstime_init_update(&start);
 
 	bool ran = false;
 	while (true) {
@@ -98,8 +97,8 @@ TEST_BEGIN(test_background_thread_running) {
 			break;
 		}
 
-		nstime_init(&now, 0);
-		nstime_update(&now);
+		nstime_t now;
+		nstime_init_update(&now);
 		nstime_subtract(&now, &start);
 		assert_u64_lt(nstime_sec(&now), 1000,
 		    "Background threads did not run for 1000 seconds.");

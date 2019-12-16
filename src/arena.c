@@ -667,8 +667,7 @@ arena_decay_reinit(arena_decay_t *decay, ssize_t decay_ms) {
 		nstime_idivide(&decay->interval, SMOOTHSTEP_NSTEPS);
 	}
 
-	nstime_init(&decay->epoch, 0);
-	nstime_update(&decay->epoch);
+	nstime_init_update(&decay->epoch);
 	decay->jitter_state = (uint64_t)(uintptr_t)decay;
 	arena_decay_deadline_init(decay);
 	decay->nunpurged = 0;
@@ -726,8 +725,7 @@ arena_maybe_decay(tsdn_t *tsdn, arena_t *arena, arena_decay_t *decay,
 	}
 
 	nstime_t time;
-	nstime_init(&time, 0);
-	nstime_update(&time);
+	nstime_init_update(&time);
 	if (unlikely(!nstime_monotonic() && nstime_compare(&decay->epoch, &time)
 	    > 0)) {
 		/*
@@ -2066,8 +2064,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	/* Set arena before creating background threads. */
 	arena_set(ind, arena);
 
-	nstime_init(&arena->create_time, 0);
-	nstime_update(&arena->create_time);
+	nstime_init_update(&arena->create_time);
 
 	/* We don't support reentrancy for arena 0 bootstrapping. */
 	if (ind != 0) {
