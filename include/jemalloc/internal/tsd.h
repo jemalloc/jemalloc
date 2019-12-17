@@ -440,4 +440,10 @@ tsdn_rtree_ctx(tsdn_t *tsdn, rtree_ctx_t *fallback) {
 	return tsd_rtree_ctx(tsdn_tsd(tsdn));
 }
 
+static inline bool
+tsd_state_nocleanup(tsd_t *tsd) {
+	return tsd_state_get(tsd) == tsd_state_reincarnated ||
+	    tsd_state_get(tsd) == tsd_state_minimal_initialized;
+}
+
 #endif /* JEMALLOC_INTERNAL_TSD_H */
