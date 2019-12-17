@@ -3428,14 +3428,15 @@ je_dallocx(void *ptr, int flags) {
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
 
-	tsd_t *tsd = tsd_fetch();
+	tsd_t *tsd = tsd_fetch_min();
 	bool fast = tsd_fast(tsd);
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
 	tcache_t *tcache;
 	if (unlikely((flags & MALLOCX_TCACHE_MASK) != 0)) {
 		/* Not allowed to be reentrant and specify a custom tcache. */
-		assert(tsd_reentrancy_level_get(tsd) == 0);
+		assert(tsd_reentrancy_level_get(tsd) == 0 ||
+		    tsd_state_nocleanup(tsd));
 		if ((flags & MALLOCX_TCACHE_MASK) == MALLOCX_TCACHE_NONE) {
 			tcache = NULL;
 		} else {
@@ -3487,7 +3488,7 @@ sdallocx_default(void *ptr, size_t size, int flags) {
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
 
-	tsd_t *tsd = tsd_fetch();
+	tsd_t *tsd = tsd_fetch_min();
 	bool fast = tsd_fast(tsd);
 	size_t usize = inallocx(tsd_tsdn(tsd), size, flags);
 	assert(usize == isalloc(tsd_tsdn(tsd), ptr));
@@ -3496,7 +3497,8 @@ sdallocx_default(void *ptr, size_t size, int flags) {
 	tcache_t *tcache;
 	if (unlikely((flags & MALLOCX_TCACHE_MASK) != 0)) {
 		/* Not allowed to be reentrant and specify a custom tcache. */
-		assert(tsd_reentrancy_level_get(tsd) == 0);
+		assert(tsd_reentrancy_level_get(tsd) == 0 ||
+		    tsd_state_nocleanup(tsd));
 		if ((flags & MALLOCX_TCACHE_MASK) == MALLOCX_TCACHE_NONE) {
 			tcache = NULL;
 		} else {
