@@ -188,6 +188,7 @@ TEST_BEGIN(test_mallctl_opt) {
 	TEST_MALLCTL_OPT(bool, prof_gdump, prof);
 	TEST_MALLCTL_OPT(bool, prof_final, prof);
 	TEST_MALLCTL_OPT(bool, prof_leak, prof);
+	TEST_MALLCTL_OPT(ssize_t, prof_recent_alloc_max, prof);
 
 #undef TEST_MALLCTL_OPT
 }

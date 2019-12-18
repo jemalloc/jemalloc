@@ -25,6 +25,20 @@ enum extent_head_state_e {
 };
 typedef enum extent_head_state_e extent_head_state_t;
 
+struct e_prof_info_s {
+	/* Time when this was allocated. */
+	nstime_t	e_prof_alloc_time;
+	/* Points to a prof_tctx_t. */
+	atomic_p_t	e_prof_tctx;
+	/*
+	 * Points to a prof_recent_t for the allocation; NULL
+	 * means the recent allocation record no longer exists.
+	 * Protected by prof_recent_alloc_mtx.
+	 */
+	atomic_p_t	e_prof_recent_alloc;
+};
+typedef struct e_prof_info_s e_prof_info_t;
+
 /* Extent (span of pages).  Use accessor functions for e_* fields. */
 typedef struct edata_s edata_t;
 typedef ql_head(edata_t) edata_list_t;
@@ -186,12 +200,7 @@ struct edata_s {
 		slab_data_t	e_slab_data;
 
 		/* Profiling data, used for large objects. */
-		struct {
-			/* Time when this was allocated. */
-			nstime_t		e_alloc_time;
-			/* Points to a prof_tctx_t. */
-			atomic_p_t		e_prof_tctx;
-		};
+		e_prof_info_t	e_prof_info;
 	};
 };
 
@@ -333,12 +342,21 @@ edata_slab_data_get_const(const edata_t *edata) {
 	return &edata->e_slab_data;
 }
 
-static inline void
-edata_prof_info_get(const edata_t *edata, prof_info_t *prof_info) {
-	assert(prof_info != NULL);
-	prof_info->alloc_tctx = (prof_tctx_t *)atomic_load_p(
-	    &edata->e_prof_tctx, ATOMIC_ACQUIRE);
-	prof_info->alloc_time = edata->e_alloc_time;
+static inline prof_tctx_t *
+edata_prof_tctx_get(const edata_t *edata) {
+	return (prof_tctx_t *)atomic_load_p(&edata->e_prof_info.e_prof_tctx,
+	    ATOMIC_ACQUIRE);
+}
+
+static inline const nstime_t *
+edata_prof_alloc_time_get(const edata_t *edata) {
+	return &edata->e_prof_info.e_prof_alloc_time;
+}
+
+static inline prof_recent_t *
+edata_prof_recent_alloc_get_dont_call_directly(const edata_t *edata) {
+	return (prof_recent_t *)atomic_load_p(
+	    &edata->e_prof_info.e_prof_recent_alloc, ATOMIC_RELAXED);
 }
 
 static inline void
@@ -457,12 +475,19 @@ edata_slab_set(edata_t *edata, bool slab) {
 
 static inline void
 edata_prof_tctx_set(edata_t *edata, prof_tctx_t *tctx) {
-	atomic_store_p(&edata->e_prof_tctx, tctx, ATOMIC_RELEASE);
+	atomic_store_p(&edata->e_prof_info.e_prof_tctx, tctx, ATOMIC_RELEASE);
 }
 
 static inline void
 edata_prof_alloc_time_set(edata_t *edata, nstime_t *t) {
-	nstime_copy(&edata->e_alloc_time, t);
+	nstime_copy(&edata->e_prof_info.e_prof_alloc_time, t);
+}
+
+static inline void
+edata_prof_recent_alloc_set_dont_call_directly(edata_t *edata,
+    prof_recent_t *recent_alloc) {
+	atomic_store_p(&edata->e_prof_info.e_prof_recent_alloc, recent_alloc,
+	    ATOMIC_RELAXED);
 }
 
 static inline bool

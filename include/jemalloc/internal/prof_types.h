@@ -8,6 +8,7 @@ typedef struct prof_tctx_s prof_tctx_t;
 typedef struct prof_info_s prof_info_t;
 typedef struct prof_gctx_s prof_gctx_t;
 typedef struct prof_tdata_s prof_tdata_t;
+typedef struct prof_recent_s prof_recent_t;
 
 /* Option defaults. */
 #ifdef JEMALLOC_PROF
@@ -52,5 +53,8 @@ typedef struct prof_tdata_s prof_tdata_t;
 #else
 #define PROF_DUMP_FILENAME_LEN 1
 #endif
+
+/* Default number of recent allocations to record. */
+#define PROF_RECENT_ALLOC_MAX_DEFAULT 0
 
 #endif /* JEMALLOC_INTERNAL_PROF_TYPES_H */

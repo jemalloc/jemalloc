@@ -7,6 +7,7 @@
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/prof_data.h"
 #include "jemalloc/internal/prof_log.h"
+#include "jemalloc/internal/prof_recent.h"
 #include "jemalloc/internal/thread_event.h"
 
 /*
@@ -146,7 +147,8 @@ prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated) {
 void
 prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t usize,
     prof_tctx_t *tctx) {
-	prof_info_set(tsd, ptr, tctx);
+	edata_t *edata = iealloc(tsd_tsdn(tsd), ptr);
+	prof_info_set(tsd, edata, tctx);
 
 	malloc_mutex_lock(tsd_tsdn(tsd), tctx->tdata->lock);
 	tctx->cnts.curobjs++;
@@ -155,8 +157,13 @@ prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t usize,
 		tctx->cnts.accumobjs++;
 		tctx->cnts.accumbytes += usize;
 	}
+	bool record_recent = prof_recent_alloc_prepare(tsd, tctx);
 	tctx->prepared = false;
 	malloc_mutex_unlock(tsd_tsdn(tsd), tctx->tdata->lock);
+	if (record_recent) {
+		assert(tctx == edata_prof_tctx_get(edata));
+		prof_recent_alloc(tsd, edata, usize);
+	}
 }
 
 void
@@ -1068,6 +1075,10 @@ prof_boot2(tsd_t *tsd) {
 			return true;
 		}
 
+		if (prof_recent_init()) {
+			return true;
+		}
+
 		gctx_locks = (malloc_mutex_t *)base_alloc(tsd_tsdn(tsd),
 		    b0get(), PROF_NCTX_LOCKS * sizeof(malloc_mutex_t),
 		    CACHELINE);
@@ -1134,6 +1145,7 @@ prof_prefork1(tsdn_t *tsdn) {
 		malloc_mutex_prefork(tsdn, &prof_gdump_mtx);
 		malloc_mutex_prefork(tsdn, &next_thr_uid_mtx);
 		malloc_mutex_prefork(tsdn, &prof_thread_active_init_mtx);
+		malloc_mutex_prefork(tsdn, &prof_recent_alloc_mtx);
 	}
 }
 
@@ -1142,6 +1154,7 @@ prof_postfork_parent(tsdn_t *tsdn) {
 	if (config_prof && opt_prof) {
 		unsigned i;
 
+		malloc_mutex_postfork_parent(tsdn, &prof_recent_alloc_mtx);
 		malloc_mutex_postfork_parent(tsdn,
 		    &prof_thread_active_init_mtx);
 		malloc_mutex_postfork_parent(tsdn, &next_thr_uid_mtx);
@@ -1166,6 +1179,7 @@ prof_postfork_child(tsdn_t *tsdn) {
 	if (config_prof && opt_prof) {
 		unsigned i;
 
+		malloc_mutex_postfork_child(tsdn, &prof_recent_alloc_mtx);
 		malloc_mutex_postfork_child(tsdn, &prof_thread_active_init_mtx);
 		malloc_mutex_postfork_child(tsdn, &next_thr_uid_mtx);
 		malloc_mutex_postfork_child(tsdn, &prof_gdump_mtx);

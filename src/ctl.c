@@ -113,6 +113,7 @@ CTL_PROTO(opt_prof_gdump)
 CTL_PROTO(opt_prof_final)
 CTL_PROTO(opt_prof_leak)
 CTL_PROTO(opt_prof_accum)
+CTL_PROTO(opt_prof_recent_alloc_max)
 CTL_PROTO(opt_zero_realloc)
 CTL_PROTO(tcache_create)
 CTL_PROTO(tcache_flush)
@@ -232,6 +233,7 @@ CTL_PROTO(experimental_utilization_query)
 CTL_PROTO(experimental_utilization_batch_query)
 CTL_PROTO(experimental_arenas_i_pactivep)
 INDEX_PROTO(experimental_arenas_i)
+CTL_PROTO(experimental_prof_recent_alloc_max)
 
 #define MUTEX_STATS_CTL_PROTO_GEN(n)					\
 CTL_PROTO(stats_##n##_num_ops)						\
@@ -343,6 +345,7 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("prof_final"),	CTL(opt_prof_final)},
 	{NAME("prof_leak"),	CTL(opt_prof_leak)},
 	{NAME("prof_accum"),	CTL(opt_prof_accum)},
+	{NAME("prof_recent_alloc_max"), CTL(opt_prof_recent_alloc_max)},
 	{NAME("zero_realloc"),	CTL(opt_zero_realloc)}
 };
 
@@ -620,10 +623,15 @@ static const ctl_indexed_node_t experimental_arenas_node[] = {
 	{INDEX(experimental_arenas_i)}
 };
 
+static const ctl_named_node_t experimental_prof_recent_node[] = {
+	{NAME("alloc_max"),	CTL(experimental_prof_recent_alloc_max)},
+};
+
 static const ctl_named_node_t experimental_node[] = {
 	{NAME("hooks"),		CHILD(named, experimental_hooks)},
 	{NAME("utilization"),	CHILD(named, experimental_utilization)},
-	{NAME("arenas"),	CHILD(indexed, experimental_arenas)}
+	{NAME("arenas"),	CHILD(indexed, experimental_arenas)},
+	{NAME("prof_recent"),	CHILD(named, experimental_prof_recent)}
 };
 
 static const ctl_named_node_t	root_node[] = {
@@ -1791,6 +1799,8 @@ CTL_RO_NL_CGEN(config_prof, opt_lg_prof_interval, opt_lg_prof_interval, ssize_t)
 CTL_RO_NL_CGEN(config_prof, opt_prof_gdump, opt_prof_gdump, bool)
 CTL_RO_NL_CGEN(config_prof, opt_prof_final, opt_prof_final, bool)
 CTL_RO_NL_CGEN(config_prof, opt_prof_leak, opt_prof_leak, bool)
+CTL_RO_NL_CGEN(config_prof, opt_prof_recent_alloc_max,
+    opt_prof_recent_alloc_max, ssize_t)
 CTL_RO_NL_GEN(opt_zero_realloc,
     zero_realloc_mode_names[opt_zero_realloc_action], const char *)
 
@@ -3459,5 +3469,38 @@ experimental_arenas_i_pactivep_ctl(tsd_t *tsd, const size_t *mib,
 	}
 label_return:
 	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
+	return ret;
+}
+
+static int
+experimental_prof_recent_alloc_max_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+
+	if (!(config_prof && opt_prof)) {
+		ret = ENOENT;
+		goto label_return;
+	}
+
+	ssize_t old_max;
+	if (newp != NULL) {
+		if (newlen != sizeof(ssize_t)) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		ssize_t max = *(ssize_t *)newp;
+		if (max < -1) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		old_max = prof_recent_alloc_max_ctl_write(tsd, max);
+	} else {
+		old_max = prof_recent_alloc_max_ctl_read();
+	}
+	READ(old_max, ssize_t);
+
+	ret = 0;
+
+label_return:
 	return ret;
 }

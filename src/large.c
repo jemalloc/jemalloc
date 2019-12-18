@@ -5,6 +5,7 @@
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/prof_recent.h"
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/util.h"
 
@@ -368,8 +369,22 @@ large_salloc(tsdn_t *tsdn, const edata_t *edata) {
 }
 
 void
-large_prof_info_get(const edata_t *edata, prof_info_t *prof_info) {
-	edata_prof_info_get(edata, prof_info);
+large_prof_info_get(tsd_t *tsd, edata_t *edata, prof_info_t *prof_info,
+    bool reset_recent) {
+	assert(prof_info != NULL);
+	nstime_copy(&prof_info->alloc_time, edata_prof_alloc_time_get(edata));
+
+	prof_tctx_t *alloc_tctx = edata_prof_tctx_get(edata);
+	prof_info->alloc_tctx = alloc_tctx;
+
+	if (reset_recent && (uintptr_t)alloc_tctx > (uintptr_t)1U) {
+		/*
+		 * This allocation was a prof sample.  Reset the pointer on the
+		 * recent allocation record, so that this allocation is
+		 * recorded as released.
+		 */
+		prof_recent_alloc_reset(tsd, edata);
+	}
 }
 
 static void
@@ -388,4 +403,5 @@ large_prof_info_set(edata_t *edata, prof_tctx_t *tctx) {
 	nstime_t t;
 	nstime_init_update(&t);
 	edata_prof_alloc_time_set(edata, &t);
+	edata_prof_recent_alloc_init(edata);
 }

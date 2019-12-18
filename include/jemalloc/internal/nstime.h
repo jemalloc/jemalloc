@@ -9,6 +9,8 @@ typedef struct {
 	uint64_t ns;
 } nstime_t;
 
+static const nstime_t zero = NSTIME_ZERO_INITIALIZER;
+
 void nstime_init(nstime_t *time, uint64_t ns);
 void nstime_init2(nstime_t *time, uint64_t sec, uint64_t nsec);
 uint64_t nstime_ns(const nstime_t *time);
@@ -35,8 +37,14 @@ bool nstime_init_update(nstime_t *time);
 
 JEMALLOC_ALWAYS_INLINE void
 nstime_init_zero(nstime_t *time) {
-	static const nstime_t zero = NSTIME_ZERO_INITIALIZER;
 	nstime_copy(time, &zero);
+}
+
+JEMALLOC_ALWAYS_INLINE bool
+nstime_equals_zero(nstime_t *time) {
+	int diff = nstime_compare(time, &zero);
+	assert(diff >= 0);
+	return diff == 0;
 }
 
 #endif /* JEMALLOC_INTERNAL_NSTIME_H */
