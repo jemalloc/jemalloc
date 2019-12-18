@@ -24,6 +24,10 @@ extern char opt_prof_prefix[
 #endif
     1];
 
+/* For recording recent allocations */
+extern ssize_t opt_prof_recent_alloc_max;
+extern malloc_mutex_t prof_recent_alloc_mtx;
+
 /* Accessed via prof_active_[gs]et{_unlocked,}(). */
 extern bool prof_active;
 
@@ -98,5 +102,10 @@ void prof_sample_threshold_update(tsd_t *tsd);
 
 bool prof_log_start(tsdn_t *tsdn, const char *filename);
 bool prof_log_stop(tsdn_t *tsdn);
+
+ssize_t prof_recent_alloc_max_ctl_read();
+ssize_t prof_recent_alloc_max_ctl_write(tsd_t *tsd, ssize_t max);
+void prof_recent_alloc_dump(tsd_t *tsd, void (*write_cb)(void *, const char *),
+    void *cbopaque);
 
 #endif /* JEMALLOC_INTERNAL_PROF_EXTERNS_H */

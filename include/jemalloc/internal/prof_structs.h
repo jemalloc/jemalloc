@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_PROF_STRUCTS_H
 
 #include "jemalloc/internal/ckh.h"
+#include "jemalloc/internal/edata.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/rb.h"
@@ -55,6 +56,12 @@ struct prof_tctx_s {
 	uint64_t		thr_uid;
 	uint64_t		thr_discrim;
 
+	/*
+	 * Reference count of how many times this tctx object is referenced in
+	 * recent allocation / deallocation records, protected by tdata->lock.
+	 */
+	uint64_t		recent_count;
+
 	/* Profiling counters, protected by tdata->lock. */
 	prof_cnt_t		cnts;
 
@@ -97,10 +104,10 @@ struct prof_tctx_s {
 typedef rb_tree(prof_tctx_t) prof_tctx_tree_t;
 
 struct prof_info_s {
-	/* Points to the prof_tctx_t corresponding to the allocation. */
-	prof_tctx_t		*alloc_tctx;
 	/* Time when the allocation was made. */
 	nstime_t		alloc_time;
+	/* Points to the prof_tctx_t corresponding to the allocation. */
+	prof_tctx_t		*alloc_tctx;
 };
 
 struct prof_gctx_s {
@@ -200,5 +207,16 @@ struct prof_tdata_s {
 	void			*vec[PROF_BT_MAX];
 };
 typedef rb_tree(prof_tdata_t) prof_tdata_tree_t;
+
+struct prof_recent_s {
+	nstime_t alloc_time;
+	nstime_t dalloc_time;
+
+	prof_recent_t *next;
+	size_t usize;
+	prof_tctx_t *alloc_tctx;
+	edata_t *alloc_edata; /* NULL means allocation has been freed. */
+	prof_tctx_t *dalloc_tctx;
+};
 
 #endif /* JEMALLOC_INTERNAL_PROF_STRUCTS_H */

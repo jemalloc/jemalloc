@@ -37,12 +37,12 @@ arena_choose_maybe_huge(tsd_t *tsd, arena_t *arena, size_t size) {
 
 JEMALLOC_ALWAYS_INLINE void
 arena_prof_info_get(tsd_t *tsd, const void *ptr, alloc_ctx_t *alloc_ctx,
-    prof_info_t *prof_info) {
+    prof_info_t *prof_info, bool reset_recent) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 	assert(prof_info != NULL);
 
-	const edata_t *edata;
+	edata_t *edata = NULL;
 	bool is_slab;
 
 	/* Static check. */
@@ -55,10 +55,14 @@ arena_prof_info_get(tsd_t *tsd, const void *ptr, alloc_ctx_t *alloc_ctx,
 
 	if (unlikely(!is_slab)) {
 		/* edata must have been initialized at this point. */
-		large_prof_info_get(edata, prof_info);
+		assert(edata != NULL);
+		large_prof_info_get(tsd, edata, prof_info, reset_recent);
 	} else {
-		memset(prof_info, 0, sizeof(prof_info_t));
 		prof_info->alloc_tctx = (prof_tctx_t *)(uintptr_t)1U;
+		/*
+		 * No need to set other fields in prof_info; they will never be
+		 * accessed if (uintptr_t)alloc_tctx == (uintptr_t)1U.
+		 */
 	}
 }
 
@@ -92,11 +96,9 @@ arena_prof_tctx_reset_sampled(tsd_t *tsd, const void *ptr) {
 }
 
 JEMALLOC_ALWAYS_INLINE void
-arena_prof_info_set(tsd_t *tsd, const void *ptr, prof_tctx_t *tctx) {
+arena_prof_info_set(tsd_t *tsd, edata_t *edata, prof_tctx_t *tctx) {
 	cassert(config_prof);
-	assert(ptr != NULL);
 
-	edata_t *edata = iealloc(tsd_tsdn(tsd), ptr);
 	assert(!edata_slab_get(edata));
 	large_prof_info_set(edata, tctx);
 }

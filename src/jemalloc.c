@@ -1402,6 +1402,8 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				CONF_HANDLE_BOOL(opt_prof_final, "prof_final")
 				CONF_HANDLE_BOOL(opt_prof_leak, "prof_leak")
 				CONF_HANDLE_BOOL(opt_prof_log, "prof_log")
+				CONF_HANDLE_SSIZE_T(opt_prof_recent_alloc_max,
+				    "prof_recent_alloc_max", -1, SSIZE_MAX)
 			}
 			if (config_log) {
 				if (CONF_MATCH("log")) {
@@ -3015,7 +3017,7 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
     size_t alignment, size_t *usize, bool zero, tcache_t *tcache,
     arena_t *arena, alloc_ctx_t *alloc_ctx, hook_ralloc_args_t *hook_args) {
 	prof_info_t old_prof_info;
-	prof_info_get(tsd, old_ptr, alloc_ctx, &old_prof_info);
+	prof_info_get_and_reset_recent(tsd, old_ptr, alloc_ctx, &old_prof_info);
 	bool prof_active = prof_active_get_unlocked();
 	prof_tctx_t *tctx = prof_alloc_prep(tsd, *usize, prof_active, false);
 	void *p;
@@ -3265,8 +3267,13 @@ ixallocx_prof_sample(tsdn_t *tsdn, void *ptr, size_t old_usize, size_t size,
 JEMALLOC_ALWAYS_INLINE size_t
 ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
     size_t extra, size_t alignment, bool zero, alloc_ctx_t *alloc_ctx) {
+	/*
+	 * old_prof_info is only used for asserting that the profiling info
+	 * isn't changed by the ixalloc() call.
+	 */
 	prof_info_t old_prof_info;
 	prof_info_get(tsd, ptr, alloc_ctx, &old_prof_info);
+
 	/*
 	 * usize isn't knowable before ixalloc() returns when extra is non-zero.
 	 * Therefore, compute its maximum possible value and use that in
@@ -3315,13 +3322,26 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 		 */
 		thread_event(tsd, usize - usize_max);
 	}
-	if (usize == old_usize) {
-		prof_alloc_rollback(tsd, tctx, false);
-		return usize;
-	}
-	prof_realloc(tsd, ptr, usize, tctx, prof_active, ptr, old_usize,
-	    &old_prof_info);
 
+	/*
+	 * At this point we can still safely get the original profiling
+	 * information associated with the ptr, because (a) the edata_t object
+	 * associated with the ptr still lives and (b) the profiling info
+	 * fields are not touched.  "(a)" is asserted in the outer je_xallocx()
+	 * function, and "(b)" is indirectly verified below by checking that
+	 * the alloc_tctx field is unchanged.
+	 */
+	prof_info_t prof_info;
+	if (usize == old_usize) {
+		prof_info_get(tsd, ptr, alloc_ctx, &prof_info);
+		prof_alloc_rollback(tsd, tctx, false);
+	} else {
+		prof_info_get_and_reset_recent(tsd, ptr, alloc_ctx, &prof_info);
+		prof_realloc(tsd, ptr, usize, tctx, prof_active, ptr,
+		    old_usize, &prof_info);
+	}
+
+	assert(old_prof_info.alloc_tctx == prof_info.alloc_tctx);
 	return usize;
 }
 
@@ -3341,6 +3361,13 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	assert(malloc_initialized() || IS_INITIALIZER);
 	tsd = tsd_fetch();
 	check_entry_exit_locking(tsd_tsdn(tsd));
+
+	/*
+	 * old_edata is only for verifying that xallocx() keeps the edata_t
+	 * object associated with the ptr (though the content of the edata_t
+	 * object can be changed).
+	 */
+	edata_t *old_edata = iealloc(tsd_tsdn(tsd), ptr);
 
 	alloc_ctx_t alloc_ctx;
 	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
@@ -3374,6 +3401,13 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 		    extra, alignment, zero);
 		thread_event(tsd, usize);
 	}
+
+	/*
+	 * xallocx() should keep using the same edata_t object (though its
+	 * content can be changed).
+	 */
+	assert(iealloc(tsd_tsdn(tsd), ptr) == old_edata);
+
 	if (unlikely(usize == old_usize)) {
 		thread_event_rollback(tsd, usize);
 		goto label_not_resized;

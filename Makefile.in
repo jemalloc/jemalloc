@@ -126,6 +126,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/prof.c \
 	$(srcroot)src/prof_data.c \
 	$(srcroot)src/prof_log.c \
+	$(srcroot)src/prof_recent.c \
 	$(srcroot)src/rtree.c \
 	$(srcroot)src/safety_check.c \
 	$(srcroot)src/sc.c \
@@ -216,6 +217,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/prof_gdump.c \
 	$(srcroot)test/unit/prof_idump.c \
 	$(srcroot)test/unit/prof_log.c \
+	$(srcroot)test/unit/prof_recent.c \
 	$(srcroot)test/unit/prof_reset.c \
 	$(srcroot)test/unit/prof_tctx.c \
 	$(srcroot)test/unit/prof_thread_name.c \

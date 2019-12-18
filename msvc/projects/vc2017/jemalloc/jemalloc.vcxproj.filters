@@ -82,6 +82,9 @@
     <ClCompile Include="..\..\..\..\src\prof_log.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\src\prof_recent.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\src\rtree.c">
       <Filter>Source Files</Filter>
     </ClCompile>

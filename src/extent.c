@@ -1562,6 +1562,8 @@ extent_merge_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_cache_t *edata_cache,
 
 bool
 extent_boot(void) {
+	assert(sizeof(slab_data_t) >= sizeof(e_prof_info_t));
+
 	if (rtree_new(&extents_rtree, true)) {
 		return true;
 	}

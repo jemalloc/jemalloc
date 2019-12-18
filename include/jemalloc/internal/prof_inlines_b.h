@@ -46,7 +46,17 @@ prof_info_get(tsd_t *tsd, const void *ptr, alloc_ctx_t *alloc_ctx,
 	assert(ptr != NULL);
 	assert(prof_info != NULL);
 
-	arena_prof_info_get(tsd, ptr, alloc_ctx, prof_info);
+	arena_prof_info_get(tsd, ptr, alloc_ctx, prof_info, false);
+}
+
+JEMALLOC_ALWAYS_INLINE void
+prof_info_get_and_reset_recent(tsd_t *tsd, const void *ptr,
+    alloc_ctx_t *alloc_ctx, prof_info_t *prof_info) {
+	cassert(config_prof);
+	assert(ptr != NULL);
+	assert(prof_info != NULL);
+
+	arena_prof_info_get(tsd, ptr, alloc_ctx, prof_info, true);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -66,12 +76,12 @@ prof_tctx_reset_sampled(tsd_t *tsd, const void *ptr) {
 }
 
 JEMALLOC_ALWAYS_INLINE void
-prof_info_set(tsd_t *tsd, const void *ptr, prof_tctx_t *tctx) {
+prof_info_set(tsd_t *tsd, edata_t *edata, prof_tctx_t *tctx) {
 	cassert(config_prof);
-	assert(ptr != NULL);
+	assert(edata != NULL);
 	assert((uintptr_t)tctx > (uintptr_t)1U);
 
-	arena_prof_info_set(tsd, ptr, tctx);
+	arena_prof_info_set(tsd, edata, tctx);
 }
 
 JEMALLOC_ALWAYS_INLINE bool
@@ -190,7 +200,7 @@ prof_realloc(tsd_t *tsd, const void *ptr, size_t usize, prof_tctx_t *tctx,
 JEMALLOC_ALWAYS_INLINE void
 prof_free(tsd_t *tsd, const void *ptr, size_t usize, alloc_ctx_t *alloc_ctx) {
 	prof_info_t prof_info;
-	prof_info_get(tsd, ptr, alloc_ctx, &prof_info);
+	prof_info_get_and_reset_recent(tsd, ptr, alloc_ctx, &prof_info);
 
 	cassert(config_prof);
 	assert(usize == isalloc(tsd_tsdn(tsd), ptr));

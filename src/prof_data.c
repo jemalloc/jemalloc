@@ -378,6 +378,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt) {
 		ret.p->tdata = tdata;
 		ret.p->thr_uid = tdata->thr_uid;
 		ret.p->thr_discrim = tdata->thr_discrim;
+		ret.p->recent_count = 0;
 		memset(&ret.p->cnts, 0, sizeof(prof_cnt_t));
 		ret.p->gctx = gctx;
 		ret.p->tctx_uid = tdata->tctx_uid_next++;
@@ -405,8 +406,15 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt) {
 
 prof_tctx_t *
 prof_tctx_create(tsd_t *tsd) {
-	prof_tdata_t *tdata = prof_tdata_get(tsd, false);
-	assert(tdata != NULL);
+	if (tsd_reentrancy_level_get(tsd) > 0) {
+		return NULL;
+	}
+
+	prof_tdata_t *tdata = prof_tdata_get(tsd, true);
+	if (tdata == NULL) {
+		return NULL;
+	}
+
 	prof_bt_t bt;
 	bt_init(&bt, tdata->vec);
 	prof_backtrace(tsd, &bt);
@@ -1415,6 +1423,9 @@ prof_tctx_should_destroy(tsd_t *tsd, prof_tctx_t *tctx) {
 		return false;
 	}
 	if (tctx->prepared) {
+		return false;
+	}
+	if (tctx->recent_count != 0) {
 		return false;
 	}
 	return true;
