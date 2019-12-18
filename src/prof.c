@@ -5,6 +5,8 @@
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/prof_data_externs.h"
+#include "jemalloc/internal/prof_log_externs.h"
 #include "jemalloc/internal/thread_event.h"
 
 /*
@@ -72,24 +74,6 @@ static malloc_mutex_t prof_gdump_mtx;
 uint64_t prof_interval = 0;
 
 size_t lg_prof_sample;
-
-/*
- * Table of mutexes that are shared among gctx's.  These are leaf locks, so
- * there is no problem with using them for more than one gctx at the same time.
- * The primary motivation for this sharing though is that gctx's are ephemeral,
- * and destroying mutexes causes complications for systems that allocate when
- * creating/destroying mutexes.
- */
-static malloc_mutex_t *gctx_locks;
-static atomic_u_t cum_gctxs; /* Atomic counter. */
-
-/*
- * Table of mutexes that are shared among tdata's.  No operations require
- * holding multiple tdata locks, so there is no problem with using them for more
- * than one tdata at the same time, even though a gctx lock may be acquired
- * while holding a tdata lock.
- */
-static malloc_mutex_t *tdata_locks;
 
 /* Non static to enable profiling. */
 malloc_mutex_t bt2gctx_mtx;
@@ -429,18 +413,6 @@ prof_backtrace(tsd_t *tsd, prof_bt_t *bt) {
 	pre_reentrancy(tsd, NULL);
 	prof_backtrace_impl(bt);
 	post_reentrancy(tsd);
-}
-
-malloc_mutex_t *
-prof_gctx_mutex_choose(void) {
-	unsigned ngctxs = atomic_fetch_add_u(&cum_gctxs, 1, ATOMIC_RELAXED);
-
-	return &gctx_locks[(ngctxs - 1) % PROF_NCTX_LOCKS];
-}
-
-malloc_mutex_t *
-prof_tdata_mutex_choose(uint64_t thr_uid) {
-	return &tdata_locks[thr_uid % PROF_NTDATA_LOCKS];
 }
 
 /*

@@ -6,6 +6,7 @@
 #include "jemalloc/internal/ckh.h"
 #include "jemalloc/internal/hash.h"
 #include "jemalloc/internal/malloc_io.h"
+#include "jemalloc/internal/prof_data_externs.h"
 
 /*
  * This file defines and manages the core profiling data structures.
@@ -24,6 +25,24 @@
  */
 
 /******************************************************************************/
+
+/*
+ * Table of mutexes that are shared among gctx's.  These are leaf locks, so
+ * there is no problem with using them for more than one gctx at the same time.
+ * The primary motivation for this sharing though is that gctx's are ephemeral,
+ * and destroying mutexes causes complications for systems that allocate when
+ * creating/destroying mutexes.
+ */
+malloc_mutex_t *gctx_locks;
+static atomic_u_t cum_gctxs; /* Atomic counter. */
+
+/*
+ * Table of mutexes that are shared among tdata's.  No operations require
+ * holding multiple tdata locks, so there is no problem with using them for more
+ * than one tdata at the same time, even though a gctx lock may be acquired
+ * while holding a tdata lock.
+ */
+malloc_mutex_t *tdata_locks;
 
 /*
  * Global hash of (prof_bt_t *)-->(prof_gctx_t *).  This is the master data
@@ -113,6 +132,18 @@ rb_gen(static UNUSED, tdata_tree_, prof_tdata_tree_t, prof_tdata_t, tdata_link,
     prof_tdata_comp)
 
 /******************************************************************************/
+
+static malloc_mutex_t *
+prof_gctx_mutex_choose(void) {
+	unsigned ngctxs = atomic_fetch_add_u(&cum_gctxs, 1, ATOMIC_RELAXED);
+
+	return &gctx_locks[(ngctxs - 1) % PROF_NCTX_LOCKS];
+}
+
+static malloc_mutex_t *
+prof_tdata_mutex_choose(uint64_t thr_uid) {
+	return &tdata_locks[thr_uid % PROF_NTDATA_LOCKS];
+}
 
 bool
 prof_data_init(tsd_t *tsd) {

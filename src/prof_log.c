@@ -4,10 +4,12 @@
 
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/ckh.h"
+#include "jemalloc/internal/emitter.h"
 #include "jemalloc/internal/hash.h"
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/mutex.h"
-#include "jemalloc/internal/emitter.h"
+#include "jemalloc/internal/prof_data_externs.h"
+#include "jemalloc/internal/prof_log_externs.h"
 
 bool opt_prof_log = false;
 typedef enum prof_logging_state_e prof_logging_state_t;

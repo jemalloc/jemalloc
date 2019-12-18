@@ -7,9 +7,6 @@ extern malloc_mutex_t bt2gctx_mtx;
 extern malloc_mutex_t tdatas_mtx;
 extern malloc_mutex_t prof_dump_mtx;
 
-malloc_mutex_t *prof_gctx_mutex_choose(void);
-malloc_mutex_t *prof_tdata_mutex_choose(uint64_t thr_uid);
-
 extern bool opt_prof;
 extern bool opt_prof_active;
 extern bool opt_prof_thread_active_init;
@@ -48,12 +45,14 @@ extern bool prof_booted;
 bool prof_idump_accum_impl(tsdn_t *tsdn, uint64_t accumbytes);
 void prof_idump_rollback_impl(tsdn_t *tsdn, size_t usize);
 
+/* Functions only accessed in prof_inlines_b.h */
+prof_tdata_t *prof_tdata_init(tsd_t *tsd);
+prof_tdata_t *prof_tdata_reinit(tsd_t *tsd, prof_tdata_t *tdata);
+
 void prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated);
 void prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t usize,
     prof_tctx_t *tctx);
 void prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_info_t *prof_info);
-void bt_init(prof_bt_t *bt, void **vec);
-void prof_backtrace(tsd_t *tsd, prof_bt_t *bt);
 prof_tctx_t *prof_tctx_create(tsd_t *tsd);
 #ifdef JEMALLOC_JET
 size_t prof_tdata_count(void);
@@ -76,10 +75,6 @@ bool prof_mdump(tsd_t *tsd, const char *filename);
 void prof_gdump(tsdn_t *tsdn);
 bool prof_dump_prefix_set(tsdn_t *tsdn, const char *prefix);
 
-void prof_bt_hash(const void *key, size_t r_hash[2]);
-bool prof_bt_keycomp(const void *k1, const void *k2);
-prof_tdata_t *prof_tdata_init(tsd_t *tsd);
-prof_tdata_t *prof_tdata_reinit(tsd_t *tsd, prof_tdata_t *tdata);
 void prof_reset(tsd_t *tsd, size_t lg_sample);
 void prof_tdata_cleanup(tsd_t *tsd);
 bool prof_active_get(tsdn_t *tsdn);
@@ -101,26 +96,7 @@ void prof_postfork_parent(tsdn_t *tsdn);
 void prof_postfork_child(tsdn_t *tsdn);
 void prof_sample_threshold_update(tsd_t *tsd);
 
-void prof_try_log(tsd_t *tsd, size_t usize, prof_info_t *prof_info);
 bool prof_log_start(tsdn_t *tsdn, const char *filename);
 bool prof_log_stop(tsdn_t *tsdn);
-bool prof_log_init(tsd_t *tsdn);
-#ifdef JEMALLOC_JET
-size_t prof_log_bt_count(void);
-size_t prof_log_alloc_count(void);
-size_t prof_log_thr_count(void);
-bool prof_log_is_logging(void);
-bool prof_log_rep_check(void);
-void prof_log_dummy_set(bool new_value);
-#endif
-
-/* Functions in prof_data.c only used in profiling code. */
-bool prof_data_init(tsd_t *tsd);
-bool prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
-    bool leakcheck);
-prof_tdata_t * prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid,
-    uint64_t thr_discrim, char *thread_name, bool active, bool reset_interval);
-void prof_tdata_detach(tsd_t *tsd, prof_tdata_t *tdata);
-void prof_tctx_try_destroy(tsd_t *tsd, prof_tctx_t *tctx);
 
 #endif /* JEMALLOC_INTERNAL_PROF_EXTERNS_H */
