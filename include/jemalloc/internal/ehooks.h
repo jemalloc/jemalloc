@@ -54,6 +54,13 @@ bool ehooks_default_purge_lazy_impl(void *addr, size_t offset, size_t length);
 bool ehooks_default_purge_forced_impl(void *addr, size_t offset, size_t length);
 #endif
 bool ehooks_default_split_impl();
+/*
+ * Merge is the only default extent hook we declare -- see the comment in
+ * ehooks_merge.
+ */
+bool ehooks_default_merge(extent_hooks_t *extent_hooks, void *addr_a,
+    size_t size_a, void *addr_b, size_t size_b, bool committed,
+    unsigned arena_ind);
 bool ehooks_default_merge_impl(tsdn_t *tsdn, void *addr_a, bool head_a,
     void *addr_b, bool head_b);
 void ehooks_default_zero_impl(void *addr, size_t size);
@@ -333,7 +340,17 @@ static inline bool
 ehooks_merge(tsdn_t *tsdn, ehooks_t *ehooks, void *addr_a, size_t size_a,
     bool head_a, void *addr_b, size_t size_b, bool head_b, bool committed) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
-	if (extent_hooks == &ehooks_default_extent_hooks) {
+	/*
+	 * The definition of extent_hooks merge function doesn't know about
+	 * extent head state, but the implementation does.  As a result, it
+	 * needs to call iealloc again and walk the rtree.  Since the cost of an
+	 * iealloc is large relative to the cost of the default merge hook
+	 * (which on posix-likes is just "return false"), we go even further
+	 * when we short-circuit; we don't just check if the extent hooks
+	 * generally are default, we check if the merge hook specifically is.
+	 */
+	if (extent_hooks == &ehooks_default_extent_hooks
+	    || extent_hooks->merge == &ehooks_default_merge) {
 		return ehooks_default_merge_impl(tsdn, addr_a, head_a, addr_b,
 		    head_b);
 	} else if (extent_hooks->merge == NULL) {
