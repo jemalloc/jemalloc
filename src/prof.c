@@ -1119,6 +1119,7 @@ prof_prefork0(tsdn_t *tsdn) {
 		for (i = 0; i < PROF_NTDATA_LOCKS; i++) {
 			malloc_mutex_prefork(tsdn, &tdata_locks[i]);
 		}
+		malloc_mutex_prefork(tsdn, &log_mtx);
 		for (i = 0; i < PROF_NCTX_LOCKS; i++) {
 			malloc_mutex_prefork(tsdn, &gctx_locks[i]);
 		}
@@ -1150,6 +1151,7 @@ prof_postfork_parent(tsdn_t *tsdn) {
 		for (i = 0; i < PROF_NCTX_LOCKS; i++) {
 			malloc_mutex_postfork_parent(tsdn, &gctx_locks[i]);
 		}
+		malloc_mutex_postfork_parent(tsdn, &log_mtx);
 		for (i = 0; i < PROF_NTDATA_LOCKS; i++) {
 			malloc_mutex_postfork_parent(tsdn, &tdata_locks[i]);
 		}
@@ -1172,6 +1174,7 @@ prof_postfork_child(tsdn_t *tsdn) {
 		for (i = 0; i < PROF_NCTX_LOCKS; i++) {
 			malloc_mutex_postfork_child(tsdn, &gctx_locks[i]);
 		}
+		malloc_mutex_postfork_child(tsdn, &log_mtx);
 		for (i = 0; i < PROF_NTDATA_LOCKS; i++) {
 			malloc_mutex_postfork_child(tsdn, &tdata_locks[i]);
 		}

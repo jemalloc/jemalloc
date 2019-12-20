@@ -104,7 +104,7 @@ static prof_alloc_node_t *log_alloc_first = NULL;
 static prof_alloc_node_t *log_alloc_last = NULL;
 
 /* Protects the prof_logging_state and any log_{...} variable. */
-static malloc_mutex_t log_mtx;
+malloc_mutex_t log_mtx;
 
 /******************************************************************************/
 /*

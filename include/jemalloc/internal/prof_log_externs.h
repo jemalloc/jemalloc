@@ -3,6 +3,8 @@
 
 #include "jemalloc/internal/mutex.h"
 
+extern malloc_mutex_t log_mtx;
+
 void prof_try_log(tsd_t *tsd, size_t usize, prof_info_t *prof_info);
 bool prof_log_init(tsd_t *tsdn);
 #ifdef JEMALLOC_JET
