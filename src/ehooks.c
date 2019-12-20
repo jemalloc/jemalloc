@@ -6,6 +6,8 @@
 
 void
 ehooks_init(ehooks_t *ehooks, extent_hooks_t *extent_hooks, unsigned ind) {
+	/* All other hooks are optional; this one is not. */
+	assert(extent_hooks->alloc != NULL);
 	ehooks->ind = ind;
 	ehooks_set_extent_hooks_ptr(ehooks, extent_hooks);
 }
