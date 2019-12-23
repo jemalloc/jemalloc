@@ -5,8 +5,8 @@
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/mutex.h"
-#include "jemalloc/internal/prof_data_externs.h"
-#include "jemalloc/internal/prof_log_externs.h"
+#include "jemalloc/internal/prof_data.h"
+#include "jemalloc/internal/prof_log.h"
 #include "jemalloc/internal/thread_event.h"
 
 /*

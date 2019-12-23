@@ -6,7 +6,7 @@
 #include "jemalloc/internal/ckh.h"
 #include "jemalloc/internal/hash.h"
 #include "jemalloc/internal/malloc_io.h"
-#include "jemalloc/internal/prof_data_externs.h"
+#include "jemalloc/internal/prof_data.h"
 
 /*
  * This file defines and manages the core profiling data structures.
