@@ -1,5 +1,5 @@
 #include "test/jemalloc_test.h"
-#include "jemalloc/internal/prof_log_externs.h"
+#include "jemalloc/internal/prof_log.h"
 
 #define N_PARAM 100
 #define N_THREADS 10
