@@ -49,7 +49,7 @@ arena_prof_info_get(tsd_t *tsd, const void *ptr, alloc_ctx_t *alloc_ctx,
 	if (alloc_ctx == NULL) {
 		edata = iealloc(tsd_tsdn(tsd), ptr);
 		is_slab = edata_slab_get(edata);
-	} else if (!unlikely(is_slab = alloc_ctx->slab)) {
+	} else if (unlikely(!(is_slab = alloc_ctx->slab))) {
 		edata = iealloc(tsd_tsdn(tsd), ptr);
 	}
 
