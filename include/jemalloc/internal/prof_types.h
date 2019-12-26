@@ -46,14 +46,6 @@ typedef struct prof_tdata_s prof_tdata_t;
  */
 #define PROF_NTDATA_LOCKS		256
 
-/*
- * prof_tdata pointers close to NULL are used to encode state information that
- * is used for cleaning up during thread shutdown.
- */
-#define PROF_TDATA_STATE_REINCARNATED	((prof_tdata_t *)(uintptr_t)1)
-#define PROF_TDATA_STATE_PURGATORY	((prof_tdata_t *)(uintptr_t)2)
-#define PROF_TDATA_STATE_MAX		PROF_TDATA_STATE_PURGATORY
-
 /* Minimize memory bloat for non-prof builds. */
 #ifdef JEMALLOC_PROF
 #define PROF_DUMP_FILENAME_LEN (PATH_MAX + 1)
