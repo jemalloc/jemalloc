@@ -88,7 +88,7 @@ prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update) {
 	}
 
 	prof_tdata_t *tdata = prof_tdata_get(tsd, true);
-	if (unlikely((uintptr_t)tdata <= (uintptr_t)PROF_TDATA_STATE_MAX)) {
+	if (unlikely(tdata == NULL)) {
 		return true;
 	}
 
