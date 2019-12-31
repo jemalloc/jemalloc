@@ -201,17 +201,6 @@ ehooks_same_sn(tsdn_t *tsdn, void *addr_a, void *addr_b) {
 static bool
 ehooks_no_merge_heads(tsdn_t *tsdn, void *addr_a, bool head_a, void *addr_b,
     bool head_b) {
-	/*
-	 * When coalesce is not always allowed (Windows), only merge extents
-	 * from the same VirtualAlloc region under opt.retain (in which case
-	 * MEM_DECOMMIT is utilized for purging).
-	 */
-	if (maps_coalesce) {
-		return false;
-	}
-	if (!opt_retain) {
-		return true;
-	}
 	/* If b is a head extent, disallow the cross-region merge. */
 	if (head_b) {
 		/*
@@ -230,10 +219,27 @@ ehooks_no_merge_heads(tsdn_t *tsdn, void *addr_a, bool head_a, void *addr_b,
 bool
 ehooks_default_merge_impl(tsdn_t *tsdn, void *addr_a, bool head_a, void *addr_b,
     bool head_b) {
-	if (ehooks_no_merge_heads(tsdn, addr_a, head_a, addr_b, head_b)) {
+	assert(addr_a < addr_b);
+	/*
+	 * For non-DSS cases (first 2 branches) --
+	 * a) W/o maps_coalesce, merge is not always allowed (Windows):
+	 *   1) w/o retain, never merge (first branch below).
+	 *   2) with retain, only merge extents from the same VirtualAlloc
+	 *      region (in which case MEM_DECOMMIT is utilized for purging).
+	 *
+	 * b) With maps_coalesce, it's always possible to merge.
+	 *   1) w/o retain, always allow merge (only about dirty / muzzy).
+	 *   2) with retain, to preserve the SN / first-fit, merge is still
+	 *      disallowed if b is a head extent, i.e. no merging across
+	 *      different mmap regions.
+	 *
+	 * a2) and b2) share the implementation (the no_merge_heads branch).
+	 */
+	if (!maps_coalesce && !opt_retain) {
 		return true;
 	}
-	if (!maps_coalesce && !opt_retain) {
+	if (opt_retain && ehooks_no_merge_heads(tsdn, addr_a, head_a, addr_b,
+	    head_b)) {
 		return true;
 	}
 	if (have_dss && !extent_dss_mergeable(addr_a, addr_b)) {
