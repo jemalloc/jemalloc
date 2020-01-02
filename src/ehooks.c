@@ -221,7 +221,8 @@ ehooks_no_merge_heads(tsdn_t *tsdn, void *addr_a, bool head_a, void *addr_b,
 		assert(!ehooks_same_sn(tsdn, addr_a, addr_b));
 		return true;
 	}
-	assert(ehooks_same_sn(tsdn, addr_a, addr_b));
+	assert(ehooks_same_sn(tsdn, addr_a, addr_b) || (have_dss &&
+	    (extent_in_dss(addr_a) || extent_in_dss(addr_b))));
 
 	return false;
 }
