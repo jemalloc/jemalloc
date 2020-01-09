@@ -665,7 +665,7 @@ malloc_printf(const char *format, ...) {
 }
 
 void
-buf_writer_flush(buf_writer_arg_t *arg) {
+buf_write_flush(buf_write_arg_t *arg) {
 	assert(arg->buf_end <= arg->buf_size);
 	arg->buf[arg->buf_end] = '\0';
 	if (arg->write_cb == NULL) {
@@ -677,13 +677,13 @@ buf_writer_flush(buf_writer_arg_t *arg) {
 }
 
 void
-buffered_write_cb(void *buf_writer_arg, const char *s) {
-	buf_writer_arg_t *arg = (buf_writer_arg_t *)buf_writer_arg;
+buf_write_cb(void *buf_write_arg, const char *s) {
+	buf_write_arg_t *arg = (buf_write_arg_t *)buf_write_arg;
 	size_t i, slen, n, s_remain, buf_remain;
 	assert(arg->buf_end <= arg->buf_size);
 	for (i = 0, slen = strlen(s); i < slen; i += n) {
 		if (arg->buf_end == arg->buf_size) {
-			buf_writer_flush(arg);
+			buf_write_flush(arg);
 		}
 		s_remain = slen - i;
 		buf_remain = arg->buf_size - arg->buf_end;

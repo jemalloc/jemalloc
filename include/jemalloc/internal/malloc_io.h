@@ -119,9 +119,9 @@ typedef struct {
 	char *buf;
 	size_t buf_size; /* must be one less than the capacity of buf array */
 	size_t buf_end;
-} buf_writer_arg_t;
+} buf_write_arg_t;
 
-void buf_writer_flush(buf_writer_arg_t *arg);
-void buffered_write_cb(void *buf_writer_arg, const char *s);
+void buf_write_flush(buf_write_arg_t *arg);
+void buf_write_cb(void *buf_write_arg, const char *s);
 
 #endif /* JEMALLOC_INTERNAL_MALLOC_IO_H */
