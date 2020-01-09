@@ -145,8 +145,8 @@ prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated) {
 }
 
 void
-prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t usize,
-    prof_tctx_t *tctx) {
+prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t size,
+    size_t usize, prof_tctx_t *tctx) {
 	edata_t *edata = iealloc(tsd_tsdn(tsd), ptr);
 	prof_info_set(tsd, edata, tctx);
 
@@ -162,7 +162,7 @@ prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t usize,
 	malloc_mutex_unlock(tsd_tsdn(tsd), tctx->tdata->lock);
 	if (record_recent) {
 		assert(tctx == edata_prof_tctx_get(edata));
-		prof_recent_alloc(tsd, edata, usize);
+		prof_recent_alloc(tsd, edata, size);
 	}
 }
 

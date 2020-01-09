@@ -2175,7 +2175,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 			prof_alloc_rollback(tsd, tctx, true);
 			goto label_oom;
 		}
-		prof_malloc(tsd, allocation, usize, &alloc_ctx, tctx);
+		prof_malloc(tsd, allocation, size, usize, &alloc_ctx, tctx);
 	} else {
 		assert(!opt_prof);
 		allocation = imalloc_no_sample(sopts, dopts, tsd, size, usize,
@@ -3045,8 +3045,8 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 		 */
 		*usize = isalloc(tsd_tsdn(tsd), p);
 	}
-	prof_realloc(tsd, p, *usize, tctx, prof_active, old_ptr, old_usize,
-	    &old_prof_info);
+	prof_realloc(tsd, p, size, *usize, tctx, prof_active, old_ptr,
+	    old_usize, &old_prof_info);
 
 	return p;
 }
@@ -3338,7 +3338,7 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 		prof_alloc_rollback(tsd, tctx, false);
 	} else {
 		prof_info_get_and_reset_recent(tsd, ptr, alloc_ctx, &prof_info);
-		prof_realloc(tsd, ptr, usize, tctx, prof_active, ptr,
+		prof_realloc(tsd, ptr, size, usize, tctx, prof_active, ptr,
 		    old_usize, &prof_info);
 	}
 

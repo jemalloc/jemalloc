@@ -213,7 +213,7 @@ struct prof_recent_s {
 	nstime_t dalloc_time;
 
 	prof_recent_t *next;
-	size_t usize;
+	size_t size;
 	prof_tctx_t *alloc_tctx;
 	edata_t *alloc_edata; /* NULL means allocation has been freed. */
 	prof_tctx_t *dalloc_tctx;

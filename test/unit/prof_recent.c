@@ -116,8 +116,8 @@ static void confirm_malloc(tsd_t *tsd, void *p) {
 
 static void confirm_record_size(tsd_t *tsd, prof_recent_t *n, unsigned kth) {
 	malloc_mutex_assert_owner(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
-	assert_zu_eq(n->usize, sz_s2u(NTH_REQ_SIZE(kth)),
-	    "Recorded allocation usize is wrong");
+	assert_zu_eq(n->size, NTH_REQ_SIZE(kth),
+	    "Recorded allocation size is wrong");
 }
 
 static void confirm_record_living(tsd_t *tsd, prof_recent_t *n) {

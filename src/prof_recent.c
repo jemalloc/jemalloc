@@ -249,7 +249,7 @@ prof_recent_alloc_assert_count(tsd_t *tsd) {
 }
 
 void
-prof_recent_alloc(tsd_t *tsd, edata_t *edata, size_t usize) {
+prof_recent_alloc(tsd_t *tsd, edata_t *edata, size_t size) {
 	assert(edata != NULL);
 	prof_tctx_t *tctx = edata_prof_tctx_get(edata);
 
@@ -312,7 +312,7 @@ prof_recent_alloc(tsd_t *tsd, edata_t *edata, size_t usize) {
 	{
 		/* Fill content into the dummy node. */
 		prof_recent_t *node = prof_recent_alloc_dummy;
-		node->usize = usize;
+		node->size = size;
 		nstime_copy(&node->alloc_time,
 		    edata_prof_alloc_time_get(edata));
 		node->alloc_tctx = tctx;
@@ -487,8 +487,9 @@ prof_recent_alloc_dump(tsd_t *tsd, void (*write_cb)(void *, const char *),
 	    n = prof_recent_alloc_next(tsd, n)) {
 		emitter_json_object_begin(&emitter);
 
-		emitter_json_kv(&emitter, "usize", emitter_type_size,
-		    &n->usize);
+		emitter_json_kv(&emitter, "size", emitter_type_size, &n->size);
+		size_t usize = sz_s2u(n->size);
+		emitter_json_kv(&emitter, "usize", emitter_type_size, &usize);
 		bool released = n->alloc_edata == NULL;
 		emitter_json_kv(&emitter, "released", emitter_type_bool,
 		    &released);
