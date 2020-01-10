@@ -3694,14 +3694,15 @@ je_malloc_stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	if (config_debug) {
 		stats_print(write_cb, cbopaque, opts);
 	} else {
-		char *stats_print_buf = (char *)iallocztm(tsdn,
-		    STATS_PRINT_BUFSIZE, sz_size2index(STATS_PRINT_BUFSIZE),
-		    false, NULL, true, arena_get(TSDN_NULL, 0, true), true);
-		buf_write_arg_t stats_print_buf_arg = {write_cb, cbopaque,
-		    stats_print_buf, STATS_PRINT_BUFSIZE - 1, 0};
-		stats_print(buf_write_cb, &stats_print_buf_arg, opts);
-		buf_write_flush(&stats_print_buf_arg);
-		idalloctm(tsdn, stats_print_buf, NULL, NULL, true, true);
+		char *buf = (char *)iallocztm(tsdn, STATS_PRINT_BUFSIZE,
+		    sz_size2index(STATS_PRINT_BUFSIZE), false, NULL, true,
+		    arena_get(TSDN_NULL, 0, true), true);
+		buf_write_arg_t buf_arg;
+		buf_write_init(&buf_arg, write_cb, cbopaque, buf,
+		    STATS_PRINT_BUFSIZE);
+		stats_print(buf_write_cb, &buf_arg, opts);
+		buf_write_flush(&buf_arg);
+		idalloctm(tsdn, buf, NULL, NULL, true, true);
 	}
 
 	check_entry_exit_locking(tsdn);

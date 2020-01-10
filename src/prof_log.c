@@ -629,15 +629,16 @@ prof_log_stop(tsdn_t *tsdn) {
 	struct prof_emitter_cb_arg_s arg;
 	arg.fd = fd;
 
-	char *prof_log_stop_buf = (char *)iallocztm(tsdn,
-	    PROF_LOG_STOP_BUFSIZE, sz_size2index(PROF_LOG_STOP_BUFSIZE),
-	    false, NULL, true, arena_get(TSDN_NULL, 0, true), true);
-	buf_write_arg_t prof_log_stop_buf_arg = {prof_emitter_write_cb, &arg,
-	    prof_log_stop_buf, PROF_LOG_STOP_BUFSIZE - 1, 0};
+	char *buf = (char *)iallocztm(tsdn, PROF_LOG_STOP_BUFSIZE,
+	    sz_size2index(PROF_LOG_STOP_BUFSIZE), false, NULL, true,
+	    arena_get(TSDN_NULL, 0, true), true);
+	buf_write_arg_t buf_arg;
+	buf_write_init(&buf_arg, prof_emitter_write_cb, &arg, buf,
+	    PROF_LOG_STOP_BUFSIZE);
 
 	/* Emit to json. */
 	emitter_init(&emitter, emitter_output_json_compact, buf_write_cb,
-	    &prof_log_stop_buf_arg);
+	    &buf_arg);
 
 	emitter_begin(&emitter);
 	prof_log_emit_metadata(&emitter);
@@ -646,8 +647,8 @@ prof_log_stop(tsdn_t *tsdn) {
 	prof_log_emit_allocs(tsd, &emitter);
 	emitter_end(&emitter);
 
-	buf_write_flush(&prof_log_stop_buf_arg);
-	idalloctm(tsdn, prof_log_stop_buf, NULL, NULL, true, true);
+	buf_write_flush(&buf_arg);
+	idalloctm(tsdn, buf, NULL, NULL, true, true);
 
 	/* Reset global state. */
 	if (log_tables_initialized) {

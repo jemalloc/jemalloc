@@ -462,8 +462,9 @@ prof_recent_alloc_dump(tsd_t *tsd, void (*write_cb)(void *, const char *),
 	char *buf = (char *)iallocztm(tsd_tsdn(tsd), PROF_RECENT_PRINT_BUFSIZE,
 	    sz_size2index(PROF_RECENT_PRINT_BUFSIZE), false, NULL, true,
 	    arena_get(tsd_tsdn(tsd), 0, false), true);
-	buf_write_arg_t buf_arg = {write_cb, cbopaque, buf,
-	    PROF_RECENT_PRINT_BUFSIZE - 1, 0};
+	buf_write_arg_t buf_arg;
+	buf_write_init(&buf_arg, write_cb, cbopaque, buf,
+	    PROF_RECENT_PRINT_BUFSIZE);
 	emitter_t emitter;
 	emitter_init(&emitter, emitter_output_json_compact, buf_write_cb,
 	    &buf_arg);
