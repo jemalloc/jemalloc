@@ -101,6 +101,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/bin.c \
 	$(srcroot)src/bin_info.c \
 	$(srcroot)src/bitmap.c \
+	$(srcroot)src/buf_writer.c \
 	$(srcroot)src/ckh.c \
 	$(srcroot)src/ctl.c \
 	$(srcroot)src/div.c \
