@@ -14,9 +14,19 @@ typedef struct {
 	void (*write_cb)(void *, const char *);
 	void *cbopaque;
 	char *buf;
-	size_t buf_size; /* must be one less than the capacity of buf array */
+	size_t buf_size;
 	size_t buf_end;
 } buf_write_arg_t;
+
+JEMALLOC_ALWAYS_INLINE void
+buf_write_init(buf_write_arg_t *arg, void (*write_cb)(void *, const char *),
+    void *cbopaque, char *buf, size_t buf_len) {
+	arg->write_cb = write_cb;
+	arg->cbopaque = cbopaque;
+	arg->buf = buf;
+	arg->buf_size = buf_len - 1; /* Accommodating '\0' at the end. */
+	arg->buf_end = 0;
+}
 
 void buf_write_flush(buf_write_arg_t *arg);
 void buf_write_cb(void *buf_write_arg, const char *s);
