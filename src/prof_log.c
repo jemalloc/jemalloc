@@ -3,6 +3,7 @@
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/buf_writer.h"
 #include "jemalloc/internal/ckh.h"
 #include "jemalloc/internal/emitter.h"
 #include "jemalloc/internal/hash.h"

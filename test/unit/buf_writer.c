@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/buf_writer.h"
+
 #define TEST_BUF_SIZE 16
 #define UNIT_MAX (TEST_BUF_SIZE * 3)
 
