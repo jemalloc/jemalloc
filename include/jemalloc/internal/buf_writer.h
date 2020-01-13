@@ -23,7 +23,9 @@ buf_write_init(buf_write_arg_t *arg, void (*write_cb)(void *, const char *),
     void *cbopaque, char *buf, size_t buf_len) {
 	arg->write_cb = write_cb;
 	arg->cbopaque = cbopaque;
+	assert(buf != NULL);
 	arg->buf = buf;
+	assert(buf_len >= 2);
 	arg->buf_size = buf_len - 1; /* Accommodating '\0' at the end. */
 	arg->buf_end = 0;
 }
