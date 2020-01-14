@@ -571,7 +571,10 @@ void
 prof_idump_rollback_impl(tsdn_t *tsdn, size_t usize) {
 	cassert(config_prof);
 
-	return counter_rollback(tsdn, &prof_idump_accumulated, usize);
+	/* Rollback is only done on arena_prof_promote of small sizes. */
+	assert(SC_LARGE_MINCLASS > usize);
+	return counter_rollback(tsdn, &prof_idump_accumulated,
+	    SC_LARGE_MINCLASS - usize);
 }
 
 bool

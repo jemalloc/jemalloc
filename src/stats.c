@@ -50,6 +50,13 @@ const char *arena_mutex_names[mutex_prof_num_arena_mutexes] = {
 bool opt_stats_print = false;
 char opt_stats_print_opts[stats_print_tot_num_options+1] = "";
 
+int64_t opt_stats_interval = STATS_INTERVAL_DEFAULT;
+char opt_stats_interval_opts[stats_print_tot_num_options+1] = "";
+
+static counter_accum_t stats_interval_accumulated;
+/* Per thread batch accum size for stats_interval. */
+static uint64_t stats_interval_accum_batch;
+
 /******************************************************************************/
 
 static uint64_t
@@ -1000,14 +1007,16 @@ stats_general_print(emitter_t *emitter) {
 	unsigned uv;
 	uint32_t u32v;
 	uint64_t u64v;
+	int64_t i64v;
 	ssize_t ssv, ssv2;
-	size_t sv, bsz, usz, ssz, sssz, cpsz;
+	size_t sv, bsz, usz, i64sz, ssz, sssz, cpsz;
 
 	bsz = sizeof(bool);
 	usz = sizeof(unsigned);
 	ssz = sizeof(size_t);
 	sssz = sizeof(ssize_t);
 	cpsz = sizeof(const char *);
+	i64sz = sizeof(int64_t);
 
 	CTL_GET("version", &cpv, const char *);
 	emitter_kv(emitter, "version", "Version", emitter_type_string, &cpv);
@@ -1063,6 +1072,9 @@ stats_general_print(emitter_t *emitter) {
 #define OPT_WRITE_UNSIGNED(name)					\
 	OPT_WRITE(name, uv, usz, emitter_type_unsigned)
 
+#define OPT_WRITE_INT64(name)						\
+	OPT_WRITE(name, i64v, i64sz, emitter_type_int64)
+
 #define OPT_WRITE_SIZE_T(name)						\
 	OPT_WRITE(name, sv, ssz, emitter_type_size)
 #define OPT_WRITE_SSIZE_T(name)						\
@@ -1109,6 +1121,10 @@ stats_general_print(emitter_t *emitter) {
 	OPT_WRITE_BOOL("prof_leak")
 	OPT_WRITE_BOOL("stats_print")
 	OPT_WRITE_CHAR_P("stats_print_opts")
+	OPT_WRITE_BOOL("stats_print")
+	OPT_WRITE_CHAR_P("stats_print_opts")
+	OPT_WRITE_INT64("stats_interval")
+	OPT_WRITE_CHAR_P("stats_interval_opts")
 	OPT_WRITE_CHAR_P("zero_realloc")
 
 	emitter_dict_end(emitter);
@@ -1476,4 +1492,38 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	emitter_json_object_end(&emitter); /* Closes the "jemalloc" dict. */
 	emitter_table_printf(&emitter, "--- End jemalloc statistics ---\n");
 	emitter_end(&emitter);
+}
+
+bool
+stats_interval_accum(tsd_t *tsd, uint64_t bytes) {
+	return counter_accum(tsd_tsdn(tsd), &stats_interval_accumulated, bytes);
+}
+
+uint64_t
+stats_interval_accum_batch_size(void) {
+	return stats_interval_accum_batch;
+}
+
+bool
+stats_boot(void) {
+	uint64_t stats_interval;
+	if (opt_stats_interval < 0) {
+		assert(opt_stats_interval == -1);
+		stats_interval = 0;
+		stats_interval_accum_batch = 0;
+	} else{
+		/* See comments in stats.h */
+		stats_interval = (opt_stats_interval > 0) ?
+		    opt_stats_interval : 1;
+		uint64_t batch = stats_interval >>
+		    STATS_INTERVAL_ACCUM_LG_BATCH_SIZE;
+		if (batch > STATS_INTERVAL_ACCUM_BATCH_MAX) {
+			batch = STATS_INTERVAL_ACCUM_BATCH_MAX;
+		} else if (batch == 0) {
+			batch = 1;
+		}
+		stats_interval_accum_batch = batch;
+	}
+
+	return counter_accum_init(&stats_interval_accumulated, stats_interval);
 }

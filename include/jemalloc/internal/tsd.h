@@ -87,6 +87,8 @@ typedef void (*test_callback_t)(int *);
     O(tcache_gc_event_wait,	uint64_t,		uint64_t)	\
     O(prof_sample_event_wait,	uint64_t,		uint64_t)	\
     O(prof_sample_last_event,	uint64_t,		uint64_t)	\
+    O(stats_interval_event_wait,	uint64_t,	uint64_t)	\
+    O(stats_interval_last_event,	uint64_t,	uint64_t)	\
     O(prof_tdata,		prof_tdata_t *,		prof_tdata_t *)	\
     O(prng_state,		uint64_t,		uint64_t)	\
     O(iarena,			arena_t *,		arena_t *)	\
@@ -118,6 +120,8 @@ typedef void (*test_callback_t)(int *);
     /* tcache_gc_event_wait */		THREAD_EVENT_MIN_START_WAIT,	\
     /* prof_sample_event_wait */	THREAD_EVENT_MIN_START_WAIT,	\
     /* prof_sample_last_event */	0,				\
+    /* stats_interval_event_wait */	THREAD_EVENT_MIN_START_WAIT,	\
+    /* stats_interval_last_event */	0,				\
     /* prof_tdata */		NULL,					\
     /* prng_state */		0,					\
     /* iarena */		NULL,					\

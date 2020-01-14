@@ -1185,6 +1185,41 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         enabled.  The default is <quote></quote>.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="opt.stats_interval">
+        <term>
+          <mallctl>opt.stats_interval</mallctl>
+          (<type>int64_t</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Average interval between statistics outputs, as measured
+        in bytes of allocation activity.  The actual interval may be sporadic
+        because decentralized event counters are used to avoid synchronization
+        bottlenecks.  The output may be triggered on any thread, which then
+        calls <function>malloc_stats_print()</function>.  <link
+        linkend="opt.stats_interval_opts"><mallctl>opt.stats_interval_opts</mallctl></link>
+        can be combined to specify output options.  By default,
+        interval-triggered stats output is disabled (encoded as
+        -1).</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="opt.stats_interval_opts">
+        <term>
+          <mallctl>opt.stats_interval_opts</mallctl>
+          (<type>const char *</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Options (the <parameter>opts</parameter> string) to pass
+        to the <function>malloc_stats_print()</function> for interval based
+	statistics printing (enabled
+        through <link
+        linkend="opt.stats_interval"><mallctl>opt.stats_interval</mallctl></link>). See
+        available options in <link
+        linkend="malloc_stats_print_opts"><function>malloc_stats_print()</function></link>.
+        Has no effect unless <link
+        linkend="opt.stats_interval"><mallctl>opt.stats_interval</mallctl></link> is
+        enabled.  The default is <quote></quote>.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="opt.junk">
         <term>
           <mallctl>opt.junk</mallctl>

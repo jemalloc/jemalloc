@@ -22,6 +22,7 @@ typedef enum emitter_type_e emitter_type_t;
 enum emitter_type_e {
 	emitter_type_bool,
 	emitter_type_int,
+	emitter_type_int64,
 	emitter_type_unsigned,
 	emitter_type_uint32,
 	emitter_type_uint64,
@@ -148,6 +149,9 @@ emitter_print_value(emitter_t *emitter, emitter_justify_t justify, int width,
 		break;
 	case emitter_type_int:
 		EMIT_SIMPLE(int, "%d")
+		break;
+	case emitter_type_int64:
+		EMIT_SIMPLE(int64_t, "%" FMTd64)
 		break;
 	case emitter_type_unsigned:
 		EMIT_SIMPLE(unsigned, "%u")

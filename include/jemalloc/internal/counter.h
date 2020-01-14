@@ -6,11 +6,11 @@
 typedef struct counter_accum_s {
 #ifndef JEMALLOC_ATOMIC_U64
 	malloc_mutex_t	mtx;
-	uint64_t	accumbytes;
+	uint64_t accumbytes;
 #else
-	atomic_u64_t	accumbytes;
+	atomic_u64_t accumbytes;
 #endif
-	uint64_t	interval;
+	uint64_t interval;
 } counter_accum_t;
 
 JEMALLOC_ALWAYS_INLINE bool
@@ -52,7 +52,7 @@ counter_accum(tsdn_t *tsdn, counter_accum_t *counter, uint64_t accumbytes) {
 }
 
 JEMALLOC_ALWAYS_INLINE void
-counter_rollback(tsdn_t *tsdn, counter_accum_t *counter, size_t usize) {
+counter_rollback(tsdn_t *tsdn, counter_accum_t *counter, uint64_t bytes) {
 	/*
 	 * Cancel out as much of the excessive accumbytes increase as possible
 	 * without underflowing.  Interval-triggered events occur slightly more
@@ -63,16 +63,14 @@ counter_rollback(tsdn_t *tsdn, counter_accum_t *counter, size_t usize) {
 	a0 = atomic_load_u64(&counter->accumbytes,
 	    ATOMIC_RELAXED);
 	do {
-		a1 = (a0 >= SC_LARGE_MINCLASS - usize)
-		    ? a0 - (SC_LARGE_MINCLASS - usize) : 0;
+		a1 = (a0 >= bytes) ? a0 - bytes : 0;
 	} while (!atomic_compare_exchange_weak_u64(
 	    &counter->accumbytes, &a0, a1, ATOMIC_RELAXED,
 	    ATOMIC_RELAXED));
 #else
 	malloc_mutex_lock(tsdn, &counter->mtx);
 	a0 = counter->accumbytes;
-	a1 = (a0 >= SC_LARGE_MINCLASS - usize)
-	    ?  a0 - (SC_LARGE_MINCLASS - usize) : 0;
+	a1 = (a0 >= bytes) ?  a0 - bytes : 0;
 	counter->accumbytes = a1;
 	malloc_mutex_unlock(tsdn, &counter->mtx);
 #endif
