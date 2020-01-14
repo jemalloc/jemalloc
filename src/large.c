@@ -372,18 +372,20 @@ void
 large_prof_info_get(tsd_t *tsd, edata_t *edata, prof_info_t *prof_info,
     bool reset_recent) {
 	assert(prof_info != NULL);
-	nstime_copy(&prof_info->alloc_time, edata_prof_alloc_time_get(edata));
 
 	prof_tctx_t *alloc_tctx = edata_prof_tctx_get(edata);
 	prof_info->alloc_tctx = alloc_tctx;
 
-	if (reset_recent && (uintptr_t)alloc_tctx > (uintptr_t)1U) {
-		/*
-		 * This allocation was a prof sample.  Reset the pointer on the
-		 * recent allocation record, so that this allocation is
-		 * recorded as released.
-		 */
-		prof_recent_alloc_reset(tsd, edata);
+	if ((uintptr_t)alloc_tctx > (uintptr_t)1U) {
+		nstime_copy(&prof_info->alloc_time,
+		    edata_prof_alloc_time_get(edata));
+		if (reset_recent) {
+			/*
+			 * Reset the pointer on the recent allocation record,
+			 * so that this allocation is recorded as released.
+			 */
+			prof_recent_alloc_reset(tsd, edata);
+		}
 	}
 }
 
