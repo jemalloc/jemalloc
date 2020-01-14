@@ -406,7 +406,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt) {
 
 prof_tctx_t *
 prof_tctx_create(tsd_t *tsd) {
-	if (tsd_reentrancy_level_get(tsd) > 0) {
+	if (!tsd_nominal(tsd) || tsd_reentrancy_level_get(tsd) > 0) {
 		return NULL;
 	}
 
