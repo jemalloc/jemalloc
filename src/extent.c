@@ -1226,7 +1226,8 @@ extent_record(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 			    &arena->edata_cache, ehooks, rtree_ctx, ecache,
 			    edata, &coalesced, growing_retained);
 		} while (coalesced);
-		if (edata_size_get(edata) >= oversize_threshold) {
+		if (edata_size_get(edata) >= oversize_threshold &&
+		    arena_may_force_decay(arena)) {
 			/* Shortcut to purge the oversize extent eagerly. */
 			malloc_mutex_unlock(tsdn, &ecache->mtx);
 			arena_decay_extent(tsdn, arena, ehooks, edata);
