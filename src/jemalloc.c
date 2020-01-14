@@ -775,8 +775,8 @@ malloc_ncpus(void) {
 }
 
 static void
-init_opt_stats_print_opts(const char *v, size_t vlen) {
-	size_t opts_len = strlen(opt_stats_print_opts);
+init_opt_stats_opts(const char *v, size_t vlen, char *dest) {
+	size_t opts_len = strlen(dest);
 	assert(opts_len <= stats_print_tot_num_options);
 
 	for (size_t i = 0; i < vlen; i++) {
@@ -787,16 +787,16 @@ init_opt_stats_print_opts(const char *v, size_t vlen) {
 		default: continue;
 		}
 
-		if (strchr(opt_stats_print_opts, v[i]) != NULL) {
+		if (strchr(dest, v[i]) != NULL) {
 			/* Ignore repeated. */
 			continue;
 		}
 
-		opt_stats_print_opts[opts_len++] = v[i];
-		opt_stats_print_opts[opts_len] = '\0';
+		dest[opts_len++] = v[i];
+		dest[opts_len] = '\0';
 		assert(opts_len <= stats_print_tot_num_options);
 	}
-	assert(opts_len == strlen(opt_stats_print_opts));
+	assert(opts_len == strlen(dest));
 }
 
 /* Reads the next size pair in a multi-sized option. */
@@ -1118,39 +1118,47 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 #define CONF_CHECK_MIN(um, min)	((um) < (min))
 #define CONF_DONT_CHECK_MAX(um, max)	false
 #define CONF_CHECK_MAX(um, max)	((um) > (max))
-#define CONF_HANDLE_T_U(t, o, n, min, max, check_min, check_max, clip)	\
+
+#define CONF_HANDLE_T(t, max_t, o, n, min, max, check_min, check_max, clip) \
 			if (CONF_MATCH(n)) {				\
-				uintmax_t um;				\
+				max_t mv;				\
 				char *end;				\
 									\
 				set_errno(0);				\
-				um = malloc_strtoumax(v, &end, 0);	\
+				mv = (max_t)malloc_strtoumax(v, &end, 0); \
 				if (get_errno() != 0 || (uintptr_t)end -\
 				    (uintptr_t)v != vlen) {		\
 					CONF_ERROR("Invalid conf value",\
 					    k, klen, v, vlen);		\
 				} else if (clip) {			\
-					if (check_min(um, (t)(min))) {	\
+					if (check_min(mv, (t)(min))) {	\
 						o = (t)(min);		\
 					} else if (			\
-					    check_max(um, (t)(max))) {	\
+					    check_max(mv, (t)(max))) {	\
 						o = (t)(max);		\
 					} else {			\
-						o = (t)um;		\
+						o = (t)mv;		\
 					}				\
 				} else {				\
-					if (check_min(um, (t)(min)) ||	\
-					    check_max(um, (t)(max))) {	\
+					if (check_min(mv, (t)(min)) ||	\
+					    check_max(mv, (t)(max))) {	\
 						CONF_ERROR(		\
 						    "Out-of-range "	\
 						    "conf value",	\
 						    k, klen, v, vlen);	\
 					} else {			\
-						o = (t)um;		\
+						o = (t)mv;		\
 					}				\
 				}					\
 				CONF_CONTINUE;				\
 			}
+#define CONF_HANDLE_T_U(t, o, n, min, max, check_min, check_max, clip)	\
+	      CONF_HANDLE_T(t, uintmax_t, o, n, min, max, check_min,	\
+			    check_max, clip)
+#define CONF_HANDLE_T_SIGNED(t, o, n, min, max, check_min, check_max, clip)\
+	      CONF_HANDLE_T(t, intmax_t, o, n, min, max, check_min,	\
+			    check_max, clip)
+
 #define CONF_HANDLE_UNSIGNED(o, n, min, max, check_min, check_max,	\
     clip)								\
 			CONF_HANDLE_T_U(unsigned, o, n, min, max,	\
@@ -1158,27 +1166,12 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 #define CONF_HANDLE_SIZE_T(o, n, min, max, check_min, check_max, clip)	\
 			CONF_HANDLE_T_U(size_t, o, n, min, max,		\
 			    check_min, check_max, clip)
+#define CONF_HANDLE_INT64_T(o, n, min, max, check_min, check_max, clip)	\
+			CONF_HANDLE_T_SIGNED(int64_t, o, n, min, max,	\
+			    check_min, check_max, clip)
 #define CONF_HANDLE_SSIZE_T(o, n, min, max)				\
-			if (CONF_MATCH(n)) {				\
-				long l;					\
-				char *end;				\
-									\
-				set_errno(0);				\
-				l = strtol(v, &end, 0);			\
-				if (get_errno() != 0 || (uintptr_t)end -\
-				    (uintptr_t)v != vlen) {		\
-					CONF_ERROR("Invalid conf value",\
-					    k, klen, v, vlen);		\
-				} else if (l < (ssize_t)(min) || l >	\
-				    (ssize_t)(max)) {			\
-					CONF_ERROR(			\
-					    "Out-of-range conf value",	\
-					    k, klen, v, vlen);		\
-				} else {				\
-					o = l;				\
-				}					\
-				CONF_CONTINUE;				\
-			}
+			CONF_HANDLE_T_SIGNED(ssize_t, o, n, min, max,	\
+			    CONF_CHECK_MIN, CONF_CHECK_MAX, false)
 #define CONF_HANDLE_CHAR_P(o, n, d)					\
 			if (CONF_MATCH(n)) {				\
 				size_t cpylen = (vlen <=		\
@@ -1275,7 +1268,16 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			    SSIZE_MAX);
 			CONF_HANDLE_BOOL(opt_stats_print, "stats_print")
 			if (CONF_MATCH("stats_print_opts")) {
-				init_opt_stats_print_opts(v, vlen);
+				init_opt_stats_opts(v, vlen,
+				    opt_stats_print_opts);
+				CONF_CONTINUE;
+			}
+			CONF_HANDLE_INT64_T(opt_stats_interval,
+			    "stats_interval", -1, INT64_MAX,
+			    CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, false)
+			if (CONF_MATCH("stats_interval_opts")) {
+				init_opt_stats_opts(v, vlen,
+				    opt_stats_interval_opts);
 				CONF_CONTINUE;
 			}
 			if (config_fill) {
@@ -1463,7 +1465,9 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 #undef CONF_CHECK_MIN
 #undef CONF_DONT_CHECK_MAX
 #undef CONF_CHECK_MAX
+#undef CONF_HANDLE_T
 #undef CONF_HANDLE_T_U
+#undef CONF_HANDLE_T_SIGNED
 #undef CONF_HANDLE_UNSIGNED
 #undef CONF_HANDLE_SIZE_T
 #undef CONF_HANDLE_SSIZE_T
@@ -1545,7 +1549,6 @@ malloc_init_hard_a0_locked() {
 		prof_boot0();
 	}
 	malloc_conf_init(&sc_data, bin_shard_sizes);
-	thread_event_boot();
 	sz_boot(&sc_data);
 	bin_info_boot(&sc_data, bin_shard_sizes);
 
@@ -1557,6 +1560,10 @@ malloc_init_hard_a0_locked() {
 				abort();
 			}
 		}
+	}
+
+	if (stats_boot()) {
+		return true;
 	}
 	if (pages_boot()) {
 		return true;
@@ -1573,6 +1580,7 @@ malloc_init_hard_a0_locked() {
 	if (config_prof) {
 		prof_boot1();
 	}
+	thread_event_boot();
 	arena_boot(&sc_data);
 	if (tcache_boot(TSDN_NULL)) {
 		return true;

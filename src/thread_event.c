@@ -25,6 +25,7 @@ static void thread_##event##_event_handler(tsd_t *tsd);
 ITERATE_OVER_ALL_EVENTS
 #undef E
 
+/* (Re)Init functions. */
 static void
 tsd_thread_tcache_gc_event_init(tsd_t *tsd) {
 	assert(TCACHE_GC_INCR_BYTES > 0);
@@ -38,10 +39,18 @@ tsd_thread_prof_sample_event_init(tsd_t *tsd) {
 }
 
 static void
+tsd_thread_stats_interval_event_init(tsd_t *tsd) {
+	assert(opt_stats_interval >= 0);
+	uint64_t interval = stats_interval_accum_batch_size();
+	thread_stats_interval_event_update(tsd, interval);
+}
+
+/* Handler functions. */
+static void
 thread_tcache_gc_event_handler(tsd_t *tsd) {
 	assert(TCACHE_GC_INCR_BYTES > 0);
 	assert(tcache_gc_event_wait_get(tsd) == 0U);
-	thread_tcache_gc_event_update(tsd, TCACHE_GC_INCR_BYTES);
+	tsd_thread_tcache_gc_event_init(tsd);
 	tcache_t *tcache = tcache_get(tsd);
 	if (tcache != NULL) {
 		tcache_event_hard(tsd, tcache);
@@ -70,6 +79,21 @@ thread_prof_sample_event_handler(tsd_t *tsd) {
 		    (uint64_t)(1 << lg_prof_sample));
 	}
 }
+
+static void
+thread_stats_interval_event_handler(tsd_t *tsd) {
+	assert(opt_stats_interval >= 0);
+	assert(stats_interval_event_wait_get(tsd) == 0U);
+	uint64_t last_event = thread_allocated_last_event_get(tsd);
+	uint64_t last_stats_event = stats_interval_last_event_get(tsd);
+	stats_interval_last_event_set(tsd, last_event);
+
+	if (stats_interval_accum(tsd, last_event - last_stats_event)) {
+		je_malloc_stats_print(NULL, NULL, opt_stats_interval_opts);
+	}
+	tsd_thread_stats_interval_event_init(tsd);
+}
+/* Per event facilities done. */
 
 static uint64_t
 thread_allocated_next_event_compute(tsd_t *tsd) {

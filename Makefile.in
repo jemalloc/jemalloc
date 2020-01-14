@@ -191,6 +191,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/buf_writer.c \
 	$(srcroot)test/unit/cache_bin.c \
 	$(srcroot)test/unit/ckh.c \
+	$(srcroot)test/unit/counter.c \
 	$(srcroot)test/unit/decay.c \
 	$(srcroot)test/unit/div.c \
 	$(srcroot)test/unit/emitter.c \

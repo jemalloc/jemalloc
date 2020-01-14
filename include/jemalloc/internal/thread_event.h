@@ -36,7 +36,8 @@ void tsd_thread_event_init(tsd_t *tsd);
  */
 #define ITERATE_OVER_ALL_EVENTS						\
     E(tcache_gc,	(TCACHE_GC_INCR_BYTES > 0))			\
-    E(prof_sample,	(config_prof && opt_prof))
+    E(prof_sample,	(config_prof && opt_prof))	    		\
+    E(stats_interval,	(opt_stats_interval >= 0))
 
 #define E(event, condition)						\
     C(event##_event_wait)
@@ -46,7 +47,8 @@ void tsd_thread_event_init(tsd_t *tsd);
     C(thread_allocated)							\
     C(thread_allocated_last_event)					\
     ITERATE_OVER_ALL_EVENTS						\
-    C(prof_sample_last_event)
+    C(prof_sample_last_event)						\
+    C(stats_interval_last_event)
 
 /* Getters directly wrap TSD getters. */
 #define C(counter)							\
