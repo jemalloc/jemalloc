@@ -2361,29 +2361,48 @@ je_malloc(size_t size) {
 	if (unlikely((size > SC_LOOKUP_MAXCLASS) || tsd == NULL)) {
 		return malloc_default(size);
 	}
-
-	szind_t ind = sz_size2index_lookup(size);
+	/*
+	 * The code below till the branch checking the next_event threshold may
+	 * execute before malloc_init(), in which case the threshold is 0 to
+	 * trigger slow path and initialization.
+	 *
+	 * Note that when uninitialized, only the fast-path variants of the sz /
+	 * tsd facilities may be called.
+	 */
+	szind_t ind;
 	/*
 	 * The thread_allocated counter in tsd serves as a general purpose
 	 * accumulator for bytes of allocation to trigger different types of
 	 * events.  usize is always needed to advance thread_allocated, though
 	 * it's not always needed in the core allocation logic.
 	 */
-	size_t usize = sz_index2size(ind);
-	/*
-	 * Fast path relies on size being a bin.
-	 * I.e. SC_LOOKUP_MAXCLASS < SC_SMALL_MAXCLASS
-	 */
+	size_t usize;
+
+	sz_size2index_usize_fastpath(size, &ind, &usize);
+	/* Fast path relies on size being a bin. */
 	assert(ind < SC_NBINS);
-	assert(size <= SC_SMALL_MAXCLASS);
+	assert((SC_LOOKUP_MAXCLASS < SC_SMALL_MAXCLASS) &&
+	    (size <= SC_SMALL_MAXCLASS));
 
 	uint64_t allocated = thread_allocated_malloc_fastpath(tsd);
 	uint64_t threshold = thread_allocated_next_event_malloc_fastpath(tsd);
+	uint64_t allocated_after = allocated + usize;
+	/*
+	 * The ind and usize might be uninitialized (or partially) before
+	 * malloc_init().  The assertions check for: 1) full correctness (usize
+	 * & ind) when initialized; and 2) guaranteed slow-path (threshold == 0)
+	 * when !initialized.
+	 */
+	if (!malloc_initialized()) {
+		assert(threshold == 0);
+	} else {
+		assert(ind == sz_size2index(size));
+		assert(usize > 0 && usize == sz_index2size(ind));
+	}
 	/*
 	 * Check for events and tsd non-nominal (fast_threshold will be set to
 	 * 0) in a single branch.
 	 */
-	uint64_t allocated_after = allocated + usize;
 	if (unlikely(allocated_after >= threshold)) {
 		return malloc_default(size);
 	}

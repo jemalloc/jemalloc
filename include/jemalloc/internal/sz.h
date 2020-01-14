@@ -152,10 +152,15 @@ sz_size2index_compute(size_t size) {
 }
 
 JEMALLOC_ALWAYS_INLINE szind_t
-sz_size2index_lookup(size_t size) {
+sz_size2index_lookup_impl(size_t size) {
 	assert(size <= SC_LOOKUP_MAXCLASS);
-	szind_t ret = (sz_size2index_tab[(size + (ZU(1) << SC_LG_TINY_MIN) - 1)
-					 >> SC_LG_TINY_MIN]);
+	return sz_size2index_tab[(size + (ZU(1) << SC_LG_TINY_MIN) - 1)
+	    >> SC_LG_TINY_MIN];
+}
+
+JEMALLOC_ALWAYS_INLINE szind_t
+sz_size2index_lookup(size_t size) {
+	szind_t ret = sz_size2index_lookup_impl(size);
 	assert(ret == sz_size2index_compute(size));
 	return ret;
 }
@@ -195,8 +200,13 @@ sz_index2size_compute(szind_t index) {
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
+sz_index2size_lookup_impl(szind_t index) {
+	return sz_index2size_tab[index];
+}
+
+JEMALLOC_ALWAYS_INLINE size_t
 sz_index2size_lookup(szind_t index) {
-	size_t ret = (size_t)sz_index2size_tab[index];
+	size_t ret = sz_index2size_lookup_impl(index);
 	assert(ret == sz_index2size_compute(index));
 	return ret;
 }
@@ -205,6 +215,12 @@ JEMALLOC_ALWAYS_INLINE size_t
 sz_index2size(szind_t index) {
 	assert(index < SC_NSIZES);
 	return sz_index2size_lookup(index);
+}
+
+JEMALLOC_ALWAYS_INLINE void
+sz_size2index_usize_fastpath(size_t size, szind_t *ind, size_t *usize) {
+	*ind = sz_size2index_lookup_impl(size);
+	*usize = sz_index2size_lookup_impl(*ind);
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
