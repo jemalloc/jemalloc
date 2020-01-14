@@ -103,6 +103,12 @@ arena_prof_info_set(tsd_t *tsd, edata_t *edata, prof_tctx_t *tctx) {
 	large_prof_info_set(edata, tctx);
 }
 
+JEMALLOC_ALWAYS_INLINE bool
+arena_may_force_decay(arena_t *arena) {
+	return !(arena_dirty_decay_ms_get(arena) == -1
+	    || arena_muzzy_decay_ms_get(arena) == -1);
+}
+
 JEMALLOC_ALWAYS_INLINE void
 arena_decay_ticks(tsdn_t *tsdn, arena_t *arena, unsigned nticks) {
 	tsd_t *tsd;
