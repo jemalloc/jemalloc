@@ -182,12 +182,15 @@ prof_recent_alloc_reset(tsd_t *tsd, edata_t *edata) {
 		if (dalloc_tctx != NULL) {
 			nstime_update(&recent->dalloc_time);
 			recent->dalloc_tctx = dalloc_tctx;
+			dalloc_tctx = NULL;
 		}
-	} else if (dalloc_tctx != NULL) {
+	}
+	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
+
+	if (dalloc_tctx != NULL) {
 		/* We lost the rase - the allocation record was just gone. */
 		decrement_recent_count(tsd, dalloc_tctx);
 	}
-	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 }
 
 static void
