@@ -167,7 +167,7 @@ DOCS_MAN3 := $(DOCS_XML:$(objroot)%.xml=$(objroot)%.3)
 DOCS := $(DOCS_HTML) $(DOCS_MAN3)
 C_TESTLIB_SRCS := $(srcroot)test/src/btalloc.c $(srcroot)test/src/btalloc_0.c \
 	$(srcroot)test/src/btalloc_1.c $(srcroot)test/src/math.c \
-	$(srcroot)test/src/mtx.c $(srcroot)test/src/mq.c \
+	$(srcroot)test/src/mtx.c $(srcroot)test/src/sleep.c \
 	$(srcroot)test/src/SFMT.c $(srcroot)test/src/test.c \
 	$(srcroot)test/src/thd.c $(srcroot)test/src/timer.c
 ifeq (1, $(link_whole_archive))
