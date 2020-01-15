@@ -124,6 +124,7 @@ static const bool config_debug =
 #include "test/math.h"
 #include "test/mtx.h"
 #include "test/mq.h"
+#include "test/sleep.h"
 #include "test/test.h"
 #include "test/timer.h"
 #include "test/thd.h"

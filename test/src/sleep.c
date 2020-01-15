@@ -5,11 +5,11 @@
  * time is guaranteed.
  */
 void
-mq_nanosleep(unsigned ns) {
+sleep_ns(unsigned ns) {
 	assert(ns <= 1000*1000*1000);
 
 #ifdef _WIN32
-	Sleep(ns / 1000);
+	Sleep(ns / 1000 / 1000);
 #else
 	{
 		struct timespec timeout;
