@@ -3,7 +3,7 @@
 #include "jemalloc/internal/prof_recent.h"
 
 /* As specified in the shell script */
-#define OPT_ALLOC_MAX	3
+#define OPT_ALLOC_MAX 3
 
 /* Invariant before and after every test (when config_prof is on) */
 static void confirm_prof_setup(tsd_t *tsd) {
@@ -381,11 +381,124 @@ TEST_END
 
 #undef NTH_REQ_SIZE
 
+#define N_THREADS 16
+#define N_PTRS 512
+#define N_CTLS 8
+#define N_ITERS 2048
+#define STRESS_ALLOC_MAX 4096
+
+typedef struct {
+	thd_t thd;
+	size_t id;
+	void *ptrs[N_PTRS];
+	size_t count;
+} thd_data_t;
+
+static thd_data_t thd_data[N_THREADS];
+static ssize_t test_max;
+
+static void test_write_cb(void *cbopaque, const char *str) {
+	sleep_ns(1000 * 1000);
+}
+
+static void *f_thread(void *arg) {
+	const size_t thd_id = *(size_t *)arg;
+	thd_data_t *data_p = thd_data + thd_id;
+	assert(data_p->id == thd_id);
+	data_p->count = 0;
+	uint64_t rand = (uint64_t)thd_id;
+	tsd_t *tsd = tsd_fetch();
+	assert(test_max > 1);
+	ssize_t last_max = -1;
+	for (int i = 0; i < N_ITERS; i++) {
+		rand = prng_range_u64(&rand, N_PTRS + N_CTLS * 5);
+		assert(data_p->count <= N_PTRS);
+		if (rand < data_p->count) {
+			assert(data_p->count > 0);
+			if (rand != data_p->count - 1) {
+				assert(data_p->count > 1);
+				void *temp = data_p->ptrs[rand];
+				data_p->ptrs[rand] =
+				    data_p->ptrs[data_p->count - 1];
+				data_p->ptrs[data_p->count - 1] = temp;
+			}
+			free(data_p->ptrs[--data_p->count]);
+		} else if (rand < N_PTRS) {
+			assert(data_p->count < N_PTRS);
+			data_p->ptrs[data_p->count++] = malloc(1);
+		} else if (rand % 5 == 0) {
+			prof_recent_alloc_dump(tsd, test_write_cb, NULL);
+		} else if (rand % 5 == 1) {
+			last_max = prof_recent_alloc_max_ctl_read(tsd);
+		} else if (rand % 5 == 2) {
+			last_max =
+			    prof_recent_alloc_max_ctl_write(tsd, test_max * 2);
+		} else if (rand % 5 == 3) {
+			last_max =
+			    prof_recent_alloc_max_ctl_write(tsd, test_max);
+		} else {
+			assert(rand % 5 == 4);
+			last_max =
+			    prof_recent_alloc_max_ctl_write(tsd, test_max / 2);
+		}
+		assert_zd_ge(last_max, -1, "Illegal last-N max");
+	}
+
+	while (data_p->count > 0) {
+		free(data_p->ptrs[--data_p->count]);
+	}
+
+	return NULL;
+}
+
+TEST_BEGIN(test_prof_recent_stress) {
+	test_skip_if(!config_prof);
+
+	tsd_t *tsd = tsd_fetch();
+	confirm_prof_setup(tsd);
+
+	test_max = OPT_ALLOC_MAX;
+	for (size_t i = 0; i < N_THREADS; i++) {
+		thd_data_t *data_p = thd_data + i;
+		data_p->id = i;
+		thd_create(&data_p->thd, &f_thread, &data_p->id);
+	}
+	for (size_t i = 0; i < N_THREADS; i++) {
+		thd_data_t *data_p = thd_data + i;
+		thd_join(data_p->thd, NULL);
+	}
+
+	test_max = STRESS_ALLOC_MAX;
+	assert_d_eq(mallctl("experimental.prof_recent.alloc_max",
+	    NULL, NULL, &test_max, sizeof(ssize_t)), 0, "Write error");
+	for (size_t i = 0; i < N_THREADS; i++) {
+		thd_data_t *data_p = thd_data + i;
+		data_p->id = i;
+		thd_create(&data_p->thd, &f_thread, &data_p->id);
+	}
+	for (size_t i = 0; i < N_THREADS; i++) {
+		thd_data_t *data_p = thd_data + i;
+		thd_join(data_p->thd, NULL);
+	}
+
+	test_max = OPT_ALLOC_MAX;
+	assert_d_eq(mallctl("experimental.prof_recent.alloc_max",
+	    NULL, NULL, &test_max, sizeof(ssize_t)), 0, "Write error");
+	confirm_prof_setup(tsd);
+}
+TEST_END
+
+#undef STRESS_ALLOC_MAX
+#undef N_ITERS
+#undef N_PTRS
+#undef N_THREADS
+
 int
 main(void) {
 	return test(
 	    test_confirm_setup,
 	    test_prof_recent_off,
 	    test_prof_recent_on,
-	    test_prof_recent_alloc);
+	    test_prof_recent_alloc,
+	    test_prof_recent_stress);
 }
