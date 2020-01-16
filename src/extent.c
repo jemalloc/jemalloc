@@ -186,14 +186,15 @@ extent_try_delayed_coalesce(tsdn_t *tsdn, edata_cache_t *edata_cache,
 edata_t *
 ecache_alloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
     void *new_addr, size_t size, size_t pad, size_t alignment, bool slab,
-    szind_t szind, bool *zero, bool *commit) {
+    szind_t szind, bool *zero) {
 	assert(size + pad != 0);
 	assert(alignment != 0);
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
+	bool commit = true;
 	edata_t *edata = extent_recycle(tsdn, arena, ehooks, ecache, new_addr,
-	    size, pad, alignment, slab, szind, zero, commit, false);
+	    size, pad, alignment, slab, szind, zero, &commit, false);
 	assert(edata == NULL || edata_dumpable_get(edata));
 	return edata;
 }
@@ -201,14 +202,15 @@ ecache_alloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 edata_t *
 ecache_alloc_grow(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     ecache_t *ecache, void *new_addr, size_t size, size_t pad, size_t alignment,
-    bool slab, szind_t szind, bool *zero, bool *commit) {
+    bool slab, szind_t szind, bool *zero) {
 	assert(size + pad != 0);
 	assert(alignment != 0);
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
+	bool commit = true;
 	edata_t *edata = extent_alloc_retained(tsdn, arena, ehooks, new_addr,
-	    size, pad, alignment, slab, szind, zero, commit);
+	    size, pad, alignment, slab, szind, zero, &commit);
 	if (edata == NULL) {
 		if (opt_retain && new_addr != NULL) {
 			/*
@@ -220,7 +222,7 @@ ecache_alloc_grow(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 			return NULL;
 		}
 		edata = extent_alloc_wrapper(tsdn, arena, ehooks,
-		    new_addr, size, pad, alignment, slab, szind, zero, commit);
+		    new_addr, size, pad, alignment, slab, szind, zero, &commit);
 	}
 
 	assert(edata == NULL || edata_dumpable_get(edata));
