@@ -414,7 +414,10 @@ tsd_fetch(void) {
 
 static inline bool
 tsd_nominal(tsd_t *tsd) {
-	return (tsd_state_get(tsd) <= tsd_state_nominal_max);
+	bool nominal = tsd_state_get(tsd) <= tsd_state_nominal_max;
+	assert(nominal || tsd_reentrancy_level_get(tsd) > 0);
+
+	return nominal;
 }
 
 JEMALLOC_ALWAYS_INLINE tsdn_t *

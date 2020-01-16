@@ -376,6 +376,7 @@ tsd_do_data_cleanup(tsd_t *tsd) {
 	arenas_tdata_cleanup(tsd);
 	tcache_cleanup(tsd);
 	witnesses_cleanup(tsd_witness_tsdp_get_unsafe(tsd));
+	*tsd_reentrancy_levelp_get(tsd) = 1;
 }
 
 void
