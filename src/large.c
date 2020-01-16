@@ -147,22 +147,21 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
 	 * false.
 	 */
 	bool is_zeroed_trail = zero;
-	bool commit = true;
 	edata_t *trail;
 	bool new_mapping;
 	if ((trail = ecache_alloc(tsdn, arena, ehooks, &arena->ecache_dirty,
 	    edata_past_get(edata), trailsize, 0, CACHELINE, false, SC_NSIZES,
-	    &is_zeroed_trail, &commit)) != NULL
+	    &is_zeroed_trail)) != NULL
 	    || (trail = ecache_alloc(tsdn, arena, ehooks, &arena->ecache_muzzy,
 	    edata_past_get(edata), trailsize, 0, CACHELINE, false, SC_NSIZES,
-	    &is_zeroed_trail, &commit)) != NULL) {
+	    &is_zeroed_trail)) != NULL) {
 		if (config_stats) {
 			new_mapping = false;
 		}
 	} else {
 		if ((trail = ecache_alloc_grow(tsdn, arena, ehooks,
 		    &arena->ecache_retained, edata_past_get(edata), trailsize,
-		    0, CACHELINE, false, SC_NSIZES, &is_zeroed_trail, &commit))
+		    0, CACHELINE, false, SC_NSIZES, &is_zeroed_trail))
 			== NULL) {
 			return true;
 		}

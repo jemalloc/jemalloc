@@ -433,19 +433,17 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 
 	szind_t szind = sz_size2index(usize);
 	size_t mapped_add;
-	bool commit = true;
 	edata_t *edata = ecache_alloc(tsdn, arena, ehooks, &arena->ecache_dirty,
-	    NULL, usize, sz_large_pad, alignment, false, szind, zero, &commit);
+	    NULL, usize, sz_large_pad, alignment, false, szind, zero);
 	if (edata == NULL && arena_may_have_muzzy(arena)) {
 		edata = ecache_alloc(tsdn, arena, ehooks, &arena->ecache_muzzy,
-		    NULL, usize, sz_large_pad, alignment, false, szind, zero,
-		    &commit);
+		    NULL, usize, sz_large_pad, alignment, false, szind, zero);
 	}
 	size_t size = usize + sz_large_pad;
 	if (edata == NULL) {
 		edata = ecache_alloc_grow(tsdn, arena, ehooks,
 		    &arena->ecache_retained, NULL, usize, sz_large_pad,
-		    alignment, false, szind, zero, &commit);
+		    alignment, false, szind, zero);
 		if (config_stats) {
 			/*
 			 * edata may be NULL on OOM, but in that case mapped_add
@@ -1203,15 +1201,14 @@ static edata_t *
 arena_slab_alloc_hard(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     const bin_info_t *bin_info, szind_t szind) {
 	edata_t *slab;
-	bool zero, commit;
+	bool zero;
 
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
 	zero = false;
-	commit = true;
 	slab = ecache_alloc_grow(tsdn, arena, ehooks, &arena->ecache_retained,
-	    NULL, bin_info->slab_size, 0, PAGE, true, szind, &zero, &commit);
+	    NULL, bin_info->slab_size, 0, PAGE, true, szind, &zero);
 
 	if (config_stats && slab != NULL) {
 		arena_stats_mapped_add(tsdn, &arena->stats,
@@ -1230,13 +1227,11 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned binshard
 	ehooks_t *ehooks = arena_get_ehooks(arena);
 	szind_t szind = sz_size2index(bin_info->reg_size);
 	bool zero = false;
-	bool commit = true;
 	edata_t *slab = ecache_alloc(tsdn, arena, ehooks, &arena->ecache_dirty,
-	    NULL, bin_info->slab_size, 0, PAGE, true, binind, &zero, &commit);
+	    NULL, bin_info->slab_size, 0, PAGE, true, binind, &zero);
 	if (slab == NULL && arena_may_have_muzzy(arena)) {
 		slab = ecache_alloc(tsdn, arena, ehooks, &arena->ecache_muzzy,
-		    NULL, bin_info->slab_size, 0, PAGE, true, binind, &zero,
-		    &commit);
+		    NULL, bin_info->slab_size, 0, PAGE, true, binind, &zero);
 	}
 	if (slab == NULL) {
 		slab = arena_slab_alloc_hard(tsdn, arena, ehooks, bin_info,
