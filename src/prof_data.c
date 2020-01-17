@@ -218,8 +218,8 @@ prof_gctx_create(tsdn_t *tsdn, prof_bt_t *bt) {
 }
 
 static void
-prof_gctx_try_destroy(tsd_t *tsd, prof_tdata_t *tdata_self, prof_gctx_t *gctx,
-    prof_tdata_t *tdata) {
+prof_gctx_try_destroy(tsd_t *tsd, prof_tdata_t *tdata_self,
+    prof_gctx_t *gctx) {
 	cassert(config_prof);
 
 	/*
@@ -371,7 +371,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt) {
 		    arena_ichoose(tsd, NULL), true);
 		if (ret.p == NULL) {
 			if (new_gctx) {
-				prof_gctx_try_destroy(tsd, tdata, gctx, tdata);
+				prof_gctx_try_destroy(tsd, tdata, gctx);
 			}
 			return NULL;
 		}
@@ -389,7 +389,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt) {
 		malloc_mutex_unlock(tsd_tsdn(tsd), tdata->lock);
 		if (error) {
 			if (new_gctx) {
-				prof_gctx_try_destroy(tsd, tdata, gctx, tdata);
+				prof_gctx_try_destroy(tsd, tdata, gctx);
 			}
 			idalloctm(tsd_tsdn(tsd), ret.v, NULL, NULL, true, true);
 			return NULL;
@@ -767,7 +767,7 @@ prof_gctx_finish(tsd_t *tsd, prof_gctx_tree_t *gctxs) {
 		if (prof_gctx_should_destroy(gctx)) {
 			gctx->nlimbo++;
 			malloc_mutex_unlock(tsd_tsdn(tsd), gctx->lock);
-			prof_gctx_try_destroy(tsd, tdata, gctx, tdata);
+			prof_gctx_try_destroy(tsd, tdata, gctx);
 		} else {
 			malloc_mutex_unlock(tsd_tsdn(tsd), gctx->lock);
 		}
@@ -1367,8 +1367,7 @@ prof_tdata_expire(tsdn_t *tsdn, prof_tdata_t *tdata) {
 	malloc_mutex_lock(tsdn, tdata->lock);
 	if (!tdata->expired) {
 		tdata->expired = true;
-		destroy_tdata = tdata->attached ? false :
-		    prof_tdata_should_destroy(tsdn, tdata, false);
+		destroy_tdata = prof_tdata_should_destroy(tsdn, tdata, false);
 	} else {
 		destroy_tdata = false;
 	}
@@ -1492,8 +1491,7 @@ prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx) {
 	}
 	malloc_mutex_unlock(tsd_tsdn(tsd), gctx->lock);
 	if (destroy_gctx) {
-		prof_gctx_try_destroy(tsd, prof_tdata_get(tsd, false), gctx,
-		    tdata);
+		prof_gctx_try_destroy(tsd, prof_tdata_get(tsd, false), gctx);
 	}
 
 	malloc_mutex_assert_not_owner(tsd_tsdn(tsd), tctx->tdata->lock);
