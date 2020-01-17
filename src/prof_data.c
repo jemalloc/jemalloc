@@ -1315,6 +1315,7 @@ static void
 prof_tdata_destroy_locked(tsd_t *tsd, prof_tdata_t *tdata,
     bool even_if_attached) {
 	malloc_mutex_assert_owner(tsd_tsdn(tsd), &tdatas_mtx);
+	malloc_mutex_assert_not_owner(tsd_tsdn(tsd), tdata->lock);
 
 	tdata_tree_remove(&tdatas, tdata);
 
@@ -1432,10 +1433,6 @@ prof_tctx_should_destroy(tsd_t *tsd, prof_tctx_t *tctx) {
 
 static void
 prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx) {
-	prof_tdata_t *tdata = tctx->tdata;
-	prof_gctx_t *gctx = tctx->gctx;
-	bool destroy_tdata, destroy_tctx, destroy_gctx;
-
 	malloc_mutex_assert_owner(tsd_tsdn(tsd), tctx->tdata->lock);
 
 	assert(tctx->cnts.curobjs == 0);
@@ -1444,9 +1441,21 @@ prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx) {
 	assert(tctx->cnts.accumobjs == 0);
 	assert(tctx->cnts.accumbytes == 0);
 
-	ckh_remove(tsd, &tdata->bt2tctx, &gctx->bt, NULL, NULL);
-	destroy_tdata = prof_tdata_should_destroy(tsd_tsdn(tsd), tdata, false);
-	malloc_mutex_unlock(tsd_tsdn(tsd), tdata->lock);
+	prof_gctx_t *gctx = tctx->gctx;
+
+	{
+		prof_tdata_t *tdata = tctx->tdata;
+		tctx->tdata = NULL;
+		ckh_remove(tsd, &tdata->bt2tctx, &gctx->bt, NULL, NULL);
+		bool destroy_tdata = prof_tdata_should_destroy(tsd_tsdn(tsd),
+		    tdata, false);
+		malloc_mutex_unlock(tsd_tsdn(tsd), tdata->lock);
+		if (destroy_tdata) {
+			prof_tdata_destroy(tsd, tdata, false);
+		}
+	}
+
+	bool destroy_tctx, destroy_gctx;
 
 	malloc_mutex_lock(tsd_tsdn(tsd), gctx->lock);
 	switch (tctx->state) {
@@ -1493,13 +1502,6 @@ prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx) {
 	if (destroy_gctx) {
 		prof_gctx_try_destroy(tsd, prof_tdata_get(tsd, false), gctx);
 	}
-
-	malloc_mutex_assert_not_owner(tsd_tsdn(tsd), tctx->tdata->lock);
-
-	if (destroy_tdata) {
-		prof_tdata_destroy(tsd, tdata, false);
-	}
-
 	if (destroy_tctx) {
 		idalloctm(tsd_tsdn(tsd), tctx, NULL, NULL, true, true);
 	}
