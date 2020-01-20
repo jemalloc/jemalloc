@@ -10,6 +10,7 @@ extern bool malloc_slow;
 /* Run-time options. */
 extern bool opt_abort;
 extern bool opt_abort_conf;
+extern bool opt_confirm_conf;
 extern const char *opt_junk;
 extern bool opt_junk_alloc;
 extern bool opt_junk_free;
@@ -17,6 +18,9 @@ extern bool opt_utrace;
 extern bool opt_xmalloc;
 extern bool opt_zero;
 extern unsigned opt_narenas;
+extern zero_realloc_action_t opt_zero_realloc_action;
+extern const char *zero_realloc_mode_names[];
+extern atomic_zu_t zero_realloc_count;
 
 /* Number of CPUs. */
 extern unsigned ncpus;
@@ -51,5 +55,6 @@ void jemalloc_prefork(void);
 void jemalloc_postfork_parent(void);
 void jemalloc_postfork_child(void);
 bool malloc_initialized(void);
+void je_sdallocx_noflags(void *ptr, size_t size);
 
 #endif /* JEMALLOC_INTERNAL_EXTERNS_H */

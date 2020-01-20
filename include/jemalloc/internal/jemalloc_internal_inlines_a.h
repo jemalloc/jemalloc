@@ -91,7 +91,7 @@ arena_get(tsdn_t *tsdn, unsigned ind, bool init_if_missing) {
 	if (unlikely(ret == NULL)) {
 		if (init_if_missing) {
 			ret = arena_init(tsdn, ind,
-			    (extent_hooks_t *)&extent_hooks_default);
+			    (extent_hooks_t *)&ehooks_default_extent_hooks);
 		}
 	}
 	return ret;
@@ -130,8 +130,8 @@ tcache_available(tsd_t *tsd) {
 	if (likely(tsd_tcache_enabled_get(tsd))) {
 		/* Associated arena == NULL implies tcache init in progress. */
 		assert(tsd_tcachep_get(tsd)->arena == NULL ||
-		    tcache_small_bin_get(tsd_tcachep_get(tsd), 0)->avail !=
-		    NULL);
+		    tcache_small_bin_get(tsd_tcachep_get(tsd), 0)->cur_ptr.ptr
+		    != NULL);
 		return true;
 	}
 
@@ -151,24 +151,12 @@ static inline void
 pre_reentrancy(tsd_t *tsd, arena_t *arena) {
 	/* arena is the current context.  Reentry from a0 is not allowed. */
 	assert(arena != arena_get(tsd_tsdn(tsd), 0, false));
-
-	bool fast = tsd_fast(tsd);
-	assert(tsd_reentrancy_level_get(tsd) < INT8_MAX);
-	++*tsd_reentrancy_levelp_get(tsd);
-	if (fast) {
-		/* Prepare slow path for reentrancy. */
-		tsd_slow_update(tsd);
-		assert(tsd_state_get(tsd) == tsd_state_nominal_slow);
-	}
+	tsd_pre_reentrancy_raw(tsd);
 }
 
 static inline void
 post_reentrancy(tsd_t *tsd) {
-	int8_t *reentrancy_level = tsd_reentrancy_levelp_get(tsd);
-	assert(*reentrancy_level > 0);
-	if (--*reentrancy_level == 0) {
-		tsd_slow_update(tsd);
-	}
+	tsd_post_reentrancy_raw(tsd);
 }
 
 #endif /* JEMALLOC_INTERNAL_INLINES_A_H */

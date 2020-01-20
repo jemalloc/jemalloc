@@ -250,6 +250,11 @@ if test "x$GCC" = "xyes" ; then
   JE_CFLAGS_ADD([-Wsign-compare])
   JE_CFLAGS_ADD([-Wundef])
   JE_CFLAGS_ADD([-Wno-format-zero-length])
+  dnl This warning triggers on the use of the universal zero initializer, which
+  dnl is a very handy idiom for things like the tcache static initializer (which
+  dnl has lots of nested structs).  See the discussion at.
+  dnl https://gcc.gnu.org/bugzilla/show_bug.cgi?id=53119
+  JE_CFLAGS_ADD([-Wno-missing-braces])
   JE_CFLAGS_ADD([-pipe])
   JE_CFLAGS_ADD([-g3])
 elif test "x$je_cv_msvc" = "xyes" ; then
@@ -290,8 +295,11 @@ if test "x$enable_cxx" = "x1" ; then
   dnl Require at least c++14, which is the first version to support sized
   dnl deallocation.  C++ support is not compiled otherwise.
   m4_include([m4/ax_cxx_compile_stdcxx.m4])
-  AX_CXX_COMPILE_STDCXX([14], [noext], [optional])
-  if test "x${HAVE_CXX14}" = "x1" ; then
+  AX_CXX_COMPILE_STDCXX([17], [noext], [optional])
+  if test "x${HAVE_CXX17}" != "x1"; then
+    AX_CXX_COMPILE_STDCXX([14], [noext], [optional])
+  fi
+  if test "x${HAVE_CXX14}" = "x1" -o "x${HAVE_CXX17}" = "x1"; then
     JE_CXXFLAGS_ADD([-Wall])
     JE_CXXFLAGS_ADD([-Wextra])
     JE_CXXFLAGS_ADD([-g3])
@@ -583,7 +591,7 @@ if test ! -e "${objroot}VERSION" ; then
   if test ! -e "${srcroot}VERSION" ; then
     AC_MSG_RESULT(
       [Missing VERSION file, and unable to generate it; creating bogus VERSION])
-    echo "0.0.0-0-g0000000000000000000000000000000000000000" > "${objroot}VERSION"
+    echo "0.0.0-0-g000000missing_version_try_git_fetch_tags" > "${objroot}VERSION"
   else
     cp ${srcroot}VERSION ${objroot}VERSION
   fi
@@ -738,6 +746,9 @@ case "${host}" in
 	libprefix=""
 	SOREV="${so}"
 	PIC_CFLAGS=""
+	if test "${LG_SIZEOF_PTR}" = "3"; then
+	  default_retain="1"
+	fi
 	;;
   *)
 	AC_MSG_RESULT([Unsupported operating system: ${host}])
@@ -863,6 +874,26 @@ if test "x${je_cv_format_arg}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_HAVE_ATTR_FORMAT_ARG], [ ])
 fi
 
+dnl Check for fallthrough attribute support.
+JE_CFLAGS_SAVE()
+JE_CFLAGS_ADD([-Wimplicit-fallthrough])
+JE_COMPILABLE([fallthrough attribute],
+              [#if !__has_attribute(fallthrough)
+               #error "foo"
+               #endif],
+              [int x = 0;
+               switch (x) {
+               case 0: __attribute__((__fallthrough__));
+               case 1: return 1;
+               }],
+              [je_cv_fallthrough])
+JE_CFLAGS_RESTORE()
+if test "x${je_cv_fallthrough}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_ATTR_FALLTHROUGH], [ ])
+  JE_CFLAGS_ADD([-Wimplicit-fallthrough])
+  JE_CXXFLAGS_ADD([-Wimplicit-fallthrough])
+fi
+
 dnl Support optional additions to rpath.
 AC_ARG_WITH([rpath],
   [AS_HELP_STRING([--with-rpath=<rpath>], [Colon-separated rpath (ELF systems only)])],
@@ -892,6 +923,19 @@ AC_PROG_INSTALL
 AC_PROG_RANLIB
 AC_PATH_PROG([LD], [ld], [false], [$PATH])
 AC_PATH_PROG([AUTOCONF], [autoconf], [false], [$PATH])
+
+dnl Enable documentation
+AC_ARG_ENABLE([doc],
+	      [AS_HELP_STRING([--enable-documentation], [Build documentation])],
+if test "x$enable_doc" = "xno" ; then
+  enable_doc="0"
+else
+  enable_doc="1"
+fi
+,
+enable_doc="1"
+)
+AC_SUBST([enable_doc])
 
 dnl Enable shared libs
 AC_ARG_ENABLE([shared],
@@ -1418,22 +1462,22 @@ if test "x$enable_readlinkat" = "x1" ; then
 fi
 AC_SUBST([enable_readlinkat])
 
-dnl Avoid the extra size checking by default
-AC_ARG_ENABLE([extra-size-check],
-  [AS_HELP_STRING([--enable-extra-size-check],
-  [Perform additonal size related sanity checks])],
-[if test "x$enable_extra_size_check" = "xno" ; then
-  enable_extra_size_check="0"
+dnl Avoid extra safety checks by default
+AC_ARG_ENABLE([opt-safety-checks],
+  [AS_HELP_STRING([--enable-opt-safety-checks],
+  [Perform certain low-overhead checks, even in opt mode])],
+[if test "x$enable_opt_safety_checks" = "xno" ; then
+  enable_opt_safety_checks="0"
 else
-  enable_extra_size_check="1"
+  enable_opt_safety_checks="1"
 fi
 ],
-[enable_extra_size_check="0"]
+[enable_opt_safety_checks="0"]
 )
-if test "x$enable_extra_size_check" = "x1" ; then
-  AC_DEFINE([JEMALLOC_EXTRA_SIZE_CHECK], [ ])
+if test "x$enable_opt_safety_checks" = "x1" ; then
+  AC_DEFINE([JEMALLOC_OPT_SAFETY_CHECKS], [ ])
 fi
-AC_SUBST([enable_extra_size_check])
+AC_SUBST([enable_opt_safety_checks])
 
 JE_COMPILABLE([a program using __builtin_unreachable], [
 void foo (void) {
@@ -2369,6 +2413,7 @@ AC_MSG_RESULT([JEMALLOC_PRIVATE_NAMESPACE])
 AC_MSG_RESULT([                   : ${JEMALLOC_PRIVATE_NAMESPACE}])
 AC_MSG_RESULT([install_suffix     : ${install_suffix}])
 AC_MSG_RESULT([malloc_conf        : ${config_malloc_conf}])
+AC_MSG_RESULT([documentation      : ${enable_doc}])
 AC_MSG_RESULT([shared libs        : ${enable_shared}])
 AC_MSG_RESULT([static libs        : ${enable_static}])
 AC_MSG_RESULT([autogen            : ${enable_autogen}])

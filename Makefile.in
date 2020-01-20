@@ -56,6 +56,7 @@ cfghdrs_out := @cfghdrs_out@
 cfgoutputs_in := $(addprefix $(srcroot),@cfgoutputs_in@)
 cfgoutputs_out := @cfgoutputs_out@
 enable_autogen := @enable_autogen@
+enable_doc := @enable_doc@
 enable_shared := @enable_shared@
 enable_static := @enable_static@
 enable_prof := @enable_prof@
@@ -98,15 +99,23 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/background_thread.c \
 	$(srcroot)src/base.c \
 	$(srcroot)src/bin.c \
+	$(srcroot)src/bin_info.c \
 	$(srcroot)src/bitmap.c \
+	$(srcroot)src/buf_writer.c \
 	$(srcroot)src/ckh.c \
 	$(srcroot)src/ctl.c \
 	$(srcroot)src/div.c \
+	$(srcroot)src/ecache.c \
+	$(srcroot)src/edata.c \
+	$(srcroot)src/edata_cache.c \
+	$(srcroot)src/ehooks.c \
+	$(srcroot)src/eset.c \
 	$(srcroot)src/extent.c \
 	$(srcroot)src/extent_dss.c \
 	$(srcroot)src/extent_mmap.c \
 	$(srcroot)src/hash.c \
 	$(srcroot)src/hook.c \
+	$(srcroot)src/inspect.c \
 	$(srcroot)src/large.c \
 	$(srcroot)src/log.c \
 	$(srcroot)src/malloc_io.c \
@@ -116,12 +125,17 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/pages.c \
 	$(srcroot)src/prng.c \
 	$(srcroot)src/prof.c \
+	$(srcroot)src/prof_data.c \
+	$(srcroot)src/prof_log.c \
+	$(srcroot)src/prof_recent.c \
 	$(srcroot)src/rtree.c \
-	$(srcroot)src/stats.c \
+	$(srcroot)src/safety_check.c \
 	$(srcroot)src/sc.c \
+	$(srcroot)src/stats.c \
 	$(srcroot)src/sz.c \
 	$(srcroot)src/tcache.c \
 	$(srcroot)src/test_hooks.c \
+	$(srcroot)src/thread_event.c \
 	$(srcroot)src/ticker.c \
 	$(srcroot)src/tsd.c \
 	$(srcroot)src/witness.c
@@ -170,9 +184,11 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/background_thread.c \
 	$(srcroot)test/unit/background_thread_enable.c \
 	$(srcroot)test/unit/base.c \
+	$(srcroot)test/unit/binshard.c \
 	$(srcroot)test/unit/bitmap.c \
 	$(srcroot)test/unit/bit_util.c \
-	$(srcroot)test/unit/binshard.c \
+	$(srcroot)test/unit/buf_writer.c \
+	$(srcroot)test/unit/cache_bin.c \
 	$(srcroot)test/unit/ckh.c \
 	$(srcroot)test/unit/decay.c \
 	$(srcroot)test/unit/div.c \
@@ -182,6 +198,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/hash.c \
 	$(srcroot)test/unit/hook.c \
 	$(srcroot)test/unit/huge.c \
+	$(srcroot)test/unit/inspect.c \
 	$(srcroot)test/unit/junk.c \
 	$(srcroot)test/unit/junk_alloc.c \
 	$(srcroot)test/unit/junk_free.c \
@@ -191,6 +208,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/math.c \
 	$(srcroot)test/unit/mq.c \
 	$(srcroot)test/unit/mtx.c \
+	$(srcroot)test/unit/nstime.c \
 	$(srcroot)test/unit/pack.c \
 	$(srcroot)test/unit/pages.c \
 	$(srcroot)test/unit/ph.c \
@@ -200,6 +218,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/prof_gdump.c \
 	$(srcroot)test/unit/prof_idump.c \
 	$(srcroot)test/unit/prof_log.c \
+	$(srcroot)test/unit/prof_recent.c \
 	$(srcroot)test/unit/prof_reset.c \
 	$(srcroot)test/unit/prof_tctx.c \
 	$(srcroot)test/unit/prof_thread_name.c \
@@ -208,9 +227,10 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/rb.c \
 	$(srcroot)test/unit/retained.c \
 	$(srcroot)test/unit/rtree.c \
+	$(srcroot)test/unit/safety_check.c \
+	$(srcroot)test/unit/sc.c \
 	$(srcroot)test/unit/seq.c \
 	$(srcroot)test/unit/SFMT.c \
-	$(srcroot)test/unit/sc.c \
 	$(srcroot)test/unit/size_classes.c \
 	$(srcroot)test/unit/slab.c \
 	$(srcroot)test/unit/smoothstep.c \
@@ -218,11 +238,15 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/stats.c \
 	$(srcroot)test/unit/stats_print.c \
 	$(srcroot)test/unit/test_hooks.c \
+	$(srcroot)test/unit/thread_event.c \
 	$(srcroot)test/unit/ticker.c \
-	$(srcroot)test/unit/nstime.c \
 	$(srcroot)test/unit/tsd.c \
 	$(srcroot)test/unit/witness.c \
-	$(srcroot)test/unit/zero.c
+	$(srcroot)test/unit/zero.c \
+	$(srcroot)test/unit/zero_realloc_abort.c \
+	$(srcroot)test/unit/zero_realloc_free.c \
+	$(srcroot)test/unit/zero_realloc_strict.c \
+	$(srcroot)test/unit/zero_reallocs.c
 ifeq (@enable_prof@, 1)
 TESTS_UNIT += \
 	$(srcroot)test/unit/arena_reset_prof.c
@@ -402,7 +426,7 @@ $(objroot)include/jemalloc/internal/private_namespace_jet.gen.h: $(C_JET_SYMS)
 	$(SHELL) $(srcroot)include/jemalloc/internal/private_namespace.sh $^ > $@
 
 %.h: %.gen.h
-	@if ! `cmp -s $< $@` ; then echo "cp $< $<"; cp $< $@ ; fi
+	@if ! `cmp -s $< $@` ; then echo "cp $< $@"; cp $< $@ ; fi
 
 $(CPP_OBJS) $(CPP_PIC_OBJS) $(TESTS_CPP_OBJS): %.$(O):
 	@mkdir -p $(@D)
@@ -513,7 +537,11 @@ done
 
 install_doc: build_doc install_doc_html install_doc_man
 
-install: install_bin install_include install_lib install_doc
+install: install_bin install_include install_lib
+
+ifeq ($(enable_doc), 1)
+install: install_doc
+endif
 
 tests_unit: $(TESTS_UNIT:$(srcroot)%.c=$(objroot)%$(EXE))
 tests_integration: $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%$(EXE)) $(TESTS_INTEGRATION_CPP:$(srcroot)%.cpp=$(objroot)%$(EXE))

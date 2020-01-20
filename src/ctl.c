@@ -6,6 +6,7 @@
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
+#include "jemalloc/internal/inspect.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/nstime.h"
 #include "jemalloc/internal/sc.h"
@@ -72,6 +73,7 @@ CTL_PROTO(config_debug)
 CTL_PROTO(config_fill)
 CTL_PROTO(config_lazy_lock)
 CTL_PROTO(config_malloc_conf)
+CTL_PROTO(config_opt_safety_checks)
 CTL_PROTO(config_prof)
 CTL_PROTO(config_prof_libgcc)
 CTL_PROTO(config_prof_libunwind)
@@ -80,6 +82,7 @@ CTL_PROTO(config_utrace)
 CTL_PROTO(config_xmalloc)
 CTL_PROTO(opt_abort)
 CTL_PROTO(opt_abort_conf)
+CTL_PROTO(opt_confirm_conf)
 CTL_PROTO(opt_metadata_thp)
 CTL_PROTO(opt_retain)
 CTL_PROTO(opt_dss)
@@ -110,6 +113,8 @@ CTL_PROTO(opt_prof_gdump)
 CTL_PROTO(opt_prof_final)
 CTL_PROTO(opt_prof_leak)
 CTL_PROTO(opt_prof_accum)
+CTL_PROTO(opt_prof_recent_alloc_max)
+CTL_PROTO(opt_zero_realloc)
 CTL_PROTO(tcache_create)
 CTL_PROTO(tcache_flush)
 CTL_PROTO(tcache_destroy)
@@ -146,6 +151,7 @@ CTL_PROTO(prof_thread_active_init)
 CTL_PROTO(prof_active)
 CTL_PROTO(prof_dump)
 CTL_PROTO(prof_gdump)
+CTL_PROTO(prof_dump_prefix)
 CTL_PROTO(prof_reset)
 CTL_PROTO(prof_interval)
 CTL_PROTO(lg_prof_sample)
@@ -155,10 +161,14 @@ CTL_PROTO(stats_arenas_i_small_allocated)
 CTL_PROTO(stats_arenas_i_small_nmalloc)
 CTL_PROTO(stats_arenas_i_small_ndalloc)
 CTL_PROTO(stats_arenas_i_small_nrequests)
+CTL_PROTO(stats_arenas_i_small_nfills)
+CTL_PROTO(stats_arenas_i_small_nflushes)
 CTL_PROTO(stats_arenas_i_large_allocated)
 CTL_PROTO(stats_arenas_i_large_nmalloc)
 CTL_PROTO(stats_arenas_i_large_ndalloc)
 CTL_PROTO(stats_arenas_i_large_nrequests)
+CTL_PROTO(stats_arenas_i_large_nfills)
+CTL_PROTO(stats_arenas_i_large_nflushes)
 CTL_PROTO(stats_arenas_i_bins_j_nmalloc)
 CTL_PROTO(stats_arenas_i_bins_j_ndalloc)
 CTL_PROTO(stats_arenas_i_bins_j_nrequests)
@@ -168,6 +178,7 @@ CTL_PROTO(stats_arenas_i_bins_j_nflushes)
 CTL_PROTO(stats_arenas_i_bins_j_nslabs)
 CTL_PROTO(stats_arenas_i_bins_j_nreslabs)
 CTL_PROTO(stats_arenas_i_bins_j_curslabs)
+CTL_PROTO(stats_arenas_i_bins_j_nonfull_slabs)
 INDEX_PROTO(stats_arenas_i_bins_j)
 CTL_PROTO(stats_arenas_i_lextents_j_nmalloc)
 CTL_PROTO(stats_arenas_i_lextents_j_ndalloc)
@@ -203,6 +214,7 @@ CTL_PROTO(stats_arenas_i_internal)
 CTL_PROTO(stats_arenas_i_metadata_thp)
 CTL_PROTO(stats_arenas_i_tcache_bytes)
 CTL_PROTO(stats_arenas_i_resident)
+CTL_PROTO(stats_arenas_i_abandoned_vm)
 INDEX_PROTO(stats_arenas_i)
 CTL_PROTO(stats_allocated)
 CTL_PROTO(stats_active)
@@ -214,8 +226,14 @@ CTL_PROTO(stats_metadata_thp)
 CTL_PROTO(stats_resident)
 CTL_PROTO(stats_mapped)
 CTL_PROTO(stats_retained)
+CTL_PROTO(stats_zero_reallocs)
 CTL_PROTO(experimental_hooks_install)
 CTL_PROTO(experimental_hooks_remove)
+CTL_PROTO(experimental_utilization_query)
+CTL_PROTO(experimental_utilization_batch_query)
+CTL_PROTO(experimental_arenas_i_pactivep)
+INDEX_PROTO(experimental_arenas_i)
+CTL_PROTO(experimental_prof_recent_alloc_max)
 
 #define MUTEX_STATS_CTL_PROTO_GEN(n)					\
 CTL_PROTO(stats_##n##_num_ops)						\
@@ -284,6 +302,7 @@ static const ctl_named_node_t	config_node[] = {
 	{NAME("fill"),		CTL(config_fill)},
 	{NAME("lazy_lock"),	CTL(config_lazy_lock)},
 	{NAME("malloc_conf"),	CTL(config_malloc_conf)},
+	{NAME("opt_safety_checks"),	CTL(config_opt_safety_checks)},
 	{NAME("prof"),		CTL(config_prof)},
 	{NAME("prof_libgcc"),	CTL(config_prof_libgcc)},
 	{NAME("prof_libunwind"), CTL(config_prof_libunwind)},
@@ -295,6 +314,7 @@ static const ctl_named_node_t	config_node[] = {
 static const ctl_named_node_t opt_node[] = {
 	{NAME("abort"),		CTL(opt_abort)},
 	{NAME("abort_conf"),	CTL(opt_abort_conf)},
+	{NAME("confirm_conf"),	CTL(opt_confirm_conf)},
 	{NAME("metadata_thp"),	CTL(opt_metadata_thp)},
 	{NAME("retain"),	CTL(opt_retain)},
 	{NAME("dss"),		CTL(opt_dss)},
@@ -324,7 +344,9 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("prof_gdump"),	CTL(opt_prof_gdump)},
 	{NAME("prof_final"),	CTL(opt_prof_final)},
 	{NAME("prof_leak"),	CTL(opt_prof_leak)},
-	{NAME("prof_accum"),	CTL(opt_prof_accum)}
+	{NAME("prof_accum"),	CTL(opt_prof_accum)},
+	{NAME("prof_recent_alloc_max"), CTL(opt_prof_recent_alloc_max)},
+	{NAME("zero_realloc"),	CTL(opt_zero_realloc)}
 };
 
 static const ctl_named_node_t	tcache_node[] = {
@@ -399,6 +421,7 @@ static const ctl_named_node_t	prof_node[] = {
 	{NAME("active"),	CTL(prof_active)},
 	{NAME("dump"),		CTL(prof_dump)},
 	{NAME("gdump"),		CTL(prof_gdump)},
+	{NAME("dump_prefix"),	CTL(prof_dump_prefix)},
 	{NAME("reset"),		CTL(prof_reset)},
 	{NAME("interval"),	CTL(prof_interval)},
 	{NAME("lg_sample"),	CTL(lg_prof_sample)},
@@ -409,14 +432,18 @@ static const ctl_named_node_t stats_arenas_i_small_node[] = {
 	{NAME("allocated"),	CTL(stats_arenas_i_small_allocated)},
 	{NAME("nmalloc"),	CTL(stats_arenas_i_small_nmalloc)},
 	{NAME("ndalloc"),	CTL(stats_arenas_i_small_ndalloc)},
-	{NAME("nrequests"),	CTL(stats_arenas_i_small_nrequests)}
+	{NAME("nrequests"),	CTL(stats_arenas_i_small_nrequests)},
+	{NAME("nfills"),	CTL(stats_arenas_i_small_nfills)},
+	{NAME("nflushes"),	CTL(stats_arenas_i_small_nflushes)}
 };
 
 static const ctl_named_node_t stats_arenas_i_large_node[] = {
 	{NAME("allocated"),	CTL(stats_arenas_i_large_allocated)},
 	{NAME("nmalloc"),	CTL(stats_arenas_i_large_nmalloc)},
 	{NAME("ndalloc"),	CTL(stats_arenas_i_large_ndalloc)},
-	{NAME("nrequests"),	CTL(stats_arenas_i_large_nrequests)}
+	{NAME("nrequests"),	CTL(stats_arenas_i_large_nrequests)},
+	{NAME("nfills"),	CTL(stats_arenas_i_large_nfills)},
+	{NAME("nflushes"),	CTL(stats_arenas_i_large_nflushes)}
 };
 
 #define MUTEX_PROF_DATA_NODE(prefix)					\
@@ -450,6 +477,7 @@ static const ctl_named_node_t stats_arenas_i_bins_j_node[] = {
 	{NAME("nslabs"),	CTL(stats_arenas_i_bins_j_nslabs)},
 	{NAME("nreslabs"),	CTL(stats_arenas_i_bins_j_nreslabs)},
 	{NAME("curslabs"),	CTL(stats_arenas_i_bins_j_curslabs)},
+	{NAME("nonfull_slabs"),	CTL(stats_arenas_i_bins_j_nonfull_slabs)},
 	{NAME("mutex"),		CHILD(named, stats_arenas_i_bins_j_mutex)}
 };
 
@@ -525,6 +553,7 @@ static const ctl_named_node_t stats_arenas_i_node[] = {
 	{NAME("metadata_thp"),	CTL(stats_arenas_i_metadata_thp)},
 	{NAME("tcache_bytes"),	CTL(stats_arenas_i_tcache_bytes)},
 	{NAME("resident"),	CTL(stats_arenas_i_resident)},
+	{NAME("abandoned_vm"),	CTL(stats_arenas_i_abandoned_vm)},
 	{NAME("small"),		CHILD(named, stats_arenas_i_small)},
 	{NAME("large"),		CHILD(named, stats_arenas_i_large)},
 	{NAME("bins"),		CHILD(indexed, stats_arenas_i_bins)},
@@ -569,16 +598,40 @@ static const ctl_named_node_t stats_node[] = {
 	{NAME("background_thread"),
 	 CHILD(named, stats_background_thread)},
 	{NAME("mutexes"),	CHILD(named, stats_mutexes)},
-	{NAME("arenas"),	CHILD(indexed, stats_arenas)}
+	{NAME("arenas"),	CHILD(indexed, stats_arenas)},
+	{NAME("zero_reallocs"),	CTL(stats_zero_reallocs)},
 };
 
-static const ctl_named_node_t hooks_node[] = {
+static const ctl_named_node_t experimental_hooks_node[] = {
 	{NAME("install"),	CTL(experimental_hooks_install)},
-	{NAME("remove"),	CTL(experimental_hooks_remove)},
+	{NAME("remove"),	CTL(experimental_hooks_remove)}
+};
+
+static const ctl_named_node_t experimental_utilization_node[] = {
+	{NAME("query"),		CTL(experimental_utilization_query)},
+	{NAME("batch_query"),	CTL(experimental_utilization_batch_query)}
+};
+
+static const ctl_named_node_t experimental_arenas_i_node[] = {
+	{NAME("pactivep"),	CTL(experimental_arenas_i_pactivep)}
+};
+static const ctl_named_node_t super_experimental_arenas_i_node[] = {
+	{NAME(""),		CHILD(named, experimental_arenas_i)}
+};
+
+static const ctl_indexed_node_t experimental_arenas_node[] = {
+	{INDEX(experimental_arenas_i)}
+};
+
+static const ctl_named_node_t experimental_prof_recent_node[] = {
+	{NAME("alloc_max"),	CTL(experimental_prof_recent_alloc_max)},
 };
 
 static const ctl_named_node_t experimental_node[] = {
-	{NAME("hooks"),		CHILD(named, hooks)}
+	{NAME("hooks"),		CHILD(named, experimental_hooks)},
+	{NAME("utilization"),	CHILD(named, experimental_utilization)},
+	{NAME("arenas"),	CHILD(indexed, experimental_arenas)},
+	{NAME("prof_recent"),	CHILD(named, experimental_prof_recent)}
 };
 
 static const ctl_named_node_t	root_node[] = {
@@ -742,8 +795,10 @@ ctl_arena_clear(ctl_arena_t *ctl_arena) {
 		ctl_arena->astats->nmalloc_small = 0;
 		ctl_arena->astats->ndalloc_small = 0;
 		ctl_arena->astats->nrequests_small = 0;
+		ctl_arena->astats->nfills_small = 0;
+		ctl_arena->astats->nflushes_small = 0;
 		memset(ctl_arena->astats->bstats, 0, SC_NBINS *
-		    sizeof(bin_stats_t));
+		    sizeof(bin_stats_data_t));
 		memset(ctl_arena->astats->lstats, 0, (SC_NSIZES - SC_NBINS) *
 		    sizeof(arena_stats_large_t));
 		memset(ctl_arena->astats->estats, 0, SC_NPSIZES *
@@ -764,15 +819,15 @@ ctl_arena_stats_amerge(tsdn_t *tsdn, ctl_arena_t *ctl_arena, arena_t *arena) {
 		    ctl_arena->astats->lstats, ctl_arena->astats->estats);
 
 		for (i = 0; i < SC_NBINS; i++) {
-			ctl_arena->astats->allocated_small +=
-			    ctl_arena->astats->bstats[i].curregs *
+			bin_stats_t *bstats =
+			    &ctl_arena->astats->bstats[i].stats_data;
+			ctl_arena->astats->allocated_small += bstats->curregs *
 			    sz_index2size(i);
-			ctl_arena->astats->nmalloc_small +=
-			    ctl_arena->astats->bstats[i].nmalloc;
-			ctl_arena->astats->ndalloc_small +=
-			    ctl_arena->astats->bstats[i].ndalloc;
-			ctl_arena->astats->nrequests_small +=
-			    ctl_arena->astats->bstats[i].nrequests;
+			ctl_arena->astats->nmalloc_small += bstats->nmalloc;
+			ctl_arena->astats->ndalloc_small += bstats->ndalloc;
+			ctl_arena->astats->nrequests_small += bstats->nrequests;
+			ctl_arena->astats->nfills_small += bstats->nfills;
+			ctl_arena->astats->nflushes_small += bstats->nflushes;
 		}
 	} else {
 		arena_basic_stats_merge(tsdn, arena, &ctl_arena->nthreads,
@@ -808,8 +863,8 @@ ctl_arena_stats_sdmerge(ctl_arena_t *ctl_sdarena, ctl_arena_t *ctl_arena,
 			    &astats->astats.mapped);
 			accum_atomic_zu(&sdstats->astats.retained,
 			    &astats->astats.retained);
-			accum_atomic_zu(&sdstats->astats.extent_avail,
-			    &astats->astats.extent_avail);
+			accum_atomic_zu(&sdstats->astats.edata_avail,
+			    &astats->astats.edata_avail);
 		}
 
 		ctl_accum_arena_stats_u64(&sdstats->astats.decay_dirty.npurge,
@@ -855,6 +910,8 @@ MUTEX_PROF_ARENA_MUTEXES
 		sdstats->nmalloc_small += astats->nmalloc_small;
 		sdstats->ndalloc_small += astats->ndalloc_small;
 		sdstats->nrequests_small += astats->nrequests_small;
+		sdstats->nfills_small += astats->nfills_small;
+		sdstats->nflushes_small += astats->nflushes_small;
 
 		if (!destroyed) {
 			accum_atomic_zu(&sdstats->astats.allocated_large,
@@ -869,6 +926,10 @@ MUTEX_PROF_ARENA_MUTEXES
 		    &astats->astats.ndalloc_large);
 		ctl_accum_arena_stats_u64(&sdstats->astats.nrequests_large,
 		    &astats->astats.nrequests_large);
+		ctl_accum_arena_stats_u64(&sdstats->astats.nflushes_large,
+		    &astats->astats.nflushes_large);
+		accum_atomic_zu(&sdstats->astats.abandoned_vm,
+		    &astats->astats.abandoned_vm);
 
 		accum_atomic_zu(&sdstats->astats.tcache_bytes,
 		    &astats->astats.tcache_bytes);
@@ -879,26 +940,26 @@ MUTEX_PROF_ARENA_MUTEXES
 
 		/* Merge bin stats. */
 		for (i = 0; i < SC_NBINS; i++) {
-			sdstats->bstats[i].nmalloc += astats->bstats[i].nmalloc;
-			sdstats->bstats[i].ndalloc += astats->bstats[i].ndalloc;
-			sdstats->bstats[i].nrequests +=
-			    astats->bstats[i].nrequests;
+			bin_stats_t *bstats = &astats->bstats[i].stats_data;
+			bin_stats_t *merged = &sdstats->bstats[i].stats_data;
+			merged->nmalloc += bstats->nmalloc;
+			merged->ndalloc += bstats->ndalloc;
+			merged->nrequests += bstats->nrequests;
 			if (!destroyed) {
-				sdstats->bstats[i].curregs +=
-				    astats->bstats[i].curregs;
+				merged->curregs += bstats->curregs;
 			} else {
-				assert(astats->bstats[i].curregs == 0);
+				assert(bstats->curregs == 0);
 			}
-			sdstats->bstats[i].nfills += astats->bstats[i].nfills;
-			sdstats->bstats[i].nflushes +=
-			    astats->bstats[i].nflushes;
-			sdstats->bstats[i].nslabs += astats->bstats[i].nslabs;
-			sdstats->bstats[i].reslabs += astats->bstats[i].reslabs;
+			merged->nfills += bstats->nfills;
+			merged->nflushes += bstats->nflushes;
+			merged->nslabs += bstats->nslabs;
+			merged->reslabs += bstats->reslabs;
 			if (!destroyed) {
-				sdstats->bstats[i].curslabs +=
-				    astats->bstats[i].curslabs;
+				merged->curslabs += bstats->curslabs;
+				merged->nonfull_slabs += bstats->nonfull_slabs;
 			} else {
-				assert(astats->bstats[i].curslabs == 0);
+				assert(bstats->curslabs == 0);
+				assert(bstats->nonfull_slabs == 0);
 			}
 			malloc_mutex_prof_merge(&sdstats->bstats[i].mutex_data,
 			    &astats->bstats[i].mutex_data);
@@ -985,8 +1046,11 @@ ctl_background_thread_stats_read(tsdn_t *tsdn) {
 	if (!have_background_thread ||
 	    background_thread_stats_read(tsdn, stats)) {
 		memset(stats, 0, sizeof(background_thread_stats_t));
-		nstime_init(&stats->run_interval, 0);
+		nstime_init_zero(&stats->run_interval);
 	}
+	malloc_mutex_prof_copy(
+	    &ctl_stats->mutex_prof_data[global_prof_mutex_max_per_bg_thd],
+	    &stats->max_counter_per_bg_thd);
 }
 
 static void
@@ -1042,8 +1106,12 @@ ctl_refresh(tsdn_t *tsdn) {
     malloc_mutex_unlock(tsdn, &mtx);
 
 		if (config_prof && opt_prof) {
-			READ_GLOBAL_MUTEX_PROF_DATA(global_prof_mutex_prof,
-			    bt2gctx_mtx);
+			READ_GLOBAL_MUTEX_PROF_DATA(
+			    global_prof_mutex_prof, bt2gctx_mtx);
+			READ_GLOBAL_MUTEX_PROF_DATA(
+			    global_prof_mutex_prof_thds_data, tdatas_mtx);
+			READ_GLOBAL_MUTEX_PROF_DATA(
+			    global_prof_mutex_prof_dump, prof_dump_mtx);
 		}
 		if (have_background_thread) {
 			READ_GLOBAL_MUTEX_PROF_DATA(
@@ -1359,6 +1427,11 @@ ctl_postfork_child(tsdn_t *tsdn) {
 	malloc_mutex_postfork_child(tsdn, &ctl_mtx);
 }
 
+void
+ctl_mtx_assert_held(tsdn_t *tsdn) {
+	malloc_mutex_assert_owner(tsdn, &ctl_mtx);
+}
+
 /******************************************************************************/
 /* *_ctl() functions. */
 
@@ -1515,25 +1588,6 @@ n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, \
 									\
 	READONLY();							\
 	oldval = (v);							\
-	READ(oldval, t);						\
-									\
-	ret = 0;							\
-label_return:								\
-	return ret;							\
-}
-
-#define CTL_TSD_RO_NL_CGEN(c, n, m, t)					\
-static int								\
-n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,	\
-    size_t *oldlenp, void *newp, size_t newlen) {			\
-	int ret;							\
-	t oldval;							\
-									\
-	if (!(c)) {							\
-		return ENOENT;						\
-	}								\
-	READONLY();							\
-	oldval = (m(tsd));						\
 	READ(oldval, t);						\
 									\
 	ret = 0;							\
@@ -1698,6 +1752,7 @@ CTL_RO_CONFIG_GEN(config_debug, bool)
 CTL_RO_CONFIG_GEN(config_fill, bool)
 CTL_RO_CONFIG_GEN(config_lazy_lock, bool)
 CTL_RO_CONFIG_GEN(config_malloc_conf, const char *)
+CTL_RO_CONFIG_GEN(config_opt_safety_checks, bool)
 CTL_RO_CONFIG_GEN(config_prof, bool)
 CTL_RO_CONFIG_GEN(config_prof_libgcc, bool)
 CTL_RO_CONFIG_GEN(config_prof_libunwind, bool)
@@ -1709,6 +1764,7 @@ CTL_RO_CONFIG_GEN(config_xmalloc, bool)
 
 CTL_RO_NL_GEN(opt_abort, opt_abort, bool)
 CTL_RO_NL_GEN(opt_abort_conf, opt_abort_conf, bool)
+CTL_RO_NL_GEN(opt_confirm_conf, opt_confirm_conf, bool)
 CTL_RO_NL_GEN(opt_metadata_thp, metadata_thp_mode_names[opt_metadata_thp],
     const char *)
 CTL_RO_NL_GEN(opt_retain, opt_retain, bool)
@@ -1743,6 +1799,10 @@ CTL_RO_NL_CGEN(config_prof, opt_lg_prof_interval, opt_lg_prof_interval, ssize_t)
 CTL_RO_NL_CGEN(config_prof, opt_prof_gdump, opt_prof_gdump, bool)
 CTL_RO_NL_CGEN(config_prof, opt_prof_final, opt_prof_final, bool)
 CTL_RO_NL_CGEN(config_prof, opt_prof_leak, opt_prof_leak, bool)
+CTL_RO_NL_CGEN(config_prof, opt_prof_recent_alloc_max,
+    opt_prof_recent_alloc_max, ssize_t)
+CTL_RO_NL_GEN(opt_zero_realloc,
+    zero_realloc_mode_names[opt_zero_realloc_action], const char *)
 
 /******************************************************************************/
 
@@ -1802,14 +1862,10 @@ label_return:
 	return ret;
 }
 
-CTL_TSD_RO_NL_CGEN(config_stats, thread_allocated, tsd_thread_allocated_get,
-    uint64_t)
-CTL_TSD_RO_NL_CGEN(config_stats, thread_allocatedp, tsd_thread_allocatedp_get,
-    uint64_t *)
-CTL_TSD_RO_NL_CGEN(config_stats, thread_deallocated, tsd_thread_deallocated_get,
-    uint64_t)
-CTL_TSD_RO_NL_CGEN(config_stats, thread_deallocatedp,
-    tsd_thread_deallocatedp_get, uint64_t *)
+CTL_RO_NL_GEN(thread_allocated, tsd_thread_allocated_get(tsd), uint64_t)
+CTL_RO_NL_GEN(thread_allocatedp, tsd_thread_allocatedp_get(tsd), uint64_t *)
+CTL_RO_NL_GEN(thread_deallocated, tsd_thread_deallocated_get(tsd), uint64_t)
+CTL_RO_NL_GEN(thread_deallocatedp, tsd_thread_deallocatedp_get(tsd), uint64_t *)
 
 static int
 thread_tcache_enabled_ctl(tsd_t *tsd, const size_t *mib,
@@ -2332,7 +2388,7 @@ arena_i_extent_hooks_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 				goto label_return;
 			}
 			old_extent_hooks =
-			    (extent_hooks_t *)&extent_hooks_default;
+			    (extent_hooks_t *)&ehooks_default_extent_hooks;
 			READ(old_extent_hooks, extent_hooks_t *);
 			if (newp != NULL) {
 				/* Initialize a new arena as a side effect. */
@@ -2351,11 +2407,13 @@ arena_i_extent_hooks_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 				extent_hooks_t *new_extent_hooks
 				    JEMALLOC_CC_SILENCE_INIT(NULL);
 				WRITE(new_extent_hooks, extent_hooks_t *);
-				old_extent_hooks = extent_hooks_set(tsd, arena,
-				    new_extent_hooks);
+				old_extent_hooks = arena_set_extent_hooks(tsd,
+				    arena, new_extent_hooks);
 				READ(old_extent_hooks, extent_hooks_t *);
 			} else {
-				old_extent_hooks = extent_hooks_get(arena);
+				old_extent_hooks =
+				    ehooks_get_extent_hooks_ptr(
+					arena_get_ehooks(arena));
 				READ(old_extent_hooks, extent_hooks_t *);
 			}
 		}
@@ -2534,7 +2592,7 @@ arenas_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 
-	extent_hooks = (extent_hooks_t *)&extent_hooks_default;
+	extent_hooks = (extent_hooks_t *)&ehooks_default_extent_hooks;
 	WRITE(extent_hooks, extent_hooks_t *);
 	if ((arena_ind = ctl_arena_init(tsd, extent_hooks)) == UINT_MAX) {
 		ret = EAGAIN;
@@ -2555,18 +2613,18 @@ arenas_lookup_ctl(tsd_t *tsd, const size_t *mib,
 	int ret;
 	unsigned arena_ind;
 	void *ptr;
-	extent_t *extent;
+	edata_t *edata;
 	arena_t *arena;
 
 	ptr = NULL;
 	ret = EINVAL;
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 	WRITE(ptr, void *);
-	extent = iealloc(tsd_tsdn(tsd), ptr);
-	if (extent == NULL)
+	edata = iealloc(tsd_tsdn(tsd), ptr);
+	if (edata == NULL)
 		goto label_return;
 
-	arena = extent_arena_get(extent);
+	arena = arena_get_from_edata(edata);
 	if (arena == NULL)
 		goto label_return;
 
@@ -2616,7 +2674,8 @@ prof_active_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 	bool oldval;
 
 	if (!config_prof) {
-		return ENOENT;
+		ret = ENOENT;
+		goto label_return;
 	}
 
 	if (newp != NULL) {
@@ -2624,7 +2683,12 @@ prof_active_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 			ret = EINVAL;
 			goto label_return;
 		}
-		oldval = prof_active_set(tsd_tsdn(tsd), *(bool *)newp);
+		bool val = *(bool *)newp;
+		if (!opt_prof && val) {
+			ret = ENOENT;
+			goto label_return;
+		}
+		oldval = prof_active_set(tsd_tsdn(tsd), val);
 	} else {
 		oldval = prof_active_get(tsd_tsdn(tsd));
 	}
@@ -2685,6 +2749,26 @@ label_return:
 }
 
 static int
+prof_dump_prefix_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+	const char *prefix = NULL;
+
+	if (!config_prof) {
+		return ENOENT;
+	}
+
+	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
+	WRITEONLY();
+	WRITE(prefix, const char *);
+
+	ret = prof_dump_prefix_set(tsd_tsdn(tsd), prefix) ? EFAULT : 0;
+label_return:
+	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
+	return ret;
+}
+
+static int
 prof_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
 	int ret;
@@ -2714,7 +2798,7 @@ static int
 prof_log_start_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
 	int ret;
-	
+
 	const char *filename = NULL;
 
 	if (!config_prof) {
@@ -2726,7 +2810,7 @@ prof_log_start_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 
 	if (prof_log_start(tsd_tsdn(tsd), filename)) {
 		ret = EFAULT;
-		goto label_return; 
+		goto label_return;
 	}
 
 	ret = 0;
@@ -2765,6 +2849,9 @@ CTL_RO_CGEN(config_stats, stats_background_thread_num_runs,
 CTL_RO_CGEN(config_stats, stats_background_thread_run_interval,
     nstime_ns(&ctl_stats->background_thread.run_interval), uint64_t)
 
+CTL_RO_CGEN(config_stats, stats_zero_reallocs,
+    atomic_load_zu(&zero_realloc_count, ATOMIC_RELAXED), size_t)
+
 CTL_RO_GEN(stats_arenas_i_dss, arenas_i(mib[2])->dss, const char *)
 CTL_RO_GEN(stats_arenas_i_dirty_decay_ms, arenas_i(mib[2])->dirty_decay_ms,
     ssize_t)
@@ -2783,7 +2870,7 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_retained,
     atomic_load_zu(&arenas_i(mib[2])->astats->astats.retained, ATOMIC_RELAXED),
     size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_extent_avail,
-    atomic_load_zu(&arenas_i(mib[2])->astats->astats.extent_avail,
+    atomic_load_zu(&arenas_i(mib[2])->astats->astats.edata_avail,
         ATOMIC_RELAXED),
     size_t)
 
@@ -2822,6 +2909,9 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_tcache_bytes,
 CTL_RO_CGEN(config_stats, stats_arenas_i_resident,
     atomic_load_zu(&arenas_i(mib[2])->astats->astats.resident, ATOMIC_RELAXED),
     size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_abandoned_vm,
+    atomic_load_zu(&arenas_i(mib[2])->astats->astats.abandoned_vm,
+    ATOMIC_RELAXED), size_t)
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_small_allocated,
     arenas_i(mib[2])->astats->allocated_small, size_t)
@@ -2831,6 +2921,10 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_small_ndalloc,
     arenas_i(mib[2])->astats->ndalloc_small, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_small_nrequests,
     arenas_i(mib[2])->astats->nrequests_small, uint64_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_small_nfills,
+    arenas_i(mib[2])->astats->nfills_small, uint64_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_small_nflushes,
+    arenas_i(mib[2])->astats->nflushes_small, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_large_allocated,
     atomic_load_zu(&arenas_i(mib[2])->astats->astats.allocated_large,
     ATOMIC_RELAXED), size_t)
@@ -2840,12 +2934,19 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_large_nmalloc,
 CTL_RO_CGEN(config_stats, stats_arenas_i_large_ndalloc,
     ctl_arena_stats_read_u64(
     &arenas_i(mib[2])->astats->astats.ndalloc_large), uint64_t)
-/*
- * Note: "nmalloc" here instead of "nrequests" in the read.  This is intentional.
- */
 CTL_RO_CGEN(config_stats, stats_arenas_i_large_nrequests,
     ctl_arena_stats_read_u64(
-    &arenas_i(mib[2])->astats->astats.nmalloc_large), uint64_t) /* Intentional. */
+    &arenas_i(mib[2])->astats->astats.nrequests_large), uint64_t)
+/*
+ * Note: "nmalloc_large" here instead of "nfills" in the read.  This is
+ * intentional (large has no batch fill).
+ */
+CTL_RO_CGEN(config_stats, stats_arenas_i_large_nfills,
+    ctl_arena_stats_read_u64(
+    &arenas_i(mib[2])->astats->astats.nmalloc_large), uint64_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_large_nflushes,
+    ctl_arena_stats_read_u64(
+    &arenas_i(mib[2])->astats->astats.nflushes_large), uint64_t)
 
 /* Lock profiling related APIs below. */
 #define RO_MUTEX_CTL_GEN(n, l)						\
@@ -2905,6 +3006,8 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib,
 	}
 	if (config_prof && opt_prof) {
 		MUTEX_PROF_RESET(bt2gctx_mtx);
+		MUTEX_PROF_RESET(tdatas_mtx);
+		MUTEX_PROF_RESET(prof_dump_mtx);
 	}
 
 
@@ -2917,10 +3020,10 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib,
 			continue;
 		}
 		MUTEX_PROF_RESET(arena->large_mtx);
-		MUTEX_PROF_RESET(arena->extent_avail_mtx);
-		MUTEX_PROF_RESET(arena->extents_dirty.mtx);
-		MUTEX_PROF_RESET(arena->extents_muzzy.mtx);
-		MUTEX_PROF_RESET(arena->extents_retained.mtx);
+		MUTEX_PROF_RESET(arena->edata_cache.mtx);
+		MUTEX_PROF_RESET(arena->ecache_dirty.mtx);
+		MUTEX_PROF_RESET(arena->ecache_muzzy.mtx);
+		MUTEX_PROF_RESET(arena->ecache_retained.mtx);
 		MUTEX_PROF_RESET(arena->decay_dirty.mtx);
 		MUTEX_PROF_RESET(arena->decay_muzzy.mtx);
 		MUTEX_PROF_RESET(arena->tcache_ql_mtx);
@@ -2938,23 +3041,25 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib,
 }
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nmalloc,
-    arenas_i(mib[2])->astats->bstats[mib[4]].nmalloc, uint64_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.nmalloc, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_ndalloc,
-    arenas_i(mib[2])->astats->bstats[mib[4]].ndalloc, uint64_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.ndalloc, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nrequests,
-    arenas_i(mib[2])->astats->bstats[mib[4]].nrequests, uint64_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.nrequests, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_curregs,
-    arenas_i(mib[2])->astats->bstats[mib[4]].curregs, size_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.curregs, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nfills,
-    arenas_i(mib[2])->astats->bstats[mib[4]].nfills, uint64_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.nfills, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nflushes,
-    arenas_i(mib[2])->astats->bstats[mib[4]].nflushes, uint64_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.nflushes, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nslabs,
-    arenas_i(mib[2])->astats->bstats[mib[4]].nslabs, uint64_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.nslabs, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nreslabs,
-    arenas_i(mib[2])->astats->bstats[mib[4]].reslabs, uint64_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.reslabs, uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_curslabs,
-    arenas_i(mib[2])->astats->bstats[mib[4]].curslabs, size_t)
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.curslabs, size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nonfull_slabs,
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.nonfull_slabs, size_t)
 
 static const ctl_named_node_t *
 stats_arenas_i_bins_j_index(tsdn_t *tsdn, const size_t *mib,
@@ -3020,15 +3125,23 @@ stats_arenas_i_extents_j_index(tsdn_t *tsdn, const size_t *mib,
 	return super_stats_arenas_i_extents_j_node;
 }
 
+static bool
+ctl_arenas_i_verify(size_t i) {
+	size_t a = arenas_i2a_impl(i, true, true);
+	if (a == UINT_MAX || !ctl_arenas->arenas[a]->initialized) {
+		return true;
+	}
+
+	return false;
+}
+
 static const ctl_named_node_t *
 stats_arenas_i_index(tsdn_t *tsdn, const size_t *mib,
     size_t miblen, size_t i) {
 	const ctl_named_node_t *ret;
-	size_t a;
 
 	malloc_mutex_lock(tsdn, &ctl_mtx);
-	a = arenas_i2a_impl(i, true, true);
-	if (a == UINT_MAX || !ctl_arenas->arenas[a]->initialized) {
+	if (ctl_arenas_i_verify(i)) {
 		ret = NULL;
 		goto label_return;
 	}
@@ -3080,6 +3193,314 @@ experimental_hooks_remove_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 	}
 	hook_remove(tsd_tsdn(tsd), handle);
 	ret = 0;
+label_return:
+	return ret;
+}
+
+/*
+ * Output six memory utilization entries for an input pointer, the first one of
+ * type (void *) and the remaining five of type size_t, describing the following
+ * (in the same order):
+ *
+ * (a) memory address of the extent a potential reallocation would go into,
+ * == the five fields below describe about the extent the pointer resides in ==
+ * (b) number of free regions in the extent,
+ * (c) number of regions in the extent,
+ * (d) size of the extent in terms of bytes,
+ * (e) total number of free regions in the bin the extent belongs to, and
+ * (f) total number of regions in the bin the extent belongs to.
+ *
+ * Note that "(e)" and "(f)" are only available when stats are enabled;
+ * otherwise their values are undefined.
+ *
+ * This API is mainly intended for small class allocations, where extents are
+ * used as slab.  Note that if the bin the extent belongs to is completely
+ * full, "(a)" will be NULL.
+ *
+ * In case of large class allocations, "(a)" will be NULL, and "(e)" and "(f)"
+ * will be zero (if stats are enabled; otherwise undefined).  The other three
+ * fields will be properly set though the values are trivial: "(b)" will be 0,
+ * "(c)" will be 1, and "(d)" will be the usable size.
+ *
+ * The input pointer and size are respectively passed in by newp and newlen,
+ * and the output fields and size are respectively oldp and *oldlenp.
+ *
+ * It can be beneficial to define the following macros to make it easier to
+ * access the output:
+ *
+ * #define SLABCUR_READ(out) (*(void **)out)
+ * #define COUNTS(out) ((size_t *)((void **)out + 1))
+ * #define NFREE_READ(out) COUNTS(out)[0]
+ * #define NREGS_READ(out) COUNTS(out)[1]
+ * #define SIZE_READ(out) COUNTS(out)[2]
+ * #define BIN_NFREE_READ(out) COUNTS(out)[3]
+ * #define BIN_NREGS_READ(out) COUNTS(out)[4]
+ *
+ * and then write e.g. NFREE_READ(oldp) to fetch the output.  See the unit test
+ * test_query in test/unit/extent_util.c for an example.
+ *
+ * For a typical defragmentation workflow making use of this API for
+ * understanding the fragmentation level, please refer to the comment for
+ * experimental_utilization_batch_query_ctl.
+ *
+ * It's up to the application how to determine the significance of
+ * fragmentation relying on the outputs returned.  Possible choices are:
+ *
+ * (a) if extent utilization ratio is below certain threshold,
+ * (b) if extent memory consumption is above certain threshold,
+ * (c) if extent utilization ratio is significantly below bin utilization ratio,
+ * (d) if input pointer deviates a lot from potential reallocation address, or
+ * (e) some selection/combination of the above.
+ *
+ * The caller needs to make sure that the input/output arguments are valid,
+ * in particular, that the size of the output is correct, i.e.:
+ *
+ *     *oldlenp = sizeof(void *) + sizeof(size_t) * 5
+ *
+ * Otherwise, the function immediately returns EINVAL without touching anything.
+ *
+ * In the rare case where there's no associated extent found for the input
+ * pointer, the function zeros out all output fields and return.  Please refer
+ * to the comment for experimental_utilization_batch_query_ctl to understand the
+ * motivation from C++.
+ */
+static int
+experimental_utilization_query_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+
+	assert(sizeof(inspect_extent_util_stats_verbose_t)
+	    == sizeof(void *) + sizeof(size_t) * 5);
+
+	if (oldp == NULL || oldlenp == NULL
+	    || *oldlenp != sizeof(inspect_extent_util_stats_verbose_t)
+	    || newp == NULL) {
+		ret = EINVAL;
+		goto label_return;
+	}
+
+	void *ptr = NULL;
+	WRITE(ptr, void *);
+	inspect_extent_util_stats_verbose_t *util_stats
+	    = (inspect_extent_util_stats_verbose_t *)oldp;
+	inspect_extent_util_stats_verbose_get(tsd_tsdn(tsd), ptr,
+	    &util_stats->nfree, &util_stats->nregs, &util_stats->size,
+	    &util_stats->bin_nfree, &util_stats->bin_nregs,
+	    &util_stats->slabcur_addr);
+	ret = 0;
+
+label_return:
+	return ret;
+}
+
+/*
+ * Given an input array of pointers, output three memory utilization entries of
+ * type size_t for each input pointer about the extent it resides in:
+ *
+ * (a) number of free regions in the extent,
+ * (b) number of regions in the extent, and
+ * (c) size of the extent in terms of bytes.
+ *
+ * This API is mainly intended for small class allocations, where extents are
+ * used as slab.  In case of large class allocations, the outputs are trivial:
+ * "(a)" will be 0, "(b)" will be 1, and "(c)" will be the usable size.
+ *
+ * Note that multiple input pointers may reside on a same extent so the output
+ * fields may contain duplicates.
+ *
+ * The format of the input/output looks like:
+ *
+ * input[0]:  1st_pointer_to_query	|  output[0]: 1st_extent_n_free_regions
+ *					|  output[1]: 1st_extent_n_regions
+ *					|  output[2]: 1st_extent_size
+ * input[1]:  2nd_pointer_to_query	|  output[3]: 2nd_extent_n_free_regions
+ *					|  output[4]: 2nd_extent_n_regions
+ *					|  output[5]: 2nd_extent_size
+ * ...					|  ...
+ *
+ * The input array and size are respectively passed in by newp and newlen, and
+ * the output array and size are respectively oldp and *oldlenp.
+ *
+ * It can be beneficial to define the following macros to make it easier to
+ * access the output:
+ *
+ * #define NFREE_READ(out, i) out[(i) * 3]
+ * #define NREGS_READ(out, i) out[(i) * 3 + 1]
+ * #define SIZE_READ(out, i) out[(i) * 3 + 2]
+ *
+ * and then write e.g. NFREE_READ(oldp, i) to fetch the output.  See the unit
+ * test test_batch in test/unit/extent_util.c for a concrete example.
+ *
+ * A typical workflow would be composed of the following steps:
+ *
+ * (1) flush tcache: mallctl("thread.tcache.flush", ...)
+ * (2) initialize input array of pointers to query fragmentation
+ * (3) allocate output array to hold utilization statistics
+ * (4) query utilization: mallctl("experimental.utilization.batch_query", ...)
+ * (5) (optional) decide if it's worthwhile to defragment; otherwise stop here
+ * (6) disable tcache: mallctl("thread.tcache.enabled", ...)
+ * (7) defragment allocations with significant fragmentation, e.g.:
+ *         for each allocation {
+ *             if it's fragmented {
+ *                 malloc(...);
+ *                 memcpy(...);
+ *                 free(...);
+ *             }
+ *         }
+ * (8) enable tcache: mallctl("thread.tcache.enabled", ...)
+ *
+ * The application can determine the significance of fragmentation themselves
+ * relying on the statistics returned, both at the overall level i.e. step "(5)"
+ * and at individual allocation level i.e. within step "(7)".  Possible choices
+ * are:
+ *
+ * (a) whether memory utilization ratio is below certain threshold,
+ * (b) whether memory consumption is above certain threshold, or
+ * (c) some combination of the two.
+ *
+ * The caller needs to make sure that the input/output arrays are valid and
+ * their sizes are proper as well as matched, meaning:
+ *
+ * (a) newlen = n_pointers * sizeof(const void *)
+ * (b) *oldlenp = n_pointers * sizeof(size_t) * 3
+ * (c) n_pointers > 0
+ *
+ * Otherwise, the function immediately returns EINVAL without touching anything.
+ *
+ * In the rare case where there's no associated extent found for some pointers,
+ * rather than immediately terminating the computation and raising an error,
+ * the function simply zeros out the corresponding output fields and continues
+ * the computation until all input pointers are handled.  The motivations of
+ * such a design are as follows:
+ *
+ * (a) The function always either processes nothing or processes everything, and
+ * never leaves the output half touched and half untouched.
+ *
+ * (b) It facilitates usage needs especially common in C++.  A vast variety of
+ * C++ objects are instantiated with multiple dynamic memory allocations.  For
+ * example, std::string and std::vector typically use at least two allocations,
+ * one for the metadata and one for the actual content.  Other types may use
+ * even more allocations.  When inquiring about utilization statistics, the
+ * caller often wants to examine into all such allocations, especially internal
+ * one(s), rather than just the topmost one.  The issue comes when some
+ * implementations do certain optimizations to reduce/aggregate some internal
+ * allocations, e.g. putting short strings directly into the metadata, and such
+ * decisions are not known to the caller.  Therefore, we permit pointers to
+ * memory usages that may not be returned by previous malloc calls, and we
+ * provide the caller a convenient way to identify such cases.
+ */
+static int
+experimental_utilization_batch_query_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+
+	assert(sizeof(inspect_extent_util_stats_t) == sizeof(size_t) * 3);
+
+	const size_t len = newlen / sizeof(const void *);
+	if (oldp == NULL || oldlenp == NULL || newp == NULL || newlen == 0
+	    || newlen != len * sizeof(const void *)
+	    || *oldlenp != len * sizeof(inspect_extent_util_stats_t)) {
+		ret = EINVAL;
+		goto label_return;
+	}
+
+	void **ptrs = (void **)newp;
+	inspect_extent_util_stats_t *util_stats =
+	    (inspect_extent_util_stats_t *)oldp;
+	size_t i;
+	for (i = 0; i < len; ++i) {
+		inspect_extent_util_stats_get(tsd_tsdn(tsd), ptrs[i],
+		    &util_stats[i].nfree, &util_stats[i].nregs,
+		    &util_stats[i].size);
+	}
+	ret = 0;
+
+label_return:
+	return ret;
+}
+
+static const ctl_named_node_t *
+experimental_arenas_i_index(tsdn_t *tsdn, const size_t *mib,
+    size_t miblen, size_t i) {
+	const ctl_named_node_t *ret;
+
+	malloc_mutex_lock(tsdn, &ctl_mtx);
+	if (ctl_arenas_i_verify(i)) {
+		ret = NULL;
+		goto label_return;
+	}
+	ret = super_experimental_arenas_i_node;
+label_return:
+	malloc_mutex_unlock(tsdn, &ctl_mtx);
+	return ret;
+}
+
+static int
+experimental_arenas_i_pactivep_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	if (!config_stats) {
+		return ENOENT;
+	}
+	if (oldp == NULL || oldlenp == NULL || *oldlenp != sizeof(size_t *)) {
+		return EINVAL;
+	}
+
+	unsigned arena_ind;
+	arena_t *arena;
+	int ret;
+	size_t *pactivep;
+
+	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
+	READONLY();
+	MIB_UNSIGNED(arena_ind, 2);
+	if (arena_ind < narenas_total_get() && (arena =
+	    arena_get(tsd_tsdn(tsd), arena_ind, false)) != NULL) {
+#if defined(JEMALLOC_GCC_ATOMIC_ATOMICS) ||				\
+    defined(JEMALLOC_GCC_SYNC_ATOMICS) || defined(_MSC_VER)
+		/* Expose the underlying counter for fast read. */
+		pactivep = (size_t *)&(arena->nactive.repr);
+		READ(pactivep, size_t *);
+		ret = 0;
+#else
+		ret = EFAULT;
+#endif
+	} else {
+		ret = EFAULT;
+	}
+label_return:
+	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
+	return ret;
+}
+
+static int
+experimental_prof_recent_alloc_max_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+
+	if (!(config_prof && opt_prof)) {
+		ret = ENOENT;
+		goto label_return;
+	}
+
+	ssize_t old_max;
+	if (newp != NULL) {
+		if (newlen != sizeof(ssize_t)) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		ssize_t max = *(ssize_t *)newp;
+		if (max < -1) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		old_max = prof_recent_alloc_max_ctl_write(tsd, max);
+	} else {
+		old_max = prof_recent_alloc_max_ctl_read();
+	}
+	READ(old_max, ssize_t);
+
+	ret = 0;
+
 label_return:
 	return ret;
 }

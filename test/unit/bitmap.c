@@ -403,9 +403,11 @@ test_bitmap_xfu_body(const bitmap_info_t *binfo, size_t nbits) {
 }
 
 TEST_BEGIN(test_bitmap_xfu) {
-	size_t nbits;
+	size_t nbits, nbits_max;
 
-	for (nbits = 1; nbits <= BITMAP_MAXBITS; nbits++) {
+	/* The test is O(n^2); large page sizes may slow down too much. */
+	nbits_max = BITMAP_MAXBITS > 512 ? 512 : BITMAP_MAXBITS;
+	for (nbits = 1; nbits <= nbits_max; nbits++) {
 		bitmap_info_t binfo;
 		bitmap_info_init(&binfo, nbits);
 		test_bitmap_xfu_body(&binfo, nbits);

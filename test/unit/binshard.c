@@ -53,7 +53,7 @@ TEST_END
 static void *
 thd_start(void *varg) {
 	void *ptr, *ptr2;
-	extent_t *extent;
+	edata_t *edata;
 	unsigned shard1, shard2;
 
 	tsdn_t *tsdn = tsdn_fetch();
@@ -62,13 +62,13 @@ thd_start(void *varg) {
 		ptr = mallocx(1, MALLOCX_TCACHE_NONE);
 		ptr2 = mallocx(129, MALLOCX_TCACHE_NONE);
 
-		extent = iealloc(tsdn, ptr);
-		shard1 = extent_binshard_get(extent);
+		edata = iealloc(tsdn, ptr);
+		shard1 = edata_binshard_get(edata);
 		dallocx(ptr, 0);
 		assert_u_lt(shard1, 16, "Unexpected bin shard used");
 
-		extent = iealloc(tsdn, ptr2);
-		shard2 = extent_binshard_get(extent);
+		edata = iealloc(tsdn, ptr2);
+		shard2 = edata_binshard_get(edata);
 		dallocx(ptr2, 0);
 		assert_u_lt(shard2, 4, "Unexpected bin shard used");
 
@@ -82,6 +82,9 @@ thd_start(void *varg) {
 }
 
 TEST_BEGIN(test_bin_shard_mt) {
+	test_skip_if(have_percpu_arena &&
+	    PERCPU_ARENA_ENABLED(opt_percpu_arena));
+
 	thd_t thds[NTHREADS];
 	unsigned i;
 	for (i = 0; i < NTHREADS; i++) {

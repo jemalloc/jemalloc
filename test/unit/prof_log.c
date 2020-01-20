@@ -1,4 +1,5 @@
 #include "test/jemalloc_test.h"
+#include "jemalloc/internal/prof_log.h"
 
 #define N_PARAM 100
 #define N_THREADS 10
@@ -61,7 +62,7 @@ static void *f_thread(void *unused) {
 	int i;
 	for (i = 0; i < N_PARAM; i++) {
 		void *p = malloc(100);
-		memset(p, 100, sizeof(char));
+		memset(p, 100, 1);
 		free(p);
 	}
 
@@ -125,12 +126,14 @@ TEST_BEGIN(test_prof_log_many_traces) {
 		assert_rep();
 	}
 	/*
-	 * There should be 8 total backtraces: two for malloc/free in f1(),
-	 * two for malloc/free in f2(), two for malloc/free in f3(), and then
-	 * two for malloc/free in f1()'s call to f3().
+	 * There should be 8 total backtraces: two for malloc/free in f1(), two
+	 * for malloc/free in f2(), two for malloc/free in f3(), and then two
+	 * for malloc/free in f1()'s call to f3().  However compiler
+	 * optimizations such as loop unrolling might generate more call sites.
+	 * So >= 8 traces are expected.
 	 */
-	assert_zu_eq(prof_log_bt_count(), 8,
-	    "Wrong number of backtraces given sample workload");
+	assert_zu_ge(prof_log_bt_count(), 8,
+	    "Expect at least 8 backtraces given sample workload");
 	assert_d_eq(mallctl("prof.log_stop", NULL, NULL, NULL, 0), 0,
 	    "Unexpected mallctl failure when stopping logging");
 }

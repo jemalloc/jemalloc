@@ -43,11 +43,14 @@ typedef struct tcaches_s tcaches_t;
  */
 #define TCACHE_GC_SWEEP			8192
 
-/* Number of tcache allocation/deallocation events between incremental GCs. */
+/* Number of tcache deallocation events between incremental GCs. */
 #define TCACHE_GC_INCR							\
     ((TCACHE_GC_SWEEP / SC_NBINS) + ((TCACHE_GC_SWEEP / SC_NBINS == 0) ? 0 : 1))
 
-/* Used in TSD static initializer only. Real init in tcache_data_init(). */
+/* Number of allocation bytes between tcache incremental GCs. */
+#define TCACHE_GC_INCR_BYTES 65536U
+
+/* Used in TSD static initializer only. Real init in tsd_tcache_data_init(). */
 #define TCACHE_ZERO_INITIALIZER {0}
 
 /* Used in TSD static initializer only. Will be initialized to opt_tcache. */

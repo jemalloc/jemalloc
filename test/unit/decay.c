@@ -384,8 +384,7 @@ decay_ticker_helper(unsigned arena_ind, int flags, bool dirty, ssize_t dt,
 #define NINTERVALS 101
 	nstime_t time, update_interval, decay_ms, deadline;
 
-	nstime_init(&time, 0);
-	nstime_update(&time);
+	nstime_init_update(&time);
 
 	nstime_init2(&decay_ms, dt, 0);
 	nstime_copy(&deadline, &time);
@@ -456,8 +455,7 @@ TEST_BEGIN(test_decay_ticker) {
 	}
 
 	nupdates_mock = 0;
-	nstime_init(&time_mock, 0);
-	nstime_update(&time_mock);
+	nstime_init_update(&time_mock);
 	monotonic_mock = true;
 
 	nstime_monotonic_orig = nstime_monotonic;
@@ -507,8 +505,7 @@ TEST_BEGIN(test_decay_nonmonotonic) {
 	npurge0 = get_arena_npurge(0);
 
 	nupdates_mock = 0;
-	nstime_init(&time_mock, 0);
-	nstime_update(&time_mock);
+	nstime_init_update(&time_mock);
 	monotonic_mock = false;
 
 	nstime_monotonic_orig = nstime_monotonic;

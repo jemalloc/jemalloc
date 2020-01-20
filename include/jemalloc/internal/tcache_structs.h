@@ -16,10 +16,9 @@ struct tcache_s {
 	 * together at the start of this struct.
 	 */
 
-	/* Cleared after arena_prof_accum(). */
-	uint64_t	prof_accumbytes;
 	/* Drives incremental GC. */
 	ticker_t	gc_ticker;
+
 	/*
 	 * The pointer stacks associated with bins follow as a contiguous array.
 	 * During tcache initialization, the avail pointer in each element of
@@ -51,6 +50,8 @@ struct tcache_s {
 	szind_t		next_gc_bin;
 	/* For small bins, fill (ncached_max >> lg_fill_div). */
 	uint8_t		lg_fill_div[SC_NBINS];
+	/* For small bins, whether has been refilled since last GC. */
+	bool		bin_refilled[SC_NBINS];
 	/*
 	 * We put the cache bins for large size classes at the end of the
 	 * struct, since some of them might not get used.  This might end up

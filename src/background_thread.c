@@ -74,7 +74,7 @@ background_thread_info_init(tsdn_t *tsdn, background_thread_info_t *info) {
 	info->npages_to_purge_new = 0;
 	if (config_stats) {
 		info->tot_n_runs = 0;
-		nstime_init(&info->tot_sleep_time, 0);
+		nstime_init_zero(&info->tot_sleep_time);
 	}
 }
 
@@ -114,7 +114,7 @@ decay_npurge_after_interval(arena_decay_t *decay, size_t interval) {
 
 static uint64_t
 arena_decay_compute_purge_interval_impl(tsdn_t *tsdn, arena_decay_t *decay,
-    extents_t *extents) {
+    ecache_t *ecache) {
 	if (malloc_mutex_trylock(tsdn, &decay->mtx)) {
 		/* Use minimal interval if decay is contended. */
 		return BACKGROUND_THREAD_MIN_INTERVAL_NS;
@@ -130,7 +130,7 @@ arena_decay_compute_purge_interval_impl(tsdn_t *tsdn, arena_decay_t *decay,
 
 	uint64_t decay_interval_ns = nstime_ns(&decay->interval);
 	assert(decay_interval_ns > 0);
-	size_t npages = extents_npages_get(extents);
+	size_t npages = ecache_npages_get(ecache);
 	if (npages == 0) {
 		unsigned i;
 		for (i = 0; i < SMOOTHSTEP_NSTEPS; i++) {
@@ -202,12 +202,12 @@ static uint64_t
 arena_decay_compute_purge_interval(tsdn_t *tsdn, arena_t *arena) {
 	uint64_t i1, i2;
 	i1 = arena_decay_compute_purge_interval_impl(tsdn, &arena->decay_dirty,
-	    &arena->extents_dirty);
+	    &arena->ecache_dirty);
 	if (i1 == BACKGROUND_THREAD_MIN_INTERVAL_NS) {
 		return i1;
 	}
 	i2 = arena_decay_compute_purge_interval_impl(tsdn, &arena->decay_muzzy,
-	    &arena->extents_muzzy);
+	    &arena->ecache_muzzy);
 
 	return i1 < i2 ? i1 : i2;
 }
@@ -236,8 +236,7 @@ background_thread_sleep(tsdn_t *tsdn, background_thread_info_t *info,
 		    interval <= BACKGROUND_THREAD_INDEFINITE_SLEEP);
 		/* We need malloc clock (can be different from tv). */
 		nstime_t next_wakeup;
-		nstime_init(&next_wakeup, 0);
-		nstime_update(&next_wakeup);
+		nstime_init_update(&next_wakeup);
 		nstime_iadd(&next_wakeup, interval);
 		assert(nstime_ns(&next_wakeup) <
 		    BACKGROUND_THREAD_INDEFINITE_SLEEP);
@@ -718,8 +717,8 @@ background_thread_interval_check(tsdn_t *tsdn, arena_t *arena,
 	if (info->npages_to_purge_new > BACKGROUND_THREAD_NPAGES_THRESHOLD) {
 		should_signal = true;
 	} else if (unlikely(background_thread_indefinite_sleep(info)) &&
-	    (extents_npages_get(&arena->extents_dirty) > 0 ||
-	    extents_npages_get(&arena->extents_muzzy) > 0 ||
+	    (ecache_npages_get(&arena->ecache_dirty) > 0 ||
+	    ecache_npages_get(&arena->ecache_muzzy) > 0 ||
 	    info->npages_to_purge_new > 0)) {
 		should_signal = true;
 	} else {
@@ -794,15 +793,25 @@ background_thread_stats_read(tsdn_t *tsdn, background_thread_stats_t *stats) {
 		return true;
 	}
 
-	stats->num_threads = n_background_threads;
+	nstime_init_zero(&stats->run_interval);
+	memset(&stats->max_counter_per_bg_thd, 0, sizeof(mutex_prof_data_t));
+
 	uint64_t num_runs = 0;
-	nstime_init(&stats->run_interval, 0);
+	stats->num_threads = n_background_threads;
 	for (unsigned i = 0; i < max_background_threads; i++) {
 		background_thread_info_t *info = &background_thread_info[i];
-		malloc_mutex_lock(tsdn, &info->mtx);
+		if (malloc_mutex_trylock(tsdn, &info->mtx)) {
+			/*
+			 * Each background thread run may take a long time;
+			 * avoid waiting on the stats if the thread is active.
+			 */
+			continue;
+		}
 		if (info->state != background_thread_stopped) {
 			num_runs += info->tot_n_runs;
 			nstime_add(&stats->run_interval, &info->tot_sleep_time);
+			malloc_mutex_prof_max_update(tsdn,
+			    &stats->max_counter_per_bg_thd, &info->mtx);
 		}
 		malloc_mutex_unlock(tsdn, &info->mtx);
 	}

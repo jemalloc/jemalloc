@@ -109,11 +109,11 @@ extent_dss_max_update(void *new_addr) {
 void *
 extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
     size_t alignment, bool *zero, bool *commit) {
-	extent_t *gap;
+	edata_t *gap;
 
 	cassert(have_dss);
 	assert(size > 0);
-	assert(alignment > 0);
+	assert(alignment == ALIGNMENT_CEILING(alignment, PAGE));
 
 	/*
 	 * sbrk() uses a signed increment argument, so take care not to
@@ -123,7 +123,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 		return NULL;
 	}
 
-	gap = extent_alloc(tsdn, arena);
+	gap = edata_cache_get(tsdn, &arena->edata_cache);
 	if (gap == NULL) {
 		return NULL;
 	}
@@ -153,10 +153,11 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 			size_t gap_size_page = (uintptr_t)ret -
 			    (uintptr_t)gap_addr_page;
 			if (gap_size_page != 0) {
-				extent_init(gap, arena, gap_addr_page,
-				    gap_size_page, false, SC_NSIZES,
-				    arena_extent_sn_next(arena),
-				    extent_state_active, false, true, true);
+				edata_init(gap, arena_ind_get(arena),
+				    gap_addr_page, gap_size_page, false,
+				    SC_NSIZES, arena_extent_sn_next(arena),
+				    extent_state_active, false, true, true,
+				    EXTENT_NOT_HEAD);
 			}
 			/*
 			 * Compute the address just past the end of the desired
@@ -187,23 +188,24 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 				if (gap_size_page != 0) {
 					extent_dalloc_gap(tsdn, arena, gap);
 				} else {
-					extent_dalloc(tsdn, arena, gap);
+					edata_cache_put(tsdn,
+					    &arena->edata_cache, gap);
 				}
 				if (!*commit) {
 					*commit = pages_decommit(ret, size);
 				}
 				if (*zero && *commit) {
-					extent_hooks_t *extent_hooks =
-					    EXTENT_HOOKS_INITIALIZER;
-					extent_t extent;
+					edata_t edata;
+					ehooks_t *ehooks = arena_get_ehooks(
+					    arena);
 
-					extent_init(&extent, arena, ret, size,
+					edata_init(&edata,
+					    arena_ind_get(arena), ret, size,
 					    size, false, SC_NSIZES,
 					    extent_state_active, false, true,
-					    true);
+					    true, EXTENT_NOT_HEAD);
 					if (extent_purge_forced_wrapper(tsdn,
-					    arena, &extent_hooks, &extent, 0,
-					    size)) {
+					    arena, ehooks, &edata, 0, size)) {
 						memset(ret, 0, size);
 					}
 				}
@@ -223,7 +225,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 	}
 label_oom:
 	extent_dss_extending_finish();
-	extent_dalloc(tsdn, arena, gap);
+	edata_cache_put(tsdn, &arena->edata_cache, gap);
 	return NULL;
 }
 

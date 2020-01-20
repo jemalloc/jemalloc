@@ -5,8 +5,10 @@ typedef struct prof_bt_s prof_bt_t;
 typedef struct prof_accum_s prof_accum_t;
 typedef struct prof_cnt_s prof_cnt_t;
 typedef struct prof_tctx_s prof_tctx_t;
+typedef struct prof_info_s prof_info_t;
 typedef struct prof_gctx_s prof_gctx_t;
 typedef struct prof_tdata_s prof_tdata_t;
+typedef struct prof_recent_s prof_recent_t;
 
 /* Option defaults. */
 #ifdef JEMALLOC_PROF
@@ -45,12 +47,14 @@ typedef struct prof_tdata_s prof_tdata_t;
  */
 #define PROF_NTDATA_LOCKS		256
 
-/*
- * prof_tdata pointers close to NULL are used to encode state information that
- * is used for cleaning up during thread shutdown.
- */
-#define PROF_TDATA_STATE_REINCARNATED	((prof_tdata_t *)(uintptr_t)1)
-#define PROF_TDATA_STATE_PURGATORY	((prof_tdata_t *)(uintptr_t)2)
-#define PROF_TDATA_STATE_MAX		PROF_TDATA_STATE_PURGATORY
+/* Minimize memory bloat for non-prof builds. */
+#ifdef JEMALLOC_PROF
+#define PROF_DUMP_FILENAME_LEN (PATH_MAX + 1)
+#else
+#define PROF_DUMP_FILENAME_LEN 1
+#endif
+
+/* Default number of recent allocations to record. */
+#define PROF_RECENT_ALLOC_MAX_DEFAULT 0
 
 #endif /* JEMALLOC_INTERNAL_PROF_TYPES_H */

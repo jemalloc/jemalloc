@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_INLINES_B_H
 #define JEMALLOC_INTERNAL_INLINES_B_H
 
+#include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/rtree.h"
 
 /* Choose an arena based on a per-thread value. */
@@ -24,7 +25,7 @@ arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
 		if (tcache_available(tsd)) {
 			tcache_t *tcache = tcache_get(tsd);
 			if (tcache->arena != NULL) {
-				/* See comments in tcache_data_init().*/
+				/* See comments in tsd_tcache_data_init().*/
 				assert(tcache->arena ==
 				    arena_get(tsd_tsdn(tsd), 0, false));
 				if (tcache->arena != ret) {
@@ -75,12 +76,12 @@ arena_is_auto(arena_t *arena) {
 	return (arena_ind_get(arena) < manual_arena_base);
 }
 
-JEMALLOC_ALWAYS_INLINE extent_t *
+JEMALLOC_ALWAYS_INLINE edata_t *
 iealloc(tsdn_t *tsdn, const void *ptr) {
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
-	return rtree_extent_read(tsdn, &extents_rtree, rtree_ctx,
+	return rtree_edata_read(tsdn, &extents_rtree, rtree_ctx,
 	    (uintptr_t)ptr, true);
 }
 

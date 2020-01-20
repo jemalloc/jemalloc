@@ -46,6 +46,8 @@ configure_flag_unusuals = [
     '--enable-prof',
     '--disable-stats',
     '--disable-libdl',
+    '--enable-opt-safety-checks',
+    '--with-lg-page=16',
 ]
 
 malloc_conf_unusuals = [

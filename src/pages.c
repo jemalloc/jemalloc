@@ -563,6 +563,9 @@ init_thp_state(void) {
 #if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_open)
 	int fd = (int)syscall(SYS_open,
 	    "/sys/kernel/mm/transparent_hugepage/enabled", O_RDONLY);
+#elif defined(JEMALLOC_USE_SYSCALL) && defined(SYS_openat)
+	int fd = (int)syscall(SYS_openat,
+		    AT_FDCWD, "/sys/kernel/mm/transparent_hugepage/enabled", O_RDONLY);
 #else
 	int fd = open("/sys/kernel/mm/transparent_hugepage/enabled", O_RDONLY);
 #endif

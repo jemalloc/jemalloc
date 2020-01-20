@@ -39,8 +39,10 @@ typedef struct ctl_arena_stats_s {
 	uint64_t nmalloc_small;
 	uint64_t ndalloc_small;
 	uint64_t nrequests_small;
+	uint64_t nfills_small;
+	uint64_t nflushes_small;
 
-	bin_stats_t bstats[SC_NBINS];
+	bin_stats_data_t bstats[SC_NBINS];
 	arena_stats_large_t lstats[SC_NSIZES - SC_NBINS];
 	arena_stats_extents_t estats[SC_NPSIZES];
 } ctl_arena_stats_t;
@@ -101,6 +103,7 @@ bool ctl_boot(void);
 void ctl_prefork(tsdn_t *tsdn);
 void ctl_postfork_parent(tsdn_t *tsdn);
 void ctl_postfork_child(tsdn_t *tsdn);
+void ctl_mtx_assert_held(tsdn_t *tsdn);
 
 #define xmallctl(name, oldp, oldlenp, newp, newlen) do {		\
 	if (je_mallctl(name, oldp, oldlenp, newp, newlen)		\

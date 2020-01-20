@@ -118,7 +118,7 @@ mutex_stats_init_cols(emitter_row_t *row, const char *table_name,
 
 #define WIDTH_uint32_t 12
 #define WIDTH_uint64_t 16
-#define OP(counter, counter_type, human, derived, base_counter)	\
+#define OP(counter, counter_type, human, derived, base_counter)		\
 	col = &col_##counter_type[k_##counter_type];			\
 	++k_##counter_type;						\
 	emitter_col_init(col, row);					\
@@ -145,16 +145,20 @@ mutex_stats_read_global(const char *name, emitter_col_t *col_name,
 	emitter_col_t *dst;
 #define EMITTER_TYPE_uint32_t emitter_type_uint32
 #define EMITTER_TYPE_uint64_t emitter_type_uint64
-#define OP(counter, counter_type, human, derived, base_counter)	\
+#define OP(counter, counter_type, human, derived, base_counter)		\
 	dst = &col_##counter_type[mutex_counter_##counter];		\
 	dst->type = EMITTER_TYPE_##counter_type;			\
 	if (!derived) {							\
 		gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,	\
 		    "mutexes", name, #counter);				\
-		CTL_GET(cmd, (counter_type *)&dst->bool_val, counter_type);	\
-	} else { \
-	    emitter_col_t *base = &col_##counter_type[mutex_counter_##base_counter];	\
-	    dst->counter_type##_val = rate_per_second(base->counter_type##_val, uptime); \
+		CTL_GET(cmd, (counter_type *)&dst->bool_val,		\
+		    counter_type);					\
+	} else {							\
+		emitter_col_t *base =					\
+		    &col_##counter_type[mutex_counter_##base_counter];	\
+		dst->counter_type##_val =				\
+		    (counter_type)rate_per_second(			\
+		    base->counter_type##_val, uptime);			\
 	}
 	MUTEX_PROF_COUNTERS
 #undef OP
@@ -175,16 +179,21 @@ mutex_stats_read_arena(unsigned arena_ind, mutex_prof_arena_ind_t mutex_ind,
 	emitter_col_t *dst;
 #define EMITTER_TYPE_uint32_t emitter_type_uint32
 #define EMITTER_TYPE_uint64_t emitter_type_uint64
-#define OP(counter, counter_type, human, derived, base_counter)	\
+#define OP(counter, counter_type, human, derived, base_counter)		\
 	dst = &col_##counter_type[mutex_counter_##counter];		\
 	dst->type = EMITTER_TYPE_##counter_type;			\
-	if (!derived) {                                   \
+	if (!derived) {							\
 		gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,        \
-		    "arenas.0.mutexes", arena_mutex_names[mutex_ind], #counter);\
-		CTL_M2_GET(cmd, arena_ind, (counter_type *)&dst->bool_val, counter_type); \
-	} else {                      \
-		emitter_col_t *base = &col_##counter_type[mutex_counter_##base_counter];	\
-		dst->counter_type##_val = rate_per_second(base->counter_type##_val, uptime); \
+		    "arenas.0.mutexes", arena_mutex_names[mutex_ind],	\
+		    #counter);						\
+		CTL_M2_GET(cmd, arena_ind,				\
+		    (counter_type *)&dst->bool_val, counter_type);	\
+	} else {							\
+		emitter_col_t *base =					\
+		    &col_##counter_type[mutex_counter_##base_counter];	\
+		dst->counter_type##_val =				\
+		    (counter_type)rate_per_second(			\
+		    base->counter_type##_val, uptime);			\
 	}
 	MUTEX_PROF_COUNTERS
 #undef OP
@@ -202,17 +211,20 @@ mutex_stats_read_arena_bin(unsigned arena_ind, unsigned bin_ind,
 
 #define EMITTER_TYPE_uint32_t emitter_type_uint32
 #define EMITTER_TYPE_uint64_t emitter_type_uint64
-#define OP(counter, counter_type, human, derived, base_counter)	\
+#define OP(counter, counter_type, human, derived, base_counter)		\
 	dst = &col_##counter_type[mutex_counter_##counter];		\
 	dst->type = EMITTER_TYPE_##counter_type;			\
-	if (!derived) {                                   \
-		gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,        \
-		    "arenas.0.bins.0","mutex", #counter);            \
-		CTL_M2_M4_GET(cmd, arena_ind, bin_ind,                \
-		    (counter_type *)&dst->bool_val, counter_type);  \
-	} else {                      \
-		emitter_col_t *base = &col_##counter_type[mutex_counter_##base_counter]; \
-		dst->counter_type##_val = rate_per_second(base->counter_type##_val, uptime); \
+	if (!derived) {							\
+		gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,	\
+		    "arenas.0.bins.0","mutex", #counter);		\
+		CTL_M2_M4_GET(cmd, arena_ind, bin_ind,			\
+		    (counter_type *)&dst->bool_val, counter_type);	\
+	} else {							\
+		emitter_col_t *base =					\
+		    &col_##counter_type[mutex_counter_##base_counter];	\
+		dst->counter_type##_val =				\
+		    (counter_type)rate_per_second(			\
+		    base->counter_type##_val, uptime);			\
 	}
 	MUTEX_PROF_COUNTERS
 #undef OP
@@ -294,6 +306,7 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 	COL_HDR(row, nshards, NULL, right, 9, unsigned)
 	COL_HDR(row, curregs, NULL, right, 13, size)
 	COL_HDR(row, curslabs, NULL, right, 13, size)
+	COL_HDR(row, nonfull_slabs, NULL, right, 15, size)
 	COL_HDR(row, regs, NULL, right, 5, unsigned)
 	COL_HDR(row, pgs, NULL, right, 4, size)
 	/* To buffer a right- and left-justified column. */
@@ -337,6 +350,7 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 		uint64_t nslabs;
 		size_t reg_size, slab_size, curregs;
 		size_t curslabs;
+		size_t nonfull_slabs;
 		uint32_t nregs, nshards;
 		uint64_t nmalloc, ndalloc, nrequests, nfills, nflushes;
 		uint64_t nreslabs;
@@ -372,6 +386,8 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 		    uint64_t);
 		CTL_M2_M4_GET("stats.arenas.0.bins.0.curslabs", i, j, &curslabs,
 		    size_t);
+		CTL_M2_M4_GET("stats.arenas.0.bins.0.nonfull_slabs", i, j, &nonfull_slabs,
+		    size_t);
 
 		if (mutex) {
 			mutex_stats_read_arena_bin(i, j, col_mutex64,
@@ -395,6 +411,8 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 		    &nreslabs);
 		emitter_json_kv(emitter, "curslabs", emitter_type_size,
 		    &curslabs);
+		emitter_json_kv(emitter, "nonfull_slabs", emitter_type_size,
+		    &nonfull_slabs);
 		if (mutex) {
 			emitter_json_object_kv_begin(emitter, "mutex");
 			mutex_stats_emit(emitter, NULL, col_mutex64,
@@ -434,6 +452,7 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 		col_nshards.unsigned_val = nshards;
 		col_curregs.size_val = curregs;
 		col_curslabs.size_val = curslabs;
+		col_nonfull_slabs.size_val = nonfull_slabs;
 		col_regs.unsigned_val = nregs;
 		col_pgs.size_val = slab_size / page;
 		col_util.str_val = util;
@@ -661,10 +680,12 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	uint64_t dirty_npurge, dirty_nmadvise, dirty_purged;
 	uint64_t muzzy_npurge, muzzy_nmadvise, muzzy_purged;
 	size_t small_allocated;
-	uint64_t small_nmalloc, small_ndalloc, small_nrequests;
+	uint64_t small_nmalloc, small_ndalloc, small_nrequests, small_nfills,
+	    small_nflushes;
 	size_t large_allocated;
-	uint64_t large_nmalloc, large_ndalloc, large_nrequests;
-	size_t tcache_bytes;
+	uint64_t large_nmalloc, large_ndalloc, large_nrequests, large_nfills,
+	    large_nflushes;
+	size_t tcache_bytes, abandoned_vm;
 	uint64_t uptime;
 
 	CTL_GET("arenas.page", &page, size_t);
@@ -808,12 +829,12 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 
 	COL(alloc_count_row, count_nmalloc, right, 16, title);
 	col_count_nmalloc.str_val = "nmalloc";
-	COL(alloc_count_row, count_nmalloc_ps, right, 8, title);
+	COL(alloc_count_row, count_nmalloc_ps, right, 10, title);
 	col_count_nmalloc_ps.str_val = "(#/sec)";
 
 	COL(alloc_count_row, count_ndalloc, right, 16, title);
 	col_count_ndalloc.str_val = "ndalloc";
-	COL(alloc_count_row, count_ndalloc_ps, right, 8, title);
+	COL(alloc_count_row, count_ndalloc_ps, right, 10, title);
 	col_count_ndalloc_ps.str_val = "(#/sec)";
 
 	COL(alloc_count_row, count_nrequests, right, 16, title);
@@ -821,11 +842,23 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	COL(alloc_count_row, count_nrequests_ps, right, 10, title);
 	col_count_nrequests_ps.str_val = "(#/sec)";
 
+	COL(alloc_count_row, count_nfills, right, 16, title);
+	col_count_nfills.str_val = "nfill";
+	COL(alloc_count_row, count_nfills_ps, right, 10, title);
+	col_count_nfills_ps.str_val = "(#/sec)";
+
+	COL(alloc_count_row, count_nflushes, right, 16, title);
+	col_count_nflushes.str_val = "nflush";
+	COL(alloc_count_row, count_nflushes_ps, right, 10, title);
+	col_count_nflushes_ps.str_val = "(#/sec)";
+
 	emitter_table_row(emitter, &alloc_count_row);
 
 	col_count_nmalloc_ps.type = emitter_type_uint64;
 	col_count_ndalloc_ps.type = emitter_type_uint64;
 	col_count_nrequests_ps.type = emitter_type_uint64;
+	col_count_nfills_ps.type = emitter_type_uint64;
+	col_count_nflushes_ps.type = emitter_type_uint64;
 
 #define GET_AND_EMIT_ALLOC_STAT(small_or_large, name, valtype)		\
 	CTL_M2_GET("stats.arenas.0." #small_or_large "." #name, i,	\
@@ -848,6 +881,12 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	GET_AND_EMIT_ALLOC_STAT(small, nrequests, uint64)
 	col_count_nrequests_ps.uint64_val =
 	    rate_per_second(col_count_nrequests.uint64_val, uptime);
+	GET_AND_EMIT_ALLOC_STAT(small, nfills, uint64)
+	col_count_nfills_ps.uint64_val =
+	    rate_per_second(col_count_nfills.uint64_val, uptime);
+	GET_AND_EMIT_ALLOC_STAT(small, nflushes, uint64)
+	col_count_nflushes_ps.uint64_val =
+	    rate_per_second(col_count_nflushes.uint64_val, uptime);
 
 	emitter_table_row(emitter, &alloc_count_row);
 	emitter_json_object_end(emitter); /* Close "small". */
@@ -865,6 +904,12 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	GET_AND_EMIT_ALLOC_STAT(large, nrequests, uint64)
 	col_count_nrequests_ps.uint64_val =
 	    rate_per_second(col_count_nrequests.uint64_val, uptime);
+	GET_AND_EMIT_ALLOC_STAT(large, nfills, uint64)
+	col_count_nfills_ps.uint64_val =
+	    rate_per_second(col_count_nfills.uint64_val, uptime);
+	GET_AND_EMIT_ALLOC_STAT(large, nflushes, uint64)
+	col_count_nflushes_ps.uint64_val =
+	    rate_per_second(col_count_nflushes.uint64_val, uptime);
 
 	emitter_table_row(emitter, &alloc_count_row);
 	emitter_json_object_end(emitter); /* Close "large". */
@@ -877,12 +922,18 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	col_count_nmalloc.uint64_val = small_nmalloc + large_nmalloc;
 	col_count_ndalloc.uint64_val = small_ndalloc + large_ndalloc;
 	col_count_nrequests.uint64_val = small_nrequests + large_nrequests;
+	col_count_nfills.uint64_val = small_nfills + large_nfills;
+	col_count_nflushes.uint64_val = small_nflushes + large_nflushes;
 	col_count_nmalloc_ps.uint64_val =
 	    rate_per_second(col_count_nmalloc.uint64_val, uptime);
 	col_count_ndalloc_ps.uint64_val =
 	    rate_per_second(col_count_ndalloc.uint64_val, uptime);
 	col_count_nrequests_ps.uint64_val =
 	    rate_per_second(col_count_nrequests.uint64_val, uptime);
+	col_count_nfills_ps.uint64_val =
+	    rate_per_second(col_count_nfills.uint64_val, uptime);
+	col_count_nflushes_ps.uint64_val =
+	    rate_per_second(col_count_nflushes.uint64_val, uptime);
 	emitter_table_row(emitter, &alloc_count_row);
 
 	emitter_row_t mem_count_row;
@@ -924,6 +975,7 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	GET_AND_EMIT_MEM_STAT(metadata_thp)
 	GET_AND_EMIT_MEM_STAT(tcache_bytes)
 	GET_AND_EMIT_MEM_STAT(resident)
+	GET_AND_EMIT_MEM_STAT(abandoned_vm)
 	GET_AND_EMIT_MEM_STAT(extent_avail)
 #undef GET_AND_EMIT_MEM_STAT
 
@@ -976,6 +1028,7 @@ stats_general_print(emitter_t *emitter) {
 	emitter_kv(emitter, "malloc_conf", "config.malloc_conf",
 	    emitter_type_string, &config_malloc_conf);
 
+	CONFIG_WRITE_BOOL(opt_safety_checks);
 	CONFIG_WRITE_BOOL(prof);
 	CONFIG_WRITE_BOOL(prof_libgcc);
 	CONFIG_WRITE_BOOL(prof_libunwind);
@@ -1025,6 +1078,7 @@ stats_general_print(emitter_t *emitter) {
 
 	OPT_WRITE_BOOL("abort")
 	OPT_WRITE_BOOL("abort_conf")
+	OPT_WRITE_BOOL("confirm_conf")
 	OPT_WRITE_BOOL("retain")
 	OPT_WRITE_CHAR_P("dss")
 	OPT_WRITE_UNSIGNED("narenas")
@@ -1055,6 +1109,7 @@ stats_general_print(emitter_t *emitter) {
 	OPT_WRITE_BOOL("prof_leak")
 	OPT_WRITE_BOOL("stats_print")
 	OPT_WRITE_CHAR_P("stats_print_opts")
+	OPT_WRITE_CHAR_P("zero_realloc")
 
 	emitter_dict_end(emitter);
 
@@ -1139,7 +1194,7 @@ stats_general_print(emitter_t *emitter) {
 	 * We do enough mallctls in a loop that we actually want to omit them
 	 * (not just omit the printing).
 	 */
-	if (emitter->output == emitter_output_json) {
+	if (emitter_outputs_json(emitter)) {
 		emitter_json_array_kv_begin(emitter, "bin");
 		for (unsigned i = 0; i < nbins; i++) {
 			emitter_json_object_begin(emitter);
@@ -1170,7 +1225,7 @@ stats_general_print(emitter_t *emitter) {
 	emitter_kv(emitter, "nlextents", "Number of large size classes",
 	    emitter_type_unsigned, &nlextents);
 
-	if (emitter->output == emitter_output_json) {
+	if (emitter_outputs_json(emitter)) {
 		emitter_json_array_kv_begin(emitter, "lextent");
 		for (unsigned i = 0; i < nlextents; i++) {
 			emitter_json_object_begin(emitter);
@@ -1197,6 +1252,7 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 	size_t allocated, active, metadata, metadata_thp, resident, mapped,
 	    retained;
 	size_t num_background_threads;
+	size_t zero_reallocs;
 	uint64_t background_thread_num_runs, background_thread_run_interval;
 
 	CTL_GET("stats.allocated", &allocated, size_t);
@@ -1206,6 +1262,8 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 	CTL_GET("stats.resident", &resident, size_t);
 	CTL_GET("stats.mapped", &mapped, size_t);
 	CTL_GET("stats.retained", &retained, size_t);
+
+	CTL_GET("stats.zero_reallocs", &zero_reallocs, size_t);
 
 	if (have_background_thread) {
 		CTL_GET("stats.background_thread.num_threads",
@@ -1230,11 +1288,17 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 	emitter_json_kv(emitter, "resident", emitter_type_size, &resident);
 	emitter_json_kv(emitter, "mapped", emitter_type_size, &mapped);
 	emitter_json_kv(emitter, "retained", emitter_type_size, &retained);
+	emitter_json_kv(emitter, "zero_reallocs", emitter_type_size,
+	    &zero_reallocs);
 
 	emitter_table_printf(emitter, "Allocated: %zu, active: %zu, "
 	    "metadata: %zu (n_thp %zu), resident: %zu, mapped: %zu, "
 	    "retained: %zu\n", allocated, active, metadata, metadata_thp,
 	    resident, mapped, retained);
+
+	/* Strange behaviors */
+	emitter_table_printf(emitter,
+	    "Count of realloc(non-null-ptr, 0) calls: %zu\n", zero_reallocs);
 
 	/* Background thread stats. */
 	emitter_json_object_kv_begin(emitter, "background_thread");
@@ -1395,8 +1459,8 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 
 	emitter_t emitter;
 	emitter_init(&emitter,
-	    json ? emitter_output_json : emitter_output_table, write_cb,
-	    cbopaque);
+	    json ? emitter_output_json_compact : emitter_output_table,
+	    write_cb, cbopaque);
 	emitter_begin(&emitter);
 	emitter_table_printf(&emitter, "___ Begin jemalloc statistics ___\n");
 	emitter_json_object_kv_begin(&emitter, "jemalloc");

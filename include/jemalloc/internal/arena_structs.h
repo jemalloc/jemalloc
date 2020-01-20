@@ -5,6 +5,8 @@
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bin.h"
 #include "jemalloc/internal/bitmap.h"
+#include "jemalloc/internal/ecache.h"
+#include "jemalloc/internal/edata_cache.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/mutex.h"
@@ -51,8 +53,8 @@ struct arena_decay_s {
 	/*
 	 * Number of unpurged pages at beginning of current epoch.  During epoch
 	 * advancement we use the delta between arena->decay_*.nunpurged and
-	 * extents_npages_get(&arena->extents_*) to determine how many dirty
-	 * pages, if any, were generated.
+	 * ecache_npages_get(&arena->ecache_*) to determine how many dirty pages,
+	 * if any, were generated.
 	 */
 	size_t			nunpurged;
 	/*
@@ -116,15 +118,6 @@ struct arena_s {
 
 	/* Synchronization: internal. */
 	prof_accum_t		prof_accum;
-	uint64_t		prof_accumbytes;
-
-	/*
-	 * PRNG state for cache index randomization of large allocation base
-	 * pointers.
-	 *
-	 * Synchronization: atomic.
-	 */
-	atomic_zu_t		offset_state;
 
 	/*
 	 * Extent serial number generator state.
@@ -152,7 +145,7 @@ struct arena_s {
 	 *
 	 * Synchronization: large_mtx.
 	 */
-	extent_list_t		large;
+	edata_list_t		large;
 	/* Synchronizes all large allocation/update/deallocation. */
 	malloc_mutex_t		large_mtx;
 
@@ -162,9 +155,9 @@ struct arena_s {
 	 *
 	 * Synchronization: internal.
 	 */
-	extents_t		extents_dirty;
-	extents_t		extents_muzzy;
-	extents_t		extents_retained;
+	ecache_t	ecache_dirty;
+	ecache_t	ecache_muzzy;
+	ecache_t	ecache_retained;
 
 	/*
 	 * Decay-based purging state, responsible for scheduling extent state
@@ -175,32 +168,11 @@ struct arena_s {
 	arena_decay_t		decay_dirty; /* dirty --> muzzy */
 	arena_decay_t		decay_muzzy; /* muzzy --> retained */
 
-	/*
-	 * Next extent size class in a growing series to use when satisfying a
-	 * request via the extent hooks (only if opt_retain).  This limits the
-	 * number of disjoint virtual memory ranges so that extent merging can
-	 * be effective even if multiple arenas' extent allocation requests are
-	 * highly interleaved.
-	 *
-	 * retain_grow_limit is the max allowed size ind to expand (unless the
-	 * required size is greater).  Default is no limit, and controlled
-	 * through mallctl only.
-	 *
-	 * Synchronization: extent_grow_mtx
-	 */
-	pszind_t		extent_grow_next;
-	pszind_t		retain_grow_limit;
-	malloc_mutex_t		extent_grow_mtx;
+	/* The grow info for the retained ecache. */
+	ecache_grow_t		ecache_grow;
 
-	/*
-	 * Available extent structures that were allocated via
-	 * base_alloc_extent().
-	 *
-	 * Synchronization: extent_avail_mtx.
-	 */
-	extent_tree_t		extent_avail;
-	atomic_zu_t		extent_avail_cnt;
-	malloc_mutex_t		extent_avail_mtx;
+	/* The source of edata_t objects. */
+	edata_cache_t		edata_cache;
 
 	/*
 	 * bins is used to store heaps of free regions.
