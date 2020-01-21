@@ -14,6 +14,9 @@
 #include <vm/vm_param.h>
 #endif
 #endif
+#ifdef __NetBSD__
+#include <sys/bitops.h>	/* ilog2 */
+#endif
 
 /******************************************************************************/
 /* Data. */
@@ -74,6 +77,18 @@ os_pages_map(void *addr, size_t size, size_t alignment, bool *commit) {
 	 * of existing mappings, and we only want to create new mappings.
 	 */
 	{
+#ifdef __NetBSD__
+		/*
+		 * On NetBSD PAGE for a platform is defined to the
+		 * maximum page size of all machine architectures
+		 * for that platform, so that we can use the same
+		 * binaries across all machine architectures.
+		 */
+		if (alignment > os_page || PAGE > os_page) {
+			unsigned int a = ilog2(MAX(alignment, PAGE));
+			mmap_flags |= MAP_ALIGNED(a);
+		}
+#endif
 		int prot = *commit ? PAGES_PROT_COMMIT : PAGES_PROT_DECOMMIT;
 
 		ret = mmap(addr, size, prot, mmap_flags, -1, 0);
@@ -622,6 +637,8 @@ pages_boot(void) {
 		mmap_flags |= MAP_NORESERVE;
 	}
 #  endif
+#elif defined(__NetBSD__)
+	os_overcommits = true;
 #else
 	os_overcommits = false;
 #endif
