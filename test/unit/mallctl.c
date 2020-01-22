@@ -882,6 +882,75 @@ TEST_BEGIN(test_hooks_exhaustion) {
 }
 TEST_END
 
+TEST_BEGIN(test_thread_idle) {
+	/*
+	 * We're cheating a little bit in this test, and inferring things about
+	 * implementation internals (like tcache details).  We have to;
+	 * thread.idle has no guaranteed effects.  We need stats to make these
+	 * inferences.
+	 */
+	test_skip_if(!config_stats);
+
+	int err;
+	size_t sz;
+	size_t miblen;
+
+	bool tcache_enabled = false;
+	sz = sizeof(tcache_enabled);
+	err = mallctl("thread.tcache.enabled", &tcache_enabled, &sz, NULL, 0);
+	assert_d_eq(err, 0, "");
+	test_skip_if(!tcache_enabled);
+
+	size_t tcache_max;
+	sz = sizeof(tcache_max);
+	err = mallctl("arenas.tcache_max", &tcache_max, &sz, NULL, 0);
+	assert_d_eq(err, 0, "");
+	test_skip_if(tcache_max == 0);
+
+	unsigned arena_ind;
+	sz = sizeof(arena_ind);
+	err = mallctl("thread.arena", &arena_ind, &sz, NULL, 0);
+	assert_d_eq(err, 0, "");
+
+	/* We're going to do an allocation of size 1, which we know is small. */
+	size_t mib[5];
+	miblen = sizeof(mib)/sizeof(mib[0]);
+	err = mallctlnametomib("stats.arenas.0.small.ndalloc", mib, &miblen);
+	assert_d_eq(err, 0, "");
+	mib[2] = arena_ind;
+
+	/*
+	 * This alloc and dalloc should leave something in the tcache, in a
+	 * small size's cache bin.
+	 */
+	void *ptr = mallocx(1, 0);
+	dallocx(ptr, 0);
+
+	uint64_t epoch;
+	err = mallctl("epoch", NULL, NULL, &epoch, sizeof(epoch));
+	assert_d_eq(err, 0, "");
+
+	uint64_t small_dalloc_pre_idle;
+	sz = sizeof(small_dalloc_pre_idle);
+	err = mallctlbymib(mib, miblen, &small_dalloc_pre_idle, &sz, NULL, 0);
+	assert_d_eq(err, 0, "");
+
+	err = mallctl("thread.idle", NULL, NULL, NULL, 0);
+	assert_d_eq(err, 0, "");
+
+	err = mallctl("epoch", NULL, NULL, &epoch, sizeof(epoch));
+	assert_d_eq(err, 0, "");
+
+	uint64_t small_dalloc_post_idle;
+	sz = sizeof(small_dalloc_post_idle);
+	err = mallctlbymib(mib, miblen, &small_dalloc_post_idle, &sz, NULL, 0);
+	assert_d_eq(err, 0, "");
+
+	assert_u64_lt(small_dalloc_pre_idle, small_dalloc_post_idle,
+	    "Purge didn't flush the tcache");
+}
+TEST_END
+
 int
 main(void) {
 	return test(
@@ -913,5 +982,6 @@ main(void) {
 	    test_prof_active,
 	    test_stats_arenas,
 	    test_hooks,
-	    test_hooks_exhaustion);
+	    test_hooks_exhaustion,
+	    test_thread_idle);
 }

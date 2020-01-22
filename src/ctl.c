@@ -68,6 +68,7 @@ CTL_PROTO(thread_allocated)
 CTL_PROTO(thread_allocatedp)
 CTL_PROTO(thread_deallocated)
 CTL_PROTO(thread_deallocatedp)
+CTL_PROTO(thread_idle)
 CTL_PROTO(config_cache_oblivious)
 CTL_PROTO(config_debug)
 CTL_PROTO(config_fill)
@@ -293,7 +294,8 @@ static const ctl_named_node_t	thread_node[] = {
 	{NAME("deallocated"),	CTL(thread_deallocated)},
 	{NAME("deallocatedp"),	CTL(thread_deallocatedp)},
 	{NAME("tcache"),	CHILD(named, thread_tcache)},
-	{NAME("prof"),		CHILD(named, thread_prof)}
+	{NAME("prof"),		CHILD(named, thread_prof)},
+	{NAME("idle"),		CTL(thread_idle)}
 };
 
 static const ctl_named_node_t	config_node[] = {
@@ -1900,6 +1902,12 @@ thread_tcache_flush_ctl(tsd_t *tsd, const size_t *mib,
 		goto label_return;
 	}
 
+	/*
+	 * Slightly counterintuitively, READONLY() really just requires that the
+	 * call isn't trying to write, and WRITEONLY() just requires that it
+	 * isn't trying to read; hence, adding both requires that the operation
+	 * is neither a read nor a write.
+	 */
 	READONLY();
 	WRITEONLY();
 
@@ -1965,6 +1973,41 @@ thread_prof_active_ctl(tsd_t *tsd, const size_t *mib,
 		}
 	}
 	READ(oldval, bool);
+
+	ret = 0;
+label_return:
+	return ret;
+}
+
+static int
+thread_idle_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp,
+    size_t newlen) {
+	int ret;
+
+	/* See the comment in thread_tcache_flush_ctl. */
+	READONLY();
+	WRITEONLY();
+
+	if (tcache_available(tsd)) {
+		tcache_flush(tsd);
+	}
+	/*
+	 * This heuristic is perhaps not the most well-considered.  But it
+	 * matches the only idling policy we have experience with in the status
+	 * quo.  Over time we should investigate more principled approaches.
+	 */
+	if (opt_narenas > ncpus * 2) {
+		arena_t *arena = arena_choose(tsd, NULL);
+		if (arena != NULL) {
+			arena_decay(tsd_tsdn(tsd), arena, false, true);
+		}
+		/*
+		 * The missing arena case is not actually an error; a thread
+		 * might be idle before it associates itself to one.  This is
+		 * unusual, but not wrong.
+		 */
+	}
 
 	ret = 0;
 label_return:
