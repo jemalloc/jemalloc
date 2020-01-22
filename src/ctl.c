@@ -1451,9 +1451,19 @@ ctl_mtx_assert_held(tsdn_t *tsdn) {
 	}								\
 } while (0)
 
+/* Can read or write, but not both. */
 #define READ_XOR_WRITE()	do {					\
 	if ((oldp != NULL && oldlenp != NULL) && (newp != NULL ||	\
 	    newlen != 0)) {						\
+		ret = EPERM;						\
+		goto label_return;					\
+	}								\
+} while (0)
+
+/* Can neither read nor write. */
+#define NEITHER_READ_NOR_WRITE()	do {				\
+	if (oldp != NULL || oldlenp != NULL || newp != NULL ||		\
+	    newlen != 0) {						\
 		ret = EPERM;						\
 		goto label_return;					\
 	}								\
@@ -1902,14 +1912,7 @@ thread_tcache_flush_ctl(tsd_t *tsd, const size_t *mib,
 		goto label_return;
 	}
 
-	/*
-	 * Slightly counterintuitively, READONLY() really just requires that the
-	 * call isn't trying to write, and WRITEONLY() just requires that it
-	 * isn't trying to read; hence, adding both requires that the operation
-	 * is neither a read nor a write.
-	 */
-	READONLY();
-	WRITEONLY();
+	NEITHER_READ_NOR_WRITE();
 
 	tcache_flush(tsd);
 
@@ -1985,9 +1988,7 @@ thread_idle_ctl(tsd_t *tsd, const size_t *mib,
     size_t newlen) {
 	int ret;
 
-	/* See the comment in thread_tcache_flush_ctl. */
-	READONLY();
-	WRITEONLY();
+	NEITHER_READ_NOR_WRITE();
 
 	if (tcache_available(tsd)) {
 		tcache_flush(tsd);
@@ -2151,8 +2152,7 @@ arena_i_decay_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	int ret;
 	unsigned arena_ind;
 
-	READONLY();
-	WRITEONLY();
+	NEITHER_READ_NOR_WRITE();
 	MIB_UNSIGNED(arena_ind, 1);
 	arena_i_decay(tsd_tsdn(tsd), arena_ind, false);
 
@@ -2167,8 +2167,7 @@ arena_i_purge_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	int ret;
 	unsigned arena_ind;
 
-	READONLY();
-	WRITEONLY();
+	NEITHER_READ_NOR_WRITE();
 	MIB_UNSIGNED(arena_ind, 1);
 	arena_i_decay(tsd_tsdn(tsd), arena_ind, true);
 
@@ -2183,8 +2182,7 @@ arena_i_reset_destroy_helper(tsd_t *tsd, const size_t *mib, size_t miblen,
     arena_t **arena) {
 	int ret;
 
-	READONLY();
-	WRITEONLY();
+	NEITHER_READ_NOR_WRITE();
 	MIB_UNSIGNED(*arena_ind, 1);
 
 	*arena = arena_get(tsd_tsdn(tsd), *arena_ind, false);
