@@ -5,6 +5,7 @@
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bin.h"
 #include "jemalloc/internal/bitmap.h"
+#include "jemalloc/internal/counter.h"
 #include "jemalloc/internal/ecache.h"
 #include "jemalloc/internal/edata_cache.h"
 #include "jemalloc/internal/extent_dss.h"
@@ -117,7 +118,7 @@ struct arena_s {
 	malloc_mutex_t				tcache_ql_mtx;
 
 	/* Synchronization: internal. */
-	prof_accum_t		prof_accum;
+	counter_accum_t		prof_accum;
 
 	/*
 	 * Extent serial number generator state.

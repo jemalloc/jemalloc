@@ -73,7 +73,7 @@ void prof_cnt_all(uint64_t *curobjs, uint64_t *curbytes, uint64_t *accumobjs,
 #endif
 int prof_getpid(void);
 void prof_get_default_filename(tsdn_t *tsdn, char *filename, uint64_t ind);
-bool prof_accum_init(tsdn_t *tsdn);
+bool prof_accum_init(void);
 void prof_idump(tsdn_t *tsdn);
 bool prof_mdump(tsd_t *tsd, const char *filename);
 void prof_gdump(tsdn_t *tsdn);
