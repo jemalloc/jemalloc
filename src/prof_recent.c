@@ -466,15 +466,15 @@ prof_recent_alloc_dump(tsd_t *tsd, void (*write_cb)(void *, const char *),
 	    sz_size2index(PROF_RECENT_PRINT_BUFSIZE), false, NULL, true,
 	    arena_get(tsd_tsdn(tsd), 0, false), true);
 	emitter_t emitter;
-	buf_write_arg_t buf_arg;
+	buf_writer_t buf_writer;
 	if (buf == NULL) {
 		emitter_init(&emitter, emitter_output_json_compact, write_cb,
 		    cbopaque);
 	} else {
-		buf_write_init(&buf_arg, write_cb, cbopaque, buf,
+		buf_writer_init(&buf_writer, write_cb, cbopaque, buf,
 		    PROF_RECENT_PRINT_BUFSIZE);
 		emitter_init(&emitter, emitter_output_json_compact,
-		    buf_write_cb, &buf_arg);
+		    buf_writer_cb, &buf_writer);
 	}
 	emitter_begin(&emitter);
 
@@ -536,7 +536,7 @@ prof_recent_alloc_dump(tsd_t *tsd, void (*write_cb)(void *, const char *),
 
 	emitter_end(&emitter);
 	if (buf != NULL) {
-		buf_write_flush(&buf_arg);
+		buf_writer_flush(&buf_writer);
 		idalloctm(tsd_tsdn(tsd), buf, NULL, NULL, true, true);
 	}
 }

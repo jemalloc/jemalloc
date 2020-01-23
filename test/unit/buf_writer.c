@@ -22,8 +22,9 @@ TEST_BEGIN(test_buf_write) {
 	size_t n_unit, remain, i;
 	ssize_t unit;
 	uint64_t arg = 4; /* Starting value of random argument. */
-	buf_write_arg_t test_buf_arg = {test_write_cb, &arg, test_buf,
-	    TEST_BUF_SIZE - 1, 0};
+	buf_writer_t buf_writer;
+	buf_writer_init(&buf_writer, test_write_cb, &arg, test_buf,
+	    TEST_BUF_SIZE);
 
 	memset(s, 'a', UNIT_MAX);
 	arg_store = arg;
@@ -35,23 +36,23 @@ TEST_BEGIN(test_buf_write) {
 			remain = 0;
 			for (i = 1; i <= n_unit; ++i) {
 				arg = prng_lg_range_u64(&arg, 64);
-				buf_write_cb(&test_buf_arg, s);
+				buf_writer_cb(&buf_writer, s);
 				remain += unit;
-				if (remain > test_buf_arg.buf_size) {
+				if (remain > buf_writer.buf_size) {
 					/* Flushes should have happened. */
 					assert_u64_eq(arg_store, arg, "Call "
 					    "back argument didn't get through");
-					remain %= test_buf_arg.buf_size;
+					remain %= buf_writer.buf_size;
 					if (remain == 0) {
 						/* Last flush should be lazy. */
-						remain += test_buf_arg.buf_size;
+						remain += buf_writer.buf_size;
 					}
 				}
 				assert_zu_eq(test_write_len + remain, i * unit,
 				    "Incorrect length after writing %zu strings"
 				    " of length %zu", i, unit);
 			}
-			buf_write_flush(&test_buf_arg);
+			buf_writer_flush(&buf_writer);
 			assert_zu_eq(test_write_len, n_unit * unit,
 			    "Incorrect length after flushing at the end of"
 			    " writing %zu strings of length %zu", n_unit, unit);

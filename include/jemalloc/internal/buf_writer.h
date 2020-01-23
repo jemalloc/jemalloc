@@ -16,21 +16,21 @@ typedef struct {
 	char *buf;
 	size_t buf_size;
 	size_t buf_end;
-} buf_write_arg_t;
+} buf_writer_t;
 
 JEMALLOC_ALWAYS_INLINE void
-buf_write_init(buf_write_arg_t *arg, void (*write_cb)(void *, const char *),
-    void *cbopaque, char *buf, size_t buf_len) {
-	arg->write_cb = write_cb;
-	arg->cbopaque = cbopaque;
+buf_writer_init(buf_writer_t *buf_writer, void (*write_cb)(void *,
+    const char *), void *cbopaque, char *buf, size_t buf_len) {
+	buf_writer->write_cb = write_cb;
+	buf_writer->cbopaque = cbopaque;
 	assert(buf != NULL);
-	arg->buf = buf;
+	buf_writer->buf = buf;
 	assert(buf_len >= 2);
-	arg->buf_size = buf_len - 1; /* Accommodating '\0' at the end. */
-	arg->buf_end = 0;
+	buf_writer->buf_size = buf_len - 1; /* Allowing for '\0' at the end. */
+	buf_writer->buf_end = 0;
 }
 
-void buf_write_flush(buf_write_arg_t *arg);
-void buf_write_cb(void *buf_write_arg, const char *s);
+void buf_writer_flush(buf_writer_t *buf_writer);
+void buf_writer_cb(void *buf_writer_arg, const char *s);
 
 #endif /* JEMALLOC_INTERNAL_BUF_WRITER_H */

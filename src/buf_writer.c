@@ -6,31 +6,31 @@
 #include "jemalloc/internal/malloc_io.h"
 
 void
-buf_write_flush(buf_write_arg_t *arg) {
-	assert(arg->buf_end <= arg->buf_size);
-	arg->buf[arg->buf_end] = '\0';
-	if (arg->write_cb == NULL) {
-		arg->write_cb = je_malloc_message != NULL ?
+buf_writer_flush(buf_writer_t *buf_writer) {
+	assert(buf_writer->buf_end <= buf_writer->buf_size);
+	buf_writer->buf[buf_writer->buf_end] = '\0';
+	if (buf_writer->write_cb == NULL) {
+		buf_writer->write_cb = je_malloc_message != NULL ?
 		    je_malloc_message : wrtmessage;
 	}
-	arg->write_cb(arg->cbopaque, arg->buf);
-	arg->buf_end = 0;
+	buf_writer->write_cb(buf_writer->cbopaque, buf_writer->buf);
+	buf_writer->buf_end = 0;
 }
 
 void
-buf_write_cb(void *buf_write_arg, const char *s) {
-	buf_write_arg_t *arg = (buf_write_arg_t *)buf_write_arg;
+buf_writer_cb(void *buf_writer_arg, const char *s) {
+	buf_writer_t *buf_writer = (buf_writer_t *)buf_writer_arg;
 	size_t i, slen, n, s_remain, buf_remain;
-	assert(arg->buf_end <= arg->buf_size);
+	assert(buf_writer->buf_end <= buf_writer->buf_size);
 	for (i = 0, slen = strlen(s); i < slen; i += n) {
-		if (arg->buf_end == arg->buf_size) {
-			buf_write_flush(arg);
+		if (buf_writer->buf_end == buf_writer->buf_size) {
+			buf_writer_flush(buf_writer);
 		}
 		s_remain = slen - i;
-		buf_remain = arg->buf_size - arg->buf_end;
+		buf_remain = buf_writer->buf_size - buf_writer->buf_end;
 		n = s_remain < buf_remain ? s_remain : buf_remain;
-		memcpy(arg->buf + arg->buf_end, s + i, n);
-		arg->buf_end += n;
+		memcpy(buf_writer->buf + buf_writer->buf_end, s + i, n);
+		buf_writer->buf_end += n;
 	}
 	assert(i == slen);
 }

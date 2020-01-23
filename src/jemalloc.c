@@ -3746,11 +3746,11 @@ je_malloc_stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		if (buf == NULL) {
 			stats_print(write_cb, cbopaque, opts);
 		} else {
-			buf_write_arg_t buf_arg;
-			buf_write_init(&buf_arg, write_cb, cbopaque, buf,
+			buf_writer_t buf_writer;
+			buf_writer_init(&buf_writer, write_cb, cbopaque, buf,
 			    STATS_PRINT_BUFSIZE);
-			stats_print(buf_write_cb, &buf_arg, opts);
-			buf_write_flush(&buf_arg);
+			stats_print(buf_writer_cb, &buf_writer, opts);
+			buf_writer_flush(&buf_writer);
 			idalloctm(tsdn, buf, NULL, NULL, true, true);
 		}
 	}
