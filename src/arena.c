@@ -1988,7 +1988,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	}
 
 	if (config_prof) {
-		if (prof_accum_init(tsdn)) {
+		if (prof_accum_init()) {
 			goto label_error;
 		}
 	}

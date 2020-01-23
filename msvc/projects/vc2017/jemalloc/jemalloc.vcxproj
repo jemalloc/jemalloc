@@ -43,6 +43,7 @@
     <ClCompile Include="..\..\..\..\src\bitmap.c" />
     <ClCompile Include="..\..\..\..\src\buf_writer.c" />
     <ClCompile Include="..\..\..\..\src\ckh.c" />
+    <ClCompile Include="..\..\..\..\src\counter.c" />
     <ClCompile Include="..\..\..\..\src\ctl.c" />
     <ClCompile Include="..\..\..\..\src\div.c" />
     <ClCompile Include="..\..\..\..\src\ecache.c" />
