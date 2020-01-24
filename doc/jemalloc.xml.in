@@ -1669,10 +1669,10 @@ malloc_conf = "xmalloc:true";]]></programlisting>
 	<para>This is not intended to be a general-purpose background activity
 	mechanism, and threads should not wake up multiple times solely to call
 	it.  Rather, a thread waiting for a task should do a timed wait first,
-	call <link linkend="thread.idle"><mallctl>thread.idle</mallctl><link> if
-	no task appears in the timeout interval, and then do an untimed wait.
+	call <link linkend="thread.idle"><mallctl>thread.idle</mallctl></link>
+	if no task appears in the timeout interval, and then do an untimed wait.
 	For such a background activity mechanism, see
-	<link linked="background_thread"><mallctl>background_thread</mallctl></link>.
+	<link linkend="background_thread"><mallctl>background_thread</mallctl></link>.
 	</para></listitem>
       </varlistentry>
 
