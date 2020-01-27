@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_INLINES_B_H
 #define JEMALLOC_INTERNAL_INLINES_B_H
 
+#include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/rtree.h"
 
@@ -81,7 +82,7 @@ iealloc(tsdn_t *tsdn, const void *ptr) {
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
-	return rtree_edata_read(tsdn, &extents_rtree, rtree_ctx,
+	return rtree_edata_read(tsdn, &emap_global.rtree, rtree_ctx,
 	    (uintptr_t)ptr, true);
 }
 

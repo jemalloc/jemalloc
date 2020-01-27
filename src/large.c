@@ -179,7 +179,7 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 	szind_t szind = sz_size2index(usize);
 	edata_szind_set(edata, szind);
-	rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx,
+	rtree_szind_slab_update(tsdn, &emap_global.rtree, rtree_ctx,
 	    (uintptr_t)edata_addr_get(edata), szind, false);
 
 	if (config_stats && new_mapping) {

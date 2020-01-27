@@ -6,6 +6,7 @@
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/buf_writer.h"
 #include "jemalloc/internal/ctl.h"
+#include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/hook.h"
@@ -1571,6 +1572,9 @@ malloc_init_hard_a0_locked() {
 	if (base_boot(TSDN_NULL)) {
 		return true;
 	}
+	if (emap_init(&emap_global)) {
+		return true;
+	}
 	if (extent_boot()) {
 		return true;
 	}
@@ -2565,7 +2569,7 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 
 	alloc_ctx_t alloc_ctx;
 	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
-	rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
+	rtree_szind_slab_read(tsd_tsdn(tsd), &emap_global.rtree, rtree_ctx,
 	    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
 	assert(alloc_ctx.szind != SC_NSIZES);
 
@@ -2619,15 +2623,16 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 				alloc_ctx_t dbg_ctx;
 				rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
 				rtree_szind_slab_read(tsd_tsdn(tsd),
-				    &extents_rtree, rtree_ctx, (uintptr_t)ptr,
-				    true, &dbg_ctx.szind, &dbg_ctx.slab);
+				    &emap_global.rtree, rtree_ctx,
+				    (uintptr_t)ptr, true, &dbg_ctx.szind,
+				    &dbg_ctx.slab);
 				assert(dbg_ctx.szind == ctx->szind);
 				assert(dbg_ctx.slab == ctx->slab);
 			}
 		} else if (opt_prof) {
 			ctx = &alloc_ctx;
 			rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
-			rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree,
+			rtree_szind_slab_read(tsd_tsdn(tsd), &emap_global.rtree,
 			    rtree_ctx, (uintptr_t)ptr, true, &ctx->szind,
 			    &ctx->slab);
 			/* Small alloc may have !slab (sampled). */
@@ -2699,7 +2704,8 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 		bool slab;
 		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
 		bool res = rtree_szind_slab_read_fast(tsd_tsdn(tsd),
-		    &extents_rtree, rtree_ctx, (uintptr_t)ptr, &szind, &slab);
+		    &emap_global.rtree, rtree_ctx, (uintptr_t)ptr, &szind,
+		    &slab);
 
 		/* Note: profiled objects will have alloc_ctx.slab set */
 		if (unlikely(!res || !slab)) {
@@ -3142,7 +3148,7 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 
 	alloc_ctx_t alloc_ctx;
 	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
-	rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
+	rtree_szind_slab_read(tsd_tsdn(tsd), &emap_global.rtree, rtree_ctx,
 	    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
 	assert(alloc_ctx.szind != SC_NSIZES);
 	old_usize = sz_index2size(alloc_ctx.szind);
@@ -3421,7 +3427,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 
 	alloc_ctx_t alloc_ctx;
 	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
-	rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
+	rtree_szind_slab_read(tsd_tsdn(tsd), &emap_global.rtree, rtree_ctx,
 	    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
 	assert(alloc_ctx.szind != SC_NSIZES);
 	old_usize = sz_index2size(alloc_ctx.szind);

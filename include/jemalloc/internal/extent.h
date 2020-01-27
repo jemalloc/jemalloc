@@ -19,8 +19,6 @@
 #define LG_EXTENT_MAX_ACTIVE_FIT_DEFAULT 6
 extern size_t opt_lg_extent_max_active_fit;
 
-extern rtree_t extents_rtree;
-
 edata_t *ecache_alloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     ecache_t *ecache, void *new_addr, size_t size, size_t pad, size_t alignment,
     bool slab, szind_t szind, bool *zero);

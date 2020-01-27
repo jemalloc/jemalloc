@@ -65,7 +65,7 @@ vsalloc(tsdn_t *tsdn, const void *ptr) {
 
 	edata_t *edata;
 	szind_t szind;
-	if (rtree_edata_szind_read(tsdn, &extents_rtree, rtree_ctx,
+	if (rtree_edata_szind_read(tsdn, &emap_global.rtree, rtree_ctx,
 	    (uintptr_t)ptr, false, &edata, &szind)) {
 		return 0;
 	}

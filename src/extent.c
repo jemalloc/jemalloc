@@ -2,19 +2,14 @@
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/ph.h"
-#include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/mutex.h"
-#include "jemalloc/internal/mutex_pool.h"
 
 /******************************************************************************/
 /* Data. */
-
-rtree_t		extents_rtree;
-/* Keyed by the address of the edata_t being protected. */
-mutex_pool_t	extent_mutex_pool;
 
 size_t opt_lg_extent_max_active_fit = LG_EXTENT_MAX_ACTIVE_FIT_DEFAULT;
 
@@ -57,88 +52,6 @@ static edata_t *extent_alloc_retained(tsdn_t *tsdn, arena_t *arena,
     bool slab, szind_t szind, bool *zero, bool *commit);
 
 /******************************************************************************/
-
-typedef enum {
-	lock_result_success,
-	lock_result_failure,
-	lock_result_no_extent
-} lock_result_t;
-
-static inline void
-extent_lock_edata(tsdn_t *tsdn, edata_t *edata) {
-	assert(edata != NULL);
-	mutex_pool_lock(tsdn, &extent_mutex_pool, (uintptr_t)edata);
-}
-
-static inline void
-extent_unlock_edata(tsdn_t *tsdn, edata_t *edata) {
-	assert(edata != NULL);
-	mutex_pool_unlock(tsdn, &extent_mutex_pool, (uintptr_t)edata);
-}
-
-static inline void
-extent_lock_edata2(tsdn_t *tsdn, edata_t *edata1, edata_t *edata2) {
-	assert(edata1 != NULL && edata2 != NULL);
-	mutex_pool_lock2(tsdn, &extent_mutex_pool, (uintptr_t)edata1,
-	    (uintptr_t)edata2);
-}
-
-static inline void
-extent_unlock_edata2(tsdn_t *tsdn, edata_t *edata1, edata_t *edata2) {
-	assert(edata1 != NULL && edata2 != NULL);
-	mutex_pool_unlock2(tsdn, &extent_mutex_pool, (uintptr_t)edata1,
-	    (uintptr_t)edata2);
-}
-
-static lock_result_t
-extent_rtree_leaf_elm_try_lock(tsdn_t *tsdn, rtree_leaf_elm_t *elm,
-    edata_t **result, bool inactive_only) {
-	edata_t *edata1 = rtree_leaf_elm_edata_read(tsdn, &extents_rtree,
-	    elm, true);
-
-	/* Slab implies active extents and should be skipped. */
-	if (edata1 == NULL || (inactive_only && rtree_leaf_elm_slab_read(tsdn,
-	    &extents_rtree, elm, true))) {
-		return lock_result_no_extent;
-	}
-
-	/*
-	 * It's possible that the extent changed out from under us, and with it
-	 * the leaf->edata mapping.  We have to recheck while holding the lock.
-	 */
-	extent_lock_edata(tsdn, edata1);
-	edata_t *edata2 = rtree_leaf_elm_edata_read(tsdn, &extents_rtree, elm,
-	    true);
-
-	if (edata1 == edata2) {
-		*result = edata1;
-		return lock_result_success;
-	} else {
-		extent_unlock_edata(tsdn, edata1);
-		return lock_result_failure;
-	}
-}
-
-/*
- * Returns a pool-locked edata_t * if there's one associated with the given
- * address, and NULL otherwise.
- */
-static edata_t *
-extent_lock_edata_from_addr(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx, void *addr,
-    bool inactive_only) {
-	edata_t *ret = NULL;
-	rtree_leaf_elm_t *elm = rtree_leaf_elm_lookup(tsdn, &extents_rtree,
-	    rtree_ctx, (uintptr_t)addr, false, false);
-	if (elm == NULL) {
-		return NULL;
-	}
-	lock_result_t lock_result;
-	do {
-		lock_result = extent_rtree_leaf_elm_try_lock(tsdn, elm, &ret,
-		    inactive_only);
-	} while (lock_result == lock_result_failure);
-	return ret;
-}
 
 static void
 extent_addr_randomize(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
@@ -357,34 +270,14 @@ extent_activate_locked(tsdn_t *tsdn, ecache_t *ecache, edata_t *edata) {
 	edata_state_set(edata, extent_state_active);
 }
 
-static bool
-extent_rtree_leaf_elms_lookup(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx,
-    const edata_t *edata, bool dependent, bool init_missing,
-    rtree_leaf_elm_t **r_elm_a, rtree_leaf_elm_t **r_elm_b) {
-	*r_elm_a = rtree_leaf_elm_lookup(tsdn, &extents_rtree, rtree_ctx,
-	    (uintptr_t)edata_base_get(edata), dependent, init_missing);
-	if (!dependent && *r_elm_a == NULL) {
-		return true;
-	}
-	assert(*r_elm_a != NULL);
-
-	*r_elm_b = rtree_leaf_elm_lookup(tsdn, &extents_rtree, rtree_ctx,
-	    (uintptr_t)edata_last_get(edata), dependent, init_missing);
-	if (!dependent && *r_elm_b == NULL) {
-		return true;
-	}
-	assert(*r_elm_b != NULL);
-
-	return false;
-}
-
 static void
 extent_rtree_write_acquired(tsdn_t *tsdn, rtree_leaf_elm_t *elm_a,
     rtree_leaf_elm_t *elm_b, edata_t *edata, szind_t szind, bool slab) {
-	rtree_leaf_elm_write(tsdn, &extents_rtree, elm_a, edata, szind, slab);
+	rtree_leaf_elm_write(tsdn, &emap_global.rtree, elm_a, edata, szind,
+	    slab);
 	if (elm_b != NULL) {
-		rtree_leaf_elm_write(tsdn, &extents_rtree, elm_b, edata, szind,
-		    slab);
+		rtree_leaf_elm_write(tsdn, &emap_global.rtree, elm_b, edata,
+		    szind, slab);
 	}
 }
 
@@ -395,7 +288,7 @@ extent_interior_register(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx, edata_t *edata,
 
 	/* Register interior. */
 	for (size_t i = 1; i < (edata_size_get(edata) >> LG_PAGE) - 1; i++) {
-		rtree_write(tsdn, &extents_rtree, rtree_ctx,
+		rtree_write(tsdn, &emap_global.rtree, rtree_ctx,
 		    (uintptr_t)edata_base_get(edata) + (uintptr_t)(i <<
 		    LG_PAGE), edata, szind, true);
 	}
@@ -448,11 +341,11 @@ extent_register_impl(tsdn_t *tsdn, edata_t *edata, bool gdump_add) {
 	 * We need to hold the lock to protect against a concurrent coalesce
 	 * operation that sees us in a partial state.
 	 */
-	extent_lock_edata(tsdn, edata);
+	emap_lock_edata(tsdn, &emap_global, edata);
 
-	if (extent_rtree_leaf_elms_lookup(tsdn, rtree_ctx, edata, false, true,
-	    &elm_a, &elm_b)) {
-		extent_unlock_edata(tsdn, edata);
+	if (emap_rtree_leaf_elms_lookup(tsdn, &emap_global, rtree_ctx, edata,
+	    false, true, &elm_a, &elm_b)) {
+		emap_unlock_edata(tsdn, &emap_global, edata);
 		return true;
 	}
 
@@ -463,7 +356,7 @@ extent_register_impl(tsdn_t *tsdn, edata_t *edata, bool gdump_add) {
 		extent_interior_register(tsdn, rtree_ctx, edata, szind);
 	}
 
-	extent_unlock_edata(tsdn, edata);
+	emap_unlock_edata(tsdn, &emap_global, edata);
 
 	if (config_prof && gdump_add) {
 		extent_gdump_add(tsdn, edata);
@@ -503,7 +396,7 @@ extent_interior_deregister(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx,
 	assert(edata_slab_get(edata));
 
 	for (i = 1; i < (edata_size_get(edata) >> LG_PAGE) - 1; i++) {
-		rtree_clear(tsdn, &extents_rtree, rtree_ctx,
+		rtree_clear(tsdn, &emap_global.rtree, rtree_ctx,
 		    (uintptr_t)edata_base_get(edata) + (uintptr_t)(i <<
 		    LG_PAGE));
 	}
@@ -517,10 +410,10 @@ extent_deregister_impl(tsdn_t *tsdn, edata_t *edata, bool gdump) {
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 	rtree_leaf_elm_t *elm_a, *elm_b;
-	extent_rtree_leaf_elms_lookup(tsdn, rtree_ctx, edata, true, false,
-	    &elm_a, &elm_b);
+	emap_rtree_leaf_elms_lookup(tsdn, &emap_global, rtree_ctx, edata,
+	    true, false, &elm_a, &elm_b);
 
-	extent_lock_edata(tsdn, edata);
+	emap_lock_edata(tsdn, &emap_global, edata);
 
 	extent_rtree_write_acquired(tsdn, elm_a, elm_b, NULL, SC_NSIZES, false);
 	if (edata_slab_get(edata)) {
@@ -528,7 +421,7 @@ extent_deregister_impl(tsdn_t *tsdn, edata_t *edata, bool gdump) {
 		edata_slab_set(edata, false);
 	}
 
-	extent_unlock_edata(tsdn, edata);
+	emap_unlock_edata(tsdn, &emap_global, edata);
 
 	if (config_prof && gdump) {
 		extent_gdump_sub(tsdn, edata);
@@ -577,8 +470,8 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	malloc_mutex_lock(tsdn, &ecache->mtx);
 	edata_t *edata;
 	if (new_addr != NULL) {
-		edata = extent_lock_edata_from_addr(tsdn, rtree_ctx, new_addr,
-		    false);
+		edata = emap_lock_edata_from_addr(tsdn, &emap_global, rtree_ctx,
+		    new_addr, false);
 		if (edata != NULL) {
 			/*
 			 * We might null-out edata to report an error, but we
@@ -592,7 +485,7 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 			    != ecache->state) {
 				edata = NULL;
 			}
-			extent_unlock_edata(tsdn, unlock_edata);
+			emap_unlock_edata(tsdn, &emap_global, unlock_edata);
 		}
 	} else {
 		edata = eset_fit(&ecache->eset, esize, alignment,
@@ -692,11 +585,12 @@ extent_split_interior(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		 */
 		edata_szind_set(*edata, szind);
 		if (szind != SC_NSIZES) {
-			rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx,
-			    (uintptr_t)edata_addr_get(*edata), szind, slab);
+			rtree_szind_slab_update(tsdn, &emap_global.rtree,
+			    rtree_ctx, (uintptr_t)edata_addr_get(*edata), szind,
+			    slab);
 			if (slab && edata_size_get(*edata) > PAGE) {
-				rtree_szind_slab_update(tsdn, &extents_rtree,
-				    rtree_ctx,
+				rtree_szind_slab_update(tsdn,
+				    &emap_global.rtree, rtree_ctx,
 				    (uintptr_t)edata_past_get(*edata) -
 				    (uintptr_t)PAGE, szind, slab);
 			}
@@ -760,8 +654,8 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 			extent_deregister_no_gdump_sub(tsdn, to_leak);
 			extents_abandon_vm(tsdn, arena, ehooks, ecache, to_leak,
 			    growing_retained);
-			assert(extent_lock_edata_from_addr(tsdn, rtree_ctx, leak,
-			    false) == NULL);
+			assert(emap_lock_edata_from_addr(tsdn, &emap_global,
+			    rtree_ctx, leak, false) == NULL);
 		}
 		return NULL;
 	}
@@ -1119,8 +1013,8 @@ extent_try_coalesce_impl(tsdn_t *tsdn, edata_cache_t *edata_cache,
 		again = false;
 
 		/* Try to coalesce forward. */
-		edata_t *next = extent_lock_edata_from_addr(tsdn, rtree_ctx,
-		    edata_past_get(edata), inactive_only);
+		edata_t *next = emap_lock_edata_from_addr(tsdn, &emap_global,
+		    rtree_ctx, edata_past_get(edata), inactive_only);
 		if (next != NULL) {
 			/*
 			 * ecache->mtx only protects against races for
@@ -1130,7 +1024,7 @@ extent_try_coalesce_impl(tsdn_t *tsdn, edata_cache_t *edata_cache,
 			bool can_coalesce = extent_can_coalesce(ecache,
 			    edata, next);
 
-			extent_unlock_edata(tsdn, next);
+			emap_unlock_edata(tsdn, &emap_global, next);
 
 			if (can_coalesce && !extent_coalesce(tsdn, edata_cache,
 			    ehooks, ecache, edata, next, true,
@@ -1145,12 +1039,12 @@ extent_try_coalesce_impl(tsdn_t *tsdn, edata_cache_t *edata_cache,
 		}
 
 		/* Try to coalesce backward. */
-		edata_t *prev = extent_lock_edata_from_addr(tsdn, rtree_ctx,
-		    edata_before_get(edata), inactive_only);
+		edata_t *prev = emap_lock_edata_from_addr(tsdn, &emap_global,
+		    rtree_ctx, edata_before_get(edata), inactive_only);
 		if (prev != NULL) {
 			bool can_coalesce = extent_can_coalesce(ecache, edata,
 			    prev);
-			extent_unlock_edata(tsdn, prev);
+			emap_unlock_edata(tsdn, &emap_global, prev);
 
 			if (can_coalesce && !extent_coalesce(tsdn, edata_cache,
 			    ehooks, ecache, edata, prev, false,
@@ -1210,7 +1104,7 @@ extent_record(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 		edata_slab_set(edata, false);
 	}
 
-	assert(rtree_edata_read(tsdn, &extents_rtree, rtree_ctx,
+	assert(rtree_edata_read(tsdn, &emap_global.rtree, rtree_ctx,
 	    (uintptr_t)edata_base_get(edata), true) == edata);
 
 	if (!ecache->delay_coalesce) {
@@ -1449,19 +1343,19 @@ extent_split_impl(tsdn_t *tsdn, edata_cache_t *edata_cache, ehooks_t *ehooks,
 		    edata_committed_get(edata), edata_dumpable_get(edata),
 		    EXTENT_NOT_HEAD);
 
-		extent_rtree_leaf_elms_lookup(tsdn, rtree_ctx, &lead, false,
-		    true, &lead_elm_a, &lead_elm_b);
+		emap_rtree_leaf_elms_lookup(tsdn, &emap_global, rtree_ctx,
+		    &lead, false, true, &lead_elm_a, &lead_elm_b);
 	}
 	rtree_leaf_elm_t *trail_elm_a, *trail_elm_b;
-	extent_rtree_leaf_elms_lookup(tsdn, rtree_ctx, trail, false, true,
-	    &trail_elm_a, &trail_elm_b);
+	emap_rtree_leaf_elms_lookup(tsdn, &emap_global, rtree_ctx, trail, false,
+	    true, &trail_elm_a, &trail_elm_b);
 
 	if (lead_elm_a == NULL || lead_elm_b == NULL || trail_elm_a == NULL
 	    || trail_elm_b == NULL) {
 		goto label_error_b;
 	}
 
-	extent_lock_edata2(tsdn, edata, trail);
+	emap_lock_edata2(tsdn, &emap_global, edata, trail);
 
 	bool err = ehooks_split(tsdn, ehooks, edata_base_get(edata),
 	    size_a + size_b, size_a, size_b, edata_committed_get(edata));
@@ -1478,11 +1372,11 @@ extent_split_impl(tsdn_t *tsdn, edata_cache_t *edata_cache, ehooks_t *ehooks,
 	extent_rtree_write_acquired(tsdn, trail_elm_a, trail_elm_b, trail,
 	    szind_b, slab_b);
 
-	extent_unlock_edata2(tsdn, edata, trail);
+	emap_unlock_edata2(tsdn, &emap_global, edata, trail);
 
 	return trail;
 label_error_c:
-	extent_unlock_edata2(tsdn, edata, trail);
+	emap_unlock_edata2(tsdn, &emap_global, edata, trail);
 label_error_b:
 	edata_cache_put(tsdn, edata_cache, trail);
 label_error_a:
@@ -1523,19 +1417,19 @@ extent_merge_impl(tsdn_t *tsdn, ehooks_t *ehooks, edata_cache_t *edata_cache,
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 	rtree_leaf_elm_t *a_elm_a, *a_elm_b, *b_elm_a, *b_elm_b;
-	extent_rtree_leaf_elms_lookup(tsdn, rtree_ctx, a, true, false, &a_elm_a,
-	    &a_elm_b);
-	extent_rtree_leaf_elms_lookup(tsdn, rtree_ctx, b, true, false, &b_elm_a,
-	    &b_elm_b);
+	emap_rtree_leaf_elms_lookup(tsdn, &emap_global, rtree_ctx, a, true,
+	    false, &a_elm_a, &a_elm_b);
+	emap_rtree_leaf_elms_lookup(tsdn, &emap_global, rtree_ctx, b, true,
+	    false, &b_elm_a, &b_elm_b);
 
-	extent_lock_edata2(tsdn, a, b);
+	emap_lock_edata2(tsdn, &emap_global, a, b);
 
 	if (a_elm_b != NULL) {
-		rtree_leaf_elm_write(tsdn, &extents_rtree, a_elm_b, NULL,
+		rtree_leaf_elm_write(tsdn, &emap_global.rtree, a_elm_b, NULL,
 		    SC_NSIZES, false);
 	}
 	if (b_elm_b != NULL) {
-		rtree_leaf_elm_write(tsdn, &extents_rtree, b_elm_a, NULL,
+		rtree_leaf_elm_write(tsdn, &emap_global.rtree, b_elm_a, NULL,
 		    SC_NSIZES, false);
 	} else {
 		b_elm_b = b_elm_a;
@@ -1550,7 +1444,7 @@ extent_merge_impl(tsdn_t *tsdn, ehooks_t *ehooks, edata_cache_t *edata_cache,
 	extent_rtree_write_acquired(tsdn, a_elm_a, b_elm_b, a, SC_NSIZES,
 	    false);
 
-	extent_unlock_edata2(tsdn, a, b);
+	emap_unlock_edata2(tsdn, &emap_global, a, b);
 
 	edata_cache_put(tsdn, edata_cache, b);
 
@@ -1566,15 +1460,6 @@ extent_merge_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_cache_t *edata_cache,
 bool
 extent_boot(void) {
 	assert(sizeof(slab_data_t) >= sizeof(e_prof_info_t));
-
-	if (rtree_new(&extents_rtree, true)) {
-		return true;
-	}
-
-	if (mutex_pool_init(&extent_mutex_pool, "extent_mutex_pool",
-	    WITNESS_RANK_EXTENT_POOL)) {
-		return true;
-	}
 
 	if (have_dss) {
 		extent_dss_boot();

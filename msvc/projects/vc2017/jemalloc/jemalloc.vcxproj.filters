@@ -37,6 +37,9 @@
     <ClCompile Include="..\..\..\..\src\div.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\src\emap.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\src\extent.c">
       <Filter>Source Files</Filter>
     </ClCompile>

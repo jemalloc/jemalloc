@@ -129,7 +129,7 @@ tbin_edatas_lookup_size_check(tsdn_t *tsdn, cache_bin_t *tbin, szind_t binind,
 	size_t sz_sum = binind * nflush;
 	void **bottom_item = cache_bin_bottom_item_get(tbin, binind);
 	for (unsigned i = 0 ; i < nflush; i++) {
-		rtree_edata_szind_read(tsdn, &extents_rtree,
+		rtree_edata_szind_read(tsdn, &emap_global.rtree,
 		    rtree_ctx, (uintptr_t)*(bottom_item - i), true,
 		    &edatas[i], &szind);
 		sz_sum -= szind;
