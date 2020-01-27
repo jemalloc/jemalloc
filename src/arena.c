@@ -1112,8 +1112,9 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 		malloc_mutex_unlock(tsd_tsdn(tsd), &arena->large_mtx);
 		alloc_ctx_t alloc_ctx;
 		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
-		rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
-		    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
+		rtree_szind_slab_read(tsd_tsdn(tsd), &emap_global.rtree,
+		    rtree_ctx, (uintptr_t)ptr, true, &alloc_ctx.szind,
+		    &alloc_ctx.slab);
 		assert(alloc_ctx.szind != SC_NSIZES);
 
 		if (config_stats || (config_prof && opt_prof)) {
@@ -1601,13 +1602,13 @@ arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize) {
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
-	edata_t *edata = rtree_edata_read(tsdn, &extents_rtree, rtree_ctx,
+	edata_t *edata = rtree_edata_read(tsdn, &emap_global.rtree, rtree_ctx,
 	    (uintptr_t)ptr, true);
 
 	szind_t szind = sz_size2index(usize);
 	edata_szind_set(edata, szind);
-	rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx, (uintptr_t)ptr,
-	    szind, false);
+	rtree_szind_slab_update(tsdn, &emap_global.rtree, rtree_ctx,
+	    (uintptr_t)ptr, szind, false);
 
 	prof_idump_rollback(tsdn, usize);
 
@@ -1622,8 +1623,8 @@ arena_prof_demote(tsdn_t *tsdn, edata_t *edata, const void *ptr) {
 	edata_szind_set(edata, SC_NBINS);
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
-	rtree_szind_slab_update(tsdn, &extents_rtree, rtree_ctx, (uintptr_t)ptr,
-	    SC_NBINS, false);
+	rtree_szind_slab_update(tsdn, &emap_global.rtree, rtree_ctx,
+	    (uintptr_t)ptr, SC_NBINS, false);
 
 	assert(isalloc(tsdn, ptr) == SC_LARGE_MINCLASS);
 
