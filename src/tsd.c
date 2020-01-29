@@ -119,7 +119,7 @@ tsd_force_recompute(tsdn_t *tsdn) {
 		    tsd_state_nominal_recompute, ATOMIC_RELAXED);
 		/* See comments in thread_event_recompute_fast_threshold(). */
 		atomic_fence(ATOMIC_SEQ_CST);
-		thread_allocated_next_event_fast_set_non_nominal(remote_tsd);
+		thread_next_event_fast_set_non_nominal(remote_tsd);
 	}
 	malloc_mutex_unlock(tsdn, &tsd_nominal_tsds_lock);
 }

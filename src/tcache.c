@@ -437,8 +437,6 @@ tcache_init(tsd_t *tsd, tcache_t *tcache, void *avail_stack) {
 	tcache->next_gc_bin = 0;
 	tcache->arena = NULL;
 
-	ticker_init(&tcache->gc_ticker, TCACHE_GC_INCR);
-
 	assert((TCACHE_NSLOTS_SMALL_MAX & 1U) == 0);
 	memset(tcache->bins_small, 0, sizeof(cache_bin_t) * SC_NBINS);
 	memset(tcache->bins_large, 0, sizeof(cache_bin_t) * (nhbins - SC_NBINS));

@@ -5,7 +5,6 @@
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/sz.h"
-#include "jemalloc/internal/ticker.h"
 #include "jemalloc/internal/util.h"
 
 static inline bool
@@ -25,17 +24,6 @@ tcache_enabled_set(tsd_t *tsd, bool enabled) {
 	/* Commit the state last.  Above calls check current state. */
 	tsd_tcache_enabled_set(tsd, enabled);
 	tsd_slow_update(tsd);
-}
-
-JEMALLOC_ALWAYS_INLINE void
-tcache_event(tsd_t *tsd, tcache_t *tcache) {
-	if (TCACHE_GC_INCR == 0) {
-		return;
-	}
-
-	if (unlikely(ticker_tick(&tcache->gc_ticker))) {
-		tcache_event_hard(tsd, tcache);
-	}
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -171,8 +159,6 @@ tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 		bool ret = cache_bin_dalloc_easy(bin, ptr);
 		assert(ret);
 	}
-
-	tcache_event(tsd, tcache);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -195,8 +181,6 @@ tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 		bool ret = cache_bin_dalloc_easy(bin, ptr);
 		assert(ret);
 	}
-
-	tcache_event(tsd, tcache);
 }
 
 JEMALLOC_ALWAYS_INLINE tcache_t *

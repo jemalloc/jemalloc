@@ -2,14 +2,18 @@
 
 TEST_BEGIN(test_next_event_fast_roll_back) {
 	tsd_t *tsd = tsd_fetch();
-	thread_allocated_last_event_set(tsd, 0);
-	thread_allocated_set(tsd,
-	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX - 8U);
-	thread_allocated_next_event_set(tsd,
-	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX);
-#define E(event, condition)						\
-	event##_event_wait_set(tsd,					\
-	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX);
+	event_ctx_t ctx;
+	event_ctx_get(tsd, &ctx, true);
+
+	event_ctx_last_event_set(&ctx, 0);
+	event_ctx_current_bytes_set(&ctx,
+	    THREAD_NEXT_EVENT_FAST_MAX - 8U);
+	event_ctx_next_event_set(tsd, &ctx,
+	    THREAD_NEXT_EVENT_FAST_MAX);
+#define E(event, condition, is_alloc)					\
+	if (is_alloc && condition) {					\
+		event##_event_wait_set(tsd, THREAD_NEXT_EVENT_FAST_MAX);\
+	}
 	ITERATE_OVER_ALL_EVENTS
 #undef E
 	void *p = malloc(16U);
@@ -20,14 +24,20 @@ TEST_END
 
 TEST_BEGIN(test_next_event_fast_resume) {
 	tsd_t *tsd = tsd_fetch();
-	thread_allocated_last_event_set(tsd, 0);
-	thread_allocated_set(tsd,
-	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX + 8U);
-	thread_allocated_next_event_set(tsd,
-	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX + 16U);
-#define E(event, condition)						\
-	event##_event_wait_set(tsd,					\
-	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX + 16U);
+
+	event_ctx_t ctx;
+	event_ctx_get(tsd, &ctx, true);
+
+	event_ctx_last_event_set(&ctx, 0);
+	event_ctx_current_bytes_set(&ctx,
+	    THREAD_NEXT_EVENT_FAST_MAX + 8U);
+	event_ctx_next_event_set(tsd, &ctx,
+	    THREAD_NEXT_EVENT_FAST_MAX + 16U);
+#define E(event, condition, is_alloc)					\
+	if (is_alloc && condition) {					\
+		event##_event_wait_set(tsd,				\
+		    THREAD_NEXT_EVENT_FAST_MAX + 16U);			\
+	}
 	ITERATE_OVER_ALL_EVENTS
 #undef E
 	void *p = malloc(SC_LOOKUP_MAXCLASS);
@@ -42,7 +52,7 @@ TEST_BEGIN(test_event_rollback) {
 	size_t count = 10;
 	uint64_t thread_allocated = thread_allocated_get(tsd);
 	while (count-- != 0) {
-		thread_event_rollback(tsd, diff);
+		thread_alloc_event_rollback(tsd, diff);
 		uint64_t thread_allocated_after = thread_allocated_get(tsd);
 		assert_u64_eq(thread_allocated - thread_allocated_after, diff,
 		    "thread event counters are not properly rolled back");

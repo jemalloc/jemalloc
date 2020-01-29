@@ -2154,7 +2154,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 		dopts->arena_ind = 0;
 	}
 
-	thread_event(tsd, usize);
+	thread_alloc_event(tsd, usize);
 
 	/*
 	 * If dopts->alignment > 0, then ind is still 0, but usize was computed
@@ -2181,7 +2181,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 		}
 
 		if (unlikely(allocation == NULL)) {
-			thread_event_rollback(tsd, usize);
+			thread_alloc_event_rollback(tsd, usize);
 			prof_alloc_rollback(tsd, tctx, true);
 			goto label_oom;
 		}
@@ -2191,7 +2191,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 		allocation = imalloc_no_sample(sopts, dopts, tsd, size, usize,
 		    ind);
 		if (unlikely(allocation == NULL)) {
-			thread_event_rollback(tsd, usize);
+			thread_alloc_event_rollback(tsd, usize);
 			goto label_oom;
 		}
 	}
@@ -2575,7 +2575,6 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 	if (config_prof && opt_prof) {
 		prof_free(tsd, ptr, usize, &alloc_ctx);
 	}
-	*tsd_thread_deallocatedp_get(tsd) += usize;
 
 	if (likely(!slow_path)) {
 		idalloctm(tsd_tsdn(tsd), ptr, tcache, &alloc_ctx, false,
@@ -2584,6 +2583,7 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 		idalloctm(tsd_tsdn(tsd), ptr, tcache, &alloc_ctx, false,
 		    true);
 	}
+	thread_dalloc_event(tsd, usize);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -2645,14 +2645,12 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 	if (config_prof && opt_prof) {
 		prof_free(tsd, ptr, usize, ctx);
 	}
-
-	*tsd_thread_deallocatedp_get(tsd) += usize;
-
 	if (likely(!slow_path)) {
 		isdalloct(tsd_tsdn(tsd), ptr, usize, tcache, ctx, false);
 	} else {
 		isdalloct(tsd_tsdn(tsd), ptr, usize, tcache, ctx, true);
 	}
+	thread_dalloc_event(tsd, usize);
 }
 
 JEMALLOC_NOINLINE
@@ -2694,12 +2692,12 @@ free_default(void *ptr) {
 JEMALLOC_ALWAYS_INLINE
 bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 	tsd_t *tsd = tsd_get(false);
-	if (unlikely(!tsd || !tsd_fast(tsd))) {
-		return false;
-	}
 
 	szind_t szind;
 	if (!size_hint) {
+		if (unlikely(!tsd || !tsd_fast(tsd))) {
+			return false;
+		}
 		bool slab;
 		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
 		bool res = rtree_szind_slab_read_fast(tsd_tsdn(tsd),
@@ -2712,6 +2710,15 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 		assert(szind != SC_NSIZES);
 	} else {
 		/*
+		 * The size hinted fastpath does not involve rtree lookup, thus
+		 * can tolerate an uninitialized tsd.  This allows the tsd_fast
+		 * check to be folded into the branch testing fast_threshold
+		 * (set to 0 when !tsd_fast).
+		 */
+		if (unlikely(!tsd)) {
+			return false;
+		}
+		/*
 		 * Check for both sizes that are too large, and for sampled
 		 * objects.  Sampled objects are always page-aligned.  The
 		 * sampled object check will also check for null ptr.
@@ -2722,19 +2729,26 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 		}
 		szind = sz_size2index_lookup(size);
 	}
+	uint64_t deallocated, threshold;
+	thread_event_free_fastpath_ctx(tsd, &deallocated, &threshold, size_hint);
 
-	tcache_t *tcache = tsd_tcachep_get(tsd);
-	if (unlikely(ticker_trytick(&tcache->gc_ticker))) {
+	size_t usize = sz_index2size(szind);
+	uint64_t deallocated_after = deallocated + usize;
+	/*
+	 * Check for events and tsd non-nominal (fast_threshold will be set to
+	 * 0) in a single branch.
+	 */
+	if (unlikely(deallocated_after >= threshold)) {
 		return false;
 	}
 
+	tcache_t *tcache = tsd_tcachep_get(tsd);
 	cache_bin_t *bin = tcache_small_bin_get(tcache, szind);
 	if (!cache_bin_dalloc_easy(bin, ptr)) {
 		return false;
 	}
 
-	size_t usize = sz_index2size(szind);
-	*tsd_thread_deallocatedp_get(tsd) += usize;
+	*tsd_thread_deallocatedp_get(tsd) = deallocated_after;
 
 	return true;
 }
@@ -3144,11 +3158,11 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 		if (unlikely(usize == 0 || usize > SC_LARGE_MAXCLASS)) {
 			goto label_oom;
 		}
-		thread_event(tsd, usize);
+		thread_alloc_event(tsd, usize);
 		p = irallocx_prof(tsd, ptr, old_usize, size, alignment, &usize,
 		    zero, tcache, arena, &alloc_ctx, &hook_args);
 		if (unlikely(p == NULL)) {
-			thread_event_rollback(tsd, usize);
+			thread_alloc_event_rollback(tsd, usize);
 			goto label_oom;
 		}
 	} else {
@@ -3158,11 +3172,10 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 			goto label_oom;
 		}
 		usize = isalloc(tsd_tsdn(tsd), p);
-		thread_event(tsd, usize);
+		thread_alloc_event(tsd, usize);
 	}
 	assert(alignment == 0 || ((uintptr_t)p & (alignment - 1)) == ZU(0));
-
-	*tsd_thread_deallocatedp_get(tsd) += old_usize;
+	thread_dalloc_event(tsd, old_usize);
 
 	UTRACE(ptr, size, p);
 	check_entry_exit_locking(tsd_tsdn(tsd));
@@ -3337,7 +3350,7 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 			usize_max = SC_LARGE_MAXCLASS;
 		}
 	}
-	thread_event(tsd, usize_max);
+	thread_alloc_event(tsd, usize_max);
 	bool prof_active = prof_active_get_unlocked();
 	prof_tctx_t *tctx = prof_alloc_prep(tsd, usize_max, prof_active, false);
 
@@ -3350,7 +3363,7 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 		    extra, alignment, zero);
 	}
 	if (usize <= usize_max) {
-		thread_event_rollback(tsd, usize_max - usize);
+		thread_alloc_event_rollback(tsd, usize_max - usize);
 	} else {
 		/*
 		 * For downsizing request, usize_max can be less than usize.
@@ -3359,7 +3372,7 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 		 * to xallocx(), the entire usize will be rolled back if it's
 		 * equal to the old usize.
 		 */
-		thread_event(tsd, usize - usize_max);
+		thread_alloc_event(tsd, usize - usize_max);
 	}
 
 	/*
@@ -3438,7 +3451,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	} else {
 		usize = ixallocx_helper(tsd_tsdn(tsd), ptr, old_usize, size,
 		    extra, alignment, zero);
-		thread_event(tsd, usize);
+		thread_alloc_event(tsd, usize);
 	}
 
 	/*
@@ -3448,12 +3461,10 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	assert(iealloc(tsd_tsdn(tsd), ptr) == old_edata);
 
 	if (unlikely(usize == old_usize)) {
-		thread_event_rollback(tsd, usize);
+		thread_alloc_event_rollback(tsd, usize);
 		goto label_not_resized;
 	}
-
-	*tsd_thread_deallocatedp_get(tsd) += old_usize;
-
+	thread_dalloc_event(tsd, old_usize);
 label_not_resized:
 	if (unlikely(!tsd_fast(tsd))) {
 		uintptr_t args[4] = {(uintptr_t)ptr, size, extra, flags};
