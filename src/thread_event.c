@@ -12,14 +12,14 @@
 static bool thread_event_active = false;
 
 /* TSD event init function signatures. */
-#define E(event, condition)						\
+#define E(event, condition_unused, is_alloc_event_unused)		\
 static void tsd_thread_##event##_event_init(tsd_t *tsd);
 
 ITERATE_OVER_ALL_EVENTS
 #undef E
 
 /* Event handler function signatures. */
-#define E(event, condition)						\
+#define E(event, condition_unused, is_alloc_event_unused)		\
 static void thread_##event##_event_handler(tsd_t *tsd);
 
 ITERATE_OVER_ALL_EVENTS
@@ -30,6 +30,12 @@ static void
 tsd_thread_tcache_gc_event_init(tsd_t *tsd) {
 	assert(TCACHE_GC_INCR_BYTES > 0);
 	thread_tcache_gc_event_update(tsd, TCACHE_GC_INCR_BYTES);
+}
+
+static void
+tsd_thread_tcache_gc_dalloc_event_init(tsd_t *tsd) {
+	assert(TCACHE_GC_INCR_BYTES > 0);
+	thread_tcache_gc_dalloc_event_update(tsd, TCACHE_GC_INCR_BYTES);
 }
 
 static void
@@ -46,15 +52,28 @@ tsd_thread_stats_interval_event_init(tsd_t *tsd) {
 }
 
 /* Handler functions. */
+
 static void
-thread_tcache_gc_event_handler(tsd_t *tsd) {
+tcache_gc_event(tsd_t *tsd) {
 	assert(TCACHE_GC_INCR_BYTES > 0);
-	assert(tcache_gc_event_wait_get(tsd) == 0U);
-	tsd_thread_tcache_gc_event_init(tsd);
 	tcache_t *tcache = tcache_get(tsd);
 	if (tcache != NULL) {
 		tcache_event_hard(tsd, tcache);
 	}
+}
+
+static void
+thread_tcache_gc_event_handler(tsd_t *tsd) {
+	assert(tcache_gc_event_wait_get(tsd) == 0U);
+	tsd_thread_tcache_gc_event_init(tsd);
+	tcache_gc_event(tsd);
+}
+
+static void
+thread_tcache_gc_dalloc_event_handler(tsd_t *tsd) {
+	assert(tcache_gc_dalloc_event_wait_get(tsd) == 0U);
+	tsd_thread_tcache_gc_dalloc_event_init(tsd);
+	tcache_gc_event(tsd);
 }
 
 static void
@@ -96,12 +115,12 @@ thread_stats_interval_event_handler(tsd_t *tsd) {
 /* Per event facilities done. */
 
 static uint64_t
-thread_allocated_next_event_compute(tsd_t *tsd) {
+thread_next_event_compute(tsd_t *tsd, bool is_alloc) {
 	uint64_t wait = THREAD_EVENT_MAX_START_WAIT;
 	bool no_event_on = true;
 
-#define E(event, condition)						\
-	if (condition) {						\
+#define E(event, condition, alloc_event)				\
+	if (is_alloc == alloc_event && condition) {			\
 		no_event_on = false;					\
 		uint64_t event_wait =					\
 		    event##_event_wait_get(tsd);			\
@@ -119,15 +138,15 @@ thread_allocated_next_event_compute(tsd_t *tsd) {
 	return wait;
 }
 
-void
-thread_event_assert_invariants_debug(tsd_t *tsd) {
-	uint64_t thread_allocated = thread_allocated_get(tsd);
-	uint64_t last_event = thread_allocated_last_event_get(tsd);
-	uint64_t next_event = thread_allocated_next_event_get(tsd);
-	uint64_t next_event_fast = thread_allocated_next_event_fast_get(tsd);
+static void
+thread_event_assert_invariants_impl(tsd_t *tsd, event_ctx_t *ctx) {
+	uint64_t current_bytes = event_ctx_current_bytes_get(ctx);
+	uint64_t last_event = event_ctx_last_event_get(ctx);
+	uint64_t next_event = event_ctx_next_event_get(ctx);
+	uint64_t next_event_fast = event_ctx_next_event_fast_get(ctx);
 
 	assert(last_event != next_event);
-	if (next_event > THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX ||
+	if (next_event > THREAD_NEXT_EVENT_FAST_MAX ||
 	    !tsd_fast(tsd)) {
 		assert(next_event_fast == 0U);
 	} else {
@@ -138,10 +157,9 @@ thread_event_assert_invariants_debug(tsd_t *tsd) {
 	uint64_t interval = next_event - last_event;
 
 	/* The subtraction is intentionally susceptible to underflow. */
-	assert(thread_allocated - last_event < interval);
-
-	uint64_t min_wait = thread_allocated_next_event_compute(tsd);
-
+	assert(current_bytes - last_event < interval);
+	uint64_t min_wait = thread_next_event_compute(tsd,
+	    event_ctx_is_alloc(ctx));
 	/*
 	 * next_event should have been pushed up only except when no event is
 	 * on and the TSD is just initialized.  The last_event == 0U guard
@@ -151,6 +169,16 @@ thread_event_assert_invariants_debug(tsd_t *tsd) {
 	assert((!thread_event_active && last_event == 0U) ||
 	    interval == min_wait ||
 	    (interval < min_wait && interval == THREAD_EVENT_MAX_INTERVAL));
+}
+
+void
+thread_event_assert_invariants_debug(tsd_t *tsd) {
+	event_ctx_t ctx;
+	event_ctx_get(tsd, &ctx, true);
+	thread_event_assert_invariants_impl(tsd, &ctx);
+
+	event_ctx_get(tsd, &ctx, false);
+	thread_event_assert_invariants_impl(tsd, &ctx);
 }
 
 /*
@@ -200,39 +228,50 @@ thread_event_assert_invariants_debug(tsd_t *tsd) {
  * of the owner thread's next_event_fast, but that's always safe (it just sends
  * it down the slow path earlier).
  */
+static void
+event_ctx_next_event_fast_update(event_ctx_t *ctx) {
+	uint64_t next_event = event_ctx_next_event_get(ctx);
+	uint64_t next_event_fast = (next_event <=
+	    THREAD_NEXT_EVENT_FAST_MAX) ? next_event : 0U;
+	event_ctx_next_event_fast_set(ctx, next_event_fast);
+}
+
 void
 thread_event_recompute_fast_threshold(tsd_t *tsd) {
 	if (tsd_state_get(tsd) != tsd_state_nominal) {
 		/* Check first because this is also called on purgatory. */
-		thread_allocated_next_event_fast_set_non_nominal(tsd);
+		thread_next_event_fast_set_non_nominal(tsd);
 		return;
 	}
-	uint64_t next_event = thread_allocated_next_event_get(tsd);
-	uint64_t next_event_fast = (next_event <=
-	    THREAD_ALLOCATED_NEXT_EVENT_FAST_MAX) ? next_event : 0U;
-	thread_allocated_next_event_fast_set(tsd, next_event_fast);
+
+	event_ctx_t ctx;
+	event_ctx_get(tsd, &ctx, true);
+	event_ctx_next_event_fast_update(&ctx);
+	event_ctx_get(tsd, &ctx, false);
+	event_ctx_next_event_fast_update(&ctx);
 
 	atomic_fence(ATOMIC_SEQ_CST);
 	if (tsd_state_get(tsd) != tsd_state_nominal) {
-		thread_allocated_next_event_fast_set_non_nominal(tsd);
+		thread_next_event_fast_set_non_nominal(tsd);
 	}
 }
 
 static void
-thread_event_adjust_thresholds_helper(tsd_t *tsd, uint64_t wait) {
+thread_event_adjust_thresholds_helper(tsd_t *tsd, event_ctx_t *ctx,
+    uint64_t wait) {
 	assert(wait <= THREAD_EVENT_MAX_START_WAIT);
-	uint64_t next_event = thread_allocated_last_event_get(tsd) + (wait <=
+	uint64_t next_event = event_ctx_last_event_get(ctx) + (wait <=
 	    THREAD_EVENT_MAX_INTERVAL ? wait : THREAD_EVENT_MAX_INTERVAL);
-	thread_allocated_next_event_set(tsd, next_event);
+	event_ctx_next_event_set(tsd, ctx, next_event);
 }
 
 static uint64_t
 thread_event_trigger_batch_update(tsd_t *tsd, uint64_t accumbytes,
-    bool allow_event_trigger) {
+    bool is_alloc, bool allow_event_trigger) {
 	uint64_t wait = THREAD_EVENT_MAX_START_WAIT;
 
-#define E(event, condition)						\
-	if (condition) {						\
+#define E(event, condition, alloc_event)				\
+	if (is_alloc == alloc_event && condition) {			\
 		uint64_t event_wait = event##_event_wait_get(tsd);	\
 		assert(event_wait <= THREAD_EVENT_MAX_START_WAIT);	\
 		if (event_wait > accumbytes) {				\
@@ -267,28 +306,30 @@ thread_event_trigger_batch_update(tsd_t *tsd, uint64_t accumbytes,
 }
 
 void
-thread_event_trigger(tsd_t *tsd, bool delay_event) {
+thread_event_trigger(tsd_t *tsd, event_ctx_t *ctx, bool delay_event) {
 	/* usize has already been added to thread_allocated. */
-	uint64_t thread_allocated_after = thread_allocated_get(tsd);
+	uint64_t bytes_after = event_ctx_current_bytes_get(ctx);
 
 	/* The subtraction is intentionally susceptible to underflow. */
-	uint64_t accumbytes = thread_allocated_after -
-	    thread_allocated_last_event_get(tsd);
+	uint64_t accumbytes = bytes_after - event_ctx_last_event_get(ctx);
 
 	/* Make sure that accumbytes cannot overflow uint64_t. */
 	assert(THREAD_EVENT_MAX_INTERVAL <= UINT64_MAX - SC_LARGE_MAXCLASS + 1);
 
-	thread_allocated_last_event_set(tsd, thread_allocated_after);
+	event_ctx_last_event_set(ctx, bytes_after);
 	bool allow_event_trigger = !delay_event && tsd_nominal(tsd) &&
 	    tsd_reentrancy_level_get(tsd) == 0;
+
+	bool is_alloc = ctx->is_alloc;
 	uint64_t wait = thread_event_trigger_batch_update(tsd, accumbytes,
-	    allow_event_trigger);
-	thread_event_adjust_thresholds_helper(tsd, wait);
+	    is_alloc, allow_event_trigger);
+	thread_event_adjust_thresholds_helper(tsd, ctx, wait);
 
 	thread_event_assert_invariants(tsd);
 
-#define E(event, condition)						\
-	if (condition && event##_event_wait_get(tsd) == 0U) {		\
+#define E(event, condition, alloc_event)				\
+	if (is_alloc == alloc_event && condition &&			\
+	    event##_event_wait_get(tsd) == 0U) {			\
 		assert(allow_event_trigger);				\
 		thread_##event##_event_handler(tsd);			\
 	}
@@ -300,19 +341,23 @@ thread_event_trigger(tsd_t *tsd, bool delay_event) {
 }
 
 void
-thread_event_rollback(tsd_t *tsd, size_t diff) {
+thread_alloc_event_rollback(tsd_t *tsd, size_t diff) {
 	thread_event_assert_invariants(tsd);
 
 	if (diff == 0U) {
 		return;
 	}
 
-	uint64_t thread_allocated = thread_allocated_get(tsd);
+	/* Rollback happens only on alloc events. */
+	event_ctx_t ctx;
+	event_ctx_get(tsd, &ctx, true);
+
+	uint64_t thread_allocated = event_ctx_current_bytes_get(&ctx);
 	/* The subtraction is intentionally susceptible to underflow. */
 	uint64_t thread_allocated_rollback = thread_allocated - diff;
-	thread_allocated_set(tsd, thread_allocated_rollback);
+	event_ctx_current_bytes_set(&ctx, thread_allocated_rollback);
 
-	uint64_t last_event = thread_allocated_last_event_get(tsd);
+	uint64_t last_event = event_ctx_last_event_get(&ctx);
 	/* Both subtractions are intentionally susceptible to underflow. */
 	if (thread_allocated_rollback - last_event <=
 	    thread_allocated - last_event) {
@@ -320,14 +365,14 @@ thread_event_rollback(tsd_t *tsd, size_t diff) {
 		return;
 	}
 
-	thread_allocated_last_event_set(tsd, thread_allocated_rollback);
+	event_ctx_last_event_set(&ctx, thread_allocated_rollback);
 
 	/* The subtraction is intentionally susceptible to underflow. */
 	uint64_t wait_diff = last_event - thread_allocated_rollback;
 	assert(wait_diff <= diff);
 
-#define E(event, condition)						\
-	if (condition) {						\
+#define E(event, condition, alloc_event)				\
+	if (alloc_event == true && condition) {				\
 		uint64_t event_wait = event##_event_wait_get(tsd);	\
 		assert(event_wait <= THREAD_EVENT_MAX_START_WAIT);	\
 		if (event_wait > 0U) {					\
@@ -347,27 +392,29 @@ thread_event_rollback(tsd_t *tsd, size_t diff) {
 	ITERATE_OVER_ALL_EVENTS
 #undef E
 
-	thread_event_update(tsd);
+	thread_event_update(tsd, true);
 }
 
 void
-thread_event_update(tsd_t *tsd) {
-	uint64_t wait = thread_allocated_next_event_compute(tsd);
-	thread_event_adjust_thresholds_helper(tsd, wait);
+thread_event_update(tsd_t *tsd, bool is_alloc) {
+	event_ctx_t ctx;
+	event_ctx_get(tsd, &ctx, is_alloc);
 
-	uint64_t last_event = thread_allocated_last_event_get(tsd);
+	uint64_t wait = thread_next_event_compute(tsd, is_alloc);
+	thread_event_adjust_thresholds_helper(tsd, &ctx, wait);
 
+	uint64_t last_event = event_ctx_last_event_get(&ctx);
 	/* Both subtractions are intentionally susceptible to underflow. */
-	if (thread_allocated_get(tsd) - last_event >=
-	    thread_allocated_next_event_get(tsd) - last_event) {
-		thread_event_trigger(tsd, true);
+	if (event_ctx_current_bytes_get(&ctx) - last_event >=
+	    event_ctx_next_event_get(&ctx) - last_event) {
+		thread_event_trigger(tsd, &ctx, true);
 	} else {
 		thread_event_assert_invariants(tsd);
 	}
 }
 
 void thread_event_boot() {
-#define E(event, condition)						\
+#define E(event, condition, ignored)					\
 	if (condition) {						\
 		thread_event_active = true;				\
 	}
@@ -377,7 +424,7 @@ void thread_event_boot() {
 }
 
 void tsd_thread_event_init(tsd_t *tsd) {
-#define E(event, condition)						\
+#define E(event, condition, is_alloc_event_unused)			\
 	if (condition) {						\
 		tsd_thread_##event##_event_init(tsd);			\
 	}

@@ -81,10 +81,14 @@ typedef void (*test_callback_t)(int *);
     O(thread_allocated,		uint64_t,		uint64_t)	\
     O(thread_allocated_next_event_fast,	uint64_t,	uint64_t)	\
     O(thread_deallocated,	uint64_t,		uint64_t)	\
+    O(thread_deallocated_next_event_fast, uint64_t,	uint64_t)	\
     O(rtree_ctx,		rtree_ctx_t,		rtree_ctx_t)	\
     O(thread_allocated_last_event,	uint64_t,	uint64_t)	\
     O(thread_allocated_next_event,	uint64_t,	uint64_t)	\
+    O(thread_deallocated_last_event,	uint64_t,	uint64_t)	\
+    O(thread_deallocated_next_event,	uint64_t,	uint64_t)	\
     O(tcache_gc_event_wait,	uint64_t,		uint64_t)	\
+    O(tcache_gc_dalloc_event_wait,	uint64_t,	uint64_t)	\
     O(prof_sample_event_wait,	uint64_t,		uint64_t)	\
     O(prof_sample_last_event,	uint64_t,		uint64_t)	\
     O(stats_interval_event_wait,	uint64_t,	uint64_t)	\
@@ -114,10 +118,14 @@ typedef void (*test_callback_t)(int *);
     /* thread_allocated */	0,					\
     /* thread_allocated_next_event_fast */ 0, 				\
     /* thread_deallocated */	0,					\
+    /* thread_deallocated_next_event_fast */	0,			\
     /* rtree_ctx */		RTREE_CTX_ZERO_INITIALIZER,		\
     /* thread_allocated_last_event */	0,				\
     /* thread_allocated_next_event */	THREAD_EVENT_MIN_START_WAIT,	\
+    /* thread_deallocated_last_event */	0,				\
+    /* thread_deallocated_next_event */	THREAD_EVENT_MIN_START_WAIT,	\
     /* tcache_gc_event_wait */		THREAD_EVENT_MIN_START_WAIT,	\
+    /* tcache_gc_dalloc_event_wait */	THREAD_EVENT_MIN_START_WAIT,	\
     /* prof_sample_event_wait */	THREAD_EVENT_MIN_START_WAIT,	\
     /* prof_sample_last_event */	0,				\
     /* stats_interval_event_wait */	THREAD_EVENT_MIN_START_WAIT,	\
