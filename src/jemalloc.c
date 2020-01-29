@@ -2013,6 +2013,7 @@ imalloc_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
 	szind_t ind_large;
 	size_t bumped_usize = usize;
 
+	dopts->alignment = prof_sample_align(dopts->alignment);
 	if (usize <= SC_SMALL_MAXCLASS) {
 		assert(((dopts->alignment == 0) ?
 		    sz_s2u(SC_LARGE_MINCLASS) :
@@ -2029,6 +2030,7 @@ imalloc_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
 	} else {
 		ret = imalloc_no_sample(sopts, dopts, tsd, usize, usize, ind);
 	}
+	assert(prof_sample_aligned(ret));
 
 	return ret;
 }
@@ -2598,32 +2600,42 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 	assert(malloc_initialized() || IS_INITIALIZER);
 
 	alloc_ctx_t alloc_ctx, *ctx;
-	if (!config_cache_oblivious && ((uintptr_t)ptr & PAGE_MASK) != 0) {
-		/*
-		 * When cache_oblivious is disabled and ptr is not page aligned,
-		 * the allocation was not sampled -- usize can be used to
-		 * determine szind directly.
-		 */
-		alloc_ctx.szind = sz_size2index(usize);
-		alloc_ctx.slab = true;
-		ctx = &alloc_ctx;
-		if (config_debug) {
-			alloc_ctx_t dbg_ctx;
+	if (!config_prof) {
+		/* Means usize will be used to determine szind. */
+		ctx = NULL;
+	} else {
+		if (likely(!prof_sample_aligned(ptr))) {
+			ctx = &alloc_ctx;
+			/*
+			 * When the ptr is not page aligned, it was not sampled.
+			 * usize can be trusted to determine szind and slab.
+			 */
+			ctx->szind = sz_size2index(usize);
+			if (config_cache_oblivious) {
+				ctx->slab = (ctx->szind < SC_NBINS);
+			} else {
+				/* Non page aligned must be slab allocated. */
+				ctx->slab = true;
+			}
+			if (config_debug) {
+				alloc_ctx_t dbg_ctx;
+				rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
+				rtree_szind_slab_read(tsd_tsdn(tsd),
+				    &extents_rtree, rtree_ctx, (uintptr_t)ptr,
+				    true, &dbg_ctx.szind, &dbg_ctx.slab);
+				assert(dbg_ctx.szind == ctx->szind);
+				assert(dbg_ctx.slab == ctx->slab);
+			}
+		} else if (opt_prof) {
+			ctx = &alloc_ctx;
 			rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
 			rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree,
-			    rtree_ctx, (uintptr_t)ptr, true, &dbg_ctx.szind,
-			    &dbg_ctx.slab);
-			assert(dbg_ctx.szind == alloc_ctx.szind);
-			assert(dbg_ctx.slab == alloc_ctx.slab);
+			    rtree_ctx, (uintptr_t)ptr, true, &ctx->szind,
+			    &ctx->slab);
+			assert(ctx->szind == sz_size2index(usize));
+		} else {
+			ctx = NULL;
 		}
-	} else if (config_prof && opt_prof) {
-		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
-		rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree, rtree_ctx,
-		    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
-		assert(alloc_ctx.szind == sz_size2index(usize));
-		ctx = &alloc_ctx;
-	} else {
-		ctx = NULL;
 	}
 
 	if (config_prof && opt_prof) {
@@ -2683,13 +2695,7 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 	}
 
 	szind_t szind;
-	/*
-	 * If !config_cache_oblivious, we can check PAGE alignment to
-	 * detect sampled objects.  Otherwise addresses are
-	 * randomized, and we have to look it up in the rtree anyway.
-	 * See also isfree().
-	 */
-	if (!size_hint || config_cache_oblivious) {
+	if (!size_hint) {
 		bool slab;
 		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
 		bool res = rtree_szind_slab_read_fast(tsd_tsdn(tsd),
@@ -2707,7 +2713,7 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 		 * sampled object check will also check for null ptr.
 		 */
 		if (unlikely(size > SC_LOOKUP_MAXCLASS ||
-		    (((uintptr_t)ptr & PAGE_MASK) == 0))) {
+		    (config_prof && prof_sample_aligned(ptr)))) {
 			return false;
 		}
 		szind = sz_size2index_lookup(size);
@@ -3024,6 +3030,8 @@ irallocx_prof_sample(tsdn_t *tsdn, void *old_ptr, size_t old_usize,
 	if (tctx == NULL) {
 		return NULL;
 	}
+
+	alignment = prof_sample_align(alignment);
 	if (usize <= SC_SMALL_MAXCLASS) {
 		p = iralloct(tsdn, old_ptr, old_usize,
 		    SC_LARGE_MINCLASS, alignment, zero, tcache,
@@ -3036,6 +3044,7 @@ irallocx_prof_sample(tsdn_t *tsdn, void *old_ptr, size_t old_usize,
 		p = iralloct(tsdn, old_ptr, old_usize, usize, alignment, zero,
 		    tcache, arena, hook_args);
 	}
+	assert(prof_sample_aligned(p));
 
 	return p;
 }
@@ -3281,15 +3290,13 @@ ixallocx_helper(tsdn_t *tsdn, void *ptr, size_t old_usize, size_t size,
 static size_t
 ixallocx_prof_sample(tsdn_t *tsdn, void *ptr, size_t old_usize, size_t size,
     size_t extra, size_t alignment, bool zero, prof_tctx_t *tctx) {
-	size_t usize;
-
-	if (tctx == NULL) {
+	/* Sampled allocation needs to be page aligned. */
+	if (tctx == NULL || !prof_sample_aligned(ptr)) {
 		return old_usize;
 	}
-	usize = ixallocx_helper(tsdn, ptr, old_usize, size, extra, alignment,
-	    zero);
 
-	return usize;
+	return ixallocx_helper(tsdn, ptr, old_usize, size, extra, alignment,
+	    zero);
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
@@ -3590,7 +3597,6 @@ sdallocx_default(void *ptr, size_t size, int flags) {
 		isfree(tsd, ptr, usize, tcache, true);
 	}
 	check_entry_exit_locking(tsd_tsdn(tsd));
-
 }
 
 JEMALLOC_EXPORT void JEMALLOC_NOTHROW
