@@ -197,6 +197,22 @@ prof_realloc(tsd_t *tsd, const void *ptr, size_t size, size_t usize,
 	}
 }
 
+JEMALLOC_ALWAYS_INLINE size_t
+prof_sample_align(size_t orig_align) {
+	/*
+	 * Enforce page alignment, so that sampled allocations can be identified
+	 * w/o metadata lookup.
+	 */
+	assert(opt_prof);
+	return (config_cache_oblivious && orig_align < PAGE) ? PAGE :
+	    orig_align;
+}
+
+JEMALLOC_ALWAYS_INLINE bool
+prof_sample_aligned(const void *ptr) {
+	return ((uintptr_t)ptr & PAGE_MASK) == 0;
+}
+
 JEMALLOC_ALWAYS_INLINE void
 prof_free(tsd_t *tsd, const void *ptr, size_t usize, alloc_ctx_t *alloc_ctx) {
 	prof_info_t prof_info;
@@ -206,6 +222,7 @@ prof_free(tsd_t *tsd, const void *ptr, size_t usize, alloc_ctx_t *alloc_ctx) {
 	assert(usize == isalloc(tsd_tsdn(tsd), ptr));
 
 	if (unlikely((uintptr_t)prof_info.alloc_tctx > (uintptr_t)1U)) {
+		assert(prof_sample_aligned(ptr));
 		prof_free_sampled_object(tsd, usize, &prof_info);
 	}
 }

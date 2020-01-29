@@ -59,8 +59,8 @@ test_extent_body(unsigned arena_ind) {
 		assert_true(called_decommit, "Expected decommit call");
 		assert_true(did_purge_lazy || did_purge_forced,
 		    "Expected purge");
+		assert_true(called_split, "Expected split call");
 	}
-	assert_true(called_split, "Expected split call");
 	dallocx(p, flags);
 	try_dalloc = true;
 
