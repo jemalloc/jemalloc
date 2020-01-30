@@ -35,4 +35,12 @@ void emap_rtree_write_acquired(tsdn_t *tsdn, emap_t *emap,
     rtree_leaf_elm_t *elm_a, rtree_leaf_elm_t *elm_b, edata_t *edata,
     szind_t szind, bool slab);
 
+/*
+ * Associate the given edata with its beginning and end address, setting the
+ * szind and slab info appropriately.
+ * Returns true on error (i.e. resource exhaustion).
+ */
+bool emap_register_boundary(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
+    edata_t *edata, szind_t szind, bool slab);
+
 #endif /* JEMALLOC_INTERNAL_EMAP_H */

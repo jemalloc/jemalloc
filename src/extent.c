@@ -324,7 +324,6 @@ static bool
 extent_register_impl(tsdn_t *tsdn, edata_t *edata, bool gdump_add) {
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
-	rtree_leaf_elm_t *elm_a, *elm_b;
 
 	/*
 	 * We need to hold the lock to protect against a concurrent coalesce
@@ -332,16 +331,15 @@ extent_register_impl(tsdn_t *tsdn, edata_t *edata, bool gdump_add) {
 	 */
 	emap_lock_edata(tsdn, &emap_global, edata);
 
-	if (emap_rtree_leaf_elms_lookup(tsdn, &emap_global, rtree_ctx, edata,
-	    false, true, &elm_a, &elm_b)) {
+	szind_t szind = edata_szind_get_maybe_invalid(edata);
+	bool slab = edata_slab_get(edata);
+
+	if (emap_register_boundary(tsdn, &emap_global, rtree_ctx, edata, szind,
+	    slab)) {
 		emap_unlock_edata(tsdn, &emap_global, edata);
 		return true;
 	}
 
-	szind_t szind = edata_szind_get_maybe_invalid(edata);
-	bool slab = edata_slab_get(edata);
-	emap_rtree_write_acquired(tsdn, &emap_global, elm_a, elm_b, edata,
-	    szind, slab);
 	if (slab) {
 		extent_interior_register(tsdn, rtree_ctx, edata, szind);
 	}
