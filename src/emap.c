@@ -125,3 +125,13 @@ emap_rtree_leaf_elms_lookup(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
 
 	return false;
 }
+
+void
+emap_rtree_write_acquired(tsdn_t *tsdn, emap_t *emap, rtree_leaf_elm_t *elm_a,
+    rtree_leaf_elm_t *elm_b, edata_t *edata, szind_t szind, bool slab) {
+	rtree_leaf_elm_write(tsdn, &emap->rtree, elm_a, edata, szind, slab);
+	if (elm_b != NULL) {
+		rtree_leaf_elm_write(tsdn, &emap->rtree, elm_b, edata, szind,
+		    slab);
+	}
+}

@@ -30,4 +30,9 @@ bool emap_rtree_leaf_elms_lookup(tsdn_t *tsdn, emap_t *emap,
     rtree_ctx_t *rtree_ctx, const edata_t *edata, bool dependent,
     bool init_missing, rtree_leaf_elm_t **r_elm_a, rtree_leaf_elm_t **r_elm_b);
 
+/* Only temporarily public; this will be internal eventually. */
+void emap_rtree_write_acquired(tsdn_t *tsdn, emap_t *emap,
+    rtree_leaf_elm_t *elm_a, rtree_leaf_elm_t *elm_b, edata_t *edata,
+    szind_t szind, bool slab);
+
 #endif /* JEMALLOC_INTERNAL_EMAP_H */
