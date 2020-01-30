@@ -358,27 +358,6 @@ extent_reregister(tsdn_t *tsdn, edata_t *edata) {
 }
 
 /*
- * Removes all pointers to the given extent from the global rtree indices for
- * its interior.  This is relevant for slab extents, for which we need to do
- * metadata lookups at places other than the head of the extent.  We deregister
- * on the interior, then, when an extent moves from being an active slab to an
- * inactive state.
- */
-static void
-extent_interior_deregister(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx,
-    edata_t *edata) {
-	size_t i;
-
-	assert(edata_slab_get(edata));
-
-	for (i = 1; i < (edata_size_get(edata) >> LG_PAGE) - 1; i++) {
-		rtree_clear(tsdn, &emap_global.rtree, rtree_ctx,
-		    (uintptr_t)edata_base_get(edata) + (uintptr_t)(i <<
-		    LG_PAGE));
-	}
-}
-
-/*
  * Removes all pointers to the given extent from the global rtree.
  */
 static void
@@ -389,7 +368,7 @@ extent_deregister_impl(tsdn_t *tsdn, edata_t *edata, bool gdump) {
 	emap_lock_edata(tsdn, &emap_global, edata);
 	emap_deregister_boundary(tsdn, &emap_global, rtree_ctx, edata);
 	if (edata_slab_get(edata)) {
-		extent_interior_deregister(tsdn, rtree_ctx, edata);
+		emap_deregister_interior(tsdn, &emap_global, rtree_ctx, edata);
 		edata_slab_set(edata, false);
 	}
 	emap_unlock_edata(tsdn, &emap_global, edata);
@@ -1073,7 +1052,7 @@ extent_record(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 
 	edata_szind_set(edata, SC_NSIZES);
 	if (edata_slab_get(edata)) {
-		extent_interior_deregister(tsdn, rtree_ctx, edata);
+		emap_deregister_interior(tsdn, &emap_global, rtree_ctx, edata);
 		edata_slab_set(edata, false);
 	}
 

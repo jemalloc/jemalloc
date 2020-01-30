@@ -172,3 +172,14 @@ emap_deregister_boundary(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
 	emap_rtree_write_acquired(tsdn, emap, elm_a, elm_b, NULL, SC_NSIZES,
 	    false);
 }
+
+void
+emap_deregister_interior(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
+    edata_t *edata) {
+	assert(edata_slab_get(edata));
+	for (size_t i = 1; i < (edata_size_get(edata) >> LG_PAGE) - 1; i++) {
+		rtree_clear(tsdn, &emap->rtree, rtree_ctx,
+		    (uintptr_t)edata_base_get(edata) + (uintptr_t)(i <<
+		    LG_PAGE));
+	}
+}

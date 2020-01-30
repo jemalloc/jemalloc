@@ -67,5 +67,7 @@ void emap_register_interior(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
 
 void emap_deregister_boundary(tsdn_t *tsdn, emap_t *emap,
     rtree_ctx_t *rtree_ctx, edata_t *edata);
+void emap_deregister_interior(tsdn_t *tsdn, emap_t *emap,
+    rtree_ctx_t *rtree_ctx, edata_t *edata);
 
 #endif /* JEMALLOC_INTERNAL_EMAP_H */
