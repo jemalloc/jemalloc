@@ -161,3 +161,14 @@ emap_register_interior(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
 		    LG_PAGE), edata, szind, true);
 	}
 }
+
+void
+emap_deregister_boundary(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
+    edata_t *edata) {
+	rtree_leaf_elm_t *elm_a, *elm_b;
+
+	emap_rtree_leaf_elms_lookup(tsdn, emap, rtree_ctx, edata,
+	    true, false, &elm_a, &elm_b);
+	emap_rtree_write_acquired(tsdn, emap, elm_a, elm_b, NULL, SC_NSIZES,
+	    false);
+}
