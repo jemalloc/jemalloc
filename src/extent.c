@@ -271,17 +271,6 @@ extent_activate_locked(tsdn_t *tsdn, ecache_t *ecache, edata_t *edata) {
 }
 
 static void
-extent_rtree_write_acquired(tsdn_t *tsdn, rtree_leaf_elm_t *elm_a,
-    rtree_leaf_elm_t *elm_b, edata_t *edata, szind_t szind, bool slab) {
-	rtree_leaf_elm_write(tsdn, &emap_global.rtree, elm_a, edata, szind,
-	    slab);
-	if (elm_b != NULL) {
-		rtree_leaf_elm_write(tsdn, &emap_global.rtree, elm_b, edata,
-		    szind, slab);
-	}
-}
-
-static void
 extent_interior_register(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx, edata_t *edata,
     szind_t szind) {
 	assert(edata_slab_get(edata));
@@ -351,7 +340,8 @@ extent_register_impl(tsdn_t *tsdn, edata_t *edata, bool gdump_add) {
 
 	szind_t szind = edata_szind_get_maybe_invalid(edata);
 	bool slab = edata_slab_get(edata);
-	extent_rtree_write_acquired(tsdn, elm_a, elm_b, edata, szind, slab);
+	emap_rtree_write_acquired(tsdn, &emap_global, elm_a, elm_b, edata,
+	    szind, slab);
 	if (slab) {
 		extent_interior_register(tsdn, rtree_ctx, edata, szind);
 	}
@@ -415,7 +405,8 @@ extent_deregister_impl(tsdn_t *tsdn, edata_t *edata, bool gdump) {
 
 	emap_lock_edata(tsdn, &emap_global, edata);
 
-	extent_rtree_write_acquired(tsdn, elm_a, elm_b, NULL, SC_NSIZES, false);
+	emap_rtree_write_acquired(tsdn, &emap_global, elm_a, elm_b, NULL,
+	    SC_NSIZES, false);
 	if (edata_slab_get(edata)) {
 		extent_interior_deregister(tsdn, rtree_ctx, edata);
 		edata_slab_set(edata, false);
@@ -1367,10 +1358,10 @@ extent_split_impl(tsdn_t *tsdn, edata_cache_t *edata_cache, ehooks_t *ehooks,
 	edata_size_set(edata, size_a);
 	edata_szind_set(edata, szind_a);
 
-	extent_rtree_write_acquired(tsdn, lead_elm_a, lead_elm_b, edata,
-	    szind_a, slab_a);
-	extent_rtree_write_acquired(tsdn, trail_elm_a, trail_elm_b, trail,
-	    szind_b, slab_b);
+	emap_rtree_write_acquired(tsdn, &emap_global, lead_elm_a, lead_elm_b,
+	    edata, szind_a, slab_a);
+	emap_rtree_write_acquired(tsdn, &emap_global, trail_elm_a, trail_elm_b,
+	    trail, szind_b, slab_b);
 
 	emap_unlock_edata2(tsdn, &emap_global, edata, trail);
 
@@ -1441,8 +1432,8 @@ extent_merge_impl(tsdn_t *tsdn, ehooks_t *ehooks, edata_cache_t *edata_cache,
 	    edata_sn_get(a) : edata_sn_get(b));
 	edata_zeroed_set(a, edata_zeroed_get(a) && edata_zeroed_get(b));
 
-	extent_rtree_write_acquired(tsdn, a_elm_a, b_elm_b, a, SC_NSIZES,
-	    false);
+	emap_rtree_write_acquired(tsdn, &emap_global, a_elm_a, b_elm_b, a,
+	    SC_NSIZES, false);
 
 	emap_unlock_edata2(tsdn, &emap_global, a, b);
 
