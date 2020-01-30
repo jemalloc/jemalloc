@@ -385,19 +385,13 @@ static void
 extent_deregister_impl(tsdn_t *tsdn, edata_t *edata, bool gdump) {
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
-	rtree_leaf_elm_t *elm_a, *elm_b;
-	emap_rtree_leaf_elms_lookup(tsdn, &emap_global, rtree_ctx, edata,
-	    true, false, &elm_a, &elm_b);
 
 	emap_lock_edata(tsdn, &emap_global, edata);
-
-	emap_rtree_write_acquired(tsdn, &emap_global, elm_a, elm_b, NULL,
-	    SC_NSIZES, false);
+	emap_deregister_boundary(tsdn, &emap_global, rtree_ctx, edata);
 	if (edata_slab_get(edata)) {
 		extent_interior_deregister(tsdn, rtree_ctx, edata);
 		edata_slab_set(edata, false);
 	}
-
 	emap_unlock_edata(tsdn, &emap_global, edata);
 
 	if (config_prof && gdump) {
