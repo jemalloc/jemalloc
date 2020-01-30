@@ -135,10 +135,7 @@ tbin_edatas_lookup_size_check(tsdn_t *tsdn, cache_bin_t *tbin, szind_t binind,
 		sz_sum -= szind;
 	}
 	if (sz_sum != 0) {
-		safety_check_fail("<jemalloc>: size mismatch in thread cache "
-		    "detected, likely caused by sized deallocation bugs by "
-		    "application. Abort.\n");
-		abort();
+		safety_check_fail_sized_dealloc(false);
 	}
 }
 

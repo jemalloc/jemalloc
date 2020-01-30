@@ -2632,7 +2632,11 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 			rtree_szind_slab_read(tsd_tsdn(tsd), &extents_rtree,
 			    rtree_ctx, (uintptr_t)ptr, true, &ctx->szind,
 			    &ctx->slab);
-			assert(ctx->szind == sz_size2index(usize));
+			/* Small alloc may have !slab (sampled). */
+			bool sz_correct = (ctx->szind == sz_size2index(usize));
+			if (config_opt_safety_checks && !sz_correct) {
+				safety_check_fail_sized_dealloc(true);
+			}
 		} else {
 			ctx = NULL;
 		}
