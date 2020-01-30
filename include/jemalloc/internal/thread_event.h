@@ -34,7 +34,6 @@ void thread_event_assert_invariants_debug(tsd_t *tsd);
 void thread_event_trigger(tsd_t *tsd, event_ctx_t *ctx, bool delay_event);
 void thread_alloc_event_rollback(tsd_t *tsd, size_t diff);
 void thread_event_update(tsd_t *tsd, bool alloc_event);
-void thread_event_boot();
 void thread_event_recompute_fast_threshold(tsd_t *tsd);
 void tsd_thread_event_init(tsd_t *tsd);
 

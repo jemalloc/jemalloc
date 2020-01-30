@@ -1580,7 +1580,6 @@ malloc_init_hard_a0_locked() {
 	if (config_prof) {
 		prof_boot1();
 	}
-	thread_event_boot();
 	arena_boot(&sc_data);
 	if (tcache_boot(TSDN_NULL)) {
 		return true;

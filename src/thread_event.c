@@ -4,13 +4,6 @@
 
 #include "jemalloc/internal/thread_event.h"
 
-/*
- * There's no lock for thread_event_active because write is only done in
- * malloc_init(), where init_lock there serves as the guard, and ever since
- * then thread_event_active becomes read only.
- */
-static bool thread_event_active = false;
-
 /* TSD event init function signatures. */
 #define E(event, condition_unused, is_alloc_event_unused)		\
 static void tsd_thread_##event##_event_init(tsd_t *tsd);
@@ -114,14 +107,23 @@ thread_stats_interval_event_handler(tsd_t *tsd) {
 }
 /* Per event facilities done. */
 
+static bool
+event_ctx_has_active_events(event_ctx_t *ctx) {
+	assert(config_debug);
+#define E(event, condition, alloc_event)			       \
+	if (condition && alloc_event == ctx->is_alloc) {	       \
+		return true;					       \
+	}
+	ITERATE_OVER_ALL_EVENTS
+#undef E
+	return false;
+}
+
 static uint64_t
 thread_next_event_compute(tsd_t *tsd, bool is_alloc) {
 	uint64_t wait = THREAD_EVENT_MAX_START_WAIT;
-	bool no_event_on = true;
-
 #define E(event, condition, alloc_event)				\
 	if (is_alloc == alloc_event && condition) {			\
-		no_event_on = false;					\
 		uint64_t event_wait =					\
 		    event##_event_wait_get(tsd);			\
 		assert(event_wait <= THREAD_EVENT_MAX_START_WAIT);	\
@@ -132,8 +134,6 @@ thread_next_event_compute(tsd_t *tsd, bool is_alloc) {
 
 	ITERATE_OVER_ALL_EVENTS
 #undef E
-
-	assert(no_event_on == !thread_event_active);
 	assert(wait <= THREAD_EVENT_MAX_START_WAIT);
 	return wait;
 }
@@ -166,7 +166,7 @@ thread_event_assert_invariants_impl(tsd_t *tsd, event_ctx_t *ctx) {
 	 * below is stronger than needed, but having an exactly accurate guard
 	 * is more complicated to implement.
 	 */
-	assert((!thread_event_active && last_event == 0U) ||
+	assert((!event_ctx_has_active_events(ctx) && last_event == 0U) ||
 	    interval == min_wait ||
 	    (interval < min_wait && interval == THREAD_EVENT_MAX_INTERVAL));
 }
@@ -411,16 +411,6 @@ thread_event_update(tsd_t *tsd, bool is_alloc) {
 	} else {
 		thread_event_assert_invariants(tsd);
 	}
-}
-
-void thread_event_boot() {
-#define E(event, condition, ignored)					\
-	if (condition) {						\
-		thread_event_active = true;				\
-	}
-
-	ITERATE_OVER_ALL_EVENTS
-#undef E
 }
 
 void tsd_thread_event_init(tsd_t *tsd) {
