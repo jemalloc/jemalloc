@@ -43,4 +43,26 @@ void emap_rtree_write_acquired(tsdn_t *tsdn, emap_t *emap,
 bool emap_register_boundary(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
     edata_t *edata, szind_t szind, bool slab);
 
+/*
+ * Does the same thing, but with the interior of the range, for slab
+ * allocations.
+ *
+ * You might wonder why we don't just have a single emap_register function that
+ * does both depending on the value of 'slab'.  The answer is twofold:
+ * - As a practical matter, in places like the extract->split->commit pathway,
+ *   we defer the interior operation until we're sure that the commit won't fail
+ *   (but we have to register the split boundaries there).
+ * - In general, we're trying to move to a world where the page-specific
+ *   allocator doesn't know as much about how the pages it allocates will be
+ *   used, and passing a 'slab' parameter everywhere makes that more
+ *   complicated.
+ *
+ * Unlike the boundary version, this function can't fail; this is because slabs
+ * can't get big enough to touch a new page that neither of the boundaries
+ * touched, so no allocation is necessary to fill the interior once the boundary
+ * has been touched.
+ */
+void emap_register_interior(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
+    edata_t *edata, szind_t szind);
+
 #endif /* JEMALLOC_INTERNAL_EMAP_H */

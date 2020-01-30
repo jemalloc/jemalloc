@@ -148,3 +148,16 @@ emap_register_boundary(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
 	emap_rtree_write_acquired(tsdn, emap, elm_a, elm_b, edata, szind, slab);
 	return false;
 }
+
+void
+emap_register_interior(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
+    edata_t *edata, szind_t szind) {
+	assert(edata_slab_get(edata));
+
+	/* Register interior. */
+	for (size_t i = 1; i < (edata_size_get(edata) >> LG_PAGE) - 1; i++) {
+		rtree_write(tsdn, &emap->rtree, rtree_ctx,
+		    (uintptr_t)edata_base_get(edata) + (uintptr_t)(i <<
+		    LG_PAGE), edata, szind, true);
+	}
+}

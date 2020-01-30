@@ -271,19 +271,6 @@ extent_activate_locked(tsdn_t *tsdn, ecache_t *ecache, edata_t *edata) {
 }
 
 static void
-extent_interior_register(tsdn_t *tsdn, rtree_ctx_t *rtree_ctx, edata_t *edata,
-    szind_t szind) {
-	assert(edata_slab_get(edata));
-
-	/* Register interior. */
-	for (size_t i = 1; i < (edata_size_get(edata) >> LG_PAGE) - 1; i++) {
-		rtree_write(tsdn, &emap_global.rtree, rtree_ctx,
-		    (uintptr_t)edata_base_get(edata) + (uintptr_t)(i <<
-		    LG_PAGE), edata, szind, true);
-	}
-}
-
-static void
 extent_gdump_add(tsdn_t *tsdn, const edata_t *edata) {
 	cassert(config_prof);
 	/* prof_gdump() requirement. */
@@ -341,7 +328,8 @@ extent_register_impl(tsdn_t *tsdn, edata_t *edata, bool gdump_add) {
 	}
 
 	if (slab) {
-		extent_interior_register(tsdn, rtree_ctx, edata, szind);
+		emap_register_interior(tsdn, &emap_global, rtree_ctx, edata,
+		    szind);
 	}
 
 	emap_unlock_edata(tsdn, &emap_global, edata);
@@ -704,7 +692,8 @@ extent_recycle(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 	assert(edata_state_get(edata) == extent_state_active);
 	if (slab) {
 		edata_slab_set(edata, slab);
-		extent_interior_register(tsdn, rtree_ctx, edata, szind);
+		emap_register_interior(tsdn, &emap_global, rtree_ctx, edata,
+		    szind);
 	}
 
 	if (*zero) {
@@ -867,7 +856,8 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		    &rtree_ctx_fallback);
 
 		edata_slab_set(edata, true);
-		extent_interior_register(tsdn, rtree_ctx, edata, szind);
+		emap_register_interior(tsdn, &emap_global, rtree_ctx, edata,
+		    szind);
 	}
 	if (*zero && !edata_zeroed_get(edata)) {
 		void *addr = edata_base_get(edata);
