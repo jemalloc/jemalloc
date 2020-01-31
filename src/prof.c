@@ -444,8 +444,7 @@ prof_sample_threshold_update(tsd_t *tsd) {
 	}
 
 	if (lg_prof_sample == 0) {
-		thread_prof_sample_event_update(tsd,
-		    THREAD_EVENT_MIN_START_WAIT);
+		te_prof_sample_event_update(tsd, TE_MIN_START_WAIT);
 		return;
 	}
 
@@ -472,7 +471,7 @@ prof_sample_threshold_update(tsd_t *tsd) {
 	uint64_t bytes_until_sample = (uint64_t)(log(u) /
 	    log(1.0 - (1.0 / (double)((uint64_t)1U << lg_prof_sample))))
 	    + (uint64_t)1U;
-	thread_prof_sample_event_update(tsd, bytes_until_sample);
+	te_prof_sample_event_update(tsd, bytes_until_sample);
 #endif
 }
 
