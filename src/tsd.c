@@ -117,9 +117,9 @@ tsd_force_recompute(tsdn_t *tsdn) {
 		    <= tsd_state_nominal_max);
 		tsd_atomic_store(&remote_tsd->state,
 		    tsd_state_nominal_recompute, ATOMIC_RELAXED);
-		/* See comments in thread_event_recompute_fast_threshold(). */
+		/* See comments in te_recompute_fast_threshold(). */
 		atomic_fence(ATOMIC_SEQ_CST);
-		thread_next_event_fast_set_non_nominal(remote_tsd);
+		te_next_event_fast_set_non_nominal(remote_tsd);
 	}
 	malloc_mutex_unlock(tsdn, &tsd_nominal_tsds_lock);
 }
@@ -179,7 +179,7 @@ tsd_slow_update(tsd_t *tsd) {
 		    ATOMIC_ACQUIRE);
 	} while (old_state == tsd_state_nominal_recompute);
 
-	thread_event_recompute_fast_threshold(tsd);
+	te_recompute_fast_threshold(tsd);
 }
 
 void
@@ -218,7 +218,7 @@ tsd_state_set(tsd_t *tsd, uint8_t new_state) {
 			tsd_slow_update(tsd);
 		}
 	}
-	thread_event_recompute_fast_threshold(tsd);
+	te_recompute_fast_threshold(tsd);
 }
 
 static bool
@@ -240,7 +240,7 @@ tsd_data_init(tsd_t *tsd) {
 	    (uint64_t)(uintptr_t)tsd;
 
 	/* event_init may use the prng state above. */
-	tsd_thread_event_init(tsd);
+	tsd_te_init(tsd);
 
 	return tsd_tcache_enabled_data_init(tsd);
 }

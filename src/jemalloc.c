@@ -2180,7 +2180,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 		}
 
 		if (unlikely(allocation == NULL)) {
-			thread_alloc_event_rollback(tsd, usize);
+			te_alloc_rollback(tsd, usize);
 			prof_alloc_rollback(tsd, tctx, true);
 			goto label_oom;
 		}
@@ -2190,7 +2190,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 		allocation = imalloc_no_sample(sopts, dopts, tsd, size, usize,
 		    ind);
 		if (unlikely(allocation == NULL)) {
-			thread_alloc_event_rollback(tsd, usize);
+			te_alloc_rollback(tsd, usize);
 			goto label_oom;
 		}
 	}
@@ -2386,15 +2386,14 @@ je_malloc(size_t size) {
 	 * it's not always needed in the core allocation logic.
 	 */
 	size_t usize;
-
 	sz_size2index_usize_fastpath(size, &ind, &usize);
 	/* Fast path relies on size being a bin. */
 	assert(ind < SC_NBINS);
 	assert((SC_LOOKUP_MAXCLASS < SC_SMALL_MAXCLASS) &&
 	    (size <= SC_SMALL_MAXCLASS));
 
-	uint64_t allocated = thread_allocated_malloc_fastpath(tsd);
-	uint64_t threshold = thread_allocated_next_event_malloc_fastpath(tsd);
+	uint64_t allocated, threshold;
+	te_malloc_fastpath_ctx(tsd, &allocated, &threshold);
 	uint64_t allocated_after = allocated + usize;
 	/*
 	 * The ind and usize might be uninitialized (or partially) before
@@ -2729,7 +2728,7 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 		szind = sz_size2index_lookup(size);
 	}
 	uint64_t deallocated, threshold;
-	thread_event_free_fastpath_ctx(tsd, &deallocated, &threshold, size_hint);
+	te_free_fastpath_ctx(tsd, &deallocated, &threshold, size_hint);
 
 	size_t usize = sz_index2size(szind);
 	uint64_t deallocated_after = deallocated + usize;
@@ -3161,7 +3160,7 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 		p = irallocx_prof(tsd, ptr, old_usize, size, alignment, &usize,
 		    zero, tcache, arena, &alloc_ctx, &hook_args);
 		if (unlikely(p == NULL)) {
-			thread_alloc_event_rollback(tsd, usize);
+			te_alloc_rollback(tsd, usize);
 			goto label_oom;
 		}
 	} else {
@@ -3362,7 +3361,7 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 		    extra, alignment, zero);
 	}
 	if (usize <= usize_max) {
-		thread_alloc_event_rollback(tsd, usize_max - usize);
+		te_alloc_rollback(tsd, usize_max - usize);
 	} else {
 		/*
 		 * For downsizing request, usize_max can be less than usize.
@@ -3460,7 +3459,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	assert(iealloc(tsd_tsdn(tsd), ptr) == old_edata);
 
 	if (unlikely(usize == old_usize)) {
-		thread_alloc_event_rollback(tsd, usize);
+		te_alloc_rollback(tsd, usize);
 		goto label_not_resized;
 	}
 	thread_dalloc_event(tsd, old_usize);

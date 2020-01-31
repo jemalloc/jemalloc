@@ -104,10 +104,10 @@ typedef void (*test_callback_t)(int *);
     MALLOC_TEST_TSD
 
 /*
- * THREAD_EVENT_MIN_START_WAIT should not exceed the minimal allocation usize.
+ * TE_MIN_START_WAIT should not exceed the minimal allocation usize.
  */
-#define THREAD_EVENT_MIN_START_WAIT ((uint64_t)1U)
-#define THREAD_EVENT_MAX_START_WAIT UINT64_MAX
+#define TE_MIN_START_WAIT ((uint64_t)1U)
+#define TE_MAX_START_WAIT UINT64_MAX
 
 #define TSD_INITIALIZER {						\
     /* state */			ATOMIC_INIT(tsd_state_uninitialized),	\
@@ -121,14 +121,14 @@ typedef void (*test_callback_t)(int *);
     /* thread_deallocated_next_event_fast */	0,			\
     /* rtree_ctx */		RTREE_CTX_ZERO_INITIALIZER,		\
     /* thread_allocated_last_event */	0,				\
-    /* thread_allocated_next_event */	THREAD_EVENT_MIN_START_WAIT,	\
+    /* thread_allocated_next_event */	TE_MIN_START_WAIT,		\
     /* thread_deallocated_last_event */	0,				\
-    /* thread_deallocated_next_event */	THREAD_EVENT_MIN_START_WAIT,	\
-    /* tcache_gc_event_wait */		THREAD_EVENT_MIN_START_WAIT,	\
-    /* tcache_gc_dalloc_event_wait */	THREAD_EVENT_MIN_START_WAIT,	\
-    /* prof_sample_event_wait */	THREAD_EVENT_MIN_START_WAIT,	\
+    /* thread_deallocated_next_event */	TE_MIN_START_WAIT,		\
+    /* tcache_gc_event_wait */		TE_MIN_START_WAIT,		\
+    /* tcache_gc_dalloc_event_wait */	TE_MIN_START_WAIT,		\
+    /* prof_sample_event_wait */	TE_MIN_START_WAIT,		\
     /* prof_sample_last_event */	0,				\
-    /* stats_interval_event_wait */	THREAD_EVENT_MIN_START_WAIT,	\
+    /* stats_interval_event_wait */	TE_MIN_START_WAIT,		\
     /* stats_interval_last_event */	0,				\
     /* prof_tdata */		NULL,					\
     /* prng_state */		0,					\
