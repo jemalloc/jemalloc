@@ -3740,19 +3740,12 @@ je_malloc_stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	if (config_debug) {
 		stats_print(write_cb, cbopaque, opts);
 	} else {
-		char *buf = (char *)iallocztm(tsdn, STATS_PRINT_BUFSIZE,
-		    sz_size2index(STATS_PRINT_BUFSIZE), false, NULL, true,
-		    arena_get(TSDN_NULL, 0, true), true);
-		if (buf == NULL) {
-			stats_print(write_cb, cbopaque, opts);
-		} else {
-			buf_writer_t buf_writer;
-			buf_writer_init(&buf_writer, write_cb, cbopaque, buf,
-			    STATS_PRINT_BUFSIZE);
-			stats_print(buf_writer_cb, &buf_writer, opts);
-			buf_writer_flush(&buf_writer);
-			idalloctm(tsdn, buf, NULL, NULL, true, true);
-		}
+		buf_writer_t buf_writer;
+		buf_writer_init(tsdn, &buf_writer, write_cb, cbopaque, NULL,
+		    STATS_PRINT_BUFSIZE);
+		stats_print(buf_writer_get_write_cb(&buf_writer),
+		    buf_writer_get_cbopaque(&buf_writer), opts);
+		buf_writer_terminate(tsdn, &buf_writer);
 	}
 
 	check_entry_exit_locking(tsdn);
