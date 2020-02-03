@@ -236,3 +236,40 @@ emap_split_commit(tsdn_t *tsdn, emap_t *emap,
 	emap_rtree_write_acquired(tsdn, emap, split_prepare->trail_elm_a,
 	    split_prepare->trail_elm_b, trail, szind_b, slab_b);
 }
+
+void
+emap_merge_prepare(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
+    emap_split_prepare_t *split_prepare, edata_t *lead, edata_t *trail) {
+	emap_rtree_leaf_elms_lookup(tsdn, emap, rtree_ctx, lead, true, false,
+	    &split_prepare->lead_elm_a, &split_prepare->lead_elm_b);
+	emap_rtree_leaf_elms_lookup(tsdn, emap, rtree_ctx, trail, true, false,
+	    &split_prepare->trail_elm_a, &split_prepare->trail_elm_b);
+}
+
+void
+emap_merge_commit(tsdn_t *tsdn, emap_t *emap,
+    emap_split_prepare_t *split_prepare, edata_t *lead, edata_t *trail) {
+	if (split_prepare->lead_elm_b != NULL) {
+		rtree_leaf_elm_write(tsdn, &emap->rtree,
+		    split_prepare->lead_elm_b, NULL, SC_NSIZES, false);
+	}
+
+	rtree_leaf_elm_t *merged_b;
+	if (split_prepare->trail_elm_b != NULL) {
+		rtree_leaf_elm_write(tsdn, &emap->rtree,
+		    split_prepare->trail_elm_a, NULL, SC_NSIZES, false);
+		merged_b = split_prepare->trail_elm_b;
+	} else {
+		merged_b = split_prepare->trail_elm_a;
+	}
+
+	edata_size_set(lead, edata_size_get(lead) + edata_size_get(trail));
+	edata_szind_set(lead, SC_NSIZES);
+	edata_sn_set(lead, (edata_sn_get(lead) < edata_sn_get(trail)) ?
+	    edata_sn_get(lead) : edata_sn_get(trail));
+	edata_zeroed_set(lead, edata_zeroed_get(lead)
+	    && edata_zeroed_get(trail));
+
+	emap_rtree_write_acquired(tsdn, emap, split_prepare->lead_elm_a,
+	    merged_b, lead, SC_NSIZES, false);
+}

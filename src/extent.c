@@ -1342,33 +1342,11 @@ extent_merge_impl(tsdn_t *tsdn, ehooks_t *ehooks, edata_cache_t *edata_cache,
 	 */
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
-	rtree_leaf_elm_t *a_elm_a, *a_elm_b, *b_elm_a, *b_elm_b;
-	emap_rtree_leaf_elms_lookup(tsdn, &emap_global, rtree_ctx, a, true,
-	    false, &a_elm_a, &a_elm_b);
-	emap_rtree_leaf_elms_lookup(tsdn, &emap_global, rtree_ctx, b, true,
-	    false, &b_elm_a, &b_elm_b);
-
+	emap_split_prepare_t split_prepare;
+	emap_merge_prepare(tsdn, &emap_global, rtree_ctx, &split_prepare, a, b);
 	emap_lock_edata2(tsdn, &emap_global, a, b);
 
-	if (a_elm_b != NULL) {
-		rtree_leaf_elm_write(tsdn, &emap_global.rtree, a_elm_b, NULL,
-		    SC_NSIZES, false);
-	}
-	if (b_elm_b != NULL) {
-		rtree_leaf_elm_write(tsdn, &emap_global.rtree, b_elm_a, NULL,
-		    SC_NSIZES, false);
-	} else {
-		b_elm_b = b_elm_a;
-	}
-
-	edata_size_set(a, edata_size_get(a) + edata_size_get(b));
-	edata_szind_set(a, SC_NSIZES);
-	edata_sn_set(a, (edata_sn_get(a) < edata_sn_get(b)) ?
-	    edata_sn_get(a) : edata_sn_get(b));
-	edata_zeroed_set(a, edata_zeroed_get(a) && edata_zeroed_get(b));
-
-	emap_rtree_write_acquired(tsdn, &emap_global, a_elm_a, b_elm_b, a,
-	    SC_NSIZES, false);
+	emap_merge_commit(tsdn, &emap_global, &split_prepare, a, b);
 
 	emap_unlock_edata2(tsdn, &emap_global, a, b);
 
