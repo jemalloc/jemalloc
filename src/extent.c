@@ -1281,7 +1281,7 @@ extent_split_impl(tsdn_t *tsdn, edata_cache_t *edata_cache, ehooks_t *ehooks,
 	emap_split_prepare_t split_prepare;
 	bool err = emap_split_prepare(tsdn, &emap_global, rtree_ctx,
 	    &split_prepare, edata, size_a, szind_a, slab_a, trail, size_b,
-	    szind_b, slab_b, ehooks_ind_get(ehooks));
+	    szind_b, slab_b);
 	if (err) {
 		goto label_error_b;
 	}

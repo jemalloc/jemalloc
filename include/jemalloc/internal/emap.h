@@ -81,7 +81,7 @@ struct emap_split_prepare_s {
 bool emap_split_prepare(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
     emap_split_prepare_t *split_prepare, edata_t *edata, size_t size_a,
     szind_t szind_a, bool slab_a, edata_t *trail, size_t size_b,
-    szind_t szind_b, bool slab_b, unsigned ind_b);
+    szind_t szind_b, bool slab_b);
 void emap_split_commit(tsdn_t *tsdn, emap_t *emap,
     emap_split_prepare_t *split_prepare, edata_t *lead, size_t size_a,
     szind_t szind_a, bool slab_a, edata_t *trail, size_t size_b,
