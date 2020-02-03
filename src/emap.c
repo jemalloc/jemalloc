@@ -183,3 +183,56 @@ emap_deregister_interior(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
 		    LG_PAGE));
 	}
 }
+
+bool
+emap_split_prepare(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
+    emap_split_prepare_t *split_prepare, edata_t *edata, size_t size_a,
+    szind_t szind_a, bool slab_a, edata_t *trail, size_t size_b,
+    szind_t szind_b, bool slab_b, unsigned ind_b) {
+	/*
+	 * Note that while the trail mostly inherits its attributes from the
+	 * extent to be split, it maintains its own arena ind -- this allows
+	 * cross-arena edata interactions, such as occur in the range ecache.
+	 */
+	edata_init(trail, ind_b,
+	    (void *)((uintptr_t)edata_base_get(edata) + size_a), size_b,
+	    slab_b, szind_b, edata_sn_get(edata), edata_state_get(edata),
+	    edata_zeroed_get(edata), edata_committed_get(edata),
+	    edata_dumpable_get(edata), EXTENT_NOT_HEAD);
+
+	/*
+	 * We use incorrect constants for things like arena ind, zero, dump, and
+	 * commit state, and head status.  This is a fake edata_t, used to
+	 * facilitate a lookup.
+	 */
+	edata_t lead;
+	edata_init(&lead, 0U, edata_addr_get(edata), size_a, slab_a, szind_a, 0,
+	    extent_state_active, false, false, false, EXTENT_NOT_HEAD);
+
+	emap_rtree_leaf_elms_lookup(tsdn, emap, rtree_ctx, &lead, false, true,
+	    &split_prepare->lead_elm_a, &split_prepare->lead_elm_b);
+	emap_rtree_leaf_elms_lookup(tsdn, emap, rtree_ctx, trail, false, true,
+	    &split_prepare->trail_elm_a, &split_prepare->trail_elm_b);
+
+	if (split_prepare->lead_elm_a == NULL
+	    || split_prepare->lead_elm_b == NULL
+	    || split_prepare->trail_elm_a == NULL
+	    || split_prepare->trail_elm_b == NULL) {
+		return true;
+	}
+	return false;
+}
+
+void
+emap_split_commit(tsdn_t *tsdn, emap_t *emap,
+    emap_split_prepare_t *split_prepare, edata_t *lead, size_t size_a,
+    szind_t szind_a, bool slab_a, edata_t *trail, size_t size_b,
+    szind_t szind_b, bool slab_b) {
+	edata_size_set(lead, size_a);
+	edata_szind_set(lead, szind_a);
+
+	emap_rtree_write_acquired(tsdn, emap, split_prepare->lead_elm_a,
+	    split_prepare->lead_elm_b, lead, szind_a, slab_a);
+	emap_rtree_write_acquired(tsdn, emap, split_prepare->trail_elm_a,
+	    split_prepare->trail_elm_b, trail, szind_b, slab_b);
+}
