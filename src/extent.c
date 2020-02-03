@@ -1276,53 +1276,27 @@ extent_split_impl(tsdn_t *tsdn, edata_cache_t *edata_cache, ehooks_t *ehooks,
 		goto label_error_a;
 	}
 
-	edata_init(trail, ehooks_ind_get(ehooks),
-	    (void *)((uintptr_t)edata_base_get(edata) + size_a), size_b,
-	    slab_b, szind_b, edata_sn_get(edata), edata_state_get(edata),
-	    edata_zeroed_get(edata), edata_committed_get(edata),
-	    edata_dumpable_get(edata), EXTENT_NOT_HEAD);
-
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
-	rtree_leaf_elm_t *lead_elm_a, *lead_elm_b;
-	{
-		edata_t lead;
-
-		edata_init(&lead, ehooks_ind_get(ehooks),
-		    edata_addr_get(edata), size_a,
-		    slab_a, szind_a, edata_sn_get(edata),
-		    edata_state_get(edata), edata_zeroed_get(edata),
-		    edata_committed_get(edata), edata_dumpable_get(edata),
-		    EXTENT_NOT_HEAD);
-
-		emap_rtree_leaf_elms_lookup(tsdn, &emap_global, rtree_ctx,
-		    &lead, false, true, &lead_elm_a, &lead_elm_b);
-	}
-	rtree_leaf_elm_t *trail_elm_a, *trail_elm_b;
-	emap_rtree_leaf_elms_lookup(tsdn, &emap_global, rtree_ctx, trail, false,
-	    true, &trail_elm_a, &trail_elm_b);
-
-	if (lead_elm_a == NULL || lead_elm_b == NULL || trail_elm_a == NULL
-	    || trail_elm_b == NULL) {
+	emap_split_prepare_t split_prepare;
+	bool err = emap_split_prepare(tsdn, &emap_global, rtree_ctx,
+	    &split_prepare, edata, size_a, szind_a, slab_a, trail, size_b,
+	    szind_b, slab_b, ehooks_ind_get(ehooks));
+	if (err) {
 		goto label_error_b;
 	}
 
 	emap_lock_edata2(tsdn, &emap_global, edata, trail);
 
-	bool err = ehooks_split(tsdn, ehooks, edata_base_get(edata),
-	    size_a + size_b, size_a, size_b, edata_committed_get(edata));
+	err = ehooks_split(tsdn, ehooks, edata_base_get(edata), size_a + size_b,
+	    size_a, size_b, edata_committed_get(edata));
 
 	if (err) {
 		goto label_error_c;
 	}
 
-	edata_size_set(edata, size_a);
-	edata_szind_set(edata, szind_a);
-
-	emap_rtree_write_acquired(tsdn, &emap_global, lead_elm_a, lead_elm_b,
-	    edata, szind_a, slab_a);
-	emap_rtree_write_acquired(tsdn, &emap_global, trail_elm_a, trail_elm_b,
-	    trail, szind_b, slab_b);
+	emap_split_commit(tsdn, &emap_global, &split_prepare, edata, size_a,
+	    szind_a, slab_a, trail, size_b, szind_b, slab_b);
 
 	emap_unlock_edata2(tsdn, &emap_global, edata, trail);
 
