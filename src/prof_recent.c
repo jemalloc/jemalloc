@@ -462,20 +462,13 @@ dump_bt(emitter_t *emitter, prof_tctx_t *tctx) {
 void
 prof_recent_alloc_dump(tsd_t *tsd, void (*write_cb)(void *, const char *),
     void *cbopaque) {
-	char *buf = (char *)iallocztm(tsd_tsdn(tsd), PROF_RECENT_PRINT_BUFSIZE,
-	    sz_size2index(PROF_RECENT_PRINT_BUFSIZE), false, NULL, true,
-	    arena_get(tsd_tsdn(tsd), 0, false), true);
-	emitter_t emitter;
 	buf_writer_t buf_writer;
-	if (buf == NULL) {
-		emitter_init(&emitter, emitter_output_json_compact, write_cb,
-		    cbopaque);
-	} else {
-		buf_writer_init(&buf_writer, write_cb, cbopaque, buf,
-		    PROF_RECENT_PRINT_BUFSIZE);
-		emitter_init(&emitter, emitter_output_json_compact,
-		    buf_writer_cb, &buf_writer);
-	}
+	buf_writer_init(tsd_tsdn(tsd), &buf_writer, write_cb, cbopaque, NULL,
+	    PROF_RECENT_PRINT_BUFSIZE);
+	emitter_t emitter;
+	emitter_init(&emitter, emitter_output_json_compact,
+	    buf_writer_get_write_cb(&buf_writer),
+	    buf_writer_get_cbopaque(&buf_writer));
 	emitter_begin(&emitter);
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
@@ -535,10 +528,7 @@ prof_recent_alloc_dump(tsd_t *tsd, void (*write_cb)(void *, const char *),
 	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 
 	emitter_end(&emitter);
-	if (buf != NULL) {
-		buf_writer_flush(&buf_writer);
-		idalloctm(tsd_tsdn(tsd), buf, NULL, NULL, true, true);
-	}
+	buf_writer_terminate(tsd_tsdn(tsd), &buf_writer);
 }
 #undef PROF_RECENT_PRINT_BUFSIZE
 

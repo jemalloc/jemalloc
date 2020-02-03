@@ -629,19 +629,12 @@ prof_log_stop(tsdn_t *tsdn) {
 	struct prof_emitter_cb_arg_s arg;
 	arg.fd = fd;
 
-	char *buf = (char *)iallocztm(tsdn, PROF_LOG_STOP_BUFSIZE,
-	    sz_size2index(PROF_LOG_STOP_BUFSIZE), false, NULL, true,
-	    arena_get(TSDN_NULL, 0, true), true);
 	buf_writer_t buf_writer;
-	if (buf == NULL) {
-		emitter_init(&emitter, emitter_output_json_compact,
-		    prof_emitter_write_cb, &arg);
-	} else {
-		buf_writer_init(&buf_writer, prof_emitter_write_cb, &arg, buf,
-		    PROF_LOG_STOP_BUFSIZE);
-		emitter_init(&emitter, emitter_output_json_compact,
-		    buf_writer_cb, &buf_writer);
-	}
+	buf_writer_init(tsdn, &buf_writer, prof_emitter_write_cb, &arg, NULL,
+	    PROF_LOG_STOP_BUFSIZE);
+	emitter_init(&emitter, emitter_output_json_compact,
+	    buf_writer_get_write_cb(&buf_writer),
+	    buf_writer_get_cbopaque(&buf_writer));
 
 	emitter_begin(&emitter);
 	prof_log_emit_metadata(&emitter);
@@ -650,10 +643,7 @@ prof_log_stop(tsdn_t *tsdn) {
 	prof_log_emit_allocs(tsd, &emitter);
 	emitter_end(&emitter);
 
-	if (buf != NULL) {
-		buf_writer_flush(&buf_writer);
-		idalloctm(tsdn, buf, NULL, NULL, true, true);
-	}
+	buf_writer_terminate(tsdn, &buf_writer);
 
 	/* Reset global state. */
 	if (log_tables_initialized) {

@@ -10,27 +10,24 @@
  * some "option like" content for the write_cb, so it doesn't matter.
  */
 
+typedef void (write_cb_t)(void *, const char *);
+
 typedef struct {
-	void (*write_cb)(void *, const char *);
-	void *cbopaque;
+	write_cb_t *public_write_cb;
+	void *public_cbopaque;
+	write_cb_t *private_write_cb;
+	void *private_cbopaque;
 	char *buf;
 	size_t buf_size;
 	size_t buf_end;
+	bool internal_buf;
 } buf_writer_t;
 
-JEMALLOC_ALWAYS_INLINE void
-buf_writer_init(buf_writer_t *buf_writer, void (*write_cb)(void *,
-    const char *), void *cbopaque, char *buf, size_t buf_len) {
-	buf_writer->write_cb = write_cb;
-	buf_writer->cbopaque = cbopaque;
-	assert(buf != NULL);
-	buf_writer->buf = buf;
-	assert(buf_len >= 2);
-	buf_writer->buf_size = buf_len - 1; /* Allowing for '\0' at the end. */
-	buf_writer->buf_end = 0;
-}
-
+bool buf_writer_init(tsdn_t *tsdn, buf_writer_t *buf_writer,
+    write_cb_t *write_cb, void *cbopaque, char *buf, size_t buf_len);
+write_cb_t *buf_writer_get_write_cb(buf_writer_t *buf_writer);
+void *buf_writer_get_cbopaque(buf_writer_t *buf_writer);
 void buf_writer_flush(buf_writer_t *buf_writer);
-void buf_writer_cb(void *buf_writer_arg, const char *s);
+void buf_writer_terminate(tsdn_t *tsdn, buf_writer_t *buf_writer);
 
 #endif /* JEMALLOC_INTERNAL_BUF_WRITER_H */
