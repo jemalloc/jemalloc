@@ -70,8 +70,8 @@ void emap_deregister_boundary(tsdn_t *tsdn, emap_t *emap,
 void emap_deregister_interior(tsdn_t *tsdn, emap_t *emap,
     rtree_ctx_t *rtree_ctx, edata_t *edata);
 
-typedef struct emap_split_prepare_s emap_split_prepare_t;
-struct emap_split_prepare_s {
+typedef struct emap_prepare_s emap_prepare_t;
+struct emap_prepare_s {
 	rtree_leaf_elm_t *lead_elm_a;
 	rtree_leaf_elm_t *lead_elm_b;
 	rtree_leaf_elm_t *trail_elm_a;
@@ -79,16 +79,14 @@ struct emap_split_prepare_s {
 };
 
 bool emap_split_prepare(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
-    emap_split_prepare_t *split_prepare, edata_t *edata, size_t size_a,
-    szind_t szind_a, bool slab_a, edata_t *trail, size_t size_b,
-    szind_t szind_b, bool slab_b);
-void emap_split_commit(tsdn_t *tsdn, emap_t *emap,
-    emap_split_prepare_t *split_prepare, edata_t *lead, size_t size_a,
-    szind_t szind_a, bool slab_a, edata_t *trail, size_t size_b,
-    szind_t szind_b, bool slab_b);
+    emap_prepare_t *prepare, edata_t *edata, size_t size_a, szind_t szind_a,
+    bool slab_a, edata_t *trail, size_t size_b, szind_t szind_b, bool slab_b);
+void emap_split_commit(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
+    edata_t *lead, size_t size_a, szind_t szind_a, bool slab_a, edata_t *trail,
+    size_t size_b, szind_t szind_b, bool slab_b);
 void emap_merge_prepare(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
-    emap_split_prepare_t *split_prepare, edata_t *lead, edata_t *trail);
-void emap_merge_commit(tsdn_t *tsdn, emap_t *emap,
-    emap_split_prepare_t *split_prepare, edata_t *lead, edata_t *trail);
+    emap_prepare_t *prepare, edata_t *lead, edata_t *trail);
+void emap_merge_commit(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
+    edata_t *lead, edata_t *trail);
 
 #endif /* JEMALLOC_INTERNAL_EMAP_H */
