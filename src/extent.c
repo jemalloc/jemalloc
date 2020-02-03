@@ -1278,10 +1278,9 @@ extent_split_impl(tsdn_t *tsdn, edata_cache_t *edata_cache, ehooks_t *ehooks,
 
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
-	emap_split_prepare_t split_prepare;
-	bool err = emap_split_prepare(tsdn, &emap_global, rtree_ctx,
-	    &split_prepare, edata, size_a, szind_a, slab_a, trail, size_b,
-	    szind_b, slab_b);
+	emap_prepare_t prepare;
+	bool err = emap_split_prepare(tsdn, &emap_global, rtree_ctx, &prepare,
+	    edata, size_a, szind_a, slab_a, trail, size_b, szind_b, slab_b);
 	if (err) {
 		goto label_error_b;
 	}
@@ -1295,8 +1294,8 @@ extent_split_impl(tsdn_t *tsdn, edata_cache_t *edata_cache, ehooks_t *ehooks,
 		goto label_error_c;
 	}
 
-	emap_split_commit(tsdn, &emap_global, &split_prepare, edata, size_a,
-	    szind_a, slab_a, trail, size_b, szind_b, slab_b);
+	emap_split_commit(tsdn, &emap_global, &prepare, edata, size_a, szind_a,
+	    slab_a, trail, size_b, szind_b, slab_b);
 
 	emap_unlock_edata2(tsdn, &emap_global, edata, trail);
 
@@ -1342,12 +1341,11 @@ extent_merge_impl(tsdn_t *tsdn, ehooks_t *ehooks, edata_cache_t *edata_cache,
 	 */
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
-	emap_split_prepare_t split_prepare;
-	emap_merge_prepare(tsdn, &emap_global, rtree_ctx, &split_prepare, a, b);
+	emap_prepare_t prepare;
+	emap_merge_prepare(tsdn, &emap_global, rtree_ctx, &prepare, a, b);
+
 	emap_lock_edata2(tsdn, &emap_global, a, b);
-
-	emap_merge_commit(tsdn, &emap_global, &split_prepare, a, b);
-
+	emap_merge_commit(tsdn, &emap_global, &prepare, a, b);
 	emap_unlock_edata2(tsdn, &emap_global, a, b);
 
 	edata_cache_put(tsdn, edata_cache, b);
