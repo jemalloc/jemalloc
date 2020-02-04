@@ -17,21 +17,27 @@
  * Thread-Specific-Data layout
  * --- data accessed on tcache fast path: state, rtree_ctx, stats ---
  * s: state
- * e: tcache_enabled
  * m: thread_allocated
  * k: thread_allocated_next_event_fast
  * f: thread_deallocated
+ * h: thread_deallocated_next_event_fast
  * c: rtree_ctx (rtree cache accessed on deallocation)
  * t: tcache
  * --- data not accessed on tcache fast path: arena-related fields ---
+ * e: tcache_enabled
  * d: arenas_tdata_bypass
  * r: reentrancy_level
- * x: narenas_tdata
+ * n: narenas_tdata
  * l: thread_allocated_last_event
  * j: thread_allocated_next_event
+ * q: thread_deallocated_last_event
+ * u: thread_deallocated_next_event
  * g: tcache_gc_event_wait
+ * y: tcache_gc_dalloc_event_wait
  * w: prof_sample_event_wait (config_prof)
  * x: prof_sample_last_event (config_prof)
+ * z: stats_interval_event_wait
+ * e: stats_interval_last_event
  * p: prof_tdata (config_prof)
  * v: prng_state
  * i: iarena
@@ -43,15 +49,15 @@
  * Use a compact layout to reduce cache footprint.
  * +--- 64-bit and 64B cacheline; 1B each letter; First byte on the left. ---+
  * |----------------------------  1st cacheline  ----------------------------|
- * | sedrxxxx mmmmmmmm kkkkkkkk ffffffff [c * 32  ........ ........ .......] |
+ * | sedrnnnn mmmmmmmm kkkkkkkk ffffffff hhhhhhhh [c * 24  ........ ........]|
  * |----------------------------  2nd cacheline  ----------------------------|
- * | [c * 64  ........ ........ ........ ........ ........ ........ .......] |
+ * | [c * 64  ........ ........ ........ ........ ........ ........ ........]|
  * |----------------------------  3nd cacheline  ----------------------------|
- * | [c * 32  ........ ........ .......] llllllll jjjjjjjj gggggggg wwwwwwww |
+ * | [c * 40  ........ ........ ........ .......] llllllll jjjjjjjj qqqqqqqq |
  * +----------------------------  4th cacheline  ----------------------------+
- * | xxxxxxxx pppppppp vvvvvvvv iiiiiiii aaaaaaaa oooooooo [b...... ........ |
- * +----------------------------  5th cacheline  ----------------------------+
- * | ........ ........ ..b][t.. ........ ........ ........ ........ ........ |
+ * | uuuuuuuu gggggggg yyyyyyyy wwwwwwww xxxxxxxx zzzzzzzz eeeeeeee pppppppp |
+ * +----------------------------  5th and after  ----------------------------+
+ * | vvvvvvvv iiiiiiii aaaaaaaa oooooooo [b * 40; then embedded tcache ..... |
  * +-------------------------------------------------------------------------+
  * Note: the entire tcache is embedded into TSD and spans multiple cachelines.
  *
