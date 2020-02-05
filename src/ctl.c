@@ -1496,6 +1496,14 @@ ctl_mtx_assert_held(tsdn_t *tsdn) {
 	}								\
 } while (0)
 
+#define ASSURED_WRITE(v, t)	do {					\
+	if (newp == NULL || newlen != sizeof(t)) {			\
+		ret = EINVAL;						\
+		goto label_return;					\
+	}								\
+	(v) = *(t *)newp;						\
+} while (0)
+
 #define MIB_UNSIGNED(v, i) do {						\
 	if (mib[i] > UINT_MAX) {					\
 		ret = EFAULT;						\
@@ -2048,12 +2056,7 @@ tcache_flush_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 	unsigned tcache_ind;
 
 	WRITEONLY();
-	tcache_ind = UINT_MAX;
-	WRITE(tcache_ind, unsigned);
-	if (tcache_ind == UINT_MAX) {
-		ret = EFAULT;
-		goto label_return;
-	}
+	ASSURED_WRITE(tcache_ind, unsigned);
 	tcaches_flush(tsd, tcache_ind);
 
 	ret = 0;
@@ -2068,12 +2071,7 @@ tcache_destroy_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 	unsigned tcache_ind;
 
 	WRITEONLY();
-	tcache_ind = UINT_MAX;
-	WRITE(tcache_ind, unsigned);
-	if (tcache_ind == UINT_MAX) {
-		ret = EFAULT;
-		goto label_return;
-	}
+	ASSURED_WRITE(tcache_ind, unsigned);
 	tcaches_destroy(tsd, tcache_ind);
 
 	ret = 0;
