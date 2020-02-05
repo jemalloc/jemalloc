@@ -27,16 +27,16 @@ void emap_lock_edata2(tsdn_t *tsdn, emap_t *emap, edata_t *edata1,
     edata_t *edata2);
 void emap_unlock_edata2(tsdn_t *tsdn, emap_t *emap, edata_t *edata1,
     edata_t *edata2);
-edata_t *emap_lock_edata_from_addr(tsdn_t *tsdn, emap_t *emap,
-    rtree_ctx_t *rtree_ctx, void *addr, bool inactive_only);
+edata_t *emap_lock_edata_from_addr(tsdn_t *tsdn, emap_t *emap, void *addr,
+    bool inactive_only);
 
 /*
  * Associate the given edata with its beginning and end address, setting the
  * szind and slab info appropriately.
  * Returns true on error (i.e. resource exhaustion).
  */
-bool emap_register_boundary(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
-    edata_t *edata, szind_t szind, bool slab);
+bool emap_register_boundary(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
+    szind_t szind, bool slab);
 
 /*
  * Does the same thing, but with the interior of the range, for slab
@@ -57,13 +57,11 @@ bool emap_register_boundary(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
  * touched, so no allocation is necessary to fill the interior once the boundary
  * has been touched.
  */
-void emap_register_interior(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
-    edata_t *edata, szind_t szind);
+void emap_register_interior(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
+    szind_t szind);
 
-void emap_deregister_boundary(tsdn_t *tsdn, emap_t *emap,
-    rtree_ctx_t *rtree_ctx, edata_t *edata);
-void emap_deregister_interior(tsdn_t *tsdn, emap_t *emap,
-    rtree_ctx_t *rtree_ctx, edata_t *edata);
+void emap_deregister_boundary(tsdn_t *tsdn, emap_t *emap, edata_t *edata);
+void emap_deregister_interior(tsdn_t *tsdn, emap_t *emap, edata_t *edata);
 
 typedef struct emap_prepare_s emap_prepare_t;
 struct emap_prepare_s {
@@ -74,9 +72,12 @@ struct emap_prepare_s {
 };
 
 /**
- * These functions do some of the metadata management for merging and splitting
- * extents.  In particular, they set the mappings from addresses to edatas and
- * fill in lead and trail.
+ * These functions do some of the metadata management for merging, splitting,
+ * and reusing extents.  In particular, they set the boundary mappings from
+ * addresses to edatas and fill in the szind, size, and slab values for the
+ * output edata (and, for splitting, *all* values for the trail).  If the result
+ * is going to be used as a slab, you still need to call emap_register_interior
+ * on it, though.
  *
  * Each operation has a "prepare" and a "commit" portion.  The prepare portion
  * does the operations that can be done without exclusive access to the extent
@@ -89,15 +90,26 @@ struct emap_prepare_s {
  * and esn values) data for the split variants, and can be reused for any
  * purpose by its given arena after a merge or a failed split.
  */
-bool emap_split_prepare(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
-    emap_prepare_t *prepare, edata_t *edata, size_t size_a, szind_t szind_a,
-    bool slab_a, edata_t *trail, size_t size_b, szind_t szind_b, bool slab_b);
+void emap_remap(tsdn_t *tsdn, emap_t *emap, edata_t *edata, size_t size,
+    szind_t szind, bool slab);
+bool emap_split_prepare(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
+    edata_t *edata, size_t size_a, szind_t szind_a, bool slab_a, edata_t *trail,
+    size_t size_b, szind_t szind_b, bool slab_b);
 void emap_split_commit(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
     edata_t *lead, size_t size_a, szind_t szind_a, bool slab_a, edata_t *trail,
     size_t size_b, szind_t szind_b, bool slab_b);
-void emap_merge_prepare(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
-    emap_prepare_t *prepare, edata_t *lead, edata_t *trail);
+void emap_merge_prepare(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
+    edata_t *lead, edata_t *trail);
 void emap_merge_commit(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
     edata_t *lead, edata_t *trail);
+
+/* Assert that the emap's view of the given edata matches the edata's view. */
+void emap_do_assert_mapped(tsdn_t *tsdn, emap_t *emap, edata_t *edata);
+static inline void
+emap_assert_mapped(tsdn_t *tsdn, emap_t *emap, edata_t *edata) {
+	if (config_debug) {
+		emap_do_assert_mapped(tsdn, emap, edata);
+	}
+}
 
 #endif /* JEMALLOC_INTERNAL_EMAP_H */
