@@ -1,8 +1,8 @@
 #define ASSERT_BUFSIZE	256
 
 #define assert_cmp(t, a, b, cmp, neg_cmp, pri, ...) do {		\
-	t a_ = (a);							\
-	t b_ = (b);							\
+	const t a_ = (a);						\
+	const t b_ = (b);						\
 	if (!(a_ cmp b_)) {						\
 		char prefix[ASSERT_BUFSIZE];				\
 		char message[ASSERT_BUFSIZE];				\
