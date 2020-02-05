@@ -5,6 +5,15 @@
 
 emap_t emap_global;
 
+/*
+ * Note: Ends without at semicolon, so that
+ *     EMAP_DECLARE_RTREE_CTX;
+ * in uses will avoid empty-statement warnings.
+ */
+#define EMAP_DECLARE_RTREE_CTX						\
+    rtree_ctx_t rtree_ctx_fallback;					\
+    rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback)
+
 enum emap_lock_result_e {
 	emap_lock_result_success,
 	emap_lock_result_failure,
@@ -89,8 +98,9 @@ emap_try_lock_rtree_leaf_elm(tsdn_t *tsdn, emap_t *emap, rtree_leaf_elm_t *elm,
  * address, and NULL otherwise.
  */
 edata_t *
-emap_lock_edata_from_addr(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
-    void *addr, bool inactive_only) {
+emap_lock_edata_from_addr(tsdn_t *tsdn, emap_t *emap, void *addr,
+    bool inactive_only) {
+	EMAP_DECLARE_RTREE_CTX;
 	edata_t *ret = NULL;
 	rtree_leaf_elm_t *elm = rtree_leaf_elm_lookup(tsdn, &emap->rtree,
 	    rtree_ctx, (uintptr_t)addr, false, false);
@@ -137,8 +147,10 @@ emap_rtree_write_acquired(tsdn_t *tsdn, emap_t *emap, rtree_leaf_elm_t *elm_a,
 }
 
 bool
-emap_register_boundary(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
-    edata_t *edata, szind_t szind, bool slab) {
+emap_register_boundary(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
+    szind_t szind, bool slab) {
+	EMAP_DECLARE_RTREE_CTX;
+
 	rtree_leaf_elm_t *elm_a, *elm_b;
 	bool err = emap_rtree_leaf_elms_lookup(tsdn, emap, rtree_ctx, edata,
 	    false, true, &elm_a, &elm_b);
@@ -150,8 +162,10 @@ emap_register_boundary(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
 }
 
 void
-emap_register_interior(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
-    edata_t *edata, szind_t szind) {
+emap_register_interior(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
+    szind_t szind) {
+	EMAP_DECLARE_RTREE_CTX;
+
 	assert(edata_slab_get(edata));
 
 	/* Register interior. */
@@ -163,8 +177,8 @@ emap_register_interior(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
 }
 
 void
-emap_deregister_boundary(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
-    edata_t *edata) {
+emap_deregister_boundary(tsdn_t *tsdn, emap_t *emap, edata_t *edata) {
+	EMAP_DECLARE_RTREE_CTX;
 	rtree_leaf_elm_t *elm_a, *elm_b;
 
 	emap_rtree_leaf_elms_lookup(tsdn, emap, rtree_ctx, edata,
@@ -174,8 +188,9 @@ emap_deregister_boundary(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
 }
 
 void
-emap_deregister_interior(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
-    edata_t *edata) {
+emap_deregister_interior(tsdn_t *tsdn, emap_t *emap, edata_t *edata) {
+	EMAP_DECLARE_RTREE_CTX;
+
 	assert(edata_slab_get(edata));
 	for (size_t i = 1; i < (edata_size_get(edata) >> LG_PAGE) - 1; i++) {
 		rtree_clear(tsdn, &emap->rtree, rtree_ctx,
@@ -184,10 +199,29 @@ emap_deregister_interior(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
 	}
 }
 
+void emap_remap(tsdn_t *tsdn, emap_t *emap, edata_t *edata, size_t size,
+    szind_t szind, bool slab) {
+	EMAP_DECLARE_RTREE_CTX;
+
+	edata_szind_set(edata, szind);
+	if (szind != SC_NSIZES) {
+		rtree_szind_slab_update(tsdn, &emap->rtree, rtree_ctx,
+		    (uintptr_t)edata_addr_get(edata), szind, slab);
+		if (slab && edata_size_get(edata) > PAGE) {
+			rtree_szind_slab_update(tsdn,
+			    &emap->rtree, rtree_ctx,
+			    (uintptr_t)edata_past_get(edata) - (uintptr_t)PAGE,
+			    szind, slab);
+			}
+		}
+
+}
+
 bool
-emap_split_prepare(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
-    emap_prepare_t *prepare, edata_t *edata, size_t size_a, szind_t szind_a,
-    bool slab_a, edata_t *trail, size_t size_b, szind_t szind_b, bool slab_b) {
+emap_split_prepare(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
+    edata_t *edata, size_t size_a, szind_t szind_a, bool slab_a, edata_t *trail,
+    size_t size_b, szind_t szind_b, bool slab_b) {
+	EMAP_DECLARE_RTREE_CTX;
 	/*
 	 * Note that while the trail mostly inherits its attributes from the
 	 * extent to be split, it maintains its own arena ind -- this allows
@@ -234,8 +268,9 @@ emap_split_commit(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
 }
 
 void
-emap_merge_prepare(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
-    emap_prepare_t *prepare, edata_t *lead, edata_t *trail) {
+emap_merge_prepare(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
+    edata_t *lead, edata_t *trail) {
+	EMAP_DECLARE_RTREE_CTX;
 	emap_rtree_leaf_elms_lookup(tsdn, emap, rtree_ctx, lead, true, false,
 	    &prepare->lead_elm_a, &prepare->lead_elm_b);
 	emap_rtree_leaf_elms_lookup(tsdn, emap, rtree_ctx, trail, true, false,
@@ -268,4 +303,12 @@ emap_merge_commit(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
 
 	emap_rtree_write_acquired(tsdn, emap, prepare->lead_elm_a, merged_b,
 	    lead, SC_NSIZES, false);
+}
+
+void
+emap_do_assert_mapped(tsdn_t *tsdn, emap_t *emap, edata_t *edata) {
+	EMAP_DECLARE_RTREE_CTX;
+
+	assert(rtree_edata_read(tsdn, &emap->rtree, rtree_ctx,
+	    (uintptr_t)edata_base_get(edata), true) == edata);
 }
