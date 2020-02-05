@@ -381,6 +381,197 @@ TEST_END
 
 #undef NTH_REQ_SIZE
 
+#define DUMP_OUT_SIZE 4096
+static char dump_out[DUMP_OUT_SIZE];
+static size_t dump_out_len = 0;
+
+static void test_dump_write_cb(void *not_used, const char *str) {
+	size_t len = strlen(str);
+	assert(dump_out_len + len < DUMP_OUT_SIZE);
+	memcpy(dump_out + dump_out_len, str, len + 1);
+	dump_out_len += len;
+}
+
+static void call_dump() {
+	static void *in[2] = {test_dump_write_cb, NULL};
+	dump_out_len = 0;
+	assert_d_eq(mallctl("experimental.prof_recent.alloc_dump",
+	    NULL, NULL, in, sizeof(in)), 0, "Dump mallctl raised error");
+}
+
+typedef struct {
+	size_t size;
+	bool released;
+} confirm_record_t;
+
+#define DUMP_ERROR "Dump output is wrong"
+
+static void confirm_record(const char *template,
+    const confirm_record_t *records, const size_t n_records) {
+	static const char *types[2] = {"alloc", "dalloc"};
+	static char buf[64];
+
+	/*
+	 * The template string would be in the form of:
+	 * "{\"recent_alloc_max\":XYZ,\"recent_alloc\":[]}",
+	 * and dump_out would be in the form of:
+	 * "{\"recent_alloc_max\":XYZ,\"recent_alloc\":[...]}".
+	 * Using "- 2" serves to cut right before the ending "]}".
+	 */
+	assert_d_eq(memcmp(dump_out, template, strlen(template) - 2), 0,
+	    DUMP_ERROR);
+	assert_d_eq(memcmp(dump_out + strlen(dump_out) - 2,
+	    template + strlen(template) - 2, 2), 0, DUMP_ERROR);
+
+	const char *start = dump_out + strlen(template) - 2;
+	const char *end = dump_out + strlen(dump_out) - 2;
+	const confirm_record_t *record;
+	for (record = records; record < records + n_records; ++record) {
+
+#define ASSERT_CHAR(c) do {						\
+	assert_true(start < end, DUMP_ERROR);				\
+	assert_c_eq(*start++, c, DUMP_ERROR);				\
+} while (0)
+
+#define ASSERT_STR(s) do {						\
+	const size_t len = strlen(s);					\
+	assert_true(start + len <= end, DUMP_ERROR);			\
+	assert_d_eq(memcmp(start, s, len), 0, DUMP_ERROR);		\
+	start += len;							\
+} while (0)
+
+#define ASSERT_FORMATTED_STR(s, ...) do {				\
+	malloc_snprintf(buf, sizeof(buf), s, __VA_ARGS__);		\
+	ASSERT_STR(buf);						\
+} while (0)
+
+		if (record != records) {
+			ASSERT_CHAR(',');
+		}
+
+		ASSERT_CHAR('{');
+
+		ASSERT_STR("\"size\"");
+		ASSERT_CHAR(':');
+		ASSERT_FORMATTED_STR("%zu", record->size);
+		ASSERT_CHAR(',');
+
+		ASSERT_STR("\"usize\"");
+		ASSERT_CHAR(':');
+		ASSERT_FORMATTED_STR("%zu", sz_s2u(record->size));
+		ASSERT_CHAR(',');
+
+		ASSERT_STR("\"released\"");
+		ASSERT_CHAR(':');
+		ASSERT_STR(record->released ? "true" : "false");
+		ASSERT_CHAR(',');
+
+		const char **type = types;
+		while (true) {
+			ASSERT_FORMATTED_STR("\"%s_thread_uid\"", *type);
+			ASSERT_CHAR(':');
+			while (isdigit(*start)) {
+				++start;
+			}
+			ASSERT_CHAR(',');
+
+			ASSERT_FORMATTED_STR("\"%s_time\"", *type);
+			ASSERT_CHAR(':');
+			while (isdigit(*start)) {
+				++start;
+			}
+			ASSERT_CHAR(',');
+
+			ASSERT_FORMATTED_STR("\"%s_trace\"", *type);
+			ASSERT_CHAR(':');
+			ASSERT_CHAR('[');
+			while (isdigit(*start) || *start == 'x' ||
+			    (*start >= 'a' && *start <= 'f') ||
+			    *start == '\"' || *start == ',') {
+				++start;
+			}
+			ASSERT_CHAR(']');
+
+			if (strcmp(*type, "dalloc") == 0) {
+				break;
+			}
+
+			assert(strcmp(*type, "alloc") == 0);
+			if (!record->released) {
+				break;
+			}
+
+			ASSERT_CHAR(',');
+			++type;
+		}
+
+		ASSERT_CHAR('}');
+
+#undef ASSERT_FORMATTED_STR
+#undef ASSERT_STR
+#undef ASSERT_CHAR
+
+	}
+	assert_ptr_eq(record, records + n_records, DUMP_ERROR);
+	assert_ptr_eq(start, end, DUMP_ERROR);
+}
+
+TEST_BEGIN(test_prof_recent_alloc_dump) {
+	test_skip_if(!config_prof);
+
+	tsd_t *tsd = tsd_fetch();
+	confirm_prof_setup(tsd);
+
+	ssize_t future;
+	void *p, *q;
+	confirm_record_t records[2];
+
+	future = 0;
+	assert_d_eq(mallctl("experimental.prof_recent.alloc_max",
+	    NULL, NULL, &future, sizeof(ssize_t)), 0, "Write error");
+	call_dump();
+	assert_str_eq(dump_out, "{\"recent_alloc_max\":0,\"recent_alloc\":[]}",
+	    DUMP_ERROR);
+
+	future = 2;
+	assert_d_eq(mallctl("experimental.prof_recent.alloc_max",
+	    NULL, NULL, &future, sizeof(ssize_t)), 0, "Write error");
+	call_dump();
+	const char *template = "{\"recent_alloc_max\":2,\"recent_alloc\":[]}";
+	assert_str_eq(dump_out, template, DUMP_ERROR);
+
+	p = malloc(7);
+	call_dump();
+	records[0].size = 7;
+	records[0].released = false;
+	confirm_record(template, records, 1);
+
+	q = malloc(17);
+	call_dump();
+	records[1].size = 17;
+	records[1].released = false;
+	confirm_record(template, records, 2);
+
+	free(q);
+	call_dump();
+	records[1].released = true;
+	confirm_record(template, records, 2);
+
+	free(p);
+	call_dump();
+	records[0].released = true;
+	confirm_record(template, records, 2);
+
+	future = OPT_ALLOC_MAX;
+	assert_d_eq(mallctl("experimental.prof_recent.alloc_max",
+	    NULL, NULL, &future, sizeof(ssize_t)), 0, "Write error");
+	confirm_prof_setup(tsd);
+}
+TEST_END
+
+#undef DUMP_ERROR
+#undef DUMP_OUT_SIZE
+
 #define N_THREADS 16
 #define N_PTRS 512
 #define N_CTLS 8
@@ -500,5 +691,6 @@ main(void) {
 	    test_prof_recent_off,
 	    test_prof_recent_on,
 	    test_prof_recent_alloc,
+	    test_prof_recent_alloc_dump,
 	    test_prof_recent_stress);
 }

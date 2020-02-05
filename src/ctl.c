@@ -237,6 +237,7 @@ CTL_PROTO(experimental_utilization_batch_query)
 CTL_PROTO(experimental_arenas_i_pactivep)
 INDEX_PROTO(experimental_arenas_i)
 CTL_PROTO(experimental_prof_recent_alloc_max)
+CTL_PROTO(experimental_prof_recent_alloc_dump)
 
 #define MUTEX_STATS_CTL_PROTO_GEN(n)					\
 CTL_PROTO(stats_##n##_num_ops)						\
@@ -631,6 +632,7 @@ static const ctl_indexed_node_t experimental_arenas_node[] = {
 
 static const ctl_named_node_t experimental_prof_recent_node[] = {
 	{NAME("alloc_max"),	CTL(experimental_prof_recent_alloc_max)},
+	{NAME("alloc_dump"),	CTL(experimental_prof_recent_alloc_dump)},
 };
 
 static const ctl_named_node_t experimental_node[] = {
@@ -3543,6 +3545,37 @@ experimental_prof_recent_alloc_max_ctl(tsd_t *tsd, const size_t *mib,
 		old_max = prof_recent_alloc_max_ctl_read();
 	}
 	READ(old_max, ssize_t);
+
+	ret = 0;
+
+label_return:
+	return ret;
+}
+
+typedef struct write_cb_packet_s write_cb_packet_t;
+struct write_cb_packet_s {
+	void (*write_cb)(void *, const char *);
+	void *cbopaque;
+};
+
+static int
+experimental_prof_recent_alloc_dump_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+
+	if (!(config_prof && opt_prof)) {
+		ret = ENOENT;
+		goto label_return;
+	}
+
+	assert(sizeof(write_cb_packet_t) == sizeof(void *) * 2);
+
+	WRITEONLY();
+	write_cb_packet_t write_cb_packet;
+	ASSURED_WRITE(write_cb_packet, write_cb_packet_t);
+
+	prof_recent_alloc_dump(tsd, write_cb_packet.write_cb,
+	    write_cb_packet.cbopaque);
 
 	ret = 0;
 
