@@ -15,25 +15,20 @@ extern emap_t emap_global;
 
 bool emap_init(emap_t *emap);
 
+/*
+ * Grab the lock or locks associated with the edata or edatas indicated (which
+ * is done just by simple address hashing).  The hashing strategy means that
+ * it's never safe to grab locks incrementally -- you have to grab all the locks
+ * you'll need at once, and release them all at once.
+ */
 void emap_lock_edata(tsdn_t *tsdn, emap_t *emap, edata_t *edata);
 void emap_unlock_edata(tsdn_t *tsdn, emap_t *emap, edata_t *edata);
-
 void emap_lock_edata2(tsdn_t *tsdn, emap_t *emap, edata_t *edata1,
     edata_t *edata2);
 void emap_unlock_edata2(tsdn_t *tsdn, emap_t *emap, edata_t *edata1,
     edata_t *edata2);
-
 edata_t *emap_lock_edata_from_addr(tsdn_t *tsdn, emap_t *emap,
     rtree_ctx_t *rtree_ctx, void *addr, bool inactive_only);
-
-bool emap_rtree_leaf_elms_lookup(tsdn_t *tsdn, emap_t *emap,
-    rtree_ctx_t *rtree_ctx, const edata_t *edata, bool dependent,
-    bool init_missing, rtree_leaf_elm_t **r_elm_a, rtree_leaf_elm_t **r_elm_b);
-
-/* Only temporarily public; this will be internal eventually. */
-void emap_rtree_write_acquired(tsdn_t *tsdn, emap_t *emap,
-    rtree_leaf_elm_t *elm_a, rtree_leaf_elm_t *elm_b, edata_t *edata,
-    szind_t szind, bool slab);
 
 /*
  * Associate the given edata with its beginning and end address, setting the
@@ -78,6 +73,22 @@ struct emap_prepare_s {
 	rtree_leaf_elm_t *trail_elm_b;
 };
 
+/**
+ * These functions do some of the metadata management for merging and splitting
+ * extents.  In particular, they set the mappings from addresses to edatas and
+ * fill in lead and trail.
+ *
+ * Each operation has a "prepare" and a "commit" portion.  The prepare portion
+ * does the operations that can be done without exclusive access to the extent
+ * in question, while the commit variant requires exclusive access to maintain
+ * the emap invariants.  The only function that can fail is emap_split_prepare,
+ * and it returns true on failure (at which point the caller shouldn't commit).
+ *
+ * In all cases, "lead" refers to the lower-addressed extent, and trail to the
+ * higher-addressed one.  Trail can contain garbage (except for its arena_ind
+ * and esn values) data for the split variants, and can be reused for any
+ * purpose by its given arena after a merge or a failed split.
+ */
 bool emap_split_prepare(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
     emap_prepare_t *prepare, edata_t *edata, size_t size_a, szind_t szind_a,
     bool slab_a, edata_t *trail, size_t size_b, szind_t szind_b, bool slab_b);
