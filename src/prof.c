@@ -148,7 +148,7 @@ prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated) {
 void
 prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t size,
     size_t usize, prof_tctx_t *tctx) {
-	edata_t *edata = iealloc(tsd_tsdn(tsd), ptr);
+	edata_t *edata = emap_lookup(tsd_tsdn(tsd), &emap_global, ptr);
 	prof_info_set(tsd, edata, tctx);
 
 	malloc_mutex_lock(tsd_tsdn(tsd), tctx->tdata->lock);

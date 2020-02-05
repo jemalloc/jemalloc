@@ -112,4 +112,13 @@ emap_assert_mapped(tsdn_t *tsdn, emap_t *emap, edata_t *edata) {
 	}
 }
 
+JEMALLOC_ALWAYS_INLINE edata_t *
+emap_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr) {
+	rtree_ctx_t rtree_ctx_fallback;
+	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
+
+	return rtree_edata_read(tsdn, &emap->rtree, rtree_ctx, (uintptr_t)ptr,
+	    true);
+}
+
 #endif /* JEMALLOC_INTERNAL_EMAP_H */

@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_ARENA_INLINES_B_H
 #define JEMALLOC_INTERNAL_ARENA_INLINES_B_H
 
+#include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/rtree.h"
@@ -47,10 +48,10 @@ arena_prof_info_get(tsd_t *tsd, const void *ptr, alloc_ctx_t *alloc_ctx,
 
 	/* Static check. */
 	if (alloc_ctx == NULL) {
-		edata = iealloc(tsd_tsdn(tsd), ptr);
+		edata = emap_lookup(tsd_tsdn(tsd), &emap_global, ptr);
 		is_slab = edata_slab_get(edata);
 	} else if (unlikely(!(is_slab = alloc_ctx->slab))) {
-		edata = iealloc(tsd_tsdn(tsd), ptr);
+		edata = emap_lookup(tsd_tsdn(tsd), &emap_global, ptr);
 	}
 
 	if (unlikely(!is_slab)) {
@@ -73,13 +74,15 @@ arena_prof_tctx_reset(tsd_t *tsd, const void *ptr, alloc_ctx_t *alloc_ctx) {
 
 	/* Static check. */
 	if (alloc_ctx == NULL) {
-		edata_t *edata = iealloc(tsd_tsdn(tsd), ptr);
+		edata_t *edata = emap_lookup(tsd_tsdn(tsd), &emap_global, ptr);
 		if (unlikely(!edata_slab_get(edata))) {
 			large_prof_tctx_reset(edata);
 		}
 	} else {
 		if (unlikely(!alloc_ctx->slab)) {
-			large_prof_tctx_reset(iealloc(tsd_tsdn(tsd), ptr));
+			edata_t *edata = emap_lookup(tsd_tsdn(tsd),
+			    &emap_global, ptr);
+			large_prof_tctx_reset(edata);
 		}
 	}
 }
@@ -89,7 +92,7 @@ arena_prof_tctx_reset_sampled(tsd_t *tsd, const void *ptr) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 
-	edata_t *edata = iealloc(tsd_tsdn(tsd), ptr);
+	edata_t *edata = emap_lookup(tsd_tsdn(tsd), &emap_global, ptr);
 	assert(!edata_slab_get(edata));
 
 	large_prof_tctx_reset(edata);
@@ -177,8 +180,9 @@ arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind, bool zero,
 
 JEMALLOC_ALWAYS_INLINE arena_t *
 arena_aalloc(tsdn_t *tsdn, const void *ptr) {
-	return (arena_t *)atomic_load_p(&arenas[edata_arena_ind_get(
-	    iealloc(tsdn, ptr))], ATOMIC_RELAXED);
+	edata_t *edata = emap_lookup(tsdn, &emap_global, ptr);
+	unsigned arena_ind = edata_arena_ind_get(edata);
+	return (arena_t *)atomic_load_p(&arenas[arena_ind], ATOMIC_RELAXED);
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
@@ -233,7 +237,7 @@ arena_dalloc_large_no_tcache(tsdn_t *tsdn, void *ptr, szind_t szind) {
 	if (config_prof && unlikely(szind < SC_NBINS)) {
 		arena_dalloc_promoted(tsdn, ptr, NULL, true);
 	} else {
-		edata_t *edata = iealloc(tsdn, ptr);
+		edata_t *edata = emap_lookup(tsdn, &emap_global, ptr);
 		large_dalloc(tsdn, edata);
 	}
 }
@@ -277,7 +281,7 @@ arena_dalloc_large(tsdn_t *tsdn, void *ptr, tcache_t *tcache, szind_t szind,
 			    slow_path);
 		}
 	} else {
-		edata_t *edata = iealloc(tsdn, ptr);
+		edata_t *edata = emap_lookup(tsdn, &emap_global, ptr);
 		large_dalloc(tsdn, edata);
 	}
 }

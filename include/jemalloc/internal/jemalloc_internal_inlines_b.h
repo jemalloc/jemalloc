@@ -1,9 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_INLINES_B_H
 #define JEMALLOC_INTERNAL_INLINES_B_H
 
-#include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/extent.h"
-#include "jemalloc/internal/rtree.h"
 
 /* Choose an arena based on a per-thread value. */
 static inline arena_t *
@@ -75,15 +73,6 @@ arena_is_auto(arena_t *arena) {
 	assert(narenas_auto > 0);
 
 	return (arena_ind_get(arena) < manual_arena_base);
-}
-
-JEMALLOC_ALWAYS_INLINE edata_t *
-iealloc(tsdn_t *tsdn, const void *ptr) {
-	rtree_ctx_t rtree_ctx_fallback;
-	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
-
-	return rtree_edata_read(tsdn, &emap_global.rtree, rtree_ctx,
-	    (uintptr_t)ptr, true);
 }
 
 #endif /* JEMALLOC_INTERNAL_INLINES_B_H */

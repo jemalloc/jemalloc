@@ -3423,7 +3423,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	 * object associated with the ptr (though the content of the edata_t
 	 * object can be changed).
 	 */
-	edata_t *old_edata = iealloc(tsd_tsdn(tsd), ptr);
+	edata_t *old_edata = emap_lookup(tsd_tsdn(tsd), &emap_global, ptr);
 
 	alloc_ctx_t alloc_ctx;
 	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
@@ -3462,7 +3462,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	 * xallocx() should keep using the same edata_t object (though its
 	 * content can be changed).
 	 */
-	assert(iealloc(tsd_tsdn(tsd), ptr) == old_edata);
+	assert(emap_lookup(tsd_tsdn(tsd), &emap_global, ptr) == old_edata);
 
 	if (unlikely(usize == old_usize)) {
 		te_alloc_rollback(tsd, usize);

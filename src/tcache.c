@@ -160,7 +160,8 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 		    item_edata);
 	} else {
 		for (unsigned i = 0 ; i < nflush; i++) {
-			item_edata[i] = iealloc(tsdn, *(bottom_item - i));
+			item_edata[i] = emap_lookup(tsd_tsdn(tsd), &emap_global,
+			    *(bottom_item - i));
 		}
 	}
 
@@ -258,7 +259,8 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin, szind_t 
 #ifndef JEMALLOC_EXTRA_SIZE_CHECK
 	/* Look up edata once per item. */
 	for (unsigned i = 0 ; i < nflush; i++) {
-		item_edata[i] = iealloc(tsd_tsdn(tsd), *(bottom_item - i));
+		item_edata[i] = emap_lookup(tsd_tsdn(tsd), &emap_global,
+		    *(bottom_item - i));
 	}
 #else
 	tbin_extents_lookup_size_check(tsd_tsdn(tsd), tbin, binind, nflush,

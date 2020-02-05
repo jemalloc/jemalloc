@@ -1637,7 +1637,7 @@ arena_dalloc_promoted(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 	cassert(config_prof);
 	assert(opt_prof);
 
-	edata_t *edata = iealloc(tsdn, ptr);
+	edata_t *edata = emap_lookup(tsdn, &emap_global, ptr);
 	size_t usize = edata_usize_get(edata);
 	size_t bumped_usize = arena_prof_demote(tsdn, edata, ptr);
 	if (config_opt_safety_checks && usize < SC_LARGE_MINCLASS) {
@@ -1769,7 +1769,7 @@ arena_dalloc_bin(tsdn_t *tsdn, arena_t *arena, edata_t *edata, void *ptr) {
 
 void
 arena_dalloc_small(tsdn_t *tsdn, void *ptr) {
-	edata_t *edata = iealloc(tsdn, ptr);
+	edata_t *edata = emap_lookup(tsdn, &emap_global, ptr);
 	arena_t *arena = arena_get_from_edata(edata);
 
 	arena_dalloc_bin(tsdn, arena, edata, ptr);
@@ -1783,7 +1783,7 @@ arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
 	/* Calls with non-zero extra had to clamp extra. */
 	assert(extra == 0 || size + extra <= SC_LARGE_MAXCLASS);
 
-	edata_t *edata = iealloc(tsdn, ptr);
+	edata_t *edata = emap_lookup(tsdn, &emap_global, ptr);
 	if (unlikely(size > SC_LARGE_MAXCLASS)) {
 		ret = true;
 		goto done;
@@ -1817,7 +1817,7 @@ arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
 		ret = true;
 	}
 done:
-	assert(edata == iealloc(tsdn, ptr));
+	assert(edata == emap_lookup(tsdn, &emap_global, ptr));
 	*newsize = edata_usize_get(edata);
 
 	return ret;
