@@ -3,10 +3,10 @@
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/prof_recent.h"
-#include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/util.h"
 
 /******************************************************************************/
@@ -175,12 +175,9 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
 		extent_dalloc_wrapper(tsdn, arena, ehooks, trail);
 		return true;
 	}
-	rtree_ctx_t rtree_ctx_fallback;
-	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
+
 	szind_t szind = sz_size2index(usize);
-	edata_szind_set(edata, szind);
-	rtree_szind_slab_update(tsdn, &emap_global.rtree, rtree_ctx,
-	    (uintptr_t)edata_addr_get(edata), szind, false);
+	emap_remap(tsdn, &emap_global, edata, szind, false);
 
 	if (config_stats && new_mapping) {
 		arena_stats_mapped_add(tsdn, &arena->stats, trailsize);

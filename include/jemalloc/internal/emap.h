@@ -79,7 +79,13 @@ struct emap_prepare_s {
  * is going to be used as a slab, you still need to call emap_register_interior
  * on it, though.
  *
- * Each operation has a "prepare" and a "commit" portion.  The prepare portion
+ * Remap simply changes the szind and slab status of an extent's boundary
+ * mappings.  If the extent is not a slab, it doesn't bother with updating the
+ * end mapping (since lookups only occur in the interior of an extent for
+ * slabs).  Since the szind and slab status only make sense for active extents,
+ * this should only be called while activating or deactivating an extent.
+ *
+ * Split and merge have a "prepare" and a "commit" portion.  The prepare portion
  * does the operations that can be done without exclusive access to the extent
  * in question, while the commit variant requires exclusive access to maintain
  * the emap invariants.  The only function that can fail is emap_split_prepare,
@@ -90,8 +96,8 @@ struct emap_prepare_s {
  * and esn values) data for the split variants, and can be reused for any
  * purpose by its given arena after a merge or a failed split.
  */
-void emap_remap(tsdn_t *tsdn, emap_t *emap, edata_t *edata, size_t size,
-    szind_t szind, bool slab);
+void emap_remap(tsdn_t *tsdn, emap_t *emap, edata_t *edata, szind_t szind,
+    bool slab);
 bool emap_split_prepare(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
     edata_t *edata, size_t size_a, szind_t szind_a, bool slab_a, edata_t *trail,
     size_t size_b, szind_t szind_b, bool slab_b);

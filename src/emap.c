@@ -199,14 +199,26 @@ emap_deregister_interior(tsdn_t *tsdn, emap_t *emap, edata_t *edata) {
 	}
 }
 
-void emap_remap(tsdn_t *tsdn, emap_t *emap, edata_t *edata, size_t size,
-    szind_t szind, bool slab) {
+void emap_remap(tsdn_t *tsdn, emap_t *emap, edata_t *edata, szind_t szind,
+    bool slab) {
 	EMAP_DECLARE_RTREE_CTX;
 
 	edata_szind_set(edata, szind);
 	if (szind != SC_NSIZES) {
 		rtree_szind_slab_update(tsdn, &emap->rtree, rtree_ctx,
 		    (uintptr_t)edata_addr_get(edata), szind, slab);
+		/*
+		 * Recall that this is called only for active->inactive and
+		 * inactive->active transitions (since only active extents have
+		 * meaningful values for szind and slab).  Active, non-slab
+		 * extents only need to handle lookups at their head (on
+		 * deallocation), so we don't bother filling in the end
+		 * boundary.
+		 *
+		 * For slab extents, we do the end-mapping change.  This still
+		 * leaves the interior unmodified; an emap_register_interior
+		 * call is coming in those cases, though.
+		 */
 		if (slab && edata_size_get(edata) > PAGE) {
 			rtree_szind_slab_update(tsdn,
 			    &emap->rtree, rtree_ctx,
