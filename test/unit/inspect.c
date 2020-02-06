@@ -1,11 +1,11 @@
 #include "test/jemalloc_test.h"
 
 #define TEST_UTIL_EINVAL(node, a, b, c, d, why_inval) do {		\
-	expect_d_eq(mallctl("experimental.utilization." node,		\
+	assert_d_eq(mallctl("experimental.utilization." node,		\
 	    a, b, c, d), EINVAL, "Should fail when " why_inval);	\
-	expect_zu_eq(out_sz, out_sz_ref,				\
+	assert_zu_eq(out_sz, out_sz_ref,				\
 	    "Output size touched when given invalid arguments");	\
-	expect_d_eq(memcmp(out, out_ref, out_sz_ref), 0,		\
+	assert_d_eq(memcmp(out, out_ref, out_sz_ref), 0,		\
 	    "Output content touched when given invalid arguments");	\
 } while (0)
 
@@ -15,7 +15,7 @@
 	TEST_UTIL_EINVAL("batch_query", a, b, c, d, why_inval)
 
 #define TEST_UTIL_VALID(node) do {					\
-        expect_d_eq(mallctl("experimental.utilization." node,		\
+        assert_d_eq(mallctl("experimental.utilization." node,		\
 	    out, &out_sz, in, in_sz), 0,				\
 	    "Should return 0 on correct arguments");			\
         expect_zu_eq(out_sz, out_sz_ref, "incorrect output size");	\
@@ -43,11 +43,11 @@ TEST_BEGIN(test_query) {
 		void *out_ref = mallocx(out_sz, 0);
 		size_t out_sz_ref = out_sz;
 
-		expect_ptr_not_null(p,
+		assert_ptr_not_null(p,
 		    "test pointer allocation failed");
-		expect_ptr_not_null(out,
+		assert_ptr_not_null(out,
 		    "test output allocation failed");
-		expect_ptr_not_null(out_ref,
+		assert_ptr_not_null(out_ref,
 		    "test reference output allocation failed");
 
 #define SLABCUR_READ(out) (*(void **)out)
@@ -174,8 +174,8 @@ TEST_BEGIN(test_batch) {
 		size_t out_ref[] = {-1, -1, -1, -1, -1, -1};
 		size_t out_sz_ref = out_sz;
 
-		expect_ptr_not_null(p, "test pointer allocation failed");
-		expect_ptr_not_null(q, "test pointer allocation failed");
+		assert_ptr_not_null(p, "test pointer allocation failed");
+		assert_ptr_not_null(q, "test pointer allocation failed");
 
 		/* Test invalid argument(s) errors */
 		TEST_UTIL_BATCH_EINVAL(NULL, &out_sz, in, in_sz,
@@ -201,7 +201,7 @@ TEST_BEGIN(test_batch) {
 
 	/* Examine output for valid calls */
 #define TEST_EQUAL_REF(i, message) \
-	expect_d_eq(memcmp(out + (i) * 3, out_ref + (i) * 3, 3), 0, message)
+	assert_d_eq(memcmp(out + (i) * 3, out_ref + (i) * 3, 3), 0, message)
 
 #define NFREE_READ(out, i) out[(i) * 3]
 #define NREGS_READ(out, i) out[(i) * 3 + 1]
@@ -261,7 +261,7 @@ TEST_END
 
 int
 main(void) {
-	expect_zu_lt(SC_SMALL_MAXCLASS, TEST_MAX_SIZE,
+	assert_zu_lt(SC_SMALL_MAXCLASS + 100000, TEST_MAX_SIZE,
 	    "Test case cannot cover large classes");
 	return test(test_query, test_batch);
 }
