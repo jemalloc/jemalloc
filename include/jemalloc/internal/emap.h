@@ -145,4 +145,19 @@ emap_alloc_info_lookup(tsdn_t *tsdn, emap_t *emap, void *ptr,
 	    true, &alloc_ctx->szind, &alloc_ctx->slab);
 }
 
+/*
+ * Fills in alloc_ctx, but only if it can be done easily (i.e. with a hit in the
+ * L1 rtree cache.
+ *
+ * Returns whether or not alloc_ctx was filled in.
+ */
+JEMALLOC_ALWAYS_INLINE bool
+emap_alloc_info_try_lookup_fast(tsd_t *tsd, emap_t *emap, void *ptr,
+    alloc_ctx_t *alloc_ctx) {
+	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
+	bool res = rtree_szind_slab_read_fast(tsd_tsdn(tsd), &emap->rtree,
+	    rtree_ctx, (uintptr_t)ptr, &alloc_ctx->szind, &alloc_ctx->slab);
+	return res;
+}
+
 #endif /* JEMALLOC_INTERNAL_EMAP_H */

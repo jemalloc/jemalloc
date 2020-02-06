@@ -2688,26 +2688,24 @@ free_default(void *ptr) {
 	}
 }
 
+/* Returns whether or not the free attempt was successful. */
 JEMALLOC_ALWAYS_INLINE
 bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 	tsd_t *tsd = tsd_get(false);
 
-	szind_t szind;
+	alloc_ctx_t alloc_ctx;
 	if (!size_hint) {
-		if (unlikely(!tsd || !tsd_fast(tsd))) {
+		if (unlikely(tsd == NULL || !tsd_fast(tsd))) {
 			return false;
 		}
-		bool slab;
-		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
-		bool res = rtree_szind_slab_read_fast(tsd_tsdn(tsd),
-		    &emap_global.rtree, rtree_ctx, (uintptr_t)ptr, &szind,
-		    &slab);
+		bool res = emap_alloc_info_try_lookup_fast(tsd, &emap_global,
+		    ptr, &alloc_ctx);
 
 		/* Note: profiled objects will have alloc_ctx.slab set */
-		if (unlikely(!res || !slab)) {
+		if (unlikely(!res || !alloc_ctx.slab)) {
 			return false;
 		}
-		assert(szind != SC_NSIZES);
+		assert(alloc_ctx.szind != SC_NSIZES);
 	} else {
 		/*
 		 * The size hinted fastpath does not involve rtree lookup, thus
@@ -2715,7 +2713,7 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 		 * check to be folded into the branch testing fast_threshold
 		 * (set to 0 when !tsd_fast).
 		 */
-		if (unlikely(!tsd)) {
+		if (unlikely(tsd == NULL)) {
 			return false;
 		}
 		/*
@@ -2727,12 +2725,13 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 		    (config_prof && prof_sample_aligned(ptr)))) {
 			return false;
 		}
-		szind = sz_size2index_lookup(size);
+		alloc_ctx.szind = sz_size2index_lookup(size);
+		alloc_ctx.slab = false;
 	}
 	uint64_t deallocated, threshold;
 	te_free_fastpath_ctx(tsd, &deallocated, &threshold, size_hint);
 
-	size_t usize = sz_index2size(szind);
+	size_t usize = sz_index2size(alloc_ctx.szind);
 	uint64_t deallocated_after = deallocated + usize;
 	/*
 	 * Check for events and tsd non-nominal (fast_threshold will be set to
@@ -2743,7 +2742,7 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 	}
 
 	tcache_t *tcache = tsd_tcachep_get(tsd);
-	cache_bin_t *bin = tcache_small_bin_get(tcache, szind);
+	cache_bin_t *bin = tcache_small_bin_get(tcache, alloc_ctx.szind);
 	if (!cache_bin_dalloc_easy(bin, ptr)) {
 		return false;
 	}
@@ -3143,9 +3142,7 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 	}
 
 	alloc_ctx_t alloc_ctx;
-	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
-	rtree_szind_slab_read(tsd_tsdn(tsd), &emap_global.rtree, rtree_ctx,
-	    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
+	emap_alloc_info_lookup(tsd_tsdn(tsd), &emap_global, ptr, &alloc_ctx);
 	assert(alloc_ctx.szind != SC_NSIZES);
 	old_usize = sz_index2size(alloc_ctx.szind);
 	assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
@@ -3422,9 +3419,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	edata_t *old_edata = emap_lookup(tsd_tsdn(tsd), &emap_global, ptr);
 
 	alloc_ctx_t alloc_ctx;
-	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
-	rtree_szind_slab_read(tsd_tsdn(tsd), &emap_global.rtree, rtree_ctx,
-	    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
+	emap_alloc_info_lookup(tsd_tsdn(tsd), &emap_global, ptr, &alloc_ctx);
 	assert(alloc_ctx.szind != SC_NSIZES);
 	old_usize = sz_index2size(alloc_ctx.szind);
 	assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
