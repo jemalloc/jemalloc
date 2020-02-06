@@ -11,6 +11,13 @@ struct emap_s {
 	mutex_pool_t mtx_pool;
 };
 
+/* Used to pass rtree lookup context down the path. */
+typedef struct alloc_ctx_t alloc_ctx_t;
+struct alloc_ctx_t {
+	szind_t szind;
+	bool slab;
+};
+
 extern emap_t emap_global;
 
 bool emap_init(emap_t *emap);
@@ -125,6 +132,17 @@ emap_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr) {
 
 	return rtree_edata_read(tsdn, &emap->rtree, rtree_ctx, (uintptr_t)ptr,
 	    true);
+}
+
+/* Fills in alloc_ctx with the info in the map. */
+JEMALLOC_ALWAYS_INLINE void
+emap_alloc_info_lookup(tsdn_t *tsdn, emap_t *emap, void *ptr,
+    alloc_ctx_t *alloc_ctx) {
+	rtree_ctx_t rtree_ctx_fallback;
+	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
+
+	rtree_szind_slab_read(tsdn, &emap->rtree, rtree_ctx, (uintptr_t)ptr,
+	    true, &alloc_ctx->szind, &alloc_ctx->slab);
 }
 
 #endif /* JEMALLOC_INTERNAL_EMAP_H */
