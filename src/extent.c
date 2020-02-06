@@ -516,7 +516,7 @@ extent_split_interior(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	}
 
 	if (leadsize == 0 && trailsize == 0) {
-		emap_remap(tsdn, &emap_global, *edata, size, szind, slab);
+		emap_remap(tsdn, &emap_global, *edata, szind, slab);
 	}
 
 	return extent_split_interior_ok;

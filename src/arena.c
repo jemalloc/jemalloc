@@ -1599,16 +1599,10 @@ arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize) {
 		safety_check_set_redzone(ptr, usize, SC_LARGE_MINCLASS);
 	}
 
-	rtree_ctx_t rtree_ctx_fallback;
-	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
-
-	edata_t *edata = rtree_edata_read(tsdn, &emap_global.rtree, rtree_ctx,
-	    (uintptr_t)ptr, true);
+	edata_t *edata = emap_lookup(tsdn, &emap_global, ptr);
 
 	szind_t szind = sz_size2index(usize);
-	edata_szind_set(edata, szind);
-	rtree_szind_slab_update(tsdn, &emap_global.rtree, rtree_ctx,
-	    (uintptr_t)ptr, szind, false);
+	emap_remap(tsdn, &emap_global, edata, szind, false);
 
 	prof_idump_rollback(tsdn, usize);
 
@@ -1620,11 +1614,7 @@ arena_prof_demote(tsdn_t *tsdn, edata_t *edata, const void *ptr) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 
-	edata_szind_set(edata, SC_NBINS);
-	rtree_ctx_t rtree_ctx_fallback;
-	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
-	rtree_szind_slab_update(tsdn, &emap_global.rtree, rtree_ctx,
-	    (uintptr_t)ptr, SC_NBINS, false);
+	emap_remap(tsdn, &emap_global, edata, SC_NBINS, false);
 
 	assert(isalloc(tsdn, ptr) == SC_LARGE_MINCLASS);
 
