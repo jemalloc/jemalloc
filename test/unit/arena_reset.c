@@ -61,8 +61,8 @@ get_large_size(size_t ind) {
 static size_t
 vsalloc(tsdn_t *tsdn, const void *ptr) {
 	emap_full_alloc_ctx_t full_alloc_ctx;
-	bool missing = emap_full_alloc_info_try_lookup(tsdn, &emap_global,
-	    ptr, &full_alloc_ctx);
+	bool missing = emap_full_alloc_ctx_try_lookup(tsdn, &emap_global, ptr,
+	    &full_alloc_ctx);
 	if (missing) {
 		return 0;
 	}

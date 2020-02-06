@@ -269,7 +269,7 @@ void *
 large_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t usize,
     size_t alignment, bool zero, tcache_t *tcache,
     hook_ralloc_args_t *hook_args) {
-	edata_t *edata = emap_lookup(tsdn, &emap_global, ptr);
+	edata_t *edata = emap_edata_lookup(tsdn, &emap_global, ptr);
 
 	size_t oldusize = edata_usize_get(edata);
 	/* The following should have been caught by callers. */
