@@ -62,6 +62,13 @@ get_errno(void) {
 #endif
 }
 
+JEMALLOC_ALWAYS_INLINE void
+util_assume(bool b) {
+	if (!b) {
+		unreachable();
+	}
+}
+
 #undef UTIL_INLINE
 
 #endif /* JEMALLOC_INTERNAL_UTIL_H */

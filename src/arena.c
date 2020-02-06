@@ -1111,10 +1111,8 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 
 		malloc_mutex_unlock(tsd_tsdn(tsd), &arena->large_mtx);
 		alloc_ctx_t alloc_ctx;
-		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
-		rtree_szind_slab_read(tsd_tsdn(tsd), &emap_global.rtree,
-		    rtree_ctx, (uintptr_t)ptr, true, &alloc_ctx.szind,
-		    &alloc_ctx.slab);
+		emap_alloc_info_lookup(tsd_tsdn(tsd), &emap_global, ptr,
+		    &alloc_ctx);
 		assert(alloc_ctx.szind != SC_NSIZES);
 
 		if (config_stats || (config_prof && opt_prof)) {

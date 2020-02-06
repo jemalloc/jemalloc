@@ -18,6 +18,13 @@ struct alloc_ctx_t {
 	bool slab;
 };
 
+typedef struct emap_full_alloc_ctx_s emap_full_alloc_ctx_t;
+struct emap_full_alloc_ctx_s {
+	szind_t szind;
+	bool slab;
+	edata_t *edata;
+};
+
 extern emap_t emap_global;
 
 bool emap_init(emap_t *emap);
@@ -136,13 +143,41 @@ emap_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr) {
 
 /* Fills in alloc_ctx with the info in the map. */
 JEMALLOC_ALWAYS_INLINE void
-emap_alloc_info_lookup(tsdn_t *tsdn, emap_t *emap, void *ptr,
+emap_alloc_info_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr,
     alloc_ctx_t *alloc_ctx) {
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
 	rtree_szind_slab_read(tsdn, &emap->rtree, rtree_ctx, (uintptr_t)ptr,
 	    true, &alloc_ctx->szind, &alloc_ctx->slab);
+}
+
+/* The pointer must be mapped. */
+JEMALLOC_ALWAYS_INLINE void
+emap_full_alloc_info_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr,
+    emap_full_alloc_ctx_t *full_alloc_ctx) {
+	rtree_ctx_t rtree_ctx_fallback;
+	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
+
+	rtree_edata_szind_slab_read(tsdn, &emap->rtree, rtree_ctx,
+	    (uintptr_t)ptr, true, &full_alloc_ctx->edata,
+	    &full_alloc_ctx->szind, &full_alloc_ctx->slab);
+}
+
+/*
+ * The pointer is allowed to not be mapped.
+ *
+ * Returns true when the pointer is not present.
+ */
+JEMALLOC_ALWAYS_INLINE bool
+emap_full_alloc_info_try_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr,
+    emap_full_alloc_ctx_t *full_alloc_ctx) {
+	rtree_ctx_t rtree_ctx_fallback;
+	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
+
+	return rtree_edata_szind_slab_read(tsdn, &emap->rtree, rtree_ctx,
+	    (uintptr_t)ptr, false, &full_alloc_ctx->edata,
+	    &full_alloc_ctx->szind, &full_alloc_ctx->slab);
 }
 
 /*
@@ -152,7 +187,7 @@ emap_alloc_info_lookup(tsdn_t *tsdn, emap_t *emap, void *ptr,
  * Returns whether or not alloc_ctx was filled in.
  */
 JEMALLOC_ALWAYS_INLINE bool
-emap_alloc_info_try_lookup_fast(tsd_t *tsd, emap_t *emap, void *ptr,
+emap_alloc_info_try_lookup_fast(tsd_t *tsd, emap_t *emap, const void *ptr,
     alloc_ctx_t *alloc_ctx) {
 	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
 	bool res = rtree_szind_slab_read_fast(tsd_tsdn(tsd), &emap->rtree,
