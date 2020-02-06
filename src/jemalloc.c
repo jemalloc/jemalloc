@@ -2568,9 +2568,7 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 	assert(malloc_initialized() || IS_INITIALIZER);
 
 	alloc_ctx_t alloc_ctx;
-	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
-	rtree_szind_slab_read(tsd_tsdn(tsd), &emap_global.rtree, rtree_ctx,
-	    (uintptr_t)ptr, true, &alloc_ctx.szind, &alloc_ctx.slab);
+	emap_alloc_info_lookup(tsd_tsdn(tsd), &emap_global, ptr, &alloc_ctx);
 	assert(alloc_ctx.szind != SC_NSIZES);
 
 	size_t usize = sz_index2size(alloc_ctx.szind);
@@ -2601,57 +2599,55 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
 
-	alloc_ctx_t alloc_ctx, *ctx;
+	alloc_ctx_t alloc_ctx;
 	if (!config_prof) {
-		/* Means usize will be used to determine szind. */
-		ctx = NULL;
+		alloc_ctx.szind = sz_size2index(usize);
+		alloc_ctx.slab = (alloc_ctx.szind < SC_NBINS);
 	} else {
 		if (likely(!prof_sample_aligned(ptr))) {
-			ctx = &alloc_ctx;
 			/*
 			 * When the ptr is not page aligned, it was not sampled.
 			 * usize can be trusted to determine szind and slab.
 			 */
-			ctx->szind = sz_size2index(usize);
+			alloc_ctx.szind = sz_size2index(usize);
 			if (config_cache_oblivious) {
-				ctx->slab = (ctx->szind < SC_NBINS);
+				alloc_ctx.slab = (alloc_ctx.szind < SC_NBINS);
 			} else {
 				/* Non page aligned must be slab allocated. */
-				ctx->slab = true;
+				alloc_ctx.slab = true;
 			}
 			if (config_debug) {
 				alloc_ctx_t dbg_ctx;
-				rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
-				rtree_szind_slab_read(tsd_tsdn(tsd),
-				    &emap_global.rtree, rtree_ctx,
-				    (uintptr_t)ptr, true, &dbg_ctx.szind,
-				    &dbg_ctx.slab);
-				assert(dbg_ctx.szind == ctx->szind);
-				assert(dbg_ctx.slab == ctx->slab);
+				emap_alloc_info_lookup(tsd_tsdn(tsd),
+				    &emap_global, ptr, &dbg_ctx);
+				assert(dbg_ctx.szind == alloc_ctx.szind);
+				assert(dbg_ctx.slab == alloc_ctx.slab);
 			}
 		} else if (opt_prof) {
-			ctx = &alloc_ctx;
-			rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
-			rtree_szind_slab_read(tsd_tsdn(tsd), &emap_global.rtree,
-			    rtree_ctx, (uintptr_t)ptr, true, &ctx->szind,
-			    &ctx->slab);
-			/* Small alloc may have !slab (sampled). */
-			bool sz_correct = (ctx->szind == sz_size2index(usize));
-			if (config_opt_safety_checks && !sz_correct) {
-				safety_check_fail_sized_dealloc(true);
+			emap_alloc_info_lookup(tsd_tsdn(tsd), &emap_global,
+			    ptr, &alloc_ctx);
+
+			if (config_opt_safety_checks) {
+				/* Small alloc may have !slab (sampled). */
+				if (alloc_ctx.szind != sz_size2index(usize)) {
+					safety_check_fail_sized_dealloc(true);
+				}
 			}
 		} else {
-			ctx = NULL;
+			alloc_ctx.szind = sz_size2index(usize);
+			alloc_ctx.slab = (alloc_ctx.szind < SC_NBINS);
 		}
 	}
 
 	if (config_prof && opt_prof) {
-		prof_free(tsd, ptr, usize, ctx);
+		prof_free(tsd, ptr, usize, &alloc_ctx);
 	}
 	if (likely(!slow_path)) {
-		isdalloct(tsd_tsdn(tsd), ptr, usize, tcache, ctx, false);
+		isdalloct(tsd_tsdn(tsd), ptr, usize, tcache, &alloc_ctx,
+		    false);
 	} else {
-		isdalloct(tsd_tsdn(tsd), ptr, usize, tcache, ctx, true);
+		isdalloct(tsd_tsdn(tsd), ptr, usize, tcache, &alloc_ctx,
+		    true);
 	}
 	thread_dalloc_event(tsd, usize);
 }
