@@ -10,19 +10,21 @@ static char test_buf[TEST_BUF_SIZE];
 static uint64_t arg;
 static uint64_t arg_store;
 
-static void test_write_cb(void *cbopaque, const char *s) {
+static void
+test_write_cb(void *cbopaque, const char *s) {
 	size_t prev_test_write_len = test_write_len;
 	test_write_len += strlen(s); /* only increase the length */
 	arg_store = *(uint64_t *)cbopaque; /* only pass along the argument */
-	expect_zu_le(prev_test_write_len, test_write_len,
+	assert_zu_le(prev_test_write_len, test_write_len,
 	    "Test write overflowed");
 }
 
-static void test_buf_writer_body(tsdn_t *tsdn, buf_writer_t *buf_writer) {
+static void
+test_buf_writer_body(tsdn_t *tsdn, buf_writer_t *buf_writer) {
 	char s[UNIT_MAX + 1];
 	size_t n_unit, remain, i;
 	ssize_t unit;
-	expect_ptr_not_null(buf_writer->buf, "Buffer is null");
+	assert(buf_writer->buf != NULL);
 	write_cb_t *write_cb = buf_writer_get_write_cb(buf_writer);
 	void *cbopaque = buf_writer_get_cbopaque(buf_writer);
 
@@ -41,7 +43,7 @@ static void test_buf_writer_body(tsdn_t *tsdn, buf_writer_t *buf_writer) {
 				remain += unit;
 				if (remain > buf_writer->buf_size) {
 					/* Flushes should have happened. */
-					expect_u64_eq(arg_store, arg, "Call "
+					assert_u64_eq(arg_store, arg, "Call "
 					    "back argument didn't get through");
 					remain %= buf_writer->buf_size;
 					if (remain == 0) {
@@ -49,7 +51,7 @@ static void test_buf_writer_body(tsdn_t *tsdn, buf_writer_t *buf_writer) {
 						remain += buf_writer->buf_size;
 					}
 				}
-				expect_zu_eq(test_write_len + remain, i * unit,
+				assert_zu_eq(test_write_len + remain, i * unit,
 				    "Incorrect length after writing %zu strings"
 				    " of length %zu", i, unit);
 			}
@@ -65,7 +67,7 @@ static void test_buf_writer_body(tsdn_t *tsdn, buf_writer_t *buf_writer) {
 TEST_BEGIN(test_buf_write_static) {
 	buf_writer_t buf_writer;
 	tsdn_t *tsdn = tsdn_fetch();
-	expect_false(buf_writer_init(tsdn, &buf_writer, test_write_cb, &arg,
+	assert_false(buf_writer_init(tsdn, &buf_writer, test_write_cb, &arg,
 	    test_buf, TEST_BUF_SIZE),
 	    "buf_writer_init() should not encounter error on static buffer");
 	test_buf_writer_body(tsdn, &buf_writer);
@@ -75,7 +77,7 @@ TEST_END
 TEST_BEGIN(test_buf_write_dynamic) {
 	buf_writer_t buf_writer;
 	tsdn_t *tsdn = tsdn_fetch();
-	expect_false(buf_writer_init(tsdn, &buf_writer, test_write_cb, &arg,
+	assert_false(buf_writer_init(tsdn, &buf_writer, test_write_cb, &arg,
 	    NULL, TEST_BUF_SIZE), "buf_writer_init() should not OOM");
 	test_buf_writer_body(tsdn, &buf_writer);
 }
@@ -84,13 +86,13 @@ TEST_END
 TEST_BEGIN(test_buf_write_oom) {
 	buf_writer_t buf_writer;
 	tsdn_t *tsdn = tsdn_fetch();
-	expect_true(buf_writer_init(tsdn, &buf_writer, test_write_cb, &arg,
+	assert_true(buf_writer_init(tsdn, &buf_writer, test_write_cb, &arg,
 	    NULL, SC_LARGE_MAXCLASS + 1), "buf_writer_init() should OOM");
-	expect_ptr_null(buf_writer.buf, "Buffer should be null");
+	assert(buf_writer.buf == NULL);
 	write_cb_t *write_cb = buf_writer_get_write_cb(&buf_writer);
-	expect_ptr_eq(write_cb, test_write_cb, "Should use test_write_cb");
+	assert_ptr_eq(write_cb, test_write_cb, "Should use test_write_cb");
 	void *cbopaque = buf_writer_get_cbopaque(&buf_writer);
-	expect_ptr_eq(cbopaque, &arg, "Should use arg");
+	assert_ptr_eq(cbopaque, &arg, "Should use arg");
 
 	char s[UNIT_MAX + 1];
 	size_t n_unit, i;
@@ -107,9 +109,9 @@ TEST_BEGIN(test_buf_write_oom) {
 			for (i = 1; i <= n_unit; ++i) {
 				arg = prng_lg_range_u64(&arg, 64);
 				write_cb(cbopaque, s);
-				expect_u64_eq(arg_store, arg,
+				assert_u64_eq(arg_store, arg,
 				    "Call back argument didn't get through");
-				expect_zu_eq(test_write_len, i * unit,
+				assert_zu_eq(test_write_len, i * unit,
 				    "Incorrect length after writing %zu strings"
 				    " of length %zu", i, unit);
 			}
