@@ -2170,7 +2170,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 		prof_tctx_t *tctx = prof_alloc_prep(
 		    tsd, usize, prof_active_get_unlocked(), true);
 
-		alloc_ctx_t alloc_ctx;
+		emap_alloc_ctx_t alloc_ctx;
 		if (likely((uintptr_t)tctx == (uintptr_t)1U)) {
 			alloc_ctx.slab = (usize <= SC_SMALL_MAXCLASS);
 			allocation = imalloc_no_sample(
@@ -2567,8 +2567,8 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
 
-	alloc_ctx_t alloc_ctx;
-	emap_alloc_info_lookup(tsd_tsdn(tsd), &emap_global, ptr, &alloc_ctx);
+	emap_alloc_ctx_t alloc_ctx;
+	emap_alloc_ctx_lookup(tsd_tsdn(tsd), &emap_global, ptr, &alloc_ctx);
 	assert(alloc_ctx.szind != SC_NSIZES);
 
 	size_t usize = sz_index2size(alloc_ctx.szind);
@@ -2599,7 +2599,7 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 	assert(ptr != NULL);
 	assert(malloc_initialized() || IS_INITIALIZER);
 
-	alloc_ctx_t alloc_ctx;
+	emap_alloc_ctx_t alloc_ctx;
 	if (!config_prof) {
 		alloc_ctx.szind = sz_size2index(usize);
 		alloc_ctx.slab = (alloc_ctx.szind < SC_NBINS);
@@ -2617,14 +2617,14 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 				alloc_ctx.slab = true;
 			}
 			if (config_debug) {
-				alloc_ctx_t dbg_ctx;
-				emap_alloc_info_lookup(tsd_tsdn(tsd),
+				emap_alloc_ctx_t dbg_ctx;
+				emap_alloc_ctx_lookup(tsd_tsdn(tsd),
 				    &emap_global, ptr, &dbg_ctx);
 				assert(dbg_ctx.szind == alloc_ctx.szind);
 				assert(dbg_ctx.slab == alloc_ctx.slab);
 			}
 		} else if (opt_prof) {
-			emap_alloc_info_lookup(tsd_tsdn(tsd), &emap_global,
+			emap_alloc_ctx_lookup(tsd_tsdn(tsd), &emap_global,
 			    ptr, &alloc_ctx);
 
 			if (config_opt_safety_checks) {
@@ -2693,12 +2693,12 @@ JEMALLOC_ALWAYS_INLINE
 bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 	tsd_t *tsd = tsd_get(false);
 
-	alloc_ctx_t alloc_ctx;
+	emap_alloc_ctx_t alloc_ctx;
 	if (!size_hint) {
 		if (unlikely(tsd == NULL || !tsd_fast(tsd))) {
 			return false;
 		}
-		bool res = emap_alloc_info_try_lookup_fast(tsd, &emap_global,
+		bool res = emap_alloc_ctx_try_lookup_fast(tsd, &emap_global,
 		    ptr, &alloc_ctx);
 
 		/* Note: profiled objects will have alloc_ctx.slab set */
@@ -3069,7 +3069,8 @@ irallocx_prof_sample(tsdn_t *tsdn, void *old_ptr, size_t old_usize,
 JEMALLOC_ALWAYS_INLINE void *
 irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
     size_t alignment, size_t *usize, bool zero, tcache_t *tcache,
-    arena_t *arena, alloc_ctx_t *alloc_ctx, hook_ralloc_args_t *hook_args) {
+    arena_t *arena, emap_alloc_ctx_t *alloc_ctx,
+    hook_ralloc_args_t *hook_args) {
 	prof_info_t old_prof_info;
 	prof_info_get_and_reset_recent(tsd, old_ptr, alloc_ctx, &old_prof_info);
 	bool prof_active = prof_active_get_unlocked();
@@ -3141,8 +3142,8 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 		tcache = tcache_get(tsd);
 	}
 
-	alloc_ctx_t alloc_ctx;
-	emap_alloc_info_lookup(tsd_tsdn(tsd), &emap_global, ptr, &alloc_ctx);
+	emap_alloc_ctx_t alloc_ctx;
+	emap_alloc_ctx_lookup(tsd_tsdn(tsd), &emap_global, ptr, &alloc_ctx);
 	assert(alloc_ctx.szind != SC_NSIZES);
 	old_usize = sz_index2size(alloc_ctx.szind);
 	assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
@@ -3315,7 +3316,7 @@ ixallocx_prof_sample(tsdn_t *tsdn, void *ptr, size_t old_usize, size_t size,
 
 JEMALLOC_ALWAYS_INLINE size_t
 ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
-    size_t extra, size_t alignment, bool zero, alloc_ctx_t *alloc_ctx) {
+    size_t extra, size_t alignment, bool zero, emap_alloc_ctx_t *alloc_ctx) {
 	/*
 	 * old_prof_info is only used for asserting that the profiling info
 	 * isn't changed by the ixalloc() call.
@@ -3416,10 +3417,11 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	 * object associated with the ptr (though the content of the edata_t
 	 * object can be changed).
 	 */
-	edata_t *old_edata = emap_lookup(tsd_tsdn(tsd), &emap_global, ptr);
+	edata_t *old_edata = emap_edata_lookup(tsd_tsdn(tsd), &emap_global,
+	    ptr);
 
-	alloc_ctx_t alloc_ctx;
-	emap_alloc_info_lookup(tsd_tsdn(tsd), &emap_global, ptr, &alloc_ctx);
+	emap_alloc_ctx_t alloc_ctx;
+	emap_alloc_ctx_lookup(tsd_tsdn(tsd), &emap_global, ptr, &alloc_ctx);
 	assert(alloc_ctx.szind != SC_NSIZES);
 	old_usize = sz_index2size(alloc_ctx.szind);
 	assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
@@ -3453,7 +3455,8 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	 * xallocx() should keep using the same edata_t object (though its
 	 * content can be changed).
 	 */
-	assert(emap_lookup(tsd_tsdn(tsd), &emap_global, ptr) == old_edata);
+	assert(emap_edata_lookup(tsd_tsdn(tsd), &emap_global, ptr)
+	    == old_edata);
 
 	if (unlikely(usize == old_usize)) {
 		te_alloc_rollback(tsd, usize);

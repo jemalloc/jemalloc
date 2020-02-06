@@ -40,7 +40,7 @@ prof_tdata_get(tsd_t *tsd, bool create) {
 }
 
 JEMALLOC_ALWAYS_INLINE void
-prof_info_get(tsd_t *tsd, const void *ptr, alloc_ctx_t *alloc_ctx,
+prof_info_get(tsd_t *tsd, const void *ptr, emap_alloc_ctx_t *alloc_ctx,
     prof_info_t *prof_info) {
 	cassert(config_prof);
 	assert(ptr != NULL);
@@ -51,7 +51,7 @@ prof_info_get(tsd_t *tsd, const void *ptr, alloc_ctx_t *alloc_ctx,
 
 JEMALLOC_ALWAYS_INLINE void
 prof_info_get_and_reset_recent(tsd_t *tsd, const void *ptr,
-    alloc_ctx_t *alloc_ctx, prof_info_t *prof_info) {
+    emap_alloc_ctx_t *alloc_ctx, prof_info_t *prof_info) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 	assert(prof_info != NULL);
@@ -60,7 +60,7 @@ prof_info_get_and_reset_recent(tsd_t *tsd, const void *ptr,
 }
 
 JEMALLOC_ALWAYS_INLINE void
-prof_tctx_reset(tsd_t *tsd, const void *ptr, alloc_ctx_t *alloc_ctx) {
+prof_tctx_reset(tsd_t *tsd, const void *ptr, emap_alloc_ctx_t *alloc_ctx) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 
@@ -127,7 +127,7 @@ prof_alloc_prep(tsd_t *tsd, size_t usize, bool prof_active, bool update) {
 
 JEMALLOC_ALWAYS_INLINE void
 prof_malloc(tsd_t *tsd, const void *ptr, size_t size, size_t usize,
-    alloc_ctx_t *alloc_ctx, prof_tctx_t *tctx) {
+    emap_alloc_ctx_t *alloc_ctx, prof_tctx_t *tctx) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 	assert(usize == isalloc(tsd_tsdn(tsd), ptr));
@@ -214,7 +214,8 @@ prof_sample_aligned(const void *ptr) {
 }
 
 JEMALLOC_ALWAYS_INLINE void
-prof_free(tsd_t *tsd, const void *ptr, size_t usize, alloc_ctx_t *alloc_ctx) {
+prof_free(tsd_t *tsd, const void *ptr, size_t usize,
+    emap_alloc_ctx_t *alloc_ctx) {
 	prof_info_t prof_info;
 	prof_info_get_and_reset_recent(tsd, ptr, alloc_ctx, &prof_info);
 

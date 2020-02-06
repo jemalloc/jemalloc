@@ -129,7 +129,7 @@ tbin_edatas_lookup_size_check(tsd_t *tsd, cache_bin_t *tbin, szind_t binind,
 	void **bottom_item = cache_bin_bottom_item_get(tbin, binind);
 	for (unsigned i = 0 ; i < nflush; i++) {
 		emap_full_alloc_ctx_t full_alloc_ctx;
-		emap_full_alloc_info_lookup(tsd_tsdn(tsd), &emap_global,
+		emap_full_alloc_ctx_lookup(tsd_tsdn(tsd), &emap_global,
 		    *(bottom_item - i), &full_alloc_ctx);
 		edatas[i] = full_alloc_ctx.edata;
 		szind_sum -= full_alloc_ctx.szind;
@@ -160,8 +160,8 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 		    item_edata);
 	} else {
 		for (unsigned i = 0 ; i < nflush; i++) {
-			item_edata[i] = emap_lookup(tsd_tsdn(tsd), &emap_global,
-			    *(bottom_item - i));
+			item_edata[i] = emap_edata_lookup(tsd_tsdn(tsd),
+			    &emap_global, *(bottom_item - i));
 		}
 	}
 
@@ -259,7 +259,7 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin, szind_t 
 #ifndef JEMALLOC_EXTRA_SIZE_CHECK
 	/* Look up edata once per item. */
 	for (unsigned i = 0 ; i < nflush; i++) {
-		item_edata[i] = emap_lookup(tsd_tsdn(tsd), &emap_global,
+		item_edata[i] = emap_edata_lookup(tsd_tsdn(tsd), &emap_global,
 		    *(bottom_item - i));
 	}
 #else

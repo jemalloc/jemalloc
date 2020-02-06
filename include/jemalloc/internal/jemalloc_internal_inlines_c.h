@@ -101,8 +101,8 @@ ivsalloc(tsdn_t *tsdn, const void *ptr) {
 }
 
 JEMALLOC_ALWAYS_INLINE void
-idalloctm(tsdn_t *tsdn, void *ptr, tcache_t *tcache, alloc_ctx_t *alloc_ctx,
-    bool is_internal, bool slow_path) {
+idalloctm(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
+    emap_alloc_ctx_t *alloc_ctx, bool is_internal, bool slow_path) {
 	assert(ptr != NULL);
 	assert(!is_internal || tcache == NULL);
 	assert(!is_internal || arena_is_auto(iaalloc(tsdn, ptr)));
@@ -125,7 +125,7 @@ idalloc(tsd_t *tsd, void *ptr) {
 
 JEMALLOC_ALWAYS_INLINE void
 isdalloct(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
-    alloc_ctx_t *alloc_ctx, bool slow_path) {
+    emap_alloc_ctx_t *alloc_ctx, bool slow_path) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 	arena_sdalloc(tsdn, ptr, size, tcache, alloc_ctx, slow_path);

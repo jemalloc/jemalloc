@@ -101,7 +101,7 @@ TEST_END
 
 static void confirm_malloc(tsd_t *tsd, void *p) {
 	assert_ptr_not_null(p, "malloc failed unexpectedly");
-	edata_t *e = emap_lookup(TSDN_NULL, &emap_global, p);
+	edata_t *e = emap_edata_lookup(TSDN_NULL, &emap_global, p);
 	assert_ptr_not_null(e, "NULL edata for living pointer");
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 	prof_recent_t *n = edata_prof_recent_alloc_get(tsd, e);
