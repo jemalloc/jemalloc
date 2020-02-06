@@ -114,10 +114,10 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 
 /* Enabled with --enable-extra-size-check. */
 static void
-tbin_edatas_lookup_size_check(tsdn_t *tsdn, cache_bin_t *tbin, szind_t binind,
-    size_t nflush, edata_t **edatas){
-	rtree_ctx_t rtree_ctx_fallback;
-	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
+tbin_edatas_lookup_size_check(tsd_t *tsd, cache_bin_t *tbin, szind_t binind,
+    size_t nflush, edata_t **edatas) {
+	/* Avoids null-checking tsdn in the loop below. */
+	util_assume(tsd != NULL);
 
 	/*
 	 * Verify that the items in the tcache all have the correct size; this
@@ -125,16 +125,16 @@ tbin_edatas_lookup_size_check(tsdn_t *tsdn, cache_bin_t *tbin, szind_t binind,
 	 * instead of corrupting metadata.  Since this can be turned on for opt
 	 * builds, avoid the branch in the loop.
 	 */
-	szind_t szind;
-	size_t sz_sum = binind * nflush;
+	size_t szind_sum = binind * nflush;
 	void **bottom_item = cache_bin_bottom_item_get(tbin, binind);
 	for (unsigned i = 0 ; i < nflush; i++) {
-		rtree_edata_szind_read(tsdn, &emap_global.rtree,
-		    rtree_ctx, (uintptr_t)*(bottom_item - i), true,
-		    &edatas[i], &szind);
-		sz_sum -= szind;
+		emap_full_alloc_ctx_t full_alloc_ctx;
+		emap_full_alloc_info_lookup(tsd_tsdn(tsd), &emap_global,
+		    *(bottom_item - i), &full_alloc_ctx);
+		edatas[i] = full_alloc_ctx.edata;
+		szind_sum -= full_alloc_ctx.szind;
 	}
-	if (sz_sum != 0) {
+	if (szind_sum != 0) {
 		safety_check_fail_sized_dealloc(false);
 	}
 }
@@ -156,7 +156,7 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 	tsdn_t *tsdn = tsd_tsdn(tsd);
 	/* Look up edata once per item. */
 	if (config_opt_safety_checks) {
-		tbin_edatas_lookup_size_check(tsdn, tbin, binind, nflush,
+		tbin_edatas_lookup_size_check(tsd, tbin, binind, nflush,
 		    item_edata);
 	} else {
 		for (unsigned i = 0 ; i < nflush; i++) {

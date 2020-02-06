@@ -60,28 +60,25 @@ get_large_size(size_t ind) {
 /* Like ivsalloc(), but safe to call on discarded allocations. */
 static size_t
 vsalloc(tsdn_t *tsdn, const void *ptr) {
-	rtree_ctx_t rtree_ctx_fallback;
-	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
-
-	edata_t *edata;
-	szind_t szind;
-	if (rtree_edata_szind_read(tsdn, &emap_global.rtree, rtree_ctx,
-	    (uintptr_t)ptr, false, &edata, &szind)) {
+	emap_full_alloc_ctx_t full_alloc_ctx;
+	bool missing = emap_full_alloc_info_try_lookup(tsdn, &emap_global,
+	    ptr, &full_alloc_ctx);
+	if (missing) {
 		return 0;
 	}
 
-	if (edata == NULL) {
+	if (full_alloc_ctx.edata == NULL) {
 		return 0;
 	}
-	if (edata_state_get(edata) != extent_state_active) {
-		return 0;
-	}
-
-	if (szind == SC_NSIZES) {
+	if (edata_state_get(full_alloc_ctx.edata) != extent_state_active) {
 		return 0;
 	}
 
-	return sz_index2size(szind);
+	if (full_alloc_ctx.szind == SC_NSIZES) {
+		return 0;
+	}
+
+	return sz_index2size(full_alloc_ctx.szind);
 }
 
 static unsigned

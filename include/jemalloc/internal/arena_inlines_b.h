@@ -188,15 +188,11 @@ arena_aalloc(tsdn_t *tsdn, const void *ptr) {
 JEMALLOC_ALWAYS_INLINE size_t
 arena_salloc(tsdn_t *tsdn, const void *ptr) {
 	assert(ptr != NULL);
+	alloc_ctx_t alloc_ctx;
+	emap_alloc_info_lookup(tsdn, &emap_global, ptr, &alloc_ctx);
+	assert(alloc_ctx.szind != SC_NSIZES);
 
-	rtree_ctx_t rtree_ctx_fallback;
-	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
-
-	szind_t szind = rtree_szind_read(tsdn, &emap_global.rtree, rtree_ctx,
-	    (uintptr_t)ptr, true);
-	assert(szind != SC_NSIZES);
-
-	return sz_index2size(szind);
+	return sz_index2size(alloc_ctx.szind);
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
@@ -210,26 +206,24 @@ arena_vsalloc(tsdn_t *tsdn, const void *ptr) {
 	 *   failure.
 	 */
 
-	rtree_ctx_t rtree_ctx_fallback;
-	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
-
-	edata_t *edata;
-	szind_t szind;
-	if (rtree_edata_szind_read(tsdn, &emap_global.rtree, rtree_ctx,
-	    (uintptr_t)ptr, false, &edata, &szind)) {
+	emap_full_alloc_ctx_t full_alloc_ctx;
+	bool missing = emap_full_alloc_info_try_lookup(tsdn, &emap_global, ptr,
+	    &full_alloc_ctx);
+	if (missing) {
 		return 0;
 	}
 
-	if (edata == NULL) {
+	if (full_alloc_ctx.edata == NULL) {
 		return 0;
 	}
-	assert(edata_state_get(edata) == extent_state_active);
+	assert(edata_state_get(full_alloc_ctx.edata) == extent_state_active);
 	/* Only slab members should be looked up via interior pointers. */
-	assert(edata_addr_get(edata) == ptr || edata_slab_get(edata));
+	assert(edata_addr_get(full_alloc_ctx.edata) == ptr
+	    || edata_slab_get(full_alloc_ctx.edata));
 
-	assert(szind != SC_NSIZES);
+	assert(full_alloc_ctx.szind != SC_NSIZES);
 
-	return sz_index2size(szind);
+	return sz_index2size(full_alloc_ctx.szind);
 }
 
 static inline void
@@ -246,27 +240,21 @@ static inline void
 arena_dalloc_no_tcache(tsdn_t *tsdn, void *ptr) {
 	assert(ptr != NULL);
 
-	rtree_ctx_t rtree_ctx_fallback;
-	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
-
-	szind_t szind;
-	bool slab;
-	rtree_szind_slab_read(tsdn, &emap_global.rtree, rtree_ctx,
-	    (uintptr_t)ptr, true, &szind, &slab);
+	alloc_ctx_t alloc_ctx;
+	emap_alloc_info_lookup(tsdn, &emap_global, ptr, &alloc_ctx);
 
 	if (config_debug) {
-		edata_t *edata = rtree_edata_read(tsdn, &emap_global.rtree,
-		    rtree_ctx, (uintptr_t)ptr, true);
-		assert(szind == edata_szind_get(edata));
-		assert(szind < SC_NSIZES);
-		assert(slab == edata_slab_get(edata));
+		edata_t *edata = emap_lookup(tsdn, &emap_global, ptr);
+		assert(alloc_ctx.szind == edata_szind_get(edata));
+		assert(alloc_ctx.szind < SC_NSIZES);
+		assert(alloc_ctx.slab == edata_slab_get(edata));
 	}
 
-	if (likely(slab)) {
+	if (likely(alloc_ctx.slab)) {
 		/* Small allocation. */
 		arena_dalloc_small(tsdn, ptr);
 	} else {
-		arena_dalloc_large_no_tcache(tsdn, ptr, szind);
+		arena_dalloc_large_no_tcache(tsdn, ptr, alloc_ctx.szind);
 	}
 }
 
@@ -288,7 +276,7 @@ arena_dalloc_large(tsdn_t *tsdn, void *ptr, tcache_t *tcache, szind_t szind,
 
 JEMALLOC_ALWAYS_INLINE void
 arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
-    alloc_ctx_t *alloc_ctx, bool slow_path) {
+    alloc_ctx_t *caller_alloc_ctx, bool slow_path) {
 	assert(!tsdn_null(tsdn) || tcache == NULL);
 	assert(ptr != NULL);
 
@@ -297,34 +285,28 @@ arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 		return;
 	}
 
-	szind_t szind;
-	bool slab;
-	rtree_ctx_t *rtree_ctx;
-	if (alloc_ctx != NULL) {
-		szind = alloc_ctx->szind;
-		slab = alloc_ctx->slab;
-		assert(szind != SC_NSIZES);
+	alloc_ctx_t alloc_ctx;
+	if (caller_alloc_ctx != NULL) {
+		alloc_ctx = *caller_alloc_ctx;
 	} else {
-		rtree_ctx = tsd_rtree_ctx(tsdn_tsd(tsdn));
-		rtree_szind_slab_read(tsdn, &emap_global.rtree, rtree_ctx,
-		    (uintptr_t)ptr, true, &szind, &slab);
+		util_assume(!tsdn_null(tsdn));
+		emap_alloc_info_lookup(tsdn, &emap_global, ptr, &alloc_ctx);
 	}
 
 	if (config_debug) {
-		rtree_ctx = tsd_rtree_ctx(tsdn_tsd(tsdn));
-		edata_t *edata = rtree_edata_read(tsdn, &emap_global.rtree,
-		    rtree_ctx, (uintptr_t)ptr, true);
-		assert(szind == edata_szind_get(edata));
-		assert(szind < SC_NSIZES);
-		assert(slab == edata_slab_get(edata));
+		edata_t *edata = emap_lookup(tsdn, &emap_global, ptr);
+		assert(alloc_ctx.szind == edata_szind_get(edata));
+		assert(alloc_ctx.szind < SC_NSIZES);
+		assert(alloc_ctx.slab == edata_slab_get(edata));
 	}
 
-	if (likely(slab)) {
+	if (likely(alloc_ctx.slab)) {
 		/* Small allocation. */
-		tcache_dalloc_small(tsdn_tsd(tsdn), tcache, ptr, szind,
-		    slow_path);
+		tcache_dalloc_small(tsdn_tsd(tsdn), tcache, ptr,
+		    alloc_ctx.szind, slow_path);
 	} else {
-		arena_dalloc_large(tsdn, ptr, tcache, szind, slow_path);
+		arena_dalloc_large(tsdn, ptr, tcache, alloc_ctx.szind,
+		    slow_path);
 	}
 }
 
@@ -333,47 +315,41 @@ arena_sdalloc_no_tcache(tsdn_t *tsdn, void *ptr, size_t size) {
 	assert(ptr != NULL);
 	assert(size <= SC_LARGE_MAXCLASS);
 
-	szind_t szind;
-	bool slab;
+	alloc_ctx_t alloc_ctx;
 	if (!config_prof || !opt_prof) {
 		/*
 		 * There is no risk of being confused by a promoted sampled
 		 * object, so base szind and slab on the given size.
 		 */
-		szind = sz_size2index(size);
-		slab = (szind < SC_NBINS);
+		alloc_ctx.szind = sz_size2index(size);
+		alloc_ctx.slab = (alloc_ctx.szind < SC_NBINS);
 	}
 
 	if ((config_prof && opt_prof) || config_debug) {
-		rtree_ctx_t rtree_ctx_fallback;
-		rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn,
-		    &rtree_ctx_fallback);
+		emap_alloc_info_lookup(tsdn, &emap_global, ptr, &alloc_ctx);
 
-		rtree_szind_slab_read(tsdn, &emap_global.rtree, rtree_ctx,
-		    (uintptr_t)ptr, true, &szind, &slab);
-
-		assert(szind == sz_size2index(size));
-		assert((config_prof && opt_prof) || slab == (szind < SC_NBINS));
+		assert(alloc_ctx.szind == sz_size2index(size));
+		assert((config_prof && opt_prof)
+		    || alloc_ctx.slab == (alloc_ctx.szind < SC_NBINS));
 
 		if (config_debug) {
-			edata_t *edata = rtree_edata_read(tsdn,
-			    &emap_global.rtree, rtree_ctx, (uintptr_t)ptr, true);
-			assert(szind == edata_szind_get(edata));
-			assert(slab == edata_slab_get(edata));
+			edata_t *edata = emap_lookup(tsdn, &emap_global, ptr);
+			assert(alloc_ctx.szind == edata_szind_get(edata));
+			assert(alloc_ctx.slab == edata_slab_get(edata));
 		}
 	}
 
-	if (likely(slab)) {
+	if (likely(alloc_ctx.slab)) {
 		/* Small allocation. */
 		arena_dalloc_small(tsdn, ptr);
 	} else {
-		arena_dalloc_large_no_tcache(tsdn, ptr, szind);
+		arena_dalloc_large_no_tcache(tsdn, ptr, alloc_ctx.szind);
 	}
 }
 
 JEMALLOC_ALWAYS_INLINE void
 arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
-    alloc_ctx_t *alloc_ctx, bool slow_path) {
+    alloc_ctx_t *caller_alloc_ctx, bool slow_path) {
 	assert(!tsdn_null(tsdn) || tcache == NULL);
 	assert(ptr != NULL);
 	assert(size <= SC_LARGE_MAXCLASS);
@@ -383,48 +359,38 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 		return;
 	}
 
-	szind_t szind;
-	bool slab;
-	alloc_ctx_t local_ctx;
+	alloc_ctx_t alloc_ctx;
 	if (config_prof && opt_prof) {
-		if (alloc_ctx == NULL) {
+		if (caller_alloc_ctx == NULL) {
 			/* Uncommon case and should be a static check. */
-			rtree_ctx_t rtree_ctx_fallback;
-			rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn,
-			    &rtree_ctx_fallback);
-			rtree_szind_slab_read(tsdn, &emap_global.rtree,
-			    rtree_ctx, (uintptr_t)ptr, true, &local_ctx.szind,
-			    &local_ctx.slab);
-			assert(local_ctx.szind == sz_size2index(size));
-			alloc_ctx = &local_ctx;
+			emap_alloc_info_lookup(tsdn, &emap_global, ptr,
+			    &alloc_ctx);
+			assert(alloc_ctx.szind == sz_size2index(size));
+		} else {
+			alloc_ctx = *caller_alloc_ctx;
 		}
-		slab = alloc_ctx->slab;
-		szind = alloc_ctx->szind;
 	} else {
 		/*
 		 * There is no risk of being confused by a promoted sampled
 		 * object, so base szind and slab on the given size.
 		 */
-		szind = sz_size2index(size);
-		slab = (szind < SC_NBINS);
+		alloc_ctx.szind = sz_size2index(size);
+		alloc_ctx.slab = (alloc_ctx.szind < SC_NBINS);
 	}
 
 	if (config_debug) {
-		rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsdn_tsd(tsdn));
-		rtree_szind_slab_read(tsdn, &emap_global.rtree, rtree_ctx,
-		    (uintptr_t)ptr, true, &szind, &slab);
-		edata_t *edata = rtree_edata_read(tsdn,
-		    &emap_global.rtree, rtree_ctx, (uintptr_t)ptr, true);
-		assert(szind == edata_szind_get(edata));
-		assert(slab == edata_slab_get(edata));
+		edata_t *edata = emap_lookup(tsdn, &emap_global, ptr);
+		assert(alloc_ctx.szind == edata_szind_get(edata));
+		assert(alloc_ctx.slab == edata_slab_get(edata));
 	}
 
-	if (likely(slab)) {
+	if (likely(alloc_ctx.slab)) {
 		/* Small allocation. */
-		tcache_dalloc_small(tsdn_tsd(tsdn), tcache, ptr, szind,
-		    slow_path);
+		tcache_dalloc_small(tsdn_tsd(tsdn), tcache, ptr,
+		    alloc_ctx.szind, slow_path);
 	} else {
-		arena_dalloc_large(tsdn, ptr, tcache, szind, slow_path);
+		arena_dalloc_large(tsdn, ptr, tcache, alloc_ctx.szind,
+		    slow_path);
 	}
 }
 

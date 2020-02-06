@@ -440,15 +440,24 @@ rtree_szind_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
  */
 
 JEMALLOC_ALWAYS_INLINE bool
-rtree_edata_szind_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
-    uintptr_t key, bool dependent, edata_t **r_edata, szind_t *r_szind) {
+rtree_edata_szind_slab_read(tsdn_t *tsdn, rtree_t *rtree,
+    rtree_ctx_t *rtree_ctx, uintptr_t key, bool dependent, edata_t **r_edata,
+    szind_t *r_szind, bool *r_slab) {
 	rtree_leaf_elm_t *elm = rtree_read(tsdn, rtree, rtree_ctx, key,
 	    dependent);
 	if (!dependent && elm == NULL) {
 		return true;
 	}
+#ifdef RTREE_LEAF_COMPACT
+	uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, dependent);
+	*r_edata = rtree_leaf_elm_bits_edata_get(bits);
+	*r_szind = rtree_leaf_elm_bits_szind_get(bits);
+	*r_slab = rtree_leaf_elm_bits_slab_get(bits);
+#else
 	*r_edata = rtree_leaf_elm_edata_read(tsdn, rtree, elm, dependent);
 	*r_szind = rtree_leaf_elm_szind_read(tsdn, rtree, elm, dependent);
+	*r_slab = rtree_leaf_elm_slab_read(tsdn, rtree, elm, dependent);
+#endif
 	return false;
 }
 
