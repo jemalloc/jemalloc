@@ -60,8 +60,6 @@ static void arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena,
     size_t npages_decay_max, bool is_background_thread);
 static bool arena_decay_dirty(tsdn_t *tsdn, arena_t *arena,
     bool is_background_thread, bool all);
-static void arena_dalloc_bin_slab(tsdn_t *tsdn, arena_t *arena, edata_t *slab,
-    bin_t *bin);
 static void arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, edata_t *slab,
     bin_t *bin);
 
@@ -996,7 +994,7 @@ arena_decay(tsdn_t *tsdn, arena_t *arena, bool is_background_thread, bool all) {
 	arena_decay_muzzy(tsdn, arena, is_background_thread, all);
 }
 
-static void
+void
 arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, edata_t *slab) {
 	arena_nactive_sub(arena, edata_size_get(slab) >> LG_PAGE);
 
@@ -1252,101 +1250,55 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned binshard
 	return slab;
 }
 
-static edata_t *
-arena_bin_nonfull_slab_get(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
-    szind_t binind, unsigned binshard) {
-	edata_t *slab;
-	const bin_info_t *bin_info;
+/*
+ * Before attempting the _with_fresh_slab approaches below, the _no_fresh_slab
+ * variants (i.e. through slabcur and nonfull) must be tried first.
+ */
+static void
+arena_bin_refill_slabcur_with_fresh_slab(tsdn_t *tsdn, arena_t *arena,
+    bin_t *bin, szind_t binind, edata_t *fresh_slab) {
+	malloc_mutex_assert_owner(tsdn, &bin->lock);
+	/* Only called after slabcur and nonfull both failed. */
+	assert(bin->slabcur == NULL);
+	assert(edata_heap_first(&bin->slabs_nonfull) == NULL);
+	assert(fresh_slab != NULL);
 
-	/* Look for a usable slab. */
-	slab = arena_bin_slabs_nonfull_tryget(bin);
-	if (slab != NULL) {
-		return slab;
+	/* A new slab from arena_slab_alloc() */
+	assert(edata_nfree_get(fresh_slab) == bin_infos[binind].nregs);
+	if (config_stats) {
+		bin->stats.nslabs++;
+		bin->stats.curslabs++;
 	}
-	/* No existing slabs have any space available. */
-
-	bin_info = &bin_infos[binind];
-
-	/* Allocate a new slab. */
-	malloc_mutex_unlock(tsdn, &bin->lock);
-	/******************************/
-	slab = arena_slab_alloc(tsdn, arena, binind, binshard, bin_info);
-	/********************************/
-	malloc_mutex_lock(tsdn, &bin->lock);
-	if (slab != NULL) {
-		if (config_stats) {
-			bin->stats.nslabs++;
-			bin->stats.curslabs++;
-		}
-		return slab;
-	}
-
-	/*
-	 * arena_slab_alloc() failed, but another thread may have made
-	 * sufficient memory available while this one dropped bin->lock above,
-	 * so search one more time.
-	 */
-	slab = arena_bin_slabs_nonfull_tryget(bin);
-	if (slab != NULL) {
-		return slab;
-	}
-
-	return NULL;
+	bin->slabcur = fresh_slab;
 }
 
-/* Re-fill bin->slabcur, then call arena_slab_reg_alloc(). */
+/* Refill slabcur and then alloc using the fresh slab */
 static void *
-arena_bin_malloc_hard(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
-    szind_t binind, unsigned binshard) {
+arena_bin_malloc_with_fresh_slab(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
+    szind_t binind, edata_t *fresh_slab) {
+	malloc_mutex_assert_owner(tsdn, &bin->lock);
+	arena_bin_refill_slabcur_with_fresh_slab(tsdn, arena, bin, binind,
+	    fresh_slab);
+
+	return arena_slab_reg_alloc(bin->slabcur, &bin_infos[binind]);
+}
+
+static bool
+arena_bin_refill_slabcur_no_fresh_slab(tsdn_t *tsdn, arena_t *arena,
+    bin_t *bin) {
+	malloc_mutex_assert_owner(tsdn, &bin->lock);
+	/* Only called after arena_slab_reg_alloc[_batch] failed. */
+	assert(bin->slabcur == NULL || edata_nfree_get(bin->slabcur) == 0);
 
 	if (bin->slabcur != NULL) {
-		/* Only attempted when current slab is full. */
-		assert(edata_nfree_get(bin->slabcur) == 0);
-	}
-
-	const bin_info_t *bin_info = &bin_infos[binind];
-	edata_t *slab = arena_bin_nonfull_slab_get(tsdn, arena, bin, binind,
-	    binshard);
-	if (bin->slabcur != NULL) {
-		if (edata_nfree_get(bin->slabcur) > 0) {
-			/*
-			 * Another thread updated slabcur while this one ran
-			 * without the bin lock in arena_bin_nonfull_slab_get().
-			 */
-			void *ret = arena_slab_reg_alloc(bin->slabcur,
-			    bin_info);
-			if (slab != NULL) {
-				/*
-				 * arena_slab_alloc() may have allocated slab,
-				 * or it may have been pulled from
-				 * slabs_nonfull.  Therefore it is unsafe to
-				 * make any assumptions about how slab has
-				 * previously been used, and
-				 * arena_bin_lower_slab() must be called, as if
-				 * a region were just deallocated from the slab.
-				 */
-				if (edata_nfree_get(slab) == bin_info->nregs) {
-					arena_dalloc_bin_slab(tsdn, arena, slab,
-					    bin);
-				} else {
-					arena_bin_lower_slab(tsdn, arena, slab,
-					    bin);
-				}
-			}
-			return ret;
-		}
-
 		arena_bin_slabs_full_insert(arena, bin, bin->slabcur);
-		bin->slabcur = NULL;
 	}
 
-	if (slab == NULL) {
-		return NULL;
-	}
-	bin->slabcur = slab;
-	assert(edata_nfree_get(bin->slabcur) > 0);
+	/* Look for a usable slab. */
+	bin->slabcur = arena_bin_slabs_nonfull_tryget(bin);
+	assert(bin->slabcur == NULL || edata_nfree_get(bin->slabcur) > 0);
 
-	return arena_slab_reg_alloc(slab, bin_info);
+	return (bin->slabcur == NULL);
 }
 
 /* Choose a bin shard and return the locked bin. */
@@ -1369,63 +1321,139 @@ arena_bin_choose_lock(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 void
 arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
     cache_bin_t *tbin, szind_t binind) {
-	unsigned i, nfill, cnt;
-
 	assert(cache_bin_ncached_get(tbin, binind) == 0);
 	tcache->bin_refilled[binind] = true;
 
-	unsigned binshard;
-	bin_t *bin = arena_bin_choose_lock(tsdn, arena, binind, &binshard);
-
+	const bin_info_t *bin_info = &bin_infos[binind];
+	const unsigned nfill = cache_bin_ncached_max_get(binind) >>
+	    tcache->lg_fill_div[binind];
 	void **empty_position = cache_bin_empty_position_get(tbin, binind);
-	for (i = 0, nfill = (cache_bin_ncached_max_get(binind) >>
-	    tcache->lg_fill_div[binind]); i < nfill; i += cnt) {
-		edata_t *slab;
-		if ((slab = bin->slabcur) != NULL && edata_nfree_get(slab) >
-		    0) {
-			unsigned tofill = nfill - i;
-			cnt = tofill < edata_nfree_get(slab) ?
-				tofill : edata_nfree_get(slab);
-			arena_slab_reg_alloc_batch(
-			   slab, &bin_infos[binind], cnt,
-			   empty_position - nfill + i);
-		} else {
-			cnt = 1;
-			void *ptr = arena_bin_malloc_hard(tsdn, arena, bin,
-			    binind, binshard);
-			/*
-			 * OOM.  tbin->avail isn't yet filled down to its first
-			 * element, so the successful allocations (if any) must
-			 * be moved just before tbin->avail before bailing out.
-			 */
-			if (ptr == NULL) {
-				if (i > 0) {
-					memmove(empty_position - i,
-						empty_position - nfill,
-						i * sizeof(void *));
-				}
-				break;
-			}
-			/* Insert such that low regions get used first. */
-			*(empty_position - nfill + i) = ptr;
+
+	/*
+	 * Bin-local resources are used first: 1) bin->slabcur, and 2) nonfull
+	 * slabs.  After both are exhausted, new slabs will be allocated through
+	 * arena_slab_alloc().
+	 *
+	 * Bin lock is only taken / released right before / after the while(...)
+	 * refill loop, with new slab allocation (which has its own locking)
+	 * kept outside of the loop.  This setup facilitates flat combining, at
+	 * the cost of the nested loop (through goto label_refill).
+	 *
+	 * To optimize for cases with contention and limited resources
+	 * (e.g. hugepage-backed or non-overcommit arenas), each fill-iteration
+	 * gets one chance of slab_alloc, and a retry of bin local resources
+	 * after the slab allocation (regardless if slab_alloc failed, because
+	 * the bin lock is dropped during the slab allocation).
+	 *
+	 * In other words, new slab allocation is allowed, as long as there was
+	 * progress since the previous slab_alloc.  This is tracked with
+	 * made_progress below, initialized to true to jump start the first
+	 * iteration.
+	 *
+	 * In other words (again), the loop will only terminate early (i.e. stop
+	 * with filled < nfill) after going through the three steps: a) bin
+	 * local exhausted, b) unlock and slab_alloc returns null, c) re-lock
+	 * and bin local fails again.
+	 */
+	bool made_progress = true;
+	edata_t *fresh_slab = NULL;
+	bool alloc_and_retry = false;
+	unsigned filled = 0;
+
+	bin_t *bin;
+	unsigned binshard;
+label_refill:
+	bin = arena_bin_choose_lock(tsdn, arena, binind, &binshard);
+	while (filled < nfill) {
+		/* Try batch-fill from slabcur first. */
+		edata_t *slabcur = bin->slabcur;
+		if (slabcur != NULL && edata_nfree_get(slabcur) > 0) {
+			unsigned tofill = nfill - filled;
+			unsigned nfree = edata_nfree_get(slabcur);
+			unsigned cnt = tofill < nfree ? tofill : nfree;
+
+			arena_slab_reg_alloc_batch(slabcur, bin_info, cnt,
+			    empty_position - tofill);
+			made_progress = true;
+			filled += cnt;
+			continue;
 		}
-		if (config_fill && unlikely(opt_junk_alloc)) {
-			for (unsigned j = 0; j < cnt; j++) {
-				void* ptr = *(empty_position - nfill + i + j);
-				arena_alloc_junk_small(ptr, &bin_infos[binind],
-							true);
-			}
+		/* Next try refilling slabcur from nonfull slabs. */
+		if (!arena_bin_refill_slabcur_no_fresh_slab(tsdn, arena, bin)) {
+			assert(bin->slabcur != NULL);
+			continue;
 		}
-	}
-	if (config_stats) {
-		bin->stats.nmalloc += i;
+
+		/* Then see if a new slab was reserved already. */
+		if (fresh_slab != NULL) {
+			arena_bin_refill_slabcur_with_fresh_slab(tsdn, arena,
+			    bin, binind, fresh_slab);
+			assert(bin->slabcur != NULL);
+			fresh_slab = NULL;
+			continue;
+		}
+
+		/* Try slab_alloc if made progress (or never did slab_alloc). */
+		if (made_progress) {
+			assert(bin->slabcur == NULL);
+			assert(fresh_slab == NULL);
+			alloc_and_retry = true;
+			/* Alloc a new slab then come back. */
+			break;
+		}
+
+		assert(fresh_slab == NULL);
+		/*
+		 * OOM.  tbin->avail isn't yet filled down to its first element,
+		 * so the successful allocations (if any) must be moved just
+		 * before tbin->avail before bailing out.
+		 */
+		if (filled > 0) {
+			memmove(empty_position - filled, empty_position - nfill,
+			    filled * sizeof(void *));
+		}
+		assert(!alloc_and_retry);
+		break;
+	} /* while (filled < nfill) loop. */
+
+	if (config_stats && !alloc_and_retry) {
+		bin->stats.nmalloc += filled;
 		bin->stats.nrequests += tbin->tstats.nrequests;
-		bin->stats.curregs += i;
+		bin->stats.curregs += filled;
 		bin->stats.nfills++;
 		tbin->tstats.nrequests = 0;
 	}
 	malloc_mutex_unlock(tsdn, &bin->lock);
-	cache_bin_ncached_set(tbin, binind, i);
+
+	if (alloc_and_retry) {
+		assert(fresh_slab == NULL);
+		assert(filled < nfill);
+		assert(made_progress);
+
+		fresh_slab = arena_slab_alloc(tsdn, arena, binind, binshard,
+		    bin_info);
+		/* fresh_slab NULL case handled in the for loop. */
+
+		alloc_and_retry = false;
+		made_progress = false;
+		goto label_refill;
+	}
+	assert(filled == nfill || (fresh_slab == NULL && !made_progress));
+
+	/* Release if allocated but not used. */
+	if (fresh_slab != NULL) {
+		assert(edata_nfree_get(fresh_slab) == bin_info->nregs);
+		arena_slab_dalloc(tsdn, arena, fresh_slab);
+		fresh_slab = NULL;
+	}
+
+	if (config_fill && unlikely(opt_junk_alloc)) {
+		for (unsigned i = 0; i < filled; i++) {
+			void *ptr = *(empty_position - nfill + filled + i);
+			arena_alloc_junk_small(ptr, bin_info, true);
+		}
+	}
+	cache_bin_ncached_set(tbin, binind, filled);
 	arena_decay_tick(tsdn, arena);
 }
 
@@ -1443,55 +1471,80 @@ arena_dalloc_junk_small_impl(void *ptr, const bin_info_t *bin_info) {
 arena_dalloc_junk_small_t *JET_MUTABLE arena_dalloc_junk_small =
     arena_dalloc_junk_small_impl;
 
+/*
+ * Without allocating a new slab, try arena_slab_reg_alloc() and re-fill
+ * bin->slabcur if necessary.
+ */
+static void *
+arena_bin_malloc_no_fresh_slab(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
+    szind_t binind) {
+	malloc_mutex_assert_owner(tsdn, &bin->lock);
+	if (bin->slabcur == NULL || edata_nfree_get(bin->slabcur) == 0) {
+		if (arena_bin_refill_slabcur_no_fresh_slab(tsdn, arena, bin)) {
+			return NULL;
+		}
+	}
+
+	assert(bin->slabcur != NULL && edata_nfree_get(bin->slabcur) > 0);
+	return arena_slab_reg_alloc(bin->slabcur, &bin_infos[binind]);
+}
+
 static void *
 arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero) {
-	void *ret;
-	bin_t *bin;
-	size_t usize;
-	edata_t *slab;
-
 	assert(binind < SC_NBINS);
-	usize = sz_index2size(binind);
+	const bin_info_t *bin_info = &bin_infos[binind];
+	size_t usize = sz_index2size(binind);
 	unsigned binshard;
-	bin = arena_bin_choose_lock(tsdn, arena, binind, &binshard);
+	bin_t *bin = arena_bin_choose_lock(tsdn, arena, binind, &binshard);
 
-	if ((slab = bin->slabcur) != NULL && edata_nfree_get(slab) > 0) {
-		ret = arena_slab_reg_alloc(slab, &bin_infos[binind]);
-	} else {
-		ret = arena_bin_malloc_hard(tsdn, arena, bin, binind, binshard);
-	}
-
+	edata_t *fresh_slab = NULL;
+	void *ret = arena_bin_malloc_no_fresh_slab(tsdn, arena, bin, binind);
 	if (ret == NULL) {
 		malloc_mutex_unlock(tsdn, &bin->lock);
-		return NULL;
+		/******************************/
+		fresh_slab = arena_slab_alloc(tsdn, arena, binind, binshard,
+		    bin_info);
+		/********************************/
+		malloc_mutex_lock(tsdn, &bin->lock);
+		/* Retry since the lock was dropped. */
+		ret = arena_bin_malloc_no_fresh_slab(tsdn, arena, bin, binind);
+		if (ret == NULL) {
+			if (fresh_slab == NULL) {
+				/* OOM */
+				malloc_mutex_unlock(tsdn, &bin->lock);
+				return NULL;
+			}
+			ret = arena_bin_malloc_with_fresh_slab(tsdn, arena, bin,
+			    binind, fresh_slab);
+			fresh_slab = NULL;
+		}
 	}
-
 	if (config_stats) {
 		bin->stats.nmalloc++;
 		bin->stats.nrequests++;
 		bin->stats.curregs++;
 	}
-
 	malloc_mutex_unlock(tsdn, &bin->lock);
 
+	if (fresh_slab != NULL) {
+		arena_slab_dalloc(tsdn, arena, fresh_slab);
+	}
 	if (!zero) {
 		if (config_fill) {
 			if (unlikely(opt_junk_alloc)) {
-				arena_alloc_junk_small(ret,
-				    &bin_infos[binind], false);
+				arena_alloc_junk_small(ret, bin_info, false);
 			} else if (unlikely(opt_zero)) {
 				memset(ret, 0, usize);
 			}
 		}
 	} else {
 		if (config_fill && unlikely(opt_junk_alloc)) {
-			arena_alloc_junk_small(ret, &bin_infos[binind],
-			    true);
+			arena_alloc_junk_small(ret, bin_info, true);
 		}
 		memset(ret, 0, usize);
 	}
-
 	arena_decay_tick(tsdn, arena);
+
 	return ret;
 }
 
@@ -1625,21 +1678,6 @@ arena_dissociate_bin_slab(arena_t *arena, edata_t *slab, bin_t *bin) {
 }
 
 static void
-arena_dalloc_bin_slab(tsdn_t *tsdn, arena_t *arena, edata_t *slab,
-    bin_t *bin) {
-	assert(slab != bin->slabcur);
-
-	malloc_mutex_unlock(tsdn, &bin->lock);
-	/******************************/
-	arena_slab_dalloc(tsdn, arena, slab);
-	/****************************/
-	malloc_mutex_lock(tsdn, &bin->lock);
-	if (config_stats) {
-		bin->stats.curslabs--;
-	}
-}
-
-static void
 arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, edata_t *slab,
     bin_t *bin) {
 	assert(edata_nfree_get(slab) > 0);
@@ -1667,20 +1705,31 @@ arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, edata_t *slab,
 }
 
 static void
+arena_dalloc_bin_slab_prepare(tsdn_t *tsdn, edata_t *slab, bin_t *bin) {
+	malloc_mutex_assert_owner(tsdn, &bin->lock);
+
+	assert(slab != bin->slabcur);
+	if (config_stats) {
+		bin->stats.curslabs--;
+	}
+}
+
+/* Returns true if arena_slab_dalloc must be called on slab */
+static bool
 arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
     szind_t binind, edata_t *slab, void *ptr, bool junked) {
-	slab_data_t *slab_data = edata_slab_data_get(slab);
 	const bin_info_t *bin_info = &bin_infos[binind];
-
 	if (!junked && config_fill && unlikely(opt_junk_free)) {
 		arena_dalloc_junk_small(ptr, bin_info);
 	}
+	arena_slab_reg_dalloc(slab, edata_slab_data_get(slab), ptr);
 
-	arena_slab_reg_dalloc(slab, slab_data, ptr);
+	bool ret = false;
 	unsigned nfree = edata_nfree_get(slab);
 	if (nfree == bin_info->nregs) {
 		arena_dissociate_bin_slab(arena, slab, bin);
-		arena_dalloc_bin_slab(tsdn, arena, slab, bin);
+		arena_dalloc_bin_slab_prepare(tsdn, slab, bin);
+		ret = true;
 	} else if (nfree == 1 && slab != bin->slabcur) {
 		arena_bin_slabs_full_remove(arena, bin, slab);
 		arena_bin_lower_slab(tsdn, arena, slab, bin);
@@ -1690,13 +1739,15 @@ arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 		bin->stats.ndalloc++;
 		bin->stats.curregs--;
 	}
+
+	return ret;
 }
 
-void
+bool
 arena_dalloc_bin_junked_locked(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
     szind_t binind, edata_t *edata, void *ptr) {
-	arena_dalloc_bin_locked_impl(tsdn, arena, bin, binind, edata, ptr,
-	    true);
+	return arena_dalloc_bin_locked_impl(tsdn, arena, bin, binind, edata,
+	    ptr, true);
 }
 
 static void
@@ -1706,9 +1757,13 @@ arena_dalloc_bin(tsdn_t *tsdn, arena_t *arena, edata_t *edata, void *ptr) {
 	bin_t *bin = &arena->bins[binind].bin_shards[binshard];
 
 	malloc_mutex_lock(tsdn, &bin->lock);
-	arena_dalloc_bin_locked_impl(tsdn, arena, bin, binind, edata, ptr,
-	    false);
+	bool ret = arena_dalloc_bin_locked_impl(tsdn, arena, bin, binind, edata,
+	    ptr, false);
 	malloc_mutex_unlock(tsdn, &bin->lock);
+
+	if (ret) {
+		arena_slab_dalloc(tsdn, arena, edata);
+	}
 }
 
 void
