@@ -63,8 +63,9 @@ void *arena_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize,
 void arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize);
 void arena_dalloc_promoted(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
     bool slow_path);
-void arena_dalloc_bin_junked_locked(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
+bool arena_dalloc_bin_junked_locked(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
     szind_t binind, edata_t *edata, void *ptr);
+void arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, edata_t *slab);
 void arena_dalloc_small(tsdn_t *tsdn, void *ptr);
 bool arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
     size_t extra, bool zero, size_t *newsize);
