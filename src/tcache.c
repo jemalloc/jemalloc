@@ -149,7 +149,8 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 	arena_t *arena = tcache->arena;
 	assert(arena != NULL);
 	unsigned nflush = ncached - rem;
-	VARIABLE_ARRAY(edata_t *, item_edata, nflush);
+	/* Variable length array must have > 0 length. */
+	VARIABLE_ARRAY(edata_t *, item_edata, nflush + 1);
 
 	void **bottom_item = cache_bin_bottom_item_get(tbin, binind);
 	tsdn_t *tsdn = tsd_tsdn(tsd);
@@ -250,7 +251,8 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin, szind_t 
 	arena_t *tcache_arena = tcache->arena;
 	assert(tcache_arena != NULL);
 	unsigned nflush = ncached - rem;
-	VARIABLE_ARRAY(edata_t *, item_edata, nflush);
+	/* Variable length array must have > 0 length. */
+	VARIABLE_ARRAY(edata_t *, item_edata, nflush + 1);
 
 	void **bottom_item = cache_bin_bottom_item_get(tbin, binind);
 #ifndef JEMALLOC_EXTRA_SIZE_CHECK
