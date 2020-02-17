@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_EDATA_CACHE_H
 #define JEMALLOC_INTERNAL_EDATA_CACHE_H
 
+#include "jemalloc/internal/base.h"
+
 /*
  * A cache of edata_t structures allocated via base_alloc_edata (as opposed to
  * the underlying extents they describe).  The contents of returned edata_t
