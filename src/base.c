@@ -7,6 +7,15 @@
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/sz.h"
 
+/*
+ * In auto mode, arenas switch to huge pages for the base allocator on the
+ * second base block.  a0 switches to thp on the 5th block (after 20 megabytes
+ * of metadata), since more metadata (e.g. rtree nodes) come from a0's base.
+ */
+
+#define BASE_AUTO_THP_THRESHOLD    2
+#define BASE_AUTO_THP_THRESHOLD_A0 5
+
 /******************************************************************************/
 /* Data. */
 

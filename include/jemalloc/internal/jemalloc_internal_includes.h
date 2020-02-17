@@ -40,7 +40,6 @@
 /* TYPES */
 /******************************************************************************/
 
-#include "jemalloc/internal/base_types.h"
 #include "jemalloc/internal/arena_types.h"
 #include "jemalloc/internal/tcache_types.h"
 #include "jemalloc/internal/prof_types.h"
@@ -51,7 +50,6 @@
 
 #include "jemalloc/internal/prof_structs.h"
 #include "jemalloc/internal/arena_structs.h"
-#include "jemalloc/internal/base_structs.h"
 #include "jemalloc/internal/tcache_structs.h"
 #include "jemalloc/internal/background_thread_structs.h"
 
@@ -60,7 +58,6 @@
 /******************************************************************************/
 
 #include "jemalloc/internal/jemalloc_internal_externs.h"
-#include "jemalloc/internal/base_externs.h"
 #include "jemalloc/internal/arena_externs.h"
 #include "jemalloc/internal/large_externs.h"
 #include "jemalloc/internal/tcache_externs.h"
@@ -72,7 +69,6 @@
 /******************************************************************************/
 
 #include "jemalloc/internal/jemalloc_internal_inlines_a.h"
-#include "jemalloc/internal/base_inlines.h"
 /*
  * Include portions of arena code interleaved with tcache code in order to
  * resolve circular dependencies.
