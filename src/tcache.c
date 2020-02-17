@@ -664,14 +664,14 @@ tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 }
 
 static bool
-tcaches_create_prep(tsd_t *tsd) {
+tcaches_create_prep(tsd_t *tsd, base_t *base) {
 	bool err;
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &tcaches_mtx);
 
 	if (tcaches == NULL) {
-		tcaches = base_alloc(tsd_tsdn(tsd), b0get(), sizeof(tcache_t *)
-		    * (MALLOCX_TCACHE_MAX+1), CACHELINE);
+		tcaches = base_alloc(tsd_tsdn(tsd), base,
+		    sizeof(tcache_t *) * (MALLOCX_TCACHE_MAX+1), CACHELINE);
 		if (tcaches == NULL) {
 			err = true;
 			goto label_return;
@@ -690,12 +690,12 @@ label_return:
 }
 
 bool
-tcaches_create(tsd_t *tsd, unsigned *r_ind) {
+tcaches_create(tsd_t *tsd, base_t *base, unsigned *r_ind) {
 	witness_assert_depth(tsdn_witness_tsdp_get(tsd_tsdn(tsd)), 0);
 
 	bool err;
 
-	if (tcaches_create_prep(tsd)) {
+	if (tcaches_create_prep(tsd, base)) {
 		err = true;
 		goto label_return;
 	}
@@ -772,7 +772,7 @@ tcaches_destroy(tsd_t *tsd, unsigned ind) {
 }
 
 bool
-tcache_boot(tsdn_t *tsdn) {
+tcache_boot(tsdn_t *tsdn, base_t *base) {
 	/* If necessary, clamp opt_lg_tcache_max. */
 	if (opt_lg_tcache_max < 0 || (ZU(1) << opt_lg_tcache_max) <
 	    SC_SMALL_MAXCLASS) {
@@ -789,8 +789,8 @@ tcache_boot(tsdn_t *tsdn) {
 	nhbins = sz_size2index(tcache_maxclass) + 1;
 
 	/* Initialize tcache_bin_info. */
-	tcache_bin_info = (cache_bin_info_t *)base_alloc(tsdn, b0get(), nhbins
-	    * sizeof(cache_bin_info_t), CACHELINE);
+	tcache_bin_info = (cache_bin_info_t *)base_alloc(tsdn, base,
+	    nhbins * sizeof(cache_bin_info_t), CACHELINE);
 	if (tcache_bin_info == NULL) {
 		return true;
 	}
