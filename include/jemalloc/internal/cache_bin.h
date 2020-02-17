@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_CACHE_BIN_H
 
 #include "jemalloc/internal/ql.h"
+#include "jemalloc/internal/sz.h"
 
 /*
  * The cache_bins are the mechanism that the tcache and the arena use to
