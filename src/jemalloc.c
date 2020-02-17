@@ -1573,7 +1573,7 @@ malloc_init_hard_a0_locked() {
 		return true;
 	}
 	/* emap_global is static, hence zeroed. */
-	if (emap_init(&emap_global, /* zeroed */ true)) {
+	if (emap_init(&emap_global, b0get(), /* zeroed */ true)) {
 		return true;
 	}
 	if (extent_boot()) {

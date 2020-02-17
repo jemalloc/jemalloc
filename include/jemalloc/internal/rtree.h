@@ -78,6 +78,7 @@ struct rtree_level_s {
 
 typedef struct rtree_s rtree_t;
 struct rtree_s {
+	base_t			*base;
 	malloc_mutex_t		init_lock;
 	/* Number of elements based on rtree_levels[0].bits. */
 #if RTREE_HEIGHT > 1
@@ -109,22 +110,8 @@ static const rtree_level_t rtree_levels[] = {
 #endif
 };
 
-bool rtree_new(rtree_t *rtree, bool zeroed);
+bool rtree_new(rtree_t *rtree, base_t *base, bool zeroed);
 
-typedef rtree_node_elm_t *(rtree_node_alloc_t)(tsdn_t *, rtree_t *, size_t);
-extern rtree_node_alloc_t *JET_MUTABLE rtree_node_alloc;
-
-typedef rtree_leaf_elm_t *(rtree_leaf_alloc_t)(tsdn_t *, rtree_t *, size_t);
-extern rtree_leaf_alloc_t *JET_MUTABLE rtree_leaf_alloc;
-
-typedef void (rtree_node_dalloc_t)(tsdn_t *, rtree_t *, rtree_node_elm_t *);
-extern rtree_node_dalloc_t *JET_MUTABLE rtree_node_dalloc;
-
-typedef void (rtree_leaf_dalloc_t)(tsdn_t *, rtree_t *, rtree_leaf_elm_t *);
-extern rtree_leaf_dalloc_t *JET_MUTABLE rtree_leaf_dalloc;
-#ifdef JEMALLOC_JET
-void rtree_delete(tsdn_t *tsdn, rtree_t *rtree);
-#endif
 rtree_leaf_elm_t *rtree_leaf_elm_lookup_hard(tsdn_t *tsdn, rtree_t *rtree,
     rtree_ctx_t *rtree_ctx, uintptr_t key, bool dependent, bool init_missing);
 

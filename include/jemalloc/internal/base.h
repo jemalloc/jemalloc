@@ -86,7 +86,8 @@ metadata_thp_enabled(void) {
 }
 
 base_t *b0get(void);
-base_t *base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks);
+base_t *base_new(tsdn_t *tsdn, unsigned ind,
+    const extent_hooks_t *extent_hooks);
 void base_delete(tsdn_t *tsdn, base_t *base);
 ehooks_t *base_ehooks_get(base_t *base);
 extent_hooks_t *base_extent_hooks_set(base_t *base,

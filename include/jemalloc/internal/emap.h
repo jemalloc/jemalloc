@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_EMAP_H
 #define JEMALLOC_INTERNAL_EMAP_H
 
+#include "jemalloc/internal/base.h"
 #include "jemalloc/internal/mutex_pool.h"
 #include "jemalloc/internal/rtree.h"
 
@@ -27,7 +28,7 @@ struct emap_full_alloc_ctx_s {
 
 extern emap_t emap_global;
 
-bool emap_init(emap_t *emap, bool zeroed);
+bool emap_init(emap_t *emap, base_t *base, bool zeroed);
 
 /*
  * Grab the lock or locks associated with the edata or edatas indicated (which

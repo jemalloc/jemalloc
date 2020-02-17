@@ -343,7 +343,7 @@ b0get(void) {
 }
 
 base_t *
-base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
+base_new(tsdn_t *tsdn, unsigned ind, const extent_hooks_t *extent_hooks) {
 	pszind_t pind_last = 0;
 	size_t extent_sn_next = 0;
 
@@ -353,7 +353,7 @@ base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	 * memory, and then initialize the ehooks within the base_t.
 	 */
 	ehooks_t fake_ehooks;
-	ehooks_init(&fake_ehooks, extent_hooks, ind);
+	ehooks_init(&fake_ehooks, (extent_hooks_t *)extent_hooks, ind);
 
 	base_block_t *block = base_block_alloc(tsdn, NULL, &fake_ehooks, ind,
 	    &pind_last, &extent_sn_next, sizeof(base_t), QUANTUM);
@@ -366,7 +366,7 @@ base_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	size_t base_size = ALIGNMENT_CEILING(sizeof(base_t), base_alignment);
 	base_t *base = (base_t *)base_extent_bump_alloc_helper(&block->edata,
 	    &gap_size, base_size, base_alignment);
-	ehooks_init(&base->ehooks, extent_hooks, ind);
+	ehooks_init(&base->ehooks, (extent_hooks_t *)extent_hooks, ind);
 	if (malloc_mutex_init(&base->mtx, "base", WITNESS_RANK_BASE,
 	    malloc_mutex_rank_exclusive)) {
 		base_unmap(tsdn, &fake_ehooks, ind, block, block->size);
