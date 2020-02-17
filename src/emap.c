@@ -22,9 +22,9 @@ enum emap_lock_result_e {
 typedef enum emap_lock_result_e emap_lock_result_t;
 
 bool
-emap_init(emap_t *emap) {
+emap_init(emap_t *emap, bool zeroed) {
 	bool err;
-	err = rtree_new(&emap->rtree, true);
+	err = rtree_new(&emap->rtree, zeroed);
 	if (err) {
 		return true;
 	}
