@@ -895,7 +895,7 @@ background_thread_boot0(void) {
 }
 
 bool
-background_thread_boot1(tsdn_t *tsdn) {
+background_thread_boot1(tsdn_t *tsdn, base_t *base) {
 #ifdef JEMALLOC_BACKGROUND_THREAD
 	assert(have_background_thread);
 	assert(narenas_total_get() > 0);
@@ -914,7 +914,7 @@ background_thread_boot1(tsdn_t *tsdn) {
 	}
 
 	background_thread_info = (background_thread_info_t *)base_alloc(tsdn,
-	    b0get(), opt_max_background_threads *
+	    base, opt_max_background_threads *
 	    sizeof(background_thread_info_t), CACHELINE);
 	if (background_thread_info == NULL) {
 		return true;
