@@ -91,6 +91,9 @@ static uint64_t prof_dump_iseq;
 static uint64_t prof_dump_mseq;
 static uint64_t prof_dump_useq;
 
+/* The fallback allocator profiling functionality will use. */
+base_t *prof_base;
+
 malloc_mutex_t prof_dump_mtx;
 static char *prof_dump_prefix = NULL;
 
@@ -584,8 +587,8 @@ prof_dump_prefix_set(tsdn_t *tsdn, const char *prefix) {
 	if (prof_dump_prefix == NULL) {
 		malloc_mutex_unlock(tsdn, &prof_dump_filename_mtx);
 		/* Everything is still guarded by ctl_mtx. */
-		char *buffer = base_alloc(tsdn, b0get(), PROF_DUMP_FILENAME_LEN,
-		    QUANTUM);
+		char *buffer = base_alloc(tsdn, prof_base,
+		    PROF_DUMP_FILENAME_LEN, QUANTUM);
 		if (buffer == NULL) {
 			return true;
 		}
@@ -944,7 +947,7 @@ prof_boot1(void) {
 }
 
 bool
-prof_boot2(tsd_t *tsd) {
+prof_boot2(tsd_t *tsd, base_t *base) {
 	cassert(config_prof);
 
 	if (opt_prof) {
@@ -1017,9 +1020,10 @@ prof_boot2(tsd_t *tsd) {
 			return true;
 		}
 
-		gctx_locks = (malloc_mutex_t *)base_alloc(tsd_tsdn(tsd),
-		    b0get(), PROF_NCTX_LOCKS * sizeof(malloc_mutex_t),
-		    CACHELINE);
+		prof_base = base;
+
+		gctx_locks = (malloc_mutex_t *)base_alloc(tsd_tsdn(tsd), base,
+		    PROF_NCTX_LOCKS * sizeof(malloc_mutex_t), CACHELINE);
 		if (gctx_locks == NULL) {
 			return true;
 		}
@@ -1031,9 +1035,8 @@ prof_boot2(tsd_t *tsd) {
 			}
 		}
 
-		tdata_locks = (malloc_mutex_t *)base_alloc(tsd_tsdn(tsd),
-		    b0get(), PROF_NTDATA_LOCKS * sizeof(malloc_mutex_t),
-		    CACHELINE);
+		tdata_locks = (malloc_mutex_t *)base_alloc(tsd_tsdn(tsd), base,
+		    PROF_NTDATA_LOCKS * sizeof(malloc_mutex_t), CACHELINE);
 		if (tdata_locks == NULL) {
 			return true;
 		}

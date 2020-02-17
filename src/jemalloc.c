@@ -1586,7 +1586,7 @@ malloc_init_hard_a0_locked() {
 		prof_boot1();
 	}
 	arena_boot(&sc_data);
-	if (tcache_boot(TSDN_NULL)) {
+	if (tcache_boot(TSDN_NULL, b0get())) {
 		return true;
 	}
 	if (malloc_mutex_init(&arenas_lock, "arenas", WITNESS_RANK_ARENAS,
@@ -1823,7 +1823,7 @@ malloc_init_hard(void) {
 	if (malloc_init_narenas() || background_thread_boot1(tsd_tsdn(tsd))) {
 		UNLOCK_RETURN(tsd_tsdn(tsd), true, true)
 	}
-	if (config_prof && prof_boot2(tsd)) {
+	if (config_prof && prof_boot2(tsd, b0get())) {
 		UNLOCK_RETURN(tsd_tsdn(tsd), true, true)
 	}
 

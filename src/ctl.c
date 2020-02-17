@@ -2040,7 +2040,7 @@ tcache_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 	unsigned tcache_ind;
 
 	READONLY();
-	if (tcaches_create(tsd, &tcache_ind)) {
+	if (tcaches_create(tsd, b0get(), &tcache_ind)) {
 		ret = EFAULT;
 		goto label_return;
 	}
