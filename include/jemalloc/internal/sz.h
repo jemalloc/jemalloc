@@ -22,6 +22,12 @@
  * size that would result from such an allocation.
  */
 
+/* Page size index type. */
+typedef unsigned pszind_t;
+
+/* Size class index type. */
+typedef unsigned szind_t;
+
 /*
  * sz_pind2sz_tab encodes the same information as could be computed by
  * sz_pind2sz_compute().

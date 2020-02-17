@@ -3,12 +3,6 @@
 
 #include "jemalloc/internal/quantum.h"
 
-/* Page size index type. */
-typedef unsigned pszind_t;
-
-/* Size class index type. */
-typedef unsigned szind_t;
-
 /* Processor / core id type. */
 typedef int malloc_cpuid_t;
 
