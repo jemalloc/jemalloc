@@ -139,7 +139,7 @@ static const bool config_debug =
 #undef assert
 #undef not_reached
 #undef not_implemented
-#undef assert_not_implemented
+#undef expect_not_implemented
 
 #define assert(e) do {							\
 	if (!(e)) {							\
@@ -163,7 +163,7 @@ static const bool config_debug =
 	abort();							\
 } while (0)
 
-#define assert_not_implemented(e) do {					\
+#define expect_not_implemented(e) do {					\
 	if (!(e)) {							\
 		not_implemented();					\
 	}								\

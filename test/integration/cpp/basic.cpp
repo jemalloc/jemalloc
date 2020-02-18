@@ -3,14 +3,14 @@
 
 TEST_BEGIN(test_basic) {
 	auto foo = new long(4);
-	assert_ptr_not_null(foo, "Unexpected new[] failure");
+	expect_ptr_not_null(foo, "Unexpected new[] failure");
 	delete foo;
 	// Test nullptr handling.
 	foo = nullptr;
 	delete foo;
 
 	auto bar = new long;
-	assert_ptr_not_null(bar, "Unexpected new failure");
+	expect_ptr_not_null(bar, "Unexpected new failure");
 	delete bar;
 	// Test nullptr handling.
 	bar = nullptr;

@@ -7,20 +7,20 @@ deallocated() {
 	}
 	uint64_t deallocated;
 	size_t sz = sizeof(deallocated);
-	assert_d_eq(mallctl("thread.deallocated", (void *)&deallocated, &sz,
+	expect_d_eq(mallctl("thread.deallocated", (void *)&deallocated, &sz,
 	    NULL, 0), 0, "Unexpected mallctl failure");
 	return deallocated;
 }
 
 TEST_BEGIN(test_realloc_free) {
 	void *ptr = mallocx(42, 0);
-	assert_ptr_not_null(ptr, "Unexpected mallocx error");
+	expect_ptr_not_null(ptr, "Unexpected mallocx error");
 	uint64_t deallocated_before = deallocated();
 	ptr = realloc(ptr, 0);
 	uint64_t deallocated_after = deallocated();
-	assert_ptr_null(ptr, "Realloc didn't free");
+	expect_ptr_null(ptr, "Realloc didn't free");
 	if (config_stats) {
-		assert_u64_gt(deallocated_after, deallocated_before,
+		expect_u64_gt(deallocated_after, deallocated_before,
 		    "Realloc didn't free");
 	}
 }

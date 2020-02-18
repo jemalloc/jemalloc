@@ -1,11 +1,11 @@
 #include "test/jemalloc_test.h"
 
 #define TEST_UTIL_EINVAL(node, a, b, c, d, why_inval) do {		\
-	assert_d_eq(mallctl("experimental.utilization." node,		\
+	expect_d_eq(mallctl("experimental.utilization." node,		\
 	    a, b, c, d), EINVAL, "Should fail when " why_inval);	\
-	assert_zu_eq(out_sz, out_sz_ref,				\
+	expect_zu_eq(out_sz, out_sz_ref,				\
 	    "Output size touched when given invalid arguments");	\
-	assert_d_eq(memcmp(out, out_ref, out_sz_ref), 0,		\
+	expect_d_eq(memcmp(out, out_ref, out_sz_ref), 0,		\
 	    "Output content touched when given invalid arguments");	\
 } while (0)
 
@@ -15,11 +15,11 @@
 	TEST_UTIL_EINVAL("batch_query", a, b, c, d, why_inval)
 
 #define TEST_UTIL_VALID(node) do {					\
-        assert_d_eq(mallctl("experimental.utilization." node,		\
+        expect_d_eq(mallctl("experimental.utilization." node,		\
 	    out, &out_sz, in, in_sz), 0,				\
 	    "Should return 0 on correct arguments");			\
-        assert_zu_eq(out_sz, out_sz_ref, "incorrect output size");	\
-	assert_d_ne(memcmp(out, out_ref, out_sz_ref), 0,		\
+        expect_zu_eq(out_sz, out_sz_ref, "incorrect output size");	\
+	expect_d_ne(memcmp(out, out_ref, out_sz_ref), 0,		\
 	    "Output content should be changed");			\
 } while (0)
 
@@ -43,11 +43,11 @@ TEST_BEGIN(test_query) {
 		void *out_ref = mallocx(out_sz, 0);
 		size_t out_sz_ref = out_sz;
 
-		assert_ptr_not_null(p,
+		expect_ptr_not_null(p,
 		    "test pointer allocation failed");
-		assert_ptr_not_null(out,
+		expect_ptr_not_null(out,
 		    "test output allocation failed");
-		assert_ptr_not_null(out_ref,
+		expect_ptr_not_null(out_ref,
 		    "test reference output allocation failed");
 
 #define SLABCUR_READ(out) (*(void **)out)
@@ -83,60 +83,60 @@ TEST_BEGIN(test_query) {
 
 		/* Examine output for valid call */
 		TEST_UTIL_VALID("query");
-		assert_zu_le(sz, SIZE_READ(out),
+		expect_zu_le(sz, SIZE_READ(out),
 		    "Extent size should be at least allocation size");
-		assert_zu_eq(SIZE_READ(out) & (PAGE - 1), 0,
+		expect_zu_eq(SIZE_READ(out) & (PAGE - 1), 0,
 		    "Extent size should be a multiple of page size");
 		if (sz <= SC_SMALL_MAXCLASS) {
-			assert_zu_le(NFREE_READ(out), NREGS_READ(out),
+			expect_zu_le(NFREE_READ(out), NREGS_READ(out),
 			    "Extent free count exceeded region count");
-			assert_zu_le(NREGS_READ(out), SIZE_READ(out),
+			expect_zu_le(NREGS_READ(out), SIZE_READ(out),
 			    "Extent region count exceeded size");
-			assert_zu_ne(NREGS_READ(out), 0,
+			expect_zu_ne(NREGS_READ(out), 0,
 			    "Extent region count must be positive");
-			assert_true(NFREE_READ(out) == 0 || (SLABCUR_READ(out)
+			expect_true(NFREE_READ(out) == 0 || (SLABCUR_READ(out)
 			    != NULL && SLABCUR_READ(out) <= p),
 			    "Allocation should follow first fit principle");
 			if (config_stats) {
-				assert_zu_le(BIN_NFREE_READ(out),
+				expect_zu_le(BIN_NFREE_READ(out),
 				    BIN_NREGS_READ(out),
 				    "Bin free count exceeded region count");
-				assert_zu_ne(BIN_NREGS_READ(out), 0,
+				expect_zu_ne(BIN_NREGS_READ(out), 0,
 				    "Bin region count must be positive");
-				assert_zu_le(NFREE_READ(out),
+				expect_zu_le(NFREE_READ(out),
 				    BIN_NFREE_READ(out),
 				    "Extent free count exceeded bin free count");
-				assert_zu_le(NREGS_READ(out),
+				expect_zu_le(NREGS_READ(out),
 				    BIN_NREGS_READ(out),
 				    "Extent region count exceeded "
 				    "bin region count");
-				assert_zu_eq(BIN_NREGS_READ(out)
+				expect_zu_eq(BIN_NREGS_READ(out)
 				    % NREGS_READ(out), 0,
 				    "Bin region count isn't a multiple of "
 				    "extent region count");
-				assert_zu_le(
+				expect_zu_le(
 				    BIN_NFREE_READ(out) - NFREE_READ(out),
 				    BIN_NREGS_READ(out) - NREGS_READ(out),
 				    "Free count in other extents in the bin "
 				    "exceeded region count in other extents "
 				    "in the bin");
-				assert_zu_le(NREGS_READ(out) - NFREE_READ(out),
+				expect_zu_le(NREGS_READ(out) - NFREE_READ(out),
 				    BIN_NREGS_READ(out) - BIN_NFREE_READ(out),
 				    "Extent utilized count exceeded "
 				    "bin utilized count");
 			}
 		} else {
-			assert_zu_eq(NFREE_READ(out), 0,
+			expect_zu_eq(NFREE_READ(out), 0,
 			    "Extent free count should be zero");
-			assert_zu_eq(NREGS_READ(out), 1,
+			expect_zu_eq(NREGS_READ(out), 1,
 			    "Extent region count should be one");
-			assert_ptr_null(SLABCUR_READ(out),
+			expect_ptr_null(SLABCUR_READ(out),
 			    "Current slab must be null for large size classes");
 			if (config_stats) {
-				assert_zu_eq(BIN_NFREE_READ(out), 0,
+				expect_zu_eq(BIN_NFREE_READ(out), 0,
 				    "Bin free count must be zero for "
 				    "large sizes");
-				assert_zu_eq(BIN_NREGS_READ(out), 0,
+				expect_zu_eq(BIN_NREGS_READ(out), 0,
 				    "Bin region count must be zero for "
 				    "large sizes");
 			}
@@ -174,8 +174,8 @@ TEST_BEGIN(test_batch) {
 		size_t out_ref[] = {-1, -1, -1, -1, -1, -1};
 		size_t out_sz_ref = out_sz;
 
-		assert_ptr_not_null(p, "test pointer allocation failed");
-		assert_ptr_not_null(q, "test pointer allocation failed");
+		expect_ptr_not_null(p, "test pointer allocation failed");
+		expect_ptr_not_null(q, "test pointer allocation failed");
 
 		/* Test invalid argument(s) errors */
 		TEST_UTIL_BATCH_EINVAL(NULL, &out_sz, in, in_sz,
@@ -201,7 +201,7 @@ TEST_BEGIN(test_batch) {
 
 	/* Examine output for valid calls */
 #define TEST_EQUAL_REF(i, message) \
-	assert_d_eq(memcmp(out + (i) * 3, out_ref + (i) * 3, 3), 0, message)
+	expect_d_eq(memcmp(out + (i) * 3, out_ref + (i) * 3, 3), 0, message)
 
 #define NFREE_READ(out, i) out[(i) * 3]
 #define NREGS_READ(out, i) out[(i) * 3 + 1]
@@ -210,21 +210,21 @@ TEST_BEGIN(test_batch) {
 		out_sz_ref = out_sz /= 2;
 		in_sz /= 2;
 		TEST_UTIL_BATCH_VALID;
-		assert_zu_le(sz, SIZE_READ(out, 0),
+		expect_zu_le(sz, SIZE_READ(out, 0),
 		    "Extent size should be at least allocation size");
-		assert_zu_eq(SIZE_READ(out, 0) & (PAGE - 1), 0,
+		expect_zu_eq(SIZE_READ(out, 0) & (PAGE - 1), 0,
 		    "Extent size should be a multiple of page size");
 		if (sz <= SC_SMALL_MAXCLASS) {
-			assert_zu_le(NFREE_READ(out, 0), NREGS_READ(out, 0),
+			expect_zu_le(NFREE_READ(out, 0), NREGS_READ(out, 0),
 			    "Extent free count exceeded region count");
-			assert_zu_le(NREGS_READ(out, 0), SIZE_READ(out, 0),
+			expect_zu_le(NREGS_READ(out, 0), SIZE_READ(out, 0),
 			    "Extent region count exceeded size");
-			assert_zu_ne(NREGS_READ(out, 0), 0,
+			expect_zu_ne(NREGS_READ(out, 0), 0,
 			    "Extent region count must be positive");
 		} else {
-			assert_zu_eq(NFREE_READ(out, 0), 0,
+			expect_zu_eq(NFREE_READ(out, 0), 0,
 			    "Extent free count should be zero");
-			assert_zu_eq(NREGS_READ(out, 0), 1,
+			expect_zu_eq(NREGS_READ(out, 0), 1,
 			    "Extent region count should be one");
 		}
 		TEST_EQUAL_REF(1,
@@ -236,15 +236,15 @@ TEST_BEGIN(test_batch) {
 		TEST_UTIL_BATCH_VALID;
 		TEST_EQUAL_REF(0, "Statistics should be stable across calls");
 		if (sz <= SC_SMALL_MAXCLASS) {
-			assert_zu_le(NFREE_READ(out, 1), NREGS_READ(out, 1),
+			expect_zu_le(NFREE_READ(out, 1), NREGS_READ(out, 1),
 			    "Extent free count exceeded region count");
 		} else {
-			assert_zu_eq(NFREE_READ(out, 0), 0,
+			expect_zu_eq(NFREE_READ(out, 0), 0,
 			    "Extent free count should be zero");
 		}
-		assert_zu_eq(NREGS_READ(out, 0), NREGS_READ(out, 1),
+		expect_zu_eq(NREGS_READ(out, 0), NREGS_READ(out, 1),
 		    "Extent region count should be same for same region size");
-		assert_zu_eq(SIZE_READ(out, 0), SIZE_READ(out, 1),
+		expect_zu_eq(SIZE_READ(out, 0), SIZE_READ(out, 1),
 		    "Extent size should be same for same region size");
 
 #undef SIZE_READ
@@ -261,7 +261,7 @@ TEST_END
 
 int
 main(void) {
-	assert_zu_lt(SC_SMALL_MAXCLASS, TEST_MAX_SIZE,
+	expect_zu_lt(SC_SMALL_MAXCLASS, TEST_MAX_SIZE,
 	    "Test case cannot cover large classes");
 	return test(test_query, test_batch);
 }

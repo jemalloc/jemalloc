@@ -58,14 +58,14 @@ forwarding_cb(void *buf_descriptor_v, const char *str) {
 
 	size_t written = malloc_snprintf(buf_descriptor->buf,
 	    buf_descriptor->len, "%s", str);
-	assert_zu_eq(written, strlen(str), "Buffer overflow!");
+	expect_zu_eq(written, strlen(str), "Buffer overflow!");
 	buf_descriptor->buf += written;
 	buf_descriptor->len -= written;
-	assert_zu_gt(buf_descriptor->len, 0, "Buffer out of space!");
+	expect_zu_gt(buf_descriptor->len, 0, "Buffer out of space!");
 }
 
 static void
-assert_emit_output(void (*emit_fn)(emitter_t *),
+expect_emit_output(void (*emit_fn)(emitter_t *),
     const char *expected_json_output,
     const char *expected_json_compact_output,
     const char *expected_table_output) {
@@ -80,7 +80,7 @@ assert_emit_output(void (*emit_fn)(emitter_t *),
 	emitter_init(&emitter, emitter_output_json, &forwarding_cb,
 	    &buf_descriptor);
 	(*emit_fn)(&emitter);
-	assert_str_eq(expected_json_output, buf, "json output failure");
+	expect_str_eq(expected_json_output, buf, "json output failure");
 
 	buf_descriptor.buf = buf;
 	buf_descriptor.len = MALLOC_PRINTF_BUFSIZE;
@@ -89,7 +89,7 @@ assert_emit_output(void (*emit_fn)(emitter_t *),
 	emitter_init(&emitter, emitter_output_json_compact, &forwarding_cb,
 	    &buf_descriptor);
 	(*emit_fn)(&emitter);
-	assert_str_eq(expected_json_compact_output, buf,
+	expect_str_eq(expected_json_compact_output, buf,
 	    "compact json output failure");
 
 	buf_descriptor.buf = buf;
@@ -99,7 +99,7 @@ assert_emit_output(void (*emit_fn)(emitter_t *),
 	emitter_init(&emitter, emitter_output_table, &forwarding_cb,
 	    &buf_descriptor);
 	(*emit_fn)(&emitter);
-	assert_str_eq(expected_table_output, buf, "table output failure");
+	expect_str_eq(expected_table_output, buf, "table output failure");
 }
 
 static void
@@ -505,7 +505,7 @@ static const char *table_row_table =
 
 #define GENERATE_TEST(feature)					\
 TEST_BEGIN(test_##feature) {					\
-	assert_emit_output(emit_##feature, feature##_json,	\
+	expect_emit_output(emit_##feature, feature##_json,	\
 	    feature##_json_compact, feature##_table);		\
 }								\
 TEST_END

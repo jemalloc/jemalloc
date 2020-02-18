@@ -10,7 +10,7 @@ prof_dump_open_intercept(bool propagate_err, const char *filename) {
 	int fd;
 
 	fd = open("/dev/null", O_WRONLY);
-	assert_d_ne(fd, -1, "Unexpected open() failure");
+	expect_d_ne(fd, -1, "Unexpected open() failure");
 
 	return fd;
 }
@@ -32,14 +32,14 @@ thd_start(void *varg) {
 		void *p = alloc_from_permuted_backtrace(thd_ind, i);
 		dallocx(p, 0);
 		if (i % DUMP_INTERVAL == 0) {
-			assert_d_eq(mallctl("prof.dump", NULL, NULL, NULL, 0),
+			expect_d_eq(mallctl("prof.dump", NULL, NULL, NULL, 0),
 			    0, "Unexpected error while dumping heap profile");
 		}
 
 		if (i % BT_COUNT_CHECK_INTERVAL == 0 ||
 		    i+1 == NALLOCS_PER_THREAD) {
 			bt_count = prof_bt_count();
-			assert_zu_le(bt_count_prev+(i-i_prev), bt_count,
+			expect_zu_le(bt_count_prev+(i-i_prev), bt_count,
 			    "Expected larger backtrace count increase");
 			i_prev = i;
 			bt_count_prev = bt_count;
@@ -58,7 +58,7 @@ TEST_BEGIN(test_idump) {
 	test_skip_if(!config_prof);
 
 	active = true;
-	assert_d_eq(mallctl("prof.active", NULL, NULL, (void *)&active,
+	expect_d_eq(mallctl("prof.active", NULL, NULL, (void *)&active,
 	    sizeof(active)), 0,
 	    "Unexpected mallctl failure while activating profiling");
 

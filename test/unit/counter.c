@@ -16,24 +16,24 @@ TEST_BEGIN(test_counter_accum) {
 		trigger = counter_accum(tsd_tsdn(tsd), &c, increment);
 		accum += increment;
 		if (accum < interval) {
-			assert_b_eq(trigger, false, "Should not trigger");
+			expect_b_eq(trigger, false, "Should not trigger");
 		} else {
-			assert_b_eq(trigger, true, "Should have triggered");
+			expect_b_eq(trigger, true, "Should have triggered");
 		}
 	}
-	assert_b_eq(trigger, true, "Should have triggered");
+	expect_b_eq(trigger, true, "Should have triggered");
 }
 TEST_END
 
 void
-assert_counter_value(counter_accum_t *c, uint64_t v) {
+expect_counter_value(counter_accum_t *c, uint64_t v) {
 	uint64_t accum;
 #ifdef JEMALLOC_ATOMIC_U64
 	accum = atomic_load_u64(&(c->accumbytes), ATOMIC_RELAXED);
 #else
 	accum = c->accumbytes;
 #endif
-	assert_u64_eq(accum, v, "Counter value mismatch");
+	expect_u64_eq(accum, v, "Counter value mismatch");
 }
 
 TEST_BEGIN(test_counter_rollback) {
@@ -47,34 +47,34 @@ TEST_BEGIN(test_counter_rollback) {
 
 	bool trigger;
 	trigger = counter_accum(tsd_tsdn(tsd), &c, half_interval);
-	assert_b_eq(trigger, false, "Should not trigger");
+	expect_b_eq(trigger, false, "Should not trigger");
 	counter_rollback(tsd_tsdn(tsd), &c, half_interval + 1);
-	assert_counter_value(&c,  0);
+	expect_counter_value(&c,  0);
 
 	trigger = counter_accum(tsd_tsdn(tsd), &c, half_interval);
-	assert_b_eq(trigger, false, "Should not trigger");
+	expect_b_eq(trigger, false, "Should not trigger");
 	counter_rollback(tsd_tsdn(tsd), &c, half_interval - 1);
-	assert_counter_value(&c,  1);
+	expect_counter_value(&c,  1);
 
 	counter_rollback(tsd_tsdn(tsd), &c, 1);
-	assert_counter_value(&c,  0);
+	expect_counter_value(&c,  0);
 
 	trigger = counter_accum(tsd_tsdn(tsd), &c, half_interval);
-	assert_b_eq(trigger, false, "Should not trigger");
+	expect_b_eq(trigger, false, "Should not trigger");
 	counter_rollback(tsd_tsdn(tsd), &c, 1);
-	assert_counter_value(&c,  half_interval - 1);
+	expect_counter_value(&c,  half_interval - 1);
 
 	trigger = counter_accum(tsd_tsdn(tsd), &c, half_interval);
-	assert_b_eq(trigger, false, "Should not trigger");
-	assert_counter_value(&c,  interval - 1);
+	expect_b_eq(trigger, false, "Should not trigger");
+	expect_counter_value(&c,  interval - 1);
 
 	trigger = counter_accum(tsd_tsdn(tsd), &c, 1);
-	assert_b_eq(trigger, true, "Should have triggered");
-	assert_counter_value(&c, 0);
+	expect_b_eq(trigger, true, "Should have triggered");
+	expect_counter_value(&c, 0);
 
 	trigger = counter_accum(tsd_tsdn(tsd), &c, interval + 1);
-	assert_b_eq(trigger, true, "Should have triggered");
-	assert_counter_value(&c, 1);
+	expect_b_eq(trigger, true, "Should have triggered");
+	expect_counter_value(&c, 1);
 }
 TEST_END
 
@@ -114,7 +114,7 @@ TEST_BEGIN(test_counter_mt) {
 		thd_join(thds[i], &ret);
 		sum += (uintptr_t)ret;
 	}
-	assert_u64_eq(sum, N_THDS * N_ITER_THD / (interval / ITER_INCREMENT),
+	expect_u64_eq(sum, N_THDS * N_ITER_THD / (interval / ITER_INCREMENT),
 	    "Incorrect number of triggers");
 }
 TEST_END

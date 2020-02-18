@@ -97,28 +97,28 @@ test_bitmap_initializer_body(const bitmap_info_t *binfo, size_t nbits) {
 	bitmap_info_t binfo_dyn;
 	bitmap_info_init(&binfo_dyn, nbits);
 
-	assert_zu_eq(bitmap_size(binfo), bitmap_size(&binfo_dyn),
+	expect_zu_eq(bitmap_size(binfo), bitmap_size(&binfo_dyn),
 	    "Unexpected difference between static and dynamic initialization, "
 	    "nbits=%zu", nbits);
-	assert_zu_eq(binfo->nbits, binfo_dyn.nbits,
+	expect_zu_eq(binfo->nbits, binfo_dyn.nbits,
 	    "Unexpected difference between static and dynamic initialization, "
 	    "nbits=%zu", nbits);
 #ifdef BITMAP_USE_TREE
-	assert_u_eq(binfo->nlevels, binfo_dyn.nlevels,
+	expect_u_eq(binfo->nlevels, binfo_dyn.nlevels,
 	    "Unexpected difference between static and dynamic initialization, "
 	    "nbits=%zu", nbits);
 	{
 		unsigned i;
 
 		for (i = 0; i < binfo->nlevels; i++) {
-			assert_zu_eq(binfo->levels[i].group_offset,
+			expect_zu_eq(binfo->levels[i].group_offset,
 			    binfo_dyn.levels[i].group_offset,
 			    "Unexpected difference between static and dynamic "
 			    "initialization, nbits=%zu, level=%u", nbits, i);
 		}
 	}
 #else
-	assert_zu_eq(binfo->ngroups, binfo_dyn.ngroups,
+	expect_zu_eq(binfo->ngroups, binfo_dyn.ngroups,
 	    "Unexpected difference between static and dynamic initialization");
 #endif
 }
@@ -140,9 +140,9 @@ static size_t
 test_bitmap_size_body(const bitmap_info_t *binfo, size_t nbits,
     size_t prev_size) {
 	size_t size = bitmap_size(binfo);
-	assert_zu_ge(size, (nbits >> 3),
+	expect_zu_ge(size, (nbits >> 3),
 	    "Bitmap size is smaller than expected");
-	assert_zu_ge(size, prev_size, "Bitmap size is smaller than expected");
+	expect_zu_ge(size, prev_size, "Bitmap size is smaller than expected");
 	return size;
 }
 
@@ -170,17 +170,17 @@ static void
 test_bitmap_init_body(const bitmap_info_t *binfo, size_t nbits) {
 	size_t i;
 	bitmap_t *bitmap = (bitmap_t *)malloc(bitmap_size(binfo));
-	assert_ptr_not_null(bitmap, "Unexpected malloc() failure");
+	expect_ptr_not_null(bitmap, "Unexpected malloc() failure");
 
 	bitmap_init(bitmap, binfo, false);
 	for (i = 0; i < nbits; i++) {
-		assert_false(bitmap_get(bitmap, binfo, i),
+		expect_false(bitmap_get(bitmap, binfo, i),
 		    "Bit should be unset");
 	}
 
 	bitmap_init(bitmap, binfo, true);
 	for (i = 0; i < nbits; i++) {
-		assert_true(bitmap_get(bitmap, binfo, i), "Bit should be set");
+		expect_true(bitmap_get(bitmap, binfo, i), "Bit should be set");
 	}
 
 	free(bitmap);
@@ -207,13 +207,13 @@ static void
 test_bitmap_set_body(const bitmap_info_t *binfo, size_t nbits) {
 	size_t i;
 	bitmap_t *bitmap = (bitmap_t *)malloc(bitmap_size(binfo));
-	assert_ptr_not_null(bitmap, "Unexpected malloc() failure");
+	expect_ptr_not_null(bitmap, "Unexpected malloc() failure");
 	bitmap_init(bitmap, binfo, false);
 
 	for (i = 0; i < nbits; i++) {
 		bitmap_set(bitmap, binfo, i);
 	}
-	assert_true(bitmap_full(bitmap, binfo), "All bits should be set");
+	expect_true(bitmap_full(bitmap, binfo), "All bits should be set");
 	free(bitmap);
 }
 
@@ -238,20 +238,20 @@ static void
 test_bitmap_unset_body(const bitmap_info_t *binfo, size_t nbits) {
 	size_t i;
 	bitmap_t *bitmap = (bitmap_t *)malloc(bitmap_size(binfo));
-	assert_ptr_not_null(bitmap, "Unexpected malloc() failure");
+	expect_ptr_not_null(bitmap, "Unexpected malloc() failure");
 	bitmap_init(bitmap, binfo, false);
 
 	for (i = 0; i < nbits; i++) {
 		bitmap_set(bitmap, binfo, i);
 	}
-	assert_true(bitmap_full(bitmap, binfo), "All bits should be set");
+	expect_true(bitmap_full(bitmap, binfo), "All bits should be set");
 	for (i = 0; i < nbits; i++) {
 		bitmap_unset(bitmap, binfo, i);
 	}
 	for (i = 0; i < nbits; i++) {
 		bitmap_set(bitmap, binfo, i);
 	}
-	assert_true(bitmap_full(bitmap, binfo), "All bits should be set");
+	expect_true(bitmap_full(bitmap, binfo), "All bits should be set");
 	free(bitmap);
 }
 
@@ -275,25 +275,25 @@ TEST_END
 static void
 test_bitmap_xfu_body(const bitmap_info_t *binfo, size_t nbits) {
 	bitmap_t *bitmap = (bitmap_t *)malloc(bitmap_size(binfo));
-	assert_ptr_not_null(bitmap, "Unexpected malloc() failure");
+	expect_ptr_not_null(bitmap, "Unexpected malloc() failure");
 	bitmap_init(bitmap, binfo, false);
 
 	/* Iteratively set bits starting at the beginning. */
 	for (size_t i = 0; i < nbits; i++) {
-		assert_zu_eq(bitmap_ffu(bitmap, binfo, 0), i,
+		expect_zu_eq(bitmap_ffu(bitmap, binfo, 0), i,
 		    "First unset bit should be just after previous first unset "
 		    "bit");
-		assert_zu_eq(bitmap_ffu(bitmap, binfo, (i > 0) ? i-1 : i), i,
+		expect_zu_eq(bitmap_ffu(bitmap, binfo, (i > 0) ? i-1 : i), i,
 		    "First unset bit should be just after previous first unset "
 		    "bit");
-		assert_zu_eq(bitmap_ffu(bitmap, binfo, i), i,
+		expect_zu_eq(bitmap_ffu(bitmap, binfo, i), i,
 		    "First unset bit should be just after previous first unset "
 		    "bit");
-		assert_zu_eq(bitmap_sfu(bitmap, binfo), i,
+		expect_zu_eq(bitmap_sfu(bitmap, binfo), i,
 		    "First unset bit should be just after previous first unset "
 		    "bit");
 	}
-	assert_true(bitmap_full(bitmap, binfo), "All bits should be set");
+	expect_true(bitmap_full(bitmap, binfo), "All bits should be set");
 
 	/*
 	 * Iteratively unset bits starting at the end, and verify that
@@ -301,17 +301,17 @@ test_bitmap_xfu_body(const bitmap_info_t *binfo, size_t nbits) {
 	 */
 	for (size_t i = nbits - 1; i < nbits; i--) { /* (nbits..0] */
 		bitmap_unset(bitmap, binfo, i);
-		assert_zu_eq(bitmap_ffu(bitmap, binfo, 0), i,
+		expect_zu_eq(bitmap_ffu(bitmap, binfo, 0), i,
 		    "First unset bit should the bit previously unset");
-		assert_zu_eq(bitmap_ffu(bitmap, binfo, (i > 0) ? i-1 : i), i,
+		expect_zu_eq(bitmap_ffu(bitmap, binfo, (i > 0) ? i-1 : i), i,
 		    "First unset bit should the bit previously unset");
-		assert_zu_eq(bitmap_ffu(bitmap, binfo, i), i,
+		expect_zu_eq(bitmap_ffu(bitmap, binfo, i), i,
 		    "First unset bit should the bit previously unset");
-		assert_zu_eq(bitmap_sfu(bitmap, binfo), i,
+		expect_zu_eq(bitmap_sfu(bitmap, binfo), i,
 		    "First unset bit should the bit previously unset");
 		bitmap_unset(bitmap, binfo, i);
 	}
-	assert_false(bitmap_get(bitmap, binfo, 0), "Bit should be unset");
+	expect_false(bitmap_get(bitmap, binfo, 0), "Bit should be unset");
 
 	/*
 	 * Iteratively set bits starting at the beginning, and verify that
@@ -319,29 +319,29 @@ test_bitmap_xfu_body(const bitmap_info_t *binfo, size_t nbits) {
 	 */
 	for (size_t i = 1; i < nbits; i++) {
 		bitmap_set(bitmap, binfo, i - 1);
-		assert_zu_eq(bitmap_ffu(bitmap, binfo, 0), i,
+		expect_zu_eq(bitmap_ffu(bitmap, binfo, 0), i,
 		    "First unset bit should be just after the bit previously "
 		    "set");
-		assert_zu_eq(bitmap_ffu(bitmap, binfo, (i > 0) ? i-1 : i), i,
+		expect_zu_eq(bitmap_ffu(bitmap, binfo, (i > 0) ? i-1 : i), i,
 		    "First unset bit should be just after the bit previously "
 		    "set");
-		assert_zu_eq(bitmap_ffu(bitmap, binfo, i), i,
+		expect_zu_eq(bitmap_ffu(bitmap, binfo, i), i,
 		    "First unset bit should be just after the bit previously "
 		    "set");
-		assert_zu_eq(bitmap_sfu(bitmap, binfo), i,
+		expect_zu_eq(bitmap_sfu(bitmap, binfo), i,
 		    "First unset bit should be just after the bit previously "
 		    "set");
 		bitmap_unset(bitmap, binfo, i);
 	}
-	assert_zu_eq(bitmap_ffu(bitmap, binfo, 0), nbits - 1,
+	expect_zu_eq(bitmap_ffu(bitmap, binfo, 0), nbits - 1,
 	    "First unset bit should be the last bit");
-	assert_zu_eq(bitmap_ffu(bitmap, binfo, (nbits > 1) ? nbits-2 : nbits-1),
+	expect_zu_eq(bitmap_ffu(bitmap, binfo, (nbits > 1) ? nbits-2 : nbits-1),
 	    nbits - 1, "First unset bit should be the last bit");
-	assert_zu_eq(bitmap_ffu(bitmap, binfo, nbits - 1), nbits - 1,
+	expect_zu_eq(bitmap_ffu(bitmap, binfo, nbits - 1), nbits - 1,
 	    "First unset bit should be the last bit");
-	assert_zu_eq(bitmap_sfu(bitmap, binfo), nbits - 1,
+	expect_zu_eq(bitmap_sfu(bitmap, binfo), nbits - 1,
 	    "First unset bit should be the last bit");
-	assert_true(bitmap_full(bitmap, binfo), "All bits should be set");
+	expect_true(bitmap_full(bitmap, binfo), "All bits should be set");
 
 	/*
 	 * Bubble a "usu" pattern through the bitmap and verify that
@@ -352,22 +352,22 @@ test_bitmap_xfu_body(const bitmap_info_t *binfo, size_t nbits) {
 			bitmap_unset(bitmap, binfo, i);
 			bitmap_unset(bitmap, binfo, i+2);
 			if (i > 0) {
-				assert_zu_eq(bitmap_ffu(bitmap, binfo, i-1), i,
+				expect_zu_eq(bitmap_ffu(bitmap, binfo, i-1), i,
 				    "Unexpected first unset bit");
 			}
-			assert_zu_eq(bitmap_ffu(bitmap, binfo, i), i,
+			expect_zu_eq(bitmap_ffu(bitmap, binfo, i), i,
 			    "Unexpected first unset bit");
-			assert_zu_eq(bitmap_ffu(bitmap, binfo, i+1), i+2,
+			expect_zu_eq(bitmap_ffu(bitmap, binfo, i+1), i+2,
 			    "Unexpected first unset bit");
-			assert_zu_eq(bitmap_ffu(bitmap, binfo, i+2), i+2,
+			expect_zu_eq(bitmap_ffu(bitmap, binfo, i+2), i+2,
 			    "Unexpected first unset bit");
 			if (i + 3 < nbits) {
-				assert_zu_eq(bitmap_ffu(bitmap, binfo, i+3),
+				expect_zu_eq(bitmap_ffu(bitmap, binfo, i+3),
 				    nbits, "Unexpected first unset bit");
 			}
-			assert_zu_eq(bitmap_sfu(bitmap, binfo), i,
+			expect_zu_eq(bitmap_sfu(bitmap, binfo), i,
 			    "Unexpected first unset bit");
-			assert_zu_eq(bitmap_sfu(bitmap, binfo), i+2,
+			expect_zu_eq(bitmap_sfu(bitmap, binfo), i+2,
 			    "Unexpected first unset bit");
 		}
 	}
@@ -382,20 +382,20 @@ test_bitmap_xfu_body(const bitmap_info_t *binfo, size_t nbits) {
 		for (size_t i = 0; i < nbits-1; i++) {
 			bitmap_unset(bitmap, binfo, i);
 			if (i > 0) {
-				assert_zu_eq(bitmap_ffu(bitmap, binfo, i-1), i,
+				expect_zu_eq(bitmap_ffu(bitmap, binfo, i-1), i,
 				    "Unexpected first unset bit");
 			}
-			assert_zu_eq(bitmap_ffu(bitmap, binfo, i), i,
+			expect_zu_eq(bitmap_ffu(bitmap, binfo, i), i,
 			    "Unexpected first unset bit");
-			assert_zu_eq(bitmap_ffu(bitmap, binfo, i+1), nbits-1,
+			expect_zu_eq(bitmap_ffu(bitmap, binfo, i+1), nbits-1,
 			    "Unexpected first unset bit");
-			assert_zu_eq(bitmap_ffu(bitmap, binfo, nbits-1),
+			expect_zu_eq(bitmap_ffu(bitmap, binfo, nbits-1),
 			    nbits-1, "Unexpected first unset bit");
 
-			assert_zu_eq(bitmap_sfu(bitmap, binfo), i,
+			expect_zu_eq(bitmap_sfu(bitmap, binfo), i,
 			    "Unexpected first unset bit");
 		}
-		assert_zu_eq(bitmap_sfu(bitmap, binfo), nbits-1,
+		expect_zu_eq(bitmap_sfu(bitmap, binfo), nbits-1,
 		    "Unexpected first unset bit");
 	}
 
