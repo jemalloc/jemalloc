@@ -8,7 +8,7 @@ zero_reallocs() {
 	size_t count = 12345;
 	size_t sz = sizeof(count);
 
-	assert_d_eq(mallctl("stats.zero_reallocs", (void *)&count, &sz,
+	expect_d_eq(mallctl("stats.zero_reallocs", (void *)&count, &sz,
 	    NULL, 0), 0, "Unexpected mallctl failure");
 	return count;
 }
@@ -18,13 +18,13 @@ TEST_BEGIN(test_zero_reallocs) {
 
 	for (size_t i = 0; i < 100; ++i) {
 		void *ptr = mallocx(i * i + 1, 0);
-		assert_ptr_not_null(ptr, "Unexpected mallocx error");
+		expect_ptr_not_null(ptr, "Unexpected mallocx error");
 		size_t count = zero_reallocs();
-		assert_zu_eq(i, count, "Incorrect zero realloc count");
+		expect_zu_eq(i, count, "Incorrect zero realloc count");
 		ptr = realloc(ptr, 0);
-		assert_ptr_null(ptr, "Realloc didn't free");
+		expect_ptr_null(ptr, "Realloc didn't free");
 		count = zero_reallocs();
-		assert_zu_eq(i + 1, count, "Realloc didn't adjust count");
+		expect_zu_eq(i + 1, count, "Realloc didn't adjust count");
 	}
 }
 TEST_END

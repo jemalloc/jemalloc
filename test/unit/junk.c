@@ -20,7 +20,7 @@ arena_dalloc_junk_small_intercept(void *ptr, const bin_info_t *bin_info) {
 
 	arena_dalloc_junk_small_orig(ptr, bin_info);
 	for (i = 0; i < bin_info->reg_size; i++) {
-		assert_u_eq(((uint8_t *)ptr)[i], JEMALLOC_FREE_JUNK,
+		expect_u_eq(((uint8_t *)ptr)[i], JEMALLOC_FREE_JUNK,
 		    "Missing junk fill for byte %zu/%zu of deallocated region",
 		    i, bin_info->reg_size);
 	}
@@ -35,7 +35,7 @@ large_dalloc_junk_intercept(void *ptr, size_t usize) {
 
 	large_dalloc_junk_orig(ptr, usize);
 	for (i = 0; i < usize; i++) {
-		assert_u_eq(((uint8_t *)ptr)[i], JEMALLOC_FREE_JUNK,
+		expect_u_eq(((uint8_t *)ptr)[i], JEMALLOC_FREE_JUNK,
 		    "Missing junk fill for byte %zu/%zu of deallocated region",
 		    i, usize);
 	}
@@ -68,22 +68,22 @@ test_junk(size_t sz_min, size_t sz_max) {
 
 	sz_prev = 0;
 	s = (uint8_t *)mallocx(sz_min, 0);
-	assert_ptr_not_null((void *)s, "Unexpected mallocx() failure");
+	expect_ptr_not_null((void *)s, "Unexpected mallocx() failure");
 
 	for (sz = sallocx(s, 0); sz <= sz_max;
 	    sz_prev = sz, sz = sallocx(s, 0)) {
 		if (sz_prev > 0) {
-			assert_u_eq(s[0], 'a',
+			expect_u_eq(s[0], 'a',
 			    "Previously allocated byte %zu/%zu is corrupted",
 			    ZU(0), sz_prev);
-			assert_u_eq(s[sz_prev-1], 'a',
+			expect_u_eq(s[sz_prev-1], 'a',
 			    "Previously allocated byte %zu/%zu is corrupted",
 			    sz_prev-1, sz_prev);
 		}
 
 		for (i = sz_prev; i < sz; i++) {
 			if (opt_junk_alloc) {
-				assert_u_eq(s[i], JEMALLOC_ALLOC_JUNK,
+				expect_u_eq(s[i], JEMALLOC_ALLOC_JUNK,
 				    "Newly allocated byte %zu/%zu isn't "
 				    "junk-filled", i, sz);
 			}
@@ -94,14 +94,14 @@ test_junk(size_t sz_min, size_t sz_max) {
 			uint8_t *t;
 			watch_junking(s);
 			t = (uint8_t *)rallocx(s, sz+1, 0);
-			assert_ptr_not_null((void *)t,
+			expect_ptr_not_null((void *)t,
 			    "Unexpected rallocx() failure");
-			assert_zu_ge(sallocx(t, 0), sz+1,
+			expect_zu_ge(sallocx(t, 0), sz+1,
 			    "Unexpectedly small rallocx() result");
 			if (!background_thread_enabled()) {
-				assert_ptr_ne(s, t,
+				expect_ptr_ne(s, t,
 				    "Unexpected in-place rallocx()");
-				assert_true(!opt_junk_free || saw_junking,
+				expect_true(!opt_junk_free || saw_junking,
 				    "Expected region of size %zu to be "
 				    "junk-filled", sz);
 			}
@@ -111,7 +111,7 @@ test_junk(size_t sz_min, size_t sz_max) {
 
 	watch_junking(s);
 	dallocx(s, 0);
-	assert_true(!opt_junk_free || saw_junking,
+	expect_true(!opt_junk_free || saw_junking,
 	    "Expected region of size %zu to be junk-filled", sz);
 
 	if (opt_junk_free) {

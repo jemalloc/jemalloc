@@ -12,9 +12,9 @@ TEST_BEGIN(test_realloc_abort) {
 	abort_called = false;
 	safety_check_set_abort(&set_abort_called);
 	void *ptr = mallocx(42, 0);
-	assert_ptr_not_null(ptr, "Unexpected mallocx error");
+	expect_ptr_not_null(ptr, "Unexpected mallocx error");
 	ptr = realloc(ptr, 0);
-	assert_true(abort_called, "Realloc with zero size didn't abort");
+	expect_true(abort_called, "Realloc with zero size didn't abort");
 }
 TEST_END
 

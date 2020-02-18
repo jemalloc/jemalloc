@@ -15,7 +15,7 @@ TEST_BEGIN(test_next_event_fast_roll_back) {
 	ITERATE_OVER_ALL_EVENTS
 #undef E
 	void *p = malloc(16U);
-	assert_ptr_not_null(p, "malloc() failed");
+	expect_ptr_not_null(p, "malloc() failed");
 	free(p);
 }
 TEST_END
@@ -37,7 +37,7 @@ TEST_BEGIN(test_next_event_fast_resume) {
 	ITERATE_OVER_ALL_EVENTS
 #undef E
 	void *p = malloc(SC_LOOKUP_MAXCLASS);
-	assert_ptr_not_null(p, "malloc() failed");
+	expect_ptr_not_null(p, "malloc() failed");
 	free(p);
 }
 TEST_END
@@ -50,7 +50,7 @@ TEST_BEGIN(test_event_rollback) {
 	while (count-- != 0) {
 		te_alloc_rollback(tsd, diff);
 		uint64_t thread_allocated_after = thread_allocated_get(tsd);
-		assert_u64_eq(thread_allocated - thread_allocated_after, diff,
+		expect_u64_eq(thread_allocated - thread_allocated_after, diff,
 		    "thread event counters are not properly rolled back");
 		thread_allocated = thread_allocated_after;
 	}

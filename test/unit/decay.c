@@ -17,7 +17,7 @@ check_background_thread_enabled(void) {
 	if (ret == ENOENT) {
 		return false;
 	}
-	assert_d_eq(ret, 0, "Unexpected mallctl error");
+	expect_d_eq(ret, 0, "Unexpected mallctl error");
 	return enabled;
 }
 
@@ -39,22 +39,22 @@ static unsigned
 do_arena_create(ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms) {
 	unsigned arena_ind;
 	size_t sz = sizeof(unsigned);
-	assert_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz, NULL, 0),
+	expect_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz, NULL, 0),
 	    0, "Unexpected mallctl() failure");
 	size_t mib[3];
 	size_t miblen = sizeof(mib)/sizeof(size_t);
 
-	assert_d_eq(mallctlnametomib("arena.0.dirty_decay_ms", mib, &miblen),
+	expect_d_eq(mallctlnametomib("arena.0.dirty_decay_ms", mib, &miblen),
 	    0, "Unexpected mallctlnametomib() failure");
 	mib[1] = (size_t)arena_ind;
-	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL,
+	expect_d_eq(mallctlbymib(mib, miblen, NULL, NULL,
 	    (void *)&dirty_decay_ms, sizeof(dirty_decay_ms)), 0,
 	    "Unexpected mallctlbymib() failure");
 
-	assert_d_eq(mallctlnametomib("arena.0.muzzy_decay_ms", mib, &miblen),
+	expect_d_eq(mallctlnametomib("arena.0.muzzy_decay_ms", mib, &miblen),
 	    0, "Unexpected mallctlnametomib() failure");
 	mib[1] = (size_t)arena_ind;
-	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL,
+	expect_d_eq(mallctlbymib(mib, miblen, NULL, NULL,
 	    (void *)&muzzy_decay_ms, sizeof(muzzy_decay_ms)), 0,
 	    "Unexpected mallctlbymib() failure");
 
@@ -65,17 +65,17 @@ static void
 do_arena_destroy(unsigned arena_ind) {
 	size_t mib[3];
 	size_t miblen = sizeof(mib)/sizeof(size_t);
-	assert_d_eq(mallctlnametomib("arena.0.destroy", mib, &miblen), 0,
+	expect_d_eq(mallctlnametomib("arena.0.destroy", mib, &miblen), 0,
 	    "Unexpected mallctlnametomib() failure");
 	mib[1] = (size_t)arena_ind;
-	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, NULL, 0), 0,
+	expect_d_eq(mallctlbymib(mib, miblen, NULL, NULL, NULL, 0), 0,
 	    "Unexpected mallctlbymib() failure");
 }
 
 void
 do_epoch(void) {
 	uint64_t epoch = 1;
-	assert_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sizeof(epoch)),
+	expect_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sizeof(epoch)),
 	    0, "Unexpected mallctl() failure");
 }
 
@@ -83,10 +83,10 @@ void
 do_purge(unsigned arena_ind) {
 	size_t mib[3];
 	size_t miblen = sizeof(mib)/sizeof(size_t);
-	assert_d_eq(mallctlnametomib("arena.0.purge", mib, &miblen), 0,
+	expect_d_eq(mallctlnametomib("arena.0.purge", mib, &miblen), 0,
 	    "Unexpected mallctlnametomib() failure");
 	mib[1] = (size_t)arena_ind;
-	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, NULL, 0), 0,
+	expect_d_eq(mallctlbymib(mib, miblen, NULL, NULL, NULL, 0), 0,
 	    "Unexpected mallctlbymib() failure");
 }
 
@@ -94,10 +94,10 @@ void
 do_decay(unsigned arena_ind) {
 	size_t mib[3];
 	size_t miblen = sizeof(mib)/sizeof(size_t);
-	assert_d_eq(mallctlnametomib("arena.0.decay", mib, &miblen), 0,
+	expect_d_eq(mallctlnametomib("arena.0.decay", mib, &miblen), 0,
 	    "Unexpected mallctlnametomib() failure");
 	mib[1] = (size_t)arena_ind;
-	assert_d_eq(mallctlbymib(mib, miblen, NULL, NULL, NULL, 0), 0,
+	expect_d_eq(mallctlbymib(mib, miblen, NULL, NULL, NULL, 0), 0,
 	    "Unexpected mallctlbymib() failure");
 }
 
@@ -105,12 +105,12 @@ static uint64_t
 get_arena_npurge_impl(const char *mibname, unsigned arena_ind) {
 	size_t mib[4];
 	size_t miblen = sizeof(mib)/sizeof(size_t);
-	assert_d_eq(mallctlnametomib(mibname, mib, &miblen), 0,
+	expect_d_eq(mallctlnametomib(mibname, mib, &miblen), 0,
 	    "Unexpected mallctlnametomib() failure");
 	mib[2] = (size_t)arena_ind;
 	uint64_t npurge = 0;
 	size_t sz = sizeof(npurge);
-	assert_d_eq(mallctlbymib(mib, miblen, (void *)&npurge, &sz, NULL, 0),
+	expect_d_eq(mallctlbymib(mib, miblen, (void *)&npurge, &sz, NULL, 0),
 	    config_stats ? 0 : ENOENT, "Unexpected mallctlbymib() failure");
 	return npurge;
 }
@@ -145,12 +145,12 @@ get_arena_pdirty(unsigned arena_ind) {
 	do_epoch();
 	size_t mib[4];
 	size_t miblen = sizeof(mib)/sizeof(size_t);
-	assert_d_eq(mallctlnametomib("stats.arenas.0.pdirty", mib, &miblen), 0,
+	expect_d_eq(mallctlnametomib("stats.arenas.0.pdirty", mib, &miblen), 0,
 	    "Unexpected mallctlnametomib() failure");
 	mib[2] = (size_t)arena_ind;
 	size_t pdirty;
 	size_t sz = sizeof(pdirty);
-	assert_d_eq(mallctlbymib(mib, miblen, (void *)&pdirty, &sz, NULL, 0), 0,
+	expect_d_eq(mallctlbymib(mib, miblen, (void *)&pdirty, &sz, NULL, 0), 0,
 	    "Unexpected mallctlbymib() failure");
 	return pdirty;
 }
@@ -160,12 +160,12 @@ get_arena_pmuzzy(unsigned arena_ind) {
 	do_epoch();
 	size_t mib[4];
 	size_t miblen = sizeof(mib)/sizeof(size_t);
-	assert_d_eq(mallctlnametomib("stats.arenas.0.pmuzzy", mib, &miblen), 0,
+	expect_d_eq(mallctlnametomib("stats.arenas.0.pmuzzy", mib, &miblen), 0,
 	    "Unexpected mallctlnametomib() failure");
 	mib[2] = (size_t)arena_ind;
 	size_t pmuzzy;
 	size_t sz = sizeof(pmuzzy);
-	assert_d_eq(mallctlbymib(mib, miblen, (void *)&pmuzzy, &sz, NULL, 0), 0,
+	expect_d_eq(mallctlbymib(mib, miblen, (void *)&pmuzzy, &sz, NULL, 0), 0,
 	    "Unexpected mallctlbymib() failure");
 	return pmuzzy;
 }
@@ -173,7 +173,7 @@ get_arena_pmuzzy(unsigned arena_ind) {
 static void *
 do_mallocx(size_t size, int flags) {
 	void *p = mallocx(size, flags);
-	assert_ptr_not_null(p, "Unexpected mallocx() failure");
+	expect_ptr_not_null(p, "Unexpected mallocx() failure");
 	return p;
 }
 
@@ -193,7 +193,7 @@ TEST_BEGIN(test_decay_ticks) {
 	void *p;
 
 	sz = sizeof(size_t);
-	assert_d_eq(mallctl("arenas.lextent.0.size", (void *)&large0, &sz, NULL,
+	expect_d_eq(mallctl("arenas.lextent.0.size", (void *)&large0, &sz, NULL,
 	    0), 0, "Unexpected mallctl failure");
 
 	/* Set up a manually managed arena for test. */
@@ -202,11 +202,11 @@ TEST_BEGIN(test_decay_ticks) {
 	/* Migrate to the new arena, and get the ticker. */
 	unsigned old_arena_ind;
 	size_t sz_arena_ind = sizeof(old_arena_ind);
-	assert_d_eq(mallctl("thread.arena", (void *)&old_arena_ind,
+	expect_d_eq(mallctl("thread.arena", (void *)&old_arena_ind,
 	    &sz_arena_ind, (void *)&arena_ind, sizeof(arena_ind)), 0,
 	    "Unexpected mallctl() failure");
 	decay_ticker = decay_ticker_get(tsd_fetch(), arena_ind);
-	assert_ptr_not_null(decay_ticker,
+	expect_ptr_not_null(decay_ticker,
 	    "Unexpected failure getting decay ticker");
 
 	/*
@@ -218,38 +218,38 @@ TEST_BEGIN(test_decay_ticks) {
 	/* malloc(). */
 	tick0 = ticker_read(decay_ticker);
 	p = malloc(large0);
-	assert_ptr_not_null(p, "Unexpected malloc() failure");
+	expect_ptr_not_null(p, "Unexpected malloc() failure");
 	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0, "Expected ticker to tick during malloc()");
+	expect_u32_ne(tick1, tick0, "Expected ticker to tick during malloc()");
 	/* free(). */
 	tick0 = ticker_read(decay_ticker);
 	free(p);
 	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0, "Expected ticker to tick during free()");
+	expect_u32_ne(tick1, tick0, "Expected ticker to tick during free()");
 
 	/* calloc(). */
 	tick0 = ticker_read(decay_ticker);
 	p = calloc(1, large0);
-	assert_ptr_not_null(p, "Unexpected calloc() failure");
+	expect_ptr_not_null(p, "Unexpected calloc() failure");
 	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0, "Expected ticker to tick during calloc()");
+	expect_u32_ne(tick1, tick0, "Expected ticker to tick during calloc()");
 	free(p);
 
 	/* posix_memalign(). */
 	tick0 = ticker_read(decay_ticker);
-	assert_d_eq(posix_memalign(&p, sizeof(size_t), large0), 0,
+	expect_d_eq(posix_memalign(&p, sizeof(size_t), large0), 0,
 	    "Unexpected posix_memalign() failure");
 	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0,
+	expect_u32_ne(tick1, tick0,
 	    "Expected ticker to tick during posix_memalign()");
 	free(p);
 
 	/* aligned_alloc(). */
 	tick0 = ticker_read(decay_ticker);
 	p = aligned_alloc(sizeof(size_t), large0);
-	assert_ptr_not_null(p, "Unexpected aligned_alloc() failure");
+	expect_ptr_not_null(p, "Unexpected aligned_alloc() failure");
 	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0,
+	expect_u32_ne(tick1, tick0,
 	    "Expected ticker to tick during aligned_alloc()");
 	free(p);
 
@@ -257,20 +257,20 @@ TEST_BEGIN(test_decay_ticks) {
 	/* Allocate. */
 	tick0 = ticker_read(decay_ticker);
 	p = realloc(NULL, large0);
-	assert_ptr_not_null(p, "Unexpected realloc() failure");
+	expect_ptr_not_null(p, "Unexpected realloc() failure");
 	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0, "Expected ticker to tick during realloc()");
+	expect_u32_ne(tick1, tick0, "Expected ticker to tick during realloc()");
 	/* Reallocate. */
 	tick0 = ticker_read(decay_ticker);
 	p = realloc(p, large0);
-	assert_ptr_not_null(p, "Unexpected realloc() failure");
+	expect_ptr_not_null(p, "Unexpected realloc() failure");
 	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0, "Expected ticker to tick during realloc()");
+	expect_u32_ne(tick1, tick0, "Expected ticker to tick during realloc()");
 	/* Deallocate. */
 	tick0 = ticker_read(decay_ticker);
 	realloc(p, 0);
 	tick1 = ticker_read(decay_ticker);
-	assert_u32_ne(tick1, tick0, "Expected ticker to tick during realloc()");
+	expect_u32_ne(tick1, tick0, "Expected ticker to tick during realloc()");
 
 	/*
 	 * Test the *allocx() APIs using large and small size classes, with
@@ -288,40 +288,40 @@ TEST_BEGIN(test_decay_ticks) {
 			/* mallocx(). */
 			tick0 = ticker_read(decay_ticker);
 			p = mallocx(sz, MALLOCX_TCACHE_NONE);
-			assert_ptr_not_null(p, "Unexpected mallocx() failure");
+			expect_ptr_not_null(p, "Unexpected mallocx() failure");
 			tick1 = ticker_read(decay_ticker);
-			assert_u32_ne(tick1, tick0,
+			expect_u32_ne(tick1, tick0,
 			    "Expected ticker to tick during mallocx() (sz=%zu)",
 			    sz);
 			/* rallocx(). */
 			tick0 = ticker_read(decay_ticker);
 			p = rallocx(p, sz, MALLOCX_TCACHE_NONE);
-			assert_ptr_not_null(p, "Unexpected rallocx() failure");
+			expect_ptr_not_null(p, "Unexpected rallocx() failure");
 			tick1 = ticker_read(decay_ticker);
-			assert_u32_ne(tick1, tick0,
+			expect_u32_ne(tick1, tick0,
 			    "Expected ticker to tick during rallocx() (sz=%zu)",
 			    sz);
 			/* xallocx(). */
 			tick0 = ticker_read(decay_ticker);
 			xallocx(p, sz, 0, MALLOCX_TCACHE_NONE);
 			tick1 = ticker_read(decay_ticker);
-			assert_u32_ne(tick1, tick0,
+			expect_u32_ne(tick1, tick0,
 			    "Expected ticker to tick during xallocx() (sz=%zu)",
 			    sz);
 			/* dallocx(). */
 			tick0 = ticker_read(decay_ticker);
 			dallocx(p, MALLOCX_TCACHE_NONE);
 			tick1 = ticker_read(decay_ticker);
-			assert_u32_ne(tick1, tick0,
+			expect_u32_ne(tick1, tick0,
 			    "Expected ticker to tick during dallocx() (sz=%zu)",
 			    sz);
 			/* sdallocx(). */
 			p = mallocx(sz, MALLOCX_TCACHE_NONE);
-			assert_ptr_not_null(p, "Unexpected mallocx() failure");
+			expect_ptr_not_null(p, "Unexpected mallocx() failure");
 			tick0 = ticker_read(decay_ticker);
 			sdallocx(p, sz, MALLOCX_TCACHE_NONE);
 			tick1 = ticker_read(decay_ticker);
-			assert_u32_ne(tick1, tick0,
+			expect_u32_ne(tick1, tick0,
 			    "Expected ticker to tick during sdallocx() "
 			    "(sz=%zu)", sz);
 		}
@@ -338,11 +338,11 @@ TEST_BEGIN(test_decay_ticks) {
 
 	size_t tcache_max, sz_tcache_max;
 	sz_tcache_max = sizeof(tcache_max);
-	assert_d_eq(mallctl("arenas.tcache_max", (void *)&tcache_max,
+	expect_d_eq(mallctl("arenas.tcache_max", (void *)&tcache_max,
 	    &sz_tcache_max, NULL, 0), 0, "Unexpected mallctl() failure");
 
 	sz = sizeof(unsigned);
-	assert_d_eq(mallctl("tcache.create", (void *)&tcache_ind, &sz,
+	expect_d_eq(mallctl("tcache.create", (void *)&tcache_ind, &sz,
 	    NULL, 0), 0, "Unexpected mallctl failure");
 
 	for (i = 0; i < sizeof(tcache_sizes) / sizeof(size_t); i++) {
@@ -351,26 +351,26 @@ TEST_BEGIN(test_decay_ticks) {
 		/* tcache fill. */
 		tick0 = ticker_read(decay_ticker);
 		p = mallocx(sz, MALLOCX_TCACHE(tcache_ind));
-		assert_ptr_not_null(p, "Unexpected mallocx() failure");
+		expect_ptr_not_null(p, "Unexpected mallocx() failure");
 		tick1 = ticker_read(decay_ticker);
-		assert_u32_ne(tick1, tick0,
+		expect_u32_ne(tick1, tick0,
 		    "Expected ticker to tick during tcache fill "
 		    "(sz=%zu)", sz);
 		/* tcache flush. */
 		dallocx(p, MALLOCX_TCACHE(tcache_ind));
 		tick0 = ticker_read(decay_ticker);
-		assert_d_eq(mallctl("tcache.flush", NULL, NULL,
+		expect_d_eq(mallctl("tcache.flush", NULL, NULL,
 		    (void *)&tcache_ind, sizeof(unsigned)), 0,
 		    "Unexpected mallctl failure");
 		tick1 = ticker_read(decay_ticker);
 
 		/* Will only tick if it's in tcache. */
 		if (sz <= tcache_max) {
-			assert_u32_ne(tick1, tick0,
+			expect_u32_ne(tick1, tick0,
 			    "Expected ticker to tick during tcache "
 			    "flush (sz=%zu)", sz);
 		} else {
-			assert_u32_eq(tick1, tick0,
+			expect_u32_eq(tick1, tick0,
 			    "Unexpected ticker tick during tcache "
 			    "flush (sz=%zu)", sz);
 		}
@@ -417,7 +417,7 @@ decay_ticker_helper(unsigned arena_ind, int flags, bool dirty, ssize_t dt,
 	dallocx(p, flags);
 
 	if (config_stats) {
-		assert_u64_gt(dirty_npurge1 + muzzy_npurge1, dirty_npurge0 +
+		expect_u64_gt(dirty_npurge1 + muzzy_npurge1, dirty_npurge0 +
 		    muzzy_npurge0, "Expected purging to occur");
 	}
 #undef NINTERVALS
@@ -442,7 +442,7 @@ TEST_BEGIN(test_decay_ticker) {
 
 	size_t tcache_max;
 	size_t sz = sizeof(size_t);
-	assert_d_eq(mallctl("arenas.tcache_max", (void *)&tcache_max, &sz, NULL,
+	expect_d_eq(mallctl("arenas.tcache_max", (void *)&tcache_max, &sz, NULL,
 	    0), 0, "Unexpected mallctl failure");
 	large = nallocx(tcache_max + 1, flags);
 
@@ -467,7 +467,7 @@ TEST_BEGIN(test_decay_ticker) {
 		dallocx(ps[i], flags);
 		unsigned nupdates0 = nupdates_mock;
 		do_decay(arena_ind);
-		assert_u_gt(nupdates_mock, nupdates0,
+		expect_u_gt(nupdates_mock, nupdates0,
 		    "Expected nstime_update() to be called");
 	}
 
@@ -495,10 +495,10 @@ TEST_BEGIN(test_decay_nonmonotonic) {
 	unsigned i, nupdates0;
 
 	sz = sizeof(size_t);
-	assert_d_eq(mallctl("arenas.lextent.0.size", (void *)&large0, &sz, NULL,
+	expect_d_eq(mallctl("arenas.lextent.0.size", (void *)&large0, &sz, NULL,
 	    0), 0, "Unexpected mallctl failure");
 
-	assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
+	expect_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
 	    "Unexpected mallctl failure");
 	do_epoch();
 	sz = sizeof(uint64_t);
@@ -515,15 +515,15 @@ TEST_BEGIN(test_decay_nonmonotonic) {
 
 	for (i = 0; i < NPS; i++) {
 		ps[i] = mallocx(large0, flags);
-		assert_ptr_not_null(ps[i], "Unexpected mallocx() failure");
+		expect_ptr_not_null(ps[i], "Unexpected mallocx() failure");
 	}
 
 	for (i = 0; i < NPS; i++) {
 		dallocx(ps[i], flags);
 		nupdates0 = nupdates_mock;
-		assert_d_eq(mallctl("arena.0.decay", NULL, NULL, NULL, 0), 0,
+		expect_d_eq(mallctl("arena.0.decay", NULL, NULL, NULL, 0), 0,
 		    "Unexpected arena.0.decay failure");
-		assert_u_gt(nupdates_mock, nupdates0,
+		expect_u_gt(nupdates_mock, nupdates0,
 		    "Expected nstime_update() to be called");
 	}
 
@@ -532,7 +532,7 @@ TEST_BEGIN(test_decay_nonmonotonic) {
 	npurge1 = get_arena_npurge(0);
 
 	if (config_stats) {
-		assert_u64_eq(npurge0, npurge1, "Unexpected purging occurred");
+		expect_u64_eq(npurge0, npurge1, "Unexpected purging occurred");
 	}
 
 	nstime_monotonic = nstime_monotonic_orig;
@@ -545,16 +545,16 @@ TEST_BEGIN(test_decay_now) {
 	test_skip_if(check_background_thread_enabled());
 
 	unsigned arena_ind = do_arena_create(0, 0);
-	assert_zu_eq(get_arena_pdirty(arena_ind), 0, "Unexpected dirty pages");
-	assert_zu_eq(get_arena_pmuzzy(arena_ind), 0, "Unexpected muzzy pages");
+	expect_zu_eq(get_arena_pdirty(arena_ind), 0, "Unexpected dirty pages");
+	expect_zu_eq(get_arena_pmuzzy(arena_ind), 0, "Unexpected muzzy pages");
 	size_t sizes[] = {16, PAGE<<2, HUGEPAGE<<2};
 	/* Verify that dirty/muzzy pages never linger after deallocation. */
 	for (unsigned i = 0; i < sizeof(sizes)/sizeof(size_t); i++) {
 		size_t size = sizes[i];
 		generate_dirty(arena_ind, size);
-		assert_zu_eq(get_arena_pdirty(arena_ind), 0,
+		expect_zu_eq(get_arena_pdirty(arena_ind), 0,
 		    "Unexpected dirty pages");
-		assert_zu_eq(get_arena_pmuzzy(arena_ind), 0,
+		expect_zu_eq(get_arena_pmuzzy(arena_ind), 0,
 		    "Unexpected muzzy pages");
 	}
 	do_arena_destroy(arena_ind);
@@ -566,8 +566,8 @@ TEST_BEGIN(test_decay_never) {
 
 	unsigned arena_ind = do_arena_create(-1, -1);
 	int flags = MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE;
-	assert_zu_eq(get_arena_pdirty(arena_ind), 0, "Unexpected dirty pages");
-	assert_zu_eq(get_arena_pmuzzy(arena_ind), 0, "Unexpected muzzy pages");
+	expect_zu_eq(get_arena_pdirty(arena_ind), 0, "Unexpected dirty pages");
+	expect_zu_eq(get_arena_pmuzzy(arena_ind), 0, "Unexpected muzzy pages");
 	size_t sizes[] = {16, PAGE<<2, HUGEPAGE<<2};
 	void *ptrs[sizeof(sizes)/sizeof(size_t)];
 	for (unsigned i = 0; i < sizeof(sizes)/sizeof(size_t); i++) {
@@ -576,15 +576,15 @@ TEST_BEGIN(test_decay_never) {
 	/* Verify that each deallocation generates additional dirty pages. */
 	size_t pdirty_prev = get_arena_pdirty(arena_ind);
 	size_t pmuzzy_prev = get_arena_pmuzzy(arena_ind);
-	assert_zu_eq(pdirty_prev, 0, "Unexpected dirty pages");
-	assert_zu_eq(pmuzzy_prev, 0, "Unexpected muzzy pages");
+	expect_zu_eq(pdirty_prev, 0, "Unexpected dirty pages");
+	expect_zu_eq(pmuzzy_prev, 0, "Unexpected muzzy pages");
 	for (unsigned i = 0; i < sizeof(sizes)/sizeof(size_t); i++) {
 		dallocx(ptrs[i], flags);
 		size_t pdirty = get_arena_pdirty(arena_ind);
 		size_t pmuzzy = get_arena_pmuzzy(arena_ind);
-		assert_zu_gt(pdirty + (size_t)get_arena_dirty_purged(arena_ind),
+		expect_zu_gt(pdirty + (size_t)get_arena_dirty_purged(arena_ind),
 		    pdirty_prev, "Expected dirty pages to increase.");
-		assert_zu_eq(pmuzzy, 0, "Unexpected muzzy pages");
+		expect_zu_eq(pmuzzy, 0, "Unexpected muzzy pages");
 		pdirty_prev = pdirty;
 	}
 	do_arena_destroy(arena_ind);

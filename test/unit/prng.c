@@ -10,18 +10,18 @@ test_prng_lg_range_u32(bool atomic) {
 	ra = prng_lg_range_u32(&sa, 32, atomic);
 	atomic_store_u32(&sa, 42, ATOMIC_RELAXED);
 	rb = prng_lg_range_u32(&sa, 32, atomic);
-	assert_u32_eq(ra, rb,
+	expect_u32_eq(ra, rb,
 	    "Repeated generation should produce repeated results");
 
 	atomic_store_u32(&sb, 42, ATOMIC_RELAXED);
 	rb = prng_lg_range_u32(&sb, 32, atomic);
-	assert_u32_eq(ra, rb,
+	expect_u32_eq(ra, rb,
 	    "Equivalent generation should produce equivalent results");
 
 	atomic_store_u32(&sa, 42, ATOMIC_RELAXED);
 	ra = prng_lg_range_u32(&sa, 32, atomic);
 	rb = prng_lg_range_u32(&sa, 32, atomic);
-	assert_u32_ne(ra, rb,
+	expect_u32_ne(ra, rb,
 	    "Full-width results must not immediately repeat");
 
 	atomic_store_u32(&sa, 42, ATOMIC_RELAXED);
@@ -29,9 +29,9 @@ test_prng_lg_range_u32(bool atomic) {
 	for (lg_range = 31; lg_range > 0; lg_range--) {
 		atomic_store_u32(&sb, 42, ATOMIC_RELAXED);
 		rb = prng_lg_range_u32(&sb, lg_range, atomic);
-		assert_u32_eq((rb & (UINT32_C(0xffffffff) << lg_range)),
+		expect_u32_eq((rb & (UINT32_C(0xffffffff) << lg_range)),
 		    0, "High order bits should be 0, lg_range=%u", lg_range);
-		assert_u32_eq(rb, (ra >> (32 - lg_range)),
+		expect_u32_eq(rb, (ra >> (32 - lg_range)),
 		    "Expected high order bits of full-width result, "
 		    "lg_range=%u", lg_range);
 	}
@@ -46,18 +46,18 @@ test_prng_lg_range_u64(void) {
 	ra = prng_lg_range_u64(&sa, 64);
 	sa = 42;
 	rb = prng_lg_range_u64(&sa, 64);
-	assert_u64_eq(ra, rb,
+	expect_u64_eq(ra, rb,
 	    "Repeated generation should produce repeated results");
 
 	sb = 42;
 	rb = prng_lg_range_u64(&sb, 64);
-	assert_u64_eq(ra, rb,
+	expect_u64_eq(ra, rb,
 	    "Equivalent generation should produce equivalent results");
 
 	sa = 42;
 	ra = prng_lg_range_u64(&sa, 64);
 	rb = prng_lg_range_u64(&sa, 64);
-	assert_u64_ne(ra, rb,
+	expect_u64_ne(ra, rb,
 	    "Full-width results must not immediately repeat");
 
 	sa = 42;
@@ -65,9 +65,9 @@ test_prng_lg_range_u64(void) {
 	for (lg_range = 63; lg_range > 0; lg_range--) {
 		sb = 42;
 		rb = prng_lg_range_u64(&sb, lg_range);
-		assert_u64_eq((rb & (UINT64_C(0xffffffffffffffff) << lg_range)),
+		expect_u64_eq((rb & (UINT64_C(0xffffffffffffffff) << lg_range)),
 		    0, "High order bits should be 0, lg_range=%u", lg_range);
-		assert_u64_eq(rb, (ra >> (64 - lg_range)),
+		expect_u64_eq(rb, (ra >> (64 - lg_range)),
 		    "Expected high order bits of full-width result, "
 		    "lg_range=%u", lg_range);
 	}
@@ -83,18 +83,18 @@ test_prng_lg_range_zu(bool atomic) {
 	ra = prng_lg_range_zu(&sa, ZU(1) << (3 + LG_SIZEOF_PTR), atomic);
 	atomic_store_zu(&sa, 42, ATOMIC_RELAXED);
 	rb = prng_lg_range_zu(&sa, ZU(1) << (3 + LG_SIZEOF_PTR), atomic);
-	assert_zu_eq(ra, rb,
+	expect_zu_eq(ra, rb,
 	    "Repeated generation should produce repeated results");
 
 	atomic_store_zu(&sb, 42, ATOMIC_RELAXED);
 	rb = prng_lg_range_zu(&sb, ZU(1) << (3 + LG_SIZEOF_PTR), atomic);
-	assert_zu_eq(ra, rb,
+	expect_zu_eq(ra, rb,
 	    "Equivalent generation should produce equivalent results");
 
 	atomic_store_zu(&sa, 42, ATOMIC_RELAXED);
 	ra = prng_lg_range_zu(&sa, ZU(1) << (3 + LG_SIZEOF_PTR), atomic);
 	rb = prng_lg_range_zu(&sa, ZU(1) << (3 + LG_SIZEOF_PTR), atomic);
-	assert_zu_ne(ra, rb,
+	expect_zu_ne(ra, rb,
 	    "Full-width results must not immediately repeat");
 
 	atomic_store_zu(&sa, 42, ATOMIC_RELAXED);
@@ -103,9 +103,9 @@ test_prng_lg_range_zu(bool atomic) {
 	    lg_range--) {
 		atomic_store_zu(&sb, 42, ATOMIC_RELAXED);
 		rb = prng_lg_range_zu(&sb, lg_range, atomic);
-		assert_zu_eq((rb & (SIZE_T_MAX << lg_range)),
+		expect_zu_eq((rb & (SIZE_T_MAX << lg_range)),
 		    0, "High order bits should be 0, lg_range=%u", lg_range);
-		assert_zu_eq(rb, (ra >> ((ZU(1) << (3 + LG_SIZEOF_PTR)) -
+		expect_zu_eq(rb, (ra >> ((ZU(1) << (3 + LG_SIZEOF_PTR)) -
 		    lg_range)), "Expected high order bits of full-width "
 		    "result, lg_range=%u", lg_range);
 	}
@@ -151,7 +151,7 @@ test_prng_range_u32(bool atomic) {
 		for (rep = 0; rep < NREPS; rep++) {
 			uint32_t r = prng_range_u32(&s, range, atomic);
 
-			assert_u32_lt(r, range, "Out of range");
+			expect_u32_lt(r, range, "Out of range");
 		}
 	}
 }
@@ -171,7 +171,7 @@ test_prng_range_u64(void) {
 		for (rep = 0; rep < NREPS; rep++) {
 			uint64_t r = prng_range_u64(&s, range);
 
-			assert_u64_lt(r, range, "Out of range");
+			expect_u64_lt(r, range, "Out of range");
 		}
 	}
 }
@@ -191,7 +191,7 @@ test_prng_range_zu(bool atomic) {
 		for (rep = 0; rep < NREPS; rep++) {
 			size_t r = prng_range_zu(&s, range, atomic);
 
-			assert_zu_lt(r, range, "Out of range");
+			expect_zu_lt(r, range, "Out of range");
 		}
 	}
 }

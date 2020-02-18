@@ -7,11 +7,11 @@ mallctl_thread_name_get_impl(const char *thread_name_expected, const char *func,
 	size_t sz;
 
 	sz = sizeof(thread_name_old);
-	assert_d_eq(mallctl("thread.prof.name", (void *)&thread_name_old, &sz,
+	expect_d_eq(mallctl("thread.prof.name", (void *)&thread_name_old, &sz,
 	    NULL, 0), 0,
 	    "%s():%d: Unexpected mallctl failure reading thread.prof.name",
 	    func, line);
-	assert_str_eq(thread_name_old, thread_name_expected,
+	expect_str_eq(thread_name_old, thread_name_expected,
 	    "%s():%d: Unexpected thread.prof.name value", func, line);
 }
 #define mallctl_thread_name_get(a)					\
@@ -20,7 +20,7 @@ mallctl_thread_name_get_impl(const char *thread_name_expected, const char *func,
 static void
 mallctl_thread_name_set_impl(const char *thread_name, const char *func,
     int line) {
-	assert_d_eq(mallctl("thread.prof.name", NULL, NULL,
+	expect_d_eq(mallctl("thread.prof.name", NULL, NULL,
 	    (void *)&thread_name, sizeof(thread_name)), 0,
 	    "%s():%d: Unexpected mallctl failure reading thread.prof.name",
 	    func, line);
@@ -39,14 +39,14 @@ TEST_BEGIN(test_prof_thread_name_validation) {
 
 	/* NULL input shouldn't be allowed. */
 	thread_name = NULL;
-	assert_d_eq(mallctl("thread.prof.name", NULL, NULL,
+	expect_d_eq(mallctl("thread.prof.name", NULL, NULL,
 	    (void *)&thread_name, sizeof(thread_name)), EFAULT,
 	    "Unexpected mallctl result writing \"%s\" to thread.prof.name",
 	    thread_name);
 
 	/* '\n' shouldn't be allowed. */
 	thread_name = "hi\nthere";
-	assert_d_eq(mallctl("thread.prof.name", NULL, NULL,
+	expect_d_eq(mallctl("thread.prof.name", NULL, NULL,
 	    (void *)&thread_name, sizeof(thread_name)), EFAULT,
 	    "Unexpected mallctl result writing \"%s\" to thread.prof.name",
 	    thread_name);
@@ -57,7 +57,7 @@ TEST_BEGIN(test_prof_thread_name_validation) {
 		size_t sz;
 
 		sz = sizeof(thread_name_old);
-		assert_d_eq(mallctl("thread.prof.name",
+		expect_d_eq(mallctl("thread.prof.name",
 		    (void *)&thread_name_old, &sz, (void *)&thread_name,
 		    sizeof(thread_name)), EPERM,
 		    "Unexpected mallctl result writing \"%s\" to "
@@ -82,7 +82,7 @@ thd_start(void *varg) {
 	mallctl_thread_name_set(thread_name);
 
 	for (i = 0; i < NRESET; i++) {
-		assert_d_eq(mallctl("prof.reset", NULL, NULL, NULL, 0), 0,
+		expect_d_eq(mallctl("prof.reset", NULL, NULL, NULL, 0), 0,
 		    "Unexpected error while resetting heap profile data");
 		mallctl_thread_name_get(thread_name);
 	}

@@ -30,7 +30,7 @@ expect_no_logging(const char *names) {
 			count++;
 		log_do_end(log_l2_a)
 	}
-	assert_d_eq(count, 0, "Disabled logging not ignored!");
+	expect_d_eq(count, 0, "Disabled logging not ignored!");
 }
 
 TEST_BEGIN(test_log_disabled) {
@@ -61,7 +61,7 @@ TEST_BEGIN(test_log_enabled_direct) {
 			count++;
 		log_do_end(log_l1)
 	}
-	assert_d_eq(count, 10, "Mis-logged!");
+	expect_d_eq(count, 10, "Mis-logged!");
 
 	count = 0;
 	update_log_var_names("l1.a");
@@ -70,7 +70,7 @@ TEST_BEGIN(test_log_enabled_direct) {
 			count++;
 		log_do_end(log_l1_a)
 	}
-	assert_d_eq(count, 10, "Mis-logged!");
+	expect_d_eq(count, 10, "Mis-logged!");
 
 	count = 0;
 	update_log_var_names("l1.a|abc|l2|def");
@@ -83,7 +83,7 @@ TEST_BEGIN(test_log_enabled_direct) {
 			count++;
 		log_do_end(log_l2)
 	}
-	assert_d_eq(count, 20, "Mis-logged!");
+	expect_d_eq(count, 20, "Mis-logged!");
 }
 TEST_END
 
@@ -133,7 +133,7 @@ TEST_BEGIN(test_log_enabled_indirect) {
 		log_do_end(log_l2_b_b)
 	}
 
-	assert_d_eq(count, 40, "Mis-logged!");
+	expect_d_eq(count, 40, "Mis-logged!");
 }
 TEST_END
 
@@ -155,7 +155,7 @@ TEST_BEGIN(test_log_enabled_global) {
 		    count++;
 		log_do_end(log_l2_a_a)
 	}
-	assert_d_eq(count, 20, "Mis-logged!");
+	expect_d_eq(count, 20, "Mis-logged!");
 }
 TEST_END
 
@@ -171,7 +171,7 @@ TEST_BEGIN(test_logs_if_no_init) {
 			count++;
 		log_do_end(l)
 	}
-	assert_d_eq(count, 0, "Logging shouldn't happen if not initialized.");
+	expect_d_eq(count, 0, "Logging shouldn't happen if not initialized.");
 }
 TEST_END
 
