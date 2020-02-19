@@ -27,7 +27,8 @@ edata_cache_get(tsdn_t *tsdn, edata_cache_t *edata_cache) {
 		return base_alloc_edata(tsdn, edata_cache->base);
 	}
 	edata_avail_remove(&edata_cache->avail, edata);
-	atomic_fetch_sub_zu(&edata_cache->count, 1, ATOMIC_RELAXED);
+	size_t count = atomic_load_zu(&edata_cache->count, ATOMIC_RELAXED);
+	atomic_store_zu(&edata_cache->count, count - 1, ATOMIC_RELAXED);
 	malloc_mutex_unlock(tsdn, &edata_cache->mtx);
 	return edata;
 }
@@ -36,7 +37,8 @@ void
 edata_cache_put(tsdn_t *tsdn, edata_cache_t *edata_cache, edata_t *edata) {
 	malloc_mutex_lock(tsdn, &edata_cache->mtx);
 	edata_avail_insert(&edata_cache->avail, edata);
-	atomic_fetch_add_zu(&edata_cache->count, 1, ATOMIC_RELAXED);
+	size_t count = atomic_load_zu(&edata_cache->count, ATOMIC_RELAXED);
+	atomic_store_zu(&edata_cache->count, count + 1, ATOMIC_RELAXED);
 	malloc_mutex_unlock(tsdn, &edata_cache->mtx);
 }
 
