@@ -40,14 +40,68 @@ edata_cache_put(tsdn_t *tsdn, edata_cache_t *edata_cache, edata_t *edata) {
 	malloc_mutex_unlock(tsdn, &edata_cache->mtx);
 }
 
-void edata_cache_prefork(tsdn_t *tsdn, edata_cache_t *edata_cache) {
+void
+edata_cache_prefork(tsdn_t *tsdn, edata_cache_t *edata_cache) {
 	malloc_mutex_prefork(tsdn, &edata_cache->mtx);
 }
 
-void edata_cache_postfork_parent(tsdn_t *tsdn, edata_cache_t *edata_cache) {
+void
+edata_cache_postfork_parent(tsdn_t *tsdn, edata_cache_t *edata_cache) {
 	malloc_mutex_postfork_parent(tsdn, &edata_cache->mtx);
 }
 
-void edata_cache_postfork_child(tsdn_t *tsdn, edata_cache_t *edata_cache) {
+void
+edata_cache_postfork_child(tsdn_t *tsdn, edata_cache_t *edata_cache) {
 	malloc_mutex_postfork_child(tsdn, &edata_cache->mtx);
+}
+
+void
+edata_cache_small_init(edata_cache_small_t *ecs, edata_cache_t *fallback) {
+	edata_list_init(&ecs->list);
+	ecs->count = 0;
+	ecs->fallback = fallback;
+}
+
+edata_t *
+edata_cache_small_get(edata_cache_small_t *ecs) {
+	assert(ecs->count > 0);
+	edata_t *edata = edata_list_first(&ecs->list);
+	assert(edata != NULL);
+	edata_list_remove(&ecs->list, edata);
+	ecs->count--;
+	return edata;
+}
+
+void
+edata_cache_small_put(edata_cache_small_t *ecs, edata_t *edata) {
+	assert(edata != NULL);
+	edata_list_append(&ecs->list, edata);
+	ecs->count++;
+}
+
+bool edata_cache_small_prepare(tsdn_t *tsdn, edata_cache_small_t *ecs,
+    size_t num) {
+	while (ecs->count < num) {
+		/*
+		 * Obviously, we can be smarter here and batch the locking that
+		 * happens inside of edata_cache_get.  But for now, something
+		 * quick-and-dirty is fine.
+		 */
+		edata_t *edata = edata_cache_get(tsdn, ecs->fallback);
+		if (edata == NULL) {
+			return true;
+		}
+		ql_elm_new(edata, ql_link);
+		edata_cache_small_put(ecs, edata);
+	}
+	return false;
+}
+
+void edata_cache_small_finish(tsdn_t *tsdn, edata_cache_small_t *ecs,
+    size_t num) {
+	while (ecs->count > num) {
+		/* Same deal here -- we should be batching. */
+		edata_t *edata = edata_cache_small_get(ecs);
+		edata_cache_put(tsdn, ecs->fallback, edata);
+	}
 }
