@@ -92,4 +92,13 @@ isblank(int c) {
 #endif
 #include <fcntl.h>
 
+/*
+ * The Win32 midl compiler has #define small char; we don't use midl, but
+ * "small" is a nice identifier to have available when talking about size
+ * classes.
+ */
+#ifdef small
+#  undef small
+#endif
+
 #endif /* JEMALLOC_INTERNAL_H */

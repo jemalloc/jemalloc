@@ -139,21 +139,44 @@ tbin_edatas_lookup_size_check(tsd_t *tsd, cache_bin_t *tbin, szind_t binind,
 	}
 }
 
-void
-tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
-    szind_t binind, unsigned rem) {
-	assert(binind < SC_NBINS);
+JEMALLOC_ALWAYS_INLINE bool
+tcache_bin_flush_match(edata_t *edata, unsigned cur_arena_ind,
+    unsigned cur_binshard, bool small) {
+	if (small) {
+		return edata_arena_ind_get(edata) == cur_arena_ind
+		    && edata_binshard_get(edata) == cur_binshard;
+	} else {
+		return edata_arena_ind_get(edata) == cur_arena_ind;
+	}
+}
+
+JEMALLOC_ALWAYS_INLINE void
+tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
+    szind_t binind, unsigned rem, bool small) {
+	/*
+	 * A couple lookup calls take tsdn; declare it once for convenience
+	 * instead of calling tsd_tsdn(tsd) all the time.
+	 */
+	tsdn_t *tsdn = tsd_tsdn(tsd);
+
+	if (small) {
+		assert(binind < SC_NBINS);
+	} else {
+		assert(binind < nhbins);
+	}
 	cache_bin_sz_t ncached = cache_bin_ncached_get(tbin, binind);
 	assert((cache_bin_sz_t)rem <= ncached);
+	arena_t *tcache_arena = tcache->arena;
+	assert(tcache_arena != NULL);
 
-	arena_t *arena = tcache->arena;
-	assert(arena != NULL);
 	unsigned nflush = ncached - rem;
-	/* Variable length array must have > 0 length. */
+	/*
+	 * Variable length array must have > 0 length; the last element is never
+	 * touched (it's just included to satisfy the no-zero-length rule).
+	 */
 	VARIABLE_ARRAY(edata_t *, item_edata, nflush + 1);
-
 	void **bottom_item = cache_bin_bottom_item_get(tbin, binind);
-	tsdn_t *tsdn = tsd_tsdn(tsd);
+	
 	/* Look up edata once per item. */
 	if (config_opt_safety_checks) {
 		tbin_edatas_lookup_size_check(tsd, tbin, binind, nflush,
@@ -165,71 +188,154 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 		}
 	}
 
-	bool merged_stats = false;
+	/*
+	 * The slabs where we freed the last remaining object in the slab (and
+	 * so need to free the slab itself).
+	 * Used only if small == true.
+	 */
 	unsigned dalloc_count = 0;
 	VARIABLE_ARRAY(edata_t *, dalloc_slabs, nflush + 1);
-	while (nflush > 0) {
-		/* Lock the arena bin associated with the first object. */
-		edata_t *edata = item_edata[0];
-		unsigned bin_arena_ind = edata_arena_ind_get(edata);
-		arena_t *bin_arena = arena_get(tsdn, bin_arena_ind, false);
-		unsigned binshard = edata_binshard_get(edata);
-		assert(binshard < bin_infos[binind].n_shards);
-		bin_t *bin = &bin_arena->bins[binind].bin_shards[binshard];
 
-		malloc_mutex_lock(tsdn, &bin->lock);
-		if (config_stats && bin_arena == arena && !merged_stats) {
-			merged_stats = true;
-			bin->stats.nflushes++;
-			bin->stats.nrequests += tbin->tstats.nrequests;
-			tbin->tstats.nrequests = 0;
+	/*
+	 * We're about to grab a bunch of locks.  If one of them happens to be
+	 * the one guarding the arena-level stats counters we flush our
+	 * thread-local ones to, we do so under one critical section.
+	 */
+	bool merged_stats = false;
+	while (nflush > 0) {
+		/* Lock the arena, or bin, associated with the first object. */
+		edata_t *edata = item_edata[0];
+		unsigned cur_arena_ind = edata_arena_ind_get(edata);
+		arena_t *cur_arena = arena_get(tsdn, cur_arena_ind, false);
+
+		/*
+		 * These assignments are always overwritten when small is true,
+		 * and their values are always ignored when small is false, but
+		 * to avoid the technical UB when we pass them as parameters, we
+		 * need to intialize them.
+		 */
+		unsigned cur_binshard = 0;
+		bin_t *cur_bin = NULL;
+		if (small) {
+			cur_binshard = edata_binshard_get(edata);
+			cur_bin = &cur_arena->bins[binind].bin_shards[
+			    cur_binshard];
+			assert(cur_binshard < bin_infos[binind].n_shards);
 		}
+
+		if (small) {
+			malloc_mutex_lock(tsdn, &cur_bin->lock);
+		}
+		if (!small && !arena_is_auto(cur_arena)) {
+			malloc_mutex_lock(tsdn, &cur_arena->large_mtx);
+		}
+
+		/*
+		 * If we acquired the right lock and have some stats to flush,
+		 * flush them.
+		 */
+		if (config_stats && tcache_arena == cur_arena
+		    && !merged_stats) {
+			merged_stats = true;
+			if (small) {
+				cur_bin->stats.nflushes++;
+				cur_bin->stats.nrequests +=
+				    tbin->tstats.nrequests;
+				tbin->tstats.nrequests = 0;
+			} else {
+				arena_stats_large_flush_nrequests_add(tsdn,
+				    &tcache_arena->stats, binind,
+				    tbin->tstats.nrequests);
+				tbin->tstats.nrequests = 0;
+			}
+		}
+
+		/*
+		 * Large allocations need special prep done.  Afterwards, we can
+		 * drop the large lock.
+		 */
+		if (!small) {
+			for (unsigned i = 0; i < nflush; i++) {
+				void *ptr = *(bottom_item - i);
+				edata = item_edata[i];
+				assert(ptr != NULL && edata != NULL);
+
+				if (tcache_bin_flush_match(edata, cur_arena_ind,
+				    cur_binshard, small)) {
+					large_dalloc_prep_junked_locked(tsdn,
+					    edata);
+				}
+			}
+		}
+		if (!small && !arena_is_auto(cur_arena)) {
+			malloc_mutex_unlock(tsdn, &cur_arena->large_mtx);
+		}
+
+		/* Deallocate whatever we can. */
 		unsigned ndeferred = 0;
 		for (unsigned i = 0; i < nflush; i++) {
 			void *ptr = *(bottom_item - i);
 			edata = item_edata[i];
 			assert(ptr != NULL && edata != NULL);
-
-			if (edata_arena_ind_get(edata) == bin_arena_ind
-			    && edata_binshard_get(edata) == binshard) {
-				if (arena_dalloc_bin_junked_locked(tsdn,
-				    bin_arena, bin, binind, edata, ptr)) {
-					dalloc_slabs[dalloc_count++] = edata;
-				}
-			} else {
+			if (!tcache_bin_flush_match(edata, cur_arena_ind,
+			    cur_binshard, small)) {
 				/*
-				 * This object was allocated via a different
-				 * arena bin than the one that is currently
-				 * locked.  Stash the object, so that it can be
-				 * handled in a future pass.
+				 * The object was allocated either via a
+				 * different arena, or a different bin in this
+				 * arena.  Either way, stash the object so that
+				 * it can be handled in a future pass.
 				 */
 				*(bottom_item - ndeferred) = ptr;
 				item_edata[ndeferred] = edata;
 				ndeferred++;
+				continue;
+			}
+			if (small) {
+				if (arena_dalloc_bin_junked_locked(tsdn,
+				    cur_arena, cur_bin, binind, edata, ptr)) {
+					dalloc_slabs[dalloc_count] = edata;
+					dalloc_count++;
+				}
+			} else {
+				large_dalloc_finish(tsdn, edata);
 			}
 		}
-		malloc_mutex_unlock(tsdn, &bin->lock);
-		arena_decay_ticks(tsdn, bin_arena, nflush - ndeferred);
+
+		if (small) {
+			malloc_mutex_unlock(tsdn, &cur_bin->lock);
+		}
+		arena_decay_ticks(tsdn, cur_arena, nflush - ndeferred);
 		nflush = ndeferred;
 	}
+
 	/* Handle all deferred slab dalloc. */
+	assert(small || dalloc_count == 0);
 	for (unsigned i = 0; i < dalloc_count; i++) {
 		edata_t *slab = dalloc_slabs[i];
 		arena_slab_dalloc(tsdn, arena_get_from_edata(slab), slab);
+
 	}
 
 	if (config_stats && !merged_stats) {
-		/*
-		 * The flush loop didn't happen to flush to this thread's
-		 * arena, so the stats didn't get merged.  Manually do so now.
-		 */
-		unsigned binshard;
-		bin_t *bin = arena_bin_choose_lock(tsdn, arena, binind,
-		    &binshard);
-		bin->stats.nflushes++;
-		bin->stats.nrequests += tbin->tstats.nrequests;
-		tbin->tstats.nrequests = 0;
-		malloc_mutex_unlock(tsdn, &bin->lock);
+		if (small) {
+			/*
+			 * The flush loop didn't happen to flush to this
+			 * thread's arena, so the stats didn't get merged.
+			 * Manually do so now.
+			 */
+			unsigned binshard;
+			bin_t *bin = arena_bin_choose_lock(tsdn, tcache_arena,
+			    binind, &binshard);
+			bin->stats.nflushes++;
+			bin->stats.nrequests += tbin->tstats.nrequests;
+			tbin->tstats.nrequests = 0;
+			malloc_mutex_unlock(tsdn, &bin->lock);
+		} else {
+			arena_stats_large_flush_nrequests_add(tsdn,
+			    &tcache_arena->stats, binind,
+			    tbin->tstats.nrequests);
+			tbin->tstats.nrequests = 0;
+		}
 	}
 
 	memmove(tbin->cur_ptr.ptr + (ncached - rem), tbin->cur_ptr.ptr, rem *
@@ -241,105 +347,15 @@ tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 }
 
 void
-tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin, szind_t binind,
-    unsigned rem) {
-	bool merged_stats = false;
+tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
+    szind_t binind, unsigned rem) {
+	tcache_bin_flush_impl(tsd, tcache, tbin, binind, rem, true);
+}
 
-	assert(binind < nhbins);
-	cache_bin_sz_t ncached = cache_bin_ncached_get(tbin, binind);
-	assert((cache_bin_sz_t)rem <= ncached);
-
-	arena_t *tcache_arena = tcache->arena;
-	assert(tcache_arena != NULL);
-	unsigned nflush = ncached - rem;
-	/* Variable length array must have > 0 length. */
-	VARIABLE_ARRAY(edata_t *, item_edata, nflush + 1);
-
-	void **bottom_item = cache_bin_bottom_item_get(tbin, binind);
-#ifndef JEMALLOC_EXTRA_SIZE_CHECK
-	/* Look up edata once per item. */
-	for (unsigned i = 0 ; i < nflush; i++) {
-		item_edata[i] = emap_edata_lookup(tsd_tsdn(tsd), &emap_global,
-		    *(bottom_item - i));
-	}
-#else
-	tbin_extents_lookup_size_check(tsd_tsdn(tsd), tbin, binind, nflush,
-	    item_edata);
-#endif
-	while (nflush > 0) {
-		/* Lock the arena associated with the first object. */
-		edata_t *edata = item_edata[0];
-		unsigned locked_arena_ind = edata_arena_ind_get(edata);
-		arena_t *locked_arena = arena_get(tsd_tsdn(tsd),
-		    locked_arena_ind, false);
-
-		bool lock_large = !arena_is_auto(locked_arena);
-		if (lock_large) {
-			malloc_mutex_lock(tsd_tsdn(tsd), &locked_arena->large_mtx);
-		}
-		for (unsigned i = 0; i < nflush; i++) {
-			void *ptr = *(bottom_item - i);
-			assert(ptr != NULL);
-			edata = item_edata[i];
-			if (edata_arena_ind_get(edata) == locked_arena_ind) {
-				large_dalloc_prep_junked_locked(tsd_tsdn(tsd),
-				    edata);
-			}
-		}
-		if ((config_prof || config_stats) &&
-		    (locked_arena == tcache_arena)) {
-			if (config_stats) {
-				merged_stats = true;
-				arena_stats_large_flush_nrequests_add(
-				    tsd_tsdn(tsd), &tcache_arena->stats, binind,
-				    tbin->tstats.nrequests);
-				tbin->tstats.nrequests = 0;
-			}
-		}
-		if (lock_large) {
-			malloc_mutex_unlock(tsd_tsdn(tsd), &locked_arena->large_mtx);
-		}
-
-		unsigned ndeferred = 0;
-		for (unsigned i = 0; i < nflush; i++) {
-			void *ptr = *(bottom_item - i);
-			edata = item_edata[i];
-			assert(ptr != NULL && edata != NULL);
-
-			if (edata_arena_ind_get(edata) == locked_arena_ind) {
-				large_dalloc_finish(tsd_tsdn(tsd), edata);
-			} else {
-				/*
-				 * This object was allocated via a different
-				 * arena than the one that is currently locked.
-				 * Stash the object, so that it can be handled
-				 * in a future pass.
-				 */
-				*(bottom_item - ndeferred) = ptr;
-				item_edata[ndeferred] = edata;
-				ndeferred++;
-			}
-		}
-		arena_decay_ticks(tsd_tsdn(tsd), locked_arena, nflush -
-		    ndeferred);
-		nflush = ndeferred;
-	}
-	if (config_stats && !merged_stats) {
-		/*
-		 * The flush loop didn't happen to flush to this thread's
-		 * arena, so the stats didn't get merged.  Manually do so now.
-		 */
-		arena_stats_large_flush_nrequests_add(tsd_tsdn(tsd),
-		    &tcache_arena->stats, binind, tbin->tstats.nrequests);
-		tbin->tstats.nrequests = 0;
-	}
-
-	memmove(tbin->cur_ptr.ptr + (ncached - rem), tbin->cur_ptr.ptr, rem *
-	    sizeof(void *));
-	cache_bin_ncached_set(tbin, binind, rem);
-	if (tbin->cur_ptr.lowbits > tbin->low_water_position) {
-		tbin->low_water_position = tbin->cur_ptr.lowbits;
-	}
+void
+tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
+    szind_t binind, unsigned rem) {
+	tcache_bin_flush_impl(tsd, tcache, tbin, binind, rem, false);
 }
 
 void
