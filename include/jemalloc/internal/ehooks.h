@@ -222,9 +222,9 @@ ehooks_destroy(tsdn_t *tsdn, ehooks_t *ehooks, void *addr, size_t size,
     bool committed) {
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
 	if (extent_hooks == &ehooks_default_extent_hooks) {
-		return ehooks_default_destroy_impl(addr, size);
+		ehooks_default_destroy_impl(addr, size);
 	} else if (extent_hooks->destroy == NULL) {
-		return;
+		/* Do nothing. */
 	} else {
 		ehooks_pre_reentrancy(tsdn);
 		extent_hooks->destroy(extent_hooks, addr, size, committed,
