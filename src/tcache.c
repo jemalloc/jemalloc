@@ -59,8 +59,10 @@ tcache_event_hard(tsd_t *tsd, tcache_t *tcache) {
 		is_small = false;
 	}
 
-	cache_bin_sz_t low_water = cache_bin_low_water_get(tbin, binind);
-	cache_bin_sz_t ncached = cache_bin_ncached_get(tbin, binind);
+	cache_bin_sz_t low_water = cache_bin_low_water_get(tbin, binind,
+	    tcache_bin_info);
+	cache_bin_sz_t ncached = cache_bin_ncached_get(tbin, binind,
+	    tcache_bin_info);
 	if (low_water > 0) {
 		/*
 		 * Flush (ceiling) 3/4 of the objects below the low water mark.
@@ -73,8 +75,8 @@ tcache_event_hard(tsd_t *tsd, tcache_t *tcache) {
 			 * Reduce fill count by 2X.  Limit lg_fill_div such that
 			 * the fill count is always at least 1.
 			 */
-			if ((cache_bin_ncached_max_get(binind) >>
-			     (tcache->lg_fill_div[binind] + 1)) >= 1) {
+			if ((cache_bin_ncached_max_get(binind, tcache_bin_info)
+			    >> (tcache->lg_fill_div[binind] + 1)) >= 1) {
 				tcache->lg_fill_div[binind]++;
 			}
 		} else {
@@ -107,7 +109,8 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 
 	assert(tcache->arena != NULL);
 	arena_tcache_fill_small(tsdn, arena, tcache, tbin, binind);
-	ret = cache_bin_alloc_easy(tbin, tcache_success, binind);
+	ret = cache_bin_alloc_easy(tbin, tcache_success, binind,
+	    tcache_bin_info);
 
 	return ret;
 }
@@ -126,7 +129,8 @@ tbin_edatas_lookup_size_check(tsd_t *tsd, cache_bin_t *tbin, szind_t binind,
 	 * builds, avoid the branch in the loop.
 	 */
 	size_t szind_sum = binind * nflush;
-	void **bottom_item = cache_bin_bottom_item_get(tbin, binind);
+	void **bottom_item = cache_bin_bottom_item_get(tbin, binind,
+	    tcache_bin_info);
 	for (unsigned i = 0 ; i < nflush; i++) {
 		emap_full_alloc_ctx_t full_alloc_ctx;
 		emap_full_alloc_ctx_lookup(tsd_tsdn(tsd), &emap_global,
@@ -164,7 +168,8 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 	} else {
 		assert(binind < nhbins);
 	}
-	cache_bin_sz_t ncached = cache_bin_ncached_get(tbin, binind);
+	cache_bin_sz_t ncached = cache_bin_ncached_get(tbin, binind,
+	    tcache_bin_info);
 	assert((cache_bin_sz_t)rem <= ncached);
 	arena_t *tcache_arena = tcache->arena;
 	assert(tcache_arena != NULL);
@@ -175,7 +180,8 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 	 * touched (it's just included to satisfy the no-zero-length rule).
 	 */
 	VARIABLE_ARRAY(edata_t *, item_edata, nflush + 1);
-	void **bottom_item = cache_bin_bottom_item_get(tbin, binind);
+	void **bottom_item = cache_bin_bottom_item_get(tbin, binind,
+	    tcache_bin_info);
 
 	/* Look up edata once per item. */
 	if (config_opt_safety_checks) {
@@ -340,7 +346,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 
 	memmove(tbin->cur_ptr.ptr + (ncached - rem), tbin->cur_ptr.ptr, rem *
 	    sizeof(void *));
-	cache_bin_ncached_set(tbin, binind, rem);
+	cache_bin_ncached_set(tbin, binind, rem, tcache_bin_info);
 	if (tbin->cur_ptr.lowbits > tbin->low_water_position) {
 		tbin->low_water_position = tbin->cur_ptr.lowbits;
 	}
@@ -445,8 +451,9 @@ tcache_bin_init(cache_bin_t *bin, szind_t ind, uintptr_t *stack_cur) {
 	bin->low_water_position = bin->cur_ptr.lowbits;
 	bin->full_position = (uint32_t)(uintptr_t)full_position;
 	assert(bin->cur_ptr.lowbits - bin->full_position == bin_stack_size);
-	assert(cache_bin_ncached_get(bin, ind) == 0);
-	assert(cache_bin_empty_position_get(bin, ind) == empty_position);
+	assert(cache_bin_ncached_get(bin, ind, tcache_bin_info) == 0);
+	assert(cache_bin_empty_position_get(bin, ind, tcache_bin_info)
+	    == empty_position);
 
 	return false;
 }
@@ -605,8 +612,8 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache, bool tsd_tcache) {
 	if (tsd_tcache) {
 		/* Release the avail array for the TSD embedded auto tcache. */
 		cache_bin_t *bin = tcache_small_bin_get(tcache, 0);
-		assert(cache_bin_ncached_get(bin, 0) == 0);
-		assert(cache_bin_empty_position_get(bin, 0) ==
+		assert(cache_bin_ncached_get(bin, 0, tcache_bin_info) == 0);
+		assert(cache_bin_empty_position_get(bin, 0, tcache_bin_info) ==
 		    bin->cur_ptr.ptr);
 		void *avail_array = (void *)((uintptr_t)bin->cur_ptr.ptr -
 		    tcache_bin_info[0].stack_size);
