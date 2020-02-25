@@ -13,6 +13,8 @@ extern unsigned	nhbins;
 /* Maximum cached size class. */
 extern size_t	tcache_maxclass;
 
+extern cache_bin_info_t *tcache_bin_info;
+
 /*
  * Explicit tcaches, managed via the tcache.{create,flush,destroy} mallctls and
  * usable via the MALLOCX_TCACHE() flag.  The automatic per thread tcaches are
