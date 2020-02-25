@@ -3,6 +3,29 @@
 
 #include "jemalloc/internal/extent.h"
 
+static inline void
+percpu_arena_update(tsd_t *tsd, unsigned cpu) {
+	assert(have_percpu_arena);
+	arena_t *oldarena = tsd_arena_get(tsd);
+	assert(oldarena != NULL);
+	unsigned oldind = arena_ind_get(oldarena);
+
+	if (oldind != cpu) {
+		unsigned newind = cpu;
+		arena_t *newarena = arena_get(tsd_tsdn(tsd), newind, true);
+		assert(newarena != NULL);
+
+		/* Set new arena/tcache associations. */
+		arena_migrate(tsd, oldind, newind);
+		tcache_t *tcache = tcache_get(tsd);
+		if (tcache != NULL) {
+			tcache_arena_reassociate(tsd_tsdn(tsd), tcache,
+			    newarena);
+		}
+	}
+}
+
+
 /* Choose an arena based on a per-thread value. */
 static inline arena_t *
 arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
