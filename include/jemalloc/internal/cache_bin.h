@@ -35,7 +35,6 @@ struct cache_bin_info_s {
 	/* The size of the bin stack, i.e. ncached_max * sizeof(ptr). */
 	cache_bin_sz_t stack_size;
 };
-extern cache_bin_info_t	*tcache_bin_info;
 
 typedef struct cache_bin_s cache_bin_t;
 struct cache_bin_s {
@@ -115,29 +114,29 @@ struct cache_bin_array_descriptor_s {
 
 /* Returns ncached_max: Upper limit on ncached. */
 static inline cache_bin_sz_t
-cache_bin_ncached_max_get(szind_t ind) {
-	return tcache_bin_info[ind].stack_size / sizeof(void *);
+cache_bin_ncached_max_get(szind_t ind, cache_bin_info_t *infos) {
+	return infos[ind].stack_size / sizeof(void *);
 }
 
 static inline cache_bin_sz_t
-cache_bin_ncached_get(cache_bin_t *bin, szind_t ind) {
-	cache_bin_sz_t n = (cache_bin_sz_t)((tcache_bin_info[ind].stack_size +
+cache_bin_ncached_get(cache_bin_t *bin, szind_t ind, cache_bin_info_t *infos) {
+	cache_bin_sz_t n = (cache_bin_sz_t)((infos[ind].stack_size +
 	    bin->full_position - bin->cur_ptr.lowbits) / sizeof(void *));
-	assert(n <= cache_bin_ncached_max_get(ind));
+	assert(n <= cache_bin_ncached_max_get(ind, infos));
 	assert(n == 0 || *(bin->cur_ptr.ptr) != NULL);
 
 	return n;
 }
 
 static inline void **
-cache_bin_empty_position_get(cache_bin_t *bin, szind_t ind) {
-	void **ret = bin->cur_ptr.ptr + cache_bin_ncached_get(bin, ind);
+cache_bin_empty_position_get(cache_bin_t *bin, szind_t ind,
+    cache_bin_info_t *infos) {
+	void **ret = bin->cur_ptr.ptr + cache_bin_ncached_get(bin, ind, infos);
 	/* Low bits overflow disallowed when allocating the space. */
 	assert((uint32_t)(uintptr_t)ret >= bin->cur_ptr.lowbits);
 
 	/* Can also be computed via (full_position + ncached_max) | highbits. */
-	uintptr_t lowbits = bin->full_position +
-	    tcache_bin_info[ind].stack_size;
+	uintptr_t lowbits = bin->full_position + infos[ind].stack_size;
 	uintptr_t highbits = (uintptr_t)bin->cur_ptr.ptr &
 	    ~(((uint64_t)1 << 32) - 1);
 	assert(ret == (void **)(lowbits | highbits));
@@ -147,32 +146,35 @@ cache_bin_empty_position_get(cache_bin_t *bin, szind_t ind) {
 
 /* Returns the position of the bottom item on the stack; for convenience. */
 static inline void **
-cache_bin_bottom_item_get(cache_bin_t *bin, szind_t ind) {
-	void **bottom = cache_bin_empty_position_get(bin, ind) - 1;
-	assert(cache_bin_ncached_get(bin, ind) == 0 || *bottom != NULL);
+cache_bin_bottom_item_get(cache_bin_t *bin, szind_t ind,
+    cache_bin_info_t *infos) {
+	void **bottom = cache_bin_empty_position_get(bin, ind, infos) - 1;
+	assert(cache_bin_ncached_get(bin, ind, infos) == 0 || *bottom != NULL);
 
 	return bottom;
 }
 
 /* Returns the numeric value of low water in [0, ncached]. */
 static inline cache_bin_sz_t
-cache_bin_low_water_get(cache_bin_t *bin, szind_t ind) {
-	cache_bin_sz_t ncached_max = cache_bin_ncached_max_get(ind);
+cache_bin_low_water_get(cache_bin_t *bin, szind_t ind,
+    cache_bin_info_t *infos) {
+	cache_bin_sz_t ncached_max = cache_bin_ncached_max_get(ind, infos);
 	cache_bin_sz_t low_water = ncached_max -
 	    (cache_bin_sz_t)((bin->low_water_position - bin->full_position) /
 	    sizeof(void *));
 	assert(low_water <= ncached_max);
-	assert(low_water <= cache_bin_ncached_get(bin, ind));
+	assert(low_water <= cache_bin_ncached_get(bin, ind, infos));
 	assert(bin->low_water_position >= bin->cur_ptr.lowbits);
 
 	return low_water;
 }
 
 static inline void
-cache_bin_ncached_set(cache_bin_t *bin, szind_t ind, cache_bin_sz_t n) {
-	bin->cur_ptr.lowbits = bin->full_position +
-	    tcache_bin_info[ind].stack_size - n * sizeof(void *);
-	assert(n <= cache_bin_ncached_max_get(ind));
+cache_bin_ncached_set(cache_bin_t *bin, szind_t ind, cache_bin_sz_t n,
+    cache_bin_info_t *infos) {
+	bin->cur_ptr.lowbits = bin->full_position + infos[ind].stack_size
+	    - n * sizeof(void *);
+	assert(n <= cache_bin_ncached_max_get(ind, infos));
 	assert(n == 0 || *bin->cur_ptr.ptr != NULL);
 }
 
@@ -188,7 +190,7 @@ cache_bin_array_descriptor_init(cache_bin_array_descriptor_t *descriptor,
 
 JEMALLOC_ALWAYS_INLINE void *
 cache_bin_alloc_easy_impl(cache_bin_t *bin, bool *success, szind_t ind,
-    const bool adjust_low_water) {
+    cache_bin_info_t *infos, const bool adjust_low_water) {
 	/*
 	 * This may read from the empty position; however the loaded value won't
 	 * be used.  It's safe because the stack has one more slot reserved.
@@ -197,14 +199,14 @@ cache_bin_alloc_easy_impl(cache_bin_t *bin, bool *success, szind_t ind,
 	/*
 	 * Check for both bin->ncached == 0 and ncached < low_water in a single
 	 * branch.  When adjust_low_water is true, this also avoids accessing
-	 * tcache_bin_info (which is on a separate cacheline / page) in the
-	 * common case.
+	 * the cache_bin_info_ts (which is on a separate cacheline / page) in
+	 * the common case.
 	 */
 	if (unlikely(bin->cur_ptr.lowbits > bin->low_water_position)) {
 		if (adjust_low_water) {
 			assert(ind != INVALID_SZIND);
 			uint32_t empty_position = bin->full_position +
-			    tcache_bin_info[ind].stack_size;
+			    infos[ind].stack_size;
 			if (unlikely(bin->cur_ptr.lowbits > empty_position)) {
 				/* Over-allocated; revert. */
 				bin->cur_ptr.ptr--;
@@ -237,12 +239,14 @@ cache_bin_alloc_easy_impl(cache_bin_t *bin, bool *success, szind_t ind,
 JEMALLOC_ALWAYS_INLINE void *
 cache_bin_alloc_easy_reduced(cache_bin_t *bin, bool *success) {
 	/* The szind parameter won't be used. */
-	return cache_bin_alloc_easy_impl(bin, success, INVALID_SZIND, false);
+	return cache_bin_alloc_easy_impl(bin, success, INVALID_SZIND,
+	    /* infos */ NULL, false);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-cache_bin_alloc_easy(cache_bin_t *bin, bool *success, szind_t ind) {
-	return cache_bin_alloc_easy_impl(bin, success, ind, true);
+cache_bin_alloc_easy(cache_bin_t *bin, bool *success, szind_t ind,
+    cache_bin_info_t *infos) {
+	return cache_bin_alloc_easy_impl(bin, success, ind, infos, true);
 }
 
 #undef INVALID_SZIND
