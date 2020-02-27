@@ -117,8 +117,8 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 
 /* Enabled with --enable-extra-size-check. */
 static void
-tbin_edatas_lookup_size_check(tsd_t *tsd, cache_bin_t *tbin, szind_t binind,
-    size_t nflush, edata_t **edatas) {
+tbin_edatas_lookup_size_check(tsd_t *tsd, cache_bin_ptr_array_t *arr,
+    szind_t binind, size_t nflush, edata_t **edatas) {
 	/* Avoids null-checking tsdn in the loop below. */
 	util_assume(tsd != NULL);
 
@@ -129,15 +129,14 @@ tbin_edatas_lookup_size_check(tsd_t *tsd, cache_bin_t *tbin, szind_t binind,
 	 * builds, avoid the branch in the loop.
 	 */
 	size_t szind_sum = binind * nflush;
-	void **bottom_item = cache_bin_bottom_item_get(tbin, binind,
-	    tcache_bin_info);
-	for (unsigned i = 0 ; i < nflush; i++) {
+	for (unsigned i = 0; i < nflush; i++) {
 		emap_full_alloc_ctx_t full_alloc_ctx;
 		emap_full_alloc_ctx_lookup(tsd_tsdn(tsd), &emap_global,
-		    *(bottom_item - i), &full_alloc_ctx);
+		    cache_bin_ptr_array_get(arr, i), &full_alloc_ctx);
 		edatas[i] = full_alloc_ctx.edata;
 		szind_sum -= full_alloc_ctx.szind;
 	}
+
 	if (szind_sum != 0) {
 		safety_check_fail_sized_dealloc(false);
 	}
@@ -180,17 +179,18 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 	 * touched (it's just included to satisfy the no-zero-length rule).
 	 */
 	VARIABLE_ARRAY(edata_t *, item_edata, nflush + 1);
-	void **bottom_item = cache_bin_bottom_item_get(tbin, binind,
-	    tcache_bin_info);
+	CACHE_BIN_PTR_ARRAY_DECLARE(ptrs, nflush);
+
+	cache_bin_ptr_array_init(&ptrs, tbin, nflush, binind, tcache_bin_info);
 
 	/* Look up edata once per item. */
 	if (config_opt_safety_checks) {
-		tbin_edatas_lookup_size_check(tsd, tbin, binind, nflush,
+		tbin_edatas_lookup_size_check(tsd, &ptrs, binind, nflush,
 		    item_edata);
 	} else {
 		for (unsigned i = 0 ; i < nflush; i++) {
 			item_edata[i] = emap_edata_lookup(tsd_tsdn(tsd),
-			    &emap_global, *(bottom_item - i));
+			    &emap_global, cache_bin_ptr_array_get(&ptrs, i));
 		}
 	}
 
@@ -262,7 +262,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 		 */
 		if (!small) {
 			for (unsigned i = 0; i < nflush; i++) {
-				void *ptr = *(bottom_item - i);
+				void *ptr = cache_bin_ptr_array_get(&ptrs, i);
 				edata = item_edata[i];
 				assert(ptr != NULL && edata != NULL);
 
@@ -280,7 +280,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 		/* Deallocate whatever we can. */
 		unsigned ndeferred = 0;
 		for (unsigned i = 0; i < nflush; i++) {
-			void *ptr = *(bottom_item - i);
+			void *ptr = cache_bin_ptr_array_get(&ptrs, i);
 			edata = item_edata[i];
 			assert(ptr != NULL && edata != NULL);
 			if (!tcache_bin_flush_match(edata, cur_arena_ind,
@@ -291,7 +291,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 				 * arena.  Either way, stash the object so that
 				 * it can be handled in a future pass.
 				 */
-				*(bottom_item - ndeferred) = ptr;
+				cache_bin_ptr_array_set(&ptrs, ndeferred, ptr);
 				item_edata[ndeferred] = edata;
 				ndeferred++;
 				continue;
