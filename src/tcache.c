@@ -182,7 +182,8 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 	VARIABLE_ARRAY(edata_t *, item_edata, nflush + 1);
 	CACHE_BIN_PTR_ARRAY_DECLARE(ptrs, nflush);
 
-	cache_bin_ptr_array_init(&ptrs, tbin, nflush, binind, tcache_bin_info);
+	cache_bin_ptr_array_init_for_flush(&ptrs, tbin, nflush, binind,
+	    tcache_bin_info);
 
 	/* Look up edata once per item. */
 	if (config_opt_safety_checks) {
