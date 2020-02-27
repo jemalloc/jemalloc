@@ -144,16 +144,6 @@ cache_bin_empty_position_get(cache_bin_t *bin, szind_t ind,
 	return ret;
 }
 
-/* Returns the position of the bottom item on the stack; for convenience. */
-static inline void **
-cache_bin_bottom_item_get(cache_bin_t *bin, szind_t ind,
-    cache_bin_info_t *infos) {
-	void **bottom = cache_bin_empty_position_get(bin, ind, infos) - 1;
-	assert(cache_bin_ncached_get(bin, ind, infos) == 0 || *bottom != NULL);
-
-	return bottom;
-}
-
 /* Returns the numeric value of low water in [0, ncached]. */
 static inline cache_bin_sz_t
 cache_bin_low_water_get(cache_bin_t *bin, szind_t ind,
@@ -261,6 +251,34 @@ cache_bin_dalloc_easy(cache_bin_t *bin, void *ptr) {
 	assert(bin->cur_ptr.lowbits >= bin->full_position);
 
 	return true;
+}
+
+typedef struct cache_bin_ptr_array_s cache_bin_ptr_array_t;
+struct cache_bin_ptr_array_s {
+	cache_bin_sz_t nflush;
+	void **ptr;
+};
+
+#define CACHE_BIN_PTR_ARRAY_DECLARE(name, nflush_val)			\
+    cache_bin_ptr_array_t name;						\
+    name.nflush = (nflush_val)
+
+static inline void
+cache_bin_ptr_array_init(cache_bin_ptr_array_t *arr, cache_bin_t *bin,
+    cache_bin_sz_t nflush, szind_t ind, cache_bin_info_t *infos) {
+	arr->ptr = cache_bin_empty_position_get(bin, ind, infos) - 1;
+	assert(cache_bin_ncached_get(bin, ind, infos) == 0
+	    || *arr->ptr != NULL);
+}
+
+JEMALLOC_ALWAYS_INLINE void *
+cache_bin_ptr_array_get(cache_bin_ptr_array_t *arr, cache_bin_sz_t n) {
+	return *(arr->ptr - n);
+}
+
+JEMALLOC_ALWAYS_INLINE void
+cache_bin_ptr_array_set(cache_bin_ptr_array_t *arr, cache_bin_sz_t n, void *p) {
+	*(arr->ptr - n) = p;
 }
 
 #endif /* JEMALLOC_INTERNAL_CACHE_BIN_H */
