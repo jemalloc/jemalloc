@@ -271,6 +271,13 @@ cache_bin_ptr_array_init_for_flush(cache_bin_ptr_array_t *arr, cache_bin_t *bin,
 	    || *arr->ptr != NULL);
 }
 
+static inline void
+cache_bin_ptr_array_init_for_fill(cache_bin_ptr_array_t *arr, cache_bin_t *bin,
+    cache_bin_sz_t nfill, szind_t ind, cache_bin_info_t *infos) {
+	arr->ptr = cache_bin_empty_position_get(bin, ind, infos) - nfill;
+	assert(cache_bin_ncached_get(bin, ind, infos) == 0);
+}
+
 JEMALLOC_ALWAYS_INLINE void *
 cache_bin_ptr_array_get(cache_bin_ptr_array_t *arr, cache_bin_sz_t n) {
 	return *(arr->ptr - n);
@@ -279,6 +286,19 @@ cache_bin_ptr_array_get(cache_bin_ptr_array_t *arr, cache_bin_sz_t n) {
 JEMALLOC_ALWAYS_INLINE void
 cache_bin_ptr_array_set(cache_bin_ptr_array_t *arr, cache_bin_sz_t n, void *p) {
 	*(arr->ptr - n) = p;
+}
+
+static inline void
+cache_bin_fill_from_ptr_array(cache_bin_t *bin, cache_bin_ptr_array_t *arr,
+    szind_t ind, szind_t nfilled, cache_bin_info_t *infos) {
+	assert(cache_bin_ncached_get(bin, ind, infos) == 0);
+	if (nfilled < arr->n) {
+		void **empty_position = cache_bin_empty_position_get(bin, ind,
+		    infos);
+		memmove(empty_position - nfilled, empty_position - arr->n,
+		    nfilled * sizeof(void *));
+	}
+	cache_bin_ncached_set(bin, ind, nfilled, infos);
 }
 
 #endif /* JEMALLOC_INTERNAL_CACHE_BIN_H */
