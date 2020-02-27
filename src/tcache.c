@@ -75,8 +75,9 @@ tcache_event_hard(tsd_t *tsd, tcache_t *tcache) {
 			 * Reduce fill count by 2X.  Limit lg_fill_div such that
 			 * the fill count is always at least 1.
 			 */
-			if ((cache_bin_ncached_max_get(binind, tcache_bin_info)
-			    >> (tcache->lg_fill_div[binind] + 1)) >= 1) {
+			if ((cache_bin_info_ncached_max(
+			    &tcache_bin_info[binind]) >>
+			    (tcache->lg_fill_div[binind] + 1)) >= 1) {
 				tcache->lg_fill_div[binind]++;
 			}
 		} else {
