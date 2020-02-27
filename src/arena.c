@@ -1327,7 +1327,9 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 	const bin_info_t *bin_info = &bin_infos[binind];
 	const unsigned nfill = cache_bin_info_ncached_max(
 	    &tcache_bin_info[binind]) >> tcache->lg_fill_div[binind];
-	void **empty_position = cache_bin_empty_position_get(tbin, binind,
+
+	CACHE_BIN_PTR_ARRAY_DECLARE(ptrs, nfill);
+	cache_bin_ptr_array_init_for_fill(&ptrs, tbin, nfill, binind,
 	    tcache_bin_info);
 
 	/*
@@ -1374,7 +1376,7 @@ label_refill:
 			unsigned cnt = tofill < nfree ? tofill : nfree;
 
 			arena_slab_reg_alloc_batch(slabcur, bin_info, cnt,
-			    empty_position - tofill);
+			    &ptrs.ptr[filled]);
 			made_progress = true;
 			filled += cnt;
 			continue;
@@ -1403,16 +1405,9 @@ label_refill:
 			break;
 		}
 
+		/* OOM. */
+
 		assert(fresh_slab == NULL);
-		/*
-		 * OOM.  tbin->avail isn't yet filled down to its first element,
-		 * so the successful allocations (if any) must be moved just
-		 * before tbin->avail before bailing out.
-		 */
-		if (filled > 0) {
-			memmove(empty_position - filled, empty_position - nfill,
-			    filled * sizeof(void *));
-		}
 		assert(!alloc_and_retry);
 		break;
 	} /* while (filled < nfill) loop. */
@@ -1448,7 +1443,8 @@ label_refill:
 		fresh_slab = NULL;
 	}
 
-	cache_bin_ncached_set(tbin, binind, filled, tcache_bin_info);
+	cache_bin_fill_from_ptr_array(tbin, &ptrs, binind, filled,
+	    tcache_bin_info);
 	arena_decay_tick(tsdn, arena);
 }
 
