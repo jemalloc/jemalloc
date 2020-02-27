@@ -114,15 +114,15 @@ struct cache_bin_array_descriptor_s {
 
 /* Returns ncached_max: Upper limit on ncached. */
 static inline cache_bin_sz_t
-cache_bin_ncached_max_get(szind_t ind, cache_bin_info_t *infos) {
-	return infos[ind].stack_size / sizeof(void *);
+cache_bin_info_ncached_max(cache_bin_info_t *info) {
+	return info->stack_size / sizeof(void *);
 }
 
 static inline cache_bin_sz_t
 cache_bin_ncached_get(cache_bin_t *bin, szind_t ind, cache_bin_info_t *infos) {
 	cache_bin_sz_t n = (cache_bin_sz_t)((infos[ind].stack_size +
 	    bin->full_position - bin->cur_ptr.lowbits) / sizeof(void *));
-	assert(n <= cache_bin_ncached_max_get(ind, infos));
+	assert(n <= cache_bin_info_ncached_max(&infos[ind]));
 	assert(n == 0 || *(bin->cur_ptr.ptr) != NULL);
 
 	return n;
@@ -148,7 +148,7 @@ cache_bin_empty_position_get(cache_bin_t *bin, szind_t ind,
 static inline cache_bin_sz_t
 cache_bin_low_water_get(cache_bin_t *bin, szind_t ind,
     cache_bin_info_t *infos) {
-	cache_bin_sz_t ncached_max = cache_bin_ncached_max_get(ind, infos);
+	cache_bin_sz_t ncached_max = cache_bin_info_ncached_max(&infos[ind]);
 	cache_bin_sz_t low_water = ncached_max -
 	    (cache_bin_sz_t)((bin->low_water_position - bin->full_position) /
 	    sizeof(void *));
@@ -164,7 +164,7 @@ cache_bin_ncached_set(cache_bin_t *bin, szind_t ind, cache_bin_sz_t n,
     cache_bin_info_t *infos) {
 	bin->cur_ptr.lowbits = bin->full_position + infos[ind].stack_size
 	    - n * sizeof(void *);
-	assert(n <= cache_bin_ncached_max_get(ind, infos));
+	assert(n <= cache_bin_info_ncached_max(&infos[ind]));
 	assert(n == 0 || *bin->cur_ptr.ptr != NULL);
 }
 

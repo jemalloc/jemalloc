@@ -129,8 +129,8 @@ tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 
 	bin = tcache_small_bin_get(tcache, binind);
 	if (unlikely(!cache_bin_dalloc_easy(bin, ptr))) {
-		unsigned remain = cache_bin_ncached_max_get(binind,
-		    tcache_bin_info) >> 1;
+		unsigned remain = cache_bin_info_ncached_max(
+		    &tcache_bin_info[binind]) >> 1;
 		tcache_bin_flush_small(tsd, tcache, bin, binind, remain);
 		bool ret = cache_bin_dalloc_easy(bin, ptr);
 		assert(ret);
@@ -148,8 +148,8 @@ tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 
 	bin = tcache_large_bin_get(tcache, binind);
 	if (unlikely(!cache_bin_dalloc_easy(bin, ptr))) {
-		unsigned remain = cache_bin_ncached_max_get(binind,
-		    tcache_bin_info) >> 1;
+		unsigned remain = cache_bin_info_ncached_max(
+		    &tcache_bin_info[binind]) >> 1;
 		tcache_bin_flush_large(tsd, tcache, bin, binind, remain);
 		bool ret = cache_bin_dalloc_easy(bin, ptr);
 		assert(ret);
