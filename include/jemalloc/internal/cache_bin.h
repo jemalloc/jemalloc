@@ -255,16 +255,16 @@ cache_bin_dalloc_easy(cache_bin_t *bin, void *ptr) {
 
 typedef struct cache_bin_ptr_array_s cache_bin_ptr_array_t;
 struct cache_bin_ptr_array_s {
-	cache_bin_sz_t nflush;
+	cache_bin_sz_t n;
 	void **ptr;
 };
 
-#define CACHE_BIN_PTR_ARRAY_DECLARE(name, nflush_val)			\
+#define CACHE_BIN_PTR_ARRAY_DECLARE(name, nval)				\
     cache_bin_ptr_array_t name;						\
-    name.nflush = (nflush_val)
+    name.n = (nval)
 
 static inline void
-cache_bin_ptr_array_init(cache_bin_ptr_array_t *arr, cache_bin_t *bin,
+cache_bin_ptr_array_init_for_flush(cache_bin_ptr_array_t *arr, cache_bin_t *bin,
     cache_bin_sz_t nflush, szind_t ind, cache_bin_info_t *infos) {
 	arr->ptr = cache_bin_empty_position_get(bin, ind, infos) - 1;
 	assert(cache_bin_ncached_get(bin, ind, infos) == 0
