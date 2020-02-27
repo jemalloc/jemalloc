@@ -10,8 +10,8 @@ TEST_BEGIN(test_cache_bin) {
 
 	expect_ptr_not_null(stack, "Unexpected mallocx failure");
 	/* Initialize to empty; bin 0. */
-	cache_bin_sz_t ncached_max = cache_bin_ncached_max_get(0,
-	    tcache_bin_info);
+	cache_bin_sz_t ncached_max = cache_bin_info_ncached_max(
+	    &tcache_bin_info[0]);
 	void **empty_position = stack + ncached_max;
 	bin->cur_ptr.ptr = empty_position;
 	bin->low_water_position = bin->cur_ptr.lowbits;
