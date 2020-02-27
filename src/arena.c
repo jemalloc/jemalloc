@@ -1325,8 +1325,8 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 	tcache->bin_refilled[binind] = true;
 
 	const bin_info_t *bin_info = &bin_infos[binind];
-	const unsigned nfill = cache_bin_ncached_max_get(binind,
-	    tcache_bin_info) >> tcache->lg_fill_div[binind];
+	const unsigned nfill = cache_bin_info_ncached_max(
+	    &tcache_bin_info[binind]) >> tcache->lg_fill_div[binind];
 	void **empty_position = cache_bin_empty_position_get(tbin, binind,
 	    tcache_bin_info);
 
