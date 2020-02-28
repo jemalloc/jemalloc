@@ -1446,29 +1446,9 @@ label_refill:
 		fresh_slab = NULL;
 	}
 
-	if (config_fill && unlikely(opt_junk_alloc)) {
-		for (unsigned i = 0; i < filled; i++) {
-			void *ptr = *(empty_position - nfill + filled + i);
-			arena_alloc_junk_small(ptr, bin_info, true);
-		}
-	}
 	cache_bin_ncached_set(tbin, binind, filled);
 	arena_decay_tick(tsdn, arena);
 }
-
-void
-arena_alloc_junk_small(void *ptr, const bin_info_t *bin_info, bool zero) {
-	if (!zero) {
-		memset(ptr, JEMALLOC_ALLOC_JUNK, bin_info->reg_size);
-	}
-}
-
-static void
-arena_dalloc_junk_small_impl(void *ptr, const bin_info_t *bin_info) {
-	memset(ptr, JEMALLOC_FREE_JUNK, bin_info->reg_size);
-}
-arena_dalloc_junk_small_t *JET_MUTABLE arena_dalloc_junk_small =
-    arena_dalloc_junk_small_impl;
 
 /*
  * Without allocating a new slab, try arena_slab_reg_alloc() and re-fill
@@ -1528,18 +1508,7 @@ arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero) {
 	if (fresh_slab != NULL) {
 		arena_slab_dalloc(tsdn, arena, fresh_slab);
 	}
-	if (!zero) {
-		if (config_fill) {
-			if (unlikely(opt_junk_alloc)) {
-				arena_alloc_junk_small(ret, bin_info, false);
-			} else if (unlikely(opt_zero)) {
-				memset(ret, 0, usize);
-			}
-		}
-	} else {
-		if (config_fill && unlikely(opt_junk_alloc)) {
-			arena_alloc_junk_small(ret, bin_info, true);
-		}
+	if (zero) {
 		memset(ret, 0, usize);
 	}
 	arena_decay_tick(tsdn, arena);
@@ -1706,11 +1675,8 @@ arena_dalloc_bin_slab_prepare(tsdn_t *tsdn, edata_t *slab, bin_t *bin) {
 /* Returns true if arena_slab_dalloc must be called on slab */
 static bool
 arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
-    szind_t binind, edata_t *slab, void *ptr, bool junked) {
+    szind_t binind, edata_t *slab, void *ptr) {
 	const bin_info_t *bin_info = &bin_infos[binind];
-	if (!junked && config_fill && unlikely(opt_junk_free)) {
-		arena_dalloc_junk_small(ptr, bin_info);
-	}
 	arena_slab_reg_dalloc(slab, edata_slab_data_get(slab), ptr);
 
 	bool ret = false;
@@ -1733,10 +1699,10 @@ arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 }
 
 bool
-arena_dalloc_bin_junked_locked(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
-    szind_t binind, edata_t *edata, void *ptr) {
+arena_dalloc_bin_locked(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
+szind_t binind, edata_t *edata, void *ptr) {
 	return arena_dalloc_bin_locked_impl(tsdn, arena, bin, binind, edata,
-	    ptr, true);
+	    ptr);
 }
 
 static void
@@ -1747,7 +1713,7 @@ arena_dalloc_bin(tsdn_t *tsdn, arena_t *arena, edata_t *edata, void *ptr) {
 
 	malloc_mutex_lock(tsdn, &bin->lock);
 	bool ret = arena_dalloc_bin_locked_impl(tsdn, arena, bin, binind, edata,
-	    ptr, false);
+	    ptr);
 	malloc_mutex_unlock(tsdn, &bin->lock);
 
 	if (ret) {
