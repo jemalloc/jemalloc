@@ -50,11 +50,6 @@ void arena_reset(tsd_t *tsd, arena_t *arena);
 void arena_destroy(tsd_t *tsd, arena_t *arena);
 void arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
     cache_bin_t *tbin, szind_t binind);
-void arena_alloc_junk_small(void *ptr, const bin_info_t *bin_info,
-    bool zero);
-
-typedef void (arena_dalloc_junk_small_t)(void *, const bin_info_t *);
-extern arena_dalloc_junk_small_t *JET_MUTABLE arena_dalloc_junk_small;
 
 void *arena_malloc_hard(tsdn_t *tsdn, arena_t *arena, size_t size,
     szind_t ind, bool zero);
@@ -63,9 +58,9 @@ void *arena_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize,
 void arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize);
 void arena_dalloc_promoted(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
     bool slow_path);
-bool arena_dalloc_bin_junked_locked(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
-    szind_t binind, edata_t *edata, void *ptr);
 void arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, edata_t *slab);
+bool arena_dalloc_bin_locked(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
+    szind_t binind, edata_t *edata, void *ptr);
 void arena_dalloc_small(tsdn_t *tsdn, void *ptr);
 bool arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
     size_t extra, bool zero, size_t *newsize);

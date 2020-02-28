@@ -176,7 +176,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 	 */
 	VARIABLE_ARRAY(edata_t *, item_edata, nflush + 1);
 	void **bottom_item = cache_bin_bottom_item_get(tbin, binind);
-	
+
 	/* Look up edata once per item. */
 	if (config_opt_safety_checks) {
 		tbin_edatas_lookup_size_check(tsd, tbin, binind, nflush,
@@ -262,7 +262,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 
 				if (tcache_bin_flush_match(edata, cur_arena_ind,
 				    cur_binshard, small)) {
-					large_dalloc_prep_junked_locked(tsdn,
+					large_dalloc_prep_locked(tsdn,
 					    edata);
 				}
 			}
@@ -291,8 +291,8 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 				continue;
 			}
 			if (small) {
-				if (arena_dalloc_bin_junked_locked(tsdn,
-				    cur_arena, cur_bin, binind, edata, ptr)) {
+				if (arena_dalloc_bin_locked(tsdn, cur_arena,
+				    cur_bin, binind, edata, ptr)) {
 					dalloc_slabs[dalloc_count] = edata;
 					dalloc_count++;
 				}

@@ -61,23 +61,9 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
 		usize = sz_index2size(binind);
 		assert(tcache_salloc(tsd_tsdn(tsd), ret) == usize);
 	}
-
-	if (likely(!zero)) {
-		if (slow_path && config_fill) {
-			if (unlikely(opt_junk_alloc)) {
-				arena_alloc_junk_small(ret, &bin_infos[binind],
-				    false);
-			} else if (unlikely(opt_zero)) {
-				memset(ret, 0, usize);
-			}
-		}
-	} else {
-		if (slow_path && config_fill && unlikely(opt_junk_alloc)) {
-			arena_alloc_junk_small(ret, &bin_infos[binind], true);
-		}
+	if (unlikely(zero)) {
 		memset(ret, 0, usize);
 	}
-
 	if (config_stats) {
 		bin->tstats.nrequests++;
 	}
@@ -119,16 +105,7 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 			assert(usize <= tcache_maxclass);
 		}
 
-		if (likely(!zero)) {
-			if (slow_path && config_fill) {
-				if (unlikely(opt_junk_alloc)) {
-					memset(ret, JEMALLOC_ALLOC_JUNK,
-					    usize);
-				} else if (unlikely(opt_zero)) {
-					memset(ret, 0, usize);
-				}
-			}
-		} else {
+		if (unlikely(zero)) {
 			memset(ret, 0, usize);
 		}
 
@@ -148,10 +125,6 @@ tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 	assert(tcache_salloc(tsd_tsdn(tsd), ptr)
 	    <= SC_SMALL_MAXCLASS);
 
-	if (slow_path && config_fill && unlikely(opt_junk_free)) {
-		arena_dalloc_junk_small(ptr, &bin_infos[binind]);
-	}
-
 	bin = tcache_small_bin_get(tcache, binind);
 	if (unlikely(!cache_bin_dalloc_easy(bin, ptr))) {
 		unsigned remain = cache_bin_ncached_max_get(binind) >> 1;
@@ -169,10 +142,6 @@ tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 	assert(tcache_salloc(tsd_tsdn(tsd), ptr)
 	    > SC_SMALL_MAXCLASS);
 	assert(tcache_salloc(tsd_tsdn(tsd), ptr) <= tcache_maxclass);
-
-	if (slow_path && config_fill && unlikely(opt_junk_free)) {
-		large_dalloc_junk(ptr, sz_index2size(binind));
-	}
 
 	bin = tcache_large_bin_get(tcache, binind);
 	if (unlikely(!cache_bin_dalloc_easy(bin, ptr))) {
