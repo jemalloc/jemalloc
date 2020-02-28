@@ -81,6 +81,24 @@ const char *zero_realloc_mode_names[] = {
 	"abort",
 };
 
+/*
+ * These are the documented values for junk fill debugging facilities -- see the
+ * man page.
+ */
+static const uint8_t junk_alloc_byte = 0xa5;
+static const uint8_t junk_free_byte = 0x5a;
+
+static void default_junk_alloc(void *ptr, size_t usize) {
+	memset(ptr, junk_alloc_byte, usize);
+}
+
+static void default_junk_free(void *ptr, size_t usize) {
+	memset(ptr, junk_free_byte, usize);
+}
+
+void (*junk_alloc_callback)(void *ptr, size_t size) = &default_junk_alloc;
+void (*junk_free_callback)(void *ptr, size_t size) = &default_junk_free;
+
 bool	opt_utrace = false;
 bool	opt_xmalloc = false;
 bool	opt_zero = false;
@@ -2210,6 +2228,14 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 
 	assert(usize == isalloc(tsd_tsdn(tsd), allocation));
 
+	if (config_fill && sopts->slow && !dopts->zero) {
+		if (unlikely(opt_junk_alloc)) {
+			junk_alloc_callback(allocation, usize);
+		} else if (unlikely(opt_zero)) {
+			memset(allocation, 0, usize);
+		}
+	}
+
 	if (sopts->slow) {
 		UTRACE(0, size, allocation);
 	}
@@ -2582,6 +2608,9 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 		idalloctm(tsd_tsdn(tsd), ptr, tcache, &alloc_ctx, false,
 		    false);
 	} else {
+		if (config_fill && slow_path && opt_junk_free) {
+			junk_free_callback(ptr, usize);
+		}
 		idalloctm(tsd_tsdn(tsd), ptr, tcache, &alloc_ctx, false,
 		    true);
 	}
@@ -2648,6 +2677,9 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 		isdalloct(tsd_tsdn(tsd), ptr, usize, tcache, &alloc_ctx,
 		    false);
 	} else {
+		if (config_fill && slow_path && opt_junk_free) {
+			junk_free_callback(ptr, usize);
+		}
 		isdalloct(tsd_tsdn(tsd), ptr, usize, tcache, &alloc_ctx,
 		    true);
 	}
@@ -2745,6 +2777,14 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 
 	tcache_t *tcache = tsd_tcachep_get(tsd);
 	cache_bin_t *bin = tcache_small_bin_get(tcache, alloc_ctx.szind);
+
+	/*
+	 * If junking were enabled, this is where we would do it.  It's not
+	 * though, since we ensured above that we're on the fast path.  Assert
+	 * that to double-check.
+	 */
+	assert(!opt_junk_free);
+
 	if (!cache_bin_dalloc_easy(bin, ptr)) {
 		return false;
 	}
@@ -3180,6 +3220,16 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 	UTRACE(ptr, size, p);
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
+	if (config_fill && malloc_slow && !zero && usize > old_usize) {
+		size_t excess_len = usize - old_usize;
+		void *excess_start = (void *)((uintptr_t)p + old_usize);
+		if (unlikely(opt_junk_alloc)) {
+			junk_alloc_callback(excess_start, excess_len);
+		} else if (unlikely(opt_zero)) {
+			memset(excess_start, 0, excess_len);
+		}
+	}
+
 	return p;
 label_oom:
 	if (config_xmalloc && unlikely(opt_xmalloc)) {
@@ -3465,6 +3515,18 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 		goto label_not_resized;
 	}
 	thread_dalloc_event(tsd, old_usize);
+
+	if (config_fill && malloc_slow) {
+		if (usize > old_usize && !zero) {
+			size_t excess_len = usize - old_usize;
+			void *excess_start = (void *)((uintptr_t)ptr + old_usize);
+			if (unlikely(opt_junk_alloc)) {
+				junk_alloc_callback(excess_start, excess_len);
+			} else if (unlikely(opt_zero)) {
+				memset(excess_start, 0, excess_len);
+			}
+		}
+	}
 label_not_resized:
 	if (unlikely(!tsd_fast(tsd))) {
 		uintptr_t args[4] = {(uintptr_t)ptr, size, extra, flags};

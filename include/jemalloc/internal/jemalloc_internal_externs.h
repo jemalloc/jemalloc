@@ -14,6 +14,8 @@ extern bool opt_confirm_conf;
 extern const char *opt_junk;
 extern bool opt_junk_alloc;
 extern bool opt_junk_free;
+extern void (*junk_free_callback)(void *ptr, size_t size);
+extern void (*junk_alloc_callback)(void *ptr, size_t size);
 extern bool opt_utrace;
 extern bool opt_xmalloc;
 extern bool opt_zero;

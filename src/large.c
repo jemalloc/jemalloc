@@ -38,8 +38,8 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 	}
 	/*
 	 * Copy zero into is_zeroed and pass the copy when allocating the
-	 * extent, so that it is possible to make correct junk/zero fill
-	 * decisions below, even if is_zeroed ends up true when zero is false.
+	 * extent, so that it is possible to make correct zero fill decisions
+	 * below, even if is_zeroed ends up true when zero is false.
 	 */
 	is_zeroed = zero;
 	if (likely(!tsdn_null(tsdn))) {
@@ -60,35 +60,11 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 
 	if (zero) {
 		assert(is_zeroed);
-	} else if (config_fill && unlikely(opt_junk_alloc)) {
-		memset(edata_addr_get(edata), JEMALLOC_ALLOC_JUNK,
-		    edata_usize_get(edata));
 	}
 
 	arena_decay_tick(tsdn, arena);
 	return edata_addr_get(edata);
 }
-
-static void
-large_dalloc_junk_impl(void *ptr, size_t size) {
-	memset(ptr, JEMALLOC_FREE_JUNK, size);
-}
-large_dalloc_junk_t *JET_MUTABLE large_dalloc_junk = large_dalloc_junk_impl;
-
-static void
-large_dalloc_maybe_junk_impl(void *ptr, size_t size) {
-	if (config_fill && have_dss && unlikely(opt_junk_free)) {
-		/*
-		 * Only bother junk filling if the extent isn't about to be
-		 * unmapped.
-		 */
-		if (opt_retain || (have_dss && extent_in_dss(ptr))) {
-			large_dalloc_junk(ptr, size);
-		}
-	}
-}
-large_dalloc_maybe_junk_t *JET_MUTABLE large_dalloc_maybe_junk =
-    large_dalloc_maybe_junk_impl;
 
 static bool
 large_ralloc_no_move_shrink(tsdn_t *tsdn, edata_t *edata, size_t usize) {
@@ -110,11 +86,6 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, edata_t *edata, size_t usize) {
 		    false, diff, SC_NSIZES, false);
 		if (trail == NULL) {
 			return true;
-		}
-
-		if (config_fill && unlikely(opt_junk_free)) {
-			large_dalloc_maybe_junk(edata_addr_get(trail),
-			    edata_size_get(trail));
 		}
 
 		arena_extents_dirty_dalloc(tsdn, arena, ehooks, trail);
@@ -142,9 +113,8 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
 	}
 	/*
 	 * Copy zero into is_zeroed_trail and pass the copy when allocating the
-	 * extent, so that it is possible to make correct junk/zero fill
-	 * decisions below, even if is_zeroed_trail ends up true when zero is
-	 * false.
+	 * extent, so that it is possible to make correct zero fill decisions
+	 * below, even if is_zeroed_trail ends up true when zero is false.
 	 */
 	bool is_zeroed_trail = zero;
 	edata_t *trail;
@@ -201,11 +171,7 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
 			memset(zbase, 0, nzero);
 		}
 		assert(is_zeroed_trail);
-	} else if (config_fill && unlikely(opt_junk_alloc)) {
-		memset((void *)((uintptr_t)edata_addr_get(edata) + oldusize),
-		    JEMALLOC_ALLOC_JUNK, usize - oldusize);
 	}
-
 	arena_extent_ralloc_large_expand(tsdn, arena, edata, oldusize);
 
 	return false;
@@ -310,21 +276,18 @@ large_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t usize,
 }
 
 /*
- * junked_locked indicates whether the extent's data have been junk-filled, and
- * whether the arena's large_mtx is currently held.
+ * locked indicates whether the arena's large_mtx is currently held.
  */
 static void
 large_dalloc_prep_impl(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
-    bool junked_locked) {
-	if (!junked_locked) {
+    bool locked) {
+	if (!locked) {
 		/* See comments in arena_bin_slabs_full_insert(). */
 		if (!arena_is_auto(arena)) {
 			malloc_mutex_lock(tsdn, &arena->large_mtx);
 			edata_list_remove(&arena->large, edata);
 			malloc_mutex_unlock(tsdn, &arena->large_mtx);
 		}
-		large_dalloc_maybe_junk(edata_addr_get(edata),
-		    edata_usize_get(edata));
 	} else {
 		/* Only hold the large_mtx if necessary. */
 		if (!arena_is_auto(arena)) {
@@ -342,7 +305,7 @@ large_dalloc_finish_impl(tsdn_t *tsdn, arena_t *arena, edata_t *edata) {
 }
 
 void
-large_dalloc_prep_junked_locked(tsdn_t *tsdn, edata_t *edata) {
+large_dalloc_prep_locked(tsdn_t *tsdn, edata_t *edata) {
 	large_dalloc_prep_impl(tsdn, arena_get_from_edata(edata), edata, true);
 }
 
