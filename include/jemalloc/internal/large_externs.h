@@ -12,13 +12,7 @@ void *large_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t usize,
     size_t alignment, bool zero, tcache_t *tcache,
     hook_ralloc_args_t *hook_args);
 
-typedef void (large_dalloc_junk_t)(void *, size_t);
-extern large_dalloc_junk_t *JET_MUTABLE large_dalloc_junk;
-
-typedef void (large_dalloc_maybe_junk_t)(void *, size_t);
-extern large_dalloc_maybe_junk_t *JET_MUTABLE large_dalloc_maybe_junk;
-
-void large_dalloc_prep_junked_locked(tsdn_t *tsdn, edata_t *edata);
+void large_dalloc_prep_locked(tsdn_t *tsdn, edata_t *edata);
 void large_dalloc_finish(tsdn_t *tsdn, edata_t *edata);
 void large_dalloc(tsdn_t *tsdn, edata_t *edata);
 size_t large_salloc(tsdn_t *tsdn, const edata_t *edata);
