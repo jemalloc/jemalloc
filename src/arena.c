@@ -200,14 +200,14 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 		for (szind_t i = 0; i < SC_NBINS; i++) {
 			cache_bin_t *tbin = &descriptor->bins_small[i];
 			arena_stats_accum_zu(&astats->tcache_bytes,
-			    cache_bin_ncached_get(tbin, i, tcache_bin_info)
+			    cache_bin_ncached_get(tbin, &tcache_bin_info[i])
 			    * sz_index2size(i));
 		}
 		for (szind_t i = 0; i < nhbins - SC_NBINS; i++) {
 			cache_bin_t *tbin = &descriptor->bins_large[i];
 			arena_stats_accum_zu(&astats->tcache_bytes,
-			    cache_bin_ncached_get(tbin, i + SC_NBINS,
-			    tcache_bin_info) * sz_index2size(i));
+			    cache_bin_ncached_get(tbin,
+			    &tcache_bin_info[i + SC_NBINS]) * sz_index2size(i));
 		}
 	}
 	malloc_mutex_prof_read(tsdn,
@@ -1321,7 +1321,7 @@ arena_bin_choose_lock(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 void
 arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
     cache_bin_t *tbin, szind_t binind) {
-	assert(cache_bin_ncached_get(tbin, binind, tcache_bin_info) == 0);
+	assert(cache_bin_ncached_get(tbin, &tcache_bin_info[binind]) == 0);
 	tcache->bin_refilled[binind] = true;
 
 	const bin_info_t *bin_info = &bin_infos[binind];
@@ -1329,8 +1329,8 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 	    &tcache_bin_info[binind]) >> tcache->lg_fill_div[binind];
 
 	CACHE_BIN_PTR_ARRAY_DECLARE(ptrs, nfill);
-	cache_bin_ptr_array_init_for_fill(&ptrs, tbin, nfill, binind,
-	    tcache_bin_info);
+	cache_bin_ptr_array_init_for_fill(&ptrs, tbin, nfill,
+	    &tcache_bin_info[binind]);
 
 	/*
 	 * Bin-local resources are used first: 1) bin->slabcur, and 2) nonfull
@@ -1443,8 +1443,8 @@ label_refill:
 		fresh_slab = NULL;
 	}
 
-	cache_bin_fill_from_ptr_array(tbin, &ptrs, binind, filled,
-	    tcache_bin_info);
+	cache_bin_fill_from_ptr_array(tbin, &ptrs, filled,
+	    &tcache_bin_info[binind]);
 	arena_decay_tick(tsdn, arena);
 }
 
