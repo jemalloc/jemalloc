@@ -267,7 +267,7 @@ cache_bin_init_ptr_array_for_fill(cache_bin_t *bin, cache_bin_info_t *info,
  */
 static inline void
 cache_bin_finish_fill(cache_bin_t *bin, cache_bin_info_t *info,
-    cache_bin_ptr_array_t *arr, szind_t nfilled) {
+    cache_bin_ptr_array_t *arr, cache_bin_sz_t nfilled) {
 	assert(cache_bin_ncached_get(bin, info) == 0);
 	if (nfilled < arr->n) {
 		void **empty_position = cache_bin_empty_position_get(bin, info);
@@ -285,6 +285,10 @@ cache_bin_init_ptr_array_for_flush(cache_bin_t *bin, cache_bin_info_t *info,
 	    || *arr->ptr != NULL);
 }
 
+/*
+ * These accessors are used by the flush pathways -- they reverse ordinary flush
+ * ordering.
+ */
 JEMALLOC_ALWAYS_INLINE void *
 cache_bin_ptr_array_get(cache_bin_ptr_array_t *arr, cache_bin_sz_t n) {
 	return *(arr->ptr - n);
@@ -293,6 +297,18 @@ cache_bin_ptr_array_get(cache_bin_ptr_array_t *arr, cache_bin_sz_t n) {
 JEMALLOC_ALWAYS_INLINE void
 cache_bin_ptr_array_set(cache_bin_ptr_array_t *arr, cache_bin_sz_t n, void *p) {
 	*(arr->ptr - n) = p;
+}
+
+static inline void
+cache_bin_finish_flush(cache_bin_t *bin, cache_bin_info_t *info,
+    cache_bin_ptr_array_t *arr, cache_bin_sz_t nflushed) {
+	unsigned rem = cache_bin_ncached_get(bin, info) - nflushed;
+	memmove(bin->cur_ptr.ptr + nflushed, bin->cur_ptr.ptr,
+	    rem * sizeof(void *));
+	cache_bin_ncached_set(bin, info, rem);
+	if (bin->cur_ptr.lowbits > bin->low_water_position) {
+		bin->low_water_position = bin->cur_ptr.lowbits;
+	}
 }
 
 #endif /* JEMALLOC_INTERNAL_CACHE_BIN_H */
