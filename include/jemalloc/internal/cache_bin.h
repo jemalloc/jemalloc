@@ -160,6 +160,15 @@ cache_bin_low_water_get(cache_bin_t *bin, cache_bin_info_t *info) {
 	return low_water;
 }
 
+/*
+ * Indicates that the current cache bin position should be the low water mark
+ * going forward.
+ */
+static inline void
+cache_bin_low_water_set(cache_bin_t *bin) {
+	bin->low_water_position = bin->cur_ptr.lowbits;
+}
+
 static inline void
 cache_bin_ncached_set(cache_bin_t *bin, cache_bin_info_t *info,
     cache_bin_sz_t n) {
@@ -289,7 +298,7 @@ cache_bin_init_ptr_array_for_flush(cache_bin_t *bin, cache_bin_info_t *info,
 }
 
 /*
- * These accessors are used by the flush pathways -- they reverse ordinary flush
+ * These accessors are used by the flush pathways -- they reverse ordinary array
  * ordering.
  */
 JEMALLOC_ALWAYS_INLINE void *

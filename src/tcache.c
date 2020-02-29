@@ -89,7 +89,7 @@ tcache_event_hard(tsd_t *tsd, tcache_t *tcache) {
 		}
 		tcache->bin_refilled[binind] = false;
 	}
-	tbin->low_water_position = tbin->cur_ptr.lowbits;
+	cache_bin_low_water_set(tbin);
 
 	tcache->next_gc_bin++;
 	if (tcache->next_gc_bin == nhbins) {
