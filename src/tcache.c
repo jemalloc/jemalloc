@@ -346,12 +346,8 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 		}
 	}
 
-	memmove(tbin->cur_ptr.ptr + (ncached - rem), tbin->cur_ptr.ptr, rem *
-	    sizeof(void *));
-	cache_bin_ncached_set(tbin, &tcache_bin_info[binind], rem);
-	if (tbin->cur_ptr.lowbits > tbin->low_water_position) {
-		tbin->low_water_position = tbin->cur_ptr.lowbits;
-	}
+	cache_bin_finish_flush(tbin, &tcache_bin_info[binind], &ptrs,
+	    ncached - rem);
 }
 
 void
