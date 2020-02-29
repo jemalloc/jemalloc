@@ -1329,9 +1329,8 @@ arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 	    &tcache_bin_info[binind]) >> tcache->lg_fill_div[binind];
 
 	CACHE_BIN_PTR_ARRAY_DECLARE(ptrs, nfill);
-	cache_bin_ptr_array_init_for_fill(&ptrs, tbin, nfill,
-	    &tcache_bin_info[binind]);
-
+	cache_bin_init_ptr_array_for_fill(tbin, &tcache_bin_info[binind], &ptrs,
+	    nfill);
 	/*
 	 * Bin-local resources are used first: 1) bin->slabcur, and 2) nonfull
 	 * slabs.  After both are exhausted, new slabs will be allocated through
@@ -1443,8 +1442,7 @@ label_refill:
 		fresh_slab = NULL;
 	}
 
-	cache_bin_fill_from_ptr_array(tbin, &ptrs, filled,
-	    &tcache_bin_info[binind]);
+	cache_bin_finish_fill(tbin, &tcache_bin_info[binind], &ptrs, filled);
 	arena_decay_tick(tsdn, arena);
 }
 

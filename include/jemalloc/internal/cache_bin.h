@@ -158,8 +158,8 @@ cache_bin_low_water_get(cache_bin_t *bin, cache_bin_info_t *info) {
 }
 
 static inline void
-cache_bin_ncached_set(cache_bin_t *bin, cache_bin_sz_t n,
-    cache_bin_info_t *info) {
+cache_bin_ncached_set(cache_bin_t *bin, cache_bin_info_t *info,
+    cache_bin_sz_t n) {
 	bin->cur_ptr.lowbits = bin->full_position + info->stack_size
 	    - n * sizeof(void *);
 	assert(n <= cache_bin_info_ncached_max(info));
@@ -175,8 +175,8 @@ cache_bin_array_descriptor_init(cache_bin_array_descriptor_t *descriptor,
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-cache_bin_alloc_easy_impl(cache_bin_t *bin, bool *success,
-    cache_bin_info_t *info, const bool adjust_low_water) {
+cache_bin_alloc_easy_impl(cache_bin_t *bin, cache_bin_info_t *info,
+    bool *success, const bool adjust_low_water) {
 	/*
 	 * This may read from the empty position; however the loaded value won't
 	 * be used.  It's safe because the stack has one more slot reserved.
@@ -185,7 +185,7 @@ cache_bin_alloc_easy_impl(cache_bin_t *bin, bool *success,
 	/*
 	 * Check for both bin->ncached == 0 and ncached < low_water in a single
 	 * branch.  When adjust_low_water is true, this also avoids accessing
-	 * the cache_bin_info_ts (which is on a separate cacheline / page) in
+	 * the cache_bin_info_t (which is on a separate cacheline / page) in
 	 * the common case.
 	 */
 	if (unlikely(bin->cur_ptr.lowbits > bin->low_water_position)) {
@@ -223,12 +223,12 @@ cache_bin_alloc_easy_impl(cache_bin_t *bin, bool *success,
 JEMALLOC_ALWAYS_INLINE void *
 cache_bin_alloc_easy_reduced(cache_bin_t *bin, bool *success) {
 	/* We don't look at info if we're not adjusting low-water. */
-	return cache_bin_alloc_easy_impl(bin, success, NULL, false);
+	return cache_bin_alloc_easy_impl(bin, NULL, success, false);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-cache_bin_alloc_easy(cache_bin_t *bin, bool *success, cache_bin_info_t *info) {
-	return cache_bin_alloc_easy_impl(bin, success, info, true);
+cache_bin_alloc_easy(cache_bin_t *bin, cache_bin_info_t *info, bool *success) {
+	return cache_bin_alloc_easy_impl(bin, info, success, true);
 }
 
 JEMALLOC_ALWAYS_INLINE bool
@@ -254,18 +254,35 @@ struct cache_bin_ptr_array_s {
     name.n = (nval)
 
 static inline void
-cache_bin_ptr_array_init_for_flush(cache_bin_ptr_array_t *arr, cache_bin_t *bin,
-    cache_bin_sz_t nflush, cache_bin_info_t *info) {
-	arr->ptr = cache_bin_empty_position_get(bin, info) - 1;
-	assert(cache_bin_ncached_get(bin, info) == 0
-	    || *arr->ptr != NULL);
+cache_bin_init_ptr_array_for_fill(cache_bin_t *bin, cache_bin_info_t *info,
+    cache_bin_ptr_array_t *arr, cache_bin_sz_t nfill) {
+	arr->ptr = cache_bin_empty_position_get(bin, info) - nfill;
+	assert(cache_bin_ncached_get(bin, info) == 0);
+}
+
+/*
+ * While nfill in cache_bin_init_ptr_array_for_fill is the number we *intend* to
+ * fill, nfilled here is the number we actually filled (which may be less, in
+ * case of OOM.
+ */
+static inline void
+cache_bin_finish_fill(cache_bin_t *bin, cache_bin_info_t *info,
+    cache_bin_ptr_array_t *arr, szind_t nfilled) {
+	assert(cache_bin_ncached_get(bin, info) == 0);
+	if (nfilled < arr->n) {
+		void **empty_position = cache_bin_empty_position_get(bin, info);
+		memmove(empty_position - nfilled, empty_position - arr->n,
+		    nfilled * sizeof(void *));
+	}
+	cache_bin_ncached_set(bin, info, nfilled);
 }
 
 static inline void
-cache_bin_ptr_array_init_for_fill(cache_bin_ptr_array_t *arr, cache_bin_t *bin,
-    cache_bin_sz_t nfill, cache_bin_info_t *info) {
-	arr->ptr = cache_bin_empty_position_get(bin, info) - nfill;
-	assert(cache_bin_ncached_get(bin, info) == 0);
+cache_bin_init_ptr_array_for_flush(cache_bin_t *bin, cache_bin_info_t *info,
+    cache_bin_ptr_array_t *arr, cache_bin_sz_t nflush) {
+	arr->ptr = cache_bin_empty_position_get(bin, info) - 1;
+	assert(cache_bin_ncached_get(bin, info) == 0
+	    || *arr->ptr != NULL);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -276,18 +293,6 @@ cache_bin_ptr_array_get(cache_bin_ptr_array_t *arr, cache_bin_sz_t n) {
 JEMALLOC_ALWAYS_INLINE void
 cache_bin_ptr_array_set(cache_bin_ptr_array_t *arr, cache_bin_sz_t n, void *p) {
 	*(arr->ptr - n) = p;
-}
-
-static inline void
-cache_bin_fill_from_ptr_array(cache_bin_t *bin, cache_bin_ptr_array_t *arr,
-    szind_t nfilled, cache_bin_info_t *info) {
-	assert(cache_bin_ncached_get(bin, info) == 0);
-	if (nfilled < arr->n) {
-		void **empty_position = cache_bin_empty_position_get(bin, info);
-		memmove(empty_position - nfilled, empty_position - arr->n,
-		    nfilled * sizeof(void *));
-	}
-	cache_bin_ncached_set(bin, nfilled, info);
 }
 
 #endif /* JEMALLOC_INTERNAL_CACHE_BIN_H */
