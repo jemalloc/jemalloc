@@ -110,8 +110,8 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 
 	assert(tcache->arena != NULL);
 	arena_tcache_fill_small(tsdn, arena, tcache, tbin, binind);
-	ret = cache_bin_alloc_easy(tbin, tcache_success,
-	    &tcache_bin_info[binind]);
+	ret = cache_bin_alloc_easy(tbin, &tcache_bin_info[binind],
+	    tcache_success);
 
 	return ret;
 }
@@ -182,8 +182,8 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 	VARIABLE_ARRAY(edata_t *, item_edata, nflush + 1);
 	CACHE_BIN_PTR_ARRAY_DECLARE(ptrs, nflush);
 
-	cache_bin_ptr_array_init_for_flush(&ptrs, tbin, nflush,
-	    &tcache_bin_info[binind]);
+	cache_bin_init_ptr_array_for_flush(tbin, &tcache_bin_info[binind],
+	    &ptrs, nflush);
 
 	/* Look up edata once per item. */
 	if (config_opt_safety_checks) {
@@ -348,7 +348,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 
 	memmove(tbin->cur_ptr.ptr + (ncached - rem), tbin->cur_ptr.ptr, rem *
 	    sizeof(void *));
-	cache_bin_ncached_set(tbin, rem, &tcache_bin_info[binind]);
+	cache_bin_ncached_set(tbin, &tcache_bin_info[binind], rem);
 	if (tbin->cur_ptr.lowbits > tbin->low_water_position) {
 		tbin->low_water_position = tbin->cur_ptr.lowbits;
 	}
