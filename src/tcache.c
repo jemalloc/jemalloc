@@ -14,16 +14,10 @@ bool	opt_tcache = true;
 ssize_t	opt_lg_tcache_max = LG_TCACHE_MAXCLASS_DEFAULT;
 
 cache_bin_info_t	*tcache_bin_info;
-/*
- * For the total bin stack region (per tcache), reserve 2 more slots so that 1)
- * the empty position can be safely read on the fast path before checking
- * "is_empty"; and 2) the cur_ptr can go beyond the empty position by 1 step
- * safely on the fast path (i.e. no overflow).
- */
-static const unsigned total_stack_padding = sizeof(void *) * 2;
 
 /* Total stack size required (per tcache).  Include the padding above. */
-static uint32_t total_stack_bytes;
+static size_t tcache_bin_alloc_size;
+static size_t tcache_bin_alloc_alignment;
 
 unsigned		nhbins;
 size_t			tcache_maxclass;
@@ -430,43 +424,8 @@ tsd_tcache_enabled_data_init(tsd_t *tsd) {
 	return false;
 }
 
-static bool
-tcache_bin_init(cache_bin_t *bin, szind_t ind, uintptr_t *stack_cur) {
-	assert(sizeof(bin->cur_ptr) == sizeof(void *));
-	/*
-	 * The full_position points to the lowest available space.  Allocations
-	 * will access the slots toward higher addresses (for the benefit of
-	 * adjacent prefetch).
-	 */
-	void *full_position = (void *)*stack_cur;
-	uint32_t bin_stack_size = tcache_bin_info[ind].stack_size;
-
-	*stack_cur += bin_stack_size;
-	void *empty_position = (void *)*stack_cur;
-
-	/* Init to the empty position. */
-	bin->cur_ptr.ptr = empty_position;
-	bin->low_water_position = bin->cur_ptr.lowbits;
-	bin->full_position = (uint32_t)(uintptr_t)full_position;
-	assert(bin->cur_ptr.lowbits - bin->full_position == bin_stack_size);
-	assert(cache_bin_ncached_get(bin, &tcache_bin_info[ind]) == 0);
-	assert(cache_bin_empty_position_get(bin, &tcache_bin_info[ind])
-	    == empty_position);
-
-	return false;
-}
-
-/* Sanity check only. */
-static bool
-tcache_bin_lowbits_overflowable(void *ptr) {
-	uint32_t lowbits = (uint32_t)((uintptr_t)ptr + total_stack_bytes);
-	return lowbits < (uint32_t)(uintptr_t)ptr;
-}
-
 static void
 tcache_init(tsd_t *tsd, tcache_t *tcache, void *avail_stack) {
-	assert(!tcache_bin_lowbits_overflowable(avail_stack));
-
 	memset(&tcache->link, 0, sizeof(ql_elm(tcache_t)));
 	tcache->next_gc_bin = 0;
 	tcache->arena = NULL;
@@ -476,35 +435,25 @@ tcache_init(tsd_t *tsd, tcache_t *tcache, void *avail_stack) {
 	memset(tcache->bins_large, 0, sizeof(cache_bin_t) * (nhbins - SC_NBINS));
 
 	unsigned i = 0;
-	uintptr_t stack_cur = (uintptr_t)avail_stack;
+	size_t cur_offset = 0;
+	cache_bin_preincrement(tcache_bin_info, nhbins, avail_stack,
+	    &cur_offset);
 	for (; i < SC_NBINS; i++) {
 		tcache->lg_fill_div[i] = 1;
 		tcache->bin_refilled[i] = false;
 		cache_bin_t *bin = tcache_small_bin_get(tcache, i);
-		tcache_bin_init(bin, i, &stack_cur);
+		cache_bin_init(bin, &tcache_bin_info[i], avail_stack,
+		    &cur_offset);
 	}
 	for (; i < nhbins; i++) {
 		cache_bin_t *bin = tcache_large_bin_get(tcache, i);
-		tcache_bin_init(bin, i, &stack_cur);
+		cache_bin_init(bin, &tcache_bin_info[i], avail_stack,
+		    &cur_offset);
 	}
-
+	cache_bin_postincrement(tcache_bin_info, nhbins, avail_stack,
+	    &cur_offset);
 	/* Sanity check that the whole stack is used. */
-	size_t stack_offset = stack_cur - (uintptr_t)avail_stack;
-	assert(stack_offset + total_stack_padding == total_stack_bytes);
-}
-
-static size_t
-tcache_bin_stack_alignment (size_t size) {
-	/*
-	 * 1) Align to at least PAGE, to minimize the # of TLBs needed by the
-	 * smaller sizes; also helps if the larger sizes don't get used at all.
-	 * 2) On 32-bit the pointers won't be compressed; use minimal alignment.
-	 */
-	if (LG_SIZEOF_PTR < 3 || size < PAGE) {
-		return PAGE;
-	}
-	/* Align pow2 to avoid overflow the cache bin compressed pointers. */
-	return pow2_ceil_zu(size);
+	assert(cur_offset == tcache_bin_alloc_size);
 }
 
 /* Initialize auto tcache (embedded in TSD). */
@@ -512,8 +461,8 @@ bool
 tsd_tcache_data_init(tsd_t *tsd) {
 	tcache_t *tcache = tsd_tcachep_get_unsafe(tsd);
 	assert(tcache_small_bin_get(tcache, 0)->cur_ptr.ptr == NULL);
-	size_t alignment = tcache_bin_stack_alignment(total_stack_bytes);
-	size_t size = sz_sa2u(total_stack_bytes, alignment);
+	size_t alignment = tcache_bin_alloc_alignment;
+	size_t size = sz_sa2u(tcache_bin_alloc_size, alignment);
 
 	void *avail_array = ipallocztm(tsd_tsdn(tsd), size, alignment, true,
 	    NULL, true, arena_get(TSDN_NULL, 0, true));
@@ -551,22 +500,29 @@ tsd_tcache_data_init(tsd_t *tsd) {
 /* Created manual tcache for tcache.create mallctl. */
 tcache_t *
 tcache_create_explicit(tsd_t *tsd) {
-	size_t size = sizeof(tcache_t);
+	/*
+	 * We place the cache bin stacks, then the tcache_t, then a pointer to
+	 * the beginning of the whole allocation (for freeing).  The makes sure
+	 * the cache bins have the requested alignment.
+	 */
+	size_t size = tcache_bin_alloc_size + sizeof(tcache_t) + sizeof(void *);
 	/* Naturally align the pointer stacks. */
 	size = PTR_CEILING(size);
-	size_t stack_offset = size;
-	size += total_stack_bytes;
-	size_t alignment = tcache_bin_stack_alignment(size);
-	size = sz_sa2u(size, alignment);
+	size = sz_sa2u(size, tcache_bin_alloc_alignment);
 
-	tcache_t *tcache = ipallocztm(tsd_tsdn(tsd), size, alignment, true,
-	    NULL, true, arena_get(TSDN_NULL, 0, true));
-	if (tcache == NULL) {
+	void *mem = ipallocztm(tsd_tsdn(tsd), size, tcache_bin_alloc_alignment,
+	    true, NULL, true, arena_get(TSDN_NULL, 0, true));
+	if (mem == NULL) {
 		return NULL;
 	}
+	void *avail_array = mem;
+	tcache_t *tcache = (void *)((uintptr_t)avail_array
+	    + tcache_bin_alloc_size);
+	void **head_ptr = (void *)((uintptr_t)avail_array
+	    + tcache_bin_alloc_size + sizeof(tcache_t));
+	tcache_init(tsd, tcache, avail_array);
+	*head_ptr = mem;
 
-	void *avail_array = (void *)((uintptr_t)tcache +
-	    (uintptr_t)stack_offset);
 	tcache_init(tsd, tcache, avail_array);
 	tcache_arena_associate(tsd_tsdn(tsd), tcache, arena_ichoose(tsd, NULL));
 
@@ -617,8 +573,10 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache, bool tsd_tcache) {
 		    tcache_bin_info[0].stack_size);
 		idalloctm(tsd_tsdn(tsd), avail_array, NULL, NULL, true, true);
 	} else {
+		/* See the comment at the top of tcache_create_explicit. */
+		void **mem_begin = (void **)((uintptr_t)tcache + sizeof(tcache_t));
 		/* Release both the tcache struct and avail array. */
-		idalloctm(tsd_tsdn(tsd), tcache, NULL, NULL, true, true);
+		idalloctm(tsd_tsdn(tsd), *mem_begin, NULL, NULL, true, true);
 	}
 
 	/*
@@ -816,7 +774,6 @@ tcache_boot(tsdn_t *tsdn, base_t *base) {
 		return true;
 	}
 	unsigned i, ncached_max;
-	total_stack_bytes = 0;
 	for (i = 0; i < SC_NBINS; i++) {
 		if ((bin_infos[i].nregs << 1) <= TCACHE_NSLOTS_SMALL_MIN) {
 			ncached_max = TCACHE_NSLOTS_SMALL_MIN;
@@ -826,18 +783,13 @@ tcache_boot(tsdn_t *tsdn, base_t *base) {
 		} else {
 			ncached_max = TCACHE_NSLOTS_SMALL_MAX;
 		}
-		unsigned stack_size = ncached_max * sizeof(void *);
-		assert(stack_size < ((uint64_t)1 <<
-		    (sizeof(cache_bin_sz_t) * 8)));
-		tcache_bin_info[i].stack_size = stack_size;
-		total_stack_bytes += stack_size;
+		cache_bin_info_init(&tcache_bin_info[i], ncached_max);
 	}
 	for (; i < nhbins; i++) {
-		unsigned stack_size = TCACHE_NSLOTS_LARGE * sizeof(void *);
-		tcache_bin_info[i].stack_size = stack_size;
-		total_stack_bytes += stack_size;
+		cache_bin_info_init(&tcache_bin_info[i], TCACHE_NSLOTS_LARGE);
 	}
-	total_stack_bytes += total_stack_padding;
+	cache_bin_info_compute_alloc(tcache_bin_info, i, &tcache_bin_alloc_size,
+	    &tcache_bin_alloc_alignment);
 
 	return false;
 }

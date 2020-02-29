@@ -14,7 +14,10 @@
  * of the tcache at all.
  */
 
-/* The size in bytes of each cache bin stack. */
+/*
+ * The size in bytes of each cache bin stack.  We also use this to indicate
+ * *counts* of individual objects.
+ */
 typedef uint16_t cache_bin_sz_t;
 
 typedef struct cache_bin_stats_s cache_bin_stats_t;
@@ -310,5 +313,32 @@ cache_bin_finish_flush(cache_bin_t *bin, cache_bin_info_t *info,
 		bin->low_water_position = bin->cur_ptr.lowbits;
 	}
 }
+
+/*
+ * Initialize a cache_bin_info to represent up to the given number of items in
+ * the cache_bins it is associated with.
+ */
+void cache_bin_info_init(cache_bin_info_t *bin_info,
+    cache_bin_sz_t ncached_max);
+/*
+ * Given an array of initialized cache_bin_info_ts, determine how big an
+ * allocation is required to initialize a full set of cache_bin_ts.
+ */
+void cache_bin_info_compute_alloc(cache_bin_info_t *infos, szind_t ninfos,
+    size_t *size, size_t *alignment);
+
+/*
+ * Actually initialize some cache bins.  Callers should allocate the backing
+ * memory indicated by a call to cache_bin_compute_alloc.  They should then
+ * preincrement, call init once for each bin and info, and then call
+ * cache_bin_postincrement.  *alloc_cur will then point immediately past the end
+ * of the allocation.
+ */
+void cache_bin_preincrement(cache_bin_info_t *infos, szind_t ninfos,
+    void *alloc, size_t *cur_offset);
+void cache_bin_postincrement(cache_bin_info_t *infos, szind_t ninfos,
+    void *alloc, size_t *cur_offset);
+void cache_bin_init(cache_bin_t *bin, cache_bin_info_t *info, void *alloc,
+    size_t *cur_offset);
 
 #endif /* JEMALLOC_INTERNAL_CACHE_BIN_H */
