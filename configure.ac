@@ -250,6 +250,7 @@ if test "x$GCC" = "xyes" ; then
   JE_CFLAGS_ADD([-Wsign-compare])
   JE_CFLAGS_ADD([-Wundef])
   JE_CFLAGS_ADD([-Wno-format-zero-length])
+  JE_CFLAGS_ADD([-Wpointer-arith])
   dnl This warning triggers on the use of the universal zero initializer, which
   dnl is a very handy idiom for things like the tcache static initializer (which
   dnl has lots of nested structs).  See the discussion at.
