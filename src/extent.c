@@ -534,8 +534,8 @@ extent_recycle_split(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     bool slab, szind_t szind, edata_t *edata, bool growing_retained) {
 	edata_t *lead;
 	edata_t *trail;
-	edata_t *to_leak;
-	edata_t *to_salvage;
+	edata_t *to_leak JEMALLOC_CC_SILENCE_INIT(NULL);
+	edata_t *to_salvage JEMALLOC_CC_SILENCE_INIT(NULL);
 
 	extent_split_interior_result_t result = extent_split_interior(
 	    tsdn, arena, ehooks, &edata, &lead, &trail, &to_leak, &to_salvage,
@@ -711,8 +711,8 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 
 	edata_t *lead;
 	edata_t *trail;
-	edata_t *to_leak;
-	edata_t *to_salvage;
+	edata_t *to_leak JEMALLOC_CC_SILENCE_INIT(NULL);
+	edata_t *to_salvage JEMALLOC_CC_SILENCE_INIT(NULL);
 
 	extent_split_interior_result_t result = extent_split_interior(tsdn,
 	    arena, ehooks, &edata, &lead, &trail, &to_leak,
