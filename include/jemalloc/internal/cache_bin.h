@@ -169,6 +169,10 @@ cache_bin_low_water_set(cache_bin_t *bin) {
 	bin->low_water_position = bin->cur_ptr.lowbits;
 }
 
+/*
+ * This is an internal implementation detail -- users should only affect ncached
+ * via single-item pushes or batch fills.
+ */
 static inline void
 cache_bin_ncached_set(cache_bin_t *bin, cache_bin_info_t *info,
     cache_bin_sz_t n) {
