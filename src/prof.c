@@ -87,21 +87,24 @@ prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx) {
 
 void
 prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t size,
-    size_t usize, prof_tctx_t *tctx) {
+    size_t usize, size_t surplus, prof_tctx_t *tctx) {
 	if (opt_prof_sys_thread_name) {
 		prof_sys_thread_name_fetch(tsd);
 	}
 
 	edata_t *edata = emap_edata_lookup(tsd_tsdn(tsd), &arena_emap_global,
 	    ptr);
-	prof_info_set(edata, tctx);
+	assert(surplus < usize);
+	prof_info_set(edata, tctx, surplus);
 
 	malloc_mutex_lock(tsd_tsdn(tsd), tctx->tdata->lock);
 	tctx->cnts.curobjs++;
 	tctx->cnts.curbytes += usize;
+	tctx->cnts.cursurplus += surplus;
 	if (opt_prof_accum) {
 		tctx->cnts.accumobjs++;
 		tctx->cnts.accumbytes += usize;
+		tctx->cnts.accumsurplus += surplus;
 	}
 	bool record_recent = prof_recent_alloc_prepare(tsd, tctx);
 	tctx->prepared = false;
@@ -122,8 +125,11 @@ prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_info_t *prof_info) {
 
 	assert(tctx->cnts.curobjs > 0);
 	assert(tctx->cnts.curbytes >= usize);
+	assert(prof_info->surplus < usize);
+	assert(tctx->cnts.cursurplus >= prof_info->surplus);
 	tctx->cnts.curobjs--;
 	tctx->cnts.curbytes -= usize;
+	tctx->cnts.cursurplus -= prof_info->surplus;
 
 	prof_try_log(tsd, usize, prof_info);
 

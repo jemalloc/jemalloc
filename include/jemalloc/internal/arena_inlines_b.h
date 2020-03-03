@@ -104,11 +104,11 @@ arena_prof_tctx_reset_sampled(tsd_t *tsd, const void *ptr) {
 }
 
 JEMALLOC_ALWAYS_INLINE void
-arena_prof_info_set(edata_t *edata, prof_tctx_t *tctx) {
+arena_prof_info_set(edata_t *edata, prof_tctx_t *tctx, size_t surplus) {
 	cassert(config_prof);
 
 	assert(!edata_slab_get(edata));
-	large_prof_info_set(edata, tctx);
+	large_prof_info_set(edata, tctx, surplus);
 }
 
 JEMALLOC_ALWAYS_INLINE void

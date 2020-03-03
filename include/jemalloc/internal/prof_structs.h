@@ -25,8 +25,10 @@ struct prof_cnt_s {
 	/* Profiling counters. */
 	uint64_t	curobjs;
 	uint64_t	curbytes;
+	uint64_t	cursurplus;
 	uint64_t	accumobjs;
 	uint64_t	accumbytes;
+	uint64_t	accumsurplus;
 };
 
 typedef enum {
@@ -97,6 +99,8 @@ typedef rb_tree(prof_tctx_t) prof_tctx_tree_t;
 struct prof_info_s {
 	/* Time when the allocation was made. */
 	nstime_t		alloc_time;
+	/* Count of bytes beyond what's needed for triggering the sampling. */
+	size_t			surplus;
 	/* Points to the prof_tctx_t corresponding to the allocation. */
 	prof_tctx_t		*alloc_tctx;
 };

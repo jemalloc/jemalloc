@@ -232,6 +232,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/prof_mdump.c \
 	$(srcroot)test/unit/prof_recent.c \
 	$(srcroot)test/unit/prof_reset.c \
+	$(srcroot)test/unit/prof_surplus.c \
 	$(srcroot)test/unit/prof_tctx.c \
 	$(srcroot)test/unit/prof_thread_name.c \
 	$(srcroot)test/unit/prof_sys_thread_name.c \

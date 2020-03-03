@@ -28,6 +28,8 @@ typedef enum extent_head_state_e extent_head_state_t;
 struct e_prof_info_s {
 	/* Time when this was allocated. */
 	nstime_t	e_prof_alloc_time;
+	/* Count of bytes beyond what's needed for triggering the sampling. */
+	size_t		e_prof_surplus;
 	/* Points to a prof_tctx_t. */
 	atomic_p_t	e_prof_tctx;
 	/*
@@ -358,6 +360,11 @@ edata_prof_alloc_time_get(const edata_t *edata) {
 	return &edata->e_prof_info.e_prof_alloc_time;
 }
 
+static inline size_t
+edata_prof_surplus_get(const edata_t *edata) {
+	return edata->e_prof_info.e_prof_surplus;
+}
+
 static inline prof_recent_t *
 edata_prof_recent_alloc_get_dont_call_directly(const edata_t *edata) {
 	return (prof_recent_t *)atomic_load_p(
@@ -486,6 +493,11 @@ edata_prof_tctx_set(edata_t *edata, prof_tctx_t *tctx) {
 static inline void
 edata_prof_alloc_time_set(edata_t *edata, nstime_t *t) {
 	nstime_copy(&edata->e_prof_info.e_prof_alloc_time, t);
+}
+
+static inline void
+edata_prof_surplus_set(edata_t *edata, size_t surplus) {
+	edata->e_prof_info.e_prof_surplus = surplus;
 }
 
 static inline void

@@ -540,11 +540,14 @@ prof_tctx_merge_tdata(tsdn_t *tsdn, prof_tctx_t *tctx, prof_tdata_t *tdata) {
 
 		tdata->cnt_summed.curobjs += tctx->dump_cnts.curobjs;
 		tdata->cnt_summed.curbytes += tctx->dump_cnts.curbytes;
+		tdata->cnt_summed.cursurplus += tctx->dump_cnts.cursurplus;
 		if (opt_prof_accum) {
 			tdata->cnt_summed.accumobjs +=
 			    tctx->dump_cnts.accumobjs;
 			tdata->cnt_summed.accumbytes +=
 			    tctx->dump_cnts.accumbytes;
+			tdata->cnt_summed.accumsurplus +=
+			    tctx->dump_cnts.accumsurplus;
 		}
 		break;
 	case prof_tctx_state_dumping:
@@ -559,9 +562,11 @@ prof_tctx_merge_gctx(tsdn_t *tsdn, prof_tctx_t *tctx, prof_gctx_t *gctx) {
 
 	gctx->cnt_summed.curobjs += tctx->dump_cnts.curobjs;
 	gctx->cnt_summed.curbytes += tctx->dump_cnts.curbytes;
+	gctx->cnt_summed.cursurplus += tctx->dump_cnts.cursurplus;
 	if (opt_prof_accum) {
 		gctx->cnt_summed.accumobjs += tctx->dump_cnts.accumobjs;
 		gctx->cnt_summed.accumbytes += tctx->dump_cnts.accumbytes;
+		gctx->cnt_summed.accumsurplus += tctx->dump_cnts.accumsurplus;
 	}
 }
 
@@ -758,10 +763,13 @@ prof_tdata_merge_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
 
 		arg->cnt_all->curobjs += tdata->cnt_summed.curobjs;
 		arg->cnt_all->curbytes += tdata->cnt_summed.curbytes;
+		arg->cnt_all->cursurplus += tdata->cnt_summed.cursurplus;
 		if (opt_prof_accum) {
 			arg->cnt_all->accumobjs += tdata->cnt_summed.accumobjs;
 			arg->cnt_all->accumbytes +=
 			    tdata->cnt_summed.accumbytes;
+			arg->cnt_all->accumsurplus +=
+			    tdata->cnt_summed.accumsurplus;
 		}
 	} else {
 		tdata->dumping = false;
@@ -814,8 +822,10 @@ prof_dump_gctx(prof_dump_iter_arg_t *arg, prof_gctx_t *gctx,
 	    (opt_prof_accum && gctx->cnt_summed.accumobjs == 0)) {
 		assert(gctx->cnt_summed.curobjs == 0);
 		assert(gctx->cnt_summed.curbytes == 0);
+		assert(gctx->cnt_summed.cursurplus == 0);
 		assert(gctx->cnt_summed.accumobjs == 0);
 		assert(gctx->cnt_summed.accumbytes == 0);
+		assert(gctx->cnt_summed.accumsurplus == 0);
 		return;
 	}
 
@@ -1162,9 +1172,11 @@ prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx) {
 
 	assert(tctx->cnts.curobjs == 0);
 	assert(tctx->cnts.curbytes == 0);
+	assert(tctx->cnts.cursurplus == 0);
 	assert(!opt_prof_accum);
 	assert(tctx->cnts.accumobjs == 0);
 	assert(tctx->cnts.accumbytes == 0);
+	assert(tctx->cnts.accumsurplus == 0);
 
 	prof_gctx_t *gctx = tctx->gctx;
 
