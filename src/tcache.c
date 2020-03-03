@@ -566,9 +566,7 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache, bool tsd_tcache) {
 	if (tsd_tcache) {
 		/* Release the avail array for the TSD embedded auto tcache. */
 		cache_bin_t *bin = tcache_small_bin_get(tcache, 0);
-		assert(cache_bin_ncached_get(bin, &tcache_bin_info[0]) == 0);
-		assert(cache_bin_empty_position_get(bin, &tcache_bin_info[0]) ==
-		    bin->cur_ptr.ptr);
+		cache_bin_assert_empty(bin, &tcache_bin_info[0]);
 		void *avail_array = (void *)((uintptr_t)bin->cur_ptr.ptr -
 		    tcache_bin_info[0].stack_size);
 		idalloctm(tsd_tsdn(tsd), avail_array, NULL, NULL, true, true);
