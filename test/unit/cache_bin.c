@@ -42,7 +42,8 @@ do_flush_test(cache_bin_t *bin, cache_bin_info_t *info, void **ptrs,
 	CACHE_BIN_PTR_ARRAY_DECLARE(arr, nflush);
 	cache_bin_init_ptr_array_for_flush(bin, info, &arr, nflush);
 	for (cache_bin_sz_t i = 0; i < nflush; i++) {
-		expect_ptr_eq(cache_bin_ptr_array_get(&arr, i), &ptrs[i], "");
+		assert_ptr_eq(cache_bin_ptr_array_get(&arr, i),
+		    &ptrs[nfill - 1 - i], "");
 	}
 	cache_bin_finish_flush(bin, info, &arr, nflush);
 
@@ -63,8 +64,11 @@ TEST_BEGIN(test_cache_bin) {
 	size_t size;
 	size_t alignment;
 	cache_bin_info_compute_alloc(&info, 1, &size, &alignment);
-	void *mem = mallocx(size, MALLOCX_ALIGN(alignment));
-	assert_ptr_not_null(mem, "Unexpected mallocx failure");
+	void *mem = NULL;
+	if (size > 0) {
+		mem = mallocx(size, MALLOCX_TCACHE_NONE | MALLOCX_ALIGN(alignment));
+		assert_ptr_not_null(mem, "Unexpected mallocx failure");
+	}
 
 	size_t cur_offset = 0;
 	cache_bin_preincrement(&info, 1, mem, &cur_offset);
@@ -90,7 +94,8 @@ TEST_BEGIN(test_cache_bin) {
 	 * We allocate one more item than ncached_max, so we can test cache bin
 	 * exhaustion.
 	 */
-	void **ptrs = mallocx(sizeof(void *) * (ncached_max + 1), 0);
+	void **ptrs = mallocx(sizeof(void *) * (ncached_max + 1),
+	    MALLOCX_TCACHE_NONE);
 	assert_ptr_not_null(ptrs, "Unexpected mallocx failure");
 	for  (cache_bin_sz_t i = 0; i < ncached_max; i++) {
 		expect_true(cache_bin_ncached_get(&bin, &info) == i, "");

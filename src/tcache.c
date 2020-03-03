@@ -466,10 +466,13 @@ tsd_tcache_data_init(tsd_t *tsd) {
 	size_t alignment = tcache_bin_alloc_alignment;
 	size_t size = sz_sa2u(tcache_bin_alloc_size, alignment);
 
-	void *mem = ipallocztm(tsd_tsdn(tsd), size, alignment, true, NULL,
-	    true, arena_get(TSDN_NULL, 0, true));
-	if (mem == NULL) {
-		return true;
+	void *mem = NULL;
+	if (size > 0) {
+		mem = ipallocztm(tsd_tsdn(tsd), size, alignment, true, NULL,
+		    true, arena_get(TSDN_NULL, 0, true));
+		if (mem == NULL) {
+			return true;
+		}
 	}
 
 	tcache_init(tsd, tcache, mem);
