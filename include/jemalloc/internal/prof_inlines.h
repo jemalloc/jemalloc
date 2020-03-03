@@ -98,12 +98,12 @@ prof_tctx_reset_sampled(tsd_t *tsd, const void *ptr) {
 }
 
 JEMALLOC_ALWAYS_INLINE void
-prof_info_set(tsd_t *tsd, edata_t *edata, prof_tctx_t *tctx) {
+prof_info_set(edata_t *edata, prof_tctx_t *tctx) {
 	cassert(config_prof);
 	assert(edata != NULL);
 	assert((uintptr_t)tctx > (uintptr_t)1U);
 
-	arena_prof_info_set(tsd, edata, tctx);
+	arena_prof_info_set(edata, tctx);
 }
 
 JEMALLOC_ALWAYS_INLINE bool
