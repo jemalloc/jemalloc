@@ -354,4 +354,11 @@ void cache_bin_postincrement(cache_bin_info_t *infos, szind_t ninfos,
 void cache_bin_init(cache_bin_t *bin, cache_bin_info_t *info, void *alloc,
     size_t *cur_offset);
 
+/*
+ * If a cache bin was zero initialized (either because it lives in static or
+ * thread-local storage, or was memset to 0), this function indicates whether or
+ * not cache_bin_init was called on it.
+ */
+bool cache_bin_still_zero_initialized(cache_bin_t *bin);
+
 #endif /* JEMALLOC_INTERNAL_CACHE_BIN_H */
