@@ -461,7 +461,8 @@ tcache_init(tsd_t *tsd, tcache_t *tcache, void *mem) {
 bool
 tsd_tcache_data_init(tsd_t *tsd) {
 	tcache_t *tcache = tsd_tcachep_get_unsafe(tsd);
-	assert(tcache_small_bin_get(tcache, 0)->cur_ptr.ptr == NULL);
+	assert(cache_bin_still_zero_initialized(
+	    tcache_small_bin_get(tcache, 0)));
 	size_t alignment = tcache_bin_alloc_alignment;
 	size_t size = sz_sa2u(tcache_bin_alloc_size, alignment);
 
@@ -588,18 +589,23 @@ tcache_cleanup(tsd_t *tsd) {
 	tcache_t *tcache = tsd_tcachep_get(tsd);
 	if (!tcache_available(tsd)) {
 		assert(tsd_tcache_enabled_get(tsd) == false);
-		if (config_debug) {
-			assert(tcache_small_bin_get(tcache, 0)->cur_ptr.ptr
-			    == NULL);
-		}
+		assert(cache_bin_still_zero_initialized(
+		    tcache_small_bin_get(tcache, 0)));
 		return;
 	}
 	assert(tsd_tcache_enabled_get(tsd));
-	assert(tcache_small_bin_get(tcache, 0)->cur_ptr.ptr != NULL);
+	assert(!cache_bin_still_zero_initialized(
+	    tcache_small_bin_get(tcache, 0)));
 
 	tcache_destroy(tsd, tcache, true);
 	if (config_debug) {
-		tcache_small_bin_get(tcache, 0)->cur_ptr.ptr = NULL;
+		/*
+		 * For debug testing only, we want to pretend we're still in the
+		 * zero-initialized state.
+		 */
+		memset(tcache->bins_small, 0, sizeof(cache_bin_t) * SC_NBINS);
+		memset(tcache->bins_large, 0,
+		    sizeof(cache_bin_t) * (nhbins - SC_NBINS));
 	}
 }
 
