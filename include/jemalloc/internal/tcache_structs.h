@@ -50,6 +50,12 @@ struct tcache_s {
 	/* For small bins, whether has been refilled since last GC. */
 	bool		bin_refilled[SC_NBINS];
 	/*
+	 * The start of the allocation containing the dynamic allocation for
+	 * either the cache bins alone, or the cache bin memory as well as this
+	 * tcache_t.
+	 */
+	void		*dyn_alloc;
+	/*
 	 * We put the cache bins for large size classes at the end of the
 	 * struct, since some of them might not get used.  This might end up
 	 * letting us avoid touching an extra page if we don't have to.
