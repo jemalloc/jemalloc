@@ -146,6 +146,13 @@ cache_bin_empty_position_get(cache_bin_t *bin, cache_bin_info_t *info) {
 	return ret;
 }
 
+static inline void
+cache_bin_assert_empty(cache_bin_t *bin, cache_bin_info_t *info) {
+	assert(cache_bin_ncached_get(bin, info) == 0);
+	assert(cache_bin_empty_position_get(bin, info) == bin->cur_ptr.ptr);
+}
+
+
 /* Returns the numeric value of low water in [0, ncached]. */
 static inline cache_bin_sz_t
 cache_bin_low_water_get(cache_bin_t *bin, cache_bin_info_t *info) {
