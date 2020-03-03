@@ -425,10 +425,11 @@ tsd_tcache_enabled_data_init(tsd_t *tsd) {
 }
 
 static void
-tcache_init(tsd_t *tsd, tcache_t *tcache, void *avail_stack) {
+tcache_init(tsd_t *tsd, tcache_t *tcache, void *mem) {
 	memset(&tcache->link, 0, sizeof(ql_elm(tcache_t)));
 	tcache->next_gc_bin = 0;
 	tcache->arena = NULL;
+	tcache->dyn_alloc = mem;
 
 	assert((TCACHE_NSLOTS_SMALL_MAX & 1U) == 0);
 	memset(tcache->bins_small, 0, sizeof(cache_bin_t) * SC_NBINS);
@@ -436,21 +437,21 @@ tcache_init(tsd_t *tsd, tcache_t *tcache, void *avail_stack) {
 
 	unsigned i = 0;
 	size_t cur_offset = 0;
-	cache_bin_preincrement(tcache_bin_info, nhbins, avail_stack,
+	cache_bin_preincrement(tcache_bin_info, nhbins, mem,
 	    &cur_offset);
 	for (; i < SC_NBINS; i++) {
 		tcache->lg_fill_div[i] = 1;
 		tcache->bin_refilled[i] = false;
 		cache_bin_t *bin = tcache_small_bin_get(tcache, i);
-		cache_bin_init(bin, &tcache_bin_info[i], avail_stack,
+		cache_bin_init(bin, &tcache_bin_info[i], mem,
 		    &cur_offset);
 	}
 	for (; i < nhbins; i++) {
 		cache_bin_t *bin = tcache_large_bin_get(tcache, i);
-		cache_bin_init(bin, &tcache_bin_info[i], avail_stack,
+		cache_bin_init(bin, &tcache_bin_info[i], mem,
 		    &cur_offset);
 	}
-	cache_bin_postincrement(tcache_bin_info, nhbins, avail_stack,
+	cache_bin_postincrement(tcache_bin_info, nhbins, mem,
 	    &cur_offset);
 	/* Sanity check that the whole stack is used. */
 	assert(cur_offset == tcache_bin_alloc_size);
@@ -464,13 +465,13 @@ tsd_tcache_data_init(tsd_t *tsd) {
 	size_t alignment = tcache_bin_alloc_alignment;
 	size_t size = sz_sa2u(tcache_bin_alloc_size, alignment);
 
-	void *avail_array = ipallocztm(tsd_tsdn(tsd), size, alignment, true,
-	    NULL, true, arena_get(TSDN_NULL, 0, true));
-	if (avail_array == NULL) {
+	void *mem = ipallocztm(tsd_tsdn(tsd), size, alignment, true, NULL,
+	    true, arena_get(TSDN_NULL, 0, true));
+	if (mem == NULL) {
 		return true;
 	}
 
-	tcache_init(tsd, tcache, avail_array);
+	tcache_init(tsd, tcache, mem);
 	/*
 	 * Initialization is a bit tricky here.  After malloc init is done, all
 	 * threads can rely on arena_choose and associate tcache accordingly.
@@ -505,7 +506,7 @@ tcache_create_explicit(tsd_t *tsd) {
 	 * the beginning of the whole allocation (for freeing).  The makes sure
 	 * the cache bins have the requested alignment.
 	 */
-	size_t size = tcache_bin_alloc_size + sizeof(tcache_t) + sizeof(void *);
+	size_t size = tcache_bin_alloc_size + sizeof(tcache_t);
 	/* Naturally align the pointer stacks. */
 	size = PTR_CEILING(size);
 	size = sz_sa2u(size, tcache_bin_alloc_alignment);
@@ -515,15 +516,9 @@ tcache_create_explicit(tsd_t *tsd) {
 	if (mem == NULL) {
 		return NULL;
 	}
-	void *avail_array = mem;
-	tcache_t *tcache = (void *)((uintptr_t)avail_array
-	    + tcache_bin_alloc_size);
-	void **head_ptr = (void *)((uintptr_t)avail_array
-	    + tcache_bin_alloc_size + sizeof(tcache_t));
-	tcache_init(tsd, tcache, avail_array);
-	*head_ptr = mem;
+	tcache_t *tcache = (void *)((uintptr_t)mem + tcache_bin_alloc_size);
+	tcache_init(tsd, tcache, mem);
 
-	tcache_init(tsd, tcache, avail_array);
 	tcache_arena_associate(tsd_tsdn(tsd), tcache, arena_ichoose(tsd, NULL));
 
 	return tcache;
@@ -564,18 +559,10 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache, bool tsd_tcache) {
 	tcache_arena_dissociate(tsd_tsdn(tsd), tcache);
 
 	if (tsd_tcache) {
-		/* Release the avail array for the TSD embedded auto tcache. */
 		cache_bin_t *bin = tcache_small_bin_get(tcache, 0);
 		cache_bin_assert_empty(bin, &tcache_bin_info[0]);
-		void *avail_array = (void *)((uintptr_t)bin->cur_ptr.ptr -
-		    tcache_bin_info[0].stack_size);
-		idalloctm(tsd_tsdn(tsd), avail_array, NULL, NULL, true, true);
-	} else {
-		/* See the comment at the top of tcache_create_explicit. */
-		void **mem_begin = (void **)((uintptr_t)tcache + sizeof(tcache_t));
-		/* Release both the tcache struct and avail array. */
-		idalloctm(tsd_tsdn(tsd), *mem_begin, NULL, NULL, true, true);
 	}
+	idalloctm(tsd_tsdn(tsd), tcache->dyn_alloc, NULL, NULL, true, true);
 
 	/*
 	 * The deallocation and tcache flush above may not trigger decay since
