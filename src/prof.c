@@ -468,9 +468,16 @@ prof_sample_threshold_update(tsd_t *tsd) {
 	 *   Springer-Verlag, New York, 1986
 	 *   pp 500
 	 *   (http://luc.devroye.org/rnbookindex.html)
+	 *
+	 * In the actual computation, there's a non-zero probability that our
+	 * pseudo random number generator generates an exact 0, and to avoid
+	 * log(0), we set u to 1.0 in case r is 0.  Therefore u effectively is
+	 * uniformly distributed in (0, 1] instead of [0, 1).  Further, rather
+	 * than taking the ceiling, we take the floor and then add 1, since
+	 * otherwise bytes_until_sample would be 0 if u is exactly 1.0.
 	 */
 	uint64_t r = prng_lg_range_u64(tsd_prng_statep_get(tsd), 53);
-	double u = (double)r * (1.0/9007199254740992.0L);
+	double u = (r == 0U) ? 1.0 : (double)r * (1.0/9007199254740992.0L);
 	uint64_t bytes_until_sample = (uint64_t)(log(u) /
 	    log(1.0 - (1.0 / (double)((uint64_t)1U << lg_prof_sample))))
 	    + (uint64_t)1U;
