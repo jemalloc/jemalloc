@@ -46,6 +46,12 @@ struct cache_bin_s {
 	 * the head points to one element past the owned array.
 	 */
 	void **stack_head;
+	/*
+	 * cur_ptr and stats are both modified frequently.  Let's keep them
+	 * close so that they have a higher chance of being on the same
+	 * cacheline, thus less write-backs.
+	 */
+	cache_bin_stats_t tstats;
 
 	/*
 	 * The low bits of the address of the first item in the stack that
@@ -76,12 +82,6 @@ struct cache_bin_s {
 	 */
 	uint16_t low_bits_empty;
 
-	/*
-	 * cur_ptr and stats are both modified frequently.  Let's keep them
-	 * close so that they have a higher chance of being on the same
-	 * cacheline, thus less write-backs.
-	 */
-	cache_bin_stats_t tstats;
 };
 
 typedef struct cache_bin_array_descriptor_s cache_bin_array_descriptor_t;
@@ -201,36 +201,7 @@ cache_bin_array_descriptor_init(cache_bin_array_descriptor_t *descriptor,
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-cache_bin_alloc_easy_impl(cache_bin_t *bin, bool *success,
-    const bool adjust_low_water) {
-	/*
-	 * This may read from the empty position; however the loaded value won't
-	 * be used.  It's safe because the stack has one more slot reserved.
-	 */
-	void *ret = *bin->stack_head;
-	uint16_t low_bits = (uint16_t)(uintptr_t)bin->stack_head;
-	void **new_head = bin->stack_head + 1;
-	/*
-	 * Note that the low water mark is at most empty; if we pass this check,
-	 * we know we're non-empty.
-	 */
-	if (unlikely(low_bits == bin->low_bits_low_water)) {
-		if (adjust_low_water) {
-			if (unlikely(low_bits == bin->low_bits_empty)) {
-				*success = false;
-				return NULL;
-			}
-			/* Overflow should be impossible. */
-			assert(bin->low_bits_low_water
-			    < (uint16_t)(uintptr_t)new_head);
-			bin->low_bits_low_water = (uint16_t)(uintptr_t)new_head;
-		} else {
-			*success = false;
-			return NULL;
-		}
-	}
-	bin->stack_head = new_head;
-
+cache_bin_alloc_impl(cache_bin_t *bin, bool *success, bool adjust_low_water) {
 	/*
 	 * success (instead of ret) should be checked upon the return of this
 	 * function.  We avoid checking (ret == NULL) because there is never a
@@ -238,22 +209,52 @@ cache_bin_alloc_easy_impl(cache_bin_t *bin, bool *success,
 	 * and eagerly checking ret would cause pipeline stall (waiting for the
 	 * cacheline).
 	 */
-	*success = true;
 
-	return ret;
+	/*
+	 * This may read from the empty position; however the loaded value won't
+	 * be used.  It's safe because the stack has one more slot reserved.
+	 */
+	void *ret = *bin->stack_head;
+	uint16_t low_bits = (uint16_t)(uintptr_t)bin->stack_head;
+	void **new_head = bin->stack_head + 1;
+
+	/*
+	 * Note that the low water mark is at most empty; if we pass this check,
+	 * we know we're non-empty.
+	 */
+	if (likely(low_bits != bin->low_bits_low_water)) {
+		bin->stack_head = new_head;
+		*success = true;
+		return ret;
+	}
+	if (!adjust_low_water) {
+		*success = false;
+		return NULL;
+	}
+	/*
+	 * In the fast-path case where we call alloc_easy and then alloc, the
+	 * previous checking and computation is optimized away -- we didn't
+	 * actually commit any of our operations.
+	 */
+	if (likely(low_bits != bin->low_bits_empty)) {
+		bin->stack_head = new_head;
+		bin->low_bits_low_water = (uint16_t)(uintptr_t)new_head;
+		*success = true;
+		return ret;
+	}
+	*success = false;
+	return NULL;
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-cache_bin_alloc_easy_reduced(cache_bin_t *bin, bool *success) {
+cache_bin_alloc_easy(cache_bin_t *bin, bool *success) {
 	/* We don't look at info if we're not adjusting low-water. */
-	return cache_bin_alloc_easy_impl(bin, success, false);
+	return cache_bin_alloc_impl(bin, success, false);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-cache_bin_alloc_easy(cache_bin_t *bin, cache_bin_info_t *info, bool *success) {
-	/* We don't use info now, but we may want to in the future. */
-	(void)info;
-	return cache_bin_alloc_easy_impl(bin, success, true);
+cache_bin_alloc(cache_bin_t *bin, bool *success) {
+	return cache_bin_alloc_impl(bin, success, true);
 }
 
 JEMALLOC_ALWAYS_INLINE bool
