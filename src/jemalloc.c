@@ -2377,6 +2377,17 @@ malloc_default(size_t size) {
  * Begin malloc(3)-compatible functions.
  */
 
+JEMALLOC_ALWAYS_INLINE void
+fastpath_success_finish(tsd_t *tsd, uint64_t allocated_after,
+    cache_bin_t *bin, void *ret) {
+	thread_allocated_set(tsd, allocated_after);
+	if (config_stats) {
+		bin->tstats.nrequests++;
+	}
+
+	LOG("core.malloc.exit", "result: %p", ret);
+}
+
 /*
  * malloc() fastpath.
  *
@@ -2451,17 +2462,22 @@ je_malloc(size_t size) {
 	tcache_t *tcache = tsd_tcachep_get(tsd);
 	cache_bin_t *bin = tcache_small_bin_get(tcache, ind);
 	bool tcache_success;
-	void *ret = cache_bin_alloc_easy_reduced(bin, &tcache_success);
+	void *ret;
 
+	/*
+	 * We split up the code this way so that redundant low-water
+	 * computation doesn't happen on the (more common) case in which we
+	 * don't touch the low water mark.  The compiler won't do this
+	 * duplication on its own.
+	 */
+	ret = cache_bin_alloc_easy(bin, &tcache_success);
 	if (tcache_success) {
-		thread_allocated_set(tsd, allocated_after);
-		if (config_stats) {
-			bin->tstats.nrequests++;
-		}
-
-		LOG("core.malloc.exit", "result: %p", ret);
-
-		/* Fastpath success */
+		fastpath_success_finish(tsd, allocated_after, bin, ret);
+		return ret;
+	}
+	ret = cache_bin_alloc(bin, &tcache_success);
+	if (tcache_success) {
+		fastpath_success_finish(tsd, allocated_after, bin, ret);
 		return ret;
 	}
 

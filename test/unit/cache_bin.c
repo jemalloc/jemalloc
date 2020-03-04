@@ -17,7 +17,7 @@ do_fill_test(cache_bin_t *bin, cache_bin_info_t *info, void **ptrs,
 	cache_bin_low_water_set(bin);
 
 	for (cache_bin_sz_t i = 0; i < nfill_succeed; i++) {
-		ptr = cache_bin_alloc_easy(bin, info, &success);
+		ptr = cache_bin_alloc(bin, &success);
 		expect_true(success, "");
 		expect_ptr_eq(ptr, (void *)&ptrs[i],
 		    "Should pop in order filled");
@@ -48,7 +48,7 @@ do_flush_test(cache_bin_t *bin, cache_bin_info_t *info, void **ptrs,
 
 	expect_true(cache_bin_ncached_get(bin, info) == nfill - nflush, "");
 	while (cache_bin_ncached_get(bin, info) > 0) {
-		cache_bin_alloc_easy(bin, info, &success);
+		cache_bin_alloc(bin, &success);
 	}
 }
 
@@ -78,11 +78,11 @@ TEST_BEGIN(test_cache_bin) {
 	expect_true(cache_bin_ncached_get(&bin, &info) == 0, "");
 	expect_true(cache_bin_low_water_get(&bin, &info) == 0, "");
 
-	ptr = cache_bin_alloc_easy_reduced(&bin, &success);
+	ptr = cache_bin_alloc_easy(&bin, &success);
 	expect_false(success, "Shouldn't successfully allocate when empty");
 	expect_ptr_null(ptr, "Shouldn't get a non-null pointer on failure");
 
-	ptr = cache_bin_alloc_easy(&bin, &info, &success);
+	ptr = cache_bin_alloc(&bin, &success);
 	expect_false(success, "Shouldn't successfully allocate when empty");
 	expect_ptr_null(ptr, "Shouldn't get a non-null pointer on failure");
 
@@ -112,10 +112,10 @@ TEST_BEGIN(test_cache_bin) {
 		expect_true(cache_bin_ncached_get(&bin, &info)
 		    == ncached_max - i, "");
 		/*
-		 * This should fail -- the reduced version can't change low
-		 * water.
+		 * This should fail -- the easy variant can't change the low
+		 * water mark.
 		 */
-		ptr = cache_bin_alloc_easy_reduced(&bin, &success);
+		ptr = cache_bin_alloc_easy(&bin, &success);
 		expect_ptr_null(ptr, "");
 		expect_false(success, "");
 		expect_true(cache_bin_low_water_get(&bin, &info)
@@ -124,7 +124,7 @@ TEST_BEGIN(test_cache_bin) {
 		    == ncached_max - i, "");
 
 		/* This should succeed, though. */
-		ptr = cache_bin_alloc_easy(&bin, &info, &success);
+		ptr = cache_bin_alloc(&bin, &success);
 		expect_true(success, "");
 		expect_ptr_eq(ptr, &ptrs[ncached_max - i - 1],
 		    "Alloc should pop in stack order");
@@ -135,10 +135,10 @@ TEST_BEGIN(test_cache_bin) {
 	}
 	/* Now we're empty -- all alloc attempts should fail. */
 	expect_true(cache_bin_ncached_get(&bin, &info) == 0, "");
-	ptr = cache_bin_alloc_easy_reduced(&bin, &success);
+	ptr = cache_bin_alloc_easy(&bin, &success);
 	expect_ptr_null(ptr, "");
 	expect_false(success, "");
-	ptr = cache_bin_alloc_easy(&bin, &info, &success);
+	ptr = cache_bin_alloc(&bin, &success);
 	expect_ptr_null(ptr, "");
 	expect_false(success, "");
 
@@ -156,18 +156,18 @@ TEST_BEGIN(test_cache_bin) {
 		 * Size is bigger than low water -- the reduced version should
 		 * succeed.
 		 */
-		ptr = cache_bin_alloc_easy_reduced(&bin, &success);
+		ptr = cache_bin_alloc_easy(&bin, &success);
 		expect_true(success, "");
 		expect_ptr_eq(ptr, &ptrs[i], "");
 	}
 	/* But now, we've hit low-water. */
-	ptr = cache_bin_alloc_easy_reduced(&bin, &success);
+	ptr = cache_bin_alloc_easy(&bin, &success);
 	expect_false(success, "");
 	expect_ptr_null(ptr, "");
 
 	/* We're going to test filling -- we must be empty to start. */
 	while (cache_bin_ncached_get(&bin, &info)) {
-		cache_bin_alloc_easy(&bin, &info, &success);
+		cache_bin_alloc(&bin, &success);
 		expect_true(success, "");
 	}
 
