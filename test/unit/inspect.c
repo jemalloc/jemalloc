@@ -87,7 +87,13 @@ TEST_BEGIN(test_query) {
 		    "Extent size should be at least allocation size");
 		expect_zu_eq(SIZE_READ(out) & (PAGE - 1), 0,
 		    "Extent size should be a multiple of page size");
-		if (sz <= SC_SMALL_MAXCLASS) {
+
+		/*
+		 * We don't do much bin checking if prof is on, since profiling
+		 * can produce extents that are for small size classes but not
+		 * slabs, which interferes with things like region counts.
+		 */
+		if (!opt_prof && sz <= SC_SMALL_MAXCLASS) {
 			expect_zu_le(NFREE_READ(out), NREGS_READ(out),
 			    "Extent free count exceeded region count");
 			expect_zu_le(NREGS_READ(out), SIZE_READ(out),
@@ -97,6 +103,7 @@ TEST_BEGIN(test_query) {
 			expect_true(NFREE_READ(out) == 0 || (SLABCUR_READ(out)
 			    != NULL && SLABCUR_READ(out) <= p),
 			    "Allocation should follow first fit principle");
+
 			if (config_stats) {
 				expect_zu_le(BIN_NFREE_READ(out),
 				    BIN_NREGS_READ(out),
@@ -125,7 +132,7 @@ TEST_BEGIN(test_query) {
 				    "Extent utilized count exceeded "
 				    "bin utilized count");
 			}
-		} else {
+		} else if (sz > SC_SMALL_MAXCLASS) {
 			expect_zu_eq(NFREE_READ(out), 0,
 			    "Extent free count should be zero");
 			expect_zu_eq(NREGS_READ(out), 1,
@@ -214,14 +221,18 @@ TEST_BEGIN(test_batch) {
 		    "Extent size should be at least allocation size");
 		expect_zu_eq(SIZE_READ(out, 0) & (PAGE - 1), 0,
 		    "Extent size should be a multiple of page size");
-		if (sz <= SC_SMALL_MAXCLASS) {
+		/*
+		 * See the corresponding comment in test_query; profiling breaks
+		 * our slab count expectations.
+		 */
+		if (sz <= SC_SMALL_MAXCLASS && !opt_prof) {
 			expect_zu_le(NFREE_READ(out, 0), NREGS_READ(out, 0),
 			    "Extent free count exceeded region count");
 			expect_zu_le(NREGS_READ(out, 0), SIZE_READ(out, 0),
 			    "Extent region count exceeded size");
 			expect_zu_ne(NREGS_READ(out, 0), 0,
 			    "Extent region count must be positive");
-		} else {
+		} else if (sz > SC_SMALL_MAXCLASS) {
 			expect_zu_eq(NFREE_READ(out, 0), 0,
 			    "Extent free count should be zero");
 			expect_zu_eq(NREGS_READ(out, 0), 1,
