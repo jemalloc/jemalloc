@@ -20,6 +20,11 @@
  */
 typedef uint16_t cache_bin_sz_t;
 
+/*
+ * This lives inside the cache_bin (for locality reasons), and is initialized
+ * alongside it, but is otherwise not modified by any cache bin operations.
+ * It's logically public and maintained by its callers.
+ */
 typedef struct cache_bin_stats_s cache_bin_stats_t;
 struct cache_bin_stats_s {
 	/*
@@ -38,6 +43,9 @@ struct cache_bin_info_s {
 	cache_bin_sz_t ncached_max;
 };
 
+/*
+ * Responsible for caching allocations associated with a single size.
+ */
 typedef struct cache_bin_s cache_bin_t;
 struct cache_bin_s {
 	/*
@@ -84,6 +92,12 @@ struct cache_bin_s {
 
 };
 
+/*
+ * The cache_bins live inside the tcache, but the arena (by design) isn't
+ * supposed to know much about tcache internals.  To let the arena iterate over
+ * associated bins, we keep (with the tcache) a linked list of
+ * cache_bin_array_descriptor_ts that tell the arena how to find the bins.
+ */
 typedef struct cache_bin_array_descriptor_s cache_bin_array_descriptor_t;
 struct cache_bin_array_descriptor_s {
 	/*
@@ -96,10 +110,13 @@ struct cache_bin_array_descriptor_s {
 	cache_bin_t *bins_large;
 };
 
-/*
- * None of the cache_bin_*_get / _set functions is used on the fast path, which
- * relies on pointer comparisons to determine if the cache is full / empty.
- */
+static inline void
+cache_bin_array_descriptor_init(cache_bin_array_descriptor_t *descriptor,
+    cache_bin_t *bins_small, cache_bin_t *bins_large) {
+	ql_elm_new(descriptor, link);
+	descriptor->bins_small = bins_small;
+	descriptor->bins_large = bins_large;
+}
 
 /* Returns ncached_max: Upper limit on ncached. */
 static inline cache_bin_sz_t
@@ -108,6 +125,8 @@ cache_bin_info_ncached_max(cache_bin_info_t *info) {
 }
 
 /*
+ * Internal.
+ *
  * Asserts that the pointer associated with earlier is <= the one associated
  * with later.
  */
@@ -119,8 +138,10 @@ cache_bin_assert_earlier(cache_bin_t *bin, uint16_t earlier, uint16_t later) {
 }
 
 /*
- * Internal -- does difference calculations that handle wraparound correctly.
- * Earlier must be associated with the position earlier in memory.
+ * Internal.
+ *
+ * Does difference calculations that handle wraparound correctly.  Earlier must
+ * be associated with the position earlier in memory.
  */
 static inline uint16_t
 cache_bin_diff(cache_bin_t *bin, uint16_t earlier, uint16_t later) {
@@ -128,7 +149,7 @@ cache_bin_diff(cache_bin_t *bin, uint16_t earlier, uint16_t later) {
 	return later - earlier;
 }
 
-
+/* Number of items currently cached in the bin. */
 static inline cache_bin_sz_t
 cache_bin_ncached_get(cache_bin_t *bin, cache_bin_info_t *info) {
 	cache_bin_sz_t diff = cache_bin_diff(bin,
@@ -141,6 +162,11 @@ cache_bin_ncached_get(cache_bin_t *bin, cache_bin_info_t *info) {
 	return n;
 }
 
+/*
+ * Internal.
+ *
+ * A pointer to the position one past the end of the backing array.
+ */
 static inline void **
 cache_bin_empty_position_get(cache_bin_t *bin, cache_bin_info_t *info) {
 	cache_bin_sz_t diff = cache_bin_diff(bin,
@@ -153,6 +179,10 @@ cache_bin_empty_position_get(cache_bin_t *bin, cache_bin_info_t *info) {
 	return ret;
 }
 
+/*
+ * As the name implies.  This is important since it's not correct to try to
+ * batch fill a nonempty cache bin.
+ */
 static inline void
 cache_bin_assert_empty(cache_bin_t *bin, cache_bin_info_t *info) {
 	assert(cache_bin_ncached_get(bin, info) == 0);
@@ -190,14 +220,6 @@ cache_bin_low_water_get(cache_bin_t *bin, cache_bin_info_t *info) {
 static inline void
 cache_bin_low_water_set(cache_bin_t *bin) {
 	bin->low_bits_low_water = (uint16_t)(uintptr_t)bin->stack_head;
-}
-
-static inline void
-cache_bin_array_descriptor_init(cache_bin_array_descriptor_t *descriptor,
-    cache_bin_t *bins_small, cache_bin_t *bins_large) {
-	ql_elm_new(descriptor, link);
-	descriptor->bins_small = bins_small;
-	descriptor->bins_large = bins_large;
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -246,17 +268,27 @@ cache_bin_alloc_impl(cache_bin_t *bin, bool *success, bool adjust_low_water) {
 	return NULL;
 }
 
+/*
+ * Allocate an item out of the bin, failing if we're at the low-water mark.
+ */
 JEMALLOC_ALWAYS_INLINE void *
 cache_bin_alloc_easy(cache_bin_t *bin, bool *success) {
 	/* We don't look at info if we're not adjusting low-water. */
 	return cache_bin_alloc_impl(bin, success, false);
 }
 
+/*
+ * Allocate an item out of the bin, even if we're currently at the low-water
+ * mark (and failing only if the bin is empty).
+ */
 JEMALLOC_ALWAYS_INLINE void *
 cache_bin_alloc(cache_bin_t *bin, bool *success) {
 	return cache_bin_alloc_impl(bin, success, true);
 }
 
+/*
+ * Free an object into the given bin.  Fails only if the bin is full.
+ */
 JEMALLOC_ALWAYS_INLINE bool
 cache_bin_dalloc_easy(cache_bin_t *bin, void *ptr) {
 	uint16_t low_bits = (uint16_t)(uintptr_t)bin->stack_head;
@@ -272,16 +304,46 @@ cache_bin_dalloc_easy(cache_bin_t *bin, void *ptr) {
 	return true;
 }
 
+/**
+ * Filling and flushing are done in batch, on arrays of void *s.  For filling,
+ * the arrays go forward, and can be accessed with ordinary array arithmetic.
+ * For flushing, we work from the end backwards, and so need to use special
+ * accessors that invert the usual ordering.
+ *
+ * This is important for maintaining first-fit; the arena code fills with
+ * earliest objects first, and so those are the ones we should return first for
+ * cache_bin_alloc calls.  When flushing, we should flush the objects that we
+ * wish to return later; those at the end of the array.  This is better for the
+ * first-fit heuristic as well as for cache locality; the most recently freed
+ * objects are the ones most likely to still be in cache.
+ *
+ * This all sounds very hand-wavey and theoretical, but reverting the ordering
+ * on one or the other pathway leads to measurable slowdowns.
+ */
+
 typedef struct cache_bin_ptr_array_s cache_bin_ptr_array_t;
 struct cache_bin_ptr_array_s {
 	cache_bin_sz_t n;
 	void **ptr;
 };
 
+/*
+ * Declare a cache_bin_ptr_array_t sufficient for nval items.
+ *
+ * In the current implementation, this could be just part of a
+ * cache_bin_ptr_array_init_... call, since we reuse the cache bin stack memory.
+ * Indirecting behind a macro, though, means experimenting with linked-list
+ * representations is easy (since they'll require an alloca in the calling
+ * frame).
+ */
 #define CACHE_BIN_PTR_ARRAY_DECLARE(name, nval)				\
     cache_bin_ptr_array_t name;						\
     name.n = (nval)
 
+/*
+ * Start a fill.  The bin must be empty, and This must be followed by a
+ * finish_fill call before doing any alloc/dalloc operations on the bin.
+ */
 static inline void
 cache_bin_init_ptr_array_for_fill(cache_bin_t *bin, cache_bin_info_t *info,
     cache_bin_ptr_array_t *arr, cache_bin_sz_t nfill) {
@@ -306,6 +368,7 @@ cache_bin_finish_fill(cache_bin_t *bin, cache_bin_info_t *info,
 	bin->stack_head = empty_position - nfilled;
 }
 
+/* Same deal, but with flush. */
 static inline void
 cache_bin_init_ptr_array_for_flush(cache_bin_t *bin, cache_bin_info_t *info,
     cache_bin_ptr_array_t *arr, cache_bin_sz_t nflush) {
@@ -316,7 +379,7 @@ cache_bin_init_ptr_array_for_flush(cache_bin_t *bin, cache_bin_info_t *info,
 
 /*
  * These accessors are used by the flush pathways -- they reverse ordinary array
- * ordering.
+ * ordering.  See the note above.
  */
 JEMALLOC_ALWAYS_INLINE void *
 cache_bin_ptr_array_get(cache_bin_ptr_array_t *arr, cache_bin_sz_t n) {
