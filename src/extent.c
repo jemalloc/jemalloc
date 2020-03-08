@@ -199,7 +199,7 @@ extents_abandon_vm(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *edata, bool growing_retained) {
 	size_t sz = edata_size_get(edata);
 	if (config_stats) {
-		arena_stats_accum_zu(&arena->stats.abandoned_vm, sz);
+		arena_stats_accum_zu(&arena->pa_shard.stats->abandoned_vm, sz);
 	}
 	/*
 	 * Leak extent after making sure its pages have already been purged, so
