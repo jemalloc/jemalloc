@@ -2,7 +2,8 @@
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 bool
-pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind) {
+pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
+    pa_shard_stats_t *stats) {
 	/* This will change eventually, but for now it should hold. */
 	assert(base_ind_get(base) == ind);
 	/*
@@ -36,6 +37,9 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind) {
 	if (edata_cache_init(&shard->edata_cache, base)) {
 		return true;
 	}
+
+	shard->stats = stats;
+	memset(shard->stats, 0, sizeof(*shard->stats));
 
 	return false;
 }

@@ -4,6 +4,7 @@
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/mutex_prof.h"
+#include "jemalloc/internal/pa.h"
 #include "jemalloc/internal/sc.h"
 
 JEMALLOC_DIAGNOSTIC_DISABLE_SPURIOUS
@@ -112,8 +113,12 @@ struct arena_stats_s {
 	arena_stats_u64_t	nflushes_large; /* Derived. */
 	arena_stats_u64_t	nrequests_large; /* Derived. */
 
-	/* VM space had to be leaked (undocumented).  Normally 0. */
-	atomic_zu_t		abandoned_vm;
+	/*
+	 * The stats logically owned by the pa_shard in the same arena.  This
+	 * lives here only because it's convenient for the purposes of the ctl
+	 * module -- it only knows about the single arena_stats.
+	 */
+	pa_shard_stats_t	pa_shard_stats;
 
 	/* Number of bytes cached in tcache associated with this arena. */
 	atomic_zu_t		tcache_bytes; /* Derived. */

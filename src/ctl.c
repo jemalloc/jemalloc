@@ -939,8 +939,8 @@ MUTEX_PROF_ARENA_MUTEXES
 		    &astats->astats.nrequests_large);
 		ctl_accum_arena_stats_u64(&sdstats->astats.nflushes_large,
 		    &astats->astats.nflushes_large);
-		accum_atomic_zu(&sdstats->astats.abandoned_vm,
-		    &astats->astats.abandoned_vm);
+		accum_atomic_zu(&sdstats->astats.pa_shard_stats.abandoned_vm,
+		    &astats->astats.pa_shard_stats.abandoned_vm);
 
 		accum_atomic_zu(&sdstats->astats.tcache_bytes,
 		    &astats->astats.tcache_bytes);
@@ -2962,7 +2962,8 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_resident,
     atomic_load_zu(&arenas_i(mib[2])->astats->astats.resident, ATOMIC_RELAXED),
     size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_abandoned_vm,
-    atomic_load_zu(&arenas_i(mib[2])->astats->astats.abandoned_vm,
+    atomic_load_zu(
+    &arenas_i(mib[2])->astats->astats.pa_shard_stats.abandoned_vm,
     ATOMIC_RELAXED), size_t)
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_small_allocated,
