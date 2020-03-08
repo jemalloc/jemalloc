@@ -125,6 +125,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/mutex.c \
 	$(srcroot)src/mutex_pool.c \
 	$(srcroot)src/nstime.c \
+	$(srcroot)src/pa.c \
 	$(srcroot)src/pages.c \
 	$(srcroot)src/prng.c \
 	$(srcroot)src/prof.c \

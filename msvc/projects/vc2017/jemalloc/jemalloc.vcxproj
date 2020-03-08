@@ -66,6 +66,7 @@
     <ClCompile Include="..\..\..\..\src\mutex.c" />
     <ClCompile Include="..\..\..\..\src\mutex_pool.c" />
     <ClCompile Include="..\..\..\..\src\nstime.c" />
+    <ClCompile Include="..\..\..\..\src\pa.c" />
     <ClCompile Include="..\..\..\..\src\pages.c" />
     <ClCompile Include="..\..\..\..\src\prng.c" />
     <ClCompile Include="..\..\..\..\src\prof.c" />
