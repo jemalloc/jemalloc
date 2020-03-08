@@ -38,6 +38,10 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
 		return true;
 	}
 
+	if (ecache_grow_init(tsdn, &shard->ecache_grow)) {
+		return true;
+	}
+
 	shard->stats = stats;
 	memset(shard->stats, 0, sizeof(*shard->stats));
 

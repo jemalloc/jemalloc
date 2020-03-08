@@ -163,9 +163,6 @@ struct arena_s {
 	arena_decay_t		decay_dirty; /* dirty --> muzzy */
 	arena_decay_t		decay_muzzy; /* muzzy --> retained */
 
-	/* The grow info for the retained ecache. */
-	ecache_grow_t		ecache_grow;
-
 	/*
 	 * bins is used to store heaps of free regions.
 	 *

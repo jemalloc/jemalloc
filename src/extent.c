@@ -619,7 +619,7 @@ static edata_t *
 extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     size_t size, size_t alignment, bool slab, szind_t szind,
     bool *zero, bool *commit) {
-	malloc_mutex_assert_owner(tsdn, &arena->ecache_grow.mtx);
+	malloc_mutex_assert_owner(tsdn, &arena->pa_shard.ecache_grow.mtx);
 	assert(!*zero || !slab);
 
 	size_t alloc_size_min = size + PAGE_CEILING(alignment) - PAGE;
@@ -632,15 +632,17 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	 * satisfy this request.
 	 */
 	pszind_t egn_skip = 0;
-	size_t alloc_size = sz_pind2sz(arena->ecache_grow.next + egn_skip);
+	size_t alloc_size = sz_pind2sz(
+	    arena->pa_shard.ecache_grow.next + egn_skip);
 	while (alloc_size < alloc_size_min) {
 		egn_skip++;
-		if (arena->ecache_grow.next + egn_skip >=
+		if (arena->pa_shard.ecache_grow.next + egn_skip >=
 		    sz_psz2ind(SC_LARGE_MAXCLASS)) {
 			/* Outside legal range. */
 			goto label_err;
 		}
-		alloc_size = sz_pind2sz(arena->ecache_grow.next + egn_skip);
+		alloc_size = sz_pind2sz(
+		    arena->pa_shard.ecache_grow.next + egn_skip);
 	}
 
 	edata_t *edata = edata_cache_get(tsdn, &arena->pa_shard.edata_cache);
@@ -735,14 +737,15 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	 * Increment extent_grow_next if doing so wouldn't exceed the allowed
 	 * range.
 	 */
-	if (arena->ecache_grow.next + egn_skip + 1 <=
-	    arena->ecache_grow.limit) {
-		arena->ecache_grow.next += egn_skip + 1;
+	if (arena->pa_shard.ecache_grow.next + egn_skip + 1 <=
+	    arena->pa_shard.ecache_grow.limit) {
+		arena->pa_shard.ecache_grow.next += egn_skip + 1;
 	} else {
-		arena->ecache_grow.next = arena->ecache_grow.limit;
+		arena->pa_shard.ecache_grow.next
+		    = arena->pa_shard.ecache_grow.limit;
 	}
 	/* All opportunities for failure are past. */
-	malloc_mutex_unlock(tsdn, &arena->ecache_grow.mtx);
+	malloc_mutex_unlock(tsdn, &arena->pa_shard.ecache_grow.mtx);
 
 	if (config_prof) {
 		/* Adjust gdump stats now that extent is final size. */
@@ -760,7 +763,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 
 	return edata;
 label_err:
-	malloc_mutex_unlock(tsdn, &arena->ecache_grow.mtx);
+	malloc_mutex_unlock(tsdn, &arena->pa_shard.ecache_grow.mtx);
 	return NULL;
 }
 
@@ -771,13 +774,13 @@ extent_alloc_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	assert(size != 0);
 	assert(alignment != 0);
 
-	malloc_mutex_lock(tsdn, &arena->ecache_grow.mtx);
+	malloc_mutex_lock(tsdn, &arena->pa_shard.ecache_grow.mtx);
 
 	edata_t *edata = extent_recycle(tsdn, arena, ehooks,
 	    &arena->pa_shard.ecache_retained, new_addr, size, alignment, slab,
 	    szind, zero, commit, true);
 	if (edata != NULL) {
-		malloc_mutex_unlock(tsdn, &arena->ecache_grow.mtx);
+		malloc_mutex_unlock(tsdn, &arena->pa_shard.ecache_grow.mtx);
 		if (config_prof) {
 			extent_gdump_add(tsdn, edata);
 		}
@@ -786,9 +789,9 @@ extent_alloc_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		    alignment, slab, szind, zero, commit);
 		/* extent_grow_retained() always releases extent_grow_mtx. */
 	} else {
-		malloc_mutex_unlock(tsdn, &arena->ecache_grow.mtx);
+		malloc_mutex_unlock(tsdn, &arena->pa_shard.ecache_grow.mtx);
 	}
-	malloc_mutex_assert_not_owner(tsdn, &arena->ecache_grow.mtx);
+	malloc_mutex_assert_not_owner(tsdn, &arena->pa_shard.ecache_grow.mtx);
 
 	return edata;
 }
