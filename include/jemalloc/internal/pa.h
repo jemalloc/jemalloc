@@ -1,10 +1,19 @@
 #ifndef JEMALLOC_INTERNAL_PA_H
 #define JEMALLOC_INTERNAL_PA_H
 
+#include "jemalloc/internal/ecache.h"
+#include "jemalloc/internal/edata_cache.h"
+
 /*
  * The page allocator; responsible for acquiring pages of memory for
  * allocations.
  */
+
+typedef struct pa_shard_stats_s pa_shard_stats_t;
+struct pa_shard_stats_s {
+	/* VM space had to be leaked (undocumented).  Normally 0. */
+	atomic_zu_t abandoned_vm;
+};
 
 typedef struct pa_shard_s pa_shard_t;
 struct pa_shard_s {
@@ -20,9 +29,12 @@ struct pa_shard_s {
 
 	/* The source of edata_t objects. */
 	edata_cache_t edata_cache;
+
+	pa_shard_stats_t *stats;
 };
 
 /* Returns true on error. */
-bool pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind);
+bool pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
+    pa_shard_stats_t *stats);
 
 #endif /* JEMALLOC_INTERNAL_PA_H */
