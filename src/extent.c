@@ -157,8 +157,8 @@ ecache_evict(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 			break;
 		}
 		/* Try to coalesce. */
-		if (extent_try_delayed_coalesce(tsdn, &arena->edata_cache,
-		    ehooks, ecache, edata)) {
+		if (extent_try_delayed_coalesce(tsdn,
+		    &arena->pa_shard.edata_cache, ehooks, ecache, edata)) {
 			break;
 		}
 		/*
@@ -212,7 +212,7 @@ extents_abandon_vm(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 			    edata_size_get(edata), growing_retained);
 		}
 	}
-	edata_cache_put(tsdn, &arena->edata_cache, edata);
+	edata_cache_put(tsdn, &arena->pa_shard.edata_cache, edata);
 }
 
 static void
@@ -462,9 +462,9 @@ extent_split_interior(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	/* Split the lead. */
 	if (leadsize != 0) {
 		*lead = *edata;
-		*edata = extent_split_impl(tsdn, &arena->edata_cache, ehooks,
-		    *lead, leadsize, SC_NSIZES, false, size + trailsize, szind,
-		    slab, growing_retained);
+		*edata = extent_split_impl(tsdn, &arena->pa_shard.edata_cache,
+		    ehooks, *lead, leadsize, SC_NSIZES, false, size + trailsize,
+		    szind, slab, growing_retained);
 		if (*edata == NULL) {
 			*to_leak = *lead;
 			*lead = NULL;
@@ -474,9 +474,9 @@ extent_split_interior(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 
 	/* Split the trail. */
 	if (trailsize != 0) {
-		*trail = extent_split_impl(tsdn, &arena->edata_cache, ehooks,
-		    *edata, size, szind, slab, trailsize, SC_NSIZES, false,
-		    growing_retained);
+		*trail = extent_split_impl(tsdn, &arena->pa_shard.edata_cache,
+		    ehooks, *edata, size, szind, slab, trailsize, SC_NSIZES,
+		    false, growing_retained);
 		if (*trail == NULL) {
 			*to_leak = *edata;
 			*to_salvage = *lead;
@@ -643,7 +643,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		alloc_size = sz_pind2sz(arena->ecache_grow.next + egn_skip);
 	}
 
-	edata_t *edata = edata_cache_get(tsdn, &arena->edata_cache);
+	edata_t *edata = edata_cache_get(tsdn, &arena->pa_shard.edata_cache);
 	if (edata == NULL) {
 		goto label_err;
 	}
@@ -654,7 +654,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	    &committed);
 
 	if (ptr == NULL) {
-		edata_cache_put(tsdn, &arena->edata_cache, edata);
+		edata_cache_put(tsdn, &arena->pa_shard.edata_cache, edata);
 		goto label_err;
 	}
 
@@ -663,7 +663,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	    committed, true, EXTENT_IS_HEAD);
 
 	if (extent_register_no_gdump_add(tsdn, edata)) {
-		edata_cache_put(tsdn, &arena->edata_cache, edata);
+		edata_cache_put(tsdn, &arena->pa_shard.edata_cache, edata);
 		goto label_err;
 	}
 
@@ -800,7 +800,7 @@ extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	edata_t *edata = edata_cache_get(tsdn, &arena->edata_cache);
+	edata_t *edata = edata_cache_get(tsdn, &arena->pa_shard.edata_cache);
 	if (edata == NULL) {
 		return NULL;
 	}
@@ -808,14 +808,14 @@ extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	void *addr = ehooks_alloc(tsdn, ehooks, new_addr, size, palignment,
 	    zero, commit);
 	if (addr == NULL) {
-		edata_cache_put(tsdn, &arena->edata_cache, edata);
+		edata_cache_put(tsdn, &arena->pa_shard.edata_cache, edata);
 		return NULL;
 	}
 	edata_init(edata, arena_ind_get(arena), addr, size, slab, szind,
 	    arena_extent_sn_next(arena), extent_state_active, *zero, *commit,
 	    true, EXTENT_NOT_HEAD);
 	if (extent_register(tsdn, edata)) {
-		edata_cache_put(tsdn, &arena->edata_cache, edata);
+		edata_cache_put(tsdn, &arena->pa_shard.edata_cache, edata);
 		return NULL;
 	}
 
@@ -971,8 +971,8 @@ extent_record(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 	emap_assert_mapped(tsdn, &emap_global, edata);
 
 	if (!ecache->delay_coalesce) {
-		edata = extent_try_coalesce(tsdn, &arena->edata_cache, ehooks,
-		    ecache, edata, NULL, growing_retained);
+		edata = extent_try_coalesce(tsdn, &arena->pa_shard.edata_cache,
+		    ehooks, ecache, edata, NULL, growing_retained);
 	} else if (edata_size_get(edata) >= SC_LARGE_MINCLASS) {
 		assert(ecache == &arena->pa_shard.ecache_dirty);
 		/* Always coalesce large extents eagerly. */
@@ -980,7 +980,7 @@ extent_record(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 		do {
 			assert(edata_state_get(edata) == extent_state_active);
 			edata = extent_try_coalesce_large(tsdn,
-			    &arena->edata_cache, ehooks, ecache, edata,
+			    &arena->pa_shard.edata_cache, ehooks, ecache, edata,
 			    &coalesced, growing_retained);
 		} while (coalesced);
 		if (edata_size_get(edata) >= oversize_threshold &&
@@ -1004,7 +1004,7 @@ extent_dalloc_gap(tsdn_t *tsdn, arena_t *arena, edata_t *edata) {
 	    WITNESS_RANK_CORE, 0);
 
 	if (extent_register(tsdn, edata)) {
-		edata_cache_put(tsdn, &arena->edata_cache, edata);
+		edata_cache_put(tsdn, &arena->pa_shard.edata_cache, edata);
 		return;
 	}
 	extent_dalloc_wrapper(tsdn, arena, ehooks, edata);
@@ -1027,7 +1027,7 @@ extent_dalloc_wrapper_try(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	    edata_size_get(edata), edata_committed_get(edata));
 
 	if (!err) {
-		edata_cache_put(tsdn, &arena->edata_cache, edata);
+		edata_cache_put(tsdn, &arena->pa_shard.edata_cache, edata);
 	}
 
 	return err;
@@ -1097,7 +1097,7 @@ extent_destroy_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	ehooks_destroy(tsdn, ehooks, edata_base_get(edata),
 	    edata_size_get(edata), edata_committed_get(edata));
 
-	edata_cache_put(tsdn, &arena->edata_cache, edata);
+	edata_cache_put(tsdn, &arena->pa_shard.edata_cache, edata);
 }
 
 static bool

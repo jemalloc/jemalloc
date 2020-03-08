@@ -81,9 +81,10 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, edata_t *edata, size_t usize) {
 
 	/* Split excess pages. */
 	if (diff != 0) {
-		edata_t *trail = extent_split_wrapper(tsdn, &arena->edata_cache,
-		    ehooks, edata, usize + sz_large_pad, sz_size2index(usize),
-		    false, diff, SC_NSIZES, false);
+		edata_t *trail = extent_split_wrapper(tsdn,
+		    &arena->pa_shard.edata_cache, ehooks, edata,
+		    usize + sz_large_pad, sz_size2index(usize), false, diff,
+		    SC_NSIZES, false);
 		if (trail == NULL) {
 			return true;
 		}
@@ -140,8 +141,8 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
 		}
 	}
 
-	if (extent_merge_wrapper(tsdn, ehooks, &arena->edata_cache, edata,
-	    trail)) {
+	if (extent_merge_wrapper(tsdn, ehooks, &arena->pa_shard.edata_cache,
+	    edata, trail)) {
 		extent_dalloc_wrapper(tsdn, arena, ehooks, trail);
 		return true;
 	}
