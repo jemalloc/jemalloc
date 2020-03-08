@@ -686,11 +686,11 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	if (result == extent_split_interior_ok) {
 		if (lead != NULL) {
 			extent_record(tsdn, arena, ehooks,
-			    &arena->ecache_retained, lead, true);
+			    &arena->pa_shard.ecache_retained, lead, true);
 		}
 		if (trail != NULL) {
 			extent_record(tsdn, arena, ehooks,
-			    &arena->ecache_retained, trail, true);
+			    &arena->pa_shard.ecache_retained, trail, true);
 		}
 	} else {
 		/*
@@ -703,12 +703,12 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 				extent_gdump_add(tsdn, to_salvage);
 			}
 			extent_record(tsdn, arena, ehooks,
-			    &arena->ecache_retained, to_salvage, true);
+			    &arena->pa_shard.ecache_retained, to_salvage, true);
 		}
 		if (to_leak != NULL) {
 			extent_deregister_no_gdump_sub(tsdn, to_leak);
 			extents_abandon_vm(tsdn, arena, ehooks,
-			    &arena->ecache_retained, to_leak, true);
+			    &arena->pa_shard.ecache_retained, to_leak, true);
 		}
 		goto label_err;
 	}
@@ -717,7 +717,7 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		if (extent_commit_impl(tsdn, ehooks, edata, 0,
 		    edata_size_get(edata), true)) {
 			extent_record(tsdn, arena, ehooks,
-			    &arena->ecache_retained, edata, true);
+			    &arena->pa_shard.ecache_retained, edata, true);
 			goto label_err;
 		}
 		/* A successful commit should return zeroed memory. */
@@ -774,8 +774,8 @@ extent_alloc_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	malloc_mutex_lock(tsdn, &arena->ecache_grow.mtx);
 
 	edata_t *edata = extent_recycle(tsdn, arena, ehooks,
-	    &arena->ecache_retained, new_addr, size, alignment, slab, szind,
-	    zero, commit, true);
+	    &arena->pa_shard.ecache_retained, new_addr, size, alignment, slab,
+	    szind, zero, commit, true);
 	if (edata != NULL) {
 		malloc_mutex_unlock(tsdn, &arena->ecache_grow.mtx);
 		if (config_prof) {
@@ -974,7 +974,7 @@ extent_record(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 		edata = extent_try_coalesce(tsdn, &arena->edata_cache, ehooks,
 		    ecache, edata, NULL, growing_retained);
 	} else if (edata_size_get(edata) >= SC_LARGE_MINCLASS) {
-		assert(ecache == &arena->ecache_dirty);
+		assert(ecache == &arena->pa_shard.ecache_dirty);
 		/* Always coalesce large extents eagerly. */
 		bool coalesced;
 		do {
@@ -1076,8 +1076,8 @@ extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		extent_gdump_sub(tsdn, edata);
 	}
 
-	extent_record(tsdn, arena, ehooks, &arena->ecache_retained, edata,
-	    false);
+	extent_record(tsdn, arena, ehooks, &arena->pa_shard.ecache_retained,
+	    edata, false);
 }
 
 void

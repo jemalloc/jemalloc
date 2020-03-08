@@ -12,6 +12,7 @@
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/nstime.h"
+#include "jemalloc/internal/pa.h"
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/smoothstep.h"
@@ -150,15 +151,8 @@ struct arena_s {
 	/* Synchronizes all large allocation/update/deallocation. */
 	malloc_mutex_t		large_mtx;
 
-	/*
-	 * Collections of extents that were previously allocated.  These are
-	 * used when allocating extents, in an attempt to re-use address space.
-	 *
-	 * Synchronization: internal.
-	 */
-	ecache_t	ecache_dirty;
-	ecache_t	ecache_muzzy;
-	ecache_t	ecache_retained;
+	/* The page-level allocator shard this arena uses. */
+	pa_shard_t		pa_shard;
 
 	/*
 	 * Decay-based purging state, responsible for scheduling extent state
