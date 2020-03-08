@@ -1935,14 +1935,14 @@ arena_retain_grow_limit_get_set(tsd_t *tsd, arena_t *arena, size_t *old_limit,
 		}
 	}
 
-	malloc_mutex_lock(tsd_tsdn(tsd), &arena->ecache_grow.mtx);
+	malloc_mutex_lock(tsd_tsdn(tsd), &arena->pa_shard.ecache_grow.mtx);
 	if (old_limit != NULL) {
-		*old_limit = sz_pind2sz(arena->ecache_grow.limit);
+		*old_limit = sz_pind2sz(arena->pa_shard.ecache_grow.limit);
 	}
 	if (new_limit != NULL) {
-		arena->ecache_grow.limit = new_ind;
+		arena->pa_shard.ecache_grow.limit = new_ind;
 	}
-	malloc_mutex_unlock(tsd_tsdn(tsd), &arena->ecache_grow.mtx);
+	malloc_mutex_unlock(tsd_tsdn(tsd), &arena->pa_shard.ecache_grow.mtx);
 
 	return false;
 }
@@ -2039,10 +2039,6 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	}
 	if (arena_decay_init(&arena->decay_muzzy,
 	    arena_muzzy_decay_ms_default_get(), &arena->stats.decay_muzzy)) {
-		goto label_error;
-	}
-
-	if (ecache_grow_init(tsdn, &arena->ecache_grow)) {
 		goto label_error;
 	}
 
@@ -2176,7 +2172,7 @@ arena_prefork1(tsdn_t *tsdn, arena_t *arena) {
 
 void
 arena_prefork2(tsdn_t *tsdn, arena_t *arena) {
-	ecache_grow_prefork(tsdn, &arena->ecache_grow);
+	ecache_grow_prefork(tsdn, &arena->pa_shard.ecache_grow);
 }
 
 void
@@ -2226,7 +2222,7 @@ arena_postfork_parent(tsdn_t *tsdn, arena_t *arena) {
 	ecache_postfork_parent(tsdn, &arena->pa_shard.ecache_dirty);
 	ecache_postfork_parent(tsdn, &arena->pa_shard.ecache_muzzy);
 	ecache_postfork_parent(tsdn, &arena->pa_shard.ecache_retained);
-	ecache_grow_postfork_parent(tsdn, &arena->ecache_grow);
+	ecache_grow_postfork_parent(tsdn, &arena->pa_shard.ecache_grow);
 	malloc_mutex_postfork_parent(tsdn, &arena->decay_dirty.mtx);
 	malloc_mutex_postfork_parent(tsdn, &arena->decay_muzzy.mtx);
 	if (config_stats) {
@@ -2272,7 +2268,7 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	ecache_postfork_child(tsdn, &arena->pa_shard.ecache_dirty);
 	ecache_postfork_child(tsdn, &arena->pa_shard.ecache_muzzy);
 	ecache_postfork_child(tsdn, &arena->pa_shard.ecache_retained);
-	ecache_grow_postfork_child(tsdn, &arena->ecache_grow);
+	ecache_grow_postfork_child(tsdn, &arena->pa_shard.ecache_grow);
 	malloc_mutex_postfork_child(tsdn, &arena->decay_dirty.mtx);
 	malloc_mutex_postfork_child(tsdn, &arena->decay_muzzy.mtx);
 	if (config_stats) {
