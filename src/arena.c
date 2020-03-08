@@ -101,7 +101,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	    ecache_npages_get(&arena->pa_shard.ecache_retained) << LG_PAGE);
 
 	atomic_store_zu(&astats->edata_avail,
-	    atomic_load_zu(&arena->edata_cache.count, ATOMIC_RELAXED),
+	    atomic_load_zu(&arena->pa_shard.edata_cache.count, ATOMIC_RELAXED),
 	    ATOMIC_RELAXED);
 
 	arena_stats_accum_u64(&astats->decay_dirty.npurge,
@@ -228,7 +228,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 
 	/* Gather per arena mutex profiling data. */
 	READ_ARENA_MUTEX_PROF_DATA(large_mtx, arena_prof_mutex_large);
-	READ_ARENA_MUTEX_PROF_DATA(edata_cache.mtx,
+	READ_ARENA_MUTEX_PROF_DATA(pa_shard.edata_cache.mtx,
 	    arena_prof_mutex_extent_avail)
 	READ_ARENA_MUTEX_PROF_DATA(pa_shard.ecache_dirty.mtx,
 	    arena_prof_mutex_extents_dirty)
@@ -2027,7 +2027,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		goto label_error;
 	}
 
-	if (pa_shard_init(tsdn, &arena->pa_shard, ind)) {
+	if (pa_shard_init(tsdn, &arena->pa_shard, base, ind)) {
 		goto label_error;
 	}
 
@@ -2041,10 +2041,6 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	}
 
 	if (ecache_grow_init(tsdn, &arena->ecache_grow)) {
-		goto label_error;
-	}
-
-	if (edata_cache_init(&arena->edata_cache, base)) {
 		goto label_error;
 	}
 
@@ -2190,7 +2186,7 @@ arena_prefork3(tsdn_t *tsdn, arena_t *arena) {
 
 void
 arena_prefork4(tsdn_t *tsdn, arena_t *arena) {
-	edata_cache_prefork(tsdn, &arena->edata_cache);
+	edata_cache_prefork(tsdn, &arena->pa_shard.edata_cache);
 }
 
 void
@@ -2224,7 +2220,7 @@ arena_postfork_parent(tsdn_t *tsdn, arena_t *arena) {
 	}
 	malloc_mutex_postfork_parent(tsdn, &arena->large_mtx);
 	base_postfork_parent(tsdn, arena->base);
-	edata_cache_postfork_parent(tsdn, &arena->edata_cache);
+	edata_cache_postfork_parent(tsdn, &arena->pa_shard.edata_cache);
 	ecache_postfork_parent(tsdn, &arena->pa_shard.ecache_dirty);
 	ecache_postfork_parent(tsdn, &arena->pa_shard.ecache_muzzy);
 	ecache_postfork_parent(tsdn, &arena->pa_shard.ecache_retained);
@@ -2270,7 +2266,7 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	}
 	malloc_mutex_postfork_child(tsdn, &arena->large_mtx);
 	base_postfork_child(tsdn, arena->base);
-	edata_cache_postfork_child(tsdn, &arena->edata_cache);
+	edata_cache_postfork_child(tsdn, &arena->pa_shard.edata_cache);
 	ecache_postfork_child(tsdn, &arena->pa_shard.ecache_dirty);
 	ecache_postfork_child(tsdn, &arena->pa_shard.ecache_muzzy);
 	ecache_postfork_child(tsdn, &arena->pa_shard.ecache_retained);

@@ -2,7 +2,9 @@
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 bool
-pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, unsigned ind) {
+pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind) {
+	/* This will change eventually, but for now it should hold. */
+	assert(base_ind_get(base) == ind);
 	/*
 	 * Delay coalescing for dirty extents despite the disruptive effect on
 	 * memory layout for best-fit extent allocation, since cached extents
@@ -31,5 +33,9 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, unsigned ind) {
 	    ind, /* delay_coalesce */ false)) {
 		return true;
 	}
+	if (edata_cache_init(&shard->edata_cache, base)) {
+		return true;
+	}
+
 	return false;
 }
