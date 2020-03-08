@@ -433,24 +433,24 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 
 	szind_t szind = sz_size2index(usize);
 	size_t mapped_add;
+	size_t esize = usize + sz_large_pad;
 	edata_t *edata = ecache_alloc(tsdn, arena, ehooks, &arena->ecache_dirty,
-	    NULL, usize, sz_large_pad, alignment, false, szind, zero);
+	    NULL, esize, alignment, false, szind, zero);
 	if (edata == NULL && arena_may_have_muzzy(arena)) {
 		edata = ecache_alloc(tsdn, arena, ehooks, &arena->ecache_muzzy,
-		    NULL, usize, sz_large_pad, alignment, false, szind, zero);
+		    NULL, esize, alignment, false, szind, zero);
 	}
-	size_t size = usize + sz_large_pad;
 	if (edata == NULL) {
 		edata = ecache_alloc_grow(tsdn, arena, ehooks,
-		    &arena->ecache_retained, NULL, usize, sz_large_pad,
-		    alignment, false, szind, zero);
+		    &arena->ecache_retained, NULL, esize, alignment, false,
+		    szind, zero);
 		if (config_stats) {
 			/*
 			 * edata may be NULL on OOM, but in that case mapped_add
 			 * isn't used below, so there's no need to conditionlly
 			 * set it to 0 here.
 			 */
-			mapped_add = size;
+			mapped_add = esize;
 		}
 	} else if (config_stats) {
 		mapped_add = 0;
@@ -466,7 +466,11 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 			}
 			arena_stats_unlock(tsdn, &arena->stats);
 		}
-		arena_nactive_add(arena, size >> LG_PAGE);
+		arena_nactive_add(arena, esize >> LG_PAGE);
+	}
+
+	if (edata != NULL && sz_large_pad != 0) {
+		arena_cache_oblivious_randomize(tsdn, arena, edata, alignment);
 	}
 
 	return edata;
@@ -1207,7 +1211,7 @@ arena_slab_alloc_hard(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 
 	zero = false;
 	slab = ecache_alloc_grow(tsdn, arena, ehooks, &arena->ecache_retained,
-	    NULL, bin_info->slab_size, 0, PAGE, true, szind, &zero);
+	    NULL, bin_info->slab_size, PAGE, true, szind, &zero);
 
 	if (config_stats && slab != NULL) {
 		arena_stats_mapped_add(tsdn, &arena->stats,
@@ -1227,10 +1231,10 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned binshard
 	szind_t szind = sz_size2index(bin_info->reg_size);
 	bool zero = false;
 	edata_t *slab = ecache_alloc(tsdn, arena, ehooks, &arena->ecache_dirty,
-	    NULL, bin_info->slab_size, 0, PAGE, true, binind, &zero);
+	    NULL, bin_info->slab_size, PAGE, true, binind, &zero);
 	if (slab == NULL && arena_may_have_muzzy(arena)) {
 		slab = ecache_alloc(tsdn, arena, ehooks, &arena->ecache_muzzy,
-		    NULL, bin_info->slab_size, 0, PAGE, true, binind, &zero);
+		    NULL, bin_info->slab_size, PAGE, true, binind, &zero);
 	}
 	if (slab == NULL) {
 		slab = arena_slab_alloc_hard(tsdn, arena, ehooks, bin_info,

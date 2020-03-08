@@ -397,4 +397,30 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 	}
 }
 
+static inline void
+arena_cache_oblivious_randomize(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
+    size_t alignment) {
+	assert(edata_base_get(edata) == edata_addr_get(edata));
+
+	if (alignment < PAGE) {
+		unsigned lg_range = LG_PAGE -
+		    lg_floor(CACHELINE_CEILING(alignment));
+		size_t r;
+		if (!tsdn_null(tsdn)) {
+			tsd_t *tsd = tsdn_tsd(tsdn);
+			r = (size_t)prng_lg_range_u64(
+			    tsd_prng_statep_get(tsd), lg_range);
+		} else {
+			uint64_t stack_value = (uint64_t)(uintptr_t)&r;
+			r = (size_t)prng_lg_range_u64(&stack_value, lg_range);
+		}
+		uintptr_t random_offset = ((uintptr_t)r) << (LG_PAGE -
+		    lg_range);
+		edata->e_addr = (void *)((uintptr_t)edata->e_addr +
+		    random_offset);
+		assert(ALIGNMENT_ADDR2BASE(edata->e_addr, alignment) ==
+		    edata->e_addr);
+	}
+}
+
 #endif /* JEMALLOC_INTERNAL_ARENA_INLINES_B_H */
