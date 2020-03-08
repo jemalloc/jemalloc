@@ -19,4 +19,7 @@ struct pa_shard_s {
 	ecache_t ecache_retained;
 };
 
+/* Returns true on error. */
+bool pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, unsigned ind);
+
 #endif /* JEMALLOC_INTERNAL_PA_H */
