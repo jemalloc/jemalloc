@@ -3072,7 +3072,7 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib,
 			continue;
 		}
 		MUTEX_PROF_RESET(arena->large_mtx);
-		MUTEX_PROF_RESET(arena->edata_cache.mtx);
+		MUTEX_PROF_RESET(arena->pa_shard.edata_cache.mtx);
 		MUTEX_PROF_RESET(arena->pa_shard.ecache_dirty.mtx);
 		MUTEX_PROF_RESET(arena->pa_shard.ecache_muzzy.mtx);
 		MUTEX_PROF_RESET(arena->pa_shard.ecache_retained.mtx);

@@ -166,9 +166,6 @@ struct arena_s {
 	/* The grow info for the retained ecache. */
 	ecache_grow_t		ecache_grow;
 
-	/* The source of edata_t objects. */
-	edata_cache_t		edata_cache;
-
 	/*
 	 * bins is used to store heaps of free regions.
 	 *
