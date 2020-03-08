@@ -202,12 +202,12 @@ static uint64_t
 arena_decay_compute_purge_interval(tsdn_t *tsdn, arena_t *arena) {
 	uint64_t i1, i2;
 	i1 = arena_decay_compute_purge_interval_impl(tsdn, &arena->decay_dirty,
-	    &arena->ecache_dirty);
+	    &arena->pa_shard.ecache_dirty);
 	if (i1 == BACKGROUND_THREAD_MIN_INTERVAL_NS) {
 		return i1;
 	}
 	i2 = arena_decay_compute_purge_interval_impl(tsdn, &arena->decay_muzzy,
-	    &arena->ecache_muzzy);
+	    &arena->pa_shard.ecache_muzzy);
 
 	return i1 < i2 ? i1 : i2;
 }
@@ -717,8 +717,8 @@ background_thread_interval_check(tsdn_t *tsdn, arena_t *arena,
 	if (info->npages_to_purge_new > BACKGROUND_THREAD_NPAGES_THRESHOLD) {
 		should_signal = true;
 	} else if (unlikely(background_thread_indefinite_sleep(info)) &&
-	    (ecache_npages_get(&arena->ecache_dirty) > 0 ||
-	    ecache_npages_get(&arena->ecache_muzzy) > 0 ||
+	    (ecache_npages_get(&arena->pa_shard.ecache_dirty) > 0 ||
+	    ecache_npages_get(&arena->pa_shard.ecache_muzzy) > 0 ||
 	    info->npages_to_purge_new > 0)) {
 		should_signal = true;
 	} else {

@@ -74,8 +74,8 @@ arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	*dirty_decay_ms = arena_dirty_decay_ms_get(arena);
 	*muzzy_decay_ms = arena_muzzy_decay_ms_get(arena);
 	*nactive += atomic_load_zu(&arena->nactive, ATOMIC_RELAXED);
-	*ndirty += ecache_npages_get(&arena->ecache_dirty);
-	*nmuzzy += ecache_npages_get(&arena->ecache_muzzy);
+	*ndirty += ecache_npages_get(&arena->pa_shard.ecache_dirty);
+	*nmuzzy += ecache_npages_get(&arena->pa_shard.ecache_muzzy);
 }
 
 void
@@ -98,7 +98,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	arena_stats_accum_zu(&astats->mapped, base_mapped
 	    + arena_stats_read_zu(tsdn, &arena->stats, &arena->stats.mapped));
 	arena_stats_accum_zu(&astats->retained,
-	    ecache_npages_get(&arena->ecache_retained) << LG_PAGE);
+	    ecache_npages_get(&arena->pa_shard.ecache_retained) << LG_PAGE);
 
 	atomic_store_zu(&astats->edata_avail,
 	    atomic_load_zu(&arena->edata_cache.count, ATOMIC_RELAXED),
@@ -129,8 +129,8 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	arena_stats_accum_zu(&astats->metadata_thp, metadata_thp);
 	arena_stats_accum_zu(&astats->resident, base_resident +
 	    (((atomic_load_zu(&arena->nactive, ATOMIC_RELAXED) +
-	    ecache_npages_get(&arena->ecache_dirty) +
-	    ecache_npages_get(&arena->ecache_muzzy)) << LG_PAGE)));
+	    ecache_npages_get(&arena->pa_shard.ecache_dirty) +
+	    ecache_npages_get(&arena->pa_shard.ecache_muzzy)) << LG_PAGE)));
 	arena_stats_accum_zu(&astats->abandoned_vm, atomic_load_zu(
 	    &arena->stats.abandoned_vm, ATOMIC_RELAXED));
 
@@ -172,12 +172,16 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	for (pszind_t i = 0; i < SC_NPSIZES; i++) {
 		size_t dirty, muzzy, retained, dirty_bytes, muzzy_bytes,
 		    retained_bytes;
-		dirty = ecache_nextents_get(&arena->ecache_dirty, i);
-		muzzy = ecache_nextents_get(&arena->ecache_muzzy, i);
-		retained = ecache_nextents_get(&arena->ecache_retained, i);
-		dirty_bytes = ecache_nbytes_get(&arena->ecache_dirty, i);
-		muzzy_bytes = ecache_nbytes_get(&arena->ecache_muzzy, i);
-		retained_bytes = ecache_nbytes_get(&arena->ecache_retained, i);
+		dirty = ecache_nextents_get(&arena->pa_shard.ecache_dirty, i);
+		muzzy = ecache_nextents_get(&arena->pa_shard.ecache_muzzy, i);
+		retained = ecache_nextents_get(&arena->pa_shard.ecache_retained,
+		    i);
+		dirty_bytes = ecache_nbytes_get(&arena->pa_shard.ecache_dirty,
+		    i);
+		muzzy_bytes = ecache_nbytes_get(&arena->pa_shard.ecache_muzzy,
+		    i);
+		retained_bytes = ecache_nbytes_get(
+		    &arena->pa_shard.ecache_retained, i);
 
 		atomic_store_zu(&estats[i].ndirty, dirty, ATOMIC_RELAXED);
 		atomic_store_zu(&estats[i].nmuzzy, muzzy, ATOMIC_RELAXED);
@@ -226,11 +230,11 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	READ_ARENA_MUTEX_PROF_DATA(large_mtx, arena_prof_mutex_large);
 	READ_ARENA_MUTEX_PROF_DATA(edata_cache.mtx,
 	    arena_prof_mutex_extent_avail)
-	READ_ARENA_MUTEX_PROF_DATA(ecache_dirty.mtx,
+	READ_ARENA_MUTEX_PROF_DATA(pa_shard.ecache_dirty.mtx,
 	    arena_prof_mutex_extents_dirty)
-	READ_ARENA_MUTEX_PROF_DATA(ecache_muzzy.mtx,
+	READ_ARENA_MUTEX_PROF_DATA(pa_shard.ecache_muzzy.mtx,
 	    arena_prof_mutex_extents_muzzy)
-	READ_ARENA_MUTEX_PROF_DATA(ecache_retained.mtx,
+	READ_ARENA_MUTEX_PROF_DATA(pa_shard.ecache_retained.mtx,
 	    arena_prof_mutex_extents_retained)
 	READ_ARENA_MUTEX_PROF_DATA(decay_dirty.mtx,
 	    arena_prof_mutex_decay_dirty)
@@ -258,7 +262,8 @@ arena_extents_dirty_dalloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	ecache_dalloc(tsdn, arena, ehooks, &arena->ecache_dirty, edata);
+	ecache_dalloc(tsdn, arena, ehooks, &arena->pa_shard.ecache_dirty,
+	    edata);
 	if (arena_dirty_decay_ms_get(arena) == 0) {
 		arena_decay_dirty(tsdn, arena, false, true);
 	} else {
@@ -434,16 +439,18 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 	szind_t szind = sz_size2index(usize);
 	size_t mapped_add;
 	size_t esize = usize + sz_large_pad;
-	edata_t *edata = ecache_alloc(tsdn, arena, ehooks, &arena->ecache_dirty,
-	    NULL, esize, alignment, false, szind, zero);
+	edata_t *edata = ecache_alloc(tsdn, arena, ehooks,
+	    &arena->pa_shard.ecache_dirty, NULL, esize, alignment, false, szind,
+	    zero);
 	if (edata == NULL && arena_may_have_muzzy(arena)) {
-		edata = ecache_alloc(tsdn, arena, ehooks, &arena->ecache_muzzy,
-		    NULL, esize, alignment, false, szind, zero);
+		edata = ecache_alloc(tsdn, arena, ehooks,
+		    &arena->pa_shard.ecache_muzzy, NULL, esize, alignment,
+		    false, szind, zero);
 	}
 	if (edata == NULL) {
 		edata = ecache_alloc_grow(tsdn, arena, ehooks,
-		    &arena->ecache_retained, NULL, esize, alignment, false,
-		    szind, zero);
+		    &arena->pa_shard.ecache_retained, NULL, esize, alignment,
+		    false, szind, zero);
 		if (config_stats) {
 			/*
 			 * edata may be NULL on OOM, but in that case mapped_add
@@ -808,14 +815,14 @@ bool
 arena_dirty_decay_ms_set(tsdn_t *tsdn, arena_t *arena,
     ssize_t decay_ms) {
 	return arena_decay_ms_set(tsdn, arena, &arena->decay_dirty,
-	    &arena->ecache_dirty, decay_ms);
+	    &arena->pa_shard.ecache_dirty, decay_ms);
 }
 
 bool
 arena_muzzy_decay_ms_set(tsdn_t *tsdn, arena_t *arena,
     ssize_t decay_ms) {
 	return arena_decay_ms_set(tsdn, arena, &arena->decay_muzzy,
-	    &arena->ecache_muzzy, decay_ms);
+	    &arena->pa_shard.ecache_muzzy, decay_ms);
 }
 
 static size_t
@@ -867,7 +874,7 @@ arena_decay_stashed(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 			    !extent_purge_lazy_wrapper(tsdn, arena,
 			    ehooks, edata, 0, edata_size_get(edata))) {
 				ecache_dalloc(tsdn, arena, ehooks,
-				    &arena->ecache_muzzy, edata);
+				    &arena->pa_shard.ecache_muzzy, edata);
 				arena_background_thread_inactivity_check(tsdn,
 				    arena, is_background_thread);
 				break;
@@ -978,18 +985,18 @@ static bool
 arena_decay_dirty(tsdn_t *tsdn, arena_t *arena, bool is_background_thread,
     bool all) {
 	return arena_decay_impl(tsdn, arena, &arena->decay_dirty,
-	    &arena->ecache_dirty, is_background_thread, all);
+	    &arena->pa_shard.ecache_dirty, is_background_thread, all);
 }
 
 static bool
 arena_decay_muzzy(tsdn_t *tsdn, arena_t *arena, bool is_background_thread,
     bool all) {
-	if (ecache_npages_get(&arena->ecache_muzzy) == 0 &&
+	if (ecache_npages_get(&arena->pa_shard.ecache_muzzy) == 0 &&
 	    arena_muzzy_decay_ms_get(arena) <= 0) {
 		return false;
 	}
 	return arena_decay_impl(tsdn, arena, &arena->decay_muzzy,
-	    &arena->ecache_muzzy, is_background_thread, all);
+	    &arena->pa_shard.ecache_muzzy, is_background_thread, all);
 }
 
 void
@@ -1159,7 +1166,7 @@ arena_destroy_retained(tsdn_t *tsdn, arena_t *arena) {
 	ehooks_t *ehooks = arena_get_ehooks(arena);
 	edata_t *edata;
 	while ((edata = ecache_evict(tsdn, arena, ehooks,
-	    &arena->ecache_retained, 0)) != NULL) {
+	    &arena->pa_shard.ecache_retained, 0)) != NULL) {
 		extent_destroy_wrapper(tsdn, arena, ehooks, edata);
 	}
 }
@@ -1175,8 +1182,8 @@ arena_destroy(tsd_t *tsd, arena_t *arena) {
 	 * Furthermore, the caller (arena_i_destroy_ctl()) purged all cached
 	 * extents, so only retained extents may remain.
 	 */
-	assert(ecache_npages_get(&arena->ecache_dirty) == 0);
-	assert(ecache_npages_get(&arena->ecache_muzzy) == 0);
+	assert(ecache_npages_get(&arena->pa_shard.ecache_dirty) == 0);
+	assert(ecache_npages_get(&arena->pa_shard.ecache_muzzy) == 0);
 
 	/* Deallocate retained memory. */
 	arena_destroy_retained(tsd_tsdn(tsd), arena);
@@ -1210,8 +1217,9 @@ arena_slab_alloc_hard(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	    WITNESS_RANK_CORE, 0);
 
 	zero = false;
-	slab = ecache_alloc_grow(tsdn, arena, ehooks, &arena->ecache_retained,
-	    NULL, bin_info->slab_size, PAGE, true, szind, &zero);
+	slab = ecache_alloc_grow(tsdn, arena, ehooks,
+	    &arena->pa_shard.ecache_retained, NULL, bin_info->slab_size, PAGE,
+	    true, szind, &zero);
 
 	if (config_stats && slab != NULL) {
 		arena_stats_mapped_add(tsdn, &arena->stats,
@@ -1230,11 +1238,13 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned binshard
 	ehooks_t *ehooks = arena_get_ehooks(arena);
 	szind_t szind = sz_size2index(bin_info->reg_size);
 	bool zero = false;
-	edata_t *slab = ecache_alloc(tsdn, arena, ehooks, &arena->ecache_dirty,
-	    NULL, bin_info->slab_size, PAGE, true, binind, &zero);
+	edata_t *slab = ecache_alloc(tsdn, arena, ehooks,
+	    &arena->pa_shard.ecache_dirty, NULL, bin_info->slab_size, PAGE,
+	    true, binind, &zero);
 	if (slab == NULL && arena_may_have_muzzy(arena)) {
-		slab = ecache_alloc(tsdn, arena, ehooks, &arena->ecache_muzzy,
-		    NULL, bin_info->slab_size, PAGE, true, binind, &zero);
+		slab = ecache_alloc(tsdn, arena, ehooks,
+		    &arena->pa_shard.ecache_muzzy, NULL, bin_info->slab_size,
+		    PAGE, true, binind, &zero);
 	}
 	if (slab == NULL) {
 		slab = arena_slab_alloc_hard(tsdn, arena, ehooks, bin_info,
@@ -2023,16 +2033,16 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	 * are likely to be reused soon after deallocation, and the cost of
 	 * merging/splitting extents is non-trivial.
 	 */
-	if (ecache_init(tsdn, &arena->ecache_dirty, extent_state_dirty, ind,
-	    true)) {
+	if (ecache_init(tsdn, &arena->pa_shard.ecache_dirty, extent_state_dirty,
+	    ind, true)) {
 		goto label_error;
 	}
 	/*
 	 * Coalesce muzzy extents immediately, because operations on them are in
 	 * the critical path much less often than for dirty extents.
 	 */
-	if (ecache_init(tsdn, &arena->ecache_muzzy, extent_state_muzzy, ind,
-	    false)) {
+	if (ecache_init(tsdn, &arena->pa_shard.ecache_muzzy, extent_state_muzzy,
+	    ind, false)) {
 		goto label_error;
 	}
 	/*
@@ -2041,8 +2051,8 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	 * coalescing), but also because operations on retained extents are not
 	 * in the critical path.
 	 */
-	if (ecache_init(tsdn, &arena->ecache_retained, extent_state_retained,
-	    ind, false)) {
+	if (ecache_init(tsdn, &arena->pa_shard.ecache_retained,
+	    extent_state_retained, ind, false)) {
 		goto label_error;
 	}
 
@@ -2198,9 +2208,9 @@ arena_prefork2(tsdn_t *tsdn, arena_t *arena) {
 
 void
 arena_prefork3(tsdn_t *tsdn, arena_t *arena) {
-	ecache_prefork(tsdn, &arena->ecache_dirty);
-	ecache_prefork(tsdn, &arena->ecache_muzzy);
-	ecache_prefork(tsdn, &arena->ecache_retained);
+	ecache_prefork(tsdn, &arena->pa_shard.ecache_dirty);
+	ecache_prefork(tsdn, &arena->pa_shard.ecache_muzzy);
+	ecache_prefork(tsdn, &arena->pa_shard.ecache_retained);
 }
 
 void
@@ -2240,9 +2250,9 @@ arena_postfork_parent(tsdn_t *tsdn, arena_t *arena) {
 	malloc_mutex_postfork_parent(tsdn, &arena->large_mtx);
 	base_postfork_parent(tsdn, arena->base);
 	edata_cache_postfork_parent(tsdn, &arena->edata_cache);
-	ecache_postfork_parent(tsdn, &arena->ecache_dirty);
-	ecache_postfork_parent(tsdn, &arena->ecache_muzzy);
-	ecache_postfork_parent(tsdn, &arena->ecache_retained);
+	ecache_postfork_parent(tsdn, &arena->pa_shard.ecache_dirty);
+	ecache_postfork_parent(tsdn, &arena->pa_shard.ecache_muzzy);
+	ecache_postfork_parent(tsdn, &arena->pa_shard.ecache_retained);
 	ecache_grow_postfork_parent(tsdn, &arena->ecache_grow);
 	malloc_mutex_postfork_parent(tsdn, &arena->decay_dirty.mtx);
 	malloc_mutex_postfork_parent(tsdn, &arena->decay_muzzy.mtx);
@@ -2286,9 +2296,9 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	malloc_mutex_postfork_child(tsdn, &arena->large_mtx);
 	base_postfork_child(tsdn, arena->base);
 	edata_cache_postfork_child(tsdn, &arena->edata_cache);
-	ecache_postfork_child(tsdn, &arena->ecache_dirty);
-	ecache_postfork_child(tsdn, &arena->ecache_muzzy);
-	ecache_postfork_child(tsdn, &arena->ecache_retained);
+	ecache_postfork_child(tsdn, &arena->pa_shard.ecache_dirty);
+	ecache_postfork_child(tsdn, &arena->pa_shard.ecache_muzzy);
+	ecache_postfork_child(tsdn, &arena->pa_shard.ecache_retained);
 	ecache_grow_postfork_child(tsdn, &arena->ecache_grow);
 	malloc_mutex_postfork_child(tsdn, &arena->decay_dirty.mtx);
 	malloc_mutex_postfork_child(tsdn, &arena->decay_muzzy.mtx);
