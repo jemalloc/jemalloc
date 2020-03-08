@@ -82,6 +82,9 @@
     <ClCompile Include="..\..\..\..\src\nstime.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\src\pa.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\src\pages.c">
       <Filter>Source Files</Filter>
     </ClCompile>
