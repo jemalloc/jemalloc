@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_PA_H
 #define JEMALLOC_INTERNAL_PA_H
 
+#include "jemalloc/internal/decay.h"
 #include "jemalloc/internal/ecache.h"
 #include "jemalloc/internal/edata_cache.h"
 #include "jemalloc/internal/lockedstat.h"
@@ -9,6 +10,17 @@
  * The page allocator; responsible for acquiring pages of memory for
  * allocations.
  */
+
+typedef struct pa_shard_decay_stats_s pa_shard_decay_stats_t;
+struct pa_shard_decay_stats_s {
+	/* Total number of purge sweeps. */
+	lockedstat_u64_t npurge;
+	/* Total number of madvise calls made. */
+	lockedstat_u64_t nmadvise;
+	/* Total number of pages purged. */
+	lockedstat_u64_t purged;
+
+};
 
 /*
  * The stats for a particular pa_shard.  Because of the way the ctl module
@@ -21,17 +33,6 @@
  * are the ones that are not maintained on their own; instead, their values are
  * derived during those stats merges.
  */
-typedef struct pa_shard_decay_stats_s pa_shard_decay_stats_t;
-struct pa_shard_decay_stats_s {
-	/* Total number of purge sweeps. */
-	lockedstat_u64_t npurge;
-	/* Total number of madvise calls made. */
-	lockedstat_u64_t nmadvise;
-	/* Total number of pages purged. */
-	lockedstat_u64_t purged;
-
-};
-
 typedef struct pa_shard_stats_s pa_shard_stats_t;
 struct pa_shard_stats_s {
 	pa_shard_decay_stats_t decay_dirty;
@@ -71,6 +72,15 @@ struct pa_shard_s {
 
 	malloc_mutex_t *stats_mtx;
 	pa_shard_stats_t *stats;
+
+	/*
+	 * Decay-based purging state, responsible for scheduling extent state
+	 * transitions.
+	 *
+	 * Synchronization: internal.
+	 */
+	decay_t decay_dirty; /* dirty --> muzzy */
+	decay_t decay_muzzy; /* muzzy --> retained */
 };
 
 static inline void

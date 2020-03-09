@@ -15,68 +15,7 @@
 #include "jemalloc/internal/pa.h"
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/sc.h"
-#include "jemalloc/internal/smoothstep.h"
 #include "jemalloc/internal/ticker.h"
-
-struct arena_decay_s {
-	/* Synchronizes all non-atomic fields. */
-	malloc_mutex_t		mtx;
-	/*
-	 * True if a thread is currently purging the extents associated with
-	 * this decay structure.
-	 */
-	bool			purging;
-	/*
-	 * Approximate time in milliseconds from the creation of a set of unused
-	 * dirty pages until an equivalent set of unused dirty pages is purged
-	 * and/or reused.
-	 */
-	atomic_zd_t		time_ms;
-	/* time / SMOOTHSTEP_NSTEPS. */
-	nstime_t		interval;
-	/*
-	 * Time at which the current decay interval logically started.  We do
-	 * not actually advance to a new epoch until sometime after it starts
-	 * because of scheduling and computation delays, and it is even possible
-	 * to completely skip epochs.  In all cases, during epoch advancement we
-	 * merge all relevant activity into the most recently recorded epoch.
-	 */
-	nstime_t		epoch;
-	/* Deadline randomness generator. */
-	uint64_t		jitter_state;
-	/*
-	 * Deadline for current epoch.  This is the sum of interval and per
-	 * epoch jitter which is a uniform random variable in [0..interval).
-	 * Epochs always advance by precise multiples of interval, but we
-	 * randomize the deadline to reduce the likelihood of arenas purging in
-	 * lockstep.
-	 */
-	nstime_t		deadline;
-	/*
-	 * Number of unpurged pages at beginning of current epoch.  During epoch
-	 * advancement we use the delta between arena->decay_*.nunpurged and
-	 * ecache_npages_get(&arena->ecache_*) to determine how many dirty pages,
-	 * if any, were generated.
-	 */
-	size_t			nunpurged;
-	/*
-	 * Trailing log of how many unused dirty pages were generated during
-	 * each of the past SMOOTHSTEP_NSTEPS decay epochs, where the last
-	 * element is the most recent epoch.  Corresponding epoch times are
-	 * relative to epoch.
-	 */
-	size_t			backlog[SMOOTHSTEP_NSTEPS];
-
-	/*
-	 * Pointer to associated stats.  These stats are embedded directly in
-	 * the arena's stats due to how stats structures are shared between the
-	 * arena and ctl code.
-	 *
-	 * Synchronization: Same as associated arena's stats field. */
-	pa_shard_decay_stats_t	*stats;
-	/* Peak number of pages in associated extents.  Used for debug only. */
-	uint64_t		ceil_npages;
-};
 
 struct arena_s {
 	/*
@@ -146,15 +85,6 @@ struct arena_s {
 
 	/* The page-level allocator shard this arena uses. */
 	pa_shard_t		pa_shard;
-
-	/*
-	 * Decay-based purging state, responsible for scheduling extent state
-	 * transitions.
-	 *
-	 * Synchronization: internal.
-	 */
-	arena_decay_t		decay_dirty; /* dirty --> muzzy */
-	arena_decay_t		decay_muzzy; /* muzzy --> retained */
 
 	/*
 	 * bins is used to store heaps of free regions.
