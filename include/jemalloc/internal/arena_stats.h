@@ -69,7 +69,7 @@ struct arena_stats_s {
 	locked_zu_t		retained; /* Derived. */
 
 	/* Number of edata_t structs allocated by base, but not being used. */
-	atomic_zu_t		edata_avail;
+	atomic_zu_t		edata_avail; /* Derived. */
 
 	atomic_zu_t		base; /* Derived. */
 	atomic_zu_t		internal;
