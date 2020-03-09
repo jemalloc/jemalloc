@@ -55,7 +55,7 @@ bool background_thread_create(tsd_t *tsd, unsigned arena_ind) NOT_REACHED
 bool background_threads_enable(tsd_t *tsd) NOT_REACHED
 bool background_threads_disable(tsd_t *tsd) NOT_REACHED
 void background_thread_interval_check(tsdn_t *tsdn, arena_t *arena,
-    arena_decay_t *decay, size_t npages_new) NOT_REACHED
+    decay_t *decay, size_t npages_new) NOT_REACHED
 void background_thread_prefork0(tsdn_t *tsdn) NOT_REACHED
 void background_thread_prefork1(tsdn_t *tsdn) NOT_REACHED
 void background_thread_postfork_parent(tsdn_t *tsdn) NOT_REACHED
@@ -99,7 +99,7 @@ set_current_thread_affinity(int cpu) {
 #define BACKGROUND_THREAD_MIN_INTERVAL_NS (BILLION / 10)
 
 static inline size_t
-decay_npurge_after_interval(arena_decay_t *decay, size_t interval) {
+decay_npurge_after_interval(decay_t *decay, size_t interval) {
 	size_t i;
 	uint64_t sum = 0;
 	for (i = 0; i < interval; i++) {
@@ -113,7 +113,7 @@ decay_npurge_after_interval(arena_decay_t *decay, size_t interval) {
 }
 
 static uint64_t
-arena_decay_compute_purge_interval_impl(tsdn_t *tsdn, arena_decay_t *decay,
+arena_decay_compute_purge_interval_impl(tsdn_t *tsdn, decay_t *decay,
     ecache_t *ecache) {
 	if (malloc_mutex_trylock(tsdn, &decay->mtx)) {
 		/* Use minimal interval if decay is contended. */
@@ -201,13 +201,13 @@ label_done:
 static uint64_t
 arena_decay_compute_purge_interval(tsdn_t *tsdn, arena_t *arena) {
 	uint64_t i1, i2;
-	i1 = arena_decay_compute_purge_interval_impl(tsdn, &arena->decay_dirty,
-	    &arena->pa_shard.ecache_dirty);
+	i1 = arena_decay_compute_purge_interval_impl(tsdn,
+	    &arena->pa_shard.decay_dirty, &arena->pa_shard.ecache_dirty);
 	if (i1 == BACKGROUND_THREAD_MIN_INTERVAL_NS) {
 		return i1;
 	}
-	i2 = arena_decay_compute_purge_interval_impl(tsdn, &arena->decay_muzzy,
-	    &arena->pa_shard.ecache_muzzy);
+	i2 = arena_decay_compute_purge_interval_impl(tsdn,
+	    &arena->pa_shard.decay_muzzy, &arena->pa_shard.ecache_muzzy);
 
 	return i1 < i2 ? i1 : i2;
 }
@@ -653,8 +653,8 @@ background_threads_disable(tsd_t *tsd) {
 
 /* Check if we need to signal the background thread early. */
 void
-background_thread_interval_check(tsdn_t *tsdn, arena_t *arena,
-    arena_decay_t *decay, size_t npages_new) {
+background_thread_interval_check(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
+    size_t npages_new) {
 	background_thread_info_t *info = arena_background_thread_info_get(
 	    arena);
 	if (malloc_mutex_trylock(tsdn, &info->mtx)) {

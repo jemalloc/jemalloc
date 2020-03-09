@@ -13,7 +13,7 @@ bool background_thread_create(tsd_t *tsd, unsigned arena_ind);
 bool background_threads_enable(tsd_t *tsd);
 bool background_threads_disable(tsd_t *tsd);
 void background_thread_interval_check(tsdn_t *tsdn, arena_t *arena,
-    arena_decay_t *decay, size_t npages_new);
+    decay_t *decay, size_t npages_new);
 void background_thread_prefork0(tsdn_t *tsdn);
 void background_thread_prefork1(tsdn_t *tsdn);
 void background_thread_postfork_parent(tsdn_t *tsdn);
