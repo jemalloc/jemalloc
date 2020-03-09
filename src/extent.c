@@ -390,7 +390,7 @@ extent_recycle_extract(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 			 */
 			edata_t *unlock_edata = edata;
 			assert(edata_base_get(edata) == new_addr);
-			if (edata_arena_ind_get(edata) != arena_ind_get(arena)
+			if (edata_arena_ind_get(edata) != ecache_ind_get(ecache)
 			    || edata_size_get(edata) < size
 			    || edata_state_get(edata)
 			    != ecache->state) {
@@ -661,9 +661,9 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		goto label_err;
 	}
 
-	edata_init(edata, arena_ind_get(arena), ptr, alloc_size, false,
-	    SC_NSIZES, arena_extent_sn_next(arena), extent_state_active, zeroed,
-	    committed, true, EXTENT_IS_HEAD);
+	edata_init(edata, ecache_ind_get(&arena->pa_shard.ecache_retained), ptr,
+	    alloc_size, false, SC_NSIZES, arena_extent_sn_next(arena),
+	    extent_state_active, zeroed, committed, true, EXTENT_IS_HEAD);
 
 	if (extent_register_no_gdump_add(tsdn, edata)) {
 		edata_cache_put(tsdn, &arena->pa_shard.edata_cache, edata);
@@ -815,9 +815,9 @@ extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		edata_cache_put(tsdn, &arena->pa_shard.edata_cache, edata);
 		return NULL;
 	}
-	edata_init(edata, arena_ind_get(arena), addr, size, slab, szind,
-	    arena_extent_sn_next(arena), extent_state_active, *zero, *commit,
-	    true, EXTENT_NOT_HEAD);
+	edata_init(edata, ecache_ind_get(&arena->pa_shard.ecache_dirty), addr,
+	    size, slab, szind, arena_extent_sn_next(arena), extent_state_active,
+	    *zero, *commit, true, EXTENT_NOT_HEAD);
 	if (extent_register(tsdn, edata)) {
 		edata_cache_put(tsdn, &arena->pa_shard.edata_cache, edata);
 		return NULL;
