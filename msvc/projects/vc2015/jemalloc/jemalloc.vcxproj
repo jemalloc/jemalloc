@@ -46,6 +46,7 @@
     <ClCompile Include="..\..\..\..\src\ckh.c" />
     <ClCompile Include="..\..\..\..\src\counter.c" />
     <ClCompile Include="..\..\..\..\src\ctl.c" />
+    <ClCompile Include="..\..\..\..\src\decay.c" />
     <ClCompile Include="..\..\..\..\src\div.c" />
     <ClCompile Include="..\..\..\..\src\ecache.c" />
     <ClCompile Include="..\..\..\..\src\edata.c" />
