@@ -1026,9 +1026,8 @@ extent_record(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 }
 
 void
-extent_dalloc_gap(tsdn_t *tsdn, arena_t *arena, edata_t *edata) {
-	ehooks_t *ehooks = arena_get_ehooks(arena);
-
+extent_dalloc_gap(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+    edata_t *edata) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
