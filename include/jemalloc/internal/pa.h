@@ -10,6 +10,17 @@
  * allocations.
  */
 
+/*
+ * The stats for a particular pa_shard.  Because of the way the ctl module
+ * handles stats epoch data collection (it has its own arena_stats, and merges
+ * the stats from each arena into it), this needs to live in the arena_stats_t;
+ * hence we define it here and let the pa_shard have a pointer (rather than the
+ * more natural approach of just embedding it in the pa_shard itself).
+ *
+ * We follow the arena_stats_t approach of marking the derived fields.  These
+ * are the ones that are not maintained on their own; instead, their values are
+ * derived during those stats merges.
+ */
 typedef struct pa_shard_decay_stats_s pa_shard_decay_stats_t;
 struct pa_shard_decay_stats_s {
 	/* Total number of purge sweeps. */
