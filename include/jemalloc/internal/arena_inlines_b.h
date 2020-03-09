@@ -140,29 +140,6 @@ arena_decay_tick(tsdn_t *tsdn, arena_t *arena) {
 	arena_decay_ticks(tsdn, arena, 1);
 }
 
-/* Purge a single extent to retained / unmapped directly. */
-JEMALLOC_ALWAYS_INLINE void
-arena_decay_extent(tsdn_t *tsdn,arena_t *arena, ehooks_t *ehooks,
-    edata_t *edata) {
-	size_t extent_size = edata_size_get(edata);
-	extent_dalloc_wrapper(tsdn, arena, ehooks, edata);
-	if (config_stats) {
-		/* Update stats accordingly. */
-		LOCKEDINT_MTX_LOCK(tsdn, *arena->pa_shard.stats_mtx);
-		locked_inc_u64(tsdn,
-		    LOCKEDINT_MTX(*arena->pa_shard.stats_mtx),
-		    &arena->pa_shard.stats->decay_dirty.nmadvise, 1);
-		locked_inc_u64(tsdn,
-		    LOCKEDINT_MTX(*arena->pa_shard.stats_mtx),
-		    &arena->pa_shard.stats->decay_dirty.purged,
-		    extent_size >> LG_PAGE);
-		locked_dec_zu(tsdn,
-		    LOCKEDINT_MTX(*arena->pa_shard.stats_mtx),
-		    &arena->pa_shard.stats->mapped, extent_size);
-		LOCKEDINT_MTX_UNLOCK(tsdn, *arena->pa_shard.stats_mtx);
-	}
-}
-
 JEMALLOC_ALWAYS_INLINE void *
 arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind, bool zero,
     tcache_t *tcache, bool slow_path) {

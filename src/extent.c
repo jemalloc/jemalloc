@@ -954,6 +954,30 @@ extent_try_coalesce_large(tsdn_t *tsdn, edata_cache_t *edata_cache,
 	    edata, coalesced, growing_retained, true);
 }
 
+/* Purge a single extent to retained / unmapped directly. */
+static void
+extent_maximally_purge(tsdn_t *tsdn,arena_t *arena, ehooks_t *ehooks,
+    edata_t *edata) {
+	size_t extent_size = edata_size_get(edata);
+	extent_dalloc_wrapper(tsdn, arena, ehooks, edata);
+	if (config_stats) {
+		/* Update stats accordingly. */
+		LOCKEDINT_MTX_LOCK(tsdn, *arena->pa_shard.stats_mtx);
+		locked_inc_u64(tsdn,
+		    LOCKEDINT_MTX(*arena->pa_shard.stats_mtx),
+		    &arena->pa_shard.stats->decay_dirty.nmadvise, 1);
+		locked_inc_u64(tsdn,
+		    LOCKEDINT_MTX(*arena->pa_shard.stats_mtx),
+		    &arena->pa_shard.stats->decay_dirty.purged,
+		    extent_size >> LG_PAGE);
+		locked_dec_zu(tsdn,
+		    LOCKEDINT_MTX(*arena->pa_shard.stats_mtx),
+		    &arena->pa_shard.stats->mapped, extent_size);
+		LOCKEDINT_MTX_UNLOCK(tsdn, *arena->pa_shard.stats_mtx);
+	}
+}
+
+
 /*
  * Does the metadata management portions of putting an unused extent into the
  * given ecache_t (coalesces, deregisters slab interiors, the heap operations).
@@ -992,7 +1016,7 @@ extent_record(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks, ecache_t *ecache,
 		    arena_may_force_decay(arena)) {
 			/* Shortcut to purge the oversize extent eagerly. */
 			malloc_mutex_unlock(tsdn, &ecache->mtx);
-			arena_decay_extent(tsdn, arena, ehooks, edata);
+			extent_maximally_purge(tsdn, arena, ehooks, edata);
 			return;
 		}
 	}
