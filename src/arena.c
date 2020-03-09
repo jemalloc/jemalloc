@@ -93,80 +93,89 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	base_stats_get(tsdn, arena->base, &base_allocated, &base_resident,
 	    &base_mapped, &metadata_thp);
 
-	arena_stats_lock(tsdn, &arena->stats);
+	LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 
-	arena_stats_accum_zu(&astats->mapped, base_mapped
-	    + arena_stats_read_zu(tsdn, &arena->stats, &arena->stats.mapped));
-	arena_stats_accum_zu(&astats->retained,
+	locked_inc_zu_unsynchronized(&astats->mapped, base_mapped
+	    + locked_read_zu(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
+	    &arena->stats.mapped));
+	locked_inc_zu_unsynchronized(&astats->retained,
 	    ecache_npages_get(&arena->pa_shard.ecache_retained) << LG_PAGE);
 
 	atomic_store_zu(&astats->edata_avail,
 	    atomic_load_zu(&arena->pa_shard.edata_cache.count, ATOMIC_RELAXED),
 	    ATOMIC_RELAXED);
 
-	arena_stats_accum_u64(&astats->decay_dirty.npurge,
-	    arena_stats_read_u64(tsdn, &arena->stats,
+	locked_inc_u64_unsynchronized(&astats->decay_dirty.npurge,
+	    locked_read_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
 	    &arena->stats.decay_dirty.npurge));
-	arena_stats_accum_u64(&astats->decay_dirty.nmadvise,
-	    arena_stats_read_u64(tsdn, &arena->stats,
+	locked_inc_u64_unsynchronized(&astats->decay_dirty.nmadvise,
+	    locked_read_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
 	    &arena->stats.decay_dirty.nmadvise));
-	arena_stats_accum_u64(&astats->decay_dirty.purged,
-	    arena_stats_read_u64(tsdn, &arena->stats,
+	locked_inc_u64_unsynchronized(&astats->decay_dirty.purged,
+	    locked_read_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
 	    &arena->stats.decay_dirty.purged));
 
-	arena_stats_accum_u64(&astats->decay_muzzy.npurge,
-	    arena_stats_read_u64(tsdn, &arena->stats,
+	locked_inc_u64_unsynchronized(&astats->decay_muzzy.npurge,
+	    locked_read_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
 	    &arena->stats.decay_muzzy.npurge));
-	arena_stats_accum_u64(&astats->decay_muzzy.nmadvise,
-	    arena_stats_read_u64(tsdn, &arena->stats,
+	locked_inc_u64_unsynchronized(&astats->decay_muzzy.nmadvise,
+	    locked_read_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
 	    &arena->stats.decay_muzzy.nmadvise));
-	arena_stats_accum_u64(&astats->decay_muzzy.purged,
-	    arena_stats_read_u64(tsdn, &arena->stats,
+	locked_inc_u64_unsynchronized(&astats->decay_muzzy.purged,
+	    locked_read_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
 	    &arena->stats.decay_muzzy.purged));
 
-	arena_stats_accum_zu(&astats->base, base_allocated);
-	arena_stats_accum_zu(&astats->internal, arena_internal_get(arena));
-	arena_stats_accum_zu(&astats->metadata_thp, metadata_thp);
-	arena_stats_accum_zu(&astats->resident, base_resident +
+	atomic_load_add_store_zu(&astats->base, base_allocated);
+	atomic_load_add_store_zu(&astats->internal, arena_internal_get(arena));
+	atomic_load_add_store_zu(&astats->metadata_thp, metadata_thp);
+	atomic_load_add_store_zu(&astats->resident, base_resident +
 	    (((atomic_load_zu(&arena->nactive, ATOMIC_RELAXED) +
 	    ecache_npages_get(&arena->pa_shard.ecache_dirty) +
 	    ecache_npages_get(&arena->pa_shard.ecache_muzzy)) << LG_PAGE)));
-	arena_stats_accum_zu(&astats->pa_shard_stats.abandoned_vm,
+	atomic_load_add_store_zu(&astats->pa_shard_stats.abandoned_vm,
 	    atomic_load_zu(&arena->stats.pa_shard_stats.abandoned_vm,
 	    ATOMIC_RELAXED));
 
 	for (szind_t i = 0; i < SC_NSIZES - SC_NBINS; i++) {
-		uint64_t nmalloc = arena_stats_read_u64(tsdn, &arena->stats,
+		uint64_t nmalloc = locked_read_u64(tsdn,
+		    LOCKEDINT_MTX(arena->stats.mtx),
 		    &arena->stats.lstats[i].nmalloc);
-		arena_stats_accum_u64(&lstats[i].nmalloc, nmalloc);
-		arena_stats_accum_u64(&astats->nmalloc_large, nmalloc);
+		locked_inc_u64_unsynchronized(&lstats[i].nmalloc, nmalloc);
+		locked_inc_u64_unsynchronized(&astats->nmalloc_large,
+		    nmalloc);
 
-		uint64_t ndalloc = arena_stats_read_u64(tsdn, &arena->stats,
+		uint64_t ndalloc = locked_read_u64(tsdn,
+		    LOCKEDINT_MTX(arena->stats.mtx),
 		    &arena->stats.lstats[i].ndalloc);
-		arena_stats_accum_u64(&lstats[i].ndalloc, ndalloc);
-		arena_stats_accum_u64(&astats->ndalloc_large, ndalloc);
+		locked_inc_u64_unsynchronized(&lstats[i].ndalloc, ndalloc);
+		locked_inc_u64_unsynchronized(&astats->ndalloc_large,
+		    ndalloc);
 
-		uint64_t nrequests = arena_stats_read_u64(tsdn, &arena->stats,
+		uint64_t nrequests = locked_read_u64(tsdn,
+		    LOCKEDINT_MTX(arena->stats.mtx),
 		    &arena->stats.lstats[i].nrequests);
-		arena_stats_accum_u64(&lstats[i].nrequests,
+		locked_inc_u64_unsynchronized(&lstats[i].nrequests,
 		    nmalloc + nrequests);
-		arena_stats_accum_u64(&astats->nrequests_large,
+		locked_inc_u64_unsynchronized(&astats->nrequests_large,
 		    nmalloc + nrequests);
 
 		/* nfill == nmalloc for large currently. */
-		arena_stats_accum_u64(&lstats[i].nfills, nmalloc);
-		arena_stats_accum_u64(&astats->nfills_large, nmalloc);
+		locked_inc_u64_unsynchronized(&lstats[i].nfills, nmalloc);
+		locked_inc_u64_unsynchronized(&astats->nfills_large,
+		    nmalloc);
 
-		uint64_t nflush = arena_stats_read_u64(tsdn, &arena->stats,
+		uint64_t nflush = locked_read_u64(tsdn,
+		    LOCKEDINT_MTX(arena->stats.mtx),
 		    &arena->stats.lstats[i].nflushes);
-		arena_stats_accum_u64(&lstats[i].nflushes, nflush);
-		arena_stats_accum_u64(&astats->nflushes_large, nflush);
+		locked_inc_u64_unsynchronized(&lstats[i].nflushes, nflush);
+		locked_inc_u64_unsynchronized(&astats->nflushes_large,
+		    nflush);
 
 		assert(nmalloc >= ndalloc);
 		assert(nmalloc - ndalloc <= SIZE_T_MAX);
 		size_t curlextents = (size_t)(nmalloc - ndalloc);
 		lstats[i].curlextents += curlextents;
-		arena_stats_accum_zu(&astats->allocated_large,
+		atomic_load_add_store_zu(&astats->allocated_large,
 		    curlextents * sz_index2size(SC_NBINS + i));
 	}
 
@@ -195,7 +204,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 		    ATOMIC_RELAXED);
 	}
 
-	arena_stats_unlock(tsdn, &arena->stats);
+	LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 
 	/* tcache_bytes counts currently cached bytes. */
 	atomic_store_zu(&astats->tcache_bytes, 0, ATOMIC_RELAXED);
@@ -204,13 +213,13 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	ql_foreach(descriptor, &arena->cache_bin_array_descriptor_ql, link) {
 		for (szind_t i = 0; i < SC_NBINS; i++) {
 			cache_bin_t *tbin = &descriptor->bins_small[i];
-			arena_stats_accum_zu(&astats->tcache_bytes,
-			    cache_bin_ncached_get(tbin, &tcache_bin_info[i])
-			    * sz_index2size(i));
+			atomic_load_add_store_zu(&astats->tcache_bytes,
+			    cache_bin_ncached_get(tbin,
+			    &tcache_bin_info[i]) * sz_index2size(i));
 		}
 		for (szind_t i = 0; i < nhbins - SC_NBINS; i++) {
 			cache_bin_t *tbin = &descriptor->bins_large[i];
-			arena_stats_accum_zu(&astats->tcache_bytes,
+			atomic_load_add_store_zu(&astats->tcache_bytes,
 			    cache_bin_ncached_get(tbin,
 			    &tcache_bin_info[i + SC_NBINS])
 			    * sz_index2size(i + SC_NBINS));
@@ -397,7 +406,7 @@ arena_large_malloc_stats_update(tsdn_t *tsdn, arena_t *arena, size_t usize) {
 	index = sz_size2index(usize);
 	hindex = (index >= SC_NBINS) ? index - SC_NBINS : 0;
 
-	arena_stats_add_u64(tsdn, &arena->stats,
+	locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
 	    &arena->stats.lstats[hindex].nmalloc, 1);
 }
 
@@ -413,7 +422,7 @@ arena_large_dalloc_stats_update(tsdn_t *tsdn, arena_t *arena, size_t usize) {
 	index = sz_size2index(usize);
 	hindex = (index >= SC_NBINS) ? index - SC_NBINS : 0;
 
-	arena_stats_add_u64(tsdn, &arena->stats,
+	locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
 	    &arena->stats.lstats[hindex].ndalloc, 1);
 }
 
@@ -466,13 +475,14 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 
 	if (edata != NULL) {
 		if (config_stats) {
-			arena_stats_lock(tsdn, &arena->stats);
+			LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 			arena_large_malloc_stats_update(tsdn, arena, usize);
 			if (mapped_add != 0) {
-				arena_stats_add_zu(tsdn, &arena->stats,
+				locked_inc_zu(tsdn,
+				    LOCKEDINT_MTX(arena->stats.mtx),
 				    &arena->stats.mapped, mapped_add);
 			}
-			arena_stats_unlock(tsdn, &arena->stats);
+			LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 		}
 		arena_nactive_add(arena, esize >> LG_PAGE);
 	}
@@ -487,10 +497,10 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 void
 arena_extent_dalloc_large_prep(tsdn_t *tsdn, arena_t *arena, edata_t *edata) {
 	if (config_stats) {
-		arena_stats_lock(tsdn, &arena->stats);
+		LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 		arena_large_dalloc_stats_update(tsdn, arena,
 		    edata_usize_get(edata));
-		arena_stats_unlock(tsdn, &arena->stats);
+		LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 	}
 	arena_nactive_sub(arena, edata_size_get(edata) >> LG_PAGE);
 }
@@ -502,9 +512,9 @@ arena_extent_ralloc_large_shrink(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
 	size_t udiff = oldusize - usize;
 
 	if (config_stats) {
-		arena_stats_lock(tsdn, &arena->stats);
+		LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 		arena_large_ralloc_stats_update(tsdn, arena, oldusize, usize);
-		arena_stats_unlock(tsdn, &arena->stats);
+		LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 	}
 	arena_nactive_sub(arena, udiff >> LG_PAGE);
 }
@@ -516,9 +526,9 @@ arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
 	size_t udiff = usize - oldusize;
 
 	if (config_stats) {
-		arena_stats_lock(tsdn, &arena->stats);
+		LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 		arena_large_ralloc_stats_update(tsdn, arena, oldusize, usize);
-		arena_stats_unlock(tsdn, &arena->stats);
+		LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 	}
 	arena_nactive_add(arena, udiff >> LG_PAGE);
 }
@@ -894,16 +904,16 @@ arena_decay_stashed(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	}
 
 	if (config_stats) {
-		arena_stats_lock(tsdn, &arena->stats);
-		arena_stats_add_u64(tsdn, &arena->stats, &decay->stats->npurge,
-		    1);
-		arena_stats_add_u64(tsdn, &arena->stats,
+		LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
+		locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
+		    &decay->stats->npurge, 1);
+		locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
 		    &decay->stats->nmadvise, nmadvise);
-		arena_stats_add_u64(tsdn, &arena->stats, &decay->stats->purged,
-		    npurged);
-		arena_stats_sub_zu(tsdn, &arena->stats, &arena->stats.mapped,
-		    nunmapped << LG_PAGE);
-		arena_stats_unlock(tsdn, &arena->stats);
+		locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
+		&decay->stats->purged, npurged);
+		locked_dec_zu(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
+		    &arena->stats.mapped, nunmapped << LG_PAGE);
+		LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 	}
 
 	return npurged;
