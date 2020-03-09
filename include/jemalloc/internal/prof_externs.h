@@ -53,7 +53,7 @@ void prof_idump_rollback_impl(tsdn_t *tsdn, size_t usize);
 prof_tdata_t *prof_tdata_init(tsd_t *tsd);
 prof_tdata_t *prof_tdata_reinit(tsd_t *tsd, prof_tdata_t *tdata);
 
-void prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated);
+void prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx);
 void prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t size,
     size_t usize, prof_tctx_t *tctx);
 void prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_info_t *prof_info);

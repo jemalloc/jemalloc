@@ -118,27 +118,12 @@ prof_strncpy(char *UNUSED dest, const char *UNUSED src, size_t UNUSED size) {
 }
 
 void
-prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx, bool updated) {
+prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx) {
 	cassert(config_prof);
 
 	if (tsd_reentrancy_level_get(tsd) > 0) {
 		assert((uintptr_t)tctx == (uintptr_t)1U);
 		return;
-	}
-
-	prof_tdata_t *tdata;
-
-	if (updated) {
-		/*
-		 * Compute a new sample threshold.  This isn't very important in
-		 * practice, because this function is rarely executed, so the
-		 * potential for sample bias is minimal except in contrived
-		 * programs.
-		 */
-		tdata = prof_tdata_get(tsd, true);
-		if (tdata != NULL) {
-			prof_sample_threshold_update(tsd);
-		}
 	}
 
 	if ((uintptr_t)tctx > (uintptr_t)1U) {

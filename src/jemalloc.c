@@ -2159,8 +2159,6 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 		dopts->arena_ind = 0;
 	}
 
-	thread_alloc_event(tsd, usize);
-
 	/*
 	 * If dopts->alignment > 0, then ind is still 0, but usize was computed
 	 * in the previous if statement.  Down the positive alignment path,
@@ -2169,8 +2167,8 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 
 	/* If profiling is on, get our profiling context. */
 	if (config_prof && opt_prof) {
-		prof_tctx_t *tctx = prof_alloc_prep(
-		    tsd, usize, prof_active_get_unlocked(), true);
+		bool prof_active = prof_active_get_unlocked();
+		prof_tctx_t *tctx = prof_alloc_prep(tsd, usize, prof_active);
 
 		emap_alloc_ctx_t alloc_ctx;
 		if (likely((uintptr_t)tctx == (uintptr_t)1U)) {
@@ -2186,8 +2184,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 		}
 
 		if (unlikely(allocation == NULL)) {
-			te_alloc_rollback(tsd, usize);
-			prof_alloc_rollback(tsd, tctx, true);
+			prof_alloc_rollback(tsd, tctx);
 			goto label_oom;
 		}
 		prof_malloc(tsd, allocation, size, usize, &alloc_ctx, tctx);
@@ -2196,7 +2193,6 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 		allocation = imalloc_no_sample(sopts, dopts, tsd, size, usize,
 		    ind);
 		if (unlikely(allocation == NULL)) {
-			te_alloc_rollback(tsd, usize);
 			goto label_oom;
 		}
 	}
@@ -2205,6 +2201,9 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	 * Allocation has been done at this point.  We still have some
 	 * post-allocation work to do though.
 	 */
+
+	thread_alloc_event(tsd, usize);
+
 	assert(dopts->alignment == 0
 	    || ((uintptr_t)allocation & (dopts->alignment - 1)) == ZU(0));
 
@@ -3076,7 +3075,7 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 	prof_info_t old_prof_info;
 	prof_info_get_and_reset_recent(tsd, old_ptr, alloc_ctx, &old_prof_info);
 	bool prof_active = prof_active_get_unlocked();
-	prof_tctx_t *tctx = prof_alloc_prep(tsd, *usize, prof_active, false);
+	prof_tctx_t *tctx = prof_alloc_prep(tsd, *usize, prof_active);
 	void *p;
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
 		p = irallocx_prof_sample(tsd_tsdn(tsd), old_ptr, old_usize,
@@ -3086,7 +3085,7 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 		    zero, tcache, arena, hook_args);
 	}
 	if (unlikely(p == NULL)) {
-		prof_alloc_rollback(tsd, tctx, false);
+		prof_alloc_rollback(tsd, tctx);
 		return NULL;
 	}
 
@@ -3099,8 +3098,10 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 		 * be the same as the current usize because of in-place large
 		 * reallocation.  Therefore, query the actual value of usize.
 		 */
+		assert(*usize >= isalloc(tsd_tsdn(tsd), p));
 		*usize = isalloc(tsd_tsdn(tsd), p);
 	}
+
 	prof_realloc(tsd, p, size, *usize, tctx, prof_active, old_ptr,
 	    old_usize, &old_prof_info);
 
@@ -3158,11 +3159,9 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 		if (unlikely(usize == 0 || usize > SC_LARGE_MAXCLASS)) {
 			goto label_oom;
 		}
-		thread_alloc_event(tsd, usize);
 		p = irallocx_prof(tsd, ptr, old_usize, size, alignment, &usize,
 		    zero, tcache, arena, &alloc_ctx, &hook_args);
 		if (unlikely(p == NULL)) {
-			te_alloc_rollback(tsd, usize);
 			goto label_oom;
 		}
 	} else {
@@ -3172,9 +3171,9 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 			goto label_oom;
 		}
 		usize = isalloc(tsd_tsdn(tsd), p);
-		thread_alloc_event(tsd, usize);
 	}
 	assert(alignment == 0 || ((uintptr_t)p & (alignment - 1)) == ZU(0));
+	thread_alloc_event(tsd, usize);
 	thread_dalloc_event(tsd, old_usize);
 
 	UTRACE(ptr, size, p);
@@ -3350,9 +3349,8 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 			usize_max = SC_LARGE_MAXCLASS;
 		}
 	}
-	thread_alloc_event(tsd, usize_max);
 	bool prof_active = prof_active_get_unlocked();
-	prof_tctx_t *tctx = prof_alloc_prep(tsd, usize_max, prof_active, false);
+	prof_tctx_t *tctx = prof_alloc_prep(tsd, usize_max, prof_active);
 
 	size_t usize;
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
@@ -3361,18 +3359,6 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 	} else {
 		usize = ixallocx_helper(tsd_tsdn(tsd), ptr, old_usize, size,
 		    extra, alignment, zero);
-	}
-	if (usize <= usize_max) {
-		te_alloc_rollback(tsd, usize_max - usize);
-	} else {
-		/*
-		 * For downsizing request, usize_max can be less than usize.
-		 * We here further increase thread event counters so as to
-		 * record the true usize, and then when the execution goes back
-		 * to xallocx(), the entire usize will be rolled back if it's
-		 * equal to the old usize.
-		 */
-		thread_alloc_event(tsd, usize - usize_max);
 	}
 
 	/*
@@ -3386,9 +3372,10 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 	prof_info_t prof_info;
 	if (usize == old_usize) {
 		prof_info_get(tsd, ptr, alloc_ctx, &prof_info);
-		prof_alloc_rollback(tsd, tctx, false);
+		prof_alloc_rollback(tsd, tctx);
 	} else {
 		prof_info_get_and_reset_recent(tsd, ptr, alloc_ctx, &prof_info);
+		assert(usize <= usize_max);
 		prof_realloc(tsd, ptr, size, usize, tctx, prof_active, ptr,
 		    old_usize, &prof_info);
 	}
@@ -3450,7 +3437,6 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	} else {
 		usize = ixallocx_helper(tsd_tsdn(tsd), ptr, old_usize, size,
 		    extra, alignment, zero);
-		thread_alloc_event(tsd, usize);
 	}
 
 	/*
@@ -3461,9 +3447,9 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	    == old_edata);
 
 	if (unlikely(usize == old_usize)) {
-		te_alloc_rollback(tsd, usize);
 		goto label_not_resized;
 	}
+	thread_alloc_event(tsd, usize);
 	thread_dalloc_event(tsd, old_usize);
 label_not_resized:
 	if (unlikely(!tsd_fast(tsd))) {
