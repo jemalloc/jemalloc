@@ -1979,11 +1979,6 @@ arena_nthreads_dec(arena_t *arena, bool internal) {
 	atomic_fetch_sub_u(&arena->nthreads[internal], 1, ATOMIC_RELAXED);
 }
 
-size_t
-arena_extent_sn_next(arena_t *arena) {
-	return atomic_fetch_add_zu(&arena->extent_sn_next, 1, ATOMIC_RELAXED);
-}
-
 arena_t *
 arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	arena_t *arena;
@@ -2031,8 +2026,6 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 			goto label_error;
 		}
 	}
-
-	atomic_store_zu(&arena->extent_sn_next, 0, ATOMIC_RELAXED);
 
 	atomic_store_u(&arena->dss_prec, (unsigned)extent_dss_prec_get(),
 	    ATOMIC_RELAXED);

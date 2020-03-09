@@ -81,7 +81,6 @@ bool arena_retain_grow_limit_get_set(tsd_t *tsd, arena_t *arena,
 unsigned arena_nthreads_get(arena_t *arena, bool internal);
 void arena_nthreads_inc(arena_t *arena, bool internal);
 void arena_nthreads_dec(arena_t *arena, bool internal);
-size_t arena_extent_sn_next(arena_t *arena);
 arena_t *arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks);
 bool arena_init_huge(void);
 bool arena_is_huge(unsigned arena_ind);
