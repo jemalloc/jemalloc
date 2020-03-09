@@ -105,25 +105,33 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	    atomic_load_zu(&arena->pa_shard.edata_cache.count, ATOMIC_RELAXED),
 	    ATOMIC_RELAXED);
 
-	lockedstat_inc_u64_unsynchronized(&astats->decay_dirty.npurge,
+	/* Dirty pa_shard_decay_stats_t */
+	lockedstat_inc_u64_unsynchronized(
+	    &astats->pa_shard_stats.decay_dirty.npurge,
 	    lockedstat_read_u64(tsdn, LOCKEDSTAT_MTX(arena->stats.mtx),
-	    &arena->stats.decay_dirty.npurge));
-	lockedstat_inc_u64_unsynchronized(&astats->decay_dirty.nmadvise,
+	    &arena->pa_shard.stats->decay_dirty.npurge));
+	lockedstat_inc_u64_unsynchronized(
+	    &astats->pa_shard_stats.decay_dirty.nmadvise,
 	    lockedstat_read_u64(tsdn, LOCKEDSTAT_MTX(arena->stats.mtx),
-	    &arena->stats.decay_dirty.nmadvise));
-	lockedstat_inc_u64_unsynchronized(&astats->decay_dirty.purged,
+	    &arena->pa_shard.stats->decay_dirty.nmadvise));
+	lockedstat_inc_u64_unsynchronized(
+	    &astats->pa_shard_stats.decay_dirty.purged,
 	    lockedstat_read_u64(tsdn, LOCKEDSTAT_MTX(arena->stats.mtx),
-	    &arena->stats.decay_dirty.purged));
+	    &arena->pa_shard.stats->decay_dirty.purged));
 
-	lockedstat_inc_u64_unsynchronized(&astats->decay_muzzy.npurge,
+	/* Muzzy pa_shard_decay_stats_t */
+	lockedstat_inc_u64_unsynchronized(
+	    &astats->pa_shard_stats.decay_muzzy.npurge,
 	    lockedstat_read_u64(tsdn, LOCKEDSTAT_MTX(arena->stats.mtx),
-	    &arena->stats.decay_muzzy.npurge));
-	lockedstat_inc_u64_unsynchronized(&astats->decay_muzzy.nmadvise,
+	    &arena->pa_shard.stats->decay_muzzy.npurge));
+	lockedstat_inc_u64_unsynchronized(
+	    &astats->pa_shard_stats.decay_muzzy.nmadvise,
 	    lockedstat_read_u64(tsdn, LOCKEDSTAT_MTX(arena->stats.mtx),
-	    &arena->stats.decay_muzzy.nmadvise));
-	lockedstat_inc_u64_unsynchronized(&astats->decay_muzzy.purged,
+	    &arena->pa_shard.stats->decay_muzzy.nmadvise));
+	lockedstat_inc_u64_unsynchronized(
+	    &astats->pa_shard_stats.decay_muzzy.purged,
 	    lockedstat_read_u64(tsdn, LOCKEDSTAT_MTX(arena->stats.mtx),
-	    &arena->stats.decay_muzzy.purged));
+	    &arena->pa_shard.stats->decay_muzzy.purged));
 
 	atomic_load_add_store_zu(&astats->base, base_allocated);
 	atomic_load_add_store_zu(&astats->internal, arena_internal_get(arena));
@@ -695,7 +703,7 @@ arena_decay_reinit(arena_decay_t *decay, ssize_t decay_ms) {
 
 static bool
 arena_decay_init(arena_decay_t *decay, ssize_t decay_ms,
-    arena_stats_decay_t *stats) {
+    pa_shard_decay_stats_t *stats) {
 	if (config_debug) {
 		for (size_t i = 0; i < sizeof(arena_decay_t); i++) {
 			assert(((char *)decay)[i] == 0);
@@ -708,7 +716,6 @@ arena_decay_init(arena_decay_t *decay, ssize_t decay_ms,
 	}
 	decay->purging = false;
 	arena_decay_reinit(decay, decay_ms);
-	/* Memory is zeroed, so there is no need to clear stats. */
 	if (config_stats) {
 		decay->stats = stats;
 	}
@@ -2044,11 +2051,13 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	}
 
 	if (arena_decay_init(&arena->decay_dirty,
-	    arena_dirty_decay_ms_default_get(), &arena->stats.decay_dirty)) {
+	    arena_dirty_decay_ms_default_get(),
+	    &arena->pa_shard.stats->decay_dirty)) {
 		goto label_error;
 	}
 	if (arena_decay_init(&arena->decay_muzzy,
-	    arena_muzzy_decay_ms_default_get(), &arena->stats.decay_muzzy)) {
+	    arena_muzzy_decay_ms_default_get(),
+	    &arena->pa_shard.stats->decay_muzzy)) {
 		goto label_error;
 	}
 
