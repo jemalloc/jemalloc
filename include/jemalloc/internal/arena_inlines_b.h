@@ -148,14 +148,14 @@ arena_decay_extent(tsdn_t *tsdn,arena_t *arena, ehooks_t *ehooks,
 	extent_dalloc_wrapper(tsdn, arena, ehooks, edata);
 	if (config_stats) {
 		/* Update stats accordingly. */
-		arena_stats_lock(tsdn, &arena->stats);
-		arena_stats_add_u64(tsdn, &arena->stats,
+		LOCKEDSTAT_MTX_LOCK(tsdn, arena->stats.mtx);
+		lockedstat_inc_u64(tsdn, LOCKEDSTAT_MTX(arena->stats.mtx),
 		    &arena->decay_dirty.stats->nmadvise, 1);
-		arena_stats_add_u64(tsdn, &arena->stats,
+		lockedstat_inc_u64(tsdn, LOCKEDSTAT_MTX(arena->stats.mtx),
 		    &arena->decay_dirty.stats->purged, extent_size >> LG_PAGE);
-		arena_stats_sub_zu(tsdn, &arena->stats, &arena->stats.mapped,
-		    extent_size);
-		arena_stats_unlock(tsdn, &arena->stats);
+		lockedstat_dec_zu(tsdn, LOCKEDSTAT_MTX(arena->stats.mtx),
+		    &arena->stats.mapped, extent_size);
+		LOCKEDSTAT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 	}
 }
 
