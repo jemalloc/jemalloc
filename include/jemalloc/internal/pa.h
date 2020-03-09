@@ -46,11 +46,15 @@ struct pa_shard_s {
 	/* The grow info for the retained ecache. */
 	ecache_grow_t ecache_grow;
 
+	/* Extent serial number generator state. */
+	atomic_zu_t extent_sn_next;
+
 	pa_shard_stats_t *stats;
 };
 
 /* Returns true on error. */
 bool pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
     pa_shard_stats_t *stats);
+size_t pa_shard_extent_sn_next(pa_shard_t *shard);
 
 #endif /* JEMALLOC_INTERNAL_PA_H */
