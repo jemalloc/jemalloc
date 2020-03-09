@@ -151,7 +151,7 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
 	emap_remap(tsdn, &emap_global, edata, szind, false);
 
 	if (config_stats && new_mapping) {
-		arena_stats_mapped_add(tsdn, &arena->stats, trailsize);
+		pa_shard_stats_mapped_add(tsdn, &arena->pa_shard, trailsize);
 	}
 
 	if (zero) {

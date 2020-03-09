@@ -3,7 +3,7 @@
 
 bool
 pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
-    pa_shard_stats_t *stats) {
+    pa_shard_stats_t *stats, malloc_mutex_t *stats_mtx) {
 	/* This will change eventually, but for now it should hold. */
 	assert(base_ind_get(base) == ind);
 	/*
@@ -44,6 +44,7 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
 
 	atomic_store_zu(&shard->extent_sn_next, 0, ATOMIC_RELAXED);
 
+	shard->stats_mtx = stats_mtx;
 	shard->stats = stats;
 	memset(shard->stats, 0, sizeof(*shard->stats));
 

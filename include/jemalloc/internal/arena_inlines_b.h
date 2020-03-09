@@ -148,15 +148,18 @@ arena_decay_extent(tsdn_t *tsdn,arena_t *arena, ehooks_t *ehooks,
 	extent_dalloc_wrapper(tsdn, arena, ehooks, edata);
 	if (config_stats) {
 		/* Update stats accordingly. */
-		LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
-		locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
+		LOCKEDINT_MTX_LOCK(tsdn, *arena->pa_shard.stats_mtx);
+		locked_inc_u64(tsdn,
+		    LOCKEDINT_MTX(*arena->pa_shard.stats_mtx),
 		    &arena->pa_shard.stats->decay_dirty.nmadvise, 1);
-		locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
+		locked_inc_u64(tsdn,
+		    LOCKEDINT_MTX(*arena->pa_shard.stats_mtx),
 		    &arena->pa_shard.stats->decay_dirty.purged,
 		    extent_size >> LG_PAGE);
-		locked_dec_zu(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
-		    &arena->stats.mapped, extent_size);
-		LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
+		locked_dec_zu(tsdn,
+		    LOCKEDINT_MTX(*arena->pa_shard.stats_mtx),
+		    &arena->pa_shard.stats->mapped, extent_size);
+		LOCKEDINT_MTX_UNLOCK(tsdn, *arena->pa_shard.stats_mtx);
 	}
 }
 
