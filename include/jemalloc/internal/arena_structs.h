@@ -122,13 +122,6 @@ struct arena_s {
 	counter_accum_t		prof_accum;
 
 	/*
-	 * Extent serial number generator state.
-	 *
-	 * Synchronization: atomic.
-	 */
-	atomic_zu_t		extent_sn_next;
-
-	/*
 	 * Represents a dss_prec_t, but atomically.
 	 *
 	 * Synchronization: atomic.

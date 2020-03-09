@@ -662,8 +662,9 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	}
 
 	edata_init(edata, ecache_ind_get(&arena->pa_shard.ecache_retained), ptr,
-	    alloc_size, false, SC_NSIZES, arena_extent_sn_next(arena),
-	    extent_state_active, zeroed, committed, true, EXTENT_IS_HEAD);
+	    alloc_size, false, SC_NSIZES,
+	    pa_shard_extent_sn_next(&arena->pa_shard), extent_state_active,
+	    zeroed, committed, true, EXTENT_IS_HEAD);
 
 	if (extent_register_no_gdump_add(tsdn, edata)) {
 		edata_cache_put(tsdn, &arena->pa_shard.edata_cache, edata);
@@ -816,8 +817,8 @@ extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		return NULL;
 	}
 	edata_init(edata, ecache_ind_get(&arena->pa_shard.ecache_dirty), addr,
-	    size, slab, szind, arena_extent_sn_next(arena), extent_state_active,
-	    *zero, *commit, true, EXTENT_NOT_HEAD);
+	    size, slab, szind, pa_shard_extent_sn_next(&arena->pa_shard),
+	    extent_state_active, *zero, *commit, true, EXTENT_NOT_HEAD);
 	if (extent_register(tsdn, edata)) {
 		edata_cache_put(tsdn, &arena->pa_shard.edata_cache, edata);
 		return NULL;

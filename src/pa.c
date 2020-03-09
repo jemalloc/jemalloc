@@ -42,8 +42,15 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
 		return true;
 	}
 
+	atomic_store_zu(&shard->extent_sn_next, 0, ATOMIC_RELAXED);
+
 	shard->stats = stats;
 	memset(shard->stats, 0, sizeof(*shard->stats));
 
 	return false;
+}
+
+size_t
+pa_shard_extent_sn_next(pa_shard_t *shard) {
+	return atomic_fetch_add_zu(&shard->extent_sn_next, 1, ATOMIC_RELAXED);
 }
