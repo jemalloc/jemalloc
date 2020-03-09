@@ -78,17 +78,7 @@ te_prof_sample_event_handler(tsd_t *tsd) {
 	if (prof_idump_accum(tsd_tsdn(tsd), last_event - last_sample_event)) {
 		prof_idump(tsd_tsdn(tsd));
 	}
-	if (!prof_active_get_unlocked()) {
-		/*
-		 * If prof_active is off, we reset prof_sample_event_wait to be
-		 * the sample interval when it drops to 0, so that there won't
-		 * be excessive routings to the slow path, and that when
-		 * prof_active is turned on later, the counting for sampling
-		 * can immediately resume as normal.
-		 */
-		te_prof_sample_event_update(tsd,
-		    (uint64_t)(1 << lg_prof_sample));
-	}
+	te_tsd_prof_sample_event_init(tsd);
 }
 
 static void

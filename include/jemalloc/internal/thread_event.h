@@ -218,6 +218,13 @@ te_ctx_get(tsd_t *tsd, te_ctx_t *ctx, bool is_alloc) {
 	}
 }
 
+JEMALLOC_ALWAYS_INLINE bool
+te_prof_sample_event_lookahead(tsd_t *tsd, size_t usize) {
+	return tsd_thread_allocated_get(tsd) + usize -
+	    tsd_thread_allocated_last_event_get(tsd) >=
+	    tsd_prof_sample_event_wait_get(tsd);
+}
+
 JEMALLOC_ALWAYS_INLINE void
 te_event_advance(tsd_t *tsd, size_t usize, bool is_alloc) {
 	te_assert_invariants(tsd);

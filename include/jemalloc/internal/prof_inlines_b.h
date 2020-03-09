@@ -85,11 +85,11 @@ prof_info_set(tsd_t *tsd, edata_t *edata, prof_tctx_t *tctx) {
 }
 
 JEMALLOC_ALWAYS_INLINE bool
-prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update) {
+prof_sample_should_skip(tsd_t *tsd, size_t usize) {
 	cassert(config_prof);
 
 	/* Fastpath: no need to load tdata */
-	if (likely(prof_sample_event_wait_get(tsd) > 0)) {
+	if (likely(!te_prof_sample_event_lookahead(tsd, usize))) {
 		return true;
 	}
 
@@ -102,21 +102,16 @@ prof_sample_accum_update(tsd_t *tsd, size_t usize, bool update) {
 		return true;
 	}
 
-	/* Compute new sample threshold. */
-	if (update) {
-		prof_sample_threshold_update(tsd);
-	}
 	return !tdata->active;
 }
 
 JEMALLOC_ALWAYS_INLINE prof_tctx_t *
-prof_alloc_prep(tsd_t *tsd, size_t usize, bool prof_active, bool update) {
+prof_alloc_prep(tsd_t *tsd, size_t usize, bool prof_active) {
 	prof_tctx_t *ret;
 
 	assert(usize == sz_s2u(usize));
 
-	if (!prof_active ||
-	    likely(prof_sample_accum_update(tsd, usize, update))) {
+	if (!prof_active || likely(prof_sample_should_skip(tsd, usize))) {
 		ret = (prof_tctx_t *)(uintptr_t)1U;
 	} else {
 		ret = prof_tctx_create(tsd);
@@ -150,7 +145,7 @@ prof_realloc(tsd_t *tsd, const void *ptr, size_t size, size_t usize,
 
 	if (prof_active && ptr != NULL) {
 		assert(usize == isalloc(tsd_tsdn(tsd), ptr));
-		if (prof_sample_accum_update(tsd, usize, true)) {
+		if (prof_sample_should_skip(tsd, usize)) {
 			/*
 			 * Don't sample.  The usize passed to prof_alloc_prep()
 			 * was larger than what actually got allocated, so a
@@ -158,7 +153,7 @@ prof_realloc(tsd_t *tsd, const void *ptr, size_t size, size_t usize,
 			 * though its actual usize was insufficient to cross the
 			 * sample threshold.
 			 */
-			prof_alloc_rollback(tsd, tctx, true);
+			prof_alloc_rollback(tsd, tctx);
 			tctx = (prof_tctx_t *)(uintptr_t)1U;
 		}
 	}
