@@ -106,6 +106,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/ckh.c \
 	$(srcroot)src/counter.c \
 	$(srcroot)src/ctl.c \
+	$(srcroot)src/decay.c \
 	$(srcroot)src/div.c \
 	$(srcroot)src/ecache.c \
 	$(srcroot)src/edata.c \
