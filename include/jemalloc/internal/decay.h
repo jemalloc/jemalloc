@@ -8,6 +8,15 @@
  * Page allocators inform a decay object when pages enter a decay-able state
  * (i.e. dirty or muzzy), and query it to determine how many pages should be
  * purged at any given time.
+ *
+ * This is mostly a single-threaded data structure and doesn't care about
+ * synchronization at all; it's the caller's responsibility to manage their
+ * synchronization on their own.  There are two exceptions:
+ * 1) It's OK to racily call decay_ms_read (i.e. just the simplest state query).
+ * 2) The mtx and purging fields live (and are initialized) here, but are
+ *    logically owned by the page allocator.  This is just a convenience (since
+ *    those fields would be duplicated for both the dirty and muzzy states
+ *    otherwise).
  */
 typedef struct decay_s decay_t;
 struct decay_s {
@@ -45,6 +54,12 @@ struct decay_s {
 	 */
 	nstime_t deadline;
 	/*
+	 * The number of pages we cap ourselves at in the current epoch, per
+	 * decay policies.  Updated on an epoch change.  After an epoch change,
+	 * the caller should take steps to try to purge down to this amount.
+	 */
+	size_t npages_limit;
+	/*
 	 * Number of unpurged pages at beginning of current epoch.  During epoch
 	 * advancement we use the delta between arena->decay_*.nunpurged and
 	 * ecache_npages_get(&arena->ecache_*) to determine how many dirty pages,
@@ -56,11 +71,50 @@ struct decay_s {
 	 * each of the past SMOOTHSTEP_NSTEPS decay epochs, where the last
 	 * element is the most recent epoch.  Corresponding epoch times are
 	 * relative to epoch.
+	 *
+	 * Updated only on epoch advance, triggered by
+	 * decay_maybe_advance_epoch, below.
 	 */
 	size_t backlog[SMOOTHSTEP_NSTEPS];
 
 	/* Peak number of pages in associated extents.  Used for debug only. */
 	uint64_t ceil_npages;
 };
+
+static inline ssize_t
+decay_ms_read(const decay_t *decay) {
+	return atomic_load_zd(&decay->time_ms, ATOMIC_RELAXED);
+}
+
+static inline size_t
+decay_npages_limit_get(const decay_t *decay) {
+	return decay->npages_limit;
+}
+
+/* How many unused dirty pages were generated during the last epoch. */
+static inline size_t
+decay_epoch_npages_delta(const decay_t *decay) {
+	return decay->backlog[SMOOTHSTEP_NSTEPS - 1];
+}
+
+bool decay_ms_valid(ssize_t decay_ms);
+
+/*
+ * As a precondition, the decay_t must be zeroed out (as if with memset).
+ *
+ * Returns true on error.
+ */
+bool decay_init(decay_t *decay, ssize_t decay_ms);
+
+/*
+ * Given an already-initialized decay_t, reinitialize it with the given decay
+ * time.  The decay_t must have previously been initialized (and should not then
+ * be zeroed).
+ */
+void decay_reinit(decay_t *decay, ssize_t decay_ms);
+
+/* Returns true if the epoch advanced and there are pages to purge. */
+bool decay_maybe_advance_epoch(decay_t *decay, nstime_t *new_time,
+    size_t current_npages);
 
 #endif /* JEMALLOC_INTERNAL_DECAY_H */
