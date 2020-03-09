@@ -37,16 +37,6 @@ struct arena_stats_large_s {
 	size_t		curlextents; /* Derived. */
 };
 
-typedef struct arena_stats_decay_s arena_stats_decay_t;
-struct arena_stats_decay_s {
-	/* Total number of purge sweeps. */
-	locked_u64_t	npurge;
-	/* Total number of madvise calls made. */
-	locked_u64_t	nmadvise;
-	/* Total number of pages purged. */
-	locked_u64_t	purged;
-};
-
 typedef struct arena_stats_extents_s arena_stats_extents_t;
 struct arena_stats_extents_s {
 	/*
@@ -86,9 +76,6 @@ struct arena_stats_s {
 
 	/* Number of edata_t structs allocated by base, but not being used. */
 	atomic_zu_t		edata_avail;
-
-	arena_stats_decay_t	decay_dirty;
-	arena_stats_decay_t	decay_muzzy;
 
 	atomic_zu_t		base; /* Derived. */
 	atomic_zu_t		internal;

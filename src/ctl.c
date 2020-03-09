@@ -869,19 +869,25 @@ ctl_arena_stats_sdmerge(ctl_arena_t *ctl_sdarena, ctl_arena_t *ctl_arena,
 			    &astats->astats.edata_avail);
 		}
 
-		ctl_accum_locked_u64(&sdstats->astats.decay_dirty.npurge,
-		    &astats->astats.decay_dirty.npurge);
-		ctl_accum_locked_u64(&sdstats->astats.decay_dirty.nmadvise,
-		    &astats->astats.decay_dirty.nmadvise);
-		ctl_accum_locked_u64(&sdstats->astats.decay_dirty.purged,
-		    &astats->astats.decay_dirty.purged);
+		ctl_accum_locked_u64(
+		    &sdstats->astats.pa_shard_stats.decay_dirty.npurge,
+		    &astats->astats.pa_shard_stats.decay_dirty.npurge);
+		ctl_accum_locked_u64(
+		    &sdstats->astats.pa_shard_stats.decay_dirty.nmadvise,
+		    &astats->astats.pa_shard_stats.decay_dirty.nmadvise);
+		ctl_accum_locked_u64(
+		    &sdstats->astats.pa_shard_stats.decay_dirty.purged,
+		    &astats->astats.pa_shard_stats.decay_dirty.purged);
 
-		ctl_accum_locked_u64(&sdstats->astats.decay_muzzy.npurge,
-		    &astats->astats.decay_muzzy.npurge);
-		ctl_accum_locked_u64(&sdstats->astats.decay_muzzy.nmadvise,
-		    &astats->astats.decay_muzzy.nmadvise);
-		ctl_accum_locked_u64(&sdstats->astats.decay_muzzy.purged,
-		    &astats->astats.decay_muzzy.purged);
+		ctl_accum_locked_u64(
+		    &sdstats->astats.pa_shard_stats.decay_muzzy.npurge,
+		    &astats->astats.pa_shard_stats.decay_muzzy.npurge);
+		ctl_accum_locked_u64(
+		    &sdstats->astats.pa_shard_stats.decay_muzzy.nmadvise,
+		    &astats->astats.pa_shard_stats.decay_muzzy.nmadvise);
+		ctl_accum_locked_u64(
+		    &sdstats->astats.pa_shard_stats.decay_muzzy.purged,
+		    &astats->astats.pa_shard_stats.decay_muzzy.purged);
 
 #define OP(mtx) malloc_mutex_prof_merge(				\
 		    &(sdstats->astats.mutex_prof_data[			\
@@ -2920,23 +2926,29 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_extent_avail,
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_dirty_npurge,
     locked_read_u64_unsynchronized(
-    &arenas_i(mib[2])->astats->astats.decay_dirty.npurge), uint64_t)
+    &arenas_i(mib[2])->astats->astats.pa_shard_stats.decay_dirty.npurge),
+    uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_dirty_nmadvise,
     locked_read_u64_unsynchronized(
-    &arenas_i(mib[2])->astats->astats.decay_dirty.nmadvise), uint64_t)
+    &arenas_i(mib[2])->astats->astats.pa_shard_stats.decay_dirty.nmadvise),
+    uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_dirty_purged,
     locked_read_u64_unsynchronized(
-    &arenas_i(mib[2])->astats->astats.decay_dirty.purged), uint64_t)
+    &arenas_i(mib[2])->astats->astats.pa_shard_stats.decay_dirty.purged),
+    uint64_t)
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_muzzy_npurge,
     locked_read_u64_unsynchronized(
-    &arenas_i(mib[2])->astats->astats.decay_muzzy.npurge), uint64_t)
+    &arenas_i(mib[2])->astats->astats.pa_shard_stats.decay_muzzy.npurge),
+    uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_muzzy_nmadvise,
     locked_read_u64_unsynchronized(
-    &arenas_i(mib[2])->astats->astats.decay_muzzy.nmadvise), uint64_t)
+    &arenas_i(mib[2])->astats->astats.pa_shard_stats.decay_muzzy.nmadvise),
+    uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_muzzy_purged,
     locked_read_u64_unsynchronized(
-    &arenas_i(mib[2])->astats->astats.decay_muzzy.purged), uint64_t)
+    &arenas_i(mib[2])->astats->astats.pa_shard_stats.decay_muzzy.purged),
+    uint64_t)
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_base,
     atomic_load_zu(&arenas_i(mib[2])->astats->astats.base, ATOMIC_RELAXED),

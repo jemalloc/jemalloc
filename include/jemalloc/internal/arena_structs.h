@@ -73,7 +73,7 @@ struct arena_decay_s {
 	 * arena and ctl code.
 	 *
 	 * Synchronization: Same as associated arena's stats field. */
-	arena_stats_decay_t	*stats;
+	pa_shard_decay_stats_t	*stats;
 	/* Peak number of pages in associated extents.  Used for debug only. */
 	uint64_t		ceil_npages;
 };
