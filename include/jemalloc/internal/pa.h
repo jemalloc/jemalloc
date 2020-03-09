@@ -3,14 +3,27 @@
 
 #include "jemalloc/internal/ecache.h"
 #include "jemalloc/internal/edata_cache.h"
+#include "jemalloc/internal/lockedint.h"
 
 /*
  * The page allocator; responsible for acquiring pages of memory for
  * allocations.
  */
 
+typedef struct pa_shard_decay_stats_s pa_shard_decay_stats_t;
+struct pa_shard_decay_stats_s {
+	/* Total number of purge sweeps. */
+	locked_u64_t npurge;
+	/* Total number of madvise calls made. */
+	locked_u64_t nmadvise;
+	/* Total number of pages purged. */
+	locked_u64_t purged;
+};
+
 typedef struct pa_shard_stats_s pa_shard_stats_t;
 struct pa_shard_stats_s {
+	pa_shard_decay_stats_t decay_dirty;
+	pa_shard_decay_stats_t decay_muzzy;
 	/* VM space had to be leaked (undocumented).  Normally 0. */
 	atomic_zu_t abandoned_vm;
 };

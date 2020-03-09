@@ -150,9 +150,10 @@ arena_decay_extent(tsdn_t *tsdn,arena_t *arena, ehooks_t *ehooks,
 		/* Update stats accordingly. */
 		LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 		locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
-		    &arena->decay_dirty.stats->nmadvise, 1);
+		    &arena->pa_shard.stats->decay_dirty.nmadvise, 1);
 		locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
-		    &arena->decay_dirty.stats->purged, extent_size >> LG_PAGE);
+		    &arena->pa_shard.stats->decay_dirty.purged,
+		    extent_size >> LG_PAGE);
 		locked_dec_zu(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
 		    &arena->stats.mapped, extent_size);
 		LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
