@@ -35,6 +35,14 @@ typedef struct pa_shard_stats_s pa_shard_stats_t;
 struct pa_shard_stats_s {
 	pa_shard_decay_stats_t decay_dirty;
 	pa_shard_decay_stats_t decay_muzzy;
+	/*
+	 * Number of bytes currently mapped, excluding retained memory.
+	 *
+	 * Partially derived -- we maintain our own counter, but add in the
+	 * base's own counter at merge.
+	 */
+	locked_zu_t mapped;
+
 	/* VM space had to be leaked (undocumented).  Normally 0. */
 	atomic_zu_t abandoned_vm;
 };
@@ -60,12 +68,21 @@ struct pa_shard_s {
 	/* Extent serial number generator state. */
 	atomic_zu_t extent_sn_next;
 
+	malloc_mutex_t *stats_mtx;
 	pa_shard_stats_t *stats;
 };
 
+static inline void
+pa_shard_stats_mapped_add(tsdn_t *tsdn, pa_shard_t *shard, size_t size) {
+	LOCKEDINT_MTX_LOCK(tsdn, *shard->stats_mtx);
+	locked_inc_zu(tsdn, LOCKEDINT_MTX(*shard->stats_mtx),
+	    &shard->stats->mapped, size);
+	LOCKEDINT_MTX_UNLOCK(tsdn, *shard->stats_mtx);
+}
+
 /* Returns true on error. */
 bool pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
-    pa_shard_stats_t *stats);
+    pa_shard_stats_t *stats, malloc_mutex_t *stats_mtx);
 size_t pa_shard_extent_sn_next(pa_shard_t *shard);
 
 #endif /* JEMALLOC_INTERNAL_PA_H */

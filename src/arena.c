@@ -95,9 +95,10 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 
 	LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 
-	locked_inc_zu_unsynchronized(&astats->mapped, base_mapped
-	    + locked_read_zu(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
-	    &arena->stats.mapped));
+	locked_inc_zu_unsynchronized(&astats->pa_shard_stats.mapped,
+	    base_mapped + locked_read_zu(tsdn,
+	    LOCKEDINT_MTX(*arena->pa_shard.stats_mtx),
+	    &arena->pa_shard.stats->mapped));
 	locked_inc_zu_unsynchronized(&astats->retained,
 	    ecache_npages_get(&arena->pa_shard.ecache_retained) << LG_PAGE);
 
@@ -488,7 +489,7 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 			if (mapped_add != 0) {
 				locked_inc_zu(tsdn,
 				    LOCKEDINT_MTX(arena->stats.mtx),
-				    &arena->stats.mapped, mapped_add);
+				    &arena->pa_shard.stats->mapped, mapped_add);
 			}
 			LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 		}
@@ -919,7 +920,7 @@ arena_decay_stashed(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 		locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
 		&decay->stats->purged, npurged);
 		locked_dec_zu(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
-		    &arena->stats.mapped, nunmapped << LG_PAGE);
+		    &arena->pa_shard.stats->mapped, nunmapped << LG_PAGE);
 		LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 	}
 
@@ -1240,7 +1241,7 @@ arena_slab_alloc_hard(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	    true, szind, &zero);
 
 	if (config_stats && slab != NULL) {
-		arena_stats_mapped_add(tsdn, &arena->stats,
+		pa_shard_stats_mapped_add(tsdn, &arena->pa_shard,
 		    bin_info->slab_size);
 	}
 
@@ -2039,7 +2040,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	}
 
 	if (pa_shard_init(tsdn, &arena->pa_shard, base, ind,
-	    &arena->stats.pa_shard_stats)) {
+	    &arena->stats.pa_shard_stats, LOCKEDINT_MTX(arena->stats.mtx))) {
 		goto label_error;
 	}
 
