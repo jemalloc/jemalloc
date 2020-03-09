@@ -61,12 +61,6 @@ struct arena_stats_extents_s {
 typedef struct arena_stats_s arena_stats_t;
 struct arena_stats_s {
 	LOCKEDSTAT_MTX_DECLARE(mtx)
-
-	/*
-	 * Number of bytes currently mapped, excluding retained memory.
-	 */
-	lockedstat_zu_t		mapped; /* Partially derived. */
-
 	/*
 	 * Number of unused virtual memory bytes currently retained.  Retained
 	 * bytes are technically mapped (though always decommitted or purged),
@@ -132,14 +126,6 @@ arena_stats_large_flush_nrequests_add(tsdn_t *tsdn, arena_stats_t *arena_stats,
 	    &lstats->nrequests, nrequests);
 	lockedstat_inc_u64(tsdn, LOCKEDSTAT_MTX(arena_stats->mtx),
 	    &lstats->nflushes, 1);
-	LOCKEDSTAT_MTX_UNLOCK(tsdn, arena_stats->mtx);
-}
-
-static inline void
-arena_stats_mapped_add(tsdn_t *tsdn, arena_stats_t *arena_stats, size_t size) {
-	LOCKEDSTAT_MTX_LOCK(tsdn, arena_stats->mtx);
-	lockedstat_inc_zu(tsdn, LOCKEDSTAT_MTX(arena_stats->mtx),
-	    &arena_stats->mapped, size);
 	LOCKEDSTAT_MTX_UNLOCK(tsdn, arena_stats->mtx);
 }
 
