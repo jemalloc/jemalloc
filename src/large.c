@@ -120,17 +120,17 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
 	bool is_zeroed_trail = zero;
 	edata_t *trail;
 	bool new_mapping;
-	if ((trail = ecache_alloc(tsdn, arena, ehooks,
+	if ((trail = ecache_alloc(tsdn, &arena->pa_shard, ehooks,
 	    &arena->pa_shard.ecache_dirty, edata_past_get(edata), trailsize,
 	    CACHELINE, false, SC_NSIZES, &is_zeroed_trail)) != NULL
-	    || (trail = ecache_alloc(tsdn, arena, ehooks,
+	    || (trail = ecache_alloc(tsdn, &arena->pa_shard, ehooks,
 	    &arena->pa_shard.ecache_muzzy, edata_past_get(edata), trailsize,
 	    CACHELINE, false, SC_NSIZES, &is_zeroed_trail)) != NULL) {
 		if (config_stats) {
 			new_mapping = false;
 		}
 	} else {
-		if ((trail = ecache_alloc_grow(tsdn, arena, ehooks,
+		if ((trail = ecache_alloc_grow(tsdn, &arena->pa_shard, ehooks,
 		    &arena->pa_shard.ecache_retained, edata_past_get(edata),
 		    trailsize, CACHELINE, false, SC_NSIZES, &is_zeroed_trail))
 			== NULL) {
@@ -143,7 +143,7 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
 
 	if (extent_merge_wrapper(tsdn, ehooks, &arena->pa_shard.edata_cache,
 	    edata, trail)) {
-		extent_dalloc_wrapper(tsdn, arena, ehooks, trail);
+		extent_dalloc_wrapper(tsdn, &arena->pa_shard, ehooks, trail);
 		return true;
 	}
 

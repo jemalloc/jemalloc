@@ -188,8 +188,8 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 				if (gap_size_page != 0) {
 					ehooks_t *ehooks = arena_get_ehooks(
 					    arena);
-					extent_dalloc_gap(tsdn, arena, ehooks,
-					    gap);
+					extent_dalloc_gap(tsdn,
+					    &arena->pa_shard, ehooks, gap);
 				} else {
 					edata_cache_put(tsdn,
 					    &arena->pa_shard.edata_cache, gap);
@@ -208,7 +208,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 					    extent_state_active, false, true,
 					    true, EXTENT_NOT_HEAD);
 					if (extent_purge_forced_wrapper(tsdn,
-					    arena, ehooks, &edata, 0, size)) {
+					    ehooks, &edata, 0, size)) {
 						memset(ret, 0, size);
 					}
 				}
