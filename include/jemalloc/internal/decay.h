@@ -133,14 +133,14 @@ bool decay_ms_valid(ssize_t decay_ms);
  *
  * Returns true on error.
  */
-bool decay_init(decay_t *decay, ssize_t decay_ms);
+bool decay_init(decay_t *decay, nstime_t *cur_time, ssize_t decay_ms);
 
 /*
  * Given an already-initialized decay_t, reinitialize it with the given decay
  * time.  The decay_t must have previously been initialized (and should not then
  * be zeroed).
  */
-void decay_reinit(decay_t *decay, ssize_t decay_ms);
+void decay_reinit(decay_t *decay, nstime_t *cur_time, ssize_t decay_ms);
 
 /* Returns true if the epoch advanced and there are pages to purge. */
 bool decay_maybe_advance_epoch(decay_t *decay, nstime_t *new_time,

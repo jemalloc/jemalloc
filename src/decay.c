@@ -21,7 +21,7 @@ decay_deadline_init(decay_t *decay) {
 }
 
 void
-decay_reinit(decay_t *decay, ssize_t decay_ms) {
+decay_reinit(decay_t *decay, nstime_t *cur_time, ssize_t decay_ms) {
 	atomic_store_zd(&decay->time_ms, decay_ms, ATOMIC_RELAXED);
 	if (decay_ms > 0) {
 		nstime_init(&decay->interval, (uint64_t)decay_ms *
@@ -29,7 +29,7 @@ decay_reinit(decay_t *decay, ssize_t decay_ms) {
 		nstime_idivide(&decay->interval, SMOOTHSTEP_NSTEPS);
 	}
 
-	nstime_init_update(&decay->epoch);
+	nstime_copy(&decay->epoch, cur_time);
 	decay->jitter_state = (uint64_t)(uintptr_t)decay;
 	decay_deadline_init(decay);
 	decay->nunpurged = 0;
@@ -37,7 +37,7 @@ decay_reinit(decay_t *decay, ssize_t decay_ms) {
 }
 
 bool
-decay_init(decay_t *decay, ssize_t decay_ms) {
+decay_init(decay_t *decay, nstime_t *cur_time, ssize_t decay_ms) {
 	if (config_debug) {
 		for (size_t i = 0; i < sizeof(decay_t); i++) {
 			assert(((char *)decay)[i] == 0);
@@ -49,7 +49,7 @@ decay_init(decay_t *decay, ssize_t decay_ms) {
 		return true;
 	}
 	decay->purging = false;
-	decay_reinit(decay, decay_ms);
+	decay_reinit(decay, cur_time, decay_ms);
 	return false;
 }
 
