@@ -321,55 +321,6 @@ te_event_trigger(tsd_t *tsd, te_ctx_t *ctx, bool delay_event) {
 }
 
 void
-te_alloc_rollback(tsd_t *tsd, size_t diff) {
-	te_assert_invariants(tsd);
-	if (diff == 0U) {
-		return;
-	}
-
-	/* Rollback happens only on alloc events. */
-	te_ctx_t ctx;
-	te_ctx_get(tsd, &ctx, true);
-
-	uint64_t thread_allocated = te_ctx_current_bytes_get(&ctx);
-	/* The subtraction is intentionally susceptible to underflow. */
-	uint64_t thread_allocated_rollback = thread_allocated - diff;
-	te_ctx_current_bytes_set(&ctx, thread_allocated_rollback);
-
-	uint64_t last_event = te_ctx_last_event_get(&ctx);
-	/* Both subtractions are intentionally susceptible to underflow. */
-	if (thread_allocated_rollback - last_event <=
-	    thread_allocated - last_event) {
-		te_assert_invariants(tsd);
-		return;
-	}
-
-	te_ctx_last_event_set(&ctx, thread_allocated_rollback);
-	/* The subtraction is intentionally susceptible to underflow. */
-	uint64_t wait_diff = last_event - thread_allocated_rollback;
-	assert(wait_diff <= diff);
-
-#define E(event, condition, alloc_event)				\
-	if (alloc_event == true && condition) {				\
-		uint64_t event_wait = event##_event_wait_get(tsd);	\
-		assert(event_wait <= TE_MAX_START_WAIT);		\
-		if (event_wait > 0U) {					\
-			if (wait_diff >	TE_MAX_START_WAIT - event_wait) {\
-				event_wait = TE_MAX_START_WAIT;		\
-			} else {					\
-				event_wait += wait_diff;		\
-			}						\
-			assert(event_wait <= TE_MAX_START_WAIT);	\
-			event##_event_wait_set(tsd, event_wait);	\
-		}							\
-	}
-
-	ITERATE_OVER_ALL_EVENTS
-#undef E
-	te_event_update(tsd, true);
-}
-
-void
 te_event_update(tsd_t *tsd, bool is_alloc) {
 	te_ctx_t ctx;
 	te_ctx_get(tsd, &ctx, is_alloc);

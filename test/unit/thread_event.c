@@ -27,24 +27,8 @@ TEST_BEGIN(test_next_event_fast) {
 }
 TEST_END
 
-TEST_BEGIN(test_event_rollback) {
-	tsd_t *tsd = tsd_fetch();
-	const uint64_t diff = TE_MAX_INTERVAL >> 2;
-	size_t count = 10;
-	uint64_t thread_allocated = thread_allocated_get(tsd);
-	while (count-- != 0) {
-		te_alloc_rollback(tsd, diff);
-		uint64_t thread_allocated_after = thread_allocated_get(tsd);
-		assert_u64_eq(thread_allocated - thread_allocated_after, diff,
-		    "thread event counters are not properly rolled back");
-		thread_allocated = thread_allocated_after;
-	}
-}
-TEST_END
-
 int
 main(void) {
 	return test(
-	    test_next_event_fast,
-	    test_event_rollback);
+	    test_next_event_fast);
 }

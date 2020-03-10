@@ -33,7 +33,6 @@ typedef struct te_ctx_s {
 
 void te_assert_invariants_debug(tsd_t *tsd);
 void te_event_trigger(tsd_t *tsd, te_ctx_t *ctx, bool delay_event);
-void te_alloc_rollback(tsd_t *tsd, size_t diff);
 void te_event_update(tsd_t *tsd, bool alloc_event);
 void te_recompute_fast_threshold(tsd_t *tsd);
 void tsd_te_init(tsd_t *tsd);
