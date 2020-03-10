@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_PA_H
 #define JEMALLOC_INTERNAL_PA_H
 
+#include "jemalloc/internal/base.h"
 #include "jemalloc/internal/decay.h"
 #include "jemalloc/internal/ecache.h"
 #include "jemalloc/internal/edata_cache.h"
@@ -80,6 +81,9 @@ struct pa_shard_s {
 	 */
 	decay_t decay_dirty; /* dirty --> muzzy */
 	decay_t decay_muzzy; /* muzzy --> retained */
+
+	/* The base from which we get the ehooks and allocate metadat. */
+	base_t *base;
 };
 
 static inline void
@@ -103,6 +107,11 @@ static inline bool
 pa_shard_may_force_decay(pa_shard_t *shard) {
 	return !(pa_shard_dirty_decay_ms_get(shard) == -1
 	    || pa_shard_muzzy_decay_ms_get(shard) == -1);
+}
+
+static inline ehooks_t *
+pa_shard_ehooks_get(pa_shard_t *shard) {
+	return base_ehooks_get(shard->base);
 }
 
 /* Returns true on error. */

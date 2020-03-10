@@ -48,6 +48,8 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
 	shard->stats = stats;
 	memset(shard->stats, 0, sizeof(*shard->stats));
 
+	shard->base = base;
+
 	return false;
 }
 
