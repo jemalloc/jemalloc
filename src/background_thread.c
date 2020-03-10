@@ -121,14 +121,14 @@ arena_decay_compute_purge_interval_impl(tsdn_t *tsdn, decay_t *decay,
 	}
 
 	uint64_t interval;
-	ssize_t decay_time = atomic_load_zd(&decay->time_ms, ATOMIC_RELAXED);
+	ssize_t decay_time = decay_ms_read(decay);
 	if (decay_time <= 0) {
 		/* Purging is eagerly done or disabled currently. */
 		interval = BACKGROUND_THREAD_INDEFINITE_SLEEP;
 		goto label_done;
 	}
 
-	uint64_t decay_interval_ns = nstime_ns(&decay->interval);
+	uint64_t decay_interval_ns = decay_epoch_duration_ns(decay);
 	assert(decay_interval_ns > 0);
 	size_t npages = ecache_npages_get(ecache);
 	if (npages == 0) {
@@ -674,12 +674,12 @@ background_thread_interval_check(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 		goto label_done;
 	}
 
-	ssize_t decay_time = atomic_load_zd(&decay->time_ms, ATOMIC_RELAXED);
+	ssize_t decay_time = decay_ms_read(decay);
 	if (decay_time <= 0) {
 		/* Purging is eagerly done or disabled currently. */
 		goto label_done_unlock2;
 	}
-	uint64_t decay_interval_ns = nstime_ns(&decay->interval);
+	uint64_t decay_interval_ns = decay_epoch_duration_ns(decay);
 	assert(decay_interval_ns > 0);
 
 	nstime_t diff;
