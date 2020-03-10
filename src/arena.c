@@ -595,12 +595,12 @@ arena_maybe_decay(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 
 ssize_t
 arena_dirty_decay_ms_get(arena_t *arena) {
-	return decay_ms_read(&arena->pa_shard.decay_dirty);
+	return pa_shard_dirty_decay_ms_get(&arena->pa_shard);
 }
 
 ssize_t
 arena_muzzy_decay_ms_get(arena_t *arena) {
-	return decay_ms_read(&arena->pa_shard.decay_muzzy);
+	return pa_shard_muzzy_decay_ms_get(&arena->pa_shard);
 }
 
 static bool
