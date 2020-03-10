@@ -81,11 +81,19 @@ struct decay_s {
 	uint64_t ceil_npages;
 };
 
+/*
+ * The current decay time setting.  This is the only public access to a decay_t
+ * that's allowed without holding mtx.
+ */
 static inline ssize_t
 decay_ms_read(const decay_t *decay) {
 	return atomic_load_zd(&decay->time_ms, ATOMIC_RELAXED);
 }
 
+/*
+ * See the comment on the struct field -- the limit on pages we should allow in
+ * this decay state this epoch.
+ */
 static inline size_t
 decay_npages_limit_get(const decay_t *decay) {
 	return decay->npages_limit;
@@ -97,6 +105,16 @@ decay_epoch_npages_delta(const decay_t *decay) {
 	return decay->backlog[SMOOTHSTEP_NSTEPS - 1];
 }
 
+/*
+ * Returns true if the passed in decay time setting is valid.
+ * < -1 : invalid
+ * -1   : never decay
+ *  0   : decay immediately
+ *  > 0 : some positive decay time, up to a maximum allowed value of
+ *  NSTIME_SEC_MAX * 1000, which corresponds to decaying somewhere in the early
+ *  27th century.  By that time, we expect to have implemented alternate purging
+ *  strategies.
+ */
 bool decay_ms_valid(ssize_t decay_ms);
 
 /*
