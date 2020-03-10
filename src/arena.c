@@ -282,8 +282,8 @@ arena_extents_dirty_dalloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	ecache_dalloc(tsdn, arena, ehooks, &arena->pa_shard.ecache_dirty,
-	    edata);
+	ecache_dalloc(tsdn, &arena->pa_shard, ehooks,
+	    &arena->pa_shard.ecache_dirty, edata);
 	if (arena_dirty_decay_ms_get(arena) == 0) {
 		arena_decay_dirty(tsdn, arena, false, true);
 	} else {
@@ -459,16 +459,16 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 	szind_t szind = sz_size2index(usize);
 	size_t mapped_add;
 	size_t esize = usize + sz_large_pad;
-	edata_t *edata = ecache_alloc(tsdn, arena, ehooks,
+	edata_t *edata = ecache_alloc(tsdn, &arena->pa_shard, ehooks,
 	    &arena->pa_shard.ecache_dirty, NULL, esize, alignment, false, szind,
 	    zero);
 	if (edata == NULL && arena_may_have_muzzy(arena)) {
-		edata = ecache_alloc(tsdn, arena, ehooks,
+		edata = ecache_alloc(tsdn, &arena->pa_shard, ehooks,
 		    &arena->pa_shard.ecache_muzzy, NULL, esize, alignment,
 		    false, szind, zero);
 	}
 	if (edata == NULL) {
-		edata = ecache_alloc_grow(tsdn, arena, ehooks,
+		edata = ecache_alloc_grow(tsdn, &arena->pa_shard, ehooks,
 		    &arena->pa_shard.ecache_retained, NULL, esize, alignment,
 		    false, szind, zero);
 		if (config_stats) {
@@ -655,7 +655,7 @@ arena_stash_decayed(tsdn_t *tsdn, arena_t *arena,
 	size_t nstashed = 0;
 	edata_t *edata;
 	while (nstashed < npages_decay_max &&
-	    (edata = ecache_evict(tsdn, arena, ehooks, ecache, npages_limit))
+	    (edata = ecache_evict(tsdn, &arena->pa_shard, ehooks, ecache, npages_limit))
 	    != NULL) {
 		edata_list_append(decay_extents, edata);
 		nstashed += edata_size_get(edata) >> LG_PAGE;
@@ -690,9 +690,9 @@ arena_decay_stashed(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 			not_reached();
 		case extent_state_dirty:
 			if (!all && muzzy_decay_ms != 0 &&
-			    !extent_purge_lazy_wrapper(tsdn, arena,
-			    ehooks, edata, 0, edata_size_get(edata))) {
-				ecache_dalloc(tsdn, arena, ehooks,
+			    !extent_purge_lazy_wrapper(tsdn, ehooks, edata, 0,
+			    edata_size_get(edata))) {
+				ecache_dalloc(tsdn, &arena->pa_shard, ehooks,
 				    &arena->pa_shard.ecache_muzzy, edata);
 				arena_background_thread_inactivity_check(tsdn,
 				    arena, is_background_thread);
@@ -700,7 +700,8 @@ arena_decay_stashed(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 			}
 			JEMALLOC_FALLTHROUGH;
 		case extent_state_muzzy:
-			extent_dalloc_wrapper(tsdn, arena, ehooks, edata);
+			extent_dalloc_wrapper(tsdn, &arena->pa_shard, ehooks,
+			    edata);
 			if (config_stats) {
 				nunmapped += npages;
 			}
@@ -988,9 +989,9 @@ arena_destroy_retained(tsdn_t *tsdn, arena_t *arena) {
 	 */
 	ehooks_t *ehooks = arena_get_ehooks(arena);
 	edata_t *edata;
-	while ((edata = ecache_evict(tsdn, arena, ehooks,
+	while ((edata = ecache_evict(tsdn, &arena->pa_shard, ehooks,
 	    &arena->pa_shard.ecache_retained, 0)) != NULL) {
-		extent_destroy_wrapper(tsdn, arena, ehooks, edata);
+		extent_destroy_wrapper(tsdn, &arena->pa_shard, ehooks, edata);
 	}
 }
 
@@ -1040,7 +1041,7 @@ arena_slab_alloc_hard(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 	    WITNESS_RANK_CORE, 0);
 
 	zero = false;
-	slab = ecache_alloc_grow(tsdn, arena, ehooks,
+	slab = ecache_alloc_grow(tsdn, &arena->pa_shard, ehooks,
 	    &arena->pa_shard.ecache_retained, NULL, bin_info->slab_size, PAGE,
 	    true, szind, &zero);
 
@@ -1061,11 +1062,11 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned binshard
 	ehooks_t *ehooks = arena_get_ehooks(arena);
 	szind_t szind = sz_size2index(bin_info->reg_size);
 	bool zero = false;
-	edata_t *slab = ecache_alloc(tsdn, arena, ehooks,
+	edata_t *slab = ecache_alloc(tsdn, &arena->pa_shard, ehooks,
 	    &arena->pa_shard.ecache_dirty, NULL, bin_info->slab_size, PAGE,
 	    true, binind, &zero);
 	if (slab == NULL && arena_may_have_muzzy(arena)) {
-		slab = ecache_alloc(tsdn, arena, ehooks,
+		slab = ecache_alloc(tsdn, &arena->pa_shard, ehooks,
 		    &arena->pa_shard.ecache_muzzy, NULL, bin_info->slab_size,
 		    PAGE, true, binind, &zero);
 	}

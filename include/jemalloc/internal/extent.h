@@ -19,34 +19,34 @@
 #define LG_EXTENT_MAX_ACTIVE_FIT_DEFAULT 6
 extern size_t opt_lg_extent_max_active_fit;
 
-edata_t *ecache_alloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+edata_t *ecache_alloc(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     ecache_t *ecache, void *new_addr, size_t size, size_t alignment, bool slab,
     szind_t szind, bool *zero);
-edata_t *ecache_alloc_grow(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+edata_t *ecache_alloc_grow(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     ecache_t *ecache, void *new_addr, size_t size, size_t alignment, bool slab,
     szind_t szind, bool *zero);
-void ecache_dalloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+void ecache_dalloc(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *edata);
-edata_t *ecache_evict(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+edata_t *ecache_evict(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     ecache_t *ecache, size_t npages_min);
 
-edata_t *extent_alloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+edata_t *extent_alloc_wrapper(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     void *new_addr, size_t size, size_t alignment, bool slab, szind_t szind,
     bool *zero, bool *commit);
-void extent_dalloc_gap(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+void extent_dalloc_gap(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     edata_t *edata);
-void extent_dalloc_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+void extent_dalloc_wrapper(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     edata_t *edata);
-void extent_destroy_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
+void extent_destroy_wrapper(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     edata_t *edata);
 bool extent_commit_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
     size_t offset, size_t length);
 bool extent_decommit_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
     size_t offset, size_t length);
-bool extent_purge_lazy_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    edata_t *edata, size_t offset, size_t length);
-bool extent_purge_forced_wrapper(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    edata_t *edata, size_t offset, size_t length);
+bool extent_purge_lazy_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
+    size_t offset, size_t length);
+bool extent_purge_forced_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
+    size_t offset, size_t length);
 edata_t *extent_split_wrapper(tsdn_t *tsdn, edata_cache_t *edata_cache,
     ehooks_t *ehooks, edata_t *edata, size_t size_a, szind_t szind_a,
     bool slab_a, size_t size_b, szind_t szind_b, bool slab_b);
