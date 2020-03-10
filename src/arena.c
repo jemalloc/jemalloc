@@ -451,37 +451,12 @@ arena_may_have_muzzy(arena_t *arena) {
 edata_t *
 arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
     size_t alignment, bool *zero) {
-	ehooks_t *ehooks = arena_get_ehooks(arena);
-
-	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
-	    WITNESS_RANK_CORE, 0);
-
 	szind_t szind = sz_size2index(usize);
 	size_t mapped_add;
 	size_t esize = usize + sz_large_pad;
-	edata_t *edata = ecache_alloc(tsdn, &arena->pa_shard, ehooks,
-	    &arena->pa_shard.ecache_dirty, NULL, esize, alignment, false, szind,
-	    zero);
-	if (edata == NULL && arena_may_have_muzzy(arena)) {
-		edata = ecache_alloc(tsdn, &arena->pa_shard, ehooks,
-		    &arena->pa_shard.ecache_muzzy, NULL, esize, alignment,
-		    false, szind, zero);
-	}
-	if (edata == NULL) {
-		edata = ecache_alloc_grow(tsdn, &arena->pa_shard, ehooks,
-		    &arena->pa_shard.ecache_retained, NULL, esize, alignment,
-		    false, szind, zero);
-		if (config_stats) {
-			/*
-			 * edata may be NULL on OOM, but in that case mapped_add
-			 * isn't used below, so there's no need to conditionlly
-			 * set it to 0 here.
-			 */
-			mapped_add = esize;
-		}
-	} else if (config_stats) {
-		mapped_add = 0;
-	}
+
+	edata_t *edata = pa_alloc(tsdn, &arena->pa_shard, esize, alignment,
+	    /* slab */ false, szind, zero, &mapped_add);
 
 	if (edata != NULL) {
 		if (config_stats) {
