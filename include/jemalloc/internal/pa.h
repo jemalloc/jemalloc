@@ -90,6 +90,21 @@ pa_shard_stats_mapped_add(tsdn_t *tsdn, pa_shard_t *shard, size_t size) {
 	LOCKEDINT_MTX_UNLOCK(tsdn, *shard->stats_mtx);
 }
 
+static inline ssize_t
+pa_shard_dirty_decay_ms_get(pa_shard_t *shard) {
+	return decay_ms_read(&shard->decay_dirty);
+}
+static inline ssize_t
+pa_shard_muzzy_decay_ms_get(pa_shard_t *shard) {
+	return decay_ms_read(&shard->decay_muzzy);
+}
+
+static inline bool
+pa_shard_may_force_decay(pa_shard_t *shard) {
+	return !(pa_shard_dirty_decay_ms_get(shard) == -1
+	    || pa_shard_muzzy_decay_ms_get(shard) == -1);
+}
+
 /* Returns true on error. */
 bool pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
     pa_shard_stats_t *stats, malloc_mutex_t *stats_mtx);
