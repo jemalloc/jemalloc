@@ -184,6 +184,7 @@ C_UTIL_CPP_SRCS := $(srcroot)src/nstime.c $(srcroot)src/malloc_io.c
 endif
 TESTS_UNIT := \
 	$(srcroot)test/unit/a0.c \
+	$(srcroot)test/unit/arena_decay.c \
 	$(srcroot)test/unit/arena_reset.c \
 	$(srcroot)test/unit/atomic.c \
 	$(srcroot)test/unit/background_thread.c \
@@ -196,7 +197,6 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/cache_bin.c \
 	$(srcroot)test/unit/ckh.c \
 	$(srcroot)test/unit/counter.c \
-	$(srcroot)test/unit/decay.c \
 	$(srcroot)test/unit/div.c \
 	$(srcroot)test/unit/edata_cache.c \
 	$(srcroot)test/unit/emitter.c \
