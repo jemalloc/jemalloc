@@ -443,11 +443,6 @@ arena_large_ralloc_stats_update(tsdn_t *tsdn, arena_t *arena, size_t oldusize,
 	arena_large_malloc_stats_update(tsdn, arena, usize);
 }
 
-static bool
-arena_may_have_muzzy(arena_t *arena) {
-	return arena_muzzy_decay_ms_get(arena) != 0;
-}
-
 edata_t *
 arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
     size_t alignment, bool *zero) {
@@ -1007,50 +1002,23 @@ arena_destroy(tsd_t *tsd, arena_t *arena) {
 }
 
 static edata_t *
-arena_slab_alloc_hard(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    const bin_info_t *bin_info, szind_t szind) {
-	edata_t *slab;
-	bool zero;
-
-	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
-	    WITNESS_RANK_CORE, 0);
-
-	zero = false;
-	slab = ecache_alloc_grow(tsdn, &arena->pa_shard, ehooks,
-	    &arena->pa_shard.ecache_retained, NULL, bin_info->slab_size, PAGE,
-	    true, szind, &zero);
-
-	if (config_stats && slab != NULL) {
-		pa_shard_stats_mapped_add(tsdn, &arena->pa_shard,
-		    bin_info->slab_size);
-	}
-
-	return slab;
-}
-
-static edata_t *
 arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned binshard,
     const bin_info_t *bin_info) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	ehooks_t *ehooks = arena_get_ehooks(arena);
-	szind_t szind = sz_size2index(bin_info->reg_size);
 	bool zero = false;
-	edata_t *slab = ecache_alloc(tsdn, &arena->pa_shard, ehooks,
-	    &arena->pa_shard.ecache_dirty, NULL, bin_info->slab_size, PAGE,
-	    true, binind, &zero);
-	if (slab == NULL && arena_may_have_muzzy(arena)) {
-		slab = ecache_alloc(tsdn, &arena->pa_shard, ehooks,
-		    &arena->pa_shard.ecache_muzzy, NULL, bin_info->slab_size,
-		    PAGE, true, binind, &zero);
+	size_t mapped_add = 0;
+
+	edata_t *slab = pa_alloc(tsdn, &arena->pa_shard, bin_info->slab_size,
+	    PAGE, /* slab */ true, /* szind */ binind, &zero, &mapped_add);
+	if (config_stats && slab != NULL && mapped_add != 0) {
+		pa_shard_stats_mapped_add(tsdn, &arena->pa_shard,
+		    bin_info->slab_size);
 	}
+
 	if (slab == NULL) {
-		slab = arena_slab_alloc_hard(tsdn, arena, ehooks, bin_info,
-		    szind);
-		if (slab == NULL) {
-			return NULL;
-		}
+		return NULL;
 	}
 	assert(edata_slab_get(slab));
 

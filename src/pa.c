@@ -68,6 +68,7 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
     bool slab, szind_t szind, bool *zero, size_t *mapped_add) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
+	*mapped_add = 0;
 
 	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
 
@@ -78,7 +79,6 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 		edata = ecache_alloc(tsdn, shard, ehooks, &shard->ecache_muzzy,
 		    NULL, size, alignment, slab, szind, zero);
 	}
-
 	if (edata == NULL) {
 		edata = ecache_alloc_grow(tsdn, shard, ehooks,
 		    &shard->ecache_retained, NULL, size, alignment, slab,
@@ -91,8 +91,6 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 			 */
 			*mapped_add = size;
 		}
-	} else if (config_stats) {
-		*mapped_add = 0;
 	}
 	return edata;
 }
