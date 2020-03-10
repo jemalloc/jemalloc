@@ -57,3 +57,42 @@ size_t
 pa_shard_extent_sn_next(pa_shard_t *shard) {
 	return atomic_fetch_add_zu(&shard->extent_sn_next, 1, ATOMIC_RELAXED);
 }
+
+static bool
+pa_shard_may_have_muzzy(pa_shard_t *shard) {
+	return pa_shard_muzzy_decay_ms_get(shard) != 0;
+}
+
+edata_t *
+pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
+    bool slab, szind_t szind, bool *zero, size_t *mapped_add) {
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
+
+	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
+
+	edata_t *edata = ecache_alloc(tsdn, shard, ehooks,
+	    &shard->ecache_dirty, NULL, size, alignment, slab, szind,
+	    zero);
+	if (edata == NULL && pa_shard_may_have_muzzy(shard)) {
+		edata = ecache_alloc(tsdn, shard, ehooks, &shard->ecache_muzzy,
+		    NULL, size, alignment, slab, szind, zero);
+	}
+
+	if (edata == NULL) {
+		edata = ecache_alloc_grow(tsdn, shard, ehooks,
+		    &shard->ecache_retained, NULL, size, alignment, slab,
+		    szind, zero);
+		if (config_stats) {
+			/*
+			 * edata may be NULL on OOM, but in that case mapped_add
+			 * isn't used below, so there's no need to conditionlly
+			 * set it to 0 here.
+			 */
+			*mapped_add = size;
+		}
+	} else if (config_stats) {
+		*mapped_add = 0;
+	}
+	return edata;
+}

@@ -119,4 +119,7 @@ bool pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
     pa_shard_stats_t *stats, malloc_mutex_t *stats_mtx);
 size_t pa_shard_extent_sn_next(pa_shard_t *shard);
 
+edata_t *
+pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
+    bool slab, szind_t szind, bool *zero, size_t *mapped_add);
 #endif /* JEMALLOC_INTERNAL_PA_H */
