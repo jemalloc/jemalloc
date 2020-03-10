@@ -619,7 +619,9 @@ arena_decay_ms_set(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 	 * infrequent, either between the {-1, 0, >0} states, or a one-time
 	 * arbitrary change during initial arena configuration.
 	 */
-	decay_reinit(decay, decay_ms);
+	nstime_t cur_time;
+	nstime_init_update(&cur_time);
+	decay_reinit(decay, &cur_time, decay_ms);
 	arena_maybe_decay(tsdn, arena, decay, decay_stats, ecache, false);
 	malloc_mutex_unlock(tsdn, &decay->mtx);
 
@@ -1846,11 +1848,14 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		goto label_error;
 	}
 
-	if (decay_init(&arena->pa_shard.decay_dirty,
+	nstime_t cur_time;
+	nstime_init_update(&cur_time);
+
+	if (decay_init(&arena->pa_shard.decay_dirty, &cur_time,
 	    arena_dirty_decay_ms_default_get())) {
 		goto label_error;
 	}
-	if (decay_init(&arena->pa_shard.decay_muzzy,
+	if (decay_init(&arena->pa_shard.decay_muzzy, &cur_time,
 	    arena_muzzy_decay_ms_default_get())) {
 		goto label_error;
 	}
