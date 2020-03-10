@@ -2186,7 +2186,9 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	/* If profiling is on, get our profiling context. */
 	if (config_prof && opt_prof) {
 		bool prof_active = prof_active_get_unlocked();
-		prof_tctx_t *tctx = prof_alloc_prep(tsd, usize, prof_active);
+		bool sample_event = te_prof_sample_event_lookahead(tsd, usize);
+		prof_tctx_t *tctx = prof_alloc_prep(tsd, prof_active,
+		    sample_event);
 
 		emap_alloc_ctx_t alloc_ctx;
 		if (likely((uintptr_t)tctx == (uintptr_t)1U)) {
@@ -3131,7 +3133,8 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 	prof_info_t old_prof_info;
 	prof_info_get_and_reset_recent(tsd, old_ptr, alloc_ctx, &old_prof_info);
 	bool prof_active = prof_active_get_unlocked();
-	prof_tctx_t *tctx = prof_alloc_prep(tsd, *usize, prof_active);
+	bool sample_event = te_prof_sample_event_lookahead(tsd, *usize);
+	prof_tctx_t *tctx = prof_alloc_prep(tsd, prof_active, sample_event);
 	void *p;
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
 		p = irallocx_prof_sample(tsd_tsdn(tsd), old_ptr, old_usize,
@@ -3158,8 +3161,9 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 		*usize = isalloc(tsd_tsdn(tsd), p);
 	}
 
+	sample_event = te_prof_sample_event_lookahead(tsd, *usize);
 	prof_realloc(tsd, p, size, *usize, tctx, prof_active, old_ptr,
-	    old_usize, &old_prof_info);
+	    old_usize, &old_prof_info, sample_event);
 
 	return p;
 }
@@ -3416,7 +3420,8 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 		}
 	}
 	bool prof_active = prof_active_get_unlocked();
-	prof_tctx_t *tctx = prof_alloc_prep(tsd, usize_max, prof_active);
+	bool sample_event = te_prof_sample_event_lookahead(tsd, usize_max);
+	prof_tctx_t *tctx = prof_alloc_prep(tsd, prof_active, sample_event);
 
 	size_t usize;
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
@@ -3442,8 +3447,9 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 	} else {
 		prof_info_get_and_reset_recent(tsd, ptr, alloc_ctx, &prof_info);
 		assert(usize <= usize_max);
+		sample_event = te_prof_sample_event_lookahead(tsd, usize);
 		prof_realloc(tsd, ptr, size, usize, tctx, prof_active, ptr,
-		    old_usize, &prof_info);
+		    old_usize, &prof_info, sample_event);
 	}
 
 	assert(old_prof_info.alloc_tctx == prof_info.alloc_tctx);

@@ -85,11 +85,11 @@ prof_info_set(tsd_t *tsd, edata_t *edata, prof_tctx_t *tctx) {
 }
 
 JEMALLOC_ALWAYS_INLINE bool
-prof_sample_should_skip(tsd_t *tsd, size_t usize) {
+prof_sample_should_skip(tsd_t *tsd, bool sample_event) {
 	cassert(config_prof);
 
 	/* Fastpath: no need to load tdata */
-	if (likely(!te_prof_sample_event_lookahead(tsd, usize))) {
+	if (likely(!sample_event)) {
 		return true;
 	}
 
@@ -106,12 +106,11 @@ prof_sample_should_skip(tsd_t *tsd, size_t usize) {
 }
 
 JEMALLOC_ALWAYS_INLINE prof_tctx_t *
-prof_alloc_prep(tsd_t *tsd, size_t usize, bool prof_active) {
+prof_alloc_prep(tsd_t *tsd, bool prof_active, bool sample_event) {
 	prof_tctx_t *ret;
 
-	assert(usize == sz_s2u(usize));
-
-	if (!prof_active || likely(prof_sample_should_skip(tsd, usize))) {
+	if (!prof_active ||
+	    likely(prof_sample_should_skip(tsd, sample_event))) {
 		ret = (prof_tctx_t *)(uintptr_t)1U;
 	} else {
 		ret = prof_tctx_create(tsd);
@@ -137,7 +136,7 @@ prof_malloc(tsd_t *tsd, const void *ptr, size_t size, size_t usize,
 JEMALLOC_ALWAYS_INLINE void
 prof_realloc(tsd_t *tsd, const void *ptr, size_t size, size_t usize,
     prof_tctx_t *tctx, bool prof_active, const void *old_ptr, size_t old_usize,
-    prof_info_t *old_prof_info) {
+    prof_info_t *old_prof_info, bool sample_event) {
 	bool sampled, old_sampled, moved;
 
 	cassert(config_prof);
@@ -145,7 +144,7 @@ prof_realloc(tsd_t *tsd, const void *ptr, size_t size, size_t usize,
 
 	if (prof_active && ptr != NULL) {
 		assert(usize == isalloc(tsd_tsdn(tsd), ptr));
-		if (prof_sample_should_skip(tsd, usize)) {
+		if (prof_sample_should_skip(tsd, sample_event)) {
 			/*
 			 * Don't sample.  The usize passed to prof_alloc_prep()
 			 * was larger than what actually got allocated, so a
