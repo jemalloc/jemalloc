@@ -106,6 +106,17 @@ decay_epoch_npages_delta(const decay_t *decay) {
 }
 
 /*
+ * Current epoch duration, in nanoseconds.  Given that new epochs are started
+ * somewhat haphazardly, this is not necessarily exactly the time between any
+ * two calls to decay_maybe_advance_epoch; see the comments on fields in the
+ * decay_t.
+ */
+static inline uint64_t
+decay_epoch_duration_ns(const decay_t *decay) {
+	return nstime_ns(&decay->interval);
+}
+
+/*
  * Returns true if the passed in decay time setting is valid.
  * < -1 : invalid
  * -1   : never decay
