@@ -611,25 +611,6 @@ arena_muzzy_decay_ms_set(tsdn_t *tsdn, arena_t *arena,
 }
 
 static size_t
-arena_stash_decayed(tsdn_t *tsdn, arena_t *arena,
-    ehooks_t *ehooks, ecache_t *ecache, size_t npages_limit,
-    size_t npages_decay_max, edata_list_t *decay_extents) {
-	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
-	    WITNESS_RANK_CORE, 0);
-
-	/* Stash extents according to npages_limit. */
-	size_t nstashed = 0;
-	edata_t *edata;
-	while (nstashed < npages_decay_max &&
-	    (edata = ecache_evict(tsdn, &arena->pa_shard, ehooks, ecache, npages_limit))
-	    != NULL) {
-		edata_list_append(decay_extents, edata);
-		nstashed += edata_size_get(edata) >> LG_PAGE;
-	}
-	return nstashed;
-}
-
-static size_t
 arena_decay_stashed(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     decay_t *decay, pa_shard_decay_stats_t *decay_stats, ecache_t *ecache,
     bool all, edata_list_t *decay_extents) {
@@ -718,7 +699,7 @@ arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 	edata_list_t decay_extents;
 	edata_list_init(&decay_extents);
 
-	size_t npurge = arena_stash_decayed(tsdn, arena, ehooks, ecache,
+	size_t npurge = pa_stash_decayed(tsdn, &arena->pa_shard, ecache,
 	    npages_limit, npages_decay_max, &decay_extents);
 	if (npurge != 0) {
 		size_t npurged = arena_decay_stashed(tsdn, arena, ehooks, decay,
