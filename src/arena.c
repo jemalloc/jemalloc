@@ -506,56 +506,6 @@ arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
 	arena_nactive_add(arena, udiff >> LG_PAGE);
 }
 
-static void
-arena_decay_try_purge(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
-    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache,
-    size_t current_npages, size_t npages_limit, bool is_background_thread) {
-	if (current_npages > npages_limit) {
-		pa_decay_to_limit(tsdn, &arena->pa_shard, decay, decay_stats,
-		    ecache, /* fully_decay */ false, npages_limit,
-		    current_npages - npages_limit);
-	}
-}
-
-static bool
-arena_maybe_decay(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
-    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache,
-    bool is_background_thread) {
-	malloc_mutex_assert_owner(tsdn, &decay->mtx);
-
-	/* Purge all or nothing if the option is disabled. */
-	ssize_t decay_ms = decay_ms_read(decay);
-	if (decay_ms <= 0) {
-		if (decay_ms == 0) {
-			pa_decay_to_limit(tsdn, &arena->pa_shard, decay,
-			    decay_stats, ecache, /* fully_decay */ false, 0,
-			    ecache_npages_get(ecache));
-		}
-		return false;
-	}
-
-	/*
-	 * If the deadline has been reached, advance to the current epoch and
-	 * purge to the new limit if necessary.  Note that dirty pages created
-	 * during the current epoch are not subject to purge until a future
-	 * epoch, so as a result purging only happens during epoch advances, or
-	 * being triggered by background threads (scheduled event).
-	 */
-	nstime_t time;
-	nstime_init_update(&time);
-	size_t npages_current = ecache_npages_get(ecache);
-	bool epoch_advanced = decay_maybe_advance_epoch(decay, &time,
-	    npages_current);
-	if (is_background_thread ||
-	    (epoch_advanced && !background_thread_enabled())) {
-		size_t npages_limit = decay_npages_limit_get(decay);
-		arena_decay_try_purge(tsdn, arena, decay, decay_stats, ecache,
-		    npages_current, npages_limit, is_background_thread);
-	}
-
-	return epoch_advanced;
-}
-
 ssize_t
 arena_dirty_decay_ms_get(arena_t *arena) {
 	return pa_shard_dirty_decay_ms_get(&arena->pa_shard);
@@ -564,6 +514,22 @@ arena_dirty_decay_ms_get(arena_t *arena) {
 ssize_t
 arena_muzzy_decay_ms_get(arena_t *arena) {
 	return pa_shard_muzzy_decay_ms_get(&arena->pa_shard);
+}
+
+/*
+ * In situations where we're not forcing a decay (i.e. because the user
+ * specifically requested it), should we purge ourselves, or wait for the
+ * background thread to get to it.
+ */
+static pa_decay_purge_setting_t
+arena_decide_unforced_decay_purge_setting(bool is_background_thread) {
+	if (is_background_thread) {
+		return PA_DECAY_PURGE_ALWAYS;
+	} else if (!is_background_thread && background_thread_enabled()) {
+		return PA_DECAY_PURGE_NEVER;
+	} else {
+		return PA_DECAY_PURGE_ON_EPOCH_ADVANCE;
+	}
 }
 
 static bool
@@ -585,7 +551,11 @@ arena_decay_ms_set(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 	nstime_t cur_time;
 	nstime_init_update(&cur_time);
 	decay_reinit(decay, &cur_time, decay_ms);
-	arena_maybe_decay(tsdn, arena, decay, decay_stats, ecache, false);
+	pa_decay_purge_setting_t decay_purge =
+	    arena_decide_unforced_decay_purge_setting(
+		/* is_background_thread */ false);
+	pa_maybe_decay_purge(tsdn, &arena->pa_shard, decay, decay_stats, ecache,
+	    decay_purge);
 	malloc_mutex_unlock(tsdn, &decay->mtx);
 
 	return false;
@@ -636,9 +606,10 @@ arena_decay_impl(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 		/* No need to wait if another thread is in progress. */
 		return true;
 	}
-
-	bool epoch_advanced = arena_maybe_decay(tsdn, arena, decay, decay_stats,
-	    ecache, is_background_thread);
+	pa_decay_purge_setting_t decay_purge =
+	    arena_decide_unforced_decay_purge_setting(is_background_thread);
+	bool epoch_advanced = pa_maybe_decay_purge(tsdn, &arena->pa_shard,
+	    decay, decay_stats, ecache, decay_purge);
 	size_t npages_new;
 	if (epoch_advanced) {
 		/* Backlog is updated on epoch advance. */
