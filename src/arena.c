@@ -641,8 +641,6 @@ arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 		    &decay_extents);
 		assert(npurged == npurge);
 	}
-	arena_background_thread_inactivity_check(tsdn, arena,
-	    is_background_thread);
 
 	malloc_mutex_lock(tsdn, &decay->mtx);
 	decay->purging = false;
@@ -653,10 +651,25 @@ arena_decay_impl(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
     pa_shard_decay_stats_t *decay_stats, ecache_t *ecache,
     bool is_background_thread, bool all) {
 	if (all) {
+		assert(!is_background_thread);
 		malloc_mutex_lock(tsdn, &decay->mtx);
 		arena_decay_to_limit(tsdn, arena, decay, decay_stats, ecache,
 		    all, 0, ecache_npages_get(ecache), is_background_thread);
 		malloc_mutex_unlock(tsdn, &decay->mtx);
+		/*
+		 * The previous pa_decay_to_limit call may not have actually
+		 * decayed all pages, if new pages were added concurrently with
+		 * the purge.
+		 *
+		 * I don't think we need an activity check for that case (some
+		 * other thread must be deallocating, and they should do one),
+		 * but we do one anyways.  This line comes out of a refactoring
+		 * diff in which the check was pulled out of the callee, and so
+		 * an extra redundant check minimizes the change.  We should
+		 * reevaluate.
+		 */
+		arena_background_thread_inactivity_check(tsdn, arena,
+		    /* is_background_thread */ false);
 
 		return false;
 	}
