@@ -296,3 +296,54 @@ pa_decay_all(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
 		    fully_decay, 0, ecache_npages_get(ecache));
 		malloc_mutex_unlock(tsdn, &decay->mtx);
 }
+
+static void
+pa_decay_try_purge(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
+    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache,
+    size_t current_npages, size_t npages_limit) {
+	if (current_npages > npages_limit) {
+		pa_decay_to_limit(tsdn, shard, decay, decay_stats, ecache,
+		    /* fully_decay */ false, npages_limit,
+		    current_npages - npages_limit);
+	}
+}
+
+bool
+pa_maybe_decay_purge(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
+    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache,
+    pa_decay_purge_setting_t decay_purge_setting) {
+	malloc_mutex_assert_owner(tsdn, &decay->mtx);
+
+	/* Purge all or nothing if the option is disabled. */
+	ssize_t decay_ms = decay_ms_read(decay);
+	if (decay_ms <= 0) {
+		if (decay_ms == 0) {
+			pa_decay_to_limit(tsdn, shard, decay, decay_stats,
+			    ecache, /* fully_decay */ false,
+			    /* npages_limit */ 0, ecache_npages_get(ecache));
+		}
+		return false;
+	}
+
+	/*
+	 * If the deadline has been reached, advance to the current epoch and
+	 * purge to the new limit if necessary.  Note that dirty pages created
+	 * during the current epoch are not subject to purge until a future
+	 * epoch, so as a result purging only happens during epoch advances, or
+	 * being triggered by background threads (scheduled event).
+	 */
+	nstime_t time;
+	nstime_init_update(&time);
+	size_t npages_current = ecache_npages_get(ecache);
+	bool epoch_advanced = decay_maybe_advance_epoch(decay, &time,
+	    npages_current);
+	if (decay_purge_setting == PA_DECAY_PURGE_ALWAYS
+	    || (epoch_advanced && decay_purge_setting
+	    == PA_DECAY_PURGE_ON_EPOCH_ADVANCE)) {
+		size_t npages_limit = decay_npages_limit_get(decay);
+		pa_decay_try_purge(tsdn, shard, decay, decay_stats, ecache,
+		    npages_current, npages_limit);
+	}
+
+	return epoch_advanced;
+}
