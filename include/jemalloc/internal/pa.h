@@ -119,10 +119,26 @@ bool pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
     pa_shard_stats_t *stats, malloc_mutex_t *stats_mtx);
 size_t pa_shard_extent_sn_next(pa_shard_t *shard);
 
+/* Gets an edata for the given allocation. */
 edata_t *pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size,
     size_t alignment, bool slab, szind_t szind, bool *zero, size_t *mapped_add);
 /* Returns true on error, in which case nothing changed. */
 bool pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
     size_t new_size, szind_t szind, bool slab, bool *zero, size_t *mapped_add);
+/*
+ * The same.  Sets *generated_dirty to true if we produced new dirty pages, and
+ * false otherwise.
+ */
+bool pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
+    size_t new_size, szind_t szind, bool slab, bool *generated_dirty);
+/*
+ * Frees the given edata back to the pa.  Sets *generated_dirty if we produced
+ * new dirty pages (well, we alwyas set it for now; but this need not be the
+ * case).
+ * (We could make generated_dirty the return value of course, but this is more
+ * consistent with the shrink pathway and our error codes here).
+ */
+void pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
+    bool *generated_dirty);
 
 #endif /* JEMALLOC_INTERNAL_PA_H */

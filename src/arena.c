@@ -276,14 +276,10 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	}
 }
 
-void
-arena_extents_dirty_dalloc(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    edata_t *edata) {
+void arena_handle_new_dirty_pages(tsdn_t *tsdn, arena_t *arena) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	ecache_dalloc(tsdn, &arena->pa_shard, ehooks,
-	    &arena->pa_shard.ecache_dirty, edata);
 	if (arena_dirty_decay_ms_get(arena) == 0) {
 		arena_decay_dirty(tsdn, arena, false, true);
 	} else {
@@ -636,7 +632,7 @@ arena_stash_decayed(tsdn_t *tsdn, arena_t *arena,
 static size_t
 arena_decay_stashed(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
     decay_t *decay, pa_shard_decay_stats_t *decay_stats, ecache_t *ecache,
-    bool all, edata_list_t *decay_extents, bool is_background_thread) {
+    bool all, edata_list_t *decay_extents) {
 	size_t nmadvise, nunmapped;
 	size_t npurged;
 
@@ -728,8 +724,7 @@ arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 	    npages_limit, npages_decay_max, &decay_extents);
 	if (npurge != 0) {
 		size_t npurged = arena_decay_stashed(tsdn, arena, ehooks, decay,
-		    decay_stats, ecache, all, &decay_extents,
-		    is_background_thread);
+		    decay_stats, ecache, all, &decay_extents);
 		assert(npurged == npurge);
 	}
 
@@ -805,8 +800,11 @@ void
 arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, edata_t *slab) {
 	arena_nactive_sub(arena, edata_size_get(slab) >> LG_PAGE);
 
-	ehooks_t *ehooks = arena_get_ehooks(arena);
-	arena_extents_dirty_dalloc(tsdn, arena, ehooks, slab);
+	bool generated_dirty;
+	pa_dalloc(tsdn, &arena->pa_shard, slab, &generated_dirty);
+	if (generated_dirty) {
+		arena_handle_new_dirty_pages(tsdn, arena);
+	}
 }
 
 static void
