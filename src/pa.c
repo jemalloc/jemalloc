@@ -170,7 +170,7 @@ pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
 
 size_t
 pa_stash_decayed(tsdn_t *tsdn, pa_shard_t *shard, ecache_t *ecache,
-    size_t npages_limit, size_t npages_decay_max, edata_list_t *decay_extents) {
+    size_t npages_limit, size_t npages_decay_max, edata_list_t *result) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
@@ -183,8 +183,72 @@ pa_stash_decayed(tsdn_t *tsdn, pa_shard_t *shard, ecache_t *ecache,
 		if (edata == NULL) {
 			break;
 		}
-		edata_list_append(decay_extents, edata);
+		edata_list_append(result, edata);
 		nstashed += edata_size_get(edata) >> LG_PAGE;
 	}
 	return nstashed;
+}
+
+size_t
+pa_decay_stashed(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
+    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay,
+    edata_list_t *decay_extents) {
+	bool err;
+
+	size_t nmadvise = 0;
+	size_t nunmapped = 0;
+	size_t npurged = 0;
+
+	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
+
+	bool try_muzzy = !fully_decay && pa_shard_may_have_muzzy(shard);
+
+	for (edata_t *edata = edata_list_first(decay_extents); edata !=
+	    NULL; edata = edata_list_first(decay_extents)) {
+		edata_list_remove(decay_extents, edata);
+
+		size_t size = edata_size_get(edata);
+		size_t npages = size >> LG_PAGE;
+
+		nmadvise++;
+		npurged += npages;
+
+		switch (ecache->state) {
+		case extent_state_active:
+			not_reached();
+		case extent_state_dirty:
+			if (try_muzzy) {
+				err = extent_purge_lazy_wrapper(tsdn, ehooks,
+				    edata, /* offset */ 0, size);
+				if (!err) {
+					ecache_dalloc(tsdn, shard, ehooks,
+					    &shard->ecache_muzzy, edata);
+					break;
+				}
+			}
+			JEMALLOC_FALLTHROUGH;
+		case extent_state_muzzy:
+			extent_dalloc_wrapper(tsdn, shard, ehooks, edata);
+			nunmapped += npages;
+			break;
+		case extent_state_retained:
+		default:
+			not_reached();
+		}
+	}
+
+	if (config_stats) {
+		LOCKEDINT_MTX_LOCK(tsdn, *shard->stats_mtx);
+		locked_inc_u64(tsdn, LOCKEDINT_MTX(*shard->stats_mtx),
+		    &decay_stats->npurge, 1);
+		locked_inc_u64(tsdn, LOCKEDINT_MTX(*shard->stats_mtx),
+		    &decay_stats->nmadvise, nmadvise);
+		locked_inc_u64(tsdn, LOCKEDINT_MTX(*shard->stats_mtx),
+		    &decay_stats->purged, npurged);
+		locked_dec_zu(tsdn, LOCKEDINT_MTX(*shard->stats_mtx),
+		    &shard->stats->mapped, nunmapped << LG_PAGE);
+		LOCKEDINT_MTX_UNLOCK(tsdn, *shard->stats_mtx);
+	}
+
+	return npurged;
 }
