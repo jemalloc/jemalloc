@@ -610,69 +610,6 @@ arena_muzzy_decay_ms_set(tsdn_t *tsdn, arena_t *arena,
 	    decay_ms);
 }
 
-static size_t
-arena_decay_stashed(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
-    decay_t *decay, pa_shard_decay_stats_t *decay_stats, ecache_t *ecache,
-    bool all, edata_list_t *decay_extents) {
-	size_t nmadvise, nunmapped;
-	size_t npurged;
-
-	if (config_stats) {
-		nmadvise = 0;
-		nunmapped = 0;
-	}
-	npurged = 0;
-
-	ssize_t muzzy_decay_ms = arena_muzzy_decay_ms_get(arena);
-	for (edata_t *edata = edata_list_first(decay_extents); edata !=
-	    NULL; edata = edata_list_first(decay_extents)) {
-		if (config_stats) {
-			nmadvise++;
-		}
-		size_t npages = edata_size_get(edata) >> LG_PAGE;
-		npurged += npages;
-		edata_list_remove(decay_extents, edata);
-		switch (ecache->state) {
-		case extent_state_active:
-			not_reached();
-		case extent_state_dirty:
-			if (!all && muzzy_decay_ms != 0 &&
-			    !extent_purge_lazy_wrapper(tsdn, ehooks, edata, 0,
-			    edata_size_get(edata))) {
-				ecache_dalloc(tsdn, &arena->pa_shard, ehooks,
-				    &arena->pa_shard.ecache_muzzy, edata);
-				break;
-			}
-			JEMALLOC_FALLTHROUGH;
-		case extent_state_muzzy:
-			extent_dalloc_wrapper(tsdn, &arena->pa_shard, ehooks,
-			    edata);
-			if (config_stats) {
-				nunmapped += npages;
-			}
-			break;
-		case extent_state_retained:
-		default:
-			not_reached();
-		}
-	}
-
-	if (config_stats) {
-		LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
-		locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
-		    &decay_stats->npurge, 1);
-		locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
-		    &decay_stats->nmadvise, nmadvise);
-		locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
-		    &decay_stats->purged, npurged);
-		locked_dec_zu(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
-		    &arena->pa_shard.stats->mapped, nunmapped << LG_PAGE);
-		LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
-	}
-
-	return npurged;
-}
-
 /*
  * npages_limit: Decay at most npages_decay_max pages without violating the
  * invariant: (ecache_npages_get(ecache) >= npages_limit).  We need an upper
@@ -694,16 +631,14 @@ arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 	decay->purging = true;
 	malloc_mutex_unlock(tsdn, &decay->mtx);
 
-	ehooks_t *ehooks = arena_get_ehooks(arena);
-
 	edata_list_t decay_extents;
 	edata_list_init(&decay_extents);
-
 	size_t npurge = pa_stash_decayed(tsdn, &arena->pa_shard, ecache,
 	    npages_limit, npages_decay_max, &decay_extents);
 	if (npurge != 0) {
-		size_t npurged = arena_decay_stashed(tsdn, arena, ehooks, decay,
-		    decay_stats, ecache, all, &decay_extents);
+		size_t npurged = pa_decay_stashed(tsdn, &arena->pa_shard,
+		    decay, decay_stats, ecache, /* fully_decay */all,
+		    &decay_extents);
 		assert(npurged == npurge);
 	}
 	arena_background_thread_inactivity_check(tsdn, arena,

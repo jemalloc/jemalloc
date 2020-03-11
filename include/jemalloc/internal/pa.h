@@ -142,6 +142,9 @@ void pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
     bool *generated_dirty);
 
 size_t pa_stash_decayed(tsdn_t *tsdn, pa_shard_t *shard, ecache_t *ecache,
-    size_t npages_limit, size_t npages_decay_max, edata_list_t *decay_extents);
+    size_t npages_limit, size_t npages_decay_max, edata_list_t *result);
+size_t pa_decay_stashed(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
+    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay,
+    edata_list_t *decay_extents);
 
 #endif /* JEMALLOC_INTERNAL_PA_H */
