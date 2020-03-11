@@ -56,9 +56,6 @@ static unsigned huge_arena_ind;
  * definition.
  */
 
-static void arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
-    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache, bool all,
-    size_t npages_limit, size_t npages_decay_max, bool is_background_thread);
 static bool arena_decay_dirty(tsdn_t *tsdn, arena_t *arena,
     bool is_background_thread, bool all);
 static void arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, edata_t *slab,
@@ -514,9 +511,9 @@ arena_decay_try_purge(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
     pa_shard_decay_stats_t *decay_stats, ecache_t *ecache,
     size_t current_npages, size_t npages_limit, bool is_background_thread) {
 	if (current_npages > npages_limit) {
-		arena_decay_to_limit(tsdn, arena, decay, decay_stats, ecache,
-		    false, npages_limit, current_npages - npages_limit,
-		    is_background_thread);
+		pa_decay_to_limit(tsdn, &arena->pa_shard, decay, decay_stats,
+		    ecache, /* fully_decay */ false, npages_limit,
+		    current_npages - npages_limit);
 	}
 }
 
@@ -530,9 +527,9 @@ arena_maybe_decay(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 	ssize_t decay_ms = decay_ms_read(decay);
 	if (decay_ms <= 0) {
 		if (decay_ms == 0) {
-			arena_decay_to_limit(tsdn, arena, decay, decay_stats,
-			    ecache, false, 0, ecache_npages_get(ecache),
-			    is_background_thread);
+			pa_decay_to_limit(tsdn, &arena->pa_shard, decay,
+			    decay_stats, ecache, /* fully_decay */ false, 0,
+			    ecache_npages_get(ecache));
 		}
 		return false;
 	}
@@ -610,42 +607,6 @@ arena_muzzy_decay_ms_set(tsdn_t *tsdn, arena_t *arena,
 	    decay_ms);
 }
 
-/*
- * npages_limit: Decay at most npages_decay_max pages without violating the
- * invariant: (ecache_npages_get(ecache) >= npages_limit).  We need an upper
- * bound on number of pages in order to prevent unbounded growth (namely in
- * stashed), otherwise unbounded new pages could be added to extents during the
- * current decay run, so that the purging thread never finishes.
- */
-static void
-arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
-    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache, bool all,
-    size_t npages_limit, size_t npages_decay_max, bool is_background_thread) {
-	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
-	    WITNESS_RANK_CORE, 1);
-	malloc_mutex_assert_owner(tsdn, &decay->mtx);
-
-	if (decay->purging || npages_decay_max == 0) {
-		return;
-	}
-	decay->purging = true;
-	malloc_mutex_unlock(tsdn, &decay->mtx);
-
-	edata_list_t decay_extents;
-	edata_list_init(&decay_extents);
-	size_t npurge = pa_stash_decayed(tsdn, &arena->pa_shard, ecache,
-	    npages_limit, npages_decay_max, &decay_extents);
-	if (npurge != 0) {
-		size_t npurged = pa_decay_stashed(tsdn, &arena->pa_shard,
-		    decay, decay_stats, ecache, /* fully_decay */all,
-		    &decay_extents);
-		assert(npurged == npurge);
-	}
-
-	malloc_mutex_lock(tsdn, &decay->mtx);
-	decay->purging = false;
-}
-
 static bool
 arena_decay_impl(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
     pa_shard_decay_stats_t *decay_stats, ecache_t *ecache,
@@ -653,8 +614,9 @@ arena_decay_impl(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 	if (all) {
 		assert(!is_background_thread);
 		malloc_mutex_lock(tsdn, &decay->mtx);
-		arena_decay_to_limit(tsdn, arena, decay, decay_stats, ecache,
-		    all, 0, ecache_npages_get(ecache), is_background_thread);
+		pa_decay_to_limit(tsdn, &arena->pa_shard, decay, decay_stats,
+		    ecache, /* fully_decay */ all, 0,
+		    ecache_npages_get(ecache));
 		malloc_mutex_unlock(tsdn, &decay->mtx);
 		/*
 		 * The previous pa_decay_to_limit call may not have actually
