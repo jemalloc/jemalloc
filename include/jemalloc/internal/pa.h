@@ -77,7 +77,7 @@ struct pa_shard_s {
 	 * Decay-based purging state, responsible for scheduling extent state
 	 * transitions.
 	 *
-	 * Synchronization: internal.
+	 * Synchronization: via the internal mutex.
 	 */
 	decay_t decay_dirty; /* dirty --> muzzy */
 	decay_t decay_muzzy; /* muzzy --> retained */
@@ -140,5 +140,8 @@ bool pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
  */
 void pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
     bool *generated_dirty);
+
+size_t pa_stash_decayed(tsdn_t *tsdn, pa_shard_t *shard, ecache_t *ecache,
+    size_t npages_limit, size_t npages_decay_max, edata_list_t *decay_extents);
 
 #endif /* JEMALLOC_INTERNAL_PA_H */
