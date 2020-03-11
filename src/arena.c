@@ -660,8 +660,6 @@ arena_decay_stashed(tsdn_t *tsdn, arena_t *arena, ehooks_t *ehooks,
 			    edata_size_get(edata))) {
 				ecache_dalloc(tsdn, &arena->pa_shard, ehooks,
 				    &arena->pa_shard.ecache_muzzy, edata);
-				arena_background_thread_inactivity_check(tsdn,
-				    arena, is_background_thread);
 				break;
 			}
 			JEMALLOC_FALLTHROUGH;
@@ -727,6 +725,8 @@ arena_decay_to_limit(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 		    decay_stats, ecache, all, &decay_extents);
 		assert(npurged == npurge);
 	}
+	arena_background_thread_inactivity_check(tsdn, arena,
+	    is_background_thread);
 
 	malloc_mutex_lock(tsdn, &decay->mtx);
 	decay->purging = false;
