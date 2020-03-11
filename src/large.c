@@ -115,8 +115,9 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
 	 */
 	bool is_zeroed_trail = zero;
 	size_t mapped_add;
+	szind_t szind = sz_size2index(usize);
 	bool err = pa_expand(tsdn, &arena->pa_shard, edata, usize,
-	    &is_zeroed_trail, &mapped_add);
+	    szind, /* slab */ false, &is_zeroed_trail, &mapped_add);
 	if (err) {
 		return true;
 	}

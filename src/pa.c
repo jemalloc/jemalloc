@@ -97,7 +97,7 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 
 bool
 pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t new_usize,
-    bool *zero, size_t *mapped_add) {
+    szind_t szind, bool slab, bool *zero, size_t *mapped_add) {
 	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
 	size_t old_usize = edata_usize_get(edata);
 	size_t trail_size = new_usize - old_usize;
@@ -130,7 +130,6 @@ pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t new_usize,
 		*mapped_add = 0;
 		return true;
 	}
-	szind_t szind = sz_size2index(new_usize);
-	emap_remap(tsdn, &emap_global, edata, szind, /* slab */ false);
+	emap_remap(tsdn, &emap_global, edata, szind, slab);
 	return false;
 }
