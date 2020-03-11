@@ -287,3 +287,12 @@ pa_decay_to_limit(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
 	malloc_mutex_lock(tsdn, &decay->mtx);
 	decay->purging = false;
 }
+
+void
+pa_decay_all(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
+    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay) {
+		malloc_mutex_lock(tsdn, &decay->mtx);
+		pa_decay_to_limit(tsdn, shard, decay, decay_stats, ecache,
+		    fully_decay, 0, ecache_npages_get(ecache));
+		malloc_mutex_unlock(tsdn, &decay->mtx);
+}
