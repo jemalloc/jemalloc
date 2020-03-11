@@ -56,6 +56,21 @@ struct pa_shard_stats_s {
 	atomic_zu_t abandoned_vm;
 };
 
+/*
+ * The local allocator handle.  Keeps the state necessary to satisfy page-sized
+ * allocations.
+ *
+ * The contents are mostly internal to the PA module.  The key exception is that
+ * arena decay code is allowed to grab pointers to the dirty and muzzy ecaches
+ * decay_ts, for a couple of queries, passing them back to a PA function, or
+ * acquiring decay.mtx and looking at decay.purging.  The reasoning is that,
+ * while PA decides what and how to purge, the arena code decides when and where
+ * (e.g. on what thread).  It's allowed to use the presence of another purger to
+ * decide.
+ * (The background thread code also touches some other decay internals, but
+ * that's not fundamental; its' just an artifact of a partial refactoring, and
+ * its accesses could be straightforwardly moved inside the decay module).
+ */
 typedef struct pa_shard_s pa_shard_t;
 struct pa_shard_s {
 	/*
@@ -148,15 +163,23 @@ bool pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 void pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
     bool *generated_dirty);
 
-void pa_decay_to_limit(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
-    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay,
-    size_t npages_limit, size_t npages_decay_max);
-void pa_decay_all(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
-    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay);
+/*
+ * All purging functions require holding decay->mtx.  This is one of the few
+ * places external modules are allowed to peek inside pa_shard_t internals.
+ */
 
+/*
+ * Decays the number of pages currently in the ecache.  This might not leave the
+ * ecache empty if other threads are inserting dirty objects into it
+ * concurrently with the call.
+ */
 void pa_decay_all(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
     pa_shard_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay);
-/* Returns true if the epoch advanced. */
+/*
+ * Updates decay settings for the current time, and conditionally purges in
+ * response (depending on decay_purge_setting).  Returns whether or not the
+ * epoch advanced.
+ */
 bool pa_maybe_decay_purge(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
     pa_shard_decay_stats_t *decay_stats, ecache_t *ecache,
     pa_decay_purge_setting_t decay_purge_setting);
