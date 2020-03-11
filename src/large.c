@@ -106,7 +106,9 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
 		zero = true;
 	}
 
+	size_t old_size = edata_size_get(edata);
 	size_t old_usize = edata_usize_get(edata);
+	size_t new_size = usize + sz_large_pad;
 
 	/*
 	 * Copy zero into is_zeroed_trail and pass the copy when allocating the
@@ -116,7 +118,7 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
 	bool is_zeroed_trail = zero;
 	size_t mapped_add;
 	szind_t szind = sz_size2index(usize);
-	bool err = pa_expand(tsdn, &arena->pa_shard, edata, usize,
+	bool err = pa_expand(tsdn, &arena->pa_shard, edata, old_size, new_size,
 	    szind, /* slab */ false, &is_zeroed_trail, &mapped_add);
 	if (err) {
 		return true;
