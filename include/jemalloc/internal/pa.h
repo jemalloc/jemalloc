@@ -7,6 +7,13 @@
 #include "jemalloc/internal/edata_cache.h"
 #include "jemalloc/internal/lockedint.h"
 
+enum pa_decay_purge_setting_e {
+	PA_DECAY_PURGE_ALWAYS,
+	PA_DECAY_PURGE_NEVER,
+	PA_DECAY_PURGE_ON_EPOCH_ADVANCE
+};
+typedef enum pa_decay_purge_setting_e pa_decay_purge_setting_t;
+
 /*
  * The page allocator; responsible for acquiring pages of memory for
  * allocations.
@@ -146,5 +153,12 @@ void pa_decay_to_limit(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
     size_t npages_limit, size_t npages_decay_max);
 void pa_decay_all(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
     pa_shard_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay);
+
+void pa_decay_all(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
+    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay);
+/* Returns true if the epoch advanced. */
+bool pa_maybe_decay_purge(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
+    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache,
+    pa_decay_purge_setting_t decay_purge_setting);
 
 #endif /* JEMALLOC_INTERNAL_PA_H */
