@@ -99,6 +99,7 @@ bool
 pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
     size_t new_size, szind_t szind, bool slab, bool *zero, size_t *mapped_add) {
 	assert(new_size > old_size);
+	assert(edata_size_get(edata) == old_size);
 
 	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
 	void *trail_begin = edata_past_get(edata);
@@ -134,4 +135,35 @@ pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 	}
 	emap_remap(tsdn, &emap_global, edata, szind, slab);
 	return false;
+}
+
+bool
+pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
+    size_t new_size, szind_t szind, bool slab, bool *generated_dirty) {
+	assert(new_size < old_size);
+
+	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
+	*generated_dirty = false;
+
+	if (ehooks_split_will_fail(ehooks)) {
+		return true;
+	}
+
+	edata_t *trail = extent_split_wrapper(tsdn, &shard->edata_cache, ehooks,
+	    edata, new_size, szind, slab, old_size - new_size, SC_NSIZES,
+	    false);
+	if (trail == NULL) {
+		return true;
+	}
+	ecache_dalloc(tsdn, shard, ehooks, &shard->ecache_dirty, trail);
+	*generated_dirty = true;
+	return false;
+}
+
+void
+pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
+    bool *generated_dirty) {
+	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
+	ecache_dalloc(tsdn, shard, ehooks, &shard->ecache_dirty, edata);
+	*generated_dirty = true;
 }

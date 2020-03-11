@@ -69,30 +69,27 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 static bool
 large_ralloc_no_move_shrink(tsdn_t *tsdn, edata_t *edata, size_t usize) {
 	arena_t *arena = arena_get_from_edata(edata);
-	size_t oldusize = edata_usize_get(edata);
 	ehooks_t *ehooks = arena_get_ehooks(arena);
-	size_t diff = edata_size_get(edata) - (usize + sz_large_pad);
+	size_t old_size = edata_size_get(edata);
+	size_t old_usize = edata_usize_get(edata);
 
-	assert(oldusize > usize);
+	assert(old_usize > usize);
 
 	if (ehooks_split_will_fail(ehooks)) {
 		return true;
 	}
 
-	/* Split excess pages. */
-	if (diff != 0) {
-		edata_t *trail = extent_split_wrapper(tsdn,
-		    &arena->pa_shard.edata_cache, ehooks, edata,
-		    usize + sz_large_pad, sz_size2index(usize), false, diff,
-		    SC_NSIZES, false);
-		if (trail == NULL) {
-			return true;
-		}
-
-		arena_extents_dirty_dalloc(tsdn, arena, ehooks, trail);
+	bool generated_dirty;
+	bool err = pa_shrink(tsdn, &arena->pa_shard, edata, old_size,
+	    usize + sz_large_pad, sz_size2index(usize), false,
+	    &generated_dirty);
+	if (err) {
+		return true;
 	}
-
-	arena_extent_ralloc_large_shrink(tsdn, arena, edata, oldusize);
+	if (generated_dirty) {
+		arena_handle_new_dirty_pages(tsdn, arena);
+	}
+	arena_extent_ralloc_large_shrink(tsdn, arena, edata, old_usize);
 
 	return false;
 }
@@ -275,8 +272,11 @@ large_dalloc_prep_impl(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
 
 static void
 large_dalloc_finish_impl(tsdn_t *tsdn, arena_t *arena, edata_t *edata) {
-	ehooks_t *ehooks = arena_get_ehooks(arena);
-	arena_extents_dirty_dalloc(tsdn, arena, ehooks, edata);
+	bool generated_dirty;
+	pa_dalloc(tsdn, &arena->pa_shard, edata, &generated_dirty);
+	if (generated_dirty) {
+		arena_handle_new_dirty_pages(tsdn, arena);
+	}
 }
 
 void
