@@ -146,5 +146,8 @@ size_t pa_stash_decayed(tsdn_t *tsdn, pa_shard_t *shard, ecache_t *ecache,
 size_t pa_decay_stashed(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
     pa_shard_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay,
     edata_list_t *decay_extents);
+void pa_decay_to_limit(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
+    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay,
+    size_t npages_limit, size_t npages_decay_max);
 
 #endif /* JEMALLOC_INTERNAL_PA_H */

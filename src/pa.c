@@ -252,3 +252,38 @@ pa_decay_stashed(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
 
 	return npurged;
 }
+
+/*
+ * npages_limit: Decay at most npages_decay_max pages without violating the
+ * invariant: (ecache_npages_get(ecache) >= npages_limit).  We need an upper
+ * bound on number of pages in order to prevent unbounded growth (namely in
+ * stashed), otherwise unbounded new pages could be added to extents during the
+ * current decay run, so that the purging thread never finishes.
+ */
+void
+pa_decay_to_limit(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
+    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay,
+    size_t npages_limit, size_t npages_decay_max) {
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 1);
+	malloc_mutex_assert_owner(tsdn, &decay->mtx);
+
+	if (decay->purging || npages_decay_max == 0) {
+		return;
+	}
+	decay->purging = true;
+	malloc_mutex_unlock(tsdn, &decay->mtx);
+
+	edata_list_t decay_extents;
+	edata_list_init(&decay_extents);
+	size_t npurge = pa_stash_decayed(tsdn, shard, ecache, npages_limit,
+	    npages_decay_max, &decay_extents);
+	if (npurge != 0) {
+		size_t npurged = pa_decay_stashed(tsdn, shard, decay,
+		    decay_stats, ecache, fully_decay, &decay_extents);
+		assert(npurged == npurge);
+	}
+
+	malloc_mutex_lock(tsdn, &decay->mtx);
+	decay->purging = false;
+}
