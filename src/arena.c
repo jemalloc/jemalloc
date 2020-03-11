@@ -582,12 +582,14 @@ arena_decay_impl(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
     pa_shard_decay_stats_t *decay_stats, ecache_t *ecache,
     bool is_background_thread, bool all) {
 	if (all) {
+		malloc_mutex_lock(tsdn, &decay->mtx);
 		pa_decay_all(tsdn, &arena->pa_shard, decay, decay_stats, ecache,
 		    /* fully_decay */ all);
+		malloc_mutex_unlock(tsdn, &decay->mtx);
 		/*
-		 * The previous pa_decay_to_limit call may not have actually
-		 * decayed all pages, if new pages were added concurrently with
-		 * the purge.
+		 * The previous pa_decay_all call may not have actually decayed
+		 * all pages, if new pages were added concurrently with the
+		 * purge.
 		 *
 		 * I don't think we need an activity check for that case (some
 		 * other thread must be deallocating, and they should do one),
