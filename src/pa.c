@@ -167,3 +167,24 @@ pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
 	ecache_dalloc(tsdn, shard, ehooks, &shard->ecache_dirty, edata);
 	*generated_dirty = true;
 }
+
+size_t
+pa_stash_decayed(tsdn_t *tsdn, pa_shard_t *shard, ecache_t *ecache,
+    size_t npages_limit, size_t npages_decay_max, edata_list_t *decay_extents) {
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
+	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
+
+	/* Stash extents according to npages_limit. */
+	size_t nstashed = 0;
+	while (nstashed < npages_decay_max) {
+		edata_t *edata = ecache_evict(tsdn, shard, ehooks, ecache,
+		    npages_limit);
+		if (edata == NULL) {
+			break;
+		}
+		edata_list_append(decay_extents, edata);
+		nstashed += edata_size_get(edata) >> LG_PAGE;
+	}
+	return nstashed;
+}
