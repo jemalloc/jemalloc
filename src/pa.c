@@ -168,7 +168,7 @@ pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
 	*generated_dirty = true;
 }
 
-size_t
+static size_t
 pa_stash_decayed(tsdn_t *tsdn, pa_shard_t *shard, ecache_t *ecache,
     size_t npages_limit, size_t npages_decay_max, edata_list_t *result) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
@@ -189,7 +189,7 @@ pa_stash_decayed(tsdn_t *tsdn, pa_shard_t *shard, ecache_t *ecache,
 	return nstashed;
 }
 
-size_t
+static size_t
 pa_decay_stashed(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
     pa_shard_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay,
     edata_list_t *decay_extents) {
