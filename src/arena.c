@@ -612,12 +612,8 @@ arena_decay_impl(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
     pa_shard_decay_stats_t *decay_stats, ecache_t *ecache,
     bool is_background_thread, bool all) {
 	if (all) {
-		assert(!is_background_thread);
-		malloc_mutex_lock(tsdn, &decay->mtx);
-		pa_decay_to_limit(tsdn, &arena->pa_shard, decay, decay_stats,
-		    ecache, /* fully_decay */ all, 0,
-		    ecache_npages_get(ecache));
-		malloc_mutex_unlock(tsdn, &decay->mtx);
+		pa_decay_all(tsdn, &arena->pa_shard, decay, decay_stats, ecache,
+		    /* fully_decay */ all);
 		/*
 		 * The previous pa_decay_to_limit call may not have actually
 		 * decayed all pages, if new pages were added concurrently with
@@ -630,9 +626,9 @@ arena_decay_impl(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 		 * an extra redundant check minimizes the change.  We should
 		 * reevaluate.
 		 */
+		assert(!is_background_thread);
 		arena_background_thread_inactivity_check(tsdn, arena,
 		    /* is_background_thread */ false);
-
 		return false;
 	}
 
