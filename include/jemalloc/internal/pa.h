@@ -74,6 +74,13 @@ struct pa_shard_stats_s {
 typedef struct pa_shard_s pa_shard_t;
 struct pa_shard_s {
 	/*
+	 * Number of pages in active extents.
+	 *
+	 * Synchronization: atomic.
+	 */
+	atomic_zu_t nactive;
+
+	/*
 	 * Collections of extents that were previously allocated.  These are
 	 * used when allocating extents, in an attempt to re-use address space.
 	 *

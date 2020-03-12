@@ -71,7 +71,7 @@ arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	*dss = dss_prec_names[arena_dss_prec_get(arena)];
 	*dirty_decay_ms = arena_dirty_decay_ms_get(arena);
 	*muzzy_decay_ms = arena_muzzy_decay_ms_get(arena);
-	*nactive += atomic_load_zu(&arena->nactive, ATOMIC_RELAXED);
+	*nactive += atomic_load_zu(&arena->pa_shard.nactive, ATOMIC_RELAXED);
 	*ndirty += ecache_npages_get(&arena->pa_shard.ecache_dirty);
 	*nmuzzy += ecache_npages_get(&arena->pa_shard.ecache_muzzy);
 }
@@ -136,7 +136,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	atomic_load_add_store_zu(&astats->internal, arena_internal_get(arena));
 	atomic_load_add_store_zu(&astats->metadata_thp, metadata_thp);
 	atomic_load_add_store_zu(&astats->resident, base_resident +
-	    (((atomic_load_zu(&arena->nactive, ATOMIC_RELAXED) +
+	    (((atomic_load_zu(&arena->pa_shard.nactive, ATOMIC_RELAXED) +
 	    ecache_npages_get(&arena->pa_shard.ecache_dirty) +
 	    ecache_npages_get(&arena->pa_shard.ecache_muzzy)) << LG_PAGE)));
 	atomic_load_add_store_zu(&astats->pa_shard_stats.abandoned_vm,
@@ -387,17 +387,6 @@ arena_slab_reg_dalloc(edata_t *slab, slab_data_t *slab_data, void *ptr) {
 }
 
 static void
-arena_nactive_add(arena_t *arena, size_t add_pages) {
-	atomic_fetch_add_zu(&arena->nactive, add_pages, ATOMIC_RELAXED);
-}
-
-static void
-arena_nactive_sub(arena_t *arena, size_t sub_pages) {
-	assert(atomic_load_zu(&arena->nactive, ATOMIC_RELAXED) >= sub_pages);
-	atomic_fetch_sub_zu(&arena->nactive, sub_pages, ATOMIC_RELAXED);
-}
-
-static void
 arena_large_malloc_stats_update(tsdn_t *tsdn, arena_t *arena, size_t usize) {
 	szind_t index, hindex;
 
@@ -457,7 +446,6 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 			}
 			LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 		}
-		arena_nactive_add(arena, esize >> LG_PAGE);
 	}
 
 	if (edata != NULL && sz_large_pad != 0) {
@@ -475,35 +463,30 @@ arena_extent_dalloc_large_prep(tsdn_t *tsdn, arena_t *arena, edata_t *edata) {
 		    edata_usize_get(edata));
 		LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 	}
-	arena_nactive_sub(arena, edata_size_get(edata) >> LG_PAGE);
 }
 
 void
 arena_extent_ralloc_large_shrink(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
     size_t oldusize) {
 	size_t usize = edata_usize_get(edata);
-	size_t udiff = oldusize - usize;
 
 	if (config_stats) {
 		LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 		arena_large_ralloc_stats_update(tsdn, arena, oldusize, usize);
 		LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 	}
-	arena_nactive_sub(arena, udiff >> LG_PAGE);
 }
 
 void
 arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
     size_t oldusize) {
 	size_t usize = edata_usize_get(edata);
-	size_t udiff = usize - oldusize;
 
 	if (config_stats) {
 		LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 		arena_large_ralloc_stats_update(tsdn, arena, oldusize, usize);
 		LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 	}
-	arena_nactive_add(arena, udiff >> LG_PAGE);
 }
 
 ssize_t
@@ -658,8 +641,6 @@ arena_decay(tsdn_t *tsdn, arena_t *arena, bool is_background_thread, bool all) {
 
 void
 arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, edata_t *slab) {
-	arena_nactive_sub(arena, edata_size_get(slab) >> LG_PAGE);
-
 	bool generated_dirty;
 	pa_dalloc(tsdn, &arena->pa_shard, slab, &generated_dirty);
 	if (generated_dirty) {
@@ -801,7 +782,7 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 		}
 	}
 
-	atomic_store_zu(&arena->nactive, 0, ATOMIC_RELAXED);
+	atomic_store_zu(&arena->pa_shard.nactive, 0, ATOMIC_RELAXED);
 }
 
 static void
@@ -884,8 +865,6 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned binshard
 	slab_data_t *slab_data = edata_slab_data_get(slab);
 	edata_nfree_binshard_set(slab, bin_info->nregs, binshard);
 	bitmap_init(slab_data->bitmap, &bin_info->bitmap_info, false);
-
-	arena_nactive_add(arena, edata_size_get(slab) >> LG_PAGE);
 
 	return slab;
 }
@@ -1636,8 +1615,6 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 
 	atomic_store_u(&arena->dss_prec, (unsigned)extent_dss_prec_get(),
 	    ATOMIC_RELAXED);
-
-	atomic_store_zu(&arena->nactive, 0, ATOMIC_RELAXED);
 
 	edata_list_init(&arena->large);
 	if (malloc_mutex_init(&arena->large_mtx, "arena_large",
