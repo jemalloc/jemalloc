@@ -29,6 +29,23 @@ struct pa_shard_decay_stats_s {
 	locked_u64_t purged;
 };
 
+typedef struct pa_extent_stats_s pa_extent_stats_t;
+struct pa_extent_stats_s {
+	/*
+	 * Stats for a given index in the range [0, SC_NPSIZES] in the various
+	 * ecache_ts.
+	 * We track both bytes and # of extents: two extents in the same bucket
+	 * may have different sizes if adjacent size classes differ by more than
+	 * a page, so bytes cannot always be derived from # of extents.
+	 */
+	size_t ndirty;
+	size_t dirty_bytes;
+	size_t nmuzzy;
+	size_t muzzy_bytes;
+	size_t nretained;
+	size_t retained_bytes;
+};
+
 /*
  * The stats for a particular pa_shard.  Because of the way the ctl module
  * handles stats epoch data collection (it has its own arena_stats, and merges
