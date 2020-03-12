@@ -368,5 +368,3 @@ pa_maybe_decay_purge(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
 
 	return epoch_advanced;
 }
-
-
