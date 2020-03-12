@@ -207,7 +207,8 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 			cache_bin_t *tbin = &descriptor->bins_large[i];
 			arena_stats_accum_zu(&astats->tcache_bytes,
 			    cache_bin_ncached_get(tbin,
-			    &tcache_bin_info[i + SC_NBINS]) * sz_index2size(i));
+			    &tcache_bin_info[i + SC_NBINS])
+			    * sz_index2size(i + SC_NBINS));
 		}
 	}
 	malloc_mutex_prof_read(tsdn,

@@ -1,5 +1,8 @@
 #include "test/jemalloc_test.h"
 
+#define STRINGIFY_HELPER(x) #x
+#define STRINGIFY(x) STRINGIFY_HELPER(x)
+
 TEST_BEGIN(test_stats_summary) {
 	size_t sz, allocated, active, resident, mapped;
 	int expected = config_stats ? 0 : ENOENT;
@@ -361,6 +364,50 @@ TEST_BEGIN(test_stats_arenas_lextents) {
 }
 TEST_END
 
+static void
+test_tcache_bytes_for_usize(size_t usize) {
+	uint64_t epoch;
+	size_t tcache_bytes;
+	size_t sz = sizeof(tcache_bytes);
+
+	void *ptr = mallocx(usize, 0);
+
+	expect_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sizeof(epoch)),
+	    0, "Unexpected mallctl() failure");
+	assert_d_eq(mallctl(
+	    "stats.arenas." STRINGIFY(MALLCTL_ARENAS_ALL) ".tcache_bytes",
+	    &tcache_bytes, &sz, NULL, 0), 0, "Unexpected mallctl failure");
+	size_t tcache_bytes_before = tcache_bytes;
+	dallocx(ptr, 0);
+
+	expect_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sizeof(epoch)),
+	    0, "Unexpected mallctl() failure");
+	assert_d_eq(mallctl(
+	    "stats.arenas." STRINGIFY(MALLCTL_ARENAS_ALL) ".tcache_bytes",
+	    &tcache_bytes, &sz, NULL, 0), 0, "Unexpected mallctl failure");
+	size_t tcache_bytes_after = tcache_bytes;
+	assert_zu_eq(tcache_bytes_after - tcache_bytes_before,
+	    usize, "Incorrectly attributed a free");
+}
+
+TEST_BEGIN(test_stats_tcache_bytes_small) {
+	test_skip_if(!config_stats);
+	test_skip_if(!opt_tcache);
+	test_skip_if((ZU(1) << opt_lg_tcache_max) < SC_SMALL_MAXCLASS);
+
+	test_tcache_bytes_for_usize(SC_SMALL_MAXCLASS);
+}
+TEST_END
+
+TEST_BEGIN(test_stats_tcache_bytes_large) {
+	test_skip_if(!config_stats);
+	test_skip_if(!opt_tcache);
+	test_skip_if((ZU(1) << opt_lg_tcache_max) < SC_LARGE_MINCLASS);
+
+	test_tcache_bytes_for_usize(SC_LARGE_MINCLASS);
+}
+TEST_END
+
 int
 main(void) {
 	return test_no_reentrancy(
@@ -370,5 +417,7 @@ main(void) {
 	    test_stats_arenas_small,
 	    test_stats_arenas_large,
 	    test_stats_arenas_bins,
-	    test_stats_arenas_lextents);
+	    test_stats_arenas_lextents,
+	    test_stats_tcache_bytes_small,
+	    test_stats_tcache_bytes_large);
 }
