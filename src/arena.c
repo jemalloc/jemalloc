@@ -150,42 +150,37 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 		    LOCKEDINT_MTX(arena->stats.mtx),
 		    &arena->stats.lstats[i].nmalloc);
 		locked_inc_u64_unsynchronized(&lstats[i].nmalloc, nmalloc);
-		locked_inc_u64_unsynchronized(&astats->nmalloc_large,
-		    nmalloc);
+		astats->nmalloc_large += nmalloc;
 
 		uint64_t ndalloc = locked_read_u64(tsdn,
 		    LOCKEDINT_MTX(arena->stats.mtx),
 		    &arena->stats.lstats[i].ndalloc);
 		locked_inc_u64_unsynchronized(&lstats[i].ndalloc, ndalloc);
-		locked_inc_u64_unsynchronized(&astats->ndalloc_large,
-		    ndalloc);
+		astats->ndalloc_large += ndalloc;
 
 		uint64_t nrequests = locked_read_u64(tsdn,
 		    LOCKEDINT_MTX(arena->stats.mtx),
 		    &arena->stats.lstats[i].nrequests);
 		locked_inc_u64_unsynchronized(&lstats[i].nrequests,
 		    nmalloc + nrequests);
-		locked_inc_u64_unsynchronized(&astats->nrequests_large,
-		    nmalloc + nrequests);
+		astats->nrequests_large += nmalloc + nrequests;
 
 		/* nfill == nmalloc for large currently. */
 		locked_inc_u64_unsynchronized(&lstats[i].nfills, nmalloc);
-		locked_inc_u64_unsynchronized(&astats->nfills_large,
-		    nmalloc);
+		astats->nfills_large += nmalloc;
 
 		uint64_t nflush = locked_read_u64(tsdn,
 		    LOCKEDINT_MTX(arena->stats.mtx),
 		    &arena->stats.lstats[i].nflushes);
 		locked_inc_u64_unsynchronized(&lstats[i].nflushes, nflush);
-		locked_inc_u64_unsynchronized(&astats->nflushes_large,
-		    nflush);
+		astats->nflushes_large += nflush;
 
 		assert(nmalloc >= ndalloc);
 		assert(nmalloc - ndalloc <= SIZE_T_MAX);
 		size_t curlextents = (size_t)(nmalloc - ndalloc);
 		lstats[i].curlextents += curlextents;
-		atomic_load_add_store_zu(&astats->allocated_large,
-		    curlextents * sz_index2size(SC_NBINS + i));
+		astats->allocated_large +=
+		    curlextents * sz_index2size(SC_NBINS + i);
 	}
 
 	for (pszind_t i = 0; i < SC_NPSIZES; i++) {
@@ -213,22 +208,22 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 
 	/* tcache_bytes counts currently cached bytes. */
-	atomic_store_zu(&astats->tcache_bytes, 0, ATOMIC_RELAXED);
+	astats->tcache_bytes = 0;
 	malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
 	cache_bin_array_descriptor_t *descriptor;
 	ql_foreach(descriptor, &arena->cache_bin_array_descriptor_ql, link) {
 		for (szind_t i = 0; i < SC_NBINS; i++) {
 			cache_bin_t *tbin = &descriptor->bins_small[i];
-			atomic_load_add_store_zu(&astats->tcache_bytes,
+			astats->tcache_bytes +=
 			    cache_bin_ncached_get(tbin,
-			    &tcache_bin_info[i]) * sz_index2size(i));
+				&tcache_bin_info[i]) * sz_index2size(i);
 		}
 		for (szind_t i = 0; i < nhbins - SC_NBINS; i++) {
 			cache_bin_t *tbin = &descriptor->bins_large[i];
-			atomic_load_add_store_zu(&astats->tcache_bytes,
+			astats->tcache_bytes +=
 			    cache_bin_ncached_get(tbin,
 			    &tcache_bin_info[i + SC_NBINS])
-			    * sz_index2size(i + SC_NBINS));
+			    * sz_index2size(i + SC_NBINS);
 		}
 	}
 	malloc_mutex_prof_read(tsdn,
