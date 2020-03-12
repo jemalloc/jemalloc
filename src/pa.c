@@ -14,7 +14,8 @@ pa_nactive_sub(pa_shard_t *shard, size_t sub_pages) {
 
 bool
 pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
-    pa_shard_stats_t *stats, malloc_mutex_t *stats_mtx) {
+    pa_shard_stats_t *stats, malloc_mutex_t *stats_mtx, nstime_t *cur_time,
+    ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms) {
 	/* This will change eventually, but for now it should hold. */
 	assert(base_ind_get(base) == ind);
 	/*
@@ -50,6 +51,13 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
 	}
 
 	if (ecache_grow_init(tsdn, &shard->ecache_grow)) {
+		return true;
+	}
+
+	if (decay_init(&shard->decay_dirty, cur_time, dirty_decay_ms)) {
+		return true;
+	}
+	if (decay_init(&shard->decay_muzzy, cur_time, muzzy_decay_ms)) {
 		return true;
 	}
 

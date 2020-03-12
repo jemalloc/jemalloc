@@ -172,7 +172,8 @@ pa_shard_ehooks_get(pa_shard_t *shard) {
 
 /* Returns true on error. */
 bool pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
-    pa_shard_stats_t *stats, malloc_mutex_t *stats_mtx);
+    pa_shard_stats_t *stats, malloc_mutex_t *stats_mtx, nstime_t *cur_time,
+    ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms);
 /*
  * This does the PA-specific parts of arena reset (i.e. freeing all active
  * allocations).
