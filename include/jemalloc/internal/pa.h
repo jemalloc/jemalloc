@@ -230,6 +230,18 @@ bool pa_maybe_decay_purge(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
     pa_shard_decay_stats_t *decay_stats, ecache_t *ecache,
     pa_decay_purge_setting_t decay_purge_setting);
 
+/*
+ * Gets / sets the maximum amount that we'll grow an arena down the
+ * grow-retained pathways (unless forced to by an allocaction request).
+ *
+ * Set new_limit to NULL if it's just a query, or old_limit to NULL if you don't
+ * care about the previous value.
+ *
+ * Returns true on error (if the new limit is not valid).
+ */
+bool pa_shard_retain_grow_limit_get_set(tsdn_t *tsdn, pa_shard_t *shard,
+    size_t *old_limit, size_t *new_limit);
+
 /******************************************************************************/
 /*
  * Various bits of "boring" functionality that are still part of this module,
