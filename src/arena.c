@@ -424,21 +424,15 @@ edata_t *
 arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
     size_t alignment, bool *zero) {
 	szind_t szind = sz_size2index(usize);
-	size_t mapped_add;
 	size_t esize = usize + sz_large_pad;
 
 	edata_t *edata = pa_alloc(tsdn, &arena->pa_shard, esize, alignment,
-	    /* slab */ false, szind, zero, &mapped_add);
+	    /* slab */ false, szind, zero);
 
 	if (edata != NULL) {
 		if (config_stats) {
 			LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 			arena_large_malloc_stats_update(tsdn, arena, usize);
-			if (mapped_add != 0) {
-				atomic_fetch_add_zu(
-				    &arena->pa_shard.stats->mapped, mapped_add,
-				    ATOMIC_RELAXED);
-			}
 			LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 		}
 	}
@@ -842,14 +836,9 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned binshard
 	    WITNESS_RANK_CORE, 0);
 
 	bool zero = false;
-	size_t mapped_add = 0;
 
 	edata_t *slab = pa_alloc(tsdn, &arena->pa_shard, bin_info->slab_size,
-	    PAGE, /* slab */ true, /* szind */ binind, &zero, &mapped_add);
-	if (config_stats && slab != NULL && mapped_add != 0) {
-		atomic_fetch_add_zu(&arena->pa_shard.stats->mapped, mapped_add,
-		    ATOMIC_RELAXED);
-	}
+	    PAGE, /* slab */ true, /* szind */ binind, &zero);
 
 	if (slab == NULL) {
 		return NULL;
