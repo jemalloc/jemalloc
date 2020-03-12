@@ -260,4 +260,13 @@ void pa_shard_stats_merge(tsdn_t *tsdn, pa_shard_t *shard,
     pa_shard_stats_t *shard_stats_out, pa_extent_stats_t *extent_stats_out,
     size_t *resident);
 
+/*
+ * Reads the PA-owned mutex stats into the output stats array, at the
+ * appropriate positions.  Morally, these stats should really live in
+ * pa_shard_stats_t, but the indices are sort of baked into the various mutex
+ * prof macros.  This would be a good thing to do at some point.
+ */
+void pa_shard_mtx_stats_read(tsdn_t *tsdn, pa_shard_t *shard,
+    mutex_prof_data_t mutex_prof_data[mutex_prof_num_arena_mutexes]);
+
 #endif /* JEMALLOC_INTERNAL_PA_H */
