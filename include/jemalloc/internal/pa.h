@@ -154,6 +154,12 @@ pa_shard_muzzy_decay_ms_get(pa_shard_t *shard) {
 }
 
 static inline bool
+pa_shard_dont_decay_muzzy(pa_shard_t *shard) {
+	return ecache_npages_get(&shard->ecache_muzzy) == 0 &&
+	    pa_shard_muzzy_decay_ms_get(shard) <= 0;
+}
+
+static inline bool
 pa_shard_may_force_decay(pa_shard_t *shard) {
 	return !(pa_shard_dirty_decay_ms_get(shard) == -1
 	    || pa_shard_muzzy_decay_ms_get(shard) == -1);
@@ -167,6 +173,18 @@ pa_shard_ehooks_get(pa_shard_t *shard) {
 /* Returns true on error. */
 bool pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
     pa_shard_stats_t *stats, malloc_mutex_t *stats_mtx);
+/*
+ * This does the PA-specific parts of arena reset (i.e. freeing all active
+ * allocations).
+ */
+void pa_shard_reset(pa_shard_t *shard);
+/*
+ * Destroy all the remaining retained extents.  Should only be called after
+ * decaying all active, dirty, and muzzy extents to the retained state, as the
+ * last step in destroying the shard.
+ */
+void pa_shard_destroy_retained(tsdn_t *tsdn, pa_shard_t *shard);
+
 size_t pa_shard_extent_sn_next(pa_shard_t *shard);
 
 /* Gets an edata for the given allocation. */
