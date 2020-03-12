@@ -70,12 +70,13 @@ struct pa_shard_stats_s {
 	size_t retained; /* Derived. */
 
 	/*
-	 * Number of bytes currently mapped, excluding retained memory.
+	 * Number of bytes currently mapped, excluding retained memory (and any
+	 * base-allocated memory, which is tracked by the arena stats).
 	 *
-	 * Partially derived -- we maintain our own counter, but add in the
-	 * base's own counter at merge.
+	 * We name this "pa_mapped" to avoid confusion with the arena_stats
+	 * "mapped".
 	 */
-	atomic_zu_t mapped;
+	atomic_zu_t pa_mapped;
 
 	/* Number of edata_t structs allocated by base, but not being used. */
 	size_t edata_avail; /* Derived. */

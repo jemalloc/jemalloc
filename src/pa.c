@@ -101,8 +101,8 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 	if (edata != NULL) {
 		pa_nactive_add(shard, size >> LG_PAGE);
 		if (config_stats && mapped_add > 0) {
-			atomic_fetch_add_zu(&shard->stats->mapped, mapped_add,
-			    ATOMIC_RELAXED);
+			atomic_fetch_add_zu(&shard->stats->pa_mapped,
+			    mapped_add, ATOMIC_RELAXED);
 		}
 	}
 	return edata;
@@ -147,7 +147,7 @@ pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 		return true;
 	}
 	if (config_stats && mapped_add > 0) {
-		atomic_fetch_add_zu(&shard->stats->mapped, mapped_add,
+		atomic_fetch_add_zu(&shard->stats->pa_mapped, mapped_add,
 		    ATOMIC_RELAXED);
 	}
 	pa_nactive_add(shard, expand_amount >> LG_PAGE);
@@ -270,8 +270,8 @@ pa_decay_stashed(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
 		locked_inc_u64(tsdn, LOCKEDINT_MTX(*shard->stats_mtx),
 		    &decay_stats->purged, npurged);
 		LOCKEDINT_MTX_UNLOCK(tsdn, *shard->stats_mtx);
-		atomic_fetch_sub_zu(&shard->stats->mapped, nunmapped << LG_PAGE,
-		    ATOMIC_RELAXED);
+		atomic_fetch_sub_zu(&shard->stats->pa_mapped,
+		    nunmapped << LG_PAGE, ATOMIC_RELAXED);
 	}
 
 	return npurged;
