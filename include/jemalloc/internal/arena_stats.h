@@ -45,17 +45,16 @@ struct arena_stats_large_s {
 typedef struct arena_stats_s arena_stats_t;
 struct arena_stats_s {
 	LOCKEDINT_MTX_DECLARE(mtx)
-	/*
-	 * Number of unused virtual memory bytes currently retained.  Retained
-	 * bytes are technically mapped (though always decommitted or purged),
-	 * but they are excluded from the mapped statistic (above).
-	 */
-	locked_zu_t		retained; /* Derived. */
 
-	atomic_zu_t		base; /* Derived. */
+	/*
+	 * resident includes the base stats -- that's why it lives here and not
+	 * in pa_shard_stats_t.
+	 */
+	size_t			base; /* Derived. */
+	size_t			resident; /* Derived. */
+	size_t			metadata_thp; /* Derived. */
+
 	atomic_zu_t		internal;
-	atomic_zu_t		resident; /* Derived. */
-	atomic_zu_t		metadata_thp;
 
 	atomic_zu_t		allocated_large; /* Derived. */
 	locked_u64_t	nmalloc_large; /* Derived. */
