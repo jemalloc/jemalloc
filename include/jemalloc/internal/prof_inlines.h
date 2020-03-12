@@ -147,6 +147,7 @@ prof_malloc(tsd_t *tsd, const void *ptr, size_t size, size_t usize,
 	cassert(config_prof);
 	assert(ptr != NULL);
 	assert(usize == isalloc(tsd_tsdn(tsd), ptr));
+	assert((uintptr_t)tctx >= (uintptr_t)1U);
 
 	if (unlikely((uintptr_t)tctx > (uintptr_t)1U)) {
 		prof_malloc_sample_object(tsd, ptr, size, usize, tctx);
@@ -162,7 +163,8 @@ prof_realloc(tsd_t *tsd, const void *ptr, size_t size, size_t usize,
 	bool sampled, old_sampled, moved;
 
 	cassert(config_prof);
-	assert(ptr != NULL || (uintptr_t)tctx <= (uintptr_t)1U);
+	assert(ptr != NULL);
+	assert((uintptr_t)tctx >= (uintptr_t)1U);
 
 	if (prof_active && ptr != NULL) {
 		assert(usize == isalloc(tsd_tsdn(tsd), ptr));
@@ -180,6 +182,7 @@ prof_realloc(tsd_t *tsd, const void *ptr, size_t size, size_t usize,
 	}
 
 	sampled = ((uintptr_t)tctx > (uintptr_t)1U);
+	assert((uintptr_t)old_prof_info->alloc_tctx >= (uintptr_t)1U);
 	old_sampled = ((uintptr_t)old_prof_info->alloc_tctx > (uintptr_t)1U);
 	moved = (ptr != old_ptr);
 
@@ -237,6 +240,7 @@ prof_free(tsd_t *tsd, const void *ptr, size_t usize,
 
 	cassert(config_prof);
 	assert(usize == isalloc(tsd_tsdn(tsd), ptr));
+	assert((uintptr_t)prof_info.alloc_tctx >= (uintptr_t)1U);
 
 	if (unlikely((uintptr_t)prof_info.alloc_tctx > (uintptr_t)1U)) {
 		assert(prof_sample_aligned(ptr));
