@@ -53,3 +53,11 @@ pa_shard_postfork_child(tsdn_t *tsdn, pa_shard_t *shard) {
 	malloc_mutex_postfork_child(tsdn, &shard->decay_dirty.mtx);
 	malloc_mutex_postfork_child(tsdn, &shard->decay_muzzy.mtx);
 }
+
+void
+pa_shard_basic_stats_merge(pa_shard_t *shard, size_t *nactive, size_t *ndirty,
+    size_t *nmuzzy) {
+	*nactive += atomic_load_zu(&shard->nactive, ATOMIC_RELAXED);
+	*ndirty += ecache_npages_get(&shard->ecache_dirty);
+	*nmuzzy += ecache_npages_get(&shard->ecache_muzzy);
+}
