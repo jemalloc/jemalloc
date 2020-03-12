@@ -162,10 +162,10 @@ size_t pa_shard_extent_sn_next(pa_shard_t *shard);
 
 /* Gets an edata for the given allocation. */
 edata_t *pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size,
-    size_t alignment, bool slab, szind_t szind, bool *zero, size_t *mapped_add);
+    size_t alignment, bool slab, szind_t szind, bool *zero);
 /* Returns true on error, in which case nothing changed. */
 bool pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
-    size_t new_size, szind_t szind, bool slab, bool *zero, size_t *mapped_add);
+    size_t new_size, szind_t szind, bool slab, bool *zero);
 /*
  * The same.  Sets *generated_dirty to true if we produced new dirty pages, and
  * false otherwise.

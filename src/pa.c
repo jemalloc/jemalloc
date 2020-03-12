@@ -77,16 +77,17 @@ pa_shard_may_have_muzzy(pa_shard_t *shard) {
 
 edata_t *
 pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
-    bool slab, szind_t szind, bool *zero, size_t *mapped_add) {
+    bool slab, szind_t szind, bool *zero) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
-	*mapped_add = 0;
+
+	size_t mapped_add = 0;
 
 	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
-
 	edata_t *edata = ecache_alloc(tsdn, shard, ehooks,
 	    &shard->ecache_dirty, NULL, size, alignment, slab, szind,
 	    zero);
+
 	if (edata == NULL && pa_shard_may_have_muzzy(shard)) {
 		edata = ecache_alloc(tsdn, shard, ehooks, &shard->ecache_muzzy,
 		    NULL, size, alignment, slab, szind, zero);
@@ -95,24 +96,21 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 		edata = ecache_alloc_grow(tsdn, shard, ehooks,
 		    &shard->ecache_retained, NULL, size, alignment, slab,
 		    szind, zero);
-		if (config_stats && edata != NULL) {
-			/*
-			 * edata may be NULL on OOM, but in that case mapped_add
-			 * isn't used below, so there's no need to conditionlly
-			 * set it to 0 here.
-			 */
-			*mapped_add = size;
-		}
+		mapped_add = size;
 	}
 	if (edata != NULL) {
 		pa_nactive_add(shard, size >> LG_PAGE);
+		if (config_stats && mapped_add > 0) {
+			atomic_fetch_add_zu(&shard->stats->mapped, mapped_add,
+			    ATOMIC_RELAXED);
+		}
 	}
 	return edata;
 }
 
 bool
 pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
-    size_t new_size, szind_t szind, bool slab, bool *zero, size_t *mapped_add) {
+    size_t new_size, szind_t szind, bool slab, bool *zero) {
 	assert(new_size > old_size);
 	assert(edata_size_get(edata) == old_size);
 	assert((new_size & PAGE_MASK) == 0);
@@ -121,7 +119,8 @@ pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 	void *trail_begin = edata_past_get(edata);
 	size_t expand_amount = new_size - old_size;
 
-	*mapped_add = 0;
+	size_t mapped_add = 0;
+
 	if (ehooks_merge_will_fail(ehooks)) {
 		return true;
 	}
@@ -137,17 +136,19 @@ pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 		trail = ecache_alloc_grow(tsdn, shard, ehooks,
 		    &shard->ecache_retained, trail_begin, expand_amount, PAGE,
 		    /* slab */ false, SC_NSIZES, zero);
-		*mapped_add = expand_amount;
+		mapped_add = expand_amount;
 	}
 	if (trail == NULL) {
-		*mapped_add = 0;
 		return true;
 	}
 	if (extent_merge_wrapper(tsdn, ehooks, &shard->edata_cache, edata,
 	    trail)) {
 		extent_dalloc_wrapper(tsdn, shard, ehooks, trail);
-		*mapped_add = 0;
 		return true;
+	}
+	if (config_stats && mapped_add > 0) {
+		atomic_fetch_add_zu(&shard->stats->mapped, mapped_add,
+		    ATOMIC_RELAXED);
 	}
 	pa_nactive_add(shard, expand_amount >> LG_PAGE);
 	emap_remap(tsdn, &emap_global, edata, szind, slab);

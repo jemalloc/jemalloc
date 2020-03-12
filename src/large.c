@@ -113,17 +113,11 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
 	 * below, even if is_zeroed_trail ends up true when zero is false.
 	 */
 	bool is_zeroed_trail = zero;
-	size_t mapped_add;
 	szind_t szind = sz_size2index(usize);
 	bool err = pa_expand(tsdn, &arena->pa_shard, edata, old_size, new_size,
-	    szind, /* slab */ false, &is_zeroed_trail, &mapped_add);
+	    szind, /* slab */ false, &is_zeroed_trail);
 	if (err) {
 		return true;
-	}
-
-	if (config_stats && mapped_add > 0) {
-		atomic_fetch_add_zu(&arena->pa_shard.stats->mapped, mapped_add,
-		    ATOMIC_RELAXED);
 	}
 
 	if (zero) {
