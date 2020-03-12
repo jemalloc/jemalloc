@@ -61,3 +61,69 @@ pa_shard_basic_stats_merge(pa_shard_t *shard, size_t *nactive, size_t *ndirty,
 	*ndirty += ecache_npages_get(&shard->ecache_dirty);
 	*nmuzzy += ecache_npages_get(&shard->ecache_muzzy);
 }
+
+void
+pa_shard_stats_merge(tsdn_t *tsdn, pa_shard_t *shard,
+    pa_shard_stats_t *shard_stats_out, pa_extent_stats_t *extent_stats_out,
+    size_t *resident) {
+	cassert(config_stats);
+
+	shard_stats_out->retained +=
+	    ecache_npages_get(&shard->ecache_retained) << LG_PAGE;
+	shard_stats_out->edata_avail += atomic_load_zu(
+	    &shard->edata_cache.count, ATOMIC_RELAXED);
+
+	size_t resident_pgs = 0;
+	resident_pgs += atomic_load_zu(&shard->nactive, ATOMIC_RELAXED);
+	resident_pgs += ecache_npages_get(&shard->ecache_dirty);
+	*resident += (resident_pgs << LG_PAGE);
+
+	/* Dirty decay stats */
+	lockedstat_inc_u64_unsynchronized(
+	    &shard_stats_out->decay_dirty.npurge,
+	    lockedstat_read_u64(tsdn, LOCKEDSTAT_MTX(*shard->stats_mtx),
+	    &shard->stats->decay_dirty.npurge));
+	lockedstat_inc_u64_unsynchronized(
+	    &shard_stats_out->decay_dirty.nmadvise,
+	    lockedstat_read_u64(tsdn, LOCKEDSTAT_MTX(*shard->stats_mtx),
+	    &shard->stats->decay_dirty.nmadvise));
+	lockedstat_inc_u64_unsynchronized(
+	    &shard_stats_out->decay_dirty.purged,
+	    lockedstat_read_u64(tsdn, LOCKEDSTAT_MTX(*shard->stats_mtx),
+	    &shard->stats->decay_dirty.purged));
+
+	/* Muzzy decay stats */
+	lockedstat_inc_u64_unsynchronized(
+	    &shard_stats_out->decay_muzzy.npurge,
+	    lockedstat_read_u64(tsdn, LOCKEDSTAT_MTX(*shard->stats_mtx),
+	    &shard->stats->decay_muzzy.npurge));
+	lockedstat_inc_u64_unsynchronized(
+	    &shard_stats_out->decay_muzzy.nmadvise,
+	    lockedstat_read_u64(tsdn, LOCKEDSTAT_MTX(*shard->stats_mtx),
+	    &shard->stats->decay_muzzy.nmadvise));
+	lockedstat_inc_u64_unsynchronized(
+	    &shard_stats_out->decay_muzzy.purged,
+	    lockedstat_read_u64(tsdn, LOCKEDSTAT_MTX(*shard->stats_mtx),
+	    &shard->stats->decay_muzzy.purged));
+
+	atomic_load_add_store_zu(&shard_stats_out->abandoned_vm,
+	    atomic_load_zu(&shard->stats->abandoned_vm, ATOMIC_RELAXED));
+
+	for (pszind_t i = 0; i < SC_NPSIZES; i++) {
+		size_t dirty, muzzy, retained, dirty_bytes, muzzy_bytes,
+		    retained_bytes;
+		dirty = ecache_nextents_get(&shard->ecache_dirty, i);
+		muzzy = ecache_nextents_get(&shard->ecache_muzzy, i);
+		retained = ecache_nextents_get(&shard->ecache_retained, i);
+		dirty_bytes = ecache_nbytes_get(&shard->ecache_dirty, i);
+		muzzy_bytes = ecache_nbytes_get(&shard->ecache_muzzy, i);
+		retained_bytes = ecache_nbytes_get(&shard->ecache_retained, i);
+
+		extent_stats_out[i].ndirty = dirty;
+		extent_stats_out[i].nmuzzy = muzzy;
+		extent_stats_out[i].nretained = retained;
+		extent_stats_out[i].dirty_bytes = dirty_bytes;
+		extent_stats_out[i].muzzy_bytes = muzzy_bytes;
+		extent_stats_out[i].retained_bytes = retained_bytes;
+	}
+}

@@ -233,4 +233,13 @@ void pa_shard_postfork_child(tsdn_t *tsdn, pa_shard_t *shard);
 void pa_shard_basic_stats_merge(pa_shard_t *shard, size_t *nactive,
     size_t *ndirty, size_t *nmuzzy);
 
+static inline size_t
+pa_shard_pa_mapped(pa_shard_t *shard) {
+	return atomic_load_zu(&shard->stats->pa_mapped, ATOMIC_RELAXED);
+}
+
+void pa_shard_stats_merge(tsdn_t *tsdn, pa_shard_t *shard,
+    pa_shard_stats_t *shard_stats_out, pa_extent_stats_t *extent_stats_out,
+    size_t *resident);
+
 #endif /* JEMALLOC_INTERNAL_PA_H */
