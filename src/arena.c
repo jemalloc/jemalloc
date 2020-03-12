@@ -71,9 +71,7 @@ arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	*dss = dss_prec_names[arena_dss_prec_get(arena)];
 	*dirty_decay_ms = arena_dirty_decay_ms_get(arena);
 	*muzzy_decay_ms = arena_muzzy_decay_ms_get(arena);
-	*nactive += atomic_load_zu(&arena->pa_shard.nactive, ATOMIC_RELAXED);
-	*ndirty += ecache_npages_get(&arena->pa_shard.ecache_dirty);
-	*nmuzzy += ecache_npages_get(&arena->pa_shard.ecache_muzzy);
+	pa_shard_basic_stats_merge(&arena->pa_shard, nactive, ndirty, nmuzzy);
 }
 
 void
