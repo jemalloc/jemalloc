@@ -81,7 +81,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     const char **dss, ssize_t *dirty_decay_ms, ssize_t *muzzy_decay_ms,
     size_t *nactive, size_t *ndirty, size_t *nmuzzy, arena_stats_t *astats,
     bin_stats_data_t *bstats, arena_stats_large_t *lstats,
-    arena_stats_extents_t *estats) {
+    pa_extent_stats_t *estats) {
 	cassert(config_stats);
 
 	arena_basic_stats_merge(tsdn, arena, nthreads, dss, dirty_decay_ms,
@@ -200,15 +200,12 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 		retained_bytes = ecache_nbytes_get(
 		    &arena->pa_shard.ecache_retained, i);
 
-		atomic_store_zu(&estats[i].ndirty, dirty, ATOMIC_RELAXED);
-		atomic_store_zu(&estats[i].nmuzzy, muzzy, ATOMIC_RELAXED);
-		atomic_store_zu(&estats[i].nretained, retained, ATOMIC_RELAXED);
-		atomic_store_zu(&estats[i].dirty_bytes, dirty_bytes,
-		    ATOMIC_RELAXED);
-		atomic_store_zu(&estats[i].muzzy_bytes, muzzy_bytes,
-		    ATOMIC_RELAXED);
-		atomic_store_zu(&estats[i].retained_bytes, retained_bytes,
-		    ATOMIC_RELAXED);
+		estats[i].ndirty = dirty;
+		estats[i].nmuzzy = muzzy;
+		estats[i].nretained = retained;
+		estats[i].dirty_bytes = dirty_bytes;
+		estats[i].muzzy_bytes = muzzy_bytes;
+		estats[i].retained_bytes = retained_bytes;
 	}
 
 	LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
