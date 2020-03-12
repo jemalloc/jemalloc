@@ -88,10 +88,9 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	size_t base_allocated, base_resident, base_mapped, metadata_thp;
 	base_stats_get(tsdn, arena->base, &base_allocated, &base_resident,
 	    &base_mapped, &metadata_thp);
-	size_t mapped = atomic_load_zu(&arena->pa_shard.stats->mapped,
+	size_t pa_mapped = atomic_load_zu(&arena->pa_shard.stats->pa_mapped,
 	    ATOMIC_RELAXED);
-	atomic_load_add_store_zu(&astats->pa_shard_stats.mapped,
-	    base_mapped + mapped);
+	astats->mapped += base_mapped + pa_mapped;
 
 	LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 
