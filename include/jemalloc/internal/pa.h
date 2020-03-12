@@ -61,6 +61,14 @@ typedef struct pa_shard_stats_s pa_shard_stats_t;
 struct pa_shard_stats_s {
 	pa_shard_decay_stats_t decay_dirty;
 	pa_shard_decay_stats_t decay_muzzy;
+
+	/*
+	 * Number of unused virtual memory bytes currently retained.  Retained
+	 * bytes are technically mapped (though always decommitted or purged),
+	 * but they are excluded from the mapped statistic (above).
+	 */
+	size_t retained; /* Derived. */
+
 	/*
 	 * Number of bytes currently mapped, excluding retained memory.
 	 *
