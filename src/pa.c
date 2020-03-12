@@ -395,3 +395,27 @@ pa_maybe_decay_purge(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
 
 	return epoch_advanced;
 }
+
+bool
+pa_shard_retain_grow_limit_get_set(tsdn_t *tsdn, pa_shard_t *shard,
+    size_t *old_limit, size_t *new_limit) {
+	pszind_t new_ind JEMALLOC_CC_SILENCE_INIT(0);
+	if (new_limit != NULL) {
+		size_t limit = *new_limit;
+		/* Grow no more than the new limit. */
+		if ((new_ind = sz_psz2ind(limit + 1) - 1) >= SC_NPSIZES) {
+			return true;
+		}
+	}
+
+	malloc_mutex_lock(tsdn, &shard->ecache_grow.mtx);
+	if (old_limit != NULL) {
+		*old_limit = sz_pind2sz(shard->ecache_grow.limit);
+	}
+	if (new_limit != NULL) {
+		shard->ecache_grow.limit = new_ind;
+	}
+	malloc_mutex_unlock(tsdn, &shard->ecache_grow.mtx);
+
+	return false;
+}
