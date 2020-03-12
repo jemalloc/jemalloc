@@ -37,22 +37,6 @@ struct arena_stats_large_s {
 	size_t		curlextents; /* Derived. */
 };
 
-typedef struct arena_stats_extents_s arena_stats_extents_t;
-struct arena_stats_extents_s {
-	/*
-	 * Stats for a given index in the range [0, SC_NPSIZES] in an extents_t.
-	 * We track both bytes and # of extents: two extents in the same bucket
-	 * may have different sizes if adjacent size classes differ by more than
-	 * a page, so bytes cannot always be derived from # of extents.
-	 */
-	atomic_zu_t ndirty;
-	atomic_zu_t dirty_bytes;
-	atomic_zu_t nmuzzy;
-	atomic_zu_t muzzy_bytes;
-	atomic_zu_t nretained;
-	atomic_zu_t retained_bytes;
-};
-
 /*
  * Arena stats.  Note that fields marked "derived" are not directly maintained
  * within the arena code; rather their values are derived during stats merge
