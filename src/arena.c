@@ -1411,26 +1411,8 @@ bool
 arena_retain_grow_limit_get_set(tsd_t *tsd, arena_t *arena, size_t *old_limit,
     size_t *new_limit) {
 	assert(opt_retain);
-
-	pszind_t new_ind JEMALLOC_CC_SILENCE_INIT(0);
-	if (new_limit != NULL) {
-		size_t limit = *new_limit;
-		/* Grow no more than the new limit. */
-		if ((new_ind = sz_psz2ind(limit + 1) - 1) >= SC_NPSIZES) {
-			return true;
-		}
-	}
-
-	malloc_mutex_lock(tsd_tsdn(tsd), &arena->pa_shard.ecache_grow.mtx);
-	if (old_limit != NULL) {
-		*old_limit = sz_pind2sz(arena->pa_shard.ecache_grow.limit);
-	}
-	if (new_limit != NULL) {
-		arena->pa_shard.ecache_grow.limit = new_ind;
-	}
-	malloc_mutex_unlock(tsd_tsdn(tsd), &arena->pa_shard.ecache_grow.mtx);
-
-	return false;
+	return pa_shard_retain_grow_limit_get_set(tsd_tsdn(tsd),
+	    &arena->pa_shard, old_limit, new_limit);
 }
 
 unsigned
