@@ -122,7 +122,8 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
 	}
 
 	if (config_stats && mapped_add > 0) {
-		pa_shard_stats_mapped_add(tsdn, &arena->pa_shard, mapped_add);
+		atomic_fetch_add_zu(&arena->pa_shard.stats->mapped, mapped_add,
+		    ATOMIC_RELAXED);
 	}
 
 	if (zero) {

@@ -90,16 +90,15 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	size_t base_allocated, base_resident, base_mapped, metadata_thp;
 	base_stats_get(tsdn, arena->base, &base_allocated, &base_resident,
 	    &base_mapped, &metadata_thp);
+	size_t mapped = atomic_load_zu(&arena->pa_shard.stats->mapped,
+	    ATOMIC_RELAXED);
+	atomic_load_add_store_zu(&astats->pa_shard_stats.mapped,
+	    base_mapped + mapped);
 
 	LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 
-	locked_inc_zu_unsynchronized(&astats->pa_shard_stats.mapped,
-	    base_mapped + locked_read_zu(tsdn,
-	    LOCKEDINT_MTX(*arena->pa_shard.stats_mtx),
-	    &arena->pa_shard.stats->mapped));
 	locked_inc_zu_unsynchronized(&astats->retained,
 	    ecache_npages_get(&arena->pa_shard.ecache_retained) << LG_PAGE);
-
 	astats->pa_shard_stats.edata_avail =  atomic_load_zu(
 	    &arena->pa_shard.edata_cache.count, ATOMIC_RELAXED);
 
@@ -436,9 +435,9 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 			LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 			arena_large_malloc_stats_update(tsdn, arena, usize);
 			if (mapped_add != 0) {
-				locked_inc_zu(tsdn,
-				    LOCKEDINT_MTX(arena->stats.mtx),
-				    &arena->pa_shard.stats->mapped, mapped_add);
+				atomic_fetch_add_zu(
+				    &arena->pa_shard.stats->mapped, mapped_add,
+				    ATOMIC_RELAXED);
 			}
 			LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 		}
@@ -848,8 +847,8 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned binshard
 	edata_t *slab = pa_alloc(tsdn, &arena->pa_shard, bin_info->slab_size,
 	    PAGE, /* slab */ true, /* szind */ binind, &zero, &mapped_add);
 	if (config_stats && slab != NULL && mapped_add != 0) {
-		pa_shard_stats_mapped_add(tsdn, &arena->pa_shard,
-		    bin_info->slab_size);
+		atomic_fetch_add_zu(&arena->pa_shard.stats->mapped, mapped_add,
+		    ATOMIC_RELAXED);
 	}
 
 	if (slab == NULL) {

@@ -67,7 +67,7 @@ struct pa_shard_stats_s {
 	 * Partially derived -- we maintain our own counter, but add in the
 	 * base's own counter at merge.
 	 */
-	locked_zu_t mapped;
+	atomic_zu_t mapped;
 
 	/* Number of edata_t structs allocated by base, but not being used. */
 	size_t edata_avail; /* Derived. */
@@ -134,14 +134,6 @@ struct pa_shard_s {
 	/* The base from which we get the ehooks and allocate metadat. */
 	base_t *base;
 };
-
-static inline void
-pa_shard_stats_mapped_add(tsdn_t *tsdn, pa_shard_t *shard, size_t size) {
-	LOCKEDINT_MTX_LOCK(tsdn, *shard->stats_mtx);
-	locked_inc_zu(tsdn, LOCKEDINT_MTX(*shard->stats_mtx),
-	    &shard->stats->mapped, size);
-	LOCKEDINT_MTX_UNLOCK(tsdn, *shard->stats_mtx);
-}
 
 static inline ssize_t
 pa_shard_dirty_decay_ms_get(pa_shard_t *shard) {
