@@ -65,6 +65,32 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
 	return false;
 }
 
+void
+pa_shard_reset(pa_shard_t *shard) {
+	atomic_store_zu(&shard->nactive, 0, ATOMIC_RELAXED);
+}
+
+void
+pa_shard_destroy_retained(tsdn_t *tsdn, pa_shard_t *shard) {
+	assert(ecache_npages_get(&shard->ecache_dirty) == 0);
+	assert(ecache_npages_get(&shard->ecache_muzzy) == 0);
+	/*
+	 * Iterate over the retained extents and destroy them.  This gives the
+	 * extent allocator underlying the extent hooks an opportunity to unmap
+	 * all retained memory without having to keep its own metadata
+	 * structures.  In practice, virtual memory for dss-allocated extents is
+	 * leaked here, so best practice is to avoid dss for arenas to be
+	 * destroyed, or provide custom extent hooks that track retained
+	 * dss-based extents for later reuse.
+	 */
+	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
+	edata_t *edata;
+	while ((edata = ecache_evict(tsdn, shard, ehooks,
+	    &shard->ecache_retained, 0)) != NULL) {
+		extent_destroy_wrapper(tsdn, shard, ehooks, edata);
+	}
+}
+
 size_t
 pa_shard_extent_sn_next(pa_shard_t *shard) {
 	return atomic_fetch_add_zu(&shard->extent_sn_next, 1, ATOMIC_RELAXED);
