@@ -127,3 +127,28 @@ pa_shard_stats_merge(tsdn_t *tsdn, pa_shard_t *shard,
 		extent_stats_out[i].retained_bytes = retained_bytes;
 	}
 }
+
+static void
+pa_shard_mtx_stats_read_single(tsdn_t *tsdn, mutex_prof_data_t *mutex_prof_data,
+    malloc_mutex_t *mtx, int ind) {
+	malloc_mutex_lock(tsdn, mtx);
+	malloc_mutex_prof_read(tsdn, &mutex_prof_data[ind], mtx);
+	malloc_mutex_unlock(tsdn, mtx);
+}
+
+void
+pa_shard_mtx_stats_read(tsdn_t *tsdn, pa_shard_t *shard,
+    mutex_prof_data_t mutex_prof_data[mutex_prof_num_arena_mutexes]) {
+	pa_shard_mtx_stats_read_single(tsdn, mutex_prof_data,
+	    &shard->edata_cache.mtx, arena_prof_mutex_extent_avail);
+	pa_shard_mtx_stats_read_single(tsdn, mutex_prof_data,
+	    &shard->ecache_dirty.mtx, arena_prof_mutex_extents_dirty);
+	pa_shard_mtx_stats_read_single(tsdn, mutex_prof_data,
+	    &shard->ecache_muzzy.mtx, arena_prof_mutex_extents_muzzy);
+	pa_shard_mtx_stats_read_single(tsdn, mutex_prof_data,
+	    &shard->ecache_retained.mtx, arena_prof_mutex_extents_retained);
+	pa_shard_mtx_stats_read_single(tsdn, mutex_prof_data,
+	    &shard->decay_dirty.mtx, arena_prof_mutex_decay_dirty);
+	pa_shard_mtx_stats_read_single(tsdn, mutex_prof_data,
+	    &shard->decay_muzzy.mtx, arena_prof_mutex_decay_muzzy);
+}

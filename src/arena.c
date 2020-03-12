@@ -173,21 +173,11 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 
 	/* Gather per arena mutex profiling data. */
 	READ_ARENA_MUTEX_PROF_DATA(large_mtx, arena_prof_mutex_large);
-	READ_ARENA_MUTEX_PROF_DATA(pa_shard.edata_cache.mtx,
-	    arena_prof_mutex_extent_avail)
-	READ_ARENA_MUTEX_PROF_DATA(pa_shard.ecache_dirty.mtx,
-	    arena_prof_mutex_extents_dirty)
-	READ_ARENA_MUTEX_PROF_DATA(pa_shard.ecache_muzzy.mtx,
-	    arena_prof_mutex_extents_muzzy)
-	READ_ARENA_MUTEX_PROF_DATA(pa_shard.ecache_retained.mtx,
-	    arena_prof_mutex_extents_retained)
-	READ_ARENA_MUTEX_PROF_DATA(pa_shard.decay_dirty.mtx,
-	    arena_prof_mutex_decay_dirty)
-	READ_ARENA_MUTEX_PROF_DATA(pa_shard.decay_muzzy.mtx,
-	    arena_prof_mutex_decay_muzzy)
 	READ_ARENA_MUTEX_PROF_DATA(base->mtx,
-	    arena_prof_mutex_base)
+	    arena_prof_mutex_base);
 #undef READ_ARENA_MUTEX_PROF_DATA
+	pa_shard_mtx_stats_read(tsdn, &arena->pa_shard,
+	    astats->mutex_prof_data);
 
 	nstime_copy(&astats->uptime, &arena->create_time);
 	nstime_update(&astats->uptime);
