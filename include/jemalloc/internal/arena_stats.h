@@ -56,12 +56,12 @@ struct arena_stats_s {
 
 	atomic_zu_t		internal;
 
-	atomic_zu_t		allocated_large; /* Derived. */
-	locked_u64_t	nmalloc_large; /* Derived. */
-	locked_u64_t	ndalloc_large; /* Derived. */
-	locked_u64_t	nfills_large; /* Derived. */
-	locked_u64_t	nflushes_large; /* Derived. */
-	locked_u64_t	nrequests_large; /* Derived. */
+	size_t			allocated_large; /* Derived. */
+	uint64_t		nmalloc_large; /* Derived. */
+	uint64_t		ndalloc_large; /* Derived. */
+	uint64_t		nfills_large; /* Derived. */
+	uint64_t		nflushes_large; /* Derived. */
+	uint64_t		nrequests_large; /* Derived. */
 
 	/*
 	 * The stats logically owned by the pa_shard in the same arena.  This
@@ -71,7 +71,7 @@ struct arena_stats_s {
 	pa_shard_stats_t	pa_shard_stats;
 
 	/* Number of bytes cached in tcache associated with this arena. */
-	atomic_zu_t		tcache_bytes; /* Derived. */
+	size_t			tcache_bytes; /* Derived. */
 
 	mutex_prof_data_t mutex_prof_data[mutex_prof_num_arena_mutexes];
 
