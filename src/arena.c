@@ -99,7 +99,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 
 	astats->pa_shard_stats.retained +=
 	    ecache_npages_get(&arena->pa_shard.ecache_retained) << LG_PAGE;
-	astats->pa_shard_stats.edata_avail =  atomic_load_zu(
+	astats->pa_shard_stats.edata_avail +=  atomic_load_zu(
 	    &arena->pa_shard.edata_cache.count, ATOMIC_RELAXED);
 
 	/* Dirty decay stats */
