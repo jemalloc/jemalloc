@@ -100,9 +100,8 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	locked_inc_zu_unsynchronized(&astats->retained,
 	    ecache_npages_get(&arena->pa_shard.ecache_retained) << LG_PAGE);
 
-	atomic_store_zu(&astats->edata_avail,
-	    atomic_load_zu(&arena->pa_shard.edata_cache.count, ATOMIC_RELAXED),
-	    ATOMIC_RELAXED);
+	astats->pa_shard_stats.edata_avail =  atomic_load_zu(
+	    &arena->pa_shard.edata_cache.count, ATOMIC_RELAXED);
 
 	/* Dirty decay stats */
 	locked_inc_u64_unsynchronized(

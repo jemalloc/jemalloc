@@ -69,6 +69,9 @@ struct pa_shard_stats_s {
 	 */
 	locked_zu_t mapped;
 
+	/* Number of edata_t structs allocated by base, but not being used. */
+	size_t edata_avail; /* Derived. */
+
 	/* VM space had to be leaked (undocumented).  Normally 0. */
 	atomic_zu_t abandoned_vm;
 };
