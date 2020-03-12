@@ -27,7 +27,6 @@ struct pa_shard_decay_stats_s {
 	lockedstat_u64_t nmadvise;
 	/* Total number of pages purged. */
 	lockedstat_u64_t purged;
-
 };
 
 typedef struct pa_extent_stats_s pa_extent_stats_t;
@@ -69,6 +68,9 @@ struct pa_shard_stats_s {
 	 * base's own counter at merge.
 	 */
 	lockedstat_zu_t mapped;
+
+	/* Number of edata_t structs allocated by base, but not being used. */
+	size_t edata_avail; /* Derived. */
 
 	/* VM space had to be leaked (undocumented).  Normally 0. */
 	atomic_zu_t abandoned_vm;

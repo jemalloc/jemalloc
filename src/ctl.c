@@ -863,8 +863,8 @@ ctl_arena_stats_sdmerge(ctl_arena_t *ctl_sdarena, ctl_arena_t *ctl_arena,
 			    &astats->astats.pa_shard_stats.mapped);
 			ctl_accum_lockedstat_zu(&sdstats->astats.retained,
 			    &astats->astats.retained);
-			ctl_accum_atomic_zu(&sdstats->astats.edata_avail,
-			    &astats->astats.edata_avail);
+			sdstats->astats.pa_shard_stats.edata_avail
+			    += astats->astats.pa_shard_stats.edata_avail;
 		}
 
 		ctl_accum_lockedstat_u64(
@@ -2915,9 +2915,7 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_retained,
     lockedstat_read_atomic_zu(&arenas_i(mib[2])->astats->astats.retained),
     size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_extent_avail,
-    atomic_load_zu(&arenas_i(mib[2])->astats->astats.edata_avail,
-        ATOMIC_RELAXED),
-    size_t)
+    arenas_i(mib[2])->astats->astats.pa_shard_stats.edata_avail, size_t)
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_dirty_npurge,
     lockedstat_read_u64_unsynchronized(
