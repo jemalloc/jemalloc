@@ -1487,19 +1487,11 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		goto label_error;
 	}
 
-	if (pa_shard_init(tsdn, &arena->pa_shard, base, ind,
-	    &arena->stats.pa_shard_stats, LOCKEDINT_MTX(arena->stats.mtx))) {
-		goto label_error;
-	}
-
 	nstime_t cur_time;
 	nstime_init_update(&cur_time);
-
-	if (decay_init(&arena->pa_shard.decay_dirty, &cur_time,
-	    arena_dirty_decay_ms_default_get())) {
-		goto label_error;
-	}
-	if (decay_init(&arena->pa_shard.decay_muzzy, &cur_time,
+	if (pa_shard_init(tsdn, &arena->pa_shard, base, ind,
+	    &arena->stats.pa_shard_stats, LOCKEDINT_MTX(arena->stats.mtx),
+	    &cur_time, arena_dirty_decay_ms_default_get(),
 	    arena_muzzy_decay_ms_default_get())) {
 		goto label_error;
 	}
