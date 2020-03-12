@@ -68,13 +68,6 @@ struct arena_s {
 	atomic_u_t		dss_prec;
 
 	/*
-	 * Number of pages in active extents.
-	 *
-	 * Synchronization: atomic.
-	 */
-	atomic_zu_t		nactive;
-
-	/*
 	 * Extant large allocations.
 	 *
 	 * Synchronization: large_mtx.

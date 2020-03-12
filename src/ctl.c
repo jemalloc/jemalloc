@@ -3512,7 +3512,7 @@ experimental_arenas_i_pactivep_ctl(tsd_t *tsd, const size_t *mib,
 #if defined(JEMALLOC_GCC_ATOMIC_ATOMICS) ||				\
     defined(JEMALLOC_GCC_SYNC_ATOMICS) || defined(_MSC_VER)
 		/* Expose the underlying counter for fast read. */
-		pactivep = (size_t *)&(arena->nactive.repr);
+		pactivep = (size_t *)&(arena->pa_shard.nactive.repr);
 		READ(pactivep, size_t *);
 		ret = 0;
 #else
