@@ -966,10 +966,9 @@ extent_maximally_purge(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 		    LOCKEDSTAT_MTX(*shard->stats_mtx),
 		    &shard->stats->decay_dirty.purged,
 		    extent_size >> LG_PAGE);
-		lockedstat_dec_zu(tsdn,
-		    LOCKEDSTAT_MTX(*shard->stats_mtx),
-		    &shard->stats->mapped, extent_size);
 		LOCKEDSTAT_MTX_UNLOCK(tsdn, *shard->stats_mtx);
+		atomic_fetch_sub_zu(&shard->stats->mapped, extent_size,
+		    ATOMIC_RELAXED);
 	}
 }
 

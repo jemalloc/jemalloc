@@ -858,7 +858,7 @@ ctl_arena_stats_sdmerge(ctl_arena_t *ctl_sdarena, ctl_arena_t *ctl_arena,
 		ctl_arena_stats_t *astats = ctl_arena->astats;
 
 		if (!destroyed) {
-			ctl_accum_lockedstat_zu(
+			ctl_accum_atomic_zu(
 			    &sdstats->astats.pa_shard_stats.mapped,
 			    &astats->astats.pa_shard_stats.mapped);
 			ctl_accum_lockedstat_zu(&sdstats->astats.retained,
@@ -1098,8 +1098,9 @@ ctl_refresh(tsdn_t *tsdn) {
 		    &ctl_sarena->astats->astats.metadata_thp, ATOMIC_RELAXED);
 		ctl_stats->resident = atomic_load_zu(
 		    &ctl_sarena->astats->astats.resident, ATOMIC_RELAXED);
-		ctl_stats->mapped = lockedstat_read_atomic_zu(
-		    &ctl_sarena->astats->astats.pa_shard_stats.mapped);
+		ctl_stats->mapped = atomic_load_zu(
+		    &ctl_sarena->astats->astats.pa_shard_stats.mapped,
+		    ATOMIC_RELAXED);
 		ctl_stats->retained = lockedstat_read_atomic_zu(
 		    &ctl_sarena->astats->astats.retained);
 
@@ -2908,9 +2909,8 @@ CTL_RO_GEN(stats_arenas_i_pactive, arenas_i(mib[2])->pactive, size_t)
 CTL_RO_GEN(stats_arenas_i_pdirty, arenas_i(mib[2])->pdirty, size_t)
 CTL_RO_GEN(stats_arenas_i_pmuzzy, arenas_i(mib[2])->pmuzzy, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_mapped,
-    lockedstat_read_atomic_zu(&arenas_i(
-    mib[2])->astats->astats.pa_shard_stats.mapped),
-    size_t)
+    atomic_load_zu(&arenas_i(mib[2])->astats->astats.pa_shard_stats.mapped,
+    ATOMIC_RELAXED), size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_retained,
     lockedstat_read_atomic_zu(&arenas_i(mib[2])->astats->astats.retained),
     size_t)

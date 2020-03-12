@@ -268,9 +268,9 @@ pa_decay_stashed(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
 		    &decay_stats->nmadvise, nmadvise);
 		lockedstat_inc_u64(tsdn, LOCKEDSTAT_MTX(*shard->stats_mtx),
 		    &decay_stats->purged, npurged);
-		lockedstat_dec_zu(tsdn, LOCKEDSTAT_MTX(*shard->stats_mtx),
-		    &shard->stats->mapped, nunmapped << LG_PAGE);
 		LOCKEDSTAT_MTX_UNLOCK(tsdn, *shard->stats_mtx);
+		atomic_fetch_sub_zu(&shard->stats->mapped, nunmapped << LG_PAGE,
+		    ATOMIC_RELAXED);
 	}
 
 	return npurged;
