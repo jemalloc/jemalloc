@@ -97,8 +97,8 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 
 	LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 
-	locked_inc_zu_unsynchronized(&astats->retained,
-	    ecache_npages_get(&arena->pa_shard.ecache_retained) << LG_PAGE);
+	astats->pa_shard_stats.retained +=
+	    ecache_npages_get(&arena->pa_shard.ecache_retained) << LG_PAGE;
 	astats->pa_shard_stats.edata_avail =  atomic_load_zu(
 	    &arena->pa_shard.edata_cache.count, ATOMIC_RELAXED);
 
@@ -130,13 +130,17 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	    locked_read_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
 	    &arena->pa_shard.stats->decay_muzzy.purged));
 
-	atomic_load_add_store_zu(&astats->base, base_allocated);
+	astats->base += base_allocated;
 	atomic_load_add_store_zu(&astats->internal, arena_internal_get(arena));
-	atomic_load_add_store_zu(&astats->metadata_thp, metadata_thp);
-	atomic_load_add_store_zu(&astats->resident, base_resident +
-	    (((atomic_load_zu(&arena->pa_shard.nactive, ATOMIC_RELAXED) +
-	    ecache_npages_get(&arena->pa_shard.ecache_dirty) +
-	    ecache_npages_get(&arena->pa_shard.ecache_muzzy)) << LG_PAGE)));
+	astats->metadata_thp += metadata_thp;
+
+	size_t pa_resident_pgs = 0;
+	pa_resident_pgs
+	    += atomic_load_zu(&arena->pa_shard.nactive, ATOMIC_RELAXED);
+	pa_resident_pgs
+	    += ecache_npages_get(&arena->pa_shard.ecache_dirty);
+	astats->resident += base_resident + (pa_resident_pgs << LG_PAGE);
+
 	atomic_load_add_store_zu(&astats->pa_shard_stats.abandoned_vm,
 	    atomic_load_zu(&arena->stats.pa_shard_stats.abandoned_vm,
 	    ATOMIC_RELAXED));
