@@ -211,4 +211,22 @@ bool pa_maybe_decay_purge(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
     pa_shard_decay_stats_t *decay_stats, ecache_t *ecache,
     pa_decay_purge_setting_t decay_purge_setting);
 
+/******************************************************************************/
+/*
+ * Various bits of "boring" functionality that are still part of this module,
+ * but that we relegate to pa_extra.c, to keep the core logic in pa.c as
+ * readable as possible.
+ */
+
+/*
+ * These fork phases are synchronized with the arena fork phase numbering to
+ * make it easy to keep straight. That's why there's no prefork1.
+ */
+void pa_shard_prefork0(tsdn_t *tsdn, pa_shard_t *shard);
+void pa_shard_prefork2(tsdn_t *tsdn, pa_shard_t *shard);
+void pa_shard_prefork3(tsdn_t *tsdn, pa_shard_t *shard);
+void pa_shard_prefork4(tsdn_t *tsdn, pa_shard_t *shard);
+void pa_shard_postfork_parent(tsdn_t *tsdn, pa_shard_t *shard);
+void pa_shard_postfork_child(tsdn_t *tsdn, pa_shard_t *shard);
+
 #endif /* JEMALLOC_INTERNAL_PA_H */

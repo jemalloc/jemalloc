@@ -1739,8 +1739,7 @@ arena_boot(sc_data_t *sc_data) {
 
 void
 arena_prefork0(tsdn_t *tsdn, arena_t *arena) {
-	malloc_mutex_prefork(tsdn, &arena->pa_shard.decay_dirty.mtx);
-	malloc_mutex_prefork(tsdn, &arena->pa_shard.decay_muzzy.mtx);
+	pa_shard_prefork0(tsdn, &arena->pa_shard);
 }
 
 void
@@ -1752,19 +1751,17 @@ arena_prefork1(tsdn_t *tsdn, arena_t *arena) {
 
 void
 arena_prefork2(tsdn_t *tsdn, arena_t *arena) {
-	ecache_grow_prefork(tsdn, &arena->pa_shard.ecache_grow);
+	pa_shard_prefork2(tsdn, &arena->pa_shard);
 }
 
 void
 arena_prefork3(tsdn_t *tsdn, arena_t *arena) {
-	ecache_prefork(tsdn, &arena->pa_shard.ecache_dirty);
-	ecache_prefork(tsdn, &arena->pa_shard.ecache_muzzy);
-	ecache_prefork(tsdn, &arena->pa_shard.ecache_retained);
+	pa_shard_prefork3(tsdn, &arena->pa_shard);
 }
 
 void
 arena_prefork4(tsdn_t *tsdn, arena_t *arena) {
-	edata_cache_prefork(tsdn, &arena->pa_shard.edata_cache);
+	pa_shard_prefork4(tsdn, &arena->pa_shard);
 }
 
 void
@@ -1798,13 +1795,7 @@ arena_postfork_parent(tsdn_t *tsdn, arena_t *arena) {
 	}
 	malloc_mutex_postfork_parent(tsdn, &arena->large_mtx);
 	base_postfork_parent(tsdn, arena->base);
-	edata_cache_postfork_parent(tsdn, &arena->pa_shard.edata_cache);
-	ecache_postfork_parent(tsdn, &arena->pa_shard.ecache_dirty);
-	ecache_postfork_parent(tsdn, &arena->pa_shard.ecache_muzzy);
-	ecache_postfork_parent(tsdn, &arena->pa_shard.ecache_retained);
-	ecache_grow_postfork_parent(tsdn, &arena->pa_shard.ecache_grow);
-	malloc_mutex_postfork_parent(tsdn, &arena->pa_shard.decay_dirty.mtx);
-	malloc_mutex_postfork_parent(tsdn, &arena->pa_shard.decay_muzzy.mtx);
+	pa_shard_postfork_parent(tsdn, &arena->pa_shard);
 	if (config_stats) {
 		malloc_mutex_postfork_parent(tsdn, &arena->tcache_ql_mtx);
 	}
@@ -1844,13 +1835,7 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	}
 	malloc_mutex_postfork_child(tsdn, &arena->large_mtx);
 	base_postfork_child(tsdn, arena->base);
-	edata_cache_postfork_child(tsdn, &arena->pa_shard.edata_cache);
-	ecache_postfork_child(tsdn, &arena->pa_shard.ecache_dirty);
-	ecache_postfork_child(tsdn, &arena->pa_shard.ecache_muzzy);
-	ecache_postfork_child(tsdn, &arena->pa_shard.ecache_retained);
-	ecache_grow_postfork_child(tsdn, &arena->pa_shard.ecache_grow);
-	malloc_mutex_postfork_child(tsdn, &arena->pa_shard.decay_dirty.mtx);
-	malloc_mutex_postfork_child(tsdn, &arena->pa_shard.decay_muzzy.mtx);
+	pa_shard_postfork_child(tsdn, &arena->pa_shard);
 	if (config_stats) {
 		malloc_mutex_postfork_child(tsdn, &arena->tcache_ql_mtx);
 	}
