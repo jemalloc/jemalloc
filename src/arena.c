@@ -544,8 +544,7 @@ arena_decay_dirty(tsdn_t *tsdn, arena_t *arena, bool is_background_thread,
 static bool
 arena_decay_muzzy(tsdn_t *tsdn, arena_t *arena, bool is_background_thread,
     bool all) {
-	if (ecache_npages_get(&arena->pa_shard.ecache_muzzy) == 0 &&
-	    arena_muzzy_decay_ms_get(arena) <= 0) {
+	if (pa_shard_dont_decay_muzzy(&arena->pa_shard)) {
 		return false;
 	}
 	return arena_decay_impl(tsdn, arena, &arena->pa_shard.decay_muzzy,
@@ -703,27 +702,7 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 			    &arena->bins[i].bin_shards[j]);
 		}
 	}
-
-	atomic_store_zu(&arena->pa_shard.nactive, 0, ATOMIC_RELAXED);
-}
-
-static void
-arena_destroy_retained(tsdn_t *tsdn, arena_t *arena) {
-	/*
-	 * Iterate over the retained extents and destroy them.  This gives the
-	 * extent allocator underlying the extent hooks an opportunity to unmap
-	 * all retained memory without having to keep its own metadata
-	 * structures.  In practice, virtual memory for dss-allocated extents is
-	 * leaked here, so best practice is to avoid dss for arenas to be
-	 * destroyed, or provide custom extent hooks that track retained
-	 * dss-based extents for later reuse.
-	 */
-	ehooks_t *ehooks = arena_get_ehooks(arena);
-	edata_t *edata;
-	while ((edata = ecache_evict(tsdn, &arena->pa_shard, ehooks,
-	    &arena->pa_shard.ecache_retained, 0)) != NULL) {
-		extent_destroy_wrapper(tsdn, &arena->pa_shard, ehooks, edata);
-	}
+	pa_shard_reset(&arena->pa_shard);
 }
 
 void
@@ -735,13 +714,10 @@ arena_destroy(tsd_t *tsd, arena_t *arena) {
 	/*
 	 * No allocations have occurred since arena_reset() was called.
 	 * Furthermore, the caller (arena_i_destroy_ctl()) purged all cached
-	 * extents, so only retained extents may remain.
+	 * extents, so only retained extents may remain and it's safe to call
+	 * pa_shard_destroy_retained.
 	 */
-	assert(ecache_npages_get(&arena->pa_shard.ecache_dirty) == 0);
-	assert(ecache_npages_get(&arena->pa_shard.ecache_muzzy) == 0);
-
-	/* Deallocate retained memory. */
-	arena_destroy_retained(tsd_tsdn(tsd), arena);
+	pa_shard_destroy_retained(tsd_tsdn(tsd), &arena->pa_shard);
 
 	/*
 	 * Remove the arena pointer from the arenas array.  We rely on the fact
