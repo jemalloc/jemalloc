@@ -1,6 +1,17 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
+static void
+pa_nactive_add(pa_shard_t *shard, size_t add_pages) {
+	atomic_fetch_add_zu(&shard->nactive, add_pages, ATOMIC_RELAXED);
+}
+
+static void
+pa_nactive_sub(pa_shard_t *shard, size_t sub_pages) {
+	assert(atomic_load_zu(&shard->nactive, ATOMIC_RELAXED) >= sub_pages);
+	atomic_fetch_sub_zu(&shard->nactive, sub_pages, ATOMIC_RELAXED);
+}
+
 bool
 pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
     pa_shard_stats_t *stats, malloc_mutex_t *stats_mtx) {
@@ -43,6 +54,7 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
 	}
 
 	atomic_store_zu(&shard->extent_sn_next, 0, ATOMIC_RELAXED);
+	atomic_store_zu(&shard->nactive, 0, ATOMIC_RELAXED);
 
 	shard->stats_mtx = stats_mtx;
 	shard->stats = stats;
@@ -83,7 +95,7 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 		edata = ecache_alloc_grow(tsdn, shard, ehooks,
 		    &shard->ecache_retained, NULL, size, alignment, slab,
 		    szind, zero);
-		if (config_stats) {
+		if (config_stats && edata != NULL) {
 			/*
 			 * edata may be NULL on OOM, but in that case mapped_add
 			 * isn't used below, so there's no need to conditionlly
@@ -91,6 +103,9 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 			 */
 			*mapped_add = size;
 		}
+	}
+	if (edata != NULL) {
+		pa_nactive_add(shard, size >> LG_PAGE);
 	}
 	return edata;
 }
@@ -100,6 +115,7 @@ pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
     size_t new_size, szind_t szind, bool slab, bool *zero, size_t *mapped_add) {
 	assert(new_size > old_size);
 	assert(edata_size_get(edata) == old_size);
+	assert((new_size & PAGE_MASK) == 0);
 
 	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
 	void *trail_begin = edata_past_get(edata);
@@ -133,6 +149,7 @@ pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 		*mapped_add = 0;
 		return true;
 	}
+	pa_nactive_add(shard, expand_amount >> LG_PAGE);
 	emap_remap(tsdn, &emap_global, edata, szind, slab);
 	return false;
 }
@@ -141,6 +158,9 @@ bool
 pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
     size_t new_size, szind_t szind, bool slab, bool *generated_dirty) {
 	assert(new_size < old_size);
+	assert(edata_size_get(edata) == old_size);
+	assert((new_size & PAGE_MASK) == 0);
+	size_t shrink_amount = old_size - new_size;
 
 	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
 	*generated_dirty = false;
@@ -150,11 +170,13 @@ pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 	}
 
 	edata_t *trail = extent_split_wrapper(tsdn, &shard->edata_cache, ehooks,
-	    edata, new_size, szind, slab, old_size - new_size, SC_NSIZES,
+	    edata, new_size, szind, slab, shrink_amount, SC_NSIZES,
 	    false);
 	if (trail == NULL) {
 		return true;
 	}
+	pa_nactive_sub(shard, shrink_amount >> LG_PAGE);
+
 	ecache_dalloc(tsdn, shard, ehooks, &shard->ecache_dirty, trail);
 	*generated_dirty = true;
 	return false;
@@ -163,6 +185,7 @@ pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 void
 pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
     bool *generated_dirty) {
+	pa_nactive_sub(shard, edata_size_get(edata) >> LG_PAGE);
 	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
 	ecache_dalloc(tsdn, shard, ehooks, &shard->ecache_dirty, edata);
 	*generated_dirty = true;
@@ -345,3 +368,5 @@ pa_maybe_decay_purge(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
 
 	return epoch_advanced;
 }
+
+
