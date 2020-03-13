@@ -39,6 +39,23 @@ struct e_prof_info_s {
 };
 typedef struct e_prof_info_s e_prof_info_t;
 
+/*
+ * The information about a particular edata that lives in an emap.  Space is
+ * more previous there (the information, plus the edata pointer, has to live in
+ * a 64-bit word if we want to enable a packed representation.
+ *
+ * There are two things that are special about the information here:
+ * - It's quicker to access.  You have one fewer pointer hop, since finding the
+ *   edata_t associated with an item always requires accessing the rtree leaf in
+ *   which this data is stored.
+ * - It can be read unsynchronized, and without worrying about lifetime issues.
+ */
+typedef struct edata_map_info_s edata_map_info_t;
+struct edata_map_info_s {
+	bool slab;
+	szind_t szind;
+};
+
 /* Extent (span of pages).  Use accessor functions for e_* fields. */
 typedef struct edata_s edata_t;
 typedef ql_head(edata_t) edata_list_t;
