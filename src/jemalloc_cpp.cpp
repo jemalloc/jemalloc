@@ -97,43 +97,6 @@ newImpl(std::size_t size) noexcept(IsNoExcept) {
 	return handleOOM(size, IsNoExcept);
 }
 
-#if __cpp_aligned_new >= 201606
-template <bool IsNoExcept>
-JEMALLOC_ALWAYS_INLINE
-void *
-alignedNewImpl(std::size_t size, std::align_val_t alignment) noexcept(IsNoExcept) {
-	void *ptr = je_aligned_alloc(static_cast<std::size_t>(alignment), size);
-	if (likely(ptr != nullptr)) {
-		return ptr;
-	}
-
-	return handleOOM(size, IsNoExcept);
-}
-#endif  // __cpp_aligned_new
-
-JEMALLOC_ALWAYS_INLINE
-void
-sizedDeleteImpl(void* ptr, std::size_t size) noexcept {
-	if (unlikely(ptr == nullptr)) {
-		return;
-	}
-	je_sdallocx_noflags(ptr, size);
-}
-
-#if __cpp_aligned_new >= 201606
-JEMALLOC_ALWAYS_INLINE
-void
-alignedSizedDeleteImpl(void* ptr, std::size_t size, std::align_val_t alignment) noexcept {
-	if (config_debug) {
-		assert(((size_t)alignment & ((size_t)alignment - 1)) == 0);
-	}
-	if (unlikely(ptr == nullptr)) {
-		return;
-	}
-	je_sdallocx(ptr, size, MALLOCX_ALIGN(alignment));
-}
-#endif  // __cpp_aligned_new
-
 void *
 operator new(std::size_t size) {
 	return newImpl<false>(size);
@@ -156,19 +119,31 @@ operator new[](std::size_t size, const std::nothrow_t &) noexcept {
 
 #if __cpp_aligned_new >= 201606
 
+template <bool IsNoExcept>
+JEMALLOC_ALWAYS_INLINE
+void *
+alignedNewImpl(std::size_t size, std::align_val_t alignment) noexcept(IsNoExcept) {
+	void *ptr = je_aligned_alloc(static_cast<std::size_t>(alignment), size);
+	if (likely(ptr != nullptr)) {
+		return ptr;
+	}
+
+	return handleOOM(size, IsNoExcept);
+}
+
 void *
 operator new(std::size_t size, std::align_val_t alignment) {
 	return alignedNewImpl<false>(size, alignment);
 }
 
 void *
-operator new(std::size_t size, std::align_val_t alignment, const std::nothrow_t &) noexcept {
-	return alignedNewImpl<true>(size, alignment);
+operator new[](std::size_t size, std::align_val_t alignment) {
+	return alignedNewImpl<false>(size, alignment);
 }
 
 void *
-operator new[](std::size_t size, std::align_val_t alignment) {
-	return alignedNewImpl<false>(size, alignment);
+operator new(std::size_t size, std::align_val_t alignment, const std::nothrow_t &) noexcept {
+	return alignedNewImpl<true>(size, alignment);
 }
 
 void *
@@ -199,6 +174,15 @@ void operator delete[](void *ptr, const std::nothrow_t &) noexcept {
 
 #if __cpp_sized_deallocation >= 201309
 
+JEMALLOC_ALWAYS_INLINE
+void
+sizedDeleteImpl(void* ptr, std::size_t size) noexcept {
+	if (unlikely(ptr == nullptr)) {
+		return;
+	}
+	je_sdallocx_noflags(ptr, size);
+}
+
 void
 operator delete(void *ptr, std::size_t size) noexcept {
 	sizedDeleteImpl(ptr, size);
@@ -213,18 +197,30 @@ operator delete[](void *ptr, std::size_t size) noexcept {
 
 #if __cpp_aligned_new >= 201606
 
+JEMALLOC_ALWAYS_INLINE
+void
+alignedSizedDeleteImpl(void* ptr, std::size_t size, std::align_val_t alignment) noexcept {
+	if (config_debug) {
+		assert(((size_t)alignment & ((size_t)alignment - 1)) == 0);
+	}
+	if (unlikely(ptr == nullptr)) {
+		return;
+	}
+	je_sdallocx(ptr, size, MALLOCX_ALIGN(alignment));
+}
+
 void
 operator delete(void* ptr, std::align_val_t) noexcept {
 	je_free(ptr);
 }
 
 void
-operator delete(void* ptr, std::align_val_t, const std::nothrow_t&) noexcept {
+operator delete[](void* ptr, std::align_val_t) noexcept {
 	je_free(ptr);
 }
 
 void
-operator delete[](void* ptr, std::align_val_t) noexcept {
+operator delete(void* ptr, std::align_val_t, const std::nothrow_t&) noexcept {
 	je_free(ptr);
 }
 
