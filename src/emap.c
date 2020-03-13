@@ -139,10 +139,13 @@ emap_rtree_leaf_elms_lookup(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
 static void
 emap_rtree_write_acquired(tsdn_t *tsdn, emap_t *emap, rtree_leaf_elm_t *elm_a,
     rtree_leaf_elm_t *elm_b, edata_t *edata, szind_t szind, bool slab) {
-	rtree_leaf_elm_write(tsdn, &emap->rtree, elm_a, edata, szind, slab);
+	rtree_leaf_elm_contents_t contents;
+	contents.edata = edata;
+	contents.szind = szind;
+	contents.slab = slab;
+	rtree_leaf_elm_write(tsdn, &emap->rtree, elm_a, contents);
 	if (elm_b != NULL) {
-		rtree_leaf_elm_write(tsdn, &emap->rtree, elm_b, edata, szind,
-		    slab);
+		rtree_leaf_elm_write(tsdn, &emap->rtree, elm_b, contents);
 	}
 }
 
@@ -292,15 +295,20 @@ emap_merge_prepare(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
 void
 emap_merge_commit(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
     edata_t *lead, edata_t *trail) {
+	rtree_leaf_elm_contents_t clear_contents;
+	clear_contents.edata = NULL;
+	clear_contents.szind = SC_NSIZES;
+	clear_contents.slab = false;
+
 	if (prepare->lead_elm_b != NULL) {
 		rtree_leaf_elm_write(tsdn, &emap->rtree,
-		    prepare->lead_elm_b, NULL, SC_NSIZES, false);
+		    prepare->lead_elm_b, clear_contents);
 	}
 
 	rtree_leaf_elm_t *merged_b;
 	if (prepare->trail_elm_b != NULL) {
 		rtree_leaf_elm_write(tsdn, &emap->rtree,
-		    prepare->trail_elm_a, NULL, SC_NSIZES, false);
+		    prepare->trail_elm_a, clear_contents);
 		merged_b = prepare->trail_elm_b;
 	} else {
 		merged_b = prepare->trail_elm_a;
