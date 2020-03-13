@@ -35,9 +35,9 @@ TEST_BEGIN(test_rtree_extrema) {
 	edata_t edata_a, edata_b;
 	edata_init(&edata_a, INVALID_ARENA_IND, NULL, SC_LARGE_MINCLASS,
 	    false, sz_size2index(SC_LARGE_MINCLASS), 0,
-	    extent_state_active, false, false, true, EXTENT_NOT_HEAD);
+	    extent_state_active, false, false, false, EXTENT_NOT_HEAD);
 	edata_init(&edata_b, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
-	    extent_state_active, false, false, true, EXTENT_NOT_HEAD);
+	    extent_state_active, false, false, false, EXTENT_NOT_HEAD);
 
 	tsdn_t *tsdn = tsdn_fetch();
 
@@ -80,7 +80,7 @@ TEST_BEGIN(test_rtree_bits) {
 
 	edata_t edata;
 	edata_init(&edata, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
-	    extent_state_active, false, false, true, EXTENT_NOT_HEAD);
+	    extent_state_active, false, false, false, EXTENT_NOT_HEAD);
 
 	rtree_t *rtree = &test_rtree;
 	rtree_ctx_t rtree_ctx;
@@ -126,7 +126,7 @@ TEST_BEGIN(test_rtree_random) {
 
 	edata_t edata;
 	edata_init(&edata, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
-	    extent_state_active, false, false, true, EXTENT_NOT_HEAD);
+	    extent_state_active, false, false, false, EXTENT_NOT_HEAD);
 
 	expect_false(rtree_new(rtree, base, false),
 	    "Unexpected rtree_new() failure");

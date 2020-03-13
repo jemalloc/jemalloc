@@ -246,11 +246,11 @@ emap_split_prepare(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
 	    (void *)((uintptr_t)edata_base_get(edata) + size_a), size_b,
 	    slab_b, szind_b, edata_sn_get(edata), edata_state_get(edata),
 	    edata_zeroed_get(edata), edata_committed_get(edata),
-	    edata_dumpable_get(edata), EXTENT_NOT_HEAD);
+	    edata_ranged_get(edata), EXTENT_NOT_HEAD);
 
 	/*
-	 * We use incorrect constants for things like arena ind, zero, dump, and
-	 * commit state, and head status.  This is a fake edata_t, used to
+	 * We use incorrect constants for things like arena ind, zero, ranged,
+	 * and commit state, and head status.  This is a fake edata_t, used to
 	 * facilitate a lookup.
 	 */
 	edata_t lead;
