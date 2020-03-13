@@ -80,7 +80,7 @@ ecache_alloc(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	bool commit = true;
 	edata_t *edata = extent_recycle(tsdn, shard, ehooks, ecache,
 	    new_addr, size, alignment, slab, szind, zero, &commit, false);
-	assert(edata == NULL || edata_dumpable_get(edata));
+	assert(edata == NULL || !edata_ranged_get(edata));
 	return edata;
 }
 
@@ -110,7 +110,7 @@ ecache_alloc_grow(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 		    size, alignment, slab, szind, zero, &commit);
 	}
 
-	assert(edata == NULL || edata_dumpable_get(edata));
+	assert(edata == NULL || !edata_ranged_get(edata));
 	return edata;
 }
 
@@ -119,7 +119,7 @@ ecache_dalloc(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *edata) {
 	assert(edata_base_get(edata) != NULL);
 	assert(edata_size_get(edata) != 0);
-	assert(edata_dumpable_get(edata));
+	assert(!edata_ranged_get(edata));
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
@@ -661,7 +661,8 @@ extent_grow_retained(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 
 	edata_init(edata, ecache_ind_get(&shard->ecache_retained), ptr,
 	    alloc_size, false, SC_NSIZES, pa_shard_extent_sn_next(shard),
-	    extent_state_active, zeroed, committed, true, EXTENT_IS_HEAD);
+	    extent_state_active, zeroed, committed, /* ranged */ false,
+	    EXTENT_IS_HEAD);
 
 	if (extent_register_no_gdump_add(tsdn, edata)) {
 		edata_cache_put(tsdn, &shard->edata_cache, edata);
@@ -814,7 +815,8 @@ extent_alloc_wrapper(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	}
 	edata_init(edata, ecache_ind_get(&shard->ecache_dirty), addr,
 	    size, slab, szind, pa_shard_extent_sn_next(shard),
-	    extent_state_active, *zero, *commit, true, EXTENT_NOT_HEAD);
+	    extent_state_active, *zero, *commit, /* ranged */ false,
+	    EXTENT_NOT_HEAD);
 	if (extent_register(tsdn, edata)) {
 		edata_cache_put(tsdn, &shard->edata_cache, edata);
 		return NULL;
@@ -1059,7 +1061,7 @@ extent_dalloc_wrapper_try(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 void
 extent_dalloc_wrapper(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     edata_t *edata) {
-	assert(edata_dumpable_get(edata));
+	assert(!edata_ranged_get(edata));
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 

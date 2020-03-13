@@ -12,7 +12,7 @@ TEST_BEGIN(test_arena_slab_regind) {
 		edata_init(&slab, INVALID_ARENA_IND,
 		    mallocx(bin_info->slab_size, MALLOCX_LG_ALIGN(LG_PAGE)),
 		    bin_info->slab_size, true,
-		    binind, 0, extent_state_active, false, true, true,
+		    binind, 0, extent_state_active, false, true, false,
 		    EXTENT_NOT_HEAD);
 		expect_ptr_not_null(edata_addr_get(&slab),
 		    "Unexpected malloc() failure");
