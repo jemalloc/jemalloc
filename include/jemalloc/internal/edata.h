@@ -68,7 +68,7 @@ struct edata_s {
 	 * a: arena_ind
 	 * b: slab
 	 * c: committed
-	 * d: dumpable
+	 * r: ranged
 	 * z: zeroed
 	 * t: state
 	 * i: szind
@@ -76,7 +76,7 @@ struct edata_s {
 	 * s: bin_shard
 	 * n: sn
 	 *
-	 * nnnnnnnn ... nnnnnnss ssssffff ffffffii iiiiiitt zdcbaaaa aaaaaaaa
+	 * nnnnnnnn ... nnnnnnss ssssffff ffffffii iiiiiitt zrcbaaaa aaaaaaaa
 	 *
 	 * arena_ind: Arena from which this extent came, or all 1 bits if
 	 *            unassociated.
@@ -91,22 +91,10 @@ struct edata_s {
 	 *            as on a system that overcommits and satisfies physical
 	 *            memory needs on demand via soft page faults.
 	 *
-	 * dumpable: The dumpable flag indicates whether or not we've set the
-	 *           memory in question to be dumpable.  Note that this
-	 *           interacts somewhat subtly with user-specified extent hooks,
-	 *           since we don't know if *they* are fiddling with
-	 *           dumpability (in which case, we don't want to undo whatever
-	 *           they're doing).  To deal with this scenario, we:
-	 *             - Make dumpable false only for memory allocated with the
-	 *               default hooks.
-	 *             - Only allow memory to go from non-dumpable to dumpable,
-	 *               and only once.
-	 *             - Never make the OS call to allow dumping when the
-	 *               dumpable bit is already set.
-	 *           These three constraints mean that we will never
-	 *           accidentally dump user memory that the user meant to set
-	 *           nondumpable with their extent hooks.
-	 *
+	 * ranged: Whether or not this extent is currently owned by the range
+	 *         allocator.  This may be false even if the extent originally
+	 *         came from a range allocator; this indicates its *current*
+	 *         owner, not its original owner.
 	 *
 	 * zeroed: The zeroed flag is used by extent recycling code to track
 	 *         whether memory is zero-filled.
@@ -148,12 +136,12 @@ struct edata_s {
 #define EDATA_BITS_COMMITTED_SHIFT  (EDATA_BITS_SLAB_WIDTH + EDATA_BITS_SLAB_SHIFT)
 #define EDATA_BITS_COMMITTED_MASK  MASK(EDATA_BITS_COMMITTED_WIDTH, EDATA_BITS_COMMITTED_SHIFT)
 
-#define EDATA_BITS_DUMPABLE_WIDTH  1
-#define EDATA_BITS_DUMPABLE_SHIFT  (EDATA_BITS_COMMITTED_WIDTH + EDATA_BITS_COMMITTED_SHIFT)
-#define EDATA_BITS_DUMPABLE_MASK  MASK(EDATA_BITS_DUMPABLE_WIDTH, EDATA_BITS_DUMPABLE_SHIFT)
+#define EDATA_BITS_RANGED_WIDTH  1
+#define EDATA_BITS_RANGED_SHIFT  (EDATA_BITS_COMMITTED_WIDTH + EDATA_BITS_COMMITTED_SHIFT)
+#define EDATA_BITS_RANGED_MASK  MASK(EDATA_BITS_RANGED_WIDTH, EDATA_BITS_RANGED_SHIFT)
 
 #define EDATA_BITS_ZEROED_WIDTH  1
-#define EDATA_BITS_ZEROED_SHIFT  (EDATA_BITS_DUMPABLE_WIDTH + EDATA_BITS_DUMPABLE_SHIFT)
+#define EDATA_BITS_ZEROED_SHIFT  (EDATA_BITS_RANGED_WIDTH + EDATA_BITS_RANGED_SHIFT)
 #define EDATA_BITS_ZEROED_MASK  MASK(EDATA_BITS_ZEROED_WIDTH, EDATA_BITS_ZEROED_SHIFT)
 
 #define EDATA_BITS_STATE_WIDTH  2
@@ -283,9 +271,9 @@ edata_committed_get(const edata_t *edata) {
 }
 
 static inline bool
-edata_dumpable_get(const edata_t *edata) {
-	return (bool)((edata->e_bits & EDATA_BITS_DUMPABLE_MASK) >>
-	    EDATA_BITS_DUMPABLE_SHIFT);
+edata_ranged_get(const edata_t *edata) {
+	return (bool)((edata->e_bits & EDATA_BITS_RANGED_MASK) >>
+	    EDATA_BITS_RANGED_SHIFT);
 }
 
 static inline bool
@@ -479,9 +467,9 @@ edata_committed_set(edata_t *edata, bool committed) {
 }
 
 static inline void
-edata_dumpable_set(edata_t *edata, bool dumpable) {
-	edata->e_bits = (edata->e_bits & ~EDATA_BITS_DUMPABLE_MASK) |
-	    ((uint64_t)dumpable << EDATA_BITS_DUMPABLE_SHIFT);
+edata_ranged_set(edata_t *edata, bool ranged) {
+	edata->e_bits = (edata->e_bits & ~EDATA_BITS_RANGED_MASK) |
+	    ((uint64_t)ranged << EDATA_BITS_RANGED_SHIFT);
 }
 
 static inline void
@@ -522,8 +510,9 @@ edata_is_head_set(edata_t *edata, bool is_head) {
 static inline void
 edata_init(edata_t *edata, unsigned arena_ind, void *addr, size_t size,
     bool slab, szind_t szind, size_t sn, extent_state_t state, bool zeroed,
-    bool committed, bool dumpable, extent_head_state_t is_head) {
+    bool committed, bool ranged, extent_head_state_t is_head) {
 	assert(addr == PAGE_ADDR2BASE(addr) || !slab);
+	assert(ranged == false);
 
 	edata_arena_ind_set(edata, arena_ind);
 	edata_addr_set(edata, addr);
@@ -534,7 +523,7 @@ edata_init(edata_t *edata, unsigned arena_ind, void *addr, size_t size,
 	edata_state_set(edata, state);
 	edata_zeroed_set(edata, zeroed);
 	edata_committed_set(edata, committed);
-	edata_dumpable_set(edata, dumpable);
+	edata_ranged_set(edata, ranged);
 	ql_elm_new(edata, ql_link);
 	edata_is_head_set(edata, is_head == EXTENT_IS_HEAD);
 	if (config_prof) {
@@ -553,7 +542,7 @@ edata_binit(edata_t *edata, void *addr, size_t bsize, size_t sn) {
 	edata_state_set(edata, extent_state_active);
 	edata_zeroed_set(edata, true);
 	edata_committed_set(edata, true);
-	edata_dumpable_set(edata, true);
+	edata_ranged_set(edata, false);
 }
 
 static inline void
