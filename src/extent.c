@@ -1229,6 +1229,8 @@ extent_split_impl(tsdn_t *tsdn, edata_cache_t *edata_cache, ehooks_t *ehooks,
 		goto label_error_c;
 	}
 
+	edata_size_set(edata, size_a);
+	edata_szind_set(edata, szind_a);
 	emap_split_commit(tsdn, &emap_global, &prepare, edata, size_a, szind_a,
 	    slab_a, trail, size_b, szind_b, slab_b);
 
@@ -1278,6 +1280,13 @@ extent_merge_impl(tsdn_t *tsdn, ehooks_t *ehooks, edata_cache_t *edata_cache,
 	emap_merge_prepare(tsdn, &emap_global, &prepare, a, b);
 
 	emap_lock_edata2(tsdn, &emap_global, a, b);
+
+	edata_size_set(a, edata_size_get(a) + edata_size_get(b));
+	edata_szind_set(a, SC_NSIZES);
+	edata_sn_set(a, (edata_sn_get(a) < edata_sn_get(b)) ?
+	    edata_sn_get(a) : edata_sn_get(b));
+	edata_zeroed_set(a, edata_zeroed_get(a) && edata_zeroed_get(b));
+
 	emap_merge_commit(tsdn, &emap_global, &prepare, a, b);
 	emap_unlock_edata2(tsdn, &emap_global, a, b);
 
