@@ -228,7 +228,6 @@ void emap_remap(tsdn_t *tsdn, emap_t *emap, edata_t *edata, szind_t szind,
 			    szind, slab);
 			}
 		}
-
 }
 
 bool
@@ -236,16 +235,6 @@ emap_split_prepare(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
     edata_t *edata, size_t size_a, szind_t szind_a, bool slab_a, edata_t *trail,
     size_t size_b, szind_t szind_b, bool slab_b) {
 	EMAP_DECLARE_RTREE_CTX;
-	/*
-	 * Note that while the trail mostly inherits its attributes from the
-	 * extent to be split, it maintains its own arena ind -- this allows
-	 * cross-arena edata interactions, such as occur in the range ecache.
-	 */
-	edata_init(trail, edata_arena_ind_get(trail),
-	    (void *)((uintptr_t)edata_base_get(edata) + size_a), size_b,
-	    slab_b, szind_b, edata_sn_get(edata), edata_state_get(edata),
-	    edata_zeroed_get(edata), edata_committed_get(edata),
-	    edata_ranged_get(edata), EXTENT_NOT_HEAD);
 
 	/*
 	 * We use incorrect constants for things like arena ind, zero, ranged,

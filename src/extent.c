@@ -1213,6 +1213,11 @@ extent_split_impl(tsdn_t *tsdn, edata_cache_t *edata_cache, ehooks_t *ehooks,
 		goto label_error_a;
 	}
 
+	edata_init(trail, edata_arena_ind_get(edata),
+	    (void *)((uintptr_t)edata_base_get(edata) + size_a), size_b,
+	    slab_b, szind_b, edata_sn_get(edata), edata_state_get(edata),
+	    edata_zeroed_get(edata), edata_committed_get(edata),
+	    edata_ranged_get(edata), EXTENT_NOT_HEAD);
 	emap_prepare_t prepare;
 	bool err = emap_split_prepare(tsdn, &emap_global, &prepare, edata,
 	    size_a, szind_a, slab_a, trail, size_b, szind_b, slab_b);
