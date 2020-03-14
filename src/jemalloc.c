@@ -1591,7 +1591,7 @@ malloc_init_hard_a0_locked() {
 		return true;
 	}
 	/* emap_global is static, hence zeroed. */
-	if (emap_init(&emap_global, b0get(), /* zeroed */ true)) {
+	if (emap_init(&arena_emap_global, b0get(), /* zeroed */ true)) {
 		return true;
 	}
 	if (extent_boot()) {
@@ -2613,7 +2613,8 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 	assert(malloc_initialized() || IS_INITIALIZER);
 
 	emap_alloc_ctx_t alloc_ctx;
-	emap_alloc_ctx_lookup(tsd_tsdn(tsd), &emap_global, ptr, &alloc_ctx);
+	emap_alloc_ctx_lookup(tsd_tsdn(tsd), &arena_emap_global, ptr,
+	    &alloc_ctx);
 	assert(alloc_ctx.szind != SC_NSIZES);
 
 	size_t usize = sz_index2size(alloc_ctx.szind);
@@ -2667,12 +2668,12 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 			if (config_debug) {
 				emap_alloc_ctx_t dbg_ctx;
 				emap_alloc_ctx_lookup(tsd_tsdn(tsd),
-				    &emap_global, ptr, &dbg_ctx);
+				    &arena_emap_global, ptr, &dbg_ctx);
 				assert(dbg_ctx.szind == alloc_ctx.szind);
 				assert(dbg_ctx.slab == alloc_ctx.slab);
 			}
 		} else if (opt_prof) {
-			emap_alloc_ctx_lookup(tsd_tsdn(tsd), &emap_global,
+			emap_alloc_ctx_lookup(tsd_tsdn(tsd), &arena_emap_global,
 			    ptr, &alloc_ctx);
 
 			if (config_opt_safety_checks) {
@@ -2749,8 +2750,8 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 		if (unlikely(tsd == NULL || !tsd_fast(tsd))) {
 			return false;
 		}
-		bool res = emap_alloc_ctx_try_lookup_fast(tsd, &emap_global,
-		    ptr, &alloc_ctx);
+		bool res = emap_alloc_ctx_try_lookup_fast(tsd,
+		    &arena_emap_global, ptr, &alloc_ctx);
 
 		/* Note: profiled objects will have alloc_ctx.slab set */
 		if (unlikely(!res || !alloc_ctx.slab)) {
@@ -3206,7 +3207,8 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 	}
 
 	emap_alloc_ctx_t alloc_ctx;
-	emap_alloc_ctx_lookup(tsd_tsdn(tsd), &emap_global, ptr, &alloc_ctx);
+	emap_alloc_ctx_lookup(tsd_tsdn(tsd), &arena_emap_global, ptr,
+	    &alloc_ctx);
 	assert(alloc_ctx.szind != SC_NSIZES);
 	old_usize = sz_index2size(alloc_ctx.szind);
 	assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
@@ -3478,11 +3480,12 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	 * object associated with the ptr (though the content of the edata_t
 	 * object can be changed).
 	 */
-	edata_t *old_edata = emap_edata_lookup(tsd_tsdn(tsd), &emap_global,
-	    ptr);
+	edata_t *old_edata = emap_edata_lookup(tsd_tsdn(tsd),
+	    &arena_emap_global, ptr);
 
 	emap_alloc_ctx_t alloc_ctx;
-	emap_alloc_ctx_lookup(tsd_tsdn(tsd), &emap_global, ptr, &alloc_ctx);
+	emap_alloc_ctx_lookup(tsd_tsdn(tsd), &arena_emap_global, ptr,
+	    &alloc_ctx);
 	assert(alloc_ctx.szind != SC_NSIZES);
 	old_usize = sz_index2size(alloc_ctx.szind);
 	assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
@@ -3515,7 +3518,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	 * xallocx() should keep using the same edata_t object (though its
 	 * content can be changed).
 	 */
-	assert(emap_edata_lookup(tsd_tsdn(tsd), &emap_global, ptr)
+	assert(emap_edata_lookup(tsd_tsdn(tsd), &arena_emap_global, ptr)
 	    == old_edata);
 
 	if (unlikely(usize == old_usize)) {

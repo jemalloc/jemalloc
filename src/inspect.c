@@ -6,7 +6,7 @@ inspect_extent_util_stats_get(tsdn_t *tsdn, const void *ptr, size_t *nfree,
     size_t *nregs, size_t *size) {
 	assert(ptr != NULL && nfree != NULL && nregs != NULL && size != NULL);
 
-	const edata_t *edata = emap_edata_lookup(tsdn, &emap_global, ptr);
+	const edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global, ptr);
 	if (unlikely(edata == NULL)) {
 		*nfree = *nregs = *size = 0;
 		return;
@@ -31,7 +31,7 @@ inspect_extent_util_stats_verbose_get(tsdn_t *tsdn, const void *ptr,
 	assert(ptr != NULL && nfree != NULL && nregs != NULL && size != NULL
 	    && bin_nfree != NULL && bin_nregs != NULL && slabcur_addr != NULL);
 
-	const edata_t *edata = emap_edata_lookup(tsdn, &emap_global, ptr);
+	const edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global, ptr);
 	if (unlikely(edata == NULL)) {
 		*nfree = *nregs = *size = *bin_nfree = *bin_nregs = 0;
 		*slabcur_addr = NULL;

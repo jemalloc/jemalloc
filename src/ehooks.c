@@ -189,8 +189,8 @@ ehooks_default_split(extent_hooks_t *extent_hooks, void *addr, size_t size,
 
 static inline bool
 ehooks_same_sn(tsdn_t *tsdn, void *addr_a, void *addr_b) {
-	edata_t *a = emap_edata_lookup(tsdn, &emap_global, addr_a);
-	edata_t *b = emap_edata_lookup(tsdn, &emap_global, addr_b);
+	edata_t *a = emap_edata_lookup(tsdn, &arena_emap_global, addr_a);
+	edata_t *b = emap_edata_lookup(tsdn, &arena_emap_global, addr_b);
 	return edata_sn_comp(a, b) == 0;
 }
 
@@ -253,9 +253,9 @@ bool
 ehooks_default_merge(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
     void *addr_b, size_t size_b, bool committed, unsigned arena_ind) {
 	tsdn_t *tsdn = tsdn_fetch();
-	edata_t *a = emap_edata_lookup(tsdn, &emap_global, addr_a);
+	edata_t *a = emap_edata_lookup(tsdn, &arena_emap_global, addr_a);
 	bool head_a = edata_is_head_get(a);
-	edata_t *b = emap_edata_lookup(tsdn, &emap_global, addr_b);
+	edata_t *b = emap_edata_lookup(tsdn, &arena_emap_global, addr_b);
 	bool head_b = edata_is_head_get(b);
 	return ehooks_default_merge_impl(tsdn, addr_a, head_a, addr_b, head_b);
 }

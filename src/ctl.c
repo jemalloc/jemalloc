@@ -2645,7 +2645,7 @@ arenas_lookup_ctl(tsd_t *tsd, const size_t *mib,
 	ret = EINVAL;
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 	WRITE(ptr, void *);
-	edata = emap_edata_lookup(tsd_tsdn(tsd), &emap_global, ptr);
+	edata = emap_edata_lookup(tsd_tsdn(tsd), &arena_emap_global, ptr);
 	if (edata == NULL)
 		goto label_return;
 
