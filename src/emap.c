@@ -272,9 +272,6 @@ void
 emap_split_commit(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
     edata_t *lead, size_t size_a, szind_t szind_a, bool slab_a, edata_t *trail,
     size_t size_b, szind_t szind_b, bool slab_b) {
-	edata_size_set(lead, size_a);
-	edata_szind_set(lead, szind_a);
-
 	emap_rtree_write_acquired(tsdn, emap, prepare->lead_elm_a,
 	    prepare->lead_elm_b, lead, szind_a, slab_a);
 	emap_rtree_write_acquired(tsdn, emap, prepare->trail_elm_a,
@@ -312,13 +309,6 @@ emap_merge_commit(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
 	} else {
 		merged_b = prepare->trail_elm_a;
 	}
-
-	edata_size_set(lead, edata_size_get(lead) + edata_size_get(trail));
-	edata_szind_set(lead, SC_NSIZES);
-	edata_sn_set(lead, (edata_sn_get(lead) < edata_sn_get(trail)) ?
-	    edata_sn_get(lead) : edata_sn_get(trail));
-	edata_zeroed_set(lead, edata_zeroed_get(lead)
-	    && edata_zeroed_get(trail));
 
 	emap_rtree_write_acquired(tsdn, emap, prepare->lead_elm_a, merged_b,
 	    lead, SC_NSIZES, false);
