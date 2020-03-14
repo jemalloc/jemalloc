@@ -13,9 +13,9 @@ pa_nactive_sub(pa_shard_t *shard, size_t sub_pages) {
 }
 
 bool
-pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
-    pa_shard_stats_t *stats, malloc_mutex_t *stats_mtx, nstime_t *cur_time,
-    ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms) {
+pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
+    unsigned ind, pa_shard_stats_t *stats, malloc_mutex_t *stats_mtx,
+    nstime_t *cur_time, ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms) {
 	/* This will change eventually, but for now it should hold. */
 	assert(base_ind_get(base) == ind);
 	/*
@@ -68,6 +68,7 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
 	shard->stats = stats;
 	memset(shard->stats, 0, sizeof(*shard->stats));
 
+	shard->emap = emap;
 	shard->base = base;
 
 	return false;
@@ -175,8 +176,8 @@ pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 	if (trail == NULL) {
 		return true;
 	}
-	if (extent_merge_wrapper(tsdn, ehooks, &shard->edata_cache, edata,
-	    trail)) {
+	if (extent_merge_wrapper(tsdn, shard, ehooks, &shard->edata_cache,
+	    edata, trail)) {
 		extent_dalloc_wrapper(tsdn, shard, ehooks, trail);
 		return true;
 	}
@@ -186,7 +187,7 @@ pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 	}
 	pa_nactive_add(shard, expand_amount >> LG_PAGE);
 	edata_szind_set(edata, szind);
-	emap_remap(tsdn, &emap_global, edata, szind, slab);
+	emap_remap(tsdn, shard->emap, edata, szind, slab);
 	return false;
 }
 
@@ -205,8 +206,8 @@ pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 		return true;
 	}
 
-	edata_t *trail = extent_split_wrapper(tsdn, &shard->edata_cache, ehooks,
-	    edata, new_size, szind, slab, shrink_amount, SC_NSIZES,
+	edata_t *trail = extent_split_wrapper(tsdn, shard, &shard->edata_cache,
+	    ehooks, edata, new_size, szind, slab, shrink_amount, SC_NSIZES,
 	    false);
 	if (trail == NULL) {
 		return true;

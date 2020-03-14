@@ -62,12 +62,12 @@ thd_start(void *varg) {
 		ptr = mallocx(1, MALLOCX_TCACHE_NONE);
 		ptr2 = mallocx(129, MALLOCX_TCACHE_NONE);
 
-		edata = emap_edata_lookup(tsdn, &emap_global, ptr);
+		edata = emap_edata_lookup(tsdn, &arena_emap_global, ptr);
 		shard1 = edata_binshard_get(edata);
 		dallocx(ptr, 0);
 		expect_u_lt(shard1, 16, "Unexpected bin shard used");
 
-		edata = emap_edata_lookup(tsdn, &emap_global, ptr2);
+		edata = emap_edata_lookup(tsdn, &arena_emap_global, ptr2);
 		shard2 = edata_binshard_get(edata);
 		dallocx(ptr2, 0);
 		expect_u_lt(shard2, 4, "Unexpected bin shard used");

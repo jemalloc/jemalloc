@@ -103,7 +103,7 @@ TEST_END
 static void
 confirm_malloc(void *p) {
 	assert_ptr_not_null(p, "malloc failed unexpectedly");
-	edata_t *e = emap_edata_lookup(TSDN_NULL, &emap_global, p);
+	edata_t *e = emap_edata_lookup(TSDN_NULL, &arena_emap_global, p);
 	assert_ptr_not_null(e, "NULL edata for living pointer");
 	prof_recent_t *n = edata_prof_recent_alloc_get_no_lock(e);
 	assert_ptr_not_null(n, "Record in edata should not be NULL");

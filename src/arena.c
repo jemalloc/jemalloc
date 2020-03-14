@@ -37,6 +37,8 @@ ssize_t opt_muzzy_decay_ms = MUZZY_DECAY_MS_DEFAULT;
 static atomic_zd_t dirty_decay_ms_default;
 static atomic_zd_t muzzy_decay_ms_default;
 
+emap_t arena_emap_global;
+
 const uint64_t h_steps[SMOOTHSTEP_NSTEPS] = {
 #define STEP(step, h, x, y)			\
 		h,
@@ -668,7 +670,7 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 
 		malloc_mutex_unlock(tsd_tsdn(tsd), &arena->large_mtx);
 		emap_alloc_ctx_t alloc_ctx;
-		emap_alloc_ctx_lookup(tsd_tsdn(tsd), &emap_global, ptr,
+		emap_alloc_ctx_lookup(tsd_tsdn(tsd), &arena_emap_global, ptr,
 		    &alloc_ctx);
 		assert(alloc_ctx.szind != SC_NSIZES);
 
@@ -1064,11 +1066,11 @@ arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize) {
 		safety_check_set_redzone(ptr, usize, SC_LARGE_MINCLASS);
 	}
 
-	edata_t *edata = emap_edata_lookup(tsdn, &emap_global, ptr);
+	edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global, ptr);
 
 	szind_t szind = sz_size2index(usize);
 	edata_szind_set(edata, szind);
-	emap_remap(tsdn, &emap_global, edata, szind, /* slab */ false);
+	emap_remap(tsdn, &arena_emap_global, edata, szind, /* slab */ false);
 
 	prof_idump_rollback(tsdn, usize);
 
@@ -1081,7 +1083,7 @@ arena_prof_demote(tsdn_t *tsdn, edata_t *edata, const void *ptr) {
 	assert(ptr != NULL);
 
 	edata_szind_set(edata, SC_NBINS);
-	emap_remap(tsdn, &emap_global, edata, SC_NBINS, /* slab */ false);
+	emap_remap(tsdn, &arena_emap_global, edata, SC_NBINS, /* slab */ false);
 
 	assert(isalloc(tsdn, ptr) == SC_LARGE_MINCLASS);
 
@@ -1094,7 +1096,7 @@ arena_dalloc_promoted(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 	cassert(config_prof);
 	assert(opt_prof);
 
-	edata_t *edata = emap_edata_lookup(tsdn, &emap_global, ptr);
+	edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global, ptr);
 	size_t usize = edata_usize_get(edata);
 	size_t bumped_usize = arena_prof_demote(tsdn, edata, ptr);
 	if (config_opt_safety_checks && usize < SC_LARGE_MINCLASS) {
@@ -1223,7 +1225,7 @@ arena_dalloc_bin(tsdn_t *tsdn, arena_t *arena, edata_t *edata, void *ptr) {
 
 void
 arena_dalloc_small(tsdn_t *tsdn, void *ptr) {
-	edata_t *edata = emap_edata_lookup(tsdn, &emap_global, ptr);
+	edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global, ptr);
 	arena_t *arena = arena_get_from_edata(edata);
 
 	arena_dalloc_bin(tsdn, arena, edata, ptr);
@@ -1237,7 +1239,7 @@ arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
 	/* Calls with non-zero extra had to clamp extra. */
 	assert(extra == 0 || size + extra <= SC_LARGE_MAXCLASS);
 
-	edata_t *edata = emap_edata_lookup(tsdn, &emap_global, ptr);
+	edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global, ptr);
 	if (unlikely(size > SC_LARGE_MAXCLASS)) {
 		ret = true;
 		goto done;
@@ -1271,7 +1273,7 @@ arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
 		ret = true;
 	}
 done:
-	assert(edata == emap_edata_lookup(tsdn, &emap_global, ptr));
+	assert(edata == emap_edata_lookup(tsdn, &arena_emap_global, ptr));
 	*newsize = edata_usize_get(edata);
 
 	return ret;
@@ -1491,7 +1493,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 
 	nstime_t cur_time;
 	nstime_init_update(&cur_time);
-	if (pa_shard_init(tsdn, &arena->pa_shard, base, ind,
+	if (pa_shard_init(tsdn, &arena->pa_shard, &arena_emap_global, base, ind,
 	    &arena->stats.pa_shard_stats, LOCKEDINT_MTX(arena->stats.mtx),
 	    &cur_time, arena_dirty_decay_ms_default_get(),
 	    arena_muzzy_decay_ms_default_get())) {

@@ -3,8 +3,6 @@
 
 #include "jemalloc/internal/emap.h"
 
-emap_t emap_global;
-
 /*
  * Note: Ends without at semicolon, so that
  *     EMAP_DECLARE_RTREE_CTX;
