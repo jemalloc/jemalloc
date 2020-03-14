@@ -206,7 +206,6 @@ void emap_remap(tsdn_t *tsdn, emap_t *emap, edata_t *edata, szind_t szind,
     bool slab) {
 	EMAP_DECLARE_RTREE_CTX;
 
-	edata_szind_set(edata, szind);
 	if (szind != SC_NSIZES) {
 		rtree_szind_slab_update(tsdn, &emap->rtree, rtree_ctx,
 		    (uintptr_t)edata_addr_get(edata), szind, slab);

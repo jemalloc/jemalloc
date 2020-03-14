@@ -487,6 +487,7 @@ extent_split_interior(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	}
 
 	if (leadsize == 0 && trailsize == 0) {
+		edata_szind_set(*edata, szind);
 		emap_remap(tsdn, &emap_global, *edata, szind, slab);
 	}
 
