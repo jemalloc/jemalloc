@@ -51,7 +51,7 @@ void eset_remove(eset_t *eset, edata_t *edata);
  * Select an extent from this eset of the given size and alignment.  Returns
  * null if no such item could be found.
  */
-edata_t *eset_fit(eset_t *eset, size_t esize, size_t alignment,
+edata_t *eset_fit(eset_t *eset, size_t esize, size_t alignment, bool exact_only,
     unsigned lg_max_fit);
 
 #endif /* JEMALLOC_INTERNAL_ESET_H */
