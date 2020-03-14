@@ -154,9 +154,15 @@ eset_fit_alignment(eset_t *eset, size_t min_size, size_t max_size,
 /*
  * Do first-fit extent selection, i.e. select the oldest/lowest extent that is
  * large enough.
+ *
+ * lg_max_fit is the (log of the) maximum ratio between the requested size and
+ * the returned size that we'll allow.  This can reduce fragmentation by
+ * avoiding reusing and splitting large extents for smaller sizes.  In practice,
+ * it's set to opt_lg_extent_max_active_fit for the dirty eset and SC_PTR_BITS
+ * for others.
  */
 static edata_t *
-eset_first_fit(eset_t *eset, size_t size, bool delay_coalesce) {
+eset_first_fit(eset_t *eset, size_t size, unsigned lg_max_fit) {
 	edata_t *ret = NULL;
 
 	pszind_t pind = sz_psz2ind(sz_psz_quantize_ceil(size));
@@ -178,14 +184,15 @@ eset_first_fit(eset_t *eset, size_t size, bool delay_coalesce) {
 		assert(!edata_heap_empty(&eset->heaps[i]));
 		edata_t *edata = edata_heap_first(&eset->heaps[i]);
 		assert(edata_size_get(edata) >= size);
-		/*
-		 * In order to reduce fragmentation, avoid reusing and splitting
-		 * large eset for much smaller sizes.
-		 *
-		 * Only do check for dirty eset (delay_coalesce).
-		 */
-		if (delay_coalesce &&
-		    (sz_pind2sz(i) >> opt_lg_extent_max_active_fit) > size) {
+		if (lg_max_fit == SC_PTR_BITS) {
+			/*
+			 * We'll shift by this below, and shifting out all the
+			 * bits is undefined.  Decreasing is safe, since the
+			 * page size is larger than 1 byte.
+			 */
+			lg_max_fit = SC_PTR_BITS - 1;
+		}
+		if ((sz_pind2sz(i) >> lg_max_fit) > size) {
 			break;
 		}
 		if (ret == NULL || edata_snad_comp(edata, ret) < 0) {
@@ -201,14 +208,14 @@ eset_first_fit(eset_t *eset, size_t size, bool delay_coalesce) {
 }
 
 edata_t *
-eset_fit(eset_t *eset, size_t esize, size_t alignment, bool delay_coalesce) {
+eset_fit(eset_t *eset, size_t esize, size_t alignment, unsigned lg_max_fit) {
 	size_t max_size = esize + PAGE_CEILING(alignment) - PAGE;
 	/* Beware size_t wrap-around. */
 	if (max_size < esize) {
 		return NULL;
 	}
 
-	edata_t *edata = eset_first_fit(eset, max_size, delay_coalesce);
+	edata_t *edata = eset_first_fit(eset, max_size, lg_max_fit);
 
 	if (alignment > PAGE && edata == NULL) {
 		/*

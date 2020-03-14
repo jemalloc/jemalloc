@@ -398,8 +398,18 @@ extent_recycle_extract(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 			emap_unlock_edata(tsdn, &emap_global, unlock_edata);
 		}
 	} else {
-		edata = eset_fit(&ecache->eset, size, alignment,
-		    ecache->delay_coalesce);
+		/*
+		 * A large extent might be broken up from its original size to
+		 * some small size to satisfy a small request.  When that small
+		 * request is freed, though, it won't merge back with the larger
+		 * extent if delayed coalescing is on.  The large extent can
+		 * then no longer satify a request for its original size.  To
+		 * limit this effect, when delayed coalescing is enabled, we
+		 * put a cap on how big an extent we can split for a request.
+		 */
+		unsigned lg_max_fit = ecache->delay_coalesce
+		    ? (unsigned)opt_lg_extent_max_active_fit : SC_PTR_BITS;
+		edata = eset_fit(&ecache->eset, size, alignment, lg_max_fit);
 	}
 	if (edata == NULL) {
 		malloc_mutex_unlock(tsdn, &ecache->mtx);
