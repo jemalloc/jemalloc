@@ -399,6 +399,11 @@ extent_recycle_extract(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 		}
 	} else {
 		/*
+		 * If split and merge are not allowed (Windows w/o retain), try
+		 * exact fit only.
+		 */
+		bool exact_only = (!maps_coalesce && !opt_retain);
+		/*
 		 * A large extent might be broken up from its original size to
 		 * some small size to satisfy a small request.  When that small
 		 * request is freed, though, it won't merge back with the larger
@@ -409,7 +414,8 @@ extent_recycle_extract(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 		 */
 		unsigned lg_max_fit = ecache->delay_coalesce
 		    ? (unsigned)opt_lg_extent_max_active_fit : SC_PTR_BITS;
-		edata = eset_fit(&ecache->eset, size, alignment, lg_max_fit);
+		edata = eset_fit(&ecache->eset, size, alignment, exact_only,
+		    lg_max_fit);
 	}
 	if (edata == NULL) {
 		malloc_mutex_unlock(tsdn, &ecache->mtx);

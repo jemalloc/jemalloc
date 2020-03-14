@@ -2,8 +2,6 @@
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/eset.h"
-/* For opt_retain */
-#include "jemalloc/internal/extent_mmap.h"
 
 const bitmap_info_t eset_bitmap_info =
     BITMAP_INFO_INITIALIZER(SC_NPSIZES+1);
@@ -162,16 +160,13 @@ eset_fit_alignment(eset_t *eset, size_t min_size, size_t max_size,
  * for others.
  */
 static edata_t *
-eset_first_fit(eset_t *eset, size_t size, unsigned lg_max_fit) {
+eset_first_fit(eset_t *eset, size_t size, bool exact_only,
+    unsigned lg_max_fit) {
 	edata_t *ret = NULL;
 
 	pszind_t pind = sz_psz2ind(sz_psz_quantize_ceil(size));
 
-	if (!maps_coalesce && !opt_retain) {
-		/*
-		 * No split / merge allowed (Windows w/o retain). Try exact fit
-		 * only.
-		 */
+	if (exact_only) {
 		return edata_heap_empty(&eset->heaps[pind]) ? NULL :
 		    edata_heap_first(&eset->heaps[pind]);
 	}
@@ -208,14 +203,15 @@ eset_first_fit(eset_t *eset, size_t size, unsigned lg_max_fit) {
 }
 
 edata_t *
-eset_fit(eset_t *eset, size_t esize, size_t alignment, unsigned lg_max_fit) {
+eset_fit(eset_t *eset, size_t esize, size_t alignment, bool exact_only,
+    unsigned lg_max_fit) {
 	size_t max_size = esize + PAGE_CEILING(alignment) - PAGE;
 	/* Beware size_t wrap-around. */
 	if (max_size < esize) {
 		return NULL;
 	}
 
-	edata_t *edata = eset_first_fit(eset, max_size, lg_max_fit);
+	edata_t *edata = eset_first_fit(eset, max_size, exact_only, lg_max_fit);
 
 	if (alignment > PAGE && edata == NULL) {
 		/*
