@@ -87,12 +87,10 @@ struct emap_prepare_s {
 };
 
 /**
- * These functions do some of the metadata management for merging, splitting,
- * and reusing extents.  In particular, they set the boundary mappings from
- * addresses to edatas and fill in the szind, size, and slab values for the
- * output edata (and, for splitting, *all* values for the trail).  If the result
- * is going to be used as a slab, you still need to call emap_register_interior
- * on it, though.
+ * These functions the emap metadata management for merging, splitting, and
+ * reusing extents.  In particular, they set the boundary mappings from
+ * addresses to edatas.  If the result is going to be used as a slab, you
+ * still need to call emap_register_interior on it, though.
  *
  * Remap simply changes the szind and slab status of an extent's boundary
  * mappings.  If the extent is not a slab, it doesn't bother with updating the
@@ -107,9 +105,8 @@ struct emap_prepare_s {
  * and it returns true on failure (at which point the caller shouldn't commit).
  *
  * In all cases, "lead" refers to the lower-addressed extent, and trail to the
- * higher-addressed one.  Trail can contain garbage (except for its arena_ind
- * and esn values) data for the split variants, and can be reused for any
- * purpose by its given arena after a merge or a failed split.
+ * higher-addressed one.  It's the caller's responsibility to set the edata
+ * state appropriately.
  */
 void emap_remap(tsdn_t *tsdn, emap_t *emap, edata_t *edata, szind_t szind,
     bool slab);
