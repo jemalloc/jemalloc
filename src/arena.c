@@ -1067,7 +1067,8 @@ arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize) {
 	edata_t *edata = emap_edata_lookup(tsdn, &emap_global, ptr);
 
 	szind_t szind = sz_size2index(usize);
-	emap_remap(tsdn, &emap_global, edata, szind, false);
+	edata_szind_set(edata, szind);
+	emap_remap(tsdn, &emap_global, edata, szind, /* slab */ false);
 
 	prof_idump_rollback(tsdn, usize);
 
@@ -1079,7 +1080,8 @@ arena_prof_demote(tsdn_t *tsdn, edata_t *edata, const void *ptr) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 
-	emap_remap(tsdn, &emap_global, edata, SC_NBINS, false);
+	edata_szind_set(edata, SC_NBINS);
+	emap_remap(tsdn, &emap_global, edata, SC_NBINS, /* slab */ false);
 
 	assert(isalloc(tsdn, ptr) == SC_LARGE_MINCLASS);
 

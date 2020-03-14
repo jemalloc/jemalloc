@@ -185,6 +185,7 @@ pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 		    ATOMIC_RELAXED);
 	}
 	pa_nactive_add(shard, expand_amount >> LG_PAGE);
+	edata_szind_set(edata, szind);
 	emap_remap(tsdn, &emap_global, edata, szind, slab);
 	return false;
 }
