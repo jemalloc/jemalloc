@@ -52,6 +52,6 @@ void eset_remove(eset_t *eset, edata_t *edata);
  * null if no such item could be found.
  */
 edata_t *eset_fit(eset_t *eset, size_t esize, size_t alignment,
-    bool delay_coalesce);
+    unsigned lg_max_fit);
 
 #endif /* JEMALLOC_INTERNAL_ESET_H */
