@@ -26,8 +26,6 @@ struct emap_full_alloc_ctx_s {
 	edata_t *edata;
 };
 
-extern emap_t emap_global;
-
 bool emap_init(emap_t *emap, base_t *base, bool zeroed);
 
 /*

@@ -125,7 +125,7 @@ tbin_edatas_lookup_size_check(tsd_t *tsd, cache_bin_ptr_array_t *arr,
 	size_t szind_sum = binind * nflush;
 	for (unsigned i = 0; i < nflush; i++) {
 		emap_full_alloc_ctx_t full_alloc_ctx;
-		emap_full_alloc_ctx_lookup(tsd_tsdn(tsd), &emap_global,
+		emap_full_alloc_ctx_lookup(tsd_tsdn(tsd), &arena_emap_global,
 		    cache_bin_ptr_array_get(arr, i), &full_alloc_ctx);
 		edatas[i] = full_alloc_ctx.edata;
 		szind_sum -= full_alloc_ctx.szind;
@@ -185,7 +185,8 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 	} else {
 		for (unsigned i = 0 ; i < nflush; i++) {
 			item_edata[i] = emap_edata_lookup(tsd_tsdn(tsd),
-			    &emap_global, cache_bin_ptr_array_get(&ptrs, i));
+			    &arena_emap_global,
+			    cache_bin_ptr_array_get(&ptrs, i));
 		}
 	}
 

@@ -5,6 +5,7 @@
 #include "jemalloc/internal/decay.h"
 #include "jemalloc/internal/ecache.h"
 #include "jemalloc/internal/edata_cache.h"
+#include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/lockedint.h"
 
 enum pa_decay_purge_setting_e {
@@ -140,6 +141,9 @@ struct pa_shard_s {
 	decay_t decay_dirty; /* dirty --> muzzy */
 	decay_t decay_muzzy; /* muzzy --> retained */
 
+	/* The emap this shard is tied to. */
+	emap_t *emap;
+
 	/* The base from which we get the ehooks and allocate metadat. */
 	base_t *base;
 };
@@ -171,9 +175,10 @@ pa_shard_ehooks_get(pa_shard_t *shard) {
 }
 
 /* Returns true on error. */
-bool pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, base_t *base, unsigned ind,
-    pa_shard_stats_t *stats, malloc_mutex_t *stats_mtx, nstime_t *cur_time,
-    ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms);
+bool pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
+    unsigned ind, pa_shard_stats_t *stats, malloc_mutex_t *stats_mtx,
+    nstime_t *cur_time, ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms);
+
 /*
  * This does the PA-specific parts of arena reset (i.e. freeing all active
  * allocations).
