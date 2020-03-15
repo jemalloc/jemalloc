@@ -48,10 +48,10 @@ bool extent_purge_lazy_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
 bool extent_purge_forced_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
     size_t offset, size_t length);
 edata_t *extent_split_wrapper(tsdn_t *tsdn, pa_shard_t *shard,
-    edata_cache_t *edata_cache, ehooks_t *ehooks, edata_t *edata, size_t size_a,
-    szind_t szind_a, bool slab_a, size_t size_b, szind_t szind_b, bool slab_b);
+    ehooks_t *ehooks, edata_t *edata, size_t size_a, szind_t szind_a,
+    bool slab_a, size_t size_b, szind_t szind_b, bool slab_b);
 bool extent_merge_wrapper(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
-    edata_cache_t *edata_cache, edata_t *a, edata_t *b);
+    edata_t *a, edata_t *b);
 
 bool extent_boot(void);
 
