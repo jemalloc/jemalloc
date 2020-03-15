@@ -33,7 +33,7 @@ void arena_handle_new_dirty_pages(tsdn_t *tsdn, arena_t *arena);
 size_t arena_slab_regind(edata_t *slab, szind_t binind, const void *ptr);
 #endif
 edata_t *arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena,
-    size_t usize, size_t alignment, bool *zero);
+    size_t usize, size_t alignment, bool zero);
 void arena_extent_dalloc_large_prep(tsdn_t *tsdn, arena_t *arena,
     edata_t *edata);
 void arena_extent_ralloc_large_shrink(tsdn_t *tsdn, arena_t *arena,
