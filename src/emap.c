@@ -65,12 +65,12 @@ emap_unlock_edata2(tsdn_t *tsdn, emap_t *emap, edata_t *edata1,
 static inline emap_lock_result_t
 emap_try_lock_rtree_leaf_elm(tsdn_t *tsdn, emap_t *emap, rtree_leaf_elm_t *elm,
     edata_t **result, bool inactive_only) {
-	edata_t *edata1 = rtree_leaf_elm_edata_read(tsdn, &emap->rtree,
-	    elm, true);
+	edata_t *edata1 = rtree_leaf_elm_read(tsdn, &emap->rtree, elm,
+	    /* dependent */ true).edata;
 
 	/* Slab implies active extents and should be skipped. */
-	if (edata1 == NULL || (inactive_only && rtree_leaf_elm_slab_read(tsdn,
-	    &emap->rtree, elm, true))) {
+	if (edata1 == NULL || (inactive_only && rtree_leaf_elm_read(tsdn,
+	    &emap->rtree, elm, /* dependent */ true).metadata.slab)) {
 		return emap_lock_result_no_extent;
 	}
 
@@ -79,8 +79,8 @@ emap_try_lock_rtree_leaf_elm(tsdn_t *tsdn, emap_t *emap, rtree_leaf_elm_t *elm,
 	 * the leaf->edata mapping.  We have to recheck while holding the lock.
 	 */
 	emap_lock_edata(tsdn, emap, edata1);
-	edata_t *edata2 = rtree_leaf_elm_edata_read(tsdn, &emap->rtree, elm,
-	    true);
+	edata_t *edata2 = rtree_leaf_elm_read(tsdn, &emap->rtree, elm,
+	    /* dependent */ true).edata;
 
 	if (edata1 == edata2) {
 		*result = edata1;
@@ -137,10 +137,10 @@ emap_rtree_leaf_elms_lookup(tsdn_t *tsdn, emap_t *emap, rtree_ctx_t *rtree_ctx,
 static void
 emap_rtree_write_acquired(tsdn_t *tsdn, emap_t *emap, rtree_leaf_elm_t *elm_a,
     rtree_leaf_elm_t *elm_b, edata_t *edata, szind_t szind, bool slab) {
-	rtree_leaf_elm_contents_t contents;
+	rtree_contents_t contents;
 	contents.edata = edata;
-	contents.szind = szind;
-	contents.slab = slab;
+	contents.metadata.szind = szind;
+	contents.metadata.slab = slab;
 	rtree_leaf_elm_write(tsdn, &emap->rtree, elm_a, contents);
 	if (elm_b != NULL) {
 		rtree_leaf_elm_write(tsdn, &emap->rtree, elm_b, contents);
@@ -278,10 +278,10 @@ emap_merge_prepare(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
 void
 emap_merge_commit(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
     edata_t *lead, edata_t *trail) {
-	rtree_leaf_elm_contents_t clear_contents;
+	rtree_contents_t clear_contents;
 	clear_contents.edata = NULL;
-	clear_contents.szind = SC_NSIZES;
-	clear_contents.slab = false;
+	clear_contents.metadata.szind = SC_NSIZES;
+	clear_contents.metadata.slab = false;
 
 	if (prepare->lead_elm_b != NULL) {
 		rtree_leaf_elm_write(tsdn, &emap->rtree,
