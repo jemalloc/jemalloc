@@ -43,11 +43,16 @@ struct rtree_node_elm_s {
 	atomic_p_t	child; /* (rtree_{node,leaf}_elm_t *) */
 };
 
-typedef struct rtree_leaf_elm_contents_s rtree_leaf_elm_contents_t;
-struct rtree_leaf_elm_contents_s {
-	edata_t *edata;
+typedef struct rtree_metadata_s rtree_metadata_t;
+struct rtree_metadata_s {
 	szind_t szind;
 	bool slab;
+};
+
+typedef struct rtree_contents_s rtree_contents_t;
+struct rtree_contents_s {
+	edata_t *edata;
+	rtree_metadata_t metadata;
 };
 
 struct rtree_leaf_elm_s {
@@ -67,8 +72,11 @@ struct rtree_leaf_elm_s {
 	atomic_p_t	le_bits;
 #else
 	atomic_p_t	le_edata; /* (edata_t *) */
-	atomic_u_t	le_szind; /* (szind_t) */
-	atomic_b_t	le_slab; /* (bool) */
+	/*
+	 * slab is stored in the low bit; szind is stored in the next lowest
+	 * bits.
+	 */
+	atomic_u_t	le_metadata;
 #endif
 };
 
@@ -171,25 +179,25 @@ rtree_leaf_elm_bits_read(tsdn_t *tsdn, rtree_t *rtree,
 }
 
 JEMALLOC_ALWAYS_INLINE uintptr_t
-rtree_leaf_elm_bits_encode(rtree_leaf_elm_contents_t contents) {
+rtree_leaf_elm_bits_encode(rtree_contents_t contents) {
 	uintptr_t edata_bits = (uintptr_t)contents.edata
 	    & (((uintptr_t)1 << LG_VADDR) - 1);
-	uintptr_t szind_bits = (uintptr_t)contents.szind << LG_VADDR;
+	uintptr_t szind_bits = (uintptr_t)contents.metadata.szind << LG_VADDR;
 	/*
 	 * Slab shares the low bit of edata; we know edata is on an even address
 	 * (in fact, it's 128 bytes on 64-bit systems; we can enforce this
 	 * alignment if we want to steal 6 extra rtree leaf bits someday.
 	 */
-	uintptr_t slab_bits = (uintptr_t)contents.slab;
+	uintptr_t slab_bits = (uintptr_t)contents.metadata.slab;
 	return szind_bits | edata_bits | slab_bits;
 }
 
-JEMALLOC_ALWAYS_INLINE rtree_leaf_elm_contents_t
+JEMALLOC_ALWAYS_INLINE rtree_contents_t
 rtree_leaf_elm_bits_decode(uintptr_t bits) {
-	rtree_leaf_elm_contents_t contents;
+	rtree_contents_t contents;
 	/* Do the easy things first. */
-	contents.szind = bits >> LG_VADDR;
-	contents.slab = (bool)(bits & 1);
+	contents.metadata.szind = bits >> LG_VADDR;
+	contents.metadata.slab = (bool)(bits & 1);
 #    ifdef __aarch64__
 	/*
 	 * aarch64 doesn't sign extend the highest virtual address bit to set
@@ -210,109 +218,42 @@ rtree_leaf_elm_bits_decode(uintptr_t bits) {
 
 #  endif /* RTREE_LEAF_COMPACT */
 
-JEMALLOC_ALWAYS_INLINE edata_t *
-rtree_leaf_elm_edata_read(tsdn_t *tsdn, rtree_t *rtree,
-    rtree_leaf_elm_t *elm, bool dependent) {
+JEMALLOC_ALWAYS_INLINE rtree_contents_t
+rtree_leaf_elm_read(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
+    bool dependent) {
 #ifdef RTREE_LEAF_COMPACT
 	uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, dependent);
-	rtree_leaf_elm_contents_t contents = rtree_leaf_elm_bits_decode(bits);
-	return contents.edata;
+	rtree_contents_t contents = rtree_leaf_elm_bits_decode(bits);
+	return contents;
 #else
-	edata_t *edata = (edata_t *)atomic_load_p(&elm->le_edata, dependent
+	rtree_contents_t contents;
+	unsigned metadata_bits = atomic_load_u(&elm->le_metadata, dependent
 	    ? ATOMIC_RELAXED : ATOMIC_ACQUIRE);
-	return edata;
-#endif
-}
+	contents.metadata.slab = (bool)(metadata_bits & 1);
+	contents.metadata.szind = (metadata_bits >> 1);
 
-JEMALLOC_ALWAYS_INLINE szind_t
-rtree_leaf_elm_szind_read(tsdn_t *tsdn, rtree_t *rtree,
-    rtree_leaf_elm_t *elm, bool dependent) {
-#ifdef RTREE_LEAF_COMPACT
-	uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, dependent);
-	rtree_leaf_elm_contents_t contents = rtree_leaf_elm_bits_decode(bits);
-	return contents.szind;
-#else
-	return (szind_t)atomic_load_u(&elm->le_szind, dependent ? ATOMIC_RELAXED
-	    : ATOMIC_ACQUIRE);
-#endif
-}
+	contents.edata = (edata_t *)atomic_load_p(&elm->le_edata, dependent
+	    ? ATOMIC_RELAXED : ATOMIC_ACQUIRE);
 
-JEMALLOC_ALWAYS_INLINE bool
-rtree_leaf_elm_slab_read(tsdn_t *tsdn, rtree_t *rtree,
-    rtree_leaf_elm_t *elm, bool dependent) {
-#ifdef RTREE_LEAF_COMPACT
-	uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, dependent);
-	rtree_leaf_elm_contents_t contents = rtree_leaf_elm_bits_decode(bits);
-	return contents.slab;
-#else
-	return atomic_load_b(&elm->le_slab, dependent ? ATOMIC_RELAXED :
-	    ATOMIC_ACQUIRE);
-#endif
-}
-
-static inline void
-rtree_leaf_elm_edata_write(tsdn_t *tsdn, rtree_t *rtree,
-    rtree_leaf_elm_t *elm, edata_t *edata) {
-#ifdef RTREE_LEAF_COMPACT
-	uintptr_t old_bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, true);
-	rtree_leaf_elm_contents_t contents = rtree_leaf_elm_bits_decode(
-	    old_bits);
-	contents.edata = edata;
-	uintptr_t bits = rtree_leaf_elm_bits_encode(contents);
-	atomic_store_p(&elm->le_bits, (void *)bits, ATOMIC_RELEASE);
-#else
-	atomic_store_p(&elm->le_edata, edata, ATOMIC_RELEASE);
-#endif
-}
-
-static inline void
-rtree_leaf_elm_szind_write(tsdn_t *tsdn, rtree_t *rtree,
-    rtree_leaf_elm_t *elm, szind_t szind) {
-	assert(szind <= SC_NSIZES);
-
-#ifdef RTREE_LEAF_COMPACT
-	uintptr_t old_bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm,
-	    true);
-	rtree_leaf_elm_contents_t contents = rtree_leaf_elm_bits_decode(
-	    old_bits);
-	contents.szind = szind;
-	uintptr_t bits = rtree_leaf_elm_bits_encode(contents);
-	atomic_store_p(&elm->le_bits, (void *)bits, ATOMIC_RELEASE);
-#else
-	atomic_store_u(&elm->le_szind, szind, ATOMIC_RELEASE);
-#endif
-}
-
-static inline void
-rtree_leaf_elm_slab_write(tsdn_t *tsdn, rtree_t *rtree,
-    rtree_leaf_elm_t *elm, bool slab) {
-#ifdef RTREE_LEAF_COMPACT
-	uintptr_t old_bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm,
-	    true);
-	rtree_leaf_elm_contents_t contents = rtree_leaf_elm_bits_decode(
-	    old_bits);
-	contents.slab = slab;
-	uintptr_t bits = rtree_leaf_elm_bits_encode(contents);
-	atomic_store_p(&elm->le_bits, (void *)bits, ATOMIC_RELEASE);
-#else
-	atomic_store_b(&elm->le_slab, slab, ATOMIC_RELEASE);
+	return contents;
 #endif
 }
 
 static inline void
 rtree_leaf_elm_write(tsdn_t *tsdn, rtree_t *rtree,
-    rtree_leaf_elm_t *elm, rtree_leaf_elm_contents_t contents) {
+    rtree_leaf_elm_t *elm, rtree_contents_t contents) {
 #ifdef RTREE_LEAF_COMPACT
 	uintptr_t bits = rtree_leaf_elm_bits_encode(contents);
 	atomic_store_p(&elm->le_bits, (void *)bits, ATOMIC_RELEASE);
 #else
-	rtree_leaf_elm_slab_write(tsdn, rtree, elm, slab);
-	rtree_leaf_elm_szind_write(tsdn, rtree, elm, szind);
+	unsigned metadata_bits = ((unsigned)contents.metadata.slab
+	    | ((unsigned)contents.metadata.szind << 1));
+	atomic_store_u(&elm->le_metadata, metadata_bits, ATOMIC_RELEASE);
 	/*
 	 * Write edata last, since the element is atomically considered valid
 	 * as soon as the edata field is non-NULL.
 	 */
-	rtree_leaf_elm_edata_write(tsdn, rtree, elm, edata);
+	atomic_store_p(&elm->le_edata, contents.edata, ATOMIC_RELEASE);
 #endif
 }
 
@@ -320,13 +261,15 @@ static inline void
 rtree_leaf_elm_szind_slab_update(tsdn_t *tsdn, rtree_t *rtree,
     rtree_leaf_elm_t *elm, szind_t szind, bool slab) {
 	assert(!slab || szind < SC_NBINS);
-
+	rtree_contents_t contents = rtree_leaf_elm_read(
+	    tsdn, rtree, elm, /* dependent */ true);
 	/*
 	 * The caller implicitly assures that it is the only writer to the szind
 	 * and slab fields, and that the edata field cannot currently change.
 	 */
-	rtree_leaf_elm_slab_write(tsdn, rtree, elm, slab);
-	rtree_leaf_elm_szind_write(tsdn, rtree, elm, szind);
+	contents.metadata.slab = slab;
+	contents.metadata.szind = szind;
+	rtree_leaf_elm_write(tsdn, rtree, elm, contents);
 }
 
 JEMALLOC_ALWAYS_INLINE rtree_leaf_elm_t *
@@ -400,11 +343,11 @@ rtree_write(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx, uintptr_t key,
 		return true;
 	}
 
-	assert(rtree_leaf_elm_edata_read(tsdn, rtree, elm, false) == NULL);
-	rtree_leaf_elm_contents_t contents;
+	assert(rtree_leaf_elm_read(tsdn, rtree, elm, false).edata == NULL);
+	rtree_contents_t contents;
 	contents.edata = edata;
-	contents.szind = szind;
-	contents.slab = slab;
+	contents.metadata.szind = szind;
+	contents.metadata.slab = slab;
 	rtree_leaf_elm_write(tsdn, rtree, elm, contents);
 
 	return false;
@@ -430,7 +373,7 @@ rtree_edata_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	if (!dependent && elm == NULL) {
 		return NULL;
 	}
-	return rtree_leaf_elm_edata_read(tsdn, rtree, elm, dependent);
+	return rtree_leaf_elm_read(tsdn, rtree, elm, dependent).edata;
 }
 
 JEMALLOC_ALWAYS_INLINE szind_t
@@ -441,7 +384,7 @@ rtree_szind_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	if (!dependent && elm == NULL) {
 		return SC_NSIZES;
 	}
-	return rtree_leaf_elm_szind_read(tsdn, rtree, elm, dependent);
+	return rtree_leaf_elm_read(tsdn, rtree, elm, dependent).metadata.szind;
 }
 
 /*
@@ -458,18 +401,12 @@ rtree_edata_szind_slab_read(tsdn_t *tsdn, rtree_t *rtree,
 	if (!dependent && elm == NULL) {
 		return true;
 	}
-#ifdef RTREE_LEAF_COMPACT
-	uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, dependent);
-	rtree_leaf_elm_contents_t contents = rtree_leaf_elm_bits_decode(bits);
-
+	rtree_contents_t contents = rtree_leaf_elm_read(tsdn, rtree, elm,
+	    dependent);
 	*r_edata = contents.edata;
-	*r_szind = contents.szind;
-	*r_slab = contents.slab;
-#else
-	*r_edata = rtree_leaf_elm_edata_read(tsdn, rtree, elm, dependent);
-	*r_szind = rtree_leaf_elm_szind_read(tsdn, rtree, elm, dependent);
-	*r_slab = rtree_leaf_elm_slab_read(tsdn, rtree, elm, dependent);
-#endif
+	*r_szind = contents.metadata.szind;
+	*r_slab = contents.metadata.slab;
+
 	return false;
 }
 
@@ -495,22 +432,16 @@ rtree_szind_slab_read_fast(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 		uintptr_t subkey = rtree_subkey(key, RTREE_HEIGHT-1);
 		elm = &leaf[subkey];
 
-#ifdef RTREE_LEAF_COMPACT
-		uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree,
-							  elm, true);
-		rtree_leaf_elm_contents_t contents = rtree_leaf_elm_bits_decode(
-		    bits);
-		*r_szind = contents.szind;
-		*r_slab = contents.slab;
-#else
-		*r_szind = rtree_leaf_elm_szind_read(tsdn, rtree, elm, true);
-		*r_slab = rtree_leaf_elm_slab_read(tsdn, rtree, elm, true);
-#endif
+		rtree_contents_t contents = rtree_leaf_elm_read(tsdn, rtree,
+		    elm, /* dependent */ true);
+		*r_szind = contents.metadata.szind;
+		*r_slab = contents.metadata.slab;
 		return true;
 	} else {
 		return false;
 	}
 }
+
 JEMALLOC_ALWAYS_INLINE bool
 rtree_szind_slab_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
     uintptr_t key, bool dependent, szind_t *r_szind, bool *r_slab) {
@@ -519,15 +450,11 @@ rtree_szind_slab_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	if (!dependent && elm == NULL) {
 		return true;
 	}
-#ifdef RTREE_LEAF_COMPACT
-	uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, dependent);
-	rtree_leaf_elm_contents_t contents = rtree_leaf_elm_bits_decode(bits);
-	*r_szind = contents.szind;
-	*r_slab = contents.slab;
-#else
-	*r_szind = rtree_leaf_elm_szind_read(tsdn, rtree, elm, dependent);
-	*r_slab = rtree_leaf_elm_slab_read(tsdn, rtree, elm, dependent);
-#endif
+	rtree_contents_t contents = rtree_leaf_elm_read(tsdn, rtree, elm,
+	    /* dependent */ true);
+	*r_szind = contents.metadata.szind;
+	*r_slab = contents.metadata.slab;
+
 	return false;
 }
 
@@ -544,12 +471,12 @@ static inline void
 rtree_clear(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
     uintptr_t key) {
 	rtree_leaf_elm_t *elm = rtree_read(tsdn, rtree, rtree_ctx, key, true);
-	assert(rtree_leaf_elm_edata_read(tsdn, rtree, elm, false) !=
-	    NULL);
-	rtree_leaf_elm_contents_t contents;
+	assert(rtree_leaf_elm_read(tsdn, rtree, elm,
+	    /* dependent */ false).edata != NULL);
+	rtree_contents_t contents;
 	contents.edata = NULL;
-	contents.szind = SC_NSIZES;
-	contents.slab = false;
+	contents.metadata.szind = SC_NSIZES;
+	contents.metadata.slab = false;
 	rtree_leaf_elm_write(tsdn, rtree, elm, contents);
 }
 

@@ -137,10 +137,10 @@ TEST_BEGIN(test_rtree_random) {
 		    &rtree_ctx, keys[i], false, true);
 		expect_ptr_not_null(elm,
 		    "Unexpected rtree_leaf_elm_lookup() failure");
-		rtree_leaf_elm_contents_t contents;
+		rtree_contents_t contents;
 		contents.edata = &edata;
-		contents.szind = SC_NSIZES;
-		contents.slab = false;
+		contents.metadata.szind = SC_NSIZES;
+		contents.metadata.slab = false;
 		rtree_leaf_elm_write(tsdn, rtree, elm, contents);
 		expect_ptr_eq(rtree_edata_read(tsdn, rtree, &rtree_ctx,
 		    keys[i], true), &edata,
