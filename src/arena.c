@@ -347,7 +347,7 @@ arena_large_ralloc_stats_update(tsdn_t *tsdn, arena_t *arena, size_t oldusize,
 
 edata_t *
 arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
-    size_t alignment, bool *zero) {
+    size_t alignment, bool zero) {
 	szind_t szind = sz_size2index(usize);
 	size_t esize = usize + sz_large_pad;
 
@@ -736,10 +736,8 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned binshard
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	bool zero = false;
-
 	edata_t *slab = pa_alloc(tsdn, &arena->pa_shard, bin_info->slab_size,
-	    PAGE, /* slab */ true, /* szind */ binind, &zero);
+	    PAGE, /* slab */ true, /* szind */ binind, /* zero */ false);
 
 	if (slab == NULL) {
 		return NULL;

@@ -23,7 +23,6 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
     bool zero) {
 	size_t ausize;
 	edata_t *edata;
-	bool is_zeroed;
 	UNUSED bool idump JEMALLOC_CC_SILENCE_INIT(false);
 
 	assert(!tsdn_null(tsdn) || arena != NULL);
@@ -36,17 +35,11 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 	if (config_fill && unlikely(opt_zero)) {
 		zero = true;
 	}
-	/*
-	 * Copy zero into is_zeroed and pass the copy when allocating the
-	 * extent, so that it is possible to make correct zero fill decisions
-	 * below, even if is_zeroed ends up true when zero is false.
-	 */
-	is_zeroed = zero;
 	if (likely(!tsdn_null(tsdn))) {
 		arena = arena_choose_maybe_huge(tsdn_tsd(tsdn), arena, usize);
 	}
 	if (unlikely(arena == NULL) || (edata = arena_extent_alloc_large(tsdn,
-	    arena, usize, alignment, &is_zeroed)) == NULL) {
+	    arena, usize, alignment, zero)) == NULL) {
 		return NULL;
 	}
 
@@ -56,10 +49,6 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 		malloc_mutex_lock(tsdn, &arena->large_mtx);
 		edata_list_append(&arena->large, edata);
 		malloc_mutex_unlock(tsdn, &arena->large_mtx);
-	}
-
-	if (zero) {
-		assert(is_zeroed);
 	}
 
 	arena_decay_tick(tsdn, arena);
@@ -99,23 +88,13 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
     bool zero) {
 	arena_t *arena = arena_get_from_edata(edata);
 
-	if (config_fill && unlikely(opt_zero)) {
-		zero = true;
-	}
-
 	size_t old_size = edata_size_get(edata);
 	size_t old_usize = edata_usize_get(edata);
 	size_t new_size = usize + sz_large_pad;
 
-	/*
-	 * Copy zero into is_zeroed_trail and pass the copy when allocating the
-	 * extent, so that it is possible to make correct zero fill decisions
-	 * below, even if is_zeroed_trail ends up true when zero is false.
-	 */
-	bool is_zeroed_trail = zero;
 	szind_t szind = sz_size2index(usize);
 	bool err = pa_expand(tsdn, &arena->pa_shard, edata, old_size, new_size,
-	    szind, /* slab */ false, &is_zeroed_trail);
+	    szind, /* slab */ false, zero);
 	if (err) {
 		return true;
 	}
@@ -137,7 +116,6 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
 			assert(nzero > 0);
 			memset(zbase, 0, nzero);
 		}
-		assert(is_zeroed_trail);
 	}
 	arena_extent_ralloc_large_expand(tsdn, arena, edata, old_usize);
 
