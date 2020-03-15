@@ -120,17 +120,16 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 
 	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
 	edata_t *edata = ecache_alloc(tsdn, shard, ehooks,
-	    &shard->ecache_dirty, NULL, size, alignment, slab, szind,
-	    &zero);
+	    &shard->ecache_dirty, NULL, size, alignment, slab, szind, zero);
 
 	if (edata == NULL && pa_shard_may_have_muzzy(shard)) {
 		edata = ecache_alloc(tsdn, shard, ehooks, &shard->ecache_muzzy,
-		    NULL, size, alignment, slab, szind, &zero);
+		    NULL, size, alignment, slab, szind, zero);
 	}
 	if (edata == NULL) {
 		edata = ecache_alloc_grow(tsdn, shard, ehooks,
 		    &shard->ecache_retained, NULL, size, alignment, slab,
-		    szind, &zero);
+		    szind, zero);
 		mapped_add = size;
 	}
 	if (edata != NULL) {
@@ -161,16 +160,16 @@ pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 	}
 	edata_t *trail = ecache_alloc(tsdn, shard, ehooks, &shard->ecache_dirty,
 	    trail_begin, expand_amount, PAGE, /* slab */ false, SC_NSIZES,
-	    &zero);
+	    zero);
 	if (trail == NULL) {
 		trail = ecache_alloc(tsdn, shard, ehooks, &shard->ecache_muzzy,
 		    trail_begin, expand_amount, PAGE, /* slab */ false,
-		    SC_NSIZES, &zero);
+		    SC_NSIZES, zero);
 	}
 	if (trail == NULL) {
 		trail = ecache_alloc_grow(tsdn, shard, ehooks,
 		    &shard->ecache_retained, trail_begin, expand_amount, PAGE,
-		    /* slab */ false, SC_NSIZES, &zero);
+		    /* slab */ false, SC_NSIZES, zero);
 		mapped_add = expand_amount;
 	}
 	if (trail == NULL) {

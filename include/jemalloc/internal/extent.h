@@ -21,10 +21,10 @@ extern size_t opt_lg_extent_max_active_fit;
 
 edata_t *ecache_alloc(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     ecache_t *ecache, void *new_addr, size_t size, size_t alignment, bool slab,
-    szind_t szind, bool *zero);
+    szind_t szind, bool zero);
 edata_t *ecache_alloc_grow(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     ecache_t *ecache, void *new_addr, size_t size, size_t alignment, bool slab,
-    szind_t szind, bool *zero);
+    szind_t szind, bool zero);
 void ecache_dalloc(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *edata);
 edata_t *ecache_evict(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
@@ -32,7 +32,7 @@ edata_t *ecache_evict(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 
 edata_t *extent_alloc_wrapper(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     void *new_addr, size_t size, size_t alignment, bool slab, szind_t szind,
-    bool *zero, bool *commit);
+    bool zero, bool *commit);
 void extent_dalloc_gap(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     edata_t *edata);
 void extent_dalloc_wrapper(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,

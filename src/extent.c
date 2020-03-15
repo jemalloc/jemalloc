@@ -39,7 +39,7 @@ static atomic_zu_t highpages;
 static void extent_deregister(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata);
 static edata_t *extent_recycle(tsdn_t *tsdn, pa_shard_t *shard,
     ehooks_t *ehooks, ecache_t *ecache, void *new_addr, size_t usize,
-    size_t alignment, bool slab, szind_t szind, bool *zero, bool *commit,
+    size_t alignment, bool slab, szind_t szind, bool zero, bool *commit,
     bool growing_retained);
 static edata_t *extent_try_coalesce(tsdn_t *tsdn, pa_shard_t *shard,
     edata_cache_t *edata_cache, ehooks_t *ehooks, ecache_t *ecache,
@@ -48,7 +48,7 @@ static void extent_record(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *edata, bool growing_retained);
 static edata_t *extent_alloc_retained(tsdn_t *tsdn, pa_shard_t *shard,
     ehooks_t *ehooks, void *new_addr, size_t size, size_t alignment, bool slab,
-    szind_t szind, bool *zero, bool *commit);
+    szind_t szind, bool zero, bool *commit);
 
 /******************************************************************************/
 
@@ -72,7 +72,7 @@ extent_try_delayed_coalesce(tsdn_t *tsdn, pa_shard_t *shard,
 edata_t *
 ecache_alloc(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     ecache_t *ecache, void *new_addr, size_t size, size_t alignment, bool slab,
-    szind_t szind, bool *zero) {
+    szind_t szind, bool zero) {
 	assert(size != 0);
 	assert(alignment != 0);
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
@@ -88,7 +88,7 @@ ecache_alloc(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 edata_t *
 ecache_alloc_grow(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     ecache_t *ecache, void *new_addr, size_t size, size_t alignment, bool slab,
-    szind_t szind, bool *zero) {
+    szind_t szind, bool zero) {
 	assert(size != 0);
 	assert(alignment != 0);
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
@@ -581,11 +581,11 @@ extent_recycle_split(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 static edata_t *
 extent_recycle(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     ecache_t *ecache, void *new_addr, size_t size, size_t alignment, bool slab,
-    szind_t szind, bool *zero, bool *commit, bool growing_retained) {
+    szind_t szind, bool zero, bool *commit, bool growing_retained) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
 	assert(new_addr == NULL || !slab);
-	assert(!*zero || !slab);
+	assert(!zero || !slab);
 
 	edata_t *edata = extent_recycle_extract(tsdn, shard, ehooks, ecache,
 	    new_addr, size, alignment, slab, growing_retained);
@@ -611,9 +611,6 @@ extent_recycle(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	if (edata_committed_get(edata)) {
 		*commit = true;
 	}
-	if (edata_zeroed_get(edata)) {
-		*zero = true;
-	}
 
 	assert(edata_state_get(edata) == extent_state_active);
 	if (slab) {
@@ -621,7 +618,7 @@ extent_recycle(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 		emap_register_interior(tsdn, shard->emap, edata, szind);
 	}
 
-	if (*zero) {
+	if (zero) {
 		void *addr = edata_base_get(edata);
 		if (!edata_zeroed_get(edata)) {
 			size_t size = edata_size_get(edata);
@@ -639,9 +636,9 @@ extent_recycle(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 static edata_t *
 extent_grow_retained(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     size_t size, size_t alignment, bool slab, szind_t szind,
-    bool *zero, bool *commit) {
+    bool zero, bool *commit) {
 	malloc_mutex_assert_owner(tsdn, &shard->ecache_grow.mtx);
-	assert(!*zero || !slab);
+	assert(!zero || !slab);
 
 	size_t alloc_size_min = size + PAGE_CEILING(alignment) - PAGE;
 	/* Beware size_t wrap-around. */
@@ -690,9 +687,6 @@ extent_grow_retained(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 		goto label_err;
 	}
 
-	if (edata_zeroed_get(edata) && edata_committed_get(edata)) {
-		*zero = true;
-	}
 	if (edata_committed_get(edata)) {
 		*commit = true;
 	}
@@ -775,7 +769,7 @@ extent_grow_retained(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 		edata_slab_set(edata, true);
 		emap_register_interior(tsdn, shard->emap, edata, szind);
 	}
-	if (*zero && !edata_zeroed_get(edata)) {
+	if (zero && !edata_zeroed_get(edata)) {
 		void *addr = edata_base_get(edata);
 		size_t size = edata_size_get(edata);
 		ehooks_zero(tsdn, ehooks, addr, size);
@@ -790,7 +784,7 @@ label_err:
 static edata_t *
 extent_alloc_retained(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     void *new_addr, size_t size, size_t alignment, bool slab, szind_t szind,
-    bool *zero, bool *commit) {
+    bool zero, bool *commit) {
 	assert(size != 0);
 	assert(alignment != 0);
 
@@ -819,7 +813,7 @@ extent_alloc_retained(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 edata_t *
 extent_alloc_wrapper(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     void *new_addr, size_t size, size_t alignment, bool slab,
-    szind_t szind, bool *zero, bool *commit) {
+    szind_t szind, bool zero, bool *commit) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
@@ -829,14 +823,14 @@ extent_alloc_wrapper(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	}
 	size_t palignment = ALIGNMENT_CEILING(alignment, PAGE);
 	void *addr = ehooks_alloc(tsdn, ehooks, new_addr, size, palignment,
-	    zero, commit);
+	    &zero, commit);
 	if (addr == NULL) {
 		edata_cache_put(tsdn, &shard->edata_cache, edata);
 		return NULL;
 	}
 	edata_init(edata, ecache_ind_get(&shard->ecache_dirty), addr,
 	    size, slab, szind, pa_shard_extent_sn_next(shard),
-	    extent_state_active, *zero, *commit, /* ranged */ false,
+	    extent_state_active, zero, *commit, /* ranged */ false,
 	    EXTENT_NOT_HEAD);
 	if (extent_register(tsdn, shard, edata)) {
 		edata_cache_put(tsdn, &shard->edata_cache, edata);
