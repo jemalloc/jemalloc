@@ -187,35 +187,6 @@ ehooks_default_split(extent_hooks_t *extent_hooks, void *addr, size_t size,
 	return ehooks_default_split_impl();
 }
 
-static inline bool
-ehooks_same_sn(tsdn_t *tsdn, void *addr_a, void *addr_b) {
-	edata_t *a = emap_edata_lookup(tsdn, &arena_emap_global, addr_a);
-	edata_t *b = emap_edata_lookup(tsdn, &arena_emap_global, addr_b);
-	return edata_sn_comp(a, b) == 0;
-}
-
-/*
- * Returns true if the given extents can't be merged because of their head bit
- * settings.  Assumes the second extent has the higher address.
- */
-static bool
-ehooks_no_merge_heads(tsdn_t *tsdn, void *addr_a, bool head_a, void *addr_b,
-    bool head_b) {
-	/* If b is a head extent, disallow the cross-region merge. */
-	if (head_b) {
-		/*
-		 * Additionally, sn should not overflow with retain; sanity
-		 * check that different regions have unique sn.
-		 */
-		assert(!ehooks_same_sn(tsdn, addr_a, addr_b));
-		return true;
-	}
-	assert(ehooks_same_sn(tsdn, addr_a, addr_b) || (have_dss &&
-	    (extent_in_dss(addr_a) || extent_in_dss(addr_b))));
-
-	return false;
-}
-
 bool
 ehooks_default_merge_impl(tsdn_t *tsdn, void *addr_a, bool head_a, void *addr_b,
     bool head_b) {
@@ -238,8 +209,11 @@ ehooks_default_merge_impl(tsdn_t *tsdn, void *addr_a, bool head_a, void *addr_b,
 	if (!maps_coalesce && !opt_retain) {
 		return true;
 	}
-	if (opt_retain && ehooks_no_merge_heads(tsdn, addr_a, head_a, addr_b,
-	    head_b)) {
+	/*
+	 * Don't merge across mappings when retain is on -- this preserves
+	 * first-fit ordering.
+	 */
+	if (opt_retain && head_b) {
 		return true;
 	}
 	if (have_dss && !extent_dss_mergeable(addr_a, addr_b)) {
