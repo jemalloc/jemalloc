@@ -28,6 +28,9 @@ struct emap_full_alloc_ctx_s {
 
 bool emap_init(emap_t *emap, base_t *base, bool zeroed);
 
+void emap_remap(tsdn_t *tsdn, emap_t *emap, edata_t *edata, szind_t szind,
+    bool slab);
+
 /*
  * Grab the lock or locks associated with the edata or edatas indicated (which
  * is done just by simple address hashing).  The hashing strategy means that
@@ -106,8 +109,6 @@ struct emap_prepare_s {
  * higher-addressed one.  It's the caller's responsibility to set the edata
  * state appropriately.
  */
-void emap_remap(tsdn_t *tsdn, emap_t *emap, edata_t *edata, szind_t szind,
-    bool slab);
 bool emap_split_prepare(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
     edata_t *edata, size_t size_a, szind_t szind_a, bool slab_a, edata_t *trail,
     size_t size_b, szind_t szind_b, bool slab_b);

@@ -70,8 +70,7 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, edata_t *edata, size_t usize) {
 
 	bool generated_dirty;
 	bool err = pa_shrink(tsdn, &arena->pa_shard, edata, old_size,
-	    usize + sz_large_pad, sz_size2index(usize), false,
-	    &generated_dirty);
+	    usize + sz_large_pad, sz_size2index(usize), &generated_dirty);
 	if (err) {
 		return true;
 	}
@@ -94,7 +93,7 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
 
 	szind_t szind = sz_size2index(usize);
 	bool err = pa_expand(tsdn, &arena->pa_shard, edata, old_size, new_size,
-	    szind, /* slab */ false, zero);
+	    szind, zero);
 	if (err) {
 		return true;
 	}
