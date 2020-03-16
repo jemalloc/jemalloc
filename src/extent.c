@@ -1190,8 +1190,7 @@ extent_split_impl(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	    EXTENT_NOT_HEAD);
 	emap_prepare_t prepare;
 	bool err = emap_split_prepare(tsdn, shard->emap, &prepare, edata,
-	    size_a, SC_NSIZES, /* slab */ false, trail, size_b, SC_NSIZES,
-	    /* slab */ false);
+	    size_a, trail, size_b);
 	if (err) {
 		goto label_error_b;
 	}
@@ -1206,8 +1205,8 @@ extent_split_impl(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	}
 
 	edata_size_set(edata, size_a);
-	emap_split_commit(tsdn, shard->emap, &prepare, edata, size_a, SC_NSIZES,
-	    /* slab_a */ false, trail, size_b,SC_NSIZES, /* slab_b */ false);
+	emap_split_commit(tsdn, shard->emap, &prepare, edata, size_a, trail,
+	    size_b);
 
 	emap_unlock_edata2(tsdn, shard->emap, edata, trail);
 
