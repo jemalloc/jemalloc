@@ -110,11 +110,9 @@ struct emap_prepare_s {
  * state appropriately.
  */
 bool emap_split_prepare(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
-    edata_t *edata, size_t size_a, szind_t szind_a, bool slab_a, edata_t *trail,
-    size_t size_b, szind_t szind_b, bool slab_b);
+    edata_t *edata, size_t size_a, edata_t *trail, size_t size_b);
 void emap_split_commit(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
-    edata_t *lead, size_t size_a, szind_t szind_a, bool slab_a, edata_t *trail,
-    size_t size_b, szind_t szind_b, bool slab_b);
+    edata_t *lead, size_t size_a, edata_t *trail, size_t size_b);
 void emap_merge_prepare(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
     edata_t *lead, edata_t *trail);
 void emap_merge_commit(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,

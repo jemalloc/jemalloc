@@ -230,8 +230,7 @@ void emap_remap(tsdn_t *tsdn, emap_t *emap, edata_t *edata, szind_t szind,
 
 bool
 emap_split_prepare(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
-    edata_t *edata, size_t size_a, szind_t szind_a, bool slab_a, edata_t *trail,
-    size_t size_b, szind_t szind_b, bool slab_b) {
+    edata_t *edata, size_t size_a, edata_t *trail, size_t size_b) {
 	EMAP_DECLARE_RTREE_CTX;
 
 	/*
@@ -240,7 +239,7 @@ emap_split_prepare(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
 	 * facilitate a lookup.
 	 */
 	edata_t lead;
-	edata_init(&lead, 0U, edata_addr_get(edata), size_a, slab_a, szind_a, 0,
+	edata_init(&lead, 0U, edata_addr_get(edata), size_a, false, 0, 0,
 	    extent_state_active, false, false, false, EXTENT_NOT_HEAD);
 
 	emap_rtree_leaf_elms_lookup(tsdn, emap, rtree_ctx, &lead, false, true,
@@ -257,12 +256,19 @@ emap_split_prepare(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
 
 void
 emap_split_commit(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
-    edata_t *lead, size_t size_a, szind_t szind_a, bool slab_a, edata_t *trail,
-    size_t size_b, szind_t szind_b, bool slab_b) {
+    edata_t *lead, size_t size_a, edata_t *trail, size_t size_b) {
+	/*
+	 * We should think about not writing to the lead leaf element.  We can
+	 * get into situations where a racing realloc-like call can disagree
+	 * with a size lookup request.  I think it's fine to declare that these
+	 * situations are race bugs, but there's an argument to be made that for
+	 * things like xallocx, a size lookup call should return either the old
+	 * size or the new size, but not anything else.
+	 */
 	emap_rtree_write_acquired(tsdn, emap, prepare->lead_elm_a,
-	    prepare->lead_elm_b, lead, szind_a, slab_a);
+	    prepare->lead_elm_b, lead, SC_NSIZES, /* slab */ false);
 	emap_rtree_write_acquired(tsdn, emap, prepare->trail_elm_a,
-	    prepare->trail_elm_b, trail, szind_b, slab_b);
+	    prepare->trail_elm_b, trail, SC_NSIZES, /* slab */ false);
 }
 
 void
