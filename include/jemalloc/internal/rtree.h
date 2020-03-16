@@ -334,16 +334,12 @@ rtree_leaf_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 static inline bool
 rtree_write(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx, uintptr_t key,
     edata_t *edata, szind_t szind, bool slab) {
-	/* Use rtree_clear() to set the edata to NULL. */
-	assert(edata != NULL);
-
 	rtree_leaf_elm_t *elm = rtree_leaf_elm_lookup(tsdn, rtree, rtree_ctx,
 	    key, false, true);
 	if (elm == NULL) {
 		return true;
 	}
 
-	assert(rtree_leaf_elm_read(tsdn, rtree, elm, false).edata == NULL);
 	rtree_contents_t contents;
 	contents.edata = edata;
 	contents.metadata.szind = szind;
