@@ -120,16 +120,15 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 
 	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
 	edata_t *edata = ecache_alloc(tsdn, shard, ehooks,
-	    &shard->ecache_dirty, NULL, size, alignment, slab, szind, zero);
+	    &shard->ecache_dirty, NULL, size, alignment, zero);
 
 	if (edata == NULL && pa_shard_may_have_muzzy(shard)) {
 		edata = ecache_alloc(tsdn, shard, ehooks, &shard->ecache_muzzy,
-		    NULL, size, alignment, slab, szind, zero);
+		    NULL, size, alignment, zero);
 	}
 	if (edata == NULL) {
 		edata = ecache_alloc_grow(tsdn, shard, ehooks,
-		    &shard->ecache_retained, NULL, size, alignment, slab,
-		    szind, zero);
+		    &shard->ecache_retained, NULL, size, alignment, zero);
 		mapped_add = size;
 	}
 	if (edata != NULL) {
@@ -138,13 +137,19 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 			atomic_fetch_add_zu(&shard->stats->pa_mapped,
 			    mapped_add, ATOMIC_RELAXED);
 		}
+		emap_remap(tsdn, shard->emap, edata, szind, slab);
+		edata_szind_set(edata, szind);
+		edata_slab_set(edata, slab);
+		if (slab) {
+			emap_register_interior(tsdn, shard->emap, edata, szind);
+		}
 	}
 	return edata;
 }
 
 bool
 pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
-    size_t new_size, szind_t szind, bool slab, bool zero) {
+    size_t new_size, szind_t szind, bool zero) {
 	assert(new_size > old_size);
 	assert(edata_size_get(edata) == old_size);
 	assert((new_size & PAGE_MASK) == 0);
@@ -159,17 +164,15 @@ pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 		return true;
 	}
 	edata_t *trail = ecache_alloc(tsdn, shard, ehooks, &shard->ecache_dirty,
-	    trail_begin, expand_amount, PAGE, /* slab */ false, SC_NSIZES,
-	    zero);
+	    trail_begin, expand_amount, PAGE, zero);
 	if (trail == NULL) {
 		trail = ecache_alloc(tsdn, shard, ehooks, &shard->ecache_muzzy,
-		    trail_begin, expand_amount, PAGE, /* slab */ false,
-		    SC_NSIZES, zero);
+		    trail_begin, expand_amount, PAGE, zero);
 	}
 	if (trail == NULL) {
 		trail = ecache_alloc_grow(tsdn, shard, ehooks,
 		    &shard->ecache_retained, trail_begin, expand_amount, PAGE,
-		    /* slab */ false, SC_NSIZES, zero);
+		    zero);
 		mapped_add = expand_amount;
 	}
 	if (trail == NULL) {
@@ -185,13 +188,13 @@ pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 	}
 	pa_nactive_add(shard, expand_amount >> LG_PAGE);
 	edata_szind_set(edata, szind);
-	emap_remap(tsdn, shard->emap, edata, szind, slab);
+	emap_remap(tsdn, shard->emap, edata, szind, /* slab */ false);
 	return false;
 }
 
 bool
 pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
-    size_t new_size, szind_t szind, bool slab, bool *generated_dirty) {
+    size_t new_size, szind_t szind, bool *generated_dirty) {
 	assert(new_size < old_size);
 	assert(edata_size_get(edata) == old_size);
 	assert((new_size & PAGE_MASK) == 0);
@@ -205,7 +208,7 @@ pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 	}
 
 	edata_t *trail = extent_split_wrapper(tsdn, shard, ehooks, edata,
-	    new_size, szind, slab, shrink_amount, SC_NSIZES, false);
+	    new_size, shrink_amount);
 	if (trail == NULL) {
 		return true;
 	}
@@ -213,12 +216,21 @@ pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 
 	ecache_dalloc(tsdn, shard, ehooks, &shard->ecache_dirty, trail);
 	*generated_dirty = true;
+
+	edata_szind_set(edata, szind);
+	emap_remap(tsdn, shard->emap, edata, szind, /* slab */ false);
 	return false;
 }
 
 void
 pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
     bool *generated_dirty) {
+	emap_remap(tsdn, shard->emap, edata, SC_NSIZES, /* slab */ false);
+	if (edata_slab_get(edata)) {
+		emap_deregister_interior(tsdn, shard->emap, edata);
+		edata_slab_set(edata, false);
+	}
+	edata_szind_set(edata, SC_NSIZES);
 	pa_nactive_sub(shard, edata_size_get(edata) >> LG_PAGE);
 	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
 	ecache_dalloc(tsdn, shard, ehooks, &shard->ecache_dirty, edata);
