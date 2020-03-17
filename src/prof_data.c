@@ -467,13 +467,19 @@ prof_bt_count(void) {
 }
 
 static int
-prof_dump_open_impl(bool propagate_err, const char *filename) {
+prof_dump_open_file_impl(const char *filename, int mode) {
+	return creat(filename, mode);
+}
+prof_dump_open_file_t *JET_MUTABLE prof_dump_open_file =
+    prof_dump_open_file_impl;
+
+static int
+prof_dump_open(bool propagate_err, const char *filename) {
 	int fd;
 
-	fd = creat(filename, 0644);
+	fd = prof_dump_open_file(filename, 0644);
 	if (fd == -1 && !propagate_err) {
-		malloc_printf("<jemalloc>: creat(\"%s\"), 0644) failed\n",
-		    filename);
+		malloc_printf("<jemalloc>: failed to open \"%s\"\n", filename);
 		if (opt_abort) {
 			abort();
 		}
@@ -481,7 +487,6 @@ prof_dump_open_impl(bool propagate_err, const char *filename) {
 
 	return fd;
 }
-prof_dump_open_t *JET_MUTABLE prof_dump_open = prof_dump_open_impl;
 
 static bool
 prof_dump_flush(bool propagate_err) {

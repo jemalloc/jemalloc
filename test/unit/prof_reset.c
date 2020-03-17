@@ -1,11 +1,11 @@
 #include "test/jemalloc_test.h"
 
 static int
-prof_dump_open_intercept(bool propagate_err, const char *filename) {
+prof_dump_open_file_intercept(const char *filename, int mode) {
 	int fd;
 
 	fd = open("/dev/null", O_WRONLY);
-	expect_d_ne(fd, -1, "Unexpected open() failure");
+	assert_d_ne(fd, -1, "Unexpected open() failure");
 
 	return fd;
 }
@@ -276,7 +276,7 @@ TEST_END
 int
 main(void) {
 	/* Intercept dumping prior to running any tests. */
-	prof_dump_open = prof_dump_open_intercept;
+	prof_dump_open_file = prof_dump_open_file_intercept;
 
 	return test_no_reentrancy(
 	    test_prof_reset_basic,
