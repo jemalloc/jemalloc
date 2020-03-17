@@ -5,7 +5,7 @@
 static bool did_prof_dump_open;
 
 static int
-prof_dump_open_intercept(bool propagate_err, const char *filename) {
+prof_dump_open_file_intercept(const char *filename, int mode) {
 	int fd;
 
 	did_prof_dump_open = true;
@@ -15,7 +15,7 @@ prof_dump_open_intercept(bool propagate_err, const char *filename) {
 	    - 1), 0, "Dump file name should start with \"" TEST_PREFIX ".\"");
 
 	fd = open("/dev/null", O_WRONLY);
-	expect_d_ne(fd, -1, "Unexpected open() failure");
+	assert_d_ne(fd, -1, "Unexpected open() failure");
 
 	return fd;
 }
@@ -38,7 +38,7 @@ TEST_BEGIN(test_idump) {
 	    sizeof(active)), 0,
 	    "Unexpected mallctl failure while activating profiling");
 
-	prof_dump_open = prof_dump_open_intercept;
+	prof_dump_open_file = prof_dump_open_file_intercept;
 
 	did_prof_dump_open = false;
 	p = mallocx(1, 0);

@@ -94,8 +94,8 @@ typedef int (prof_sys_thread_name_read_t)(char *buf, size_t limit);
 extern prof_sys_thread_name_read_t *JET_MUTABLE prof_sys_thread_name_read;
 size_t prof_tdata_count(void);
 size_t prof_bt_count(void);
-typedef int (prof_dump_open_t)(bool, const char *);
-extern prof_dump_open_t *JET_MUTABLE prof_dump_open;
+typedef int (prof_dump_open_file_t)(const char *, int);
+extern prof_dump_open_file_t *JET_MUTABLE prof_dump_open_file;
 typedef bool (prof_dump_header_t)(tsdn_t *, bool, const prof_cnt_t *);
 extern prof_dump_header_t *JET_MUTABLE prof_dump_header;
 void prof_cnt_all(uint64_t *curobjs, uint64_t *curbytes, uint64_t *accumobjs,
