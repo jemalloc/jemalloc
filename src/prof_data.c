@@ -942,7 +942,7 @@ prof_open_maps_internal(const char *format, ...) {
 #endif
 
 static int
-prof_dump_open_maps() {
+prof_dump_open_maps_impl() {
 	int mfd;
 
 	cassert(config_prof);
@@ -960,6 +960,8 @@ prof_dump_open_maps() {
 #endif
 	return mfd;
 }
+prof_dump_open_maps_t *JET_MUTABLE prof_dump_open_maps =
+    prof_dump_open_maps_impl;
 
 static bool
 prof_dump_maps(bool propagate_err) {
