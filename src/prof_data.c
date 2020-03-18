@@ -919,7 +919,7 @@ label_return:
 #ifndef _WIN32
 JEMALLOC_FORMAT_PRINTF(1, 2)
 static int
-prof_open_maps(const char *format, ...) {
+prof_open_maps_internal(const char *format, ...) {
 	int mfd;
 	va_list ap;
 	char filename[PATH_MAX + 1];
@@ -941,26 +941,31 @@ prof_open_maps(const char *format, ...) {
 }
 #endif
 
-static bool
-prof_dump_maps(bool propagate_err) {
-	bool ret;
+static int
+prof_dump_open_maps() {
 	int mfd;
 
 	cassert(config_prof);
 #ifdef __FreeBSD__
-	mfd = prof_open_maps("/proc/curproc/map");
+	mfd = prof_open_maps_internal("/proc/curproc/map");
 #elif defined(_WIN32)
 	mfd = -1; // Not implemented
 #else
-	{
-		int pid = prof_getpid();
+	int pid = prof_getpid();
 
-		mfd = prof_open_maps("/proc/%d/task/%d/maps", pid, pid);
-		if (mfd == -1) {
-			mfd = prof_open_maps("/proc/%d/maps", pid);
-		}
+	mfd = prof_open_maps_internal("/proc/%d/task/%d/maps", pid, pid);
+	if (mfd == -1) {
+		mfd = prof_open_maps_internal("/proc/%d/maps", pid);
 	}
 #endif
+	return mfd;
+}
+
+static bool
+prof_dump_maps(bool propagate_err) {
+	bool ret;
+	int mfd = prof_dump_open_maps();
+
 	if (mfd != -1) {
 		ssize_t nread;
 
