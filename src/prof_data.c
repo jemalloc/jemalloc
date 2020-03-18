@@ -488,6 +488,8 @@ prof_dump_open(bool propagate_err, const char *filename) {
 	return fd;
 }
 
+prof_dump_write_file_t *JET_MUTABLE prof_dump_write_file = malloc_write_fd;
+
 static bool
 prof_dump_flush(bool propagate_err) {
 	bool ret = false;
@@ -495,10 +497,11 @@ prof_dump_flush(bool propagate_err) {
 
 	cassert(config_prof);
 
-	err = malloc_write_fd(prof_dump_fd, prof_dump_buf, prof_dump_buf_end);
+	err = prof_dump_write_file(prof_dump_fd, prof_dump_buf,
+	    prof_dump_buf_end);
 	if (err == -1) {
 		if (!propagate_err) {
-			malloc_write("<jemalloc>: write() failed during heap "
+			malloc_write("<jemalloc>: failed to write during heap "
 			    "profile flush\n");
 			if (opt_abort) {
 				abort();
