@@ -1,6 +1,6 @@
 #define ASSERT_BUFSIZE	256
 
-#define expect_cmp(t, a, b, cmp, neg_cmp, pri, ...) do {		\
+#define verify_cmp(may_abort, t, a, b, cmp, neg_cmp, pri, ...) do {	\
 	const t a_ = (a);						\
 	const t b_ = (b);						\
 	if (!(a_ cmp b_)) {						\
@@ -13,9 +13,16 @@
 		    __func__, __FILE__, __LINE__,			\
 		    #a, #b, a_, b_);					\
 		malloc_snprintf(message, sizeof(message), __VA_ARGS__);	\
-		p_test_fail(prefix, message);				\
+		if (may_abort) {					\
+			abort();					\
+		} else {						\
+			p_test_fail(prefix, message);			\
+		}							\
 	}								\
 } while (0)
+
+#define expect_cmp(t, a, b, cmp, neg_cmp, pri, ...) verify_cmp(false,	\
+    t, a, b, cmp, neg_cmp, pri, __VA_ARGS__)
 
 #define expect_ptr_eq(a, b, ...)	expect_cmp(void *, a, b, ==,	\
     !=, "p", __VA_ARGS__)
@@ -210,7 +217,7 @@
 #define expect_u64_gt(a, b, ...)	expect_cmp(uint64_t, a, b, >,	\
     <=, FMTu64, __VA_ARGS__)
 
-#define expect_b_eq(a, b, ...) do {					\
+#define verify_b_eq(may_abort, a, b, ...) do {				\
 	bool a_ = (a);							\
 	bool b_ = (b);							\
 	if (!(a_ == b_)) {						\
@@ -223,10 +230,15 @@
 		    #a, #b, a_ ? "true" : "false",			\
 		    b_ ? "true" : "false");				\
 		malloc_snprintf(message, sizeof(message), __VA_ARGS__);	\
-		p_test_fail(prefix, message);				\
+		if (may_abort) {					\
+			abort();					\
+		} else {						\
+			p_test_fail(prefix, message);			\
+		}							\
 	}								\
 } while (0)
-#define expect_b_ne(a, b, ...) do {					\
+
+#define verify_b_ne(may_abort, a, b, ...) do {				\
 	bool a_ = (a);							\
 	bool b_ = (b);							\
 	if (!(a_ != b_)) {						\
@@ -239,13 +251,21 @@
 		    #a, #b, a_ ? "true" : "false",			\
 		    b_ ? "true" : "false");				\
 		malloc_snprintf(message, sizeof(message), __VA_ARGS__);	\
-		p_test_fail(prefix, message);				\
+		if (may_abort) {					\
+			abort();					\
+		} else {						\
+			p_test_fail(prefix, message);			\
+		}							\
 	}								\
 } while (0)
+
+#define expect_b_eq(a, b, ...)	verify_b_eq(false, a, b, __VA_ARGS__)
+#define expect_b_ne(a, b, ...)	verify_b_ne(false, a, b, __VA_ARGS__)
+
 #define expect_true(a, ...)	expect_b_eq(a, true, __VA_ARGS__)
 #define expect_false(a, ...)	expect_b_eq(a, false, __VA_ARGS__)
 
-#define expect_str_eq(a, b, ...) do {					\
+#define verify_str_eq(may_abort, a, b, ...) do {			\
 	if (strcmp((a), (b))) {						\
 		char prefix[ASSERT_BUFSIZE];				\
 		char message[ASSERT_BUFSIZE];				\
@@ -255,10 +275,15 @@
 		    "\"%s\" differs from \"%s\": ",			\
 		    __func__, __FILE__, __LINE__, #a, #b, a, b);	\
 		malloc_snprintf(message, sizeof(message), __VA_ARGS__);	\
-		p_test_fail(prefix, message);				\
+		if (may_abort) {					\
+			abort();					\
+		} else {						\
+			p_test_fail(prefix, message);			\
+		}							\
 	}								\
 } while (0)
-#define expect_str_ne(a, b, ...) do {					\
+
+#define verify_str_ne(may_abort, a, b, ...) do {			\
 	if (!strcmp((a), (b))) {					\
 		char prefix[ASSERT_BUFSIZE];				\
 		char message[ASSERT_BUFSIZE];				\
@@ -268,30 +293,35 @@
 		    "\"%s\" same as \"%s\": ",				\
 		    __func__, __FILE__, __LINE__, #a, #b, a, b);	\
 		malloc_snprintf(message, sizeof(message), __VA_ARGS__);	\
-		p_test_fail(prefix, message);				\
+		if (may_abort) {					\
+			abort();					\
+		} else {						\
+			p_test_fail(prefix, message);			\
+		}							\
 	}								\
 } while (0)
 
-#define expect_not_reached(...) do {					\
+#define expect_str_eq(a, b, ...) verify_str_eq(false, a, b, __VA_ARGS__)
+#define expect_str_ne(a, b, ...) verify_str_ne(false, a, b, __VA_ARGS__)
+
+#define verify_not_reached(may_abort, ...) do {				\
 	char prefix[ASSERT_BUFSIZE];					\
 	char message[ASSERT_BUFSIZE];					\
 	malloc_snprintf(prefix, sizeof(prefix),				\
 	    "%s:%s:%d: Unreachable code reached: ",			\
 	    __func__, __FILE__, __LINE__);				\
 	malloc_snprintf(message, sizeof(message), __VA_ARGS__);		\
-	p_test_fail(prefix, message);					\
-} while (0)
-
-#define p_abort_test_if_failed() do {					\
-	if (p_test_failed()) {						\
+	if (may_abort) {						\
 		abort();						\
+	} else {							\
+		p_test_fail(prefix, message);				\
 	}								\
 } while (0)
 
-#define assert_cmp(t, a, b, cmp, neg_cmp, pri, ...) do {		\
-	expect_cmp(t, a, b, cmp, neg_cmp, pri, __VA_ARGS__);		\
-	p_abort_test_if_failed();					\
-} while (0)
+#define expect_not_reached(...) verify_not_reached(false, __VA_ARGS__)
+
+#define assert_cmp(t, a, b, cmp, neg_cmp, pri, ...) verify_cmp(true,	\
+    t, a, b, cmp, neg_cmp, pri, __VA_ARGS__)
 
 #define assert_ptr_eq(a, b, ...)	assert_cmp(void *, a, b, ==,	\
     !=, "p", __VA_ARGS__)
@@ -486,33 +516,16 @@
 #define assert_u64_gt(a, b, ...)	assert_cmp(uint64_t, a, b, >,	\
     <=, FMTu64, __VA_ARGS__)
 
-#define assert_b_eq(a, b, ...) do {					\
-	expect_b_eq(a, b, __VA_ARGS__);					\
-	p_abort_test_if_failed();					\
-} while (0)
-
-#define assert_b_ne(a, b, ...) do {					\
-	expect_b_ne(a, b, __VA_ARGS__);					\
-	p_abort_test_if_failed();					\
-} while (0)
+#define assert_b_eq(a, b, ...)	verify_b_eq(true, a, b, __VA_ARGS__)
+#define assert_b_ne(a, b, ...)	verify_b_ne(true, a, b, __VA_ARGS__)
 
 #define assert_true(a, ...)	assert_b_eq(a, true, __VA_ARGS__)
 #define assert_false(a, ...)	assert_b_eq(a, false, __VA_ARGS__)
 
-#define assert_str_eq(a, b, ...) do {					\
-	expect_str_eq(a, b, __VA_ARGS__);				\
-	p_abort_test_if_failed();					\
-} while (0)
+#define assert_str_eq(a, b, ...) verify_str_eq(true, a, b, __VA_ARGS__)
+#define assert_str_ne(a, b, ...) verify_str_ne(true, a, b, __VA_ARGS__)
 
-#define assert_str_ne(a, b, ...) do {					\
-	expect_str_ne(a, b, __VA_ARGS__);				\
-	p_abort_test_if_failed();					\
-} while (0)
-
-#define assert_not_reached(...) do {					\
-	expect_not_reached(__VA_ARGS__);				\
-	p_abort_test_if_failed();					\
-} while (0)
+#define assert_not_reached(...) verify_not_reached(true, __VA_ARGS__)
 
 /*
  * If this enum changes, corresponding changes in test/test.sh.in are also
@@ -568,6 +581,5 @@ test_status_t	p_test_no_malloc_init(test_t *t, ...);
 void	p_test_init(const char *name);
 void	p_test_fini(void);
 void	p_test_fail(const char *prefix, const char *message);
-bool	p_test_failed(void);
 
 void strncpy_cond(void *dst, const char *src, bool cond);

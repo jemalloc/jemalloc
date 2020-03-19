@@ -233,11 +233,6 @@ p_test_fail(const char *prefix, const char *message) {
 	test_status = test_status_fail;
 }
 
-bool
-p_test_failed() {
-	return test_status == test_status_fail;
-}
-
 void
 strncpy_cond(void *dst, const char *src, bool cond) {
 	if (cond) {
