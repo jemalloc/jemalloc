@@ -27,4 +27,8 @@ void buf_writer_flush(buf_writer_t *buf_writer);
 write_cb_t buf_writer_cb;
 void buf_writer_terminate(tsdn_t *tsdn, buf_writer_t *buf_writer);
 
+typedef ssize_t (read_cb_t)(void *read_cbopaque, void *buf, size_t limit);
+void buf_writer_pipe(buf_writer_t *buf_writer, read_cb_t *read_cb,
+    void *read_cbopaque);
+
 #endif /* JEMALLOC_INTERNAL_BUF_WRITER_H */
