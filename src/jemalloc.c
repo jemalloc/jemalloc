@@ -3815,8 +3815,7 @@ je_malloc_stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 		buf_writer_t buf_writer;
 		buf_writer_init(tsdn, &buf_writer, write_cb, cbopaque, NULL,
 		    STATS_PRINT_BUFSIZE);
-		stats_print(buf_writer_get_write_cb(&buf_writer),
-		    buf_writer_get_cbopaque(&buf_writer), opts);
+		stats_print(buf_writer_cb, &buf_writer, opts);
 		buf_writer_terminate(tsdn, &buf_writer);
 	}
 

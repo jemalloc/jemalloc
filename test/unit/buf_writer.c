@@ -24,10 +24,8 @@ test_buf_writer_body(tsdn_t *tsdn, buf_writer_t *buf_writer) {
 	char s[UNIT_MAX + 1];
 	size_t n_unit, remain, i;
 	ssize_t unit;
-	assert(buf_writer->buf != NULL);
-	write_cb_t *write_cb = buf_writer_get_write_cb(buf_writer);
-	void *cbopaque = buf_writer_get_cbopaque(buf_writer);
 
+	assert(buf_writer->buf != NULL);
 	memset(s, 'a', UNIT_MAX);
 	arg = 4; /* Starting value of random argument. */
 	arg_store = arg;
@@ -39,7 +37,7 @@ test_buf_writer_body(tsdn_t *tsdn, buf_writer_t *buf_writer) {
 			remain = 0;
 			for (i = 1; i <= n_unit; ++i) {
 				arg = prng_lg_range_u64(&arg, 64);
-				write_cb(cbopaque, s);
+				buf_writer_cb(buf_writer, s);
 				remain += unit;
 				if (remain > buf_writer->buf_size) {
 					/* Flushes should have happened. */
@@ -89,10 +87,6 @@ TEST_BEGIN(test_buf_write_oom) {
 	assert_true(buf_writer_init(tsdn, &buf_writer, test_write_cb, &arg,
 	    NULL, SC_LARGE_MAXCLASS + 1), "buf_writer_init() should OOM");
 	assert(buf_writer.buf == NULL);
-	write_cb_t *write_cb = buf_writer_get_write_cb(&buf_writer);
-	assert_ptr_eq(write_cb, test_write_cb, "Should use test_write_cb");
-	void *cbopaque = buf_writer_get_cbopaque(&buf_writer);
-	assert_ptr_eq(cbopaque, &arg, "Should use arg");
 
 	char s[UNIT_MAX + 1];
 	size_t n_unit, i;
@@ -108,7 +102,7 @@ TEST_BEGIN(test_buf_write_oom) {
 			test_write_len = 0;
 			for (i = 1; i <= n_unit; ++i) {
 				arg = prng_lg_range_u64(&arg, 64);
-				write_cb(cbopaque, s);
+				buf_writer_cb(&buf_writer, s);
 				assert_u64_eq(arg_store, arg,
 				    "Call back argument didn't get through");
 				assert_zu_eq(test_write_len, i * unit,

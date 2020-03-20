@@ -632,9 +632,8 @@ prof_log_stop(tsdn_t *tsdn) {
 	buf_writer_t buf_writer;
 	buf_writer_init(tsdn, &buf_writer, prof_emitter_write_cb, &arg, NULL,
 	    PROF_LOG_STOP_BUFSIZE);
-	emitter_init(&emitter, emitter_output_json_compact,
-	    buf_writer_get_write_cb(&buf_writer),
-	    buf_writer_get_cbopaque(&buf_writer));
+	emitter_init(&emitter, emitter_output_json_compact, buf_writer_cb,
+	    &buf_writer);
 
 	emitter_begin(&emitter);
 	prof_log_emit_metadata(&emitter);
