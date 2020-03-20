@@ -257,19 +257,29 @@ rtree_leaf_elm_write(tsdn_t *tsdn, rtree_t *rtree,
 #endif
 }
 
-static inline void
-rtree_leaf_elm_szind_slab_update(tsdn_t *tsdn, rtree_t *rtree,
-    rtree_leaf_elm_t *elm, szind_t szind, bool slab) {
-	assert(!slab || szind < SC_NBINS);
-	rtree_contents_t contents = rtree_leaf_elm_read(
-	    tsdn, rtree, elm, /* dependent */ true);
-	/*
-	 * The caller implicitly assures that it is the only writer to the szind
-	 * and slab fields, and that the edata field cannot currently change.
-	 */
-	contents.metadata.slab = slab;
-	contents.metadata.szind = szind;
-	rtree_leaf_elm_write(tsdn, rtree, elm, contents);
+/*
+ * Tries to look up the key in the L1 cache, returning it if there's a hit, or
+ * NULL if there's a miss.
+ * Key is allowed to be NULL; returns NULL in this case.
+ */
+JEMALLOC_ALWAYS_INLINE rtree_leaf_elm_t *
+rtree_leaf_elm_lookup_fast(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
+    uintptr_t key) {
+	rtree_leaf_elm_t *elm;
+
+	size_t slot = rtree_cache_direct_map(key);
+	uintptr_t leafkey = rtree_leafkey(key);
+	assert(leafkey != RTREE_LEAFKEY_INVALID);
+
+	if (likely(rtree_ctx->cache[slot].leafkey == leafkey)) {
+		rtree_leaf_elm_t *leaf = rtree_ctx->cache[slot].leaf;
+		assert(leaf != NULL);
+		uintptr_t subkey = rtree_subkey(key, RTREE_HEIGHT-1);
+		elm = &leaf[subkey];
+		return elm;
+	} else {
+		return NULL;
+	}
 }
 
 JEMALLOC_ALWAYS_INLINE rtree_leaf_elm_t *
@@ -331,144 +341,79 @@ rtree_leaf_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	    dependent, init_missing);
 }
 
+/*
+ * Returns true on lookup failure.
+ */
+static inline bool
+rtree_read_independent(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
+    uintptr_t key, rtree_contents_t *r_contents) {
+	rtree_leaf_elm_t *elm = rtree_leaf_elm_lookup(tsdn, rtree, rtree_ctx,
+	    key, /* dependent */ false, /* init_missing */ false);
+	if (elm == NULL) {
+		return true;
+	}
+	*r_contents = rtree_leaf_elm_read(tsdn, rtree, elm,
+	    /* dependent */ false);
+	return false;
+}
+
+static inline rtree_contents_t
+rtree_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
+    uintptr_t key) {
+	rtree_leaf_elm_t *elm = rtree_leaf_elm_lookup(tsdn, rtree, rtree_ctx,
+	    key, /* dependent */ true, /* init_missing */ false);
+	assert(elm != NULL);
+	return rtree_leaf_elm_read(tsdn, rtree, elm, /* dependent */ true);
+}
+
+static inline rtree_metadata_t
+rtree_metadata_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
+    uintptr_t key) {
+	rtree_leaf_elm_t *elm = rtree_leaf_elm_lookup(tsdn, rtree, rtree_ctx,
+	    key, /* dependent */ true, /* init_missing */ false);
+	assert(elm != NULL);
+	return rtree_leaf_elm_read(tsdn, rtree, elm,
+	    /* dependent */ true).metadata;
+}
+
+/*
+ * Returns true on error.
+ */
+static inline bool
+rtree_metadata_try_read_fast(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
+    uintptr_t key, rtree_metadata_t *r_rtree_metadata) {
+	rtree_leaf_elm_t *elm = rtree_leaf_elm_lookup_fast(tsdn, rtree, rtree_ctx,
+	    key);
+	if (elm == NULL) {
+		return true;
+	}
+	*r_rtree_metadata = rtree_leaf_elm_read(tsdn, rtree, elm,
+	    /* dependent */ true).metadata;
+	return false;
+}
+
 static inline bool
 rtree_write(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx, uintptr_t key,
-    edata_t *edata, szind_t szind, bool slab) {
+    rtree_contents_t contents) {
 	rtree_leaf_elm_t *elm = rtree_leaf_elm_lookup(tsdn, rtree, rtree_ctx,
-	    key, false, true);
+	    key, /* dependent */ false, /* init_missing */ true);
 	if (elm == NULL) {
 		return true;
 	}
 
-	rtree_contents_t contents;
-	contents.edata = edata;
-	contents.metadata.szind = szind;
-	contents.metadata.slab = slab;
 	rtree_leaf_elm_write(tsdn, rtree, elm, contents);
 
 	return false;
 }
 
-JEMALLOC_ALWAYS_INLINE rtree_leaf_elm_t *
-rtree_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx, uintptr_t key,
-    bool dependent) {
-	rtree_leaf_elm_t *elm = rtree_leaf_elm_lookup(tsdn, rtree, rtree_ctx,
-	    key, dependent, false);
-	if (!dependent && elm == NULL) {
-		return NULL;
-	}
-	assert(elm != NULL);
-	return elm;
-}
-
-JEMALLOC_ALWAYS_INLINE edata_t *
-rtree_edata_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
-    uintptr_t key, bool dependent) {
-	rtree_leaf_elm_t *elm = rtree_read(tsdn, rtree, rtree_ctx, key,
-	    dependent);
-	if (!dependent && elm == NULL) {
-		return NULL;
-	}
-	return rtree_leaf_elm_read(tsdn, rtree, elm, dependent).edata;
-}
-
-JEMALLOC_ALWAYS_INLINE szind_t
-rtree_szind_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
-    uintptr_t key, bool dependent) {
-	rtree_leaf_elm_t *elm = rtree_read(tsdn, rtree, rtree_ctx, key,
-	    dependent);
-	if (!dependent && elm == NULL) {
-		return SC_NSIZES;
-	}
-	return rtree_leaf_elm_read(tsdn, rtree, elm, dependent).metadata.szind;
-}
-
-/*
- * rtree_slab_read() is intentionally omitted because slab is always read in
- * conjunction with szind, which makes rtree_szind_slab_read() a better choice.
- */
-
-JEMALLOC_ALWAYS_INLINE bool
-rtree_edata_szind_slab_read(tsdn_t *tsdn, rtree_t *rtree,
-    rtree_ctx_t *rtree_ctx, uintptr_t key, bool dependent, edata_t **r_edata,
-    szind_t *r_szind, bool *r_slab) {
-	rtree_leaf_elm_t *elm = rtree_read(tsdn, rtree, rtree_ctx, key,
-	    dependent);
-	if (!dependent && elm == NULL) {
-		return true;
-	}
-	rtree_contents_t contents = rtree_leaf_elm_read(tsdn, rtree, elm,
-	    dependent);
-	*r_edata = contents.edata;
-	*r_szind = contents.metadata.szind;
-	*r_slab = contents.metadata.slab;
-
-	return false;
-}
-
-/*
- * Try to read szind_slab from the L1 cache.  Returns true on a hit,
- * and fills in r_szind and r_slab.  Otherwise returns false.
- *
- * Key is allowed to be NULL in order to save an extra branch on the
- * fastpath.  returns false in this case.
- */
-JEMALLOC_ALWAYS_INLINE bool
-rtree_szind_slab_read_fast(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
-			    uintptr_t key, szind_t *r_szind, bool *r_slab) {
-	rtree_leaf_elm_t *elm;
-
-	size_t slot = rtree_cache_direct_map(key);
-	uintptr_t leafkey = rtree_leafkey(key);
-	assert(leafkey != RTREE_LEAFKEY_INVALID);
-
-	if (likely(rtree_ctx->cache[slot].leafkey == leafkey)) {
-		rtree_leaf_elm_t *leaf = rtree_ctx->cache[slot].leaf;
-		assert(leaf != NULL);
-		uintptr_t subkey = rtree_subkey(key, RTREE_HEIGHT-1);
-		elm = &leaf[subkey];
-
-		rtree_contents_t contents = rtree_leaf_elm_read(tsdn, rtree,
-		    elm, /* dependent */ true);
-		*r_szind = contents.metadata.szind;
-		*r_slab = contents.metadata.slab;
-		return true;
-	} else {
-		return false;
-	}
-}
-
-JEMALLOC_ALWAYS_INLINE bool
-rtree_szind_slab_read(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
-    uintptr_t key, bool dependent, szind_t *r_szind, bool *r_slab) {
-	rtree_leaf_elm_t *elm = rtree_read(tsdn, rtree, rtree_ctx, key,
-	    dependent);
-	if (!dependent && elm == NULL) {
-		return true;
-	}
-	rtree_contents_t contents = rtree_leaf_elm_read(tsdn, rtree, elm,
-	    /* dependent */ true);
-	*r_szind = contents.metadata.szind;
-	*r_slab = contents.metadata.slab;
-
-	return false;
-}
-
-static inline void
-rtree_szind_slab_update(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
-    uintptr_t key, szind_t szind, bool slab) {
-	assert(!slab || szind < SC_NBINS);
-
-	rtree_leaf_elm_t *elm = rtree_read(tsdn, rtree, rtree_ctx, key, true);
-	rtree_leaf_elm_szind_slab_update(tsdn, rtree, elm, szind, slab);
-}
-
 static inline void
 rtree_clear(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
     uintptr_t key) {
-	rtree_leaf_elm_t *elm = rtree_read(tsdn, rtree, rtree_ctx, key, true);
+	rtree_leaf_elm_t *elm = rtree_leaf_elm_lookup(tsdn, rtree, rtree_ctx,
+	    key, /* dependent */ true, /* init_missing */ false);
+	assert(elm != NULL);
 	assert(rtree_leaf_elm_read(tsdn, rtree, elm,
-	    /* dependent */ false).edata != NULL);
+	    /* dependent */ true).edata != NULL);
 	rtree_contents_t contents;
 	contents.edata = NULL;
 	contents.metadata.szind = SC_NSIZES;

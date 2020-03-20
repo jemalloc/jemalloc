@@ -171,9 +171,13 @@ emap_register_interior(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
 
 	/* Register interior. */
 	for (size_t i = 1; i < (edata_size_get(edata) >> LG_PAGE) - 1; i++) {
+		rtree_contents_t contents;
+		contents.edata = edata;
+		contents.metadata.szind = szind;
+		contents.metadata.slab = true;
 		rtree_write(tsdn, &emap->rtree, rtree_ctx,
 		    (uintptr_t)edata_base_get(edata) + (uintptr_t)(i <<
-		    LG_PAGE), edata, szind, true);
+		    LG_PAGE), contents);
 	}
 }
 
@@ -200,13 +204,18 @@ emap_deregister_interior(tsdn_t *tsdn, emap_t *emap, edata_t *edata) {
 	}
 }
 
-void emap_remap(tsdn_t *tsdn, emap_t *emap, edata_t *edata, szind_t szind,
+void
+emap_remap(tsdn_t *tsdn, emap_t *emap, edata_t *edata, szind_t szind,
     bool slab) {
 	EMAP_DECLARE_RTREE_CTX;
 
 	if (szind != SC_NSIZES) {
-		rtree_szind_slab_update(tsdn, &emap->rtree, rtree_ctx,
-		    (uintptr_t)edata_addr_get(edata), szind, slab);
+		rtree_contents_t contents;
+		contents.edata = edata;
+		contents.metadata.szind = szind;
+		contents.metadata.slab = slab;
+		rtree_write(tsdn, &emap->rtree, rtree_ctx,
+		    (uintptr_t)edata_addr_get(edata), contents);
 		/*
 		 * Recall that this is called only for active->inactive and
 		 * inactive->active transitions (since only active extents have
@@ -220,12 +229,12 @@ void emap_remap(tsdn_t *tsdn, emap_t *emap, edata_t *edata, szind_t szind,
 		 * call is coming in those cases, though.
 		 */
 		if (slab && edata_size_get(edata) > PAGE) {
-			rtree_szind_slab_update(tsdn,
-			    &emap->rtree, rtree_ctx,
-			    (uintptr_t)edata_past_get(edata) - (uintptr_t)PAGE,
-			    szind, slab);
-			}
+			uintptr_t key = (uintptr_t)edata_past_get(edata)
+			    - (uintptr_t)PAGE;
+			rtree_write(tsdn, &emap->rtree, rtree_ctx, key,
+			    contents);
 		}
+	}
 }
 
 bool
@@ -311,6 +320,6 @@ void
 emap_do_assert_mapped(tsdn_t *tsdn, emap_t *emap, edata_t *edata) {
 	EMAP_DECLARE_RTREE_CTX;
 
-	assert(rtree_edata_read(tsdn, &emap->rtree, rtree_ctx,
-	    (uintptr_t)edata_base_get(edata), true) == edata);
+	assert(rtree_read(tsdn, &emap->rtree, rtree_ctx,
+	    (uintptr_t)edata_base_get(edata)).edata == edata);
 }

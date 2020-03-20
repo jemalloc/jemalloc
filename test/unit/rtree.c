@@ -20,8 +20,9 @@ TEST_BEGIN(test_rtree_read_empty) {
 	rtree_ctx_data_init(&rtree_ctx);
 	expect_false(rtree_new(rtree, base, false),
 	    "Unexpected rtree_new() failure");
-	expect_ptr_null(rtree_edata_read(tsdn, rtree, &rtree_ctx, PAGE,
-	    false), "rtree_edata_read() should return NULL for empty tree");
+	rtree_contents_t contents;
+	expect_true(rtree_read_independent(tsdn, rtree, &rtree_ctx, PAGE,
+	    &contents), "rtree_read_independent() should fail on empty rtree.");
 
 	base_delete(tsdn, base);
 }
@@ -50,21 +51,33 @@ TEST_BEGIN(test_rtree_extrema) {
 	expect_false(rtree_new(rtree, base, false),
 	    "Unexpected rtree_new() failure");
 
-	expect_false(rtree_write(tsdn, rtree, &rtree_ctx, PAGE, &edata_a,
-	    edata_szind_get(&edata_a), edata_slab_get(&edata_a)),
+	rtree_contents_t contents_a;
+	contents_a.edata = &edata_a;
+	contents_a.metadata.szind = edata_szind_get(&edata_a);
+	contents_a.metadata.slab = edata_slab_get(&edata_a);
+	expect_false(rtree_write(tsdn, rtree, &rtree_ctx, PAGE, contents_a),
 	    "Unexpected rtree_write() failure");
-	rtree_szind_slab_update(tsdn, rtree, &rtree_ctx, PAGE,
-	    edata_szind_get(&edata_a), edata_slab_get(&edata_a));
-	expect_ptr_eq(rtree_edata_read(tsdn, rtree, &rtree_ctx, PAGE, true),
-	    &edata_a,
-	    "rtree_edata_read() should return previously set value");
+	expect_false(rtree_write(tsdn, rtree, &rtree_ctx, PAGE, contents_a),
+	    "Unexpected rtree_write() failure");
+	rtree_contents_t read_contents_a = rtree_read(tsdn, rtree, &rtree_ctx,
+	    PAGE);
+	expect_true(contents_a.edata == read_contents_a.edata
+	    && contents_a.metadata.szind == read_contents_a.metadata.szind
+	    && contents_a.metadata.slab == read_contents_a.metadata.slab,
+	    "rtree_read() should return previously set value");
 
+	rtree_contents_t contents_b;
+	contents_b.edata = &edata_b;
+	contents_b.metadata.szind = edata_szind_get_maybe_invalid(&edata_b);
+	contents_b.metadata.slab = edata_slab_get(&edata_b);
 	expect_false(rtree_write(tsdn, rtree, &rtree_ctx, ~((uintptr_t)0),
-	    &edata_b, edata_szind_get_maybe_invalid(&edata_b),
-	    edata_slab_get(&edata_b)), "Unexpected rtree_write() failure");
-	expect_ptr_eq(rtree_edata_read(tsdn, rtree, &rtree_ctx,
-	    ~((uintptr_t)0), true), &edata_b,
-	    "rtree_edata_read() should return previously set value");
+	    contents_b), "Unexpected rtree_write() failure");
+	rtree_contents_t read_contents_b = rtree_read(tsdn, rtree, &rtree_ctx,
+	    ~((uintptr_t)0));
+	assert_true(contents_b.edata == read_contents_b.edata
+	    && contents_b.metadata.szind == read_contents_b.metadata.szind
+	    && contents_b.metadata.slab == read_contents_b.metadata.slab,
+	    "rtree_read() should return previously set value");
 
 	base_delete(tsdn, base);
 }
@@ -89,19 +102,23 @@ TEST_BEGIN(test_rtree_bits) {
 	    "Unexpected rtree_new() failure");
 
 	for (unsigned i = 0; i < sizeof(keys)/sizeof(uintptr_t); i++) {
+		rtree_contents_t contents;
+		contents.edata = &edata;
+		contents.metadata.szind = SC_NSIZES;
+		contents.metadata.slab = false;
+
 		expect_false(rtree_write(tsdn, rtree, &rtree_ctx, keys[i],
-		    &edata, SC_NSIZES, false),
-		    "Unexpected rtree_write() failure");
+		    contents), "Unexpected rtree_write() failure");
 		for (unsigned j = 0; j < sizeof(keys)/sizeof(uintptr_t); j++) {
-			expect_ptr_eq(rtree_edata_read(tsdn, rtree, &rtree_ctx,
-			    keys[j], true), &edata,
+			expect_ptr_eq(rtree_read(tsdn, rtree, &rtree_ctx,
+			    keys[j]).edata, &edata,
 			    "rtree_edata_read() should return previously set "
 			    "value and ignore insignificant key bits; i=%u, "
 			    "j=%u, set key=%#"FMTxPTR", get key=%#"FMTxPTR, i,
 			    j, keys[i], keys[j]);
 		}
-		expect_ptr_null(rtree_edata_read(tsdn, rtree, &rtree_ctx,
-		    (((uintptr_t)2) << LG_PAGE), false),
+		expect_ptr_null(rtree_read(tsdn, rtree, &rtree_ctx,
+		    (((uintptr_t)2) << LG_PAGE)).edata,
 		    "Only leftmost rtree leaf should be set; i=%u", i);
 		rtree_clear(tsdn, rtree, &rtree_ctx, keys[i]);
 	}
@@ -142,26 +159,26 @@ TEST_BEGIN(test_rtree_random) {
 		contents.metadata.szind = SC_NSIZES;
 		contents.metadata.slab = false;
 		rtree_leaf_elm_write(tsdn, rtree, elm, contents);
-		expect_ptr_eq(rtree_edata_read(tsdn, rtree, &rtree_ctx,
-		    keys[i], true), &edata,
+		expect_ptr_eq(rtree_read(tsdn, rtree, &rtree_ctx,
+		    keys[i]).edata, &edata,
 		    "rtree_edata_read() should return previously set value");
 	}
 	for (unsigned i = 0; i < NSET; i++) {
-		expect_ptr_eq(rtree_edata_read(tsdn, rtree, &rtree_ctx,
-		    keys[i], true), &edata,
+		expect_ptr_eq(rtree_read(tsdn, rtree, &rtree_ctx,
+		    keys[i]).edata, &edata,
 		    "rtree_edata_read() should return previously set value, "
 		    "i=%u", i);
 	}
 
 	for (unsigned i = 0; i < NSET; i++) {
 		rtree_clear(tsdn, rtree, &rtree_ctx, keys[i]);
-		expect_ptr_null(rtree_edata_read(tsdn, rtree, &rtree_ctx,
-		    keys[i], true),
+		expect_ptr_null(rtree_read(tsdn, rtree, &rtree_ctx,
+		    keys[i]).edata,
 		   "rtree_edata_read() should return previously set value");
 	}
 	for (unsigned i = 0; i < NSET; i++) {
-		expect_ptr_null(rtree_edata_read(tsdn, rtree, &rtree_ctx,
-		    keys[i], true),
+		expect_ptr_null(rtree_read(tsdn, rtree, &rtree_ctx,
+		    keys[i]).edata,
 		    "rtree_edata_read() should return previously set value");
 	}
 
