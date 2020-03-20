@@ -110,3 +110,36 @@ buf_writer_terminate(tsdn_t *tsdn, buf_writer_t *buf_writer) {
 		buf_writer_free_internal_buf(tsdn, buf_writer->buf);
 	}
 }
+
+void
+buf_writer_pipe(buf_writer_t *buf_writer, read_cb_t *read_cb,
+    void *read_cbopaque) {
+	/*
+	 * A tiny local buffer in case the buffered writer failed to allocate
+	 * at init.
+	 */
+	static char backup_buf[16];
+	static buf_writer_t backup_buf_writer;
+
+	buf_writer_assert(buf_writer);
+	assert(read_cb != NULL);
+	if (buf_writer->buf == NULL) {
+		buf_writer_init(TSDN_NULL, &backup_buf_writer,
+		    buf_writer->write_cb, buf_writer->cbopaque, backup_buf,
+		    sizeof(backup_buf));
+		buf_writer = &backup_buf_writer;
+	}
+	assert(buf_writer->buf != NULL);
+	ssize_t nread = 0;
+	do {
+		buf_writer->buf_end += nread;
+		buf_writer_assert(buf_writer);
+		if (buf_writer->buf_end == buf_writer->buf_size) {
+			buf_writer_flush(buf_writer);
+		}
+		nread = read_cb(read_cbopaque,
+		    buf_writer->buf + buf_writer->buf_end,
+		    buf_writer->buf_size - buf_writer->buf_end);
+	} while (nread > 0);
+	buf_writer_flush(buf_writer);
+}
