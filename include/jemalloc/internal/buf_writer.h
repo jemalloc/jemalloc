@@ -13,10 +13,8 @@
 typedef void (write_cb_t)(void *, const char *);
 
 typedef struct {
-	write_cb_t *public_write_cb;
-	void *public_cbopaque;
-	write_cb_t *private_write_cb;
-	void *private_cbopaque;
+	write_cb_t *write_cb;
+	void *cbopaque;
 	char *buf;
 	size_t buf_size;
 	size_t buf_end;
@@ -25,9 +23,8 @@ typedef struct {
 
 bool buf_writer_init(tsdn_t *tsdn, buf_writer_t *buf_writer,
     write_cb_t *write_cb, void *cbopaque, char *buf, size_t buf_len);
-write_cb_t *buf_writer_get_write_cb(buf_writer_t *buf_writer);
-void *buf_writer_get_cbopaque(buf_writer_t *buf_writer);
 void buf_writer_flush(buf_writer_t *buf_writer);
+write_cb_t buf_writer_cb;
 void buf_writer_terminate(tsdn_t *tsdn, buf_writer_t *buf_writer);
 
 #endif /* JEMALLOC_INTERNAL_BUF_WRITER_H */

@@ -466,9 +466,8 @@ prof_recent_alloc_dump(tsd_t *tsd, void (*write_cb)(void *, const char *),
 	buf_writer_init(tsd_tsdn(tsd), &buf_writer, write_cb, cbopaque, NULL,
 	    PROF_RECENT_PRINT_BUFSIZE);
 	emitter_t emitter;
-	emitter_init(&emitter, emitter_output_json_compact,
-	    buf_writer_get_write_cb(&buf_writer),
-	    buf_writer_get_cbopaque(&buf_writer));
+	emitter_init(&emitter, emitter_output_json_compact, buf_writer_cb,
+	    &buf_writer);
 	emitter_begin(&emitter);
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);

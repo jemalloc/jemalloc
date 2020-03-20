@@ -25,28 +25,29 @@ buf_writer_free_internal_buf(tsdn_t *tsdn, void *buf) {
 	}
 }
 
-static write_cb_t buf_writer_cb;
-
 static void
 buf_writer_assert(buf_writer_t *buf_writer) {
+	assert(buf_writer != NULL);
+	assert(buf_writer->write_cb != NULL);
 	if (buf_writer->buf != NULL) {
-		assert(buf_writer->public_write_cb == buf_writer_cb);
-		assert(buf_writer->public_cbopaque == buf_writer);
-		assert(buf_writer->private_write_cb != buf_writer_cb);
-		assert(buf_writer->private_cbopaque != buf_writer);
 		assert(buf_writer->buf_size > 0);
 	} else {
-		assert(buf_writer->public_write_cb != buf_writer_cb);
-		assert(buf_writer->public_cbopaque != buf_writer);
-		assert(buf_writer->private_write_cb == NULL);
-		assert(buf_writer->private_cbopaque == NULL);
 		assert(buf_writer->buf_size == 0);
+		assert(buf_writer->internal_buf);
 	}
+	assert(buf_writer->buf_end <= buf_writer->buf_size);
 }
 
 bool
 buf_writer_init(tsdn_t *tsdn, buf_writer_t *buf_writer, write_cb_t *write_cb,
     void *cbopaque, char *buf, size_t buf_len) {
+	if (write_cb != NULL) {
+		buf_writer->write_cb = write_cb;
+	} else {
+		buf_writer->write_cb = je_malloc_message != NULL ?
+		    je_malloc_message : wrtmessage;
+	}
+	buf_writer->cbopaque = cbopaque;
 	assert(buf_len >= 2);
 	if (buf != NULL) {
 		buf_writer->buf = buf;
@@ -56,36 +57,14 @@ buf_writer_init(tsdn_t *tsdn, buf_writer_t *buf_writer, write_cb_t *write_cb,
 		    buf_len);
 		buf_writer->internal_buf = true;
 	}
-	buf_writer->buf_end = 0;
 	if (buf_writer->buf != NULL) {
-		buf_writer->public_write_cb = buf_writer_cb;
-		buf_writer->public_cbopaque = buf_writer;
-		buf_writer->private_write_cb = write_cb;
-		buf_writer->private_cbopaque = cbopaque;
 		buf_writer->buf_size = buf_len - 1; /* Allowing for '\0'. */
-		buf_writer_assert(buf_writer);
-		return false;
 	} else {
-		buf_writer->public_write_cb = write_cb;
-		buf_writer->public_cbopaque = cbopaque;
-		buf_writer->private_write_cb = NULL;
-		buf_writer->private_cbopaque = NULL;
 		buf_writer->buf_size = 0;
-		buf_writer_assert(buf_writer);
-		return true;
 	}
-}
-
-write_cb_t *
-buf_writer_get_write_cb(buf_writer_t *buf_writer) {
+	buf_writer->buf_end = 0;
 	buf_writer_assert(buf_writer);
-	return buf_writer->public_write_cb;
-}
-
-void *
-buf_writer_get_cbopaque(buf_writer_t *buf_writer) {
-	buf_writer_assert(buf_writer);
-	return buf_writer->public_cbopaque;
+	return buf_writer->buf == NULL;
 }
 
 void
@@ -94,34 +73,31 @@ buf_writer_flush(buf_writer_t *buf_writer) {
 	if (buf_writer->buf == NULL) {
 		return;
 	}
-	assert(buf_writer->buf_end <= buf_writer->buf_size);
 	buf_writer->buf[buf_writer->buf_end] = '\0';
-	if (buf_writer->private_write_cb == NULL) {
-		buf_writer->private_write_cb = je_malloc_message != NULL ?
-		    je_malloc_message : wrtmessage;
-	}
-	assert(buf_writer->private_write_cb != NULL);
-	buf_writer->private_write_cb(buf_writer->private_cbopaque,
-	    buf_writer->buf);
+	buf_writer->write_cb(buf_writer->cbopaque, buf_writer->buf);
 	buf_writer->buf_end = 0;
+	buf_writer_assert(buf_writer);
 }
 
-static void
+void
 buf_writer_cb(void *buf_writer_arg, const char *s) {
 	buf_writer_t *buf_writer = (buf_writer_t *)buf_writer_arg;
 	buf_writer_assert(buf_writer);
-	assert(buf_writer->buf != NULL);
-	assert(buf_writer->buf_end <= buf_writer->buf_size);
-	size_t i, slen, n, s_remain, buf_remain;
+	if (buf_writer->buf == NULL) {
+		buf_writer->write_cb(buf_writer->cbopaque, s);
+		return;
+	}
+	size_t i, slen, n;
 	for (i = 0, slen = strlen(s); i < slen; i += n) {
 		if (buf_writer->buf_end == buf_writer->buf_size) {
 			buf_writer_flush(buf_writer);
 		}
-		s_remain = slen - i;
-		buf_remain = buf_writer->buf_size - buf_writer->buf_end;
+		size_t s_remain = slen - i;
+		size_t buf_remain = buf_writer->buf_size - buf_writer->buf_end;
 		n = s_remain < buf_remain ? s_remain : buf_remain;
 		memcpy(buf_writer->buf + buf_writer->buf_end, s + i, n);
 		buf_writer->buf_end += n;
+		buf_writer_assert(buf_writer);
 	}
 	assert(i == slen);
 }
