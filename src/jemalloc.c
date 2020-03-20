@@ -2782,11 +2782,11 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 		if (unlikely(tsd == NULL || !tsd_fast(tsd))) {
 			return false;
 		}
-		bool res = emap_alloc_ctx_try_lookup_fast(tsd,
+		bool err = emap_alloc_ctx_try_lookup_fast(tsd,
 		    &arena_emap_global, ptr, &alloc_ctx);
 
 		/* Note: profiled objects will have alloc_ctx.slab set */
-		if (unlikely(!res || !alloc_ctx.slab)) {
+		if (unlikely(err || !alloc_ctx.slab)) {
 			return false;
 		}
 		assert(alloc_ctx.szind != SC_NSIZES);

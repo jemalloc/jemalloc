@@ -132,8 +132,7 @@ emap_edata_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr) {
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
-	return rtree_edata_read(tsdn, &emap->rtree, rtree_ctx, (uintptr_t)ptr,
-	    true);
+	return rtree_read(tsdn, &emap->rtree, rtree_ctx, (uintptr_t)ptr).edata;
 }
 
 /* Fills in alloc_ctx with the info in the map. */
@@ -143,8 +142,10 @@ emap_alloc_ctx_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr,
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
-	rtree_szind_slab_read(tsdn, &emap->rtree, rtree_ctx, (uintptr_t)ptr,
-	    true, &alloc_ctx->szind, &alloc_ctx->slab);
+	rtree_metadata_t metadata = rtree_metadata_read(tsdn, &emap->rtree,
+	    rtree_ctx, (uintptr_t)ptr);
+	alloc_ctx->szind = metadata.szind;
+	alloc_ctx->slab = metadata.slab;
 }
 
 /* The pointer must be mapped. */
@@ -154,9 +155,11 @@ emap_full_alloc_ctx_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr,
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
-	rtree_edata_szind_slab_read(tsdn, &emap->rtree, rtree_ctx,
-	    (uintptr_t)ptr, true, &full_alloc_ctx->edata,
-	    &full_alloc_ctx->szind, &full_alloc_ctx->slab);
+	rtree_contents_t contents = rtree_read(tsdn, &emap->rtree, rtree_ctx,
+	    (uintptr_t)ptr);
+	full_alloc_ctx->edata = contents.edata;
+	full_alloc_ctx->szind = contents.metadata.szind;
+	full_alloc_ctx->slab = contents.metadata.slab;
 }
 
 /*
@@ -170,24 +173,35 @@ emap_full_alloc_ctx_try_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr,
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 
-	return rtree_edata_szind_slab_read(tsdn, &emap->rtree, rtree_ctx,
-	    (uintptr_t)ptr, false, &full_alloc_ctx->edata,
-	    &full_alloc_ctx->szind, &full_alloc_ctx->slab);
+	rtree_contents_t contents;
+	bool err = rtree_read_independent(tsdn, &emap->rtree, rtree_ctx,
+	    (uintptr_t)ptr, &contents);
+	if (err) {
+		return true;
+	}
+	full_alloc_ctx->edata = contents.edata;
+	full_alloc_ctx->szind = contents.metadata.szind;
+	full_alloc_ctx->slab = contents.metadata.slab;
+	return false;
 }
 
 /*
- * Fills in alloc_ctx, but only if it can be done easily (i.e. with a hit in the
- * L1 rtree cache.
- *
- * Returns whether or not alloc_ctx was filled in.
+ * Returns true on error.
  */
 JEMALLOC_ALWAYS_INLINE bool
 emap_alloc_ctx_try_lookup_fast(tsd_t *tsd, emap_t *emap, const void *ptr,
     emap_alloc_ctx_t *alloc_ctx) {
 	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
-	bool res = rtree_szind_slab_read_fast(tsd_tsdn(tsd), &emap->rtree,
-	    rtree_ctx, (uintptr_t)ptr, &alloc_ctx->szind, &alloc_ctx->slab);
-	return res;
+
+	rtree_metadata_t metadata;
+	bool err = rtree_metadata_try_read_fast(tsd_tsdn(tsd), &emap->rtree,
+	    rtree_ctx, (uintptr_t)ptr, &metadata);
+	if (err) {
+		return true;
+	}
+	alloc_ctx->szind = metadata.szind;
+	alloc_ctx->slab = metadata.slab;
+	return false;
 }
 
 #endif /* JEMALLOC_INTERNAL_EMAP_H */
