@@ -795,7 +795,7 @@ prof_thr_uid_alloc(tsdn_t *tsdn) {
 prof_tdata_t *
 prof_tdata_init(tsd_t *tsd) {
 	return prof_tdata_init_impl(tsd, prof_thr_uid_alloc(tsd_tsdn(tsd)), 0,
-	    NULL, prof_thread_active_init_get(tsd_tsdn(tsd)), false);
+	    NULL, prof_thread_active_init_get(tsd_tsdn(tsd)));
 }
 
 prof_tdata_t *
@@ -808,7 +808,7 @@ prof_tdata_reinit(tsd_t *tsd, prof_tdata_t *tdata) {
 
 	prof_tdata_detach(tsd, tdata);
 	return prof_tdata_init_impl(tsd, thr_uid, thr_discrim, thread_name,
-	    active, true);
+	    active);
 }
 
 void

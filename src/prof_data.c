@@ -1245,7 +1245,7 @@ prof_bt_keycomp(const void *k1, const void *k2) {
 
 prof_tdata_t *
 prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim,
-    char *thread_name, bool active, bool reset_interval) {
+    char *thread_name, bool active) {
 	assert(tsd_reentrancy_level_get(tsd) == 0);
 
 	prof_tdata_t *tdata;
@@ -1272,10 +1272,6 @@ prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim,
 	    prof_bt_keycomp)) {
 		idalloctm(tsd_tsdn(tsd), tdata, NULL, NULL, true, true);
 		return NULL;
-	}
-
-	if (reset_interval) {
-		prof_sample_threshold_update(tsd);
 	}
 
 	tdata->enq = false;
