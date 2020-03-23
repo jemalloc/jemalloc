@@ -186,11 +186,9 @@ te_ctx_next_event_set(tsd_t *tsd, te_ctx_t *ctx, uint64_t v) {
  * of thread event handling that we can rely on and need to promise.
  * The invariants are only temporarily violated in the middle of:
  * (a) event_advance() if an event is triggered (the te_event_trigger() call
- *     at the end will restore the invariants),
+ *     at the end will restore the invariants), or
  * (b) te_##event##_event_update() (the te_event_update() call at the
- *     end will restore the invariants), or
- * (c) te_alloc_rollback() if the rollback falls below the last_event
- *     (the te_event_update() call at the end will restore the invariants).
+ *     end will restore the invariants).
  */
 JEMALLOC_ALWAYS_INLINE void
 te_assert_invariants(tsd_t *tsd) {
