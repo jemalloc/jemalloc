@@ -13,7 +13,7 @@ bool prof_data_init(tsd_t *tsd);
 bool prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
     bool leakcheck);
 prof_tdata_t * prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid,
-    uint64_t thr_discrim, char *thread_name, bool active, bool reset_interval);
+    uint64_t thr_discrim, char *thread_name, bool active);
 void prof_tdata_detach(tsd_t *tsd, prof_tdata_t *tdata);
 void bt_init(prof_bt_t *bt, void **vec);
 void prof_backtrace(tsd_t *tsd, prof_bt_t *bt);
