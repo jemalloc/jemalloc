@@ -33,7 +33,6 @@ typedef struct te_ctx_s {
 
 void te_assert_invariants_debug(tsd_t *tsd);
 void te_event_trigger(tsd_t *tsd, te_ctx_t *ctx, bool delay_event);
-void te_event_update(tsd_t *tsd, bool alloc_event);
 void te_recompute_fast_threshold(tsd_t *tsd);
 void tsd_te_init(tsd_t *tsd);
 
@@ -250,28 +249,5 @@ JEMALLOC_ALWAYS_INLINE void
 thread_alloc_event(tsd_t *tsd, size_t usize) {
 	te_event_advance(tsd, usize, true);
 }
-
-#define E(event, condition, is_alloc)					\
-JEMALLOC_ALWAYS_INLINE void						\
-te_##event##_event_update(tsd_t *tsd, uint64_t event_wait) {		\
-	te_assert_invariants(tsd);					\
-	assert(condition);						\
-	assert(tsd_nominal(tsd));					\
-	assert(tsd_reentrancy_level_get(tsd) == 0);			\
-	assert(event_wait > 0U);					\
-	if (TE_MIN_START_WAIT > 1U &&					\
-	    unlikely(event_wait < TE_MIN_START_WAIT)) {			\
-		event_wait = TE_MIN_START_WAIT;				\
-	}								\
-	if (TE_MAX_START_WAIT < UINT64_MAX &&				\
-	    unlikely(event_wait > TE_MAX_START_WAIT)) {			\
-		event_wait = TE_MAX_START_WAIT;				\
-	}								\
-	event##_event_wait_set(tsd, event_wait);			\
-	te_event_update(tsd, is_alloc);					\
-}
-
-ITERATE_OVER_ALL_EVENTS
-#undef E
 
 #endif /* JEMALLOC_INTERNAL_THREAD_EVENT_H */
