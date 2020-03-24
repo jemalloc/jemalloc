@@ -4,6 +4,31 @@
 
 #include "jemalloc/internal/thread_event.h"
 
+static void te_event_update(tsd_t *tsd, bool alloc_event);
+
+#define E(event, condition, is_alloc)					\
+static void								\
+te_##event##_event_update(tsd_t *tsd, uint64_t event_wait) {		\
+	te_assert_invariants(tsd);					\
+	assert(condition);						\
+	assert(tsd_nominal(tsd));					\
+	assert(tsd_reentrancy_level_get(tsd) == 0);			\
+	assert(event_wait > 0U);					\
+	if (TE_MIN_START_WAIT > 1U &&					\
+	    unlikely(event_wait < TE_MIN_START_WAIT)) {			\
+		event_wait = TE_MIN_START_WAIT;				\
+	}								\
+	if (TE_MAX_START_WAIT < UINT64_MAX &&				\
+	    unlikely(event_wait > TE_MAX_START_WAIT)) {			\
+		event_wait = TE_MAX_START_WAIT;				\
+	}								\
+	event##_event_wait_set(tsd, event_wait);			\
+	te_event_update(tsd, is_alloc);					\
+}
+
+ITERATE_OVER_ALL_EVENTS
+#undef E
+
 /*
  * Signatures for functions computing new event wait time.  The functions
  * should be defined by the modules owning each event.  The signatures here are
