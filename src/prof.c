@@ -48,6 +48,7 @@ bool opt_prof_final = false;
 bool opt_prof_leak = false;
 bool opt_prof_accum = false;
 char opt_prof_prefix[PROF_DUMP_FILENAME_LEN];
+bool opt_prof_experimental_use_sys_thread_name = false;
 
 /* Accessed via prof_idump_[accum/rollback](). */
 static counter_accum_t prof_idump_accumulated;
@@ -133,9 +134,101 @@ prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx) {
 	}
 }
 
+static char *
+prof_thread_name_alloc(tsdn_t *tsdn, const char *thread_name) {
+	char *ret;
+	size_t size;
+
+	if (thread_name == NULL) {
+		return NULL;
+	}
+
+	size = strlen(thread_name) + 1;
+	if (size == 1) {
+		return "";
+	}
+
+	ret = iallocztm(tsdn, size, sz_size2index(size), false, NULL, true,
+	    arena_get(TSDN_NULL, 0, true), true);
+	if (ret == NULL) {
+		return NULL;
+	}
+	memcpy(ret, thread_name, size);
+	return ret;
+}
+
+static int
+prof_thread_name_set_impl(tsd_t *tsd, const char *thread_name) {
+	assert(tsd_reentrancy_level_get(tsd) == 0);
+
+	prof_tdata_t *tdata;
+	unsigned i;
+	char *s;
+
+	tdata = prof_tdata_get(tsd, true);
+	if (tdata == NULL) {
+		return EAGAIN;
+	}
+
+	/* Validate input. */
+	if (thread_name == NULL) {
+		return EFAULT;
+	}
+	for (i = 0; thread_name[i] != '\0'; i++) {
+		char c = thread_name[i];
+		if (!isgraph(c) && !isblank(c)) {
+			return EFAULT;
+		}
+	}
+
+	s = prof_thread_name_alloc(tsd_tsdn(tsd), thread_name);
+	if (s == NULL) {
+		return EAGAIN;
+	}
+
+	if (tdata->thread_name != NULL) {
+		idalloctm(tsd_tsdn(tsd), tdata->thread_name, NULL, NULL, true,
+		    true);
+		tdata->thread_name = NULL;
+	}
+	if (strlen(s) > 0) {
+		tdata->thread_name = s;
+	}
+	return 0;
+}
+
+static int
+prof_read_sys_thread_name_impl(char *buf, size_t limit) {
+#ifdef JEMALLOC_HAVE_PTHREAD_SETNAME_NP
+	return pthread_getname_np(pthread_self(), buf, limit);
+#else
+	return ENOSYS;
+#endif
+}
+#ifdef JEMALLOC_JET
+prof_read_sys_thread_name_t *JET_MUTABLE prof_read_sys_thread_name =
+    prof_read_sys_thread_name_impl;
+#else
+#define prof_read_sys_thread_name prof_read_sys_thread_name_impl
+#endif
+
+static void
+prof_fetch_sys_thread_name(tsd_t *tsd) {
+#define THREAD_NAME_MAX_LEN 16
+	char buf[THREAD_NAME_MAX_LEN];
+	if (!prof_read_sys_thread_name(buf, THREAD_NAME_MAX_LEN)) {
+		prof_thread_name_set_impl(tsd, buf);
+	}
+#undef THREAD_NAME_MAX_LEN
+}
+
 void
 prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t size,
     size_t usize, prof_tctx_t *tctx) {
+	if (opt_prof_experimental_use_sys_thread_name) {
+		prof_fetch_sys_thread_name(tsd);
+	}
+
 	edata_t *edata = emap_edata_lookup(tsd_tsdn(tsd), &emap_global, ptr);
 	prof_info_set(tsd, edata, tctx);
 
@@ -710,29 +803,6 @@ prof_tdata_init(tsd_t *tsd) {
 	    NULL, prof_thread_active_init_get(tsd_tsdn(tsd)), false);
 }
 
-static char *
-prof_thread_name_alloc(tsdn_t *tsdn, const char *thread_name) {
-	char *ret;
-	size_t size;
-
-	if (thread_name == NULL) {
-		return NULL;
-	}
-
-	size = strlen(thread_name) + 1;
-	if (size == 1) {
-		return "";
-	}
-
-	ret = iallocztm(tsdn, size, sz_size2index(size), false, NULL, true,
-	    arena_get(TSDN_NULL, 0, true), true);
-	if (ret == NULL) {
-		return NULL;
-	}
-	memcpy(ret, thread_name, size);
-	return ret;
-}
-
 prof_tdata_t *
 prof_tdata_reinit(tsd_t *tsd, prof_tdata_t *tdata) {
 	uint64_t thr_uid = tdata->thr_uid;
@@ -799,42 +869,11 @@ prof_thread_name_get(tsd_t *tsd) {
 
 int
 prof_thread_name_set(tsd_t *tsd, const char *thread_name) {
-	assert(tsd_reentrancy_level_get(tsd) == 0);
-
-	prof_tdata_t *tdata;
-	unsigned i;
-	char *s;
-
-	tdata = prof_tdata_get(tsd, true);
-	if (tdata == NULL) {
-		return EAGAIN;
+	if (opt_prof_experimental_use_sys_thread_name) {
+		return ENOENT;
+	} else {
+		return prof_thread_name_set_impl(tsd, thread_name);
 	}
-
-	/* Validate input. */
-	if (thread_name == NULL) {
-		return EFAULT;
-	}
-	for (i = 0; thread_name[i] != '\0'; i++) {
-		char c = thread_name[i];
-		if (!isgraph(c) && !isblank(c)) {
-			return EFAULT;
-		}
-	}
-
-	s = prof_thread_name_alloc(tsd_tsdn(tsd), thread_name);
-	if (s == NULL) {
-		return EAGAIN;
-	}
-
-	if (tdata->thread_name != NULL) {
-		idalloctm(tsd_tsdn(tsd), tdata->thread_name, NULL, NULL, true,
-		    true);
-		tdata->thread_name = NULL;
-	}
-	if (strlen(s) > 0) {
-		tdata->thread_name = s;
-	}
-	return 0;
 }
 
 bool

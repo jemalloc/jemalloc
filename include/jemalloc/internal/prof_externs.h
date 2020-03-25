@@ -28,6 +28,9 @@ extern char opt_prof_prefix[
 extern ssize_t opt_prof_recent_alloc_max;
 extern malloc_mutex_t prof_recent_alloc_mtx;
 
+/* Whether to use thread name provided by the system or by mallctl. */
+extern bool opt_prof_experimental_use_sys_thread_name;
+
 /* Accessed via prof_active_[gs]et{_unlocked,}(). */
 extern bool prof_active;
 
@@ -59,6 +62,8 @@ void prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t size,
 void prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_info_t *prof_info);
 prof_tctx_t *prof_tctx_create(tsd_t *tsd);
 #ifdef JEMALLOC_JET
+typedef int (prof_read_sys_thread_name_t)(char *buf, size_t limit);
+extern prof_read_sys_thread_name_t *JET_MUTABLE prof_read_sys_thread_name;
 size_t prof_tdata_count(void);
 size_t prof_bt_count(void);
 #endif
