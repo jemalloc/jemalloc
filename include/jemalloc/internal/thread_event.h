@@ -32,7 +32,7 @@ typedef struct te_ctx_s {
 } te_ctx_t;
 
 void te_assert_invariants_debug(tsd_t *tsd);
-void te_event_trigger(tsd_t *tsd, te_ctx_t *ctx, bool delay_event);
+void te_event_trigger(tsd_t *tsd, te_ctx_t *ctx);
 void te_recompute_fast_threshold(tsd_t *tsd);
 void tsd_te_init(tsd_t *tsd);
 
@@ -183,11 +183,9 @@ te_ctx_next_event_set(tsd_t *tsd, te_ctx_t *ctx, uint64_t v) {
  * The function checks in debug mode whether the thread event counters are in
  * a consistent state, which forms the invariants before and after each round
  * of thread event handling that we can rely on and need to promise.
- * The invariants are only temporarily violated in the middle of:
- * (a) event_advance() if an event is triggered (the te_event_trigger() call
- *     at the end will restore the invariants), or
- * (b) te_##event##_event_update() (the te_event_update() call at the
- *     end will restore the invariants).
+ * The invariants are only temporarily violated in the middle of
+ * te_event_advance() if an event is triggered (the te_event_trigger() call at
+ * the end will restore the invariants).
  */
 JEMALLOC_ALWAYS_INLINE void
 te_assert_invariants(tsd_t *tsd) {
@@ -236,7 +234,7 @@ te_event_advance(tsd_t *tsd, size_t usize, bool is_alloc) {
 	if (likely(usize < te_ctx_next_event_get(&ctx) - bytes_before)) {
 		te_assert_invariants(tsd);
 	} else {
-		te_event_trigger(tsd, &ctx, false);
+		te_event_trigger(tsd, &ctx);
 	}
 }
 
