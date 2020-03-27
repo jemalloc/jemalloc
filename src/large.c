@@ -360,9 +360,9 @@ large_prof_tctx_reset(edata_t *edata) {
 
 void
 large_prof_info_set(edata_t *edata, prof_tctx_t *tctx) {
-	large_prof_tctx_set(edata, tctx);
 	nstime_t t;
 	nstime_init_update(&t);
 	edata_prof_alloc_time_set(edata, &t);
 	edata_prof_recent_alloc_init(edata);
+	large_prof_tctx_set(edata, tctx);
 }
