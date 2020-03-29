@@ -32,6 +32,29 @@ const char	*je_malloc_conf
     JEMALLOC_ATTR(weak)
 #endif
     ;
+/*
+ * The usual rule is that the closer to runtime you are, the higher priority
+ * your configuration settings are (so the jemalloc config options get lower
+ * priority than the per-binary setting, which gets lower priority than the /etc
+ * setting, which gets lower priority than the environment settings).
+ *
+ * But it's a fairly common use case in some testing environments for a user to
+ * be able to control the binary, but nothing else (e.g. a performancy canary
+ * uses the production OS and environment variables, but can run any binary in
+ * those circumstances).  For these use cases, it's handy to have an in-binary
+ * mechanism for overriding environment variable settings, with the idea that if
+ * the results are positive they get promoted to the official settings, and
+ * moved from the binary to the environment variable.
+ *
+ * We don't actually want this to be widespread, so we'll give it a silly name
+ * and not mention it in headers or documentation.
+ */
+const char	*je_malloc_conf_2_conf_harder
+#ifndef _WIN32
+    JEMALLOC_ATTR(weak)
+#endif
+    ;
+
 bool	opt_abort =
 #ifdef JEMALLOC_DEBUG
     true
@@ -975,7 +998,7 @@ malloc_slow_flag_init(void) {
 }
 
 /* Number of sources for initializing malloc_conf */
-#define MALLOC_CONF_NSOURCES 4
+#define MALLOC_CONF_NSOURCES 5
 
 static const char *
 obtain_malloc_conf(unsigned which_source, char buf[PATH_MAX + 1]) {
@@ -1053,6 +1076,9 @@ obtain_malloc_conf(unsigned which_source, char buf[PATH_MAX + 1]) {
 			ret = NULL;
 		}
 		break;
+	} case 4: {
+		ret = je_malloc_conf_2_conf_harder;
+		break;
 	} default:
 		not_reached();
 		ret = NULL;
@@ -1069,7 +1095,9 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 		"string pointed to by the global variable malloc_conf",
 		"\"name\" of the file referenced by the symbolic link named "
 		    "/etc/malloc.conf",
-		"value of the environment variable MALLOC_CONF"
+		"value of the environment variable MALLOC_CONF",
+		"string pointed to by the global variable "
+		    "malloc_conf_2_conf_harder",
 	};
 	unsigned i;
 	const char *opts, *k, *v;
@@ -1506,7 +1534,8 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 
 static void
 malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
-	const char *opts_cache[MALLOC_CONF_NSOURCES] = {NULL, NULL, NULL, NULL};
+	const char *opts_cache[MALLOC_CONF_NSOURCES] = {NULL, NULL, NULL, NULL,
+		NULL};
 	char buf[PATH_MAX + 1];
 
 	/* The first call only set the confirm_conf option and opts_cache */
