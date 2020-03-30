@@ -574,6 +574,12 @@ prof_dump_printf(const char *format, ...) {
 }
 
 static void
+prof_dump_print_cnts(const prof_cnt_t *cnts) {
+	prof_dump_printf("%"FMTu64": %"FMTu64" [%"FMTu64": %"FMTu64"]",
+	    cnts->curobjs, cnts->curbytes, cnts->accumobjs, cnts->accumbytes);
+}
+
+static void
 prof_tctx_merge_tdata(tsdn_t *tsdn, prof_tctx_t *tctx, prof_tdata_t *tdata) {
 	malloc_mutex_assert_owner(tsdn, tctx->tdata->lock);
 
@@ -649,11 +655,9 @@ prof_tctx_dump_iter(prof_tctx_tree_t *tctxs, prof_tctx_t *tctx, void *arg) {
 		break;
 	case prof_tctx_state_dumping:
 	case prof_tctx_state_purgatory:
-		prof_dump_printf(
-		    "  t%"FMTu64": %"FMTu64": %"FMTu64" [%"FMTu64": "
-		    "%"FMTu64"]\n", tctx->thr_uid, tctx->dump_cnts.curobjs,
-		    tctx->dump_cnts.curbytes, tctx->dump_cnts.accumobjs,
-		    tctx->dump_cnts.accumbytes);
+		prof_dump_printf("  t%"FMTu64": ", tctx->thr_uid);
+		prof_dump_print_cnts(&tctx->dump_cnts);
+		prof_dump_write("\n");
 		break;
 	default:
 		not_reached();
@@ -820,22 +824,21 @@ prof_tdata_dump_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
 		return NULL;
 	}
 
-	prof_dump_printf(
-	    "  t%"FMTu64": %"FMTu64": %"FMTu64" [%"FMTu64": %"FMTu64"]%s%s\n",
-	    tdata->thr_uid, tdata->cnt_summed.curobjs,
-	    tdata->cnt_summed.curbytes, tdata->cnt_summed.accumobjs,
-	    tdata->cnt_summed.accumbytes,
-	    (tdata->thread_name != NULL) ? " " : "",
-	    (tdata->thread_name != NULL) ? tdata->thread_name : "");
+	prof_dump_printf("  t%"FMTu64": ", tdata->thr_uid);
+	prof_dump_print_cnts(&tdata->cnt_summed);
+	if (tdata->thread_name != NULL) {
+		prof_dump_printf(" %s", tdata->thread_name);
+	}
+	prof_dump_write("\n");
 	return NULL;
 }
 
 static void
 prof_dump_header_impl(tsdn_t *tsdn, const prof_cnt_t *cnt_all) {
-	prof_dump_printf("heap_v2/%"FMTu64"\n"
-	    "  t*: %"FMTu64": %"FMTu64" [%"FMTu64": %"FMTu64"]\n",
-	    ((uint64_t)1U << lg_prof_sample), cnt_all->curobjs,
-	    cnt_all->curbytes, cnt_all->accumobjs, cnt_all->accumbytes);
+	prof_dump_printf("heap_v2/%"FMTu64"\n  t*: ",
+	    ((uint64_t)1U << lg_prof_sample));
+	prof_dump_print_cnts(cnt_all);
+	prof_dump_write("\n");
 
 	malloc_mutex_lock(tsdn, &tdatas_mtx);
 	tdata_tree_iter(&tdatas, NULL, prof_tdata_dump_iter, NULL);
@@ -864,10 +867,9 @@ prof_dump_gctx(tsdn_t *tsdn, prof_gctx_t *gctx, const prof_bt_t *bt,
 		prof_dump_printf(" %#"FMTxPTR, (uintptr_t)bt->vec[i]);
 	}
 
-	prof_dump_printf(
-	    "\n  t*: %"FMTu64": %"FMTu64" [%"FMTu64": %"FMTu64"]\n",
-	    gctx->cnt_summed.curobjs, gctx->cnt_summed.curbytes,
-	    gctx->cnt_summed.accumobjs, gctx->cnt_summed.accumbytes);
+	prof_dump_write("\n  t*: ");
+	prof_dump_print_cnts(&gctx->cnt_summed);
+	prof_dump_write("\n");
 
 	tctx_tree_iter(&gctx->tctxs, NULL, prof_tctx_dump_iter,
 	    (void *)tsdn);

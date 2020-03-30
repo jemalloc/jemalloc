@@ -3437,7 +3437,7 @@ heap_v2/524288
   [...]
 @ 0x5f86da8 0x5f5a1dc [...] 0x29e4d4e 0xa200316 0xabb2988 [...]
   t*: 13: 6688 [0: 0]
-  t3: 12: 6496 [0: ]
+  t3: 12: 6496 [0: 0]
   t99: 1: 192 [0: 0]
 [...]
 
@@ -3448,9 +3448,9 @@ descriptions of the corresponding fields.  <programlisting><![CDATA[
 <heap_profile_format_version>/<mean_sample_interval>
   <aggregate>: <curobjs>: <curbytes> [<cumobjs>: <cumbytes>]
   [...]
-  <thread_3_aggregate>: <curobjs>: <curbytes>[<cumobjs>: <cumbytes>]
+  <thread_3_aggregate>: <curobjs>: <curbytes> [<cumobjs>: <cumbytes>]
   [...]
-  <thread_99_aggregate>: <curobjs>: <curbytes>[<cumobjs>: <cumbytes>]
+  <thread_99_aggregate>: <curobjs>: <curbytes> [<cumobjs>: <cumbytes>]
   [...]
 @ <top_frame> <frame> [...] <frame> <frame> <frame> [...]
   <backtrace_aggregate>: <curobjs>: <curbytes> [<cumobjs>: <cumbytes>]
