@@ -1,5 +1,5 @@
-#ifndef JEMALLOC_INTERNAL_PROF_DATA_EXTERNS_H
-#define JEMALLOC_INTERNAL_PROF_DATA_EXTERNS_H
+#ifndef JEMALLOC_INTERNAL_PROF_DATA_H
+#define JEMALLOC_INTERNAL_PROF_DATA_H
 
 #include "jemalloc/internal/mutex.h"
 
@@ -19,4 +19,4 @@ void bt_init(prof_bt_t *bt, void **vec);
 void prof_backtrace(tsd_t *tsd, prof_bt_t *bt);
 void prof_tctx_try_destroy(tsd_t *tsd, prof_tctx_t *tctx);
 
-#endif /* JEMALLOC_INTERNAL_PROF_DATA_EXTERNS_H */
+#endif /* JEMALLOC_INTERNAL_PROF_DATA_H */

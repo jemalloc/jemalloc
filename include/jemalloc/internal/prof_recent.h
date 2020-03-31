@@ -1,5 +1,5 @@
-#ifndef JEMALLOC_INTERNAL_PROF_RECENT_EXTERNS_H
-#define JEMALLOC_INTERNAL_PROF_RECENT_EXTERNS_H
+#ifndef JEMALLOC_INTERNAL_PROF_RECENT_H
+#define JEMALLOC_INTERNAL_PROF_RECENT_H
 
 extern malloc_mutex_t prof_recent_dump_mtx;
 
@@ -15,4 +15,4 @@ extern prof_recent_list_t prof_recent_alloc_list;
 edata_t *prof_recent_alloc_edata_get_no_lock_test(const prof_recent_t *node);
 prof_recent_t *edata_prof_recent_alloc_get_no_lock_test(const edata_t *edata);
 
-#endif /* JEMALLOC_INTERNAL_PROF_RECENT_EXTERNS_H */
+#endif /* JEMALLOC_INTERNAL_PROF_RECENT_H */

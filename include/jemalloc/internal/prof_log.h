@@ -1,5 +1,5 @@
-#ifndef JEMALLOC_INTERNAL_PROF_LOG_EXTERNS_H
-#define JEMALLOC_INTERNAL_PROF_LOG_EXTERNS_H
+#ifndef JEMALLOC_INTERNAL_PROF_LOG_H
+#define JEMALLOC_INTERNAL_PROF_LOG_H
 
 #include "jemalloc/internal/mutex.h"
 
@@ -16,4 +16,4 @@ bool prof_log_is_logging(void);
 bool prof_log_rep_check(void);
 void prof_log_dummy_set(bool new_value);
 
-#endif /* JEMALLOC_INTERNAL_PROF_LOG_EXTERNS_H */
+#endif /* JEMALLOC_INTERNAL_PROF_LOG_H */
