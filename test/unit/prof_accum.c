@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/prof_data.h"
+
 #define NTHREADS		4
 #define NALLOCS_PER_THREAD	50
 #define DUMP_INTERVAL		1

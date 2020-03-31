@@ -19,4 +19,12 @@ void bt_init(prof_bt_t *bt, void **vec);
 void prof_backtrace(tsd_t *tsd, prof_bt_t *bt);
 void prof_tctx_try_destroy(tsd_t *tsd, prof_tctx_t *tctx);
 
+/* Used in unit tests. */
+size_t prof_tdata_count(void);
+size_t prof_bt_count(void);
+typedef void (prof_dump_header_t)(tsdn_t *, const prof_cnt_t *);
+extern prof_dump_header_t *JET_MUTABLE prof_dump_header;
+void prof_cnt_all(uint64_t *curobjs, uint64_t *curbytes, uint64_t *accumobjs,
+    uint64_t *accumbytes);
+
 #endif /* JEMALLOC_INTERNAL_PROF_DATA_H */

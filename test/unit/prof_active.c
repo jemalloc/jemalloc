@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/prof_data.h"
+
 static void
 mallctl_bool_get(const char *name, bool expected, const char *func, int line) {
 	bool old;
