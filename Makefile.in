@@ -228,6 +228,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/prof_gdump.c \
 	$(srcroot)test/unit/prof_idump.c \
 	$(srcroot)test/unit/prof_log.c \
+	$(srcroot)test/unit/prof_mdump.c \
 	$(srcroot)test/unit/prof_recent.c \
 	$(srcroot)test/unit/prof_reset.c \
 	$(srcroot)test/unit/prof_tctx.c \

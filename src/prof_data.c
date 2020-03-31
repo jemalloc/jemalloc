@@ -55,6 +55,20 @@ static ckh_t bt2gctx;
  */
 static prof_tdata_tree_t tdatas;
 
+/* The following are needed for dumping and are protected by prof_dump_mtx. */
+/*
+ * Whether there has been an error in the dumping process, which could have
+ * happened either in file opening or in file writing.  When an error has
+ * already occurred, we will stop further writing to the file.
+ */
+static bool prof_dump_error;
+/*
+ * Whether error should be handled locally: if true, then we print out error
+ * message as well as abort (if opt_abort is true) when an error occurred, and
+ * we also report the error back to the caller in the end; if false, then we
+ * only report the error back to the caller in the end.
+ */
+static bool prof_dump_handle_error_locally;
 /*
  * This buffer is rather large for stack allocation, so use a single buffer for
  * all profile dumps.
@@ -459,6 +473,30 @@ prof_bt_count(void) {
 	return bt_count;
 }
 
+static void
+prof_dump_check_possible_error(bool err_cond, const char *format, ...) {
+	assert(!prof_dump_error);
+	if (!err_cond) {
+		return;
+	}
+
+	prof_dump_error = true;
+	if (!prof_dump_handle_error_locally) {
+		return;
+	}
+
+	va_list ap;
+	char buf[PROF_PRINTF_BUFSIZE];
+	va_start(ap, format);
+	malloc_vsnprintf(buf, sizeof(buf), format, ap);
+	va_end(ap);
+	malloc_write(buf);
+
+	if (opt_abort) {
+		abort();
+	}
+}
+
 static int
 prof_dump_open_file_impl(const char *filename, int mode) {
 	return creat(filename, mode);
@@ -466,61 +504,37 @@ prof_dump_open_file_impl(const char *filename, int mode) {
 prof_dump_open_file_t *JET_MUTABLE prof_dump_open_file =
     prof_dump_open_file_impl;
 
-static int
-prof_dump_open(bool propagate_err, const char *filename) {
-	int fd;
-
-	fd = prof_dump_open_file(filename, 0644);
-	if (fd == -1 && !propagate_err) {
-		malloc_printf("<jemalloc>: failed to open \"%s\"\n", filename);
-		if (opt_abort) {
-			abort();
-		}
-	}
-
-	return fd;
+static void
+prof_dump_open(const char *filename) {
+	prof_dump_fd = prof_dump_open_file(filename, 0644);
+	prof_dump_check_possible_error(prof_dump_fd == -1,
+	    "<jemalloc>: failed to open \"%s\"\n", filename);
 }
 
 prof_dump_write_file_t *JET_MUTABLE prof_dump_write_file = malloc_write_fd;
 
-static bool
-prof_dump_flush(bool propagate_err) {
-	bool ret = false;
-	ssize_t err;
-
+static void
+prof_dump_flush() {
 	cassert(config_prof);
-
-	err = prof_dump_write_file(prof_dump_fd, prof_dump_buf,
-	    prof_dump_buf_end);
-	if (err == -1) {
-		if (!propagate_err) {
-			malloc_write("<jemalloc>: failed to write during heap "
-			    "profile flush\n");
-			if (opt_abort) {
-				abort();
-			}
-		}
-		ret = true;
+	if (!prof_dump_error) {
+		ssize_t err = prof_dump_write_file(prof_dump_fd, prof_dump_buf,
+		    prof_dump_buf_end);
+		prof_dump_check_possible_error(err == -1,
+		    "<jemalloc>: failed to write during heap profile flush\n");
 	}
 	prof_dump_buf_end = 0;
-
-	return ret;
 }
 
-static bool
-prof_dump_close(bool propagate_err) {
-	bool ret;
-
-	assert(prof_dump_fd != -1);
-	ret = prof_dump_flush(propagate_err);
-	close(prof_dump_fd);
-	prof_dump_fd = -1;
-
-	return ret;
+static void
+prof_dump_close() {
+	if (prof_dump_fd != -1) {
+		prof_dump_flush();
+		close(prof_dump_fd);
+	}
 }
 
-static bool
-prof_dump_write(bool propagate_err, const char *s) {
+static void
+prof_dump_write(const char *s) {
 	size_t i, slen, n;
 
 	cassert(config_prof);
@@ -530,9 +544,7 @@ prof_dump_write(bool propagate_err, const char *s) {
 	while (i < slen) {
 		/* Flush the buffer if it is full. */
 		if (prof_dump_buf_end == PROF_DUMP_BUFSIZE) {
-			if (prof_dump_flush(propagate_err) && propagate_err) {
-				return true;
-			}
+			prof_dump_flush();
 		}
 
 		if (prof_dump_buf_end + slen - i <= PROF_DUMP_BUFSIZE) {
@@ -547,23 +559,18 @@ prof_dump_write(bool propagate_err, const char *s) {
 		i += n;
 	}
 	assert(i == slen);
-
-	return false;
 }
 
-JEMALLOC_FORMAT_PRINTF(2, 3)
-static bool
-prof_dump_printf(bool propagate_err, const char *format, ...) {
-	bool ret;
+JEMALLOC_FORMAT_PRINTF(1, 2)
+static void
+prof_dump_printf(const char *format, ...) {
 	va_list ap;
 	char buf[PROF_PRINTF_BUFSIZE];
 
 	va_start(ap, format);
 	malloc_vsnprintf(buf, sizeof(buf), format, ap);
 	va_end(ap);
-	ret = prof_dump_write(propagate_err, buf);
-
-	return ret;
+	prof_dump_write(buf);
 }
 
 static void
@@ -630,17 +637,10 @@ prof_tctx_merge_iter(prof_tctx_tree_t *tctxs, prof_tctx_t *tctx, void *arg) {
 	return NULL;
 }
 
-struct prof_tctx_dump_iter_arg_s {
-	tsdn_t	*tsdn;
-	bool	propagate_err;
-};
-
 static prof_tctx_t *
-prof_tctx_dump_iter(prof_tctx_tree_t *tctxs, prof_tctx_t *tctx, void *opaque) {
-	struct prof_tctx_dump_iter_arg_s *arg =
-	    (struct prof_tctx_dump_iter_arg_s *)opaque;
-
-	malloc_mutex_assert_owner(arg->tsdn, tctx->gctx->lock);
+prof_tctx_dump_iter(prof_tctx_tree_t *tctxs, prof_tctx_t *tctx, void *arg) {
+	tsdn_t *tsdn = (tsdn_t *)arg;
+	malloc_mutex_assert_owner(tsdn, tctx->gctx->lock);
 
 	switch (tctx->state) {
 	case prof_tctx_state_initializing:
@@ -649,13 +649,11 @@ prof_tctx_dump_iter(prof_tctx_tree_t *tctxs, prof_tctx_t *tctx, void *opaque) {
 		break;
 	case prof_tctx_state_dumping:
 	case prof_tctx_state_purgatory:
-		if (prof_dump_printf(arg->propagate_err,
+		prof_dump_printf(
 		    "  t%"FMTu64": %"FMTu64": %"FMTu64" [%"FMTu64": "
 		    "%"FMTu64"]\n", tctx->thr_uid, tctx->dump_cnts.curobjs,
 		    tctx->dump_cnts.curbytes, tctx->dump_cnts.accumobjs,
-		    tctx->dump_cnts.accumbytes)) {
-			return tctx;
-		}
+		    tctx->dump_cnts.accumbytes);
 		break;
 	default:
 		not_reached();
@@ -817,53 +815,37 @@ prof_tdata_merge_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
 
 static prof_tdata_t *
 prof_tdata_dump_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
-    void *arg) {
-	bool propagate_err = *(bool *)arg;
-
+    void *unused) {
 	if (!tdata->dumping) {
 		return NULL;
 	}
 
-	if (prof_dump_printf(propagate_err,
+	prof_dump_printf(
 	    "  t%"FMTu64": %"FMTu64": %"FMTu64" [%"FMTu64": %"FMTu64"]%s%s\n",
 	    tdata->thr_uid, tdata->cnt_summed.curobjs,
 	    tdata->cnt_summed.curbytes, tdata->cnt_summed.accumobjs,
 	    tdata->cnt_summed.accumbytes,
 	    (tdata->thread_name != NULL) ? " " : "",
-	    (tdata->thread_name != NULL) ? tdata->thread_name : "")) {
-		return tdata;
-	}
+	    (tdata->thread_name != NULL) ? tdata->thread_name : "");
 	return NULL;
 }
 
-static bool
-prof_dump_header_impl(tsdn_t *tsdn, bool propagate_err,
-    const prof_cnt_t *cnt_all) {
-	bool ret;
-
-	if (prof_dump_printf(propagate_err,
-	    "heap_v2/%"FMTu64"\n"
+static void
+prof_dump_header_impl(tsdn_t *tsdn, const prof_cnt_t *cnt_all) {
+	prof_dump_printf("heap_v2/%"FMTu64"\n"
 	    "  t*: %"FMTu64": %"FMTu64" [%"FMTu64": %"FMTu64"]\n",
 	    ((uint64_t)1U << lg_prof_sample), cnt_all->curobjs,
-	    cnt_all->curbytes, cnt_all->accumobjs, cnt_all->accumbytes)) {
-		return true;
-	}
+	    cnt_all->curbytes, cnt_all->accumobjs, cnt_all->accumbytes);
 
 	malloc_mutex_lock(tsdn, &tdatas_mtx);
-	ret = (tdata_tree_iter(&tdatas, NULL, prof_tdata_dump_iter,
-	    (void *)&propagate_err) != NULL);
+	tdata_tree_iter(&tdatas, NULL, prof_tdata_dump_iter, NULL);
 	malloc_mutex_unlock(tsdn, &tdatas_mtx);
-	return ret;
 }
 prof_dump_header_t *JET_MUTABLE prof_dump_header = prof_dump_header_impl;
 
-static bool
-prof_dump_gctx(tsdn_t *tsdn, bool propagate_err, prof_gctx_t *gctx,
-    const prof_bt_t *bt, prof_gctx_tree_t *gctxs) {
-	bool ret;
-	unsigned i;
-	struct prof_tctx_dump_iter_arg_s prof_tctx_dump_iter_arg;
-
+static void
+prof_dump_gctx(tsdn_t *tsdn, prof_gctx_t *gctx, const prof_bt_t *bt,
+    prof_gctx_tree_t *gctxs) {
 	cassert(config_prof);
 	malloc_mutex_assert_owner(tsdn, gctx->lock);
 
@@ -874,42 +856,21 @@ prof_dump_gctx(tsdn_t *tsdn, bool propagate_err, prof_gctx_t *gctx,
 		assert(gctx->cnt_summed.curbytes == 0);
 		assert(gctx->cnt_summed.accumobjs == 0);
 		assert(gctx->cnt_summed.accumbytes == 0);
-		ret = false;
-		goto label_return;
+		return;
 	}
 
-	if (prof_dump_printf(propagate_err, "@")) {
-		ret = true;
-		goto label_return;
-	}
-	for (i = 0; i < bt->len; i++) {
-		if (prof_dump_printf(propagate_err, " %#"FMTxPTR,
-		    (uintptr_t)bt->vec[i])) {
-			ret = true;
-			goto label_return;
-		}
+	prof_dump_write("@");
+	for (unsigned i = 0; i < bt->len; i++) {
+		prof_dump_printf(" %#"FMTxPTR, (uintptr_t)bt->vec[i]);
 	}
 
-	if (prof_dump_printf(propagate_err,
-	    "\n"
-	    "  t*: %"FMTu64": %"FMTu64" [%"FMTu64": %"FMTu64"]\n",
+	prof_dump_printf(
+	    "\n  t*: %"FMTu64": %"FMTu64" [%"FMTu64": %"FMTu64"]\n",
 	    gctx->cnt_summed.curobjs, gctx->cnt_summed.curbytes,
-	    gctx->cnt_summed.accumobjs, gctx->cnt_summed.accumbytes)) {
-		ret = true;
-		goto label_return;
-	}
+	    gctx->cnt_summed.accumobjs, gctx->cnt_summed.accumbytes);
 
-	prof_tctx_dump_iter_arg.tsdn = tsdn;
-	prof_tctx_dump_iter_arg.propagate_err = propagate_err;
-	if (tctx_tree_iter(&gctx->tctxs, NULL, prof_tctx_dump_iter,
-	    (void *)&prof_tctx_dump_iter_arg) != NULL) {
-		ret = true;
-		goto label_return;
-	}
-
-	ret = false;
-label_return:
-	return ret;
+	tctx_tree_iter(&gctx->tctxs, NULL, prof_tctx_dump_iter,
+	    (void *)tsdn);
 }
 
 #ifndef _WIN32
@@ -959,45 +920,26 @@ prof_dump_open_maps_impl() {
 prof_dump_open_maps_t *JET_MUTABLE prof_dump_open_maps =
     prof_dump_open_maps_impl;
 
-static bool
-prof_dump_maps(bool propagate_err) {
-	bool ret;
+static void
+prof_dump_maps() {
 	int mfd = prof_dump_open_maps();
+	if (mfd == -1) {
+		return;
+	}
 
-	if (mfd != -1) {
-		ssize_t nread;
-
-		if (prof_dump_write(propagate_err, "\nMAPPED_LIBRARIES:\n") &&
-		    propagate_err) {
-			ret = true;
-			goto label_return;
+	prof_dump_write("\nMAPPED_LIBRARIES:\n");
+	ssize_t nread = 0;
+	do {
+		prof_dump_buf_end += nread;
+		if (prof_dump_buf_end == PROF_DUMP_BUFSIZE) {
+			/* Make space in prof_dump_buf before read(). */
+			prof_dump_flush();
 		}
-		nread = 0;
-		do {
-			prof_dump_buf_end += nread;
-			if (prof_dump_buf_end == PROF_DUMP_BUFSIZE) {
-				/* Make space in prof_dump_buf before read(). */
-				if (prof_dump_flush(propagate_err) &&
-				    propagate_err) {
-					ret = true;
-					goto label_return;
-				}
-			}
-			nread = malloc_read_fd(mfd,
-			    &prof_dump_buf[prof_dump_buf_end], PROF_DUMP_BUFSIZE
-			    - prof_dump_buf_end);
-		} while (nread > 0);
-	} else {
-		ret = true;
-		goto label_return;
-	}
+		nread = malloc_read_fd(mfd, &prof_dump_buf[prof_dump_buf_end],
+		    PROF_DUMP_BUFSIZE - prof_dump_buf_end);
+	} while (nread > 0);
 
-	ret = false;
-label_return:
-	if (mfd != -1) {
-		close(mfd);
-	}
-	return ret;
+	close(mfd);
 }
 
 /*
@@ -1035,29 +977,13 @@ prof_leakcheck(const prof_cnt_t *cnt_all, size_t leak_ngctx,
 #endif
 }
 
-struct prof_gctx_dump_iter_arg_s {
-	tsdn_t	*tsdn;
-	bool	propagate_err;
-};
-
 static prof_gctx_t *
 prof_gctx_dump_iter(prof_gctx_tree_t *gctxs, prof_gctx_t *gctx, void *opaque) {
-	prof_gctx_t *ret;
-	struct prof_gctx_dump_iter_arg_s *arg =
-	    (struct prof_gctx_dump_iter_arg_s *)opaque;
-
-	malloc_mutex_lock(arg->tsdn, gctx->lock);
-
-	if (prof_dump_gctx(arg->tsdn, arg->propagate_err, gctx, &gctx->bt,
-	    gctxs)) {
-		ret = gctx;
-		goto label_return;
-	}
-
-	ret = NULL;
-label_return:
-	malloc_mutex_unlock(arg->tsdn, gctx->lock);
-	return ret;
+	tsdn_t *tsdn = (tsdn_t *)opaque;
+	malloc_mutex_lock(tsdn, gctx->lock);
+	prof_dump_gctx(tsdn, gctx, &gctx->bt, gctxs);
+	malloc_mutex_unlock(tsdn, gctx->lock);
+	return NULL;
 }
 
 static void
@@ -1104,43 +1030,23 @@ prof_dump_prep(tsd_t *tsd, prof_tdata_t *tdata,
 
 static bool
 prof_dump_file(tsd_t *tsd, bool propagate_err, const char *filename,
-    bool leakcheck, prof_tdata_t *tdata,
-    struct prof_tdata_merge_iter_arg_s *prof_tdata_merge_iter_arg,
-    struct prof_gctx_merge_iter_arg_s *prof_gctx_merge_iter_arg,
-    struct prof_gctx_dump_iter_arg_s *prof_gctx_dump_iter_arg,
+    bool leakcheck, prof_tdata_t *tdata, const prof_cnt_t *cnt_all,
     prof_gctx_tree_t *gctxs) {
+	prof_dump_error = false;
+	prof_dump_handle_error_locally = !propagate_err;
+
 	/* Create dump file. */
-	if ((prof_dump_fd = prof_dump_open(propagate_err, filename)) == -1) {
-		return true;
-	}
-
+	prof_dump_open(filename);
 	/* Dump profile header. */
-	if (prof_dump_header(tsd_tsdn(tsd), propagate_err,
-	    &prof_tdata_merge_iter_arg->cnt_all)) {
-		goto label_write_error;
-	}
-
+	prof_dump_header(tsd_tsdn(tsd), cnt_all);
 	/* Dump per gctx profile stats. */
-	prof_gctx_dump_iter_arg->tsdn = tsd_tsdn(tsd);
-	prof_gctx_dump_iter_arg->propagate_err = propagate_err;
-	if (gctx_tree_iter(gctxs, NULL, prof_gctx_dump_iter,
-	    (void *)prof_gctx_dump_iter_arg) != NULL) {
-		goto label_write_error;
-	}
-
+	gctx_tree_iter(gctxs, NULL, prof_gctx_dump_iter, (void *)tsd_tsdn(tsd));
 	/* Dump /proc/<pid>/maps if possible. */
-	if (prof_dump_maps(propagate_err)) {
-		goto label_write_error;
-	}
+	prof_dump_maps();
+	/* Close dump file. */
+	prof_dump_close();
 
-	if (prof_dump_close(propagate_err)) {
-		return true;
-	}
-
-	return false;
-label_write_error:
-	prof_dump_close(propagate_err);
-	return true;
+	return prof_dump_error;
 }
 
 bool
@@ -1160,12 +1066,10 @@ prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
 	prof_gctx_tree_t gctxs;
 	struct prof_tdata_merge_iter_arg_s prof_tdata_merge_iter_arg;
 	struct prof_gctx_merge_iter_arg_s prof_gctx_merge_iter_arg;
-	struct prof_gctx_dump_iter_arg_s prof_gctx_dump_iter_arg;
 	prof_dump_prep(tsd, tdata, &prof_tdata_merge_iter_arg,
 	    &prof_gctx_merge_iter_arg, &gctxs);
-	bool err = prof_dump_file(tsd, propagate_err, filename, leakcheck, tdata,
-	    &prof_tdata_merge_iter_arg, &prof_gctx_merge_iter_arg,
-	    &prof_gctx_dump_iter_arg, &gctxs);
+	bool err = prof_dump_file(tsd, propagate_err, filename, leakcheck,
+	    tdata, &prof_tdata_merge_iter_arg.cnt_all, &gctxs);
 	prof_gctx_finish(tsd, &gctxs);
 
 	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_mtx);

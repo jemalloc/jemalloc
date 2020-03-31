@@ -98,7 +98,7 @@ typedef int (prof_dump_open_file_t)(const char *, int);
 extern prof_dump_open_file_t *JET_MUTABLE prof_dump_open_file;
 typedef ssize_t (prof_dump_write_file_t)(int, const void *, size_t);
 extern prof_dump_write_file_t *JET_MUTABLE prof_dump_write_file;
-typedef bool (prof_dump_header_t)(tsdn_t *, bool, const prof_cnt_t *);
+typedef void (prof_dump_header_t)(tsdn_t *, const prof_cnt_t *);
 extern prof_dump_header_t *JET_MUTABLE prof_dump_header;
 typedef int (prof_dump_open_maps_t)();
 extern prof_dump_open_maps_t *JET_MUTABLE prof_dump_open_maps;
