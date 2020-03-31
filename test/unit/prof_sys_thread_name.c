@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/prof_sys.h"
+
 static const char *test_thread_name = "test_name";
 
 static int
