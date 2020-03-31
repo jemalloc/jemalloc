@@ -92,18 +92,12 @@ void prof_sample_event_handler(tsd_t *tsd, uint64_t elapsed);
 /* Used by unit tests. */
 typedef int (prof_sys_thread_name_read_t)(char *buf, size_t limit);
 extern prof_sys_thread_name_read_t *JET_MUTABLE prof_sys_thread_name_read;
-size_t prof_tdata_count(void);
-size_t prof_bt_count(void);
 typedef int (prof_dump_open_file_t)(const char *, int);
 extern prof_dump_open_file_t *JET_MUTABLE prof_dump_open_file;
 typedef ssize_t (prof_dump_write_file_t)(int, const void *, size_t);
 extern prof_dump_write_file_t *JET_MUTABLE prof_dump_write_file;
-typedef void (prof_dump_header_t)(tsdn_t *, const prof_cnt_t *);
-extern prof_dump_header_t *JET_MUTABLE prof_dump_header;
 typedef int (prof_dump_open_maps_t)();
 extern prof_dump_open_maps_t *JET_MUTABLE prof_dump_open_maps;
-void prof_cnt_all(uint64_t *curobjs, uint64_t *curbytes, uint64_t *accumobjs,
-    uint64_t *accumbytes);
 
 bool prof_log_start(tsdn_t *tsdn, const char *filename);
 bool prof_log_stop(tsdn_t *tsdn);

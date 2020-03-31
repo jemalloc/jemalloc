@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/prof_data.h"
+
 static int
 prof_dump_open_file_intercept(const char *filename, int mode) {
 	int fd;

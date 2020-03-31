@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/prof_data.h"
+
 TEST_BEGIN(test_prof_realloc) {
 	tsd_t *tsd;
 	int flags;
