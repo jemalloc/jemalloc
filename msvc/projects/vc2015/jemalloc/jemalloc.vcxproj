@@ -74,6 +74,7 @@
     <ClCompile Include="..\..\..\..\src\prof_data.c" />
     <ClCompile Include="..\..\..\..\src\prof_log.c" />
     <ClCompile Include="..\..\..\..\src\prof_recent.c" />
+    <ClCompile Include="..\..\..\..\src\prof_sys.c" />
     <ClCompile Include="..\..\..\..\src\rtree.c" />
     <ClCompile Include="..\..\..\..\src\safety_check.c" />
     <ClCompile Include="..\..\..\..\src\sc.c" />
