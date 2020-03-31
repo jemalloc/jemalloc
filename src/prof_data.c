@@ -474,7 +474,7 @@ prof_bt_count(void) {
 }
 
 char *
-prof_thread_name_alloc(tsdn_t *tsdn, const char *thread_name) {
+prof_thread_name_alloc(tsd_t *tsd, const char *thread_name) {
 	char *ret;
 	size_t size;
 
@@ -487,8 +487,8 @@ prof_thread_name_alloc(tsdn_t *tsdn, const char *thread_name) {
 		return "";
 	}
 
-	ret = iallocztm(tsdn, size, sz_size2index(size), false, NULL, true,
-	    arena_get(TSDN_NULL, 0, true), true);
+	ret = iallocztm(tsd_tsdn(tsd), size, sz_size2index(size), false, NULL,
+	    true, arena_get(TSDN_NULL, 0, true), true);
 	if (ret == NULL) {
 		return NULL;
 	}
@@ -520,7 +520,7 @@ prof_thread_name_set_impl(tsd_t *tsd, const char *thread_name) {
 		}
 	}
 
-	s = prof_thread_name_alloc(tsd_tsdn(tsd), thread_name);
+	s = prof_thread_name_alloc(tsd, thread_name);
 	if (s == NULL) {
 		return EAGAIN;
 	}
