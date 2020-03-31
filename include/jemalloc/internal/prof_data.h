@@ -10,6 +10,8 @@ void prof_bt_hash(const void *key, size_t r_hash[2]);
 bool prof_bt_keycomp(const void *k1, const void *k2);
 
 bool prof_data_init(tsd_t *tsd);
+char *prof_thread_name_alloc(tsdn_t *tsdn, const char *thread_name);
+int prof_thread_name_set_impl(tsd_t *tsd, const char *thread_name);
 bool prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
     bool leakcheck);
 prof_tdata_t * prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid,
