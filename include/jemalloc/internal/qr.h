@@ -32,21 +32,23 @@ struct {								\
 	(a_qrelm)->a_field.qre_next = (a_qr);				\
 } while (0)
 
-#define qr_meld(a_qr_a, a_qr_b, a_type, a_field) do {			\
-	a_type *t;							\
-	(a_qr_a)->a_field.qre_prev->a_field.qre_next = (a_qr_b);	\
-	(a_qr_b)->a_field.qre_prev->a_field.qre_next = (a_qr_a);	\
-	t = (a_qr_a)->a_field.qre_prev;					\
+/* a_qr_a can directly be a qr_next() macro, but a_qr_b cannot.  */
+#define qr_meld(a_qr_a, a_qr_b, a_field) do {				\
+	(a_qr_b)->a_field.qre_prev->a_field.qre_next =			\
+	    (a_qr_a)->a_field.qre_prev;					\
 	(a_qr_a)->a_field.qre_prev = (a_qr_b)->a_field.qre_prev;	\
-	(a_qr_b)->a_field.qre_prev = t;					\
+	(a_qr_b)->a_field.qre_prev =					\
+	    (a_qr_b)->a_field.qre_prev->a_field.qre_next;		\
+	(a_qr_a)->a_field.qre_prev->a_field.qre_next = (a_qr_a);	\
+	(a_qr_b)->a_field.qre_prev->a_field.qre_next = (a_qr_b);	\
 } while (0)
 
 /*
  * qr_meld() and qr_split() are functionally equivalent, so there's no need to
  * have two copies of the code.
  */
-#define qr_split(a_qr_a, a_qr_b, a_type, a_field)			\
-	qr_meld((a_qr_a), (a_qr_b), a_type, a_field)
+#define qr_split(a_qr_a, a_qr_b, a_field)				\
+	qr_meld((a_qr_a), (a_qr_b), a_field)
 
 #define qr_remove(a_qr, a_field) do {					\
 	(a_qr)->a_field.qre_prev->a_field.qre_next			\
