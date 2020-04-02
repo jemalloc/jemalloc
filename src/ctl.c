@@ -9,6 +9,7 @@
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/nstime.h"
 #include "jemalloc/internal/peak_event.h"
+#include "jemalloc/internal/prof_sys.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/util.h"
 

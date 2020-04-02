@@ -10,6 +10,7 @@
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/prof_data.h"
 #include "jemalloc/internal/prof_log.h"
+#include "jemalloc/internal/prof_sys.h"
 
 bool opt_prof_log = false;
 typedef enum prof_logging_state_e prof_logging_state_t;
