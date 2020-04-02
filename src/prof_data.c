@@ -55,27 +55,8 @@ static ckh_t bt2gctx;
  */
 static prof_tdata_tree_t tdatas;
 
-/* The following are needed for dumping and are protected by prof_dump_mtx. */
-/*
- * Whether there has been an error in the dumping process, which could have
- * happened either in file opening or in file writing.  When an error has
- * already occurred, we will stop further writing to the file.
- */
-static bool prof_dump_error;
-/*
- * Whether error should be handled locally: if true, then we print out error
- * message as well as abort (if opt_abort is true) when an error occurred, and
- * we also report the error back to the caller in the end; if false, then we
- * only report the error back to the caller in the end.
- */
-static bool prof_dump_handle_error_locally;
-/*
- * This buffer is rather large for stack allocation, so use a single buffer for
- * all profile dumps.
- */
-static char prof_dump_buf[PROF_DUMP_BUFSIZE];
-static size_t prof_dump_buf_end;
-static int prof_dump_fd;
+/* Dump write callback; stored global to simplify function interfaces.  */
+static void (*prof_dump_write)(const char *);
 
 /******************************************************************************/
 /* Red-black trees. */
@@ -536,94 +517,6 @@ prof_thread_name_set_impl(tsd_t *tsd, const char *thread_name) {
 	return 0;
 }
 
-static void
-prof_dump_check_possible_error(bool err_cond, const char *format, ...) {
-	assert(!prof_dump_error);
-	if (!err_cond) {
-		return;
-	}
-
-	prof_dump_error = true;
-	if (!prof_dump_handle_error_locally) {
-		return;
-	}
-
-	va_list ap;
-	char buf[PROF_PRINTF_BUFSIZE];
-	va_start(ap, format);
-	malloc_vsnprintf(buf, sizeof(buf), format, ap);
-	va_end(ap);
-	malloc_write(buf);
-
-	if (opt_abort) {
-		abort();
-	}
-}
-
-static int
-prof_dump_open_file_impl(const char *filename, int mode) {
-	return creat(filename, mode);
-}
-prof_dump_open_file_t *JET_MUTABLE prof_dump_open_file =
-    prof_dump_open_file_impl;
-
-static void
-prof_dump_open(const char *filename) {
-	prof_dump_fd = prof_dump_open_file(filename, 0644);
-	prof_dump_check_possible_error(prof_dump_fd == -1,
-	    "<jemalloc>: failed to open \"%s\"\n", filename);
-}
-
-prof_dump_write_file_t *JET_MUTABLE prof_dump_write_file = malloc_write_fd;
-
-static void
-prof_dump_flush() {
-	cassert(config_prof);
-	if (!prof_dump_error) {
-		ssize_t err = prof_dump_write_file(prof_dump_fd, prof_dump_buf,
-		    prof_dump_buf_end);
-		prof_dump_check_possible_error(err == -1,
-		    "<jemalloc>: failed to write during heap profile flush\n");
-	}
-	prof_dump_buf_end = 0;
-}
-
-static void
-prof_dump_close() {
-	if (prof_dump_fd != -1) {
-		prof_dump_flush();
-		close(prof_dump_fd);
-	}
-}
-
-static void
-prof_dump_write(const char *s) {
-	size_t i, slen, n;
-
-	cassert(config_prof);
-
-	i = 0;
-	slen = strlen(s);
-	while (i < slen) {
-		/* Flush the buffer if it is full. */
-		if (prof_dump_buf_end == PROF_DUMP_BUFSIZE) {
-			prof_dump_flush();
-		}
-
-		if (prof_dump_buf_end + slen - i <= PROF_DUMP_BUFSIZE) {
-			/* Finish writing. */
-			n = slen - i;
-		} else {
-			/* Write as much of s as will fit. */
-			n = PROF_DUMP_BUFSIZE - prof_dump_buf_end;
-		}
-		memcpy(&prof_dump_buf[prof_dump_buf_end], &s[i], n);
-		prof_dump_buf_end += n;
-		i += n;
-	}
-	assert(i == slen);
-}
-
 JEMALLOC_FORMAT_PRINTF(1, 2)
 static void
 prof_dump_printf(const char *format, ...) {
@@ -938,82 +831,12 @@ prof_dump_gctx(tsdn_t *tsdn, prof_gctx_t *gctx, const prof_bt_t *bt,
 	    (void *)tsdn);
 }
 
-#ifndef _WIN32
-JEMALLOC_FORMAT_PRINTF(1, 2)
-static int
-prof_open_maps_internal(const char *format, ...) {
-	int mfd;
-	va_list ap;
-	char filename[PATH_MAX + 1];
-
-	va_start(ap, format);
-	malloc_vsnprintf(filename, sizeof(filename), format, ap);
-	va_end(ap);
-
-#if defined(O_CLOEXEC)
-	mfd = open(filename, O_RDONLY | O_CLOEXEC);
-#else
-	mfd = open(filename, O_RDONLY);
-	if (mfd != -1) {
-		fcntl(mfd, F_SETFD, fcntl(mfd, F_GETFD) | FD_CLOEXEC);
-	}
-#endif
-
-	return mfd;
-}
-#endif
-
-static int
-prof_dump_open_maps_impl() {
-	int mfd;
-
-	cassert(config_prof);
-#ifdef __FreeBSD__
-	mfd = prof_open_maps_internal("/proc/curproc/map");
-#elif defined(_WIN32)
-	mfd = -1; // Not implemented
-#else
-	int pid = prof_getpid();
-
-	mfd = prof_open_maps_internal("/proc/%d/task/%d/maps", pid, pid);
-	if (mfd == -1) {
-		mfd = prof_open_maps_internal("/proc/%d/maps", pid);
-	}
-#endif
-	return mfd;
-}
-prof_dump_open_maps_t *JET_MUTABLE prof_dump_open_maps =
-    prof_dump_open_maps_impl;
-
-static void
-prof_dump_maps() {
-	int mfd = prof_dump_open_maps();
-	if (mfd == -1) {
-		return;
-	}
-
-	prof_dump_write("\nMAPPED_LIBRARIES:\n");
-	ssize_t nread = 0;
-	do {
-		prof_dump_buf_end += nread;
-		if (prof_dump_buf_end == PROF_DUMP_BUFSIZE) {
-			/* Make space in prof_dump_buf before read(). */
-			prof_dump_flush();
-		}
-		nread = malloc_read_fd(mfd, &prof_dump_buf[prof_dump_buf_end],
-		    PROF_DUMP_BUFSIZE - prof_dump_buf_end);
-	} while (nread > 0);
-
-	close(mfd);
-}
-
 /*
  * See prof_sample_threshold_update() comment for why the body of this function
  * is conditionally compiled.
  */
 static void
-prof_leakcheck(const prof_cnt_t *cnt_all, size_t leak_ngctx,
-    const char *filename) {
+prof_leakcheck(const prof_cnt_t *cnt_all, size_t leak_ngctx) {
 #ifdef JEMALLOC_PROF
 	/*
 	 * Scaling is equivalent AdjustSamples() in jeprof, but the result may
@@ -1036,8 +859,7 @@ prof_leakcheck(const prof_cnt_t *cnt_all, size_t leak_ngctx,
 		    curbytes, (curbytes != 1) ? "s" : "", curobjs, (curobjs !=
 		    1) ? "s" : "", leak_ngctx, (leak_ngctx != 1) ? "s" : "");
 		malloc_printf(
-		    "<jemalloc>: Run jeprof on \"%s\" for leak detail\n",
-		    filename);
+		    "<jemalloc>: Run jeprof on dump output for leak detail\n");
 	}
 #endif
 }
@@ -1093,62 +915,24 @@ prof_dump_prep(tsd_t *tsd, prof_tdata_t *tdata,
 	prof_leave(tsd, tdata);
 }
 
-static bool
-prof_dump_file(tsd_t *tsd, bool propagate_err, const char *filename,
-    bool leakcheck, prof_tdata_t *tdata, const prof_cnt_t *cnt_all,
-    prof_gctx_tree_t *gctxs) {
-	prof_dump_error = false;
-	prof_dump_handle_error_locally = !propagate_err;
-
-	/* Create dump file. */
-	prof_dump_open(filename);
-	/* Dump profile header. */
-	prof_dump_header(tsd_tsdn(tsd), cnt_all);
-	/* Dump per gctx profile stats. */
-	gctx_tree_iter(gctxs, NULL, prof_gctx_dump_iter, (void *)tsd_tsdn(tsd));
-	/* Dump /proc/<pid>/maps if possible. */
-	prof_dump_maps();
-	/* Close dump file. */
-	prof_dump_close();
-
-	return prof_dump_error;
-}
-
-bool
-prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
+void
+prof_dump_impl(tsd_t *tsd, prof_tdata_t *tdata, void (*write_cb)(const char *),
     bool leakcheck) {
-	cassert(config_prof);
-	assert(tsd_reentrancy_level_get(tsd) == 0);
-
-	prof_tdata_t * tdata = prof_tdata_get(tsd, true);
-	if (tdata == NULL) {
-		return true;
-	}
-
-	pre_reentrancy(tsd, NULL);
-	malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_mtx);
-
+	malloc_mutex_assert_owner(tsd_tsdn(tsd), &prof_dump_mtx);
+	prof_dump_write = write_cb;
 	prof_gctx_tree_t gctxs;
 	struct prof_tdata_merge_iter_arg_s prof_tdata_merge_iter_arg;
 	struct prof_gctx_merge_iter_arg_s prof_gctx_merge_iter_arg;
 	prof_dump_prep(tsd, tdata, &prof_tdata_merge_iter_arg,
 	    &prof_gctx_merge_iter_arg, &gctxs);
-	bool err = prof_dump_file(tsd, propagate_err, filename, leakcheck,
-	    tdata, &prof_tdata_merge_iter_arg.cnt_all, &gctxs);
+	prof_dump_header(tsd_tsdn(tsd), &prof_tdata_merge_iter_arg.cnt_all);
+	gctx_tree_iter(&gctxs, NULL, prof_gctx_dump_iter,
+	    (void *)tsd_tsdn(tsd));
 	prof_gctx_finish(tsd, &gctxs);
-
-	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_mtx);
-	post_reentrancy(tsd);
-
-	if (err) {
-		return true;
-	}
-
 	if (leakcheck) {
 		prof_leakcheck(&prof_tdata_merge_iter_arg.cnt_all,
-		    prof_gctx_merge_iter_arg.leak_ngctx, filename);
+		    prof_gctx_merge_iter_arg.leak_ngctx);
 	}
-	return false;
 }
 
 /* Used in unit tests. */

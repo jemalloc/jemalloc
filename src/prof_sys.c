@@ -18,6 +18,28 @@ static char *prof_dump_prefix = NULL;
 /* The fallback allocator profiling functionality will use. */
 base_t *prof_base;
 
+/* The following are needed for dumping and are protected by prof_dump_mtx. */
+/*
+ * Whether there has been an error in the dumping process, which could have
+ * happened either in file opening or in file writing.  When an error has
+ * already occurred, we will stop further writing to the file.
+ */
+static bool prof_dump_error;
+/*
+ * Whether error should be handled locally: if true, then we print out error
+ * message as well as abort (if opt_abort is true) when an error occurred, and
+ * we also report the error back to the caller in the end; if false, then we
+ * only report the error back to the caller in the end.
+ */
+static bool prof_dump_handle_error_locally;
+/*
+ * This buffer is rather large for stack allocation, so use a single buffer for
+ * all profile dumps.
+ */
+static char prof_dump_buf[PROF_DUMP_BUFSIZE];
+static size_t prof_dump_buf_end;
+static int prof_dump_fd;
+
 static int
 prof_sys_thread_name_read_impl(char *buf, size_t limit) {
 #ifdef JEMALLOC_HAVE_PTHREAD_SETNAME_NP
@@ -37,6 +59,191 @@ prof_sys_thread_name_fetch(tsd_t *tsd) {
 		prof_thread_name_set_impl(tsd, buf);
 	}
 #undef THREAD_NAME_MAX_LEN
+}
+
+static void
+prof_dump_check_possible_error(bool err_cond, const char *format, ...) {
+	assert(!prof_dump_error);
+	if (!err_cond) {
+		return;
+	}
+
+	prof_dump_error = true;
+	if (!prof_dump_handle_error_locally) {
+		return;
+	}
+
+	va_list ap;
+	char buf[PROF_PRINTF_BUFSIZE];
+	va_start(ap, format);
+	malloc_vsnprintf(buf, sizeof(buf), format, ap);
+	va_end(ap);
+	malloc_write(buf);
+
+	if (opt_abort) {
+		abort();
+	}
+}
+
+static int
+prof_dump_open_file_impl(const char *filename, int mode) {
+	return creat(filename, mode);
+}
+prof_dump_open_file_t *JET_MUTABLE prof_dump_open_file =
+    prof_dump_open_file_impl;
+
+static void
+prof_dump_open(const char *filename) {
+	prof_dump_fd = prof_dump_open_file(filename, 0644);
+	prof_dump_check_possible_error(prof_dump_fd == -1,
+	    "<jemalloc>: failed to open \"%s\"\n", filename);
+}
+
+prof_dump_write_file_t *JET_MUTABLE prof_dump_write_file = malloc_write_fd;
+
+static void
+prof_dump_flush() {
+	cassert(config_prof);
+	if (!prof_dump_error) {
+		ssize_t err = prof_dump_write_file(prof_dump_fd, prof_dump_buf,
+		    prof_dump_buf_end);
+		prof_dump_check_possible_error(err == -1,
+		    "<jemalloc>: failed to write during heap profile flush\n");
+	}
+	prof_dump_buf_end = 0;
+}
+
+static void
+prof_dump_write(const char *s) {
+	size_t i, slen, n;
+
+	cassert(config_prof);
+
+	i = 0;
+	slen = strlen(s);
+	while (i < slen) {
+		/* Flush the buffer if it is full. */
+		if (prof_dump_buf_end == PROF_DUMP_BUFSIZE) {
+			prof_dump_flush();
+		}
+
+		if (prof_dump_buf_end + slen - i <= PROF_DUMP_BUFSIZE) {
+			/* Finish writing. */
+			n = slen - i;
+		} else {
+			/* Write as much of s as will fit. */
+			n = PROF_DUMP_BUFSIZE - prof_dump_buf_end;
+		}
+		memcpy(&prof_dump_buf[prof_dump_buf_end], &s[i], n);
+		prof_dump_buf_end += n;
+		i += n;
+	}
+	assert(i == slen);
+}
+
+static void
+prof_dump_close() {
+	if (prof_dump_fd != -1) {
+		prof_dump_flush();
+		close(prof_dump_fd);
+	}
+}
+
+#ifndef _WIN32
+JEMALLOC_FORMAT_PRINTF(1, 2)
+static int
+prof_open_maps_internal(const char *format, ...) {
+	int mfd;
+	va_list ap;
+	char filename[PATH_MAX + 1];
+
+	va_start(ap, format);
+	malloc_vsnprintf(filename, sizeof(filename), format, ap);
+	va_end(ap);
+
+#if defined(O_CLOEXEC)
+	mfd = open(filename, O_RDONLY | O_CLOEXEC);
+#else
+	mfd = open(filename, O_RDONLY);
+	if (mfd != -1) {
+		fcntl(mfd, F_SETFD, fcntl(mfd, F_GETFD) | FD_CLOEXEC);
+	}
+#endif
+
+	return mfd;
+}
+#endif
+
+static int
+prof_dump_open_maps_impl() {
+	int mfd;
+
+	cassert(config_prof);
+#ifdef __FreeBSD__
+	mfd = prof_open_maps_internal("/proc/curproc/map");
+#elif defined(_WIN32)
+	mfd = -1; // Not implemented
+#else
+	int pid = prof_getpid();
+
+	mfd = prof_open_maps_internal("/proc/%d/task/%d/maps", pid, pid);
+	if (mfd == -1) {
+		mfd = prof_open_maps_internal("/proc/%d/maps", pid);
+	}
+#endif
+	return mfd;
+}
+prof_dump_open_maps_t *JET_MUTABLE prof_dump_open_maps =
+    prof_dump_open_maps_impl;
+
+static void
+prof_dump_maps() {
+	int mfd = prof_dump_open_maps();
+	if (mfd == -1) {
+		return;
+	}
+
+	prof_dump_write("\nMAPPED_LIBRARIES:\n");
+	ssize_t nread = 0;
+	do {
+		prof_dump_buf_end += nread;
+		if (prof_dump_buf_end == PROF_DUMP_BUFSIZE) {
+			/* Make space in prof_dump_buf before read(). */
+			prof_dump_flush();
+		}
+		nread = malloc_read_fd(mfd, &prof_dump_buf[prof_dump_buf_end],
+		    PROF_DUMP_BUFSIZE - prof_dump_buf_end);
+	} while (nread > 0);
+
+	close(mfd);
+}
+
+static bool
+prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
+    bool leakcheck) {
+	cassert(config_prof);
+	assert(tsd_reentrancy_level_get(tsd) == 0);
+
+	prof_tdata_t * tdata = prof_tdata_get(tsd, true);
+	if (tdata == NULL) {
+		return true;
+	}
+
+	prof_dump_error = false;
+	prof_dump_handle_error_locally = !propagate_err;
+
+	pre_reentrancy(tsd, NULL);
+	malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_mtx);
+
+	prof_dump_open(filename);
+	prof_dump_impl(tsd, tdata, prof_dump_write, leakcheck);
+	prof_dump_maps();
+	prof_dump_close();
+
+	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_mtx);
+	post_reentrancy(tsd);
+
+	return prof_dump_error;
 }
 
 /*

@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/prof_sys.h"
+
 static bool did_prof_dump_open;
 
 static int
