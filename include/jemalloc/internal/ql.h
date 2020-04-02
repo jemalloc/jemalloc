@@ -18,6 +18,8 @@ struct {								\
 	(a_head)->qlh_first = NULL;					\
 } while (0)
 
+#define ql_empty(a_head) ((a_head)->qlh_first == NULL)
+
 #define ql_elm_new(a_elm, a_field) qr_new((a_elm), a_field)
 
 #define ql_first(a_head) ((a_head)->qlh_first)

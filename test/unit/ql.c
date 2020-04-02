@@ -18,6 +18,7 @@ test_empty_list(list_head_t *head) {
 	list_t *t;
 	unsigned i;
 
+	expect_true(ql_empty(head), "Unexpected element for empty list");
 	expect_ptr_null(ql_first(head), "Unexpected element for empty list");
 	expect_ptr_null(ql_last(head, link),
 	    "Unexpected element for empty list");
@@ -58,6 +59,7 @@ test_entries_list(list_head_t *head, list_t *entries, unsigned nentries) {
 	list_t *t;
 	unsigned i;
 
+	expect_false(ql_empty(head), "List should not be empty");
 	expect_c_eq(ql_first(head)->id, entries[0].id, "Element id mismatch");
 	expect_c_eq(ql_last(head, link)->id, entries[nentries-1].id,
 	    "Element id mismatch");
