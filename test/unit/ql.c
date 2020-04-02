@@ -282,6 +282,26 @@ TEST_BEGIN(test_ql_rotate) {
 }
 TEST_END
 
+TEST_BEGIN(test_ql_move) {
+	list_head_t head_dest, head_src;
+	list_t entries[NENTRIES];
+	unsigned i;
+
+	ql_new(&head_src);
+	ql_move(&head_dest, &head_src);
+	test_empty_list(&head_src);
+	test_empty_list(&head_dest);
+
+	init_entries(entries, sizeof(entries)/sizeof(list_t));
+	for (i = 0; i < NENTRIES; i++) {
+		ql_tail_insert(&head_src, &entries[i], link);
+	}
+	ql_move(&head_dest, &head_src);
+	test_empty_list(&head_src);
+	test_entries_list(&head_dest, entries, NENTRIES);
+}
+TEST_END
+
 int
 main(void) {
 	return test(
@@ -292,5 +312,6 @@ main(void) {
 	    test_ql_head_remove,
 	    test_ql_insert,
 	    test_ql_concat_split,
-	    test_ql_rotate);
+	    test_ql_rotate,
+	    test_ql_move);
 }
