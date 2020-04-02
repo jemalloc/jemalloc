@@ -58,6 +58,16 @@ struct {								\
 	ql_first(a_head) = qr_next((a_elm), a_field);			\
 } while (0)
 
+#define ql_concat(a_head_a, a_head_b, a_field) do {			\
+	if (ql_first(a_head_a) == NULL) {				\
+		ql_first(a_head_a) = ql_first(a_head_b);		\
+	} else if (ql_first(a_head_b) != NULL) {			\
+		qr_meld(ql_first(a_head_a), ql_first(a_head_b),		\
+		    a_field);						\
+	}								\
+	ql_first(a_head_b) = NULL;					\
+} while (0)
+
 #define ql_remove(a_head, a_elm, a_field) do {				\
 	if (ql_first(a_head) == (a_elm)) {				\
 		ql_first(a_head) = qr_next(ql_first(a_head), a_field);	\
@@ -77,6 +87,15 @@ struct {								\
 #define ql_tail_remove(a_head, a_type, a_field) do {			\
 	a_type *t = ql_last(a_head, a_field);				\
 	ql_remove((a_head), t, a_field);				\
+} while (0)
+
+#define ql_split(a_head_a, a_elm, a_head_b, a_field) do {		\
+	if (ql_first(a_head_a) == (a_elm)) {				\
+		ql_first(a_head_a) = NULL;				\
+	} else {							\
+		qr_split(ql_first(a_head_a), (a_elm), a_field);		\
+	}								\
+	ql_first(a_head_b) = (a_elm);					\
 } while (0)
 
 #define ql_foreach(a_var, a_head, a_field)				\

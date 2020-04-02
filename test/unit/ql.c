@@ -192,6 +192,72 @@ TEST_BEGIN(test_ql_insert) {
 }
 TEST_END
 
+static void
+test_concat_split_entries(list_t *entries, unsigned nentries_a,
+    unsigned nentries_b) {
+	init_entries(entries, nentries_a + nentries_b);
+
+	list_head_t head_a;
+	ql_new(&head_a);
+	for (unsigned i = 0; i < nentries_a; i++) {
+		ql_tail_insert(&head_a, &entries[i], link);
+	}
+	if (nentries_a == 0) {
+		test_empty_list(&head_a);
+	} else {
+		test_entries_list(&head_a, entries, nentries_a);
+	}
+
+	list_head_t head_b;
+	ql_new(&head_b);
+	for (unsigned i = 0; i < nentries_b; i++) {
+		ql_tail_insert(&head_b, &entries[nentries_a + i], link);
+	}
+	if (nentries_b == 0) {
+		test_empty_list(&head_b);
+	} else {
+		test_entries_list(&head_b, entries + nentries_a, nentries_b);
+	}
+
+	ql_concat(&head_a, &head_b, link);
+	if (nentries_a + nentries_b == 0) {
+		test_empty_list(&head_a);
+	} else {
+		test_entries_list(&head_a, entries, nentries_a + nentries_b);
+	}
+	test_empty_list(&head_b);
+
+	if (nentries_b == 0) {
+		return;
+	}
+
+	list_head_t head_c;
+	ql_split(&head_a, &entries[nentries_a], &head_c, link);
+	if (nentries_a == 0) {
+		test_empty_list(&head_a);
+	} else {
+		test_entries_list(&head_a, entries, nentries_a);
+	}
+	test_entries_list(&head_c, entries + nentries_a, nentries_b);
+}
+
+TEST_BEGIN(test_ql_concat_split) {
+	list_t entries[NENTRIES];
+
+	test_concat_split_entries(entries, 0, 0);
+
+	test_concat_split_entries(entries, 0, 1);
+	test_concat_split_entries(entries, 1, 0);
+
+	test_concat_split_entries(entries, 0, NENTRIES);
+	test_concat_split_entries(entries, 1, NENTRIES - 1);
+	test_concat_split_entries(entries, NENTRIES / 2,
+	    NENTRIES - NENTRIES / 2);
+	test_concat_split_entries(entries, NENTRIES - 1, 1);
+	test_concat_split_entries(entries, NENTRIES, 0);
+}
+TEST_END
+
 int
 main(void) {
 	return test(
@@ -200,5 +266,6 @@ main(void) {
 	    test_ql_tail_remove,
 	    test_ql_head_insert,
 	    test_ql_head_remove,
-	    test_ql_insert);
+	    test_ql_insert,
+	    test_ql_concat_split);
 }
