@@ -172,8 +172,7 @@ TEST_BEGIN(test_prof_recent_alloc) {
 		if (i < OPT_ALLOC_MAX - 1) {
 			malloc_mutex_lock(tsd_tsdn(tsd),
 			    &prof_recent_alloc_mtx);
-			assert_ptr_ne(prof_recent_alloc_begin(tsd),
-			    prof_recent_alloc_end(tsd),
+			assert_false(ql_empty(&prof_recent_alloc_list),
 			    "Empty recent allocation");
 			malloc_mutex_unlock(tsd_tsdn(tsd),
 			    &prof_recent_alloc_mtx);
@@ -187,9 +186,7 @@ TEST_BEGIN(test_prof_recent_alloc) {
 		}
 		c = 0;
 		malloc_mutex_lock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
-		for (n = prof_recent_alloc_begin(tsd);
-		    n != prof_recent_alloc_end(tsd);
-		    n = prof_recent_alloc_next(tsd, n)) {
+		ql_foreach(n, &prof_recent_alloc_list, link) {
 			++c;
 			confirm_record_size(tsd, n, i + c - OPT_ALLOC_MAX);
 			if (c == OPT_ALLOC_MAX) {
@@ -220,9 +217,7 @@ TEST_BEGIN(test_prof_recent_alloc) {
 		assert_ptr_not_null(p, "malloc failed unexpectedly");
 		c = 0;
 		malloc_mutex_lock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
-		for (n = prof_recent_alloc_begin(tsd);
-		    n != prof_recent_alloc_end(tsd);
-		    n = prof_recent_alloc_next(tsd, n)) {
+		ql_foreach(n, &prof_recent_alloc_list, link) {
 			confirm_record_size(tsd, n, c + OPT_ALLOC_MAX);
 			confirm_record_released(tsd, n);
 			++c;
@@ -251,9 +246,7 @@ TEST_BEGIN(test_prof_recent_alloc) {
 		confirm_malloc(tsd, p);
 		c = 0;
 		malloc_mutex_lock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
-		for (n = prof_recent_alloc_begin(tsd);
-		    n != prof_recent_alloc_end(tsd);
-		    n = prof_recent_alloc_next(tsd, n)) {
+		ql_foreach(n, &prof_recent_alloc_list, link) {
 			++c;
 			confirm_record_size(tsd, n,
 			    /* Is the allocation from the third batch? */
@@ -283,9 +276,7 @@ TEST_BEGIN(test_prof_recent_alloc) {
 	    NULL, NULL, &future, sizeof(ssize_t)), 0, "Write error");
 	c = 0;
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
-	for (n = prof_recent_alloc_begin(tsd);
-	    n != prof_recent_alloc_end(tsd);
-	    n = prof_recent_alloc_next(tsd, n)) {
+	ql_foreach(n, &prof_recent_alloc_list, link) {
 		confirm_record_size(tsd, n, c + 3 * OPT_ALLOC_MAX);
 		confirm_record_released(tsd, n);
 		++c;
@@ -303,9 +294,7 @@ TEST_BEGIN(test_prof_recent_alloc) {
 	    NULL, NULL, &future, sizeof(ssize_t)), 0, "Write error");
 	c = 0;
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
-	for (n = prof_recent_alloc_begin(tsd);
-	    n != prof_recent_alloc_end(tsd);
-	    n = prof_recent_alloc_next(tsd, n)) {
+	ql_foreach(n, &prof_recent_alloc_list, link) {
 		confirm_record_size(tsd, n, c + 3 * OPT_ALLOC_MAX);
 		confirm_record_released(tsd, n);
 		++c;
@@ -323,9 +312,7 @@ TEST_BEGIN(test_prof_recent_alloc) {
 	    NULL, NULL, &future, sizeof(ssize_t)), 0, "Write error");
 	c = 0;
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
-	for (n = prof_recent_alloc_begin(tsd);
-	    n != prof_recent_alloc_end(tsd);
-	    n = prof_recent_alloc_next(tsd, n)) {
+	ql_foreach(n, &prof_recent_alloc_list, link) {
 		++c;
 		confirm_record_size(tsd, n, c + 3 * OPT_ALLOC_MAX);
 		confirm_record_released(tsd, n);
@@ -340,9 +327,7 @@ TEST_BEGIN(test_prof_recent_alloc) {
 	    NULL, NULL, &future, sizeof(ssize_t)), 0, "Write error");
 	c = 0;
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
-	for (n = prof_recent_alloc_begin(tsd);
-	    n != prof_recent_alloc_end(tsd);
-	    n = prof_recent_alloc_next(tsd, n)) {
+	ql_foreach(n, &prof_recent_alloc_list, link) {
 		++c;
 		confirm_record_size(tsd, n, c + 3 * OPT_ALLOC_MAX);
 		confirm_record_released(tsd, n);
@@ -356,13 +341,12 @@ TEST_BEGIN(test_prof_recent_alloc) {
 	assert_d_eq(mallctl("experimental.prof_recent.alloc_max",
 	    NULL, NULL, &future, sizeof(ssize_t)), 0, "Write error");
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
-	n = prof_recent_alloc_begin(tsd);
-	assert_ptr_ne(n, prof_recent_alloc_end(tsd), "Recent list is empty");
+	assert_false(ql_empty(&prof_recent_alloc_list), "Recent list is empty");
+	n = ql_first(&prof_recent_alloc_list);
 	confirm_record_size(tsd, n, 4 * OPT_ALLOC_MAX - 1);
 	confirm_record_released(tsd, n);
-	n = prof_recent_alloc_next(tsd, n);
-	assert_ptr_eq(n, prof_recent_alloc_end(tsd),
-	    "Recent list should be empty");
+	n = ql_next(&prof_recent_alloc_list, n, link);
+	assert_ptr_null(n, "Recent list should only contain one record");
 	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 
 	/* Completely turn off. */
@@ -370,7 +354,7 @@ TEST_BEGIN(test_prof_recent_alloc) {
 	assert_d_eq(mallctl("experimental.prof_recent.alloc_max",
 	    NULL, NULL, &future, sizeof(ssize_t)), 0, "Write error");
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
-	assert_ptr_eq(prof_recent_alloc_begin(tsd), prof_recent_alloc_end(tsd),
+	assert_true(ql_empty(&prof_recent_alloc_list),
 	    "Recent list should be empty");
 	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 
@@ -379,7 +363,7 @@ TEST_BEGIN(test_prof_recent_alloc) {
 	assert_d_eq(mallctl("experimental.prof_recent.alloc_max",
 	    NULL, NULL, &future, sizeof(ssize_t)), 0, "Write error");
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
-	assert_ptr_eq(prof_recent_alloc_begin(tsd), prof_recent_alloc_end(tsd),
+	assert_true(ql_empty(&prof_recent_alloc_list),
 	    "Recent list should be empty");
 	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 

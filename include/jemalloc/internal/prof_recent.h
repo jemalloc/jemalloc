@@ -7,9 +7,8 @@ void prof_recent_alloc_reset(tsd_t *tsd, edata_t *edata);
 bool prof_recent_init();
 void edata_prof_recent_alloc_init(edata_t *edata);
 #ifdef JEMALLOC_JET
-prof_recent_t *prof_recent_alloc_begin(tsd_t *tsd);
-prof_recent_t *prof_recent_alloc_end(tsd_t *tsd);
-prof_recent_t *prof_recent_alloc_next(tsd_t *tsd, prof_recent_t *node);
+typedef ql_head(prof_recent_t) prof_recent_list_t;
+extern prof_recent_list_t prof_recent_alloc_list;
 prof_recent_t *edata_prof_recent_alloc_get(tsd_t *tsd, const edata_t *edata);
 #endif
 
