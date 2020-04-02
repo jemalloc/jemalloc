@@ -258,6 +258,28 @@ TEST_BEGIN(test_ql_concat_split) {
 }
 TEST_END
 
+TEST_BEGIN(test_ql_rotate) {
+	list_head_t head;
+	list_t entries[NENTRIES];
+	unsigned i;
+
+	ql_new(&head);
+	init_entries(entries, sizeof(entries)/sizeof(list_t));
+	for (i = 0; i < NENTRIES; i++) {
+		ql_tail_insert(&head, &entries[i], link);
+	}
+
+	char head_id = ql_first(&head)->id;
+	for (i = 0; i < NENTRIES; i++) {
+		assert_c_eq(ql_first(&head)->id, head_id, "");
+		ql_rotate(&head, link);
+		assert_c_eq(ql_last(&head, link)->id, head_id, "");
+		head_id++;
+	}
+	test_entries_list(&head, entries, NENTRIES);
+}
+TEST_END
+
 int
 main(void) {
 	return test(
@@ -267,5 +289,6 @@ main(void) {
 	    test_ql_head_insert,
 	    test_ql_head_remove,
 	    test_ql_insert,
-	    test_ql_concat_split);
+	    test_ql_concat_split,
+	    test_ql_rotate);
 }

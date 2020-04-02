@@ -98,6 +98,16 @@ struct {								\
 	ql_first(a_head_b) = (a_elm);					\
 } while (0)
 
+/*
+ * An optimized version of:
+ *	a_type *t = ql_first(a_head);
+ *	ql_remove((a_head), t, a_field);
+ *	ql_tail_insert((a_head), t, a_field);
+ */
+#define ql_rotate(a_head, a_field) do {					\
+	ql_first(a_head) = qr_next(ql_first(a_head), a_field);		\
+} while (0)
+
 #define ql_foreach(a_var, a_head, a_field)				\
 	qr_foreach((a_var), ql_first(a_head), a_field)
 
