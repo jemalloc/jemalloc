@@ -8,19 +8,15 @@
 #include "jemalloc/internal/prof_data.h"
 #include "jemalloc/internal/prof_recent.h"
 
-#ifndef JEMALLOC_JET
-#  define STATIC_INLINE_IF_NOT_TEST static inline
-#else
-#  define STATIC_INLINE_IF_NOT_TEST
-#endif
-
-typedef ql_head(prof_recent_t) prof_recent_list_t;
-
 ssize_t opt_prof_recent_alloc_max = PROF_RECENT_ALLOC_MAX_DEFAULT;
 malloc_mutex_t prof_recent_alloc_mtx; /* Protects the fields below */
 static atomic_zd_t prof_recent_alloc_max;
 static ssize_t prof_recent_alloc_count = 0;
-static prof_recent_list_t prof_recent_alloc_list;
+#ifndef JEMALLOC_JET
+typedef ql_head(prof_recent_t) prof_recent_list_t;
+static
+#endif
+prof_recent_list_t prof_recent_alloc_list;
 
 static void
 prof_recent_alloc_max_init() {
@@ -102,7 +98,10 @@ edata_prof_recent_alloc_get_no_lock(const edata_t *edata) {
 	return edata_prof_recent_alloc_get_dont_call_directly(edata);
 }
 
-STATIC_INLINE_IF_NOT_TEST prof_recent_t *
+#ifndef JEMALLOC_JET
+static inline
+#endif
+prof_recent_t *
 edata_prof_recent_alloc_get(tsd_t *tsd, const edata_t *edata) {
 	malloc_mutex_assert_owner(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 	prof_recent_t *recent_alloc =
@@ -201,25 +200,6 @@ prof_recent_alloc_evict_edata(tsd_t *tsd, prof_recent_t *recent) {
 	if (recent->alloc_edata != NULL) {
 		edata_prof_recent_alloc_reset(tsd, recent->alloc_edata, recent);
 	}
-}
-
-STATIC_INLINE_IF_NOT_TEST prof_recent_t *
-prof_recent_alloc_begin(tsd_t *tsd) {
-	malloc_mutex_assert_owner(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
-	return ql_first(&prof_recent_alloc_list);
-}
-
-STATIC_INLINE_IF_NOT_TEST prof_recent_t *
-prof_recent_alloc_end(tsd_t *tsd) {
-	malloc_mutex_assert_owner(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
-	return NULL;
-}
-
-STATIC_INLINE_IF_NOT_TEST prof_recent_t *
-prof_recent_alloc_next(tsd_t *tsd, prof_recent_t *node) {
-	malloc_mutex_assert_owner(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
-	assert(node != NULL);
-	return ql_next(&prof_recent_alloc_list, node, link);
 }
 
 static bool
