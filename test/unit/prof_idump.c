@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/prof_sys.h"
+
 #define TEST_PREFIX "test_prefix"
 
 static bool did_prof_dump_open;

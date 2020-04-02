@@ -87,14 +87,6 @@ uint64_t prof_sample_new_event_wait(tsd_t *tsd);
 uint64_t prof_sample_postponed_event_wait(tsd_t *tsd);
 void prof_sample_event_handler(tsd_t *tsd, uint64_t elapsed);
 
-/* Used by unit tests. */
-typedef int (prof_dump_open_file_t)(const char *, int);
-extern prof_dump_open_file_t *JET_MUTABLE prof_dump_open_file;
-typedef ssize_t (prof_dump_write_file_t)(int, const void *, size_t);
-extern prof_dump_write_file_t *JET_MUTABLE prof_dump_write_file;
-typedef int (prof_dump_open_maps_t)();
-extern prof_dump_open_maps_t *JET_MUTABLE prof_dump_open_maps;
-
 bool prof_log_start(tsdn_t *tsdn, const char *filename);
 bool prof_log_stop(tsdn_t *tsdn);
 

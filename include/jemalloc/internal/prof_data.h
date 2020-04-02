@@ -12,8 +12,8 @@ bool prof_bt_keycomp(const void *k1, const void *k2);
 bool prof_data_init(tsd_t *tsd);
 char *prof_thread_name_alloc(tsd_t *tsd, const char *thread_name);
 int prof_thread_name_set_impl(tsd_t *tsd, const char *thread_name);
-bool prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
-    bool leakcheck);
+void prof_dump_impl(tsd_t *tsd, prof_tdata_t *tdata,
+    void (*write_cb)(const char *), bool leakcheck);
 prof_tdata_t * prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid,
     uint64_t thr_discrim, char *thread_name, bool active);
 void prof_tdata_detach(tsd_t *tsd, prof_tdata_t *tdata);
