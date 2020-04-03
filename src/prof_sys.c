@@ -61,6 +61,15 @@ prof_sys_thread_name_fetch(tsd_t *tsd) {
 #undef THREAD_NAME_MAX_LEN
 }
 
+int
+prof_getpid(void) {
+#ifdef _WIN32
+	return GetCurrentProcessId();
+#else
+	return getpid();
+#endif
+}
+
 static void
 prof_dump_check_possible_error(bool err_cond, const char *format, ...) {
 	assert(!prof_dump_error);

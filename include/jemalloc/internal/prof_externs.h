@@ -3,10 +3,6 @@
 
 #include "jemalloc/internal/mutex.h"
 
-extern malloc_mutex_t bt2gctx_mtx;
-extern malloc_mutex_t tdatas_mtx;
-extern malloc_mutex_t prof_dump_mtx;
-
 extern bool opt_prof;
 extern bool opt_prof_active;
 extern bool opt_prof_thread_active_init;
@@ -26,7 +22,6 @@ extern char opt_prof_prefix[
 
 /* For recording recent allocations */
 extern ssize_t opt_prof_recent_alloc_max;
-extern malloc_mutex_t prof_recent_alloc_mtx;
 
 /* Whether to use thread name provided by the system or by mallctl. */
 extern bool opt_prof_sys_thread_name;
@@ -57,12 +52,10 @@ void prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t size,
     size_t usize, prof_tctx_t *tctx);
 void prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_info_t *prof_info);
 prof_tctx_t *prof_tctx_create(tsd_t *tsd);
-int prof_getpid(void);
 void prof_idump(tsdn_t *tsdn);
 bool prof_mdump(tsd_t *tsd, const char *filename);
 void prof_gdump(tsdn_t *tsdn);
 
-void prof_reset(tsd_t *tsd, size_t lg_sample);
 void prof_tdata_cleanup(tsd_t *tsd);
 bool prof_active_get(tsdn_t *tsdn);
 bool prof_active_set(tsdn_t *tsdn, bool active);
@@ -86,12 +79,5 @@ void prof_postfork_child(tsdn_t *tsdn);
 uint64_t prof_sample_new_event_wait(tsd_t *tsd);
 uint64_t prof_sample_postponed_event_wait(tsd_t *tsd);
 void prof_sample_event_handler(tsd_t *tsd, uint64_t elapsed);
-
-bool prof_log_start(tsdn_t *tsdn, const char *filename);
-bool prof_log_stop(tsdn_t *tsdn);
-
-ssize_t prof_recent_alloc_max_ctl_read();
-ssize_t prof_recent_alloc_max_ctl_write(tsd_t *tsd, ssize_t max);
-void prof_recent_alloc_dump(tsd_t *tsd, write_cb_t *write_cb, void *cbopaque);
 
 #endif /* JEMALLOC_INTERNAL_PROF_EXTERNS_H */

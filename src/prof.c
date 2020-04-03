@@ -78,15 +78,8 @@ uint64_t prof_interval = 0;
 
 size_t lg_prof_sample;
 
-/* Non static to enable profiling. */
-malloc_mutex_t bt2gctx_mtx;
-
-malloc_mutex_t tdatas_mtx;
-
 static uint64_t next_thr_uid;
 static malloc_mutex_t next_thr_uid_mtx;
-
-malloc_mutex_t prof_dump_mtx;
 
 /* Do not dump any profiles until bootstrapping is complete. */
 bool prof_booted = false;
@@ -471,15 +464,6 @@ prof_sample_event_handler(tsd_t *tsd, uint64_t elapsed) {
 	if (counter_accum(tsd_tsdn(tsd), &prof_idump_accumulated, elapsed)) {
 		prof_idump(tsd_tsdn(tsd));
 	}
-}
-
-int
-prof_getpid(void) {
-#ifdef _WIN32
-	return GetCurrentProcessId();
-#else
-	return getpid();
-#endif
 }
 
 static void
