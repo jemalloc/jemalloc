@@ -14,6 +14,7 @@ void prof_bt_hash(const void *key, size_t r_hash[2]);
 bool prof_bt_keycomp(const void *k1, const void *k2);
 
 bool prof_data_init(tsd_t *tsd);
+prof_tctx_t *prof_lookup(tsd_t *tsd, prof_bt_t *bt);
 char *prof_thread_name_alloc(tsd_t *tsd, const char *thread_name);
 int prof_thread_name_set_impl(tsd_t *tsd, const char *thread_name);
 void prof_dump_impl(tsd_t *tsd, prof_tdata_t *tdata,
@@ -21,8 +22,6 @@ void prof_dump_impl(tsd_t *tsd, prof_tdata_t *tdata,
 prof_tdata_t * prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid,
     uint64_t thr_discrim, char *thread_name, bool active);
 void prof_tdata_detach(tsd_t *tsd, prof_tdata_t *tdata);
-void bt_init(prof_bt_t *bt, void **vec);
-void prof_backtrace(tsd_t *tsd, prof_bt_t *bt);
 void prof_reset(tsd_t *tsd, size_t lg_sample);
 void prof_tctx_try_destroy(tsd_t *tsd, prof_tctx_t *tctx);
 
