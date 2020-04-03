@@ -19,23 +19,6 @@
 
 /******************************************************************************/
 
-#ifdef JEMALLOC_PROF_LIBUNWIND
-#define UNW_LOCAL_ONLY
-#include <libunwind.h>
-#endif
-
-#ifdef JEMALLOC_PROF_LIBGCC
-/*
- * We have a circular dependency -- jemalloc_internal.h tells us if we should
- * use libgcc's unwinding functionality, but after we've included that, we've
- * already hooked _Unwind_Backtrace.  We'll temporarily disable hooking.
- */
-#undef _Unwind_Backtrace
-#include <unwind.h>
-#define _Unwind_Backtrace JEMALLOC_HOOK(_Unwind_Backtrace, test_hooks_libc_hook)
-#endif
-
-/******************************************************************************/
 /* Data. */
 
 bool opt_prof = false;
@@ -147,242 +130,21 @@ prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_info_t *prof_info) {
 	prof_tctx_try_destroy(tsd, tctx);
 }
 
-void
-bt_init(prof_bt_t *bt, void **vec) {
-	cassert(config_prof);
-
-	bt->vec = vec;
-	bt->len = 0;
-}
-
-#ifdef JEMALLOC_PROF_LIBUNWIND
-static void
-prof_backtrace_impl(prof_bt_t *bt) {
-	int nframes;
-
-	cassert(config_prof);
-	assert(bt->len == 0);
-	assert(bt->vec != NULL);
-
-	nframes = unw_backtrace(bt->vec, PROF_BT_MAX);
-	if (nframes <= 0) {
-		return;
-	}
-	bt->len = nframes;
-}
-#elif (defined(JEMALLOC_PROF_LIBGCC))
-static _Unwind_Reason_Code
-prof_unwind_init_callback(struct _Unwind_Context *context, void *arg) {
-	cassert(config_prof);
-
-	return _URC_NO_REASON;
-}
-
-static _Unwind_Reason_Code
-prof_unwind_callback(struct _Unwind_Context *context, void *arg) {
-	prof_unwind_data_t *data = (prof_unwind_data_t *)arg;
-	void *ip;
-
-	cassert(config_prof);
-
-	ip = (void *)_Unwind_GetIP(context);
-	if (ip == NULL) {
-		return _URC_END_OF_STACK;
-	}
-	data->bt->vec[data->bt->len] = ip;
-	data->bt->len++;
-	if (data->bt->len == data->max) {
-		return _URC_END_OF_STACK;
+prof_tctx_t *
+prof_tctx_create(tsd_t *tsd) {
+	if (!tsd_nominal(tsd) || tsd_reentrancy_level_get(tsd) > 0) {
+		return NULL;
 	}
 
-	return _URC_NO_REASON;
-}
-
-static void
-prof_backtrace_impl(prof_bt_t *bt) {
-	prof_unwind_data_t data = {bt, PROF_BT_MAX};
-
-	cassert(config_prof);
-
-	_Unwind_Backtrace(prof_unwind_callback, &data);
-}
-#elif (defined(JEMALLOC_PROF_GCC))
-static void
-prof_backtrace_impl(prof_bt_t *bt) {
-#define BT_FRAME(i)							\
-	if ((i) < PROF_BT_MAX) {					\
-		void *p;						\
-		if (__builtin_frame_address(i) == 0) {			\
-			return;						\
-		}							\
-		p = __builtin_return_address(i);			\
-		if (p == NULL) {					\
-			return;						\
-		}							\
-		bt->vec[(i)] = p;					\
-		bt->len = (i) + 1;					\
-	} else {							\
-		return;							\
+	prof_tdata_t *tdata = prof_tdata_get(tsd, true);
+	if (tdata == NULL) {
+		return NULL;
 	}
 
-	cassert(config_prof);
-
-	BT_FRAME(0)
-	BT_FRAME(1)
-	BT_FRAME(2)
-	BT_FRAME(3)
-	BT_FRAME(4)
-	BT_FRAME(5)
-	BT_FRAME(6)
-	BT_FRAME(7)
-	BT_FRAME(8)
-	BT_FRAME(9)
-
-	BT_FRAME(10)
-	BT_FRAME(11)
-	BT_FRAME(12)
-	BT_FRAME(13)
-	BT_FRAME(14)
-	BT_FRAME(15)
-	BT_FRAME(16)
-	BT_FRAME(17)
-	BT_FRAME(18)
-	BT_FRAME(19)
-
-	BT_FRAME(20)
-	BT_FRAME(21)
-	BT_FRAME(22)
-	BT_FRAME(23)
-	BT_FRAME(24)
-	BT_FRAME(25)
-	BT_FRAME(26)
-	BT_FRAME(27)
-	BT_FRAME(28)
-	BT_FRAME(29)
-
-	BT_FRAME(30)
-	BT_FRAME(31)
-	BT_FRAME(32)
-	BT_FRAME(33)
-	BT_FRAME(34)
-	BT_FRAME(35)
-	BT_FRAME(36)
-	BT_FRAME(37)
-	BT_FRAME(38)
-	BT_FRAME(39)
-
-	BT_FRAME(40)
-	BT_FRAME(41)
-	BT_FRAME(42)
-	BT_FRAME(43)
-	BT_FRAME(44)
-	BT_FRAME(45)
-	BT_FRAME(46)
-	BT_FRAME(47)
-	BT_FRAME(48)
-	BT_FRAME(49)
-
-	BT_FRAME(50)
-	BT_FRAME(51)
-	BT_FRAME(52)
-	BT_FRAME(53)
-	BT_FRAME(54)
-	BT_FRAME(55)
-	BT_FRAME(56)
-	BT_FRAME(57)
-	BT_FRAME(58)
-	BT_FRAME(59)
-
-	BT_FRAME(60)
-	BT_FRAME(61)
-	BT_FRAME(62)
-	BT_FRAME(63)
-	BT_FRAME(64)
-	BT_FRAME(65)
-	BT_FRAME(66)
-	BT_FRAME(67)
-	BT_FRAME(68)
-	BT_FRAME(69)
-
-	BT_FRAME(70)
-	BT_FRAME(71)
-	BT_FRAME(72)
-	BT_FRAME(73)
-	BT_FRAME(74)
-	BT_FRAME(75)
-	BT_FRAME(76)
-	BT_FRAME(77)
-	BT_FRAME(78)
-	BT_FRAME(79)
-
-	BT_FRAME(80)
-	BT_FRAME(81)
-	BT_FRAME(82)
-	BT_FRAME(83)
-	BT_FRAME(84)
-	BT_FRAME(85)
-	BT_FRAME(86)
-	BT_FRAME(87)
-	BT_FRAME(88)
-	BT_FRAME(89)
-
-	BT_FRAME(90)
-	BT_FRAME(91)
-	BT_FRAME(92)
-	BT_FRAME(93)
-	BT_FRAME(94)
-	BT_FRAME(95)
-	BT_FRAME(96)
-	BT_FRAME(97)
-	BT_FRAME(98)
-	BT_FRAME(99)
-
-	BT_FRAME(100)
-	BT_FRAME(101)
-	BT_FRAME(102)
-	BT_FRAME(103)
-	BT_FRAME(104)
-	BT_FRAME(105)
-	BT_FRAME(106)
-	BT_FRAME(107)
-	BT_FRAME(108)
-	BT_FRAME(109)
-
-	BT_FRAME(110)
-	BT_FRAME(111)
-	BT_FRAME(112)
-	BT_FRAME(113)
-	BT_FRAME(114)
-	BT_FRAME(115)
-	BT_FRAME(116)
-	BT_FRAME(117)
-	BT_FRAME(118)
-	BT_FRAME(119)
-
-	BT_FRAME(120)
-	BT_FRAME(121)
-	BT_FRAME(122)
-	BT_FRAME(123)
-	BT_FRAME(124)
-	BT_FRAME(125)
-	BT_FRAME(126)
-	BT_FRAME(127)
-#undef BT_FRAME
-}
-#else
-static void
-prof_backtrace_impl(prof_bt_t *bt) {
-	cassert(config_prof);
-	not_reached();
-}
-#endif
-
-void
-prof_backtrace(tsd_t *tsd, prof_bt_t *bt) {
-	cassert(config_prof);
-	pre_reentrancy(tsd, NULL);
-	prof_backtrace_impl(bt);
-	post_reentrancy(tsd);
+	prof_bt_t bt;
+	bt_init(&bt, tdata->vec);
+	prof_backtrace(tsd, &bt);
+	return prof_lookup(tsd, &bt);
 }
 
 /*
@@ -852,13 +614,8 @@ prof_boot2(tsd_t *tsd, base_t *base) {
 				return true;
 			}
 		}
-#ifdef JEMALLOC_PROF_LIBGCC
-		/*
-		 * Cause the backtracing machinery to allocate its internal
-		 * state before enabling profiling.
-		 */
-		_Unwind_Backtrace(prof_unwind_init_callback, NULL);
-#endif
+
+		prof_unwind_init();
 	}
 	prof_booted = true;
 

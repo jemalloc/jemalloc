@@ -322,7 +322,7 @@ prof_lookup_global(tsd_t *tsd, prof_bt_t *bt, prof_tdata_t *tdata,
 	return false;
 }
 
-static prof_tctx_t *
+prof_tctx_t *
 prof_lookup(tsd_t *tsd, prof_bt_t *bt) {
 	union {
 		prof_tctx_t	*p;
@@ -393,23 +393,6 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt) {
 	}
 
 	return ret.p;
-}
-
-prof_tctx_t *
-prof_tctx_create(tsd_t *tsd) {
-	if (!tsd_nominal(tsd) || tsd_reentrancy_level_get(tsd) > 0) {
-		return NULL;
-	}
-
-	prof_tdata_t *tdata = prof_tdata_get(tsd, true);
-	if (tdata == NULL) {
-		return NULL;
-	}
-
-	prof_bt_t bt;
-	bt_init(&bt, tdata->vec);
-	prof_backtrace(tsd, &bt);
-	return prof_lookup(tsd, &bt);
 }
 
 /* Used in unit tests. */
