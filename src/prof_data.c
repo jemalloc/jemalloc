@@ -25,6 +25,10 @@
 
 /******************************************************************************/
 
+malloc_mutex_t bt2gctx_mtx;
+malloc_mutex_t tdatas_mtx;
+malloc_mutex_t prof_dump_mtx;
+
 /*
  * Table of mutexes that are shared among gctx's.  These are leaf locks, so
  * there is no problem with using them for more than one gctx at the same time.

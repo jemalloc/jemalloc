@@ -3,6 +3,10 @@
 
 #include "jemalloc/internal/mutex.h"
 
+extern malloc_mutex_t bt2gctx_mtx;
+extern malloc_mutex_t tdatas_mtx;
+extern malloc_mutex_t prof_dump_mtx;
+
 extern malloc_mutex_t *gctx_locks;
 extern malloc_mutex_t *tdata_locks;
 
@@ -19,6 +23,7 @@ prof_tdata_t * prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid,
 void prof_tdata_detach(tsd_t *tsd, prof_tdata_t *tdata);
 void bt_init(prof_bt_t *bt, void **vec);
 void prof_backtrace(tsd_t *tsd, prof_bt_t *bt);
+void prof_reset(tsd_t *tsd, size_t lg_sample);
 void prof_tctx_try_destroy(tsd_t *tsd, prof_tctx_t *tctx);
 
 /* Used in unit tests. */

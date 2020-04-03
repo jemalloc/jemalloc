@@ -16,4 +16,7 @@ bool prof_log_is_logging(void);
 bool prof_log_rep_check(void);
 void prof_log_dummy_set(bool new_value);
 
+bool prof_log_start(tsdn_t *tsdn, const char *filename);
+bool prof_log_stop(tsdn_t *tsdn);
+
 #endif /* JEMALLOC_INTERNAL_PROF_LOG_H */
