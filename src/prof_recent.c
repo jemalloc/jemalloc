@@ -93,15 +93,15 @@ edata_prof_recent_alloc_init(edata_t *edata) {
 	edata_prof_recent_alloc_set_dont_call_directly(edata, NULL);
 }
 
-static inline prof_recent_t *
-edata_prof_recent_alloc_get_no_lock(const edata_t *edata) {
-	return edata_prof_recent_alloc_get_dont_call_directly(edata);
-}
-
 #ifndef JEMALLOC_JET
 static inline
 #endif
 prof_recent_t *
+edata_prof_recent_alloc_get_no_lock(const edata_t *edata) {
+	return edata_prof_recent_alloc_get_dont_call_directly(edata);
+}
+
+static inline prof_recent_t *
 edata_prof_recent_alloc_get(tsd_t *tsd, const edata_t *edata) {
 	malloc_mutex_assert_owner(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 	prof_recent_t *recent_alloc =
