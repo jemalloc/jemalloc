@@ -51,6 +51,8 @@ typedef void (*test_callback_t)(int *);
 #  define MALLOC_TEST_TSD_INITIALIZER
 #endif
 
+typedef ql_elm(tsd_t) tsd_link_t;
+
 /*  O(name,			type,			nullable type) */
 #define TSD_DATA_SLOW							\
     O(tcache_enabled,		bool,			bool)		\
@@ -72,7 +74,9 @@ typedef void (*test_callback_t)(int *);
     O(iarena,			arena_t *,		arena_t *)	\
     O(arena,			arena_t *,		arena_t *)	\
     O(arenas_tdata,		arena_tdata_t *,	arena_tdata_t *)\
-    O(binshards,		tsd_binshards_t,	tsd_binshards_t)
+    O(binshards,		tsd_binshards_t,	tsd_binshards_t)\
+    O(tsd_link,			tsd_link_t,		tsd_link_t)	\
+    O(in_hook,			bool,			bool)
 
 #define TSD_DATA_SLOW_INITIALIZER					\
     /* tcache_enabled */	TCACHE_ENABLED_ZERO_INITIALIZER,	\
@@ -94,7 +98,9 @@ typedef void (*test_callback_t)(int *);
     /* iarena */		NULL,					\
     /* arena */			NULL,					\
     /* arenas_tdata */		NULL,					\
-    /* binshards */		TSD_BINSHARDS_ZERO_INITIALIZER,
+    /* binshards */		TSD_BINSHARDS_ZERO_INITIALIZER,		\
+    /* tsd_link */		{NULL},					\
+    /* in_hook */		false,
 
 /*  O(name,			type,			nullable type) */
 #define TSD_DATA_FAST							\

@@ -7,9 +7,6 @@
 #include "jemalloc/internal/ticker.h"
 #include "jemalloc/internal/tsd_types.h"
 
-/* Various uses of this struct need it to be a named type. */
-typedef ql_elm(tsd_t) tsd_link_t;
-
 struct tcache_s {
 	/*
 	 * To minimize our cache-footprint, we put the frequently accessed data
@@ -29,10 +26,6 @@ struct tcache_s {
 	 */
 	/* Lets us track all the tcaches in an arena. */
 	ql_elm(tcache_t) link;
-
-	/* Logically scoped to tsd, but put here for cache layout reasons. */
-	ql_elm(tsd_t) tsd_link;
-	bool in_hook;
 
 	/*
 	 * The descriptor lets the arena find our cache bins without seeing the
