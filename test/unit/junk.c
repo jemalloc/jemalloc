@@ -185,7 +185,11 @@ int
 main(void) {
 	junk_alloc_callback = &test_junk;
 	junk_free_callback = &test_junk;
-	return test(
+	/*
+	 * We check the last pointer junked.  If a reentrant call happens, that
+	 * might be an internal allocation.
+	 */
+	return test_no_reentrancy(
 	    test_junk_alloc_free,
 	    test_realloc_expand);
 }
