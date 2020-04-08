@@ -103,7 +103,11 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 	void *ret;
 
 	assert(tcache->arena != NULL);
-	arena_tcache_fill_small(tsdn, arena, tcache, tbin, binind);
+	unsigned nfill = cache_bin_info_ncached_max(&tcache_bin_info[binind])
+	    >> tcache->lg_fill_div[binind];
+	arena_cache_bin_fill_small(tsdn, arena, tbin, &tcache_bin_info[binind],
+	    binind, nfill);
+	tcache->bin_refilled[binind] = true;
 	ret = cache_bin_alloc(tbin, tcache_success);
 
 	return ret;
