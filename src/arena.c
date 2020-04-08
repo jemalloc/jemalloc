@@ -821,17 +821,15 @@ arena_bin_choose_lock(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 }
 
 void
-arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
-    cache_bin_t *tbin, szind_t binind) {
-	assert(cache_bin_ncached_get(tbin, &tcache_bin_info[binind]) == 0);
-	tcache->bin_refilled[binind] = true;
+arena_cache_bin_fill_small(tsdn_t *tsdn, arena_t *arena,
+    cache_bin_t *cache_bin, cache_bin_info_t *cache_bin_info, szind_t binind,
+    const unsigned nfill) {
+	assert(cache_bin_ncached_get(cache_bin, cache_bin_info) == 0);
 
 	const bin_info_t *bin_info = &bin_infos[binind];
-	const unsigned nfill = cache_bin_info_ncached_max(
-	    &tcache_bin_info[binind]) >> tcache->lg_fill_div[binind];
 
 	CACHE_BIN_PTR_ARRAY_DECLARE(ptrs, nfill);
-	cache_bin_init_ptr_array_for_fill(tbin, &tcache_bin_info[binind], &ptrs,
+	cache_bin_init_ptr_array_for_fill(cache_bin, cache_bin_info, &ptrs,
 	    nfill);
 	/*
 	 * Bin-local resources are used first: 1) bin->slabcur, and 2) nonfull
@@ -915,10 +913,10 @@ label_refill:
 
 	if (config_stats && !alloc_and_retry) {
 		bin->stats.nmalloc += filled;
-		bin->stats.nrequests += tbin->tstats.nrequests;
+		bin->stats.nrequests += cache_bin->tstats.nrequests;
 		bin->stats.curregs += filled;
 		bin->stats.nfills++;
-		tbin->tstats.nrequests = 0;
+		cache_bin->tstats.nrequests = 0;
 	}
 	malloc_mutex_unlock(tsdn, &bin->lock);
 
@@ -944,7 +942,7 @@ label_refill:
 		fresh_slab = NULL;
 	}
 
-	cache_bin_finish_fill(tbin, &tcache_bin_info[binind], &ptrs, filled);
+	cache_bin_finish_fill(cache_bin, cache_bin_info, &ptrs, filled);
 	arena_decay_tick(tsdn, arena);
 }
 

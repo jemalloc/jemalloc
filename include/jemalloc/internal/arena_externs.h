@@ -48,8 +48,9 @@ void arena_decay(tsdn_t *tsdn, arena_t *arena, bool is_background_thread,
     bool all);
 void arena_reset(tsd_t *tsd, arena_t *arena);
 void arena_destroy(tsd_t *tsd, arena_t *arena);
-void arena_tcache_fill_small(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
-    cache_bin_t *tbin, szind_t binind);
+void arena_cache_bin_fill_small(tsdn_t *tsdn, arena_t *arena,
+    cache_bin_t *cache_bin, cache_bin_info_t *cache_bin_info, szind_t binind,
+    const unsigned nfill);
 
 void *arena_malloc_hard(tsdn_t *tsdn, arena_t *arena, size_t size,
     szind_t ind, bool zero);
