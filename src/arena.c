@@ -1690,15 +1690,16 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	if (config_stats) {
 		ql_new(&arena->tcache_ql);
 		ql_new(&arena->cache_bin_array_descriptor_ql);
-		tcache_t *tcache = tcache_get(tsdn_tsd(tsdn));
-		if (tcache != NULL && tcache->arena == arena) {
-			ql_elm_new(tcache, link);
-			ql_tail_insert(&arena->tcache_ql, tcache, link);
+		tcache_slow_t *tcache_slow = tcache_slow_get(tsdn_tsd(tsdn));
+		if (tcache_slow != NULL && tcache_slow->arena == arena) {
+			tcache_t *tcache = tcache_slow->tcache;
+			ql_elm_new(tcache_slow, link);
+			ql_tail_insert(&arena->tcache_ql, tcache_slow, link);
 			cache_bin_array_descriptor_init(
-			    &tcache->cache_bin_array_descriptor,
+			    &tcache_slow->cache_bin_array_descriptor,
 			    tcache->bins_small, tcache->bins_large);
 			ql_tail_insert(&arena->cache_bin_array_descriptor_ql,
-			    &tcache->cache_bin_array_descriptor, link);
+			    &tcache_slow->cache_bin_array_descriptor, link);
 		}
 	}
 

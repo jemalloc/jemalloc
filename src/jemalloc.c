@@ -717,11 +717,13 @@ stats_print_atexit(void) {
 		for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
 			arena_t *arena = arena_get(tsdn, i, false);
 			if (arena != NULL) {
-				tcache_t *tcache;
+				tcache_slow_t *tcache_slow;
 
 				malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
-				ql_foreach(tcache, &arena->tcache_ql, link) {
-					tcache_stats_merge(tsdn, tcache, arena);
+				ql_foreach(tcache_slow, &arena->tcache_ql,
+				    link) {
+					tcache_stats_merge(tsdn,
+					    tcache_slow->tcache, arena);
 				}
 				malloc_mutex_unlock(tsdn,
 				    &arena->tcache_ql_mtx);

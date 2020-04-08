@@ -50,7 +50,8 @@ tcache_gc_event(tsd_t *tsd) {
 	assert(TCACHE_GC_INCR_BYTES > 0);
 	tcache_t *tcache = tcache_get(tsd);
 	if (tcache != NULL) {
-		tcache_event_hard(tsd, tcache);
+		tcache_slow_t *tcache_slow = tsd_tcache_slowp_get(tsd);
+		tcache_event_hard(tsd, tcache_slow, tcache);
 	}
 }
 

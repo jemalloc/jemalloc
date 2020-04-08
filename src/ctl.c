@@ -1864,7 +1864,8 @@ thread_arena_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 		arena_migrate(tsd, oldind, newind);
 		if (tcache_available(tsd)) {
 			tcache_arena_reassociate(tsd_tsdn(tsd),
-			    tsd_tcachep_get(tsd), newarena);
+			    tsd_tcache_slowp_get(tsd), tsd_tcachep_get(tsd),
+			    newarena);
 		}
 	}
 

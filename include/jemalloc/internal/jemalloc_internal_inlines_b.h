@@ -19,8 +19,10 @@ percpu_arena_update(tsd_t *tsd, unsigned cpu) {
 		arena_migrate(tsd, oldind, newind);
 		tcache_t *tcache = tcache_get(tsd);
 		if (tcache != NULL) {
-			tcache_arena_reassociate(tsd_tsdn(tsd), tcache,
-			    newarena);
+			tcache_slow_t *tcache_slow = tsd_tcache_slowp_get(tsd);
+			tcache_t *tcache = tsd_tcachep_get(tsd);
+			tcache_arena_reassociate(tsd_tsdn(tsd), tcache_slow,
+			    tcache, newarena);
 		}
 	}
 }
@@ -45,18 +47,19 @@ arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
 		ret = arena_choose_hard(tsd, internal);
 		assert(ret);
 		if (tcache_available(tsd)) {
-			tcache_t *tcache = tcache_get(tsd);
-			if (tcache->arena != NULL) {
+			tcache_slow_t *tcache_slow = tsd_tcache_slowp_get(tsd);
+			tcache_t *tcache = tsd_tcachep_get(tsd);
+			if (tcache_slow->arena != NULL) {
 				/* See comments in tsd_tcache_data_init().*/
-				assert(tcache->arena ==
+				assert(tcache_slow->arena ==
 				    arena_get(tsd_tsdn(tsd), 0, false));
-				if (tcache->arena != ret) {
+				if (tcache_slow->arena != ret) {
 					tcache_arena_reassociate(tsd_tsdn(tsd),
-					    tcache, ret);
+					    tcache_slow, tcache, ret);
 				}
 			} else {
-				tcache_arena_associate(tsd_tsdn(tsd), tcache,
-				    ret);
+				tcache_arena_associate(tsd_tsdn(tsd),
+				    tcache_slow, tcache, ret);
 			}
 		}
 	}

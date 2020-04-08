@@ -76,7 +76,8 @@ typedef ql_elm(tsd_t) tsd_link_t;
     O(arenas_tdata,		arena_tdata_t *,	arena_tdata_t *)\
     O(binshards,		tsd_binshards_t,	tsd_binshards_t)\
     O(tsd_link,			tsd_link_t,		tsd_link_t)	\
-    O(in_hook,			bool,			bool)
+    O(in_hook,			bool,			bool)		\
+    O(tcache_slow,		tcache_slow_t,		tcache_slow_t)
 
 #define TSD_DATA_SLOW_INITIALIZER					\
     /* tcache_enabled */	TCACHE_ENABLED_ZERO_INITIALIZER,	\
@@ -100,7 +101,8 @@ typedef ql_elm(tsd_t) tsd_link_t;
     /* arenas_tdata */		NULL,					\
     /* binshards */		TSD_BINSHARDS_ZERO_INITIALIZER,		\
     /* tsd_link */		{NULL},					\
-    /* in_hook */		false,
+    /* in_hook */		false,					\
+    /* tcache_slow */		TCACHE_SLOW_ZERO_INITIALIZER,
 
 /*  O(name,			type,			nullable type) */
 #define TSD_DATA_FAST							\

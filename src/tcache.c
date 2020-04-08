@@ -41,8 +41,8 @@ tcache_salloc(tsdn_t *tsdn, const void *ptr) {
 }
 
 void
-tcache_event_hard(tsd_t *tsd, tcache_t *tcache) {
-	szind_t binind = tcache->next_gc_bin;
+tcache_event_hard(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache) {
+	szind_t binind = tcache_slow->next_gc_bin;
 	cache_bin_t *tbin;
 	bool is_small;
 	if (binind < SC_NBINS) {
@@ -62,7 +62,7 @@ tcache_event_hard(tsd_t *tsd, tcache_t *tcache) {
 		 * Flush (ceiling) 3/4 of the objects below the low water mark.
 		 */
 		if (is_small) {
-			assert(!tcache->bin_refilled[binind]);
+			assert(!tcache_slow->bin_refilled[binind]);
 			tcache_bin_flush_small(tsd, tcache, tbin, binind,
 			    ncached - low_water + (low_water >> 2));
 			/*
@@ -71,43 +71,45 @@ tcache_event_hard(tsd_t *tsd, tcache_t *tcache) {
 			 */
 			if ((cache_bin_info_ncached_max(
 			    &tcache_bin_info[binind]) >>
-			    (tcache->lg_fill_div[binind] + 1)) >= 1) {
-				tcache->lg_fill_div[binind]++;
+			    (tcache_slow->lg_fill_div[binind] + 1)) >= 1) {
+				tcache_slow->lg_fill_div[binind]++;
 			}
 		} else {
 			tcache_bin_flush_large(tsd, tcache, tbin, binind,
 			     ncached - low_water + (low_water >> 2));
 		}
-	} else if (is_small && tcache->bin_refilled[binind]) {
+	} else if (is_small && tcache_slow->bin_refilled[binind]) {
 		assert(low_water == 0);
 		/*
 		 * Increase fill count by 2X for small bins.  Make sure
 		 * lg_fill_div stays greater than 0.
 		 */
-		if (tcache->lg_fill_div[binind] > 1) {
-			tcache->lg_fill_div[binind]--;
+		if (tcache_slow->lg_fill_div[binind] > 1) {
+			tcache_slow->lg_fill_div[binind]--;
 		}
-		tcache->bin_refilled[binind] = false;
+		tcache_slow->bin_refilled[binind] = false;
 	}
 	cache_bin_low_water_set(tbin);
 
-	tcache->next_gc_bin++;
-	if (tcache->next_gc_bin == nhbins) {
-		tcache->next_gc_bin = 0;
+	tcache_slow->next_gc_bin++;
+	if (tcache_slow->next_gc_bin == nhbins) {
+		tcache_slow->next_gc_bin = 0;
 	}
 }
 
 void *
-tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
-    cache_bin_t *tbin, szind_t binind, bool *tcache_success) {
+tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena,
+    tcache_t *tcache, cache_bin_t *tbin, szind_t binind,
+    bool *tcache_success) {
+	tcache_slow_t *tcache_slow = tcache->tcache_slow;
 	void *ret;
 
-	assert(tcache->arena != NULL);
+	assert(tcache_slow->arena != NULL);
 	unsigned nfill = cache_bin_info_ncached_max(&tcache_bin_info[binind])
-	    >> tcache->lg_fill_div[binind];
+	    >> tcache_slow->lg_fill_div[binind];
 	arena_cache_bin_fill_small(tsdn, arena, tbin, &tcache_bin_info[binind],
 	    binind, nfill);
-	tcache->bin_refilled[binind] = true;
+	tcache_slow->bin_refilled[binind] = true;
 	ret = cache_bin_alloc(tbin, tcache_success);
 
 	return ret;
@@ -154,6 +156,7 @@ tcache_bin_flush_match(edata_t *edata, unsigned cur_arena_ind,
 JEMALLOC_ALWAYS_INLINE void
 tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
     szind_t binind, unsigned rem, bool small) {
+	tcache_slow_t *tcache_slow = tcache->tcache_slow;
 	/*
 	 * A couple lookup calls take tsdn; declare it once for convenience
 	 * instead of calling tsd_tsdn(tsd) all the time.
@@ -168,7 +171,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 	cache_bin_sz_t ncached = cache_bin_ncached_get(tbin,
 	    &tcache_bin_info[binind]);
 	assert((cache_bin_sz_t)rem <= ncached);
-	arena_t *tcache_arena = tcache->arena;
+	arena_t *tcache_arena = tcache_slow->arena;
 	assert(tcache_arena != NULL);
 
 	unsigned nflush = ncached - rem;
@@ -361,57 +364,60 @@ tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 }
 
 void
-tcache_arena_associate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
-	assert(tcache->arena == NULL);
-	tcache->arena = arena;
+tcache_arena_associate(tsdn_t *tsdn, tcache_slow_t *tcache_slow,
+    tcache_t *tcache, arena_t *arena) {
+	assert(tcache_slow->arena == NULL);
+	tcache_slow->arena = arena;
 
 	if (config_stats) {
 		/* Link into list of extant tcaches. */
 		malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
 
-		ql_elm_new(tcache, link);
-		ql_tail_insert(&arena->tcache_ql, tcache, link);
+		ql_elm_new(tcache_slow, link);
+		ql_tail_insert(&arena->tcache_ql, tcache_slow, link);
 		cache_bin_array_descriptor_init(
-		    &tcache->cache_bin_array_descriptor, tcache->bins_small,
-		    tcache->bins_large);
+		    &tcache_slow->cache_bin_array_descriptor,
+		    tcache->bins_small, tcache->bins_large);
 		ql_tail_insert(&arena->cache_bin_array_descriptor_ql,
-		    &tcache->cache_bin_array_descriptor, link);
+		    &tcache_slow->cache_bin_array_descriptor, link);
 
 		malloc_mutex_unlock(tsdn, &arena->tcache_ql_mtx);
 	}
 }
 
 static void
-tcache_arena_dissociate(tsdn_t *tsdn, tcache_t *tcache) {
-	arena_t *arena = tcache->arena;
+tcache_arena_dissociate(tsdn_t *tsdn, tcache_slow_t *tcache_slow,
+    tcache_t *tcache) {
+	arena_t *arena = tcache_slow->arena;
 	assert(arena != NULL);
 	if (config_stats) {
 		/* Unlink from list of extant tcaches. */
 		malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
 		if (config_debug) {
 			bool in_ql = false;
-			tcache_t *iter;
+			tcache_slow_t *iter;
 			ql_foreach(iter, &arena->tcache_ql, link) {
-				if (iter == tcache) {
+				if (iter == tcache_slow) {
 					in_ql = true;
 					break;
 				}
 			}
 			assert(in_ql);
 		}
-		ql_remove(&arena->tcache_ql, tcache, link);
+		ql_remove(&arena->tcache_ql, tcache_slow, link);
 		ql_remove(&arena->cache_bin_array_descriptor_ql,
-		    &tcache->cache_bin_array_descriptor, link);
-		tcache_stats_merge(tsdn, tcache, arena);
+		    &tcache_slow->cache_bin_array_descriptor, link);
+		tcache_stats_merge(tsdn, tcache_slow->tcache, arena);
 		malloc_mutex_unlock(tsdn, &arena->tcache_ql_mtx);
 	}
-	tcache->arena = NULL;
+	tcache_slow->arena = NULL;
 }
 
 void
-tcache_arena_reassociate(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
-	tcache_arena_dissociate(tsdn, tcache);
-	tcache_arena_associate(tsdn, tcache, arena);
+tcache_arena_reassociate(tsdn_t *tsdn, tcache_slow_t *tcache_slow,
+    tcache_t *tcache, arena_t *arena) {
+	tcache_arena_dissociate(tsdn, tcache_slow, tcache);
+	tcache_arena_associate(tsdn, tcache_slow, tcache, arena);
 }
 
 bool
@@ -429,11 +435,15 @@ tsd_tcache_enabled_data_init(tsd_t *tsd) {
 }
 
 static void
-tcache_init(tsd_t *tsd, tcache_t *tcache, void *mem) {
-	memset(&tcache->link, 0, sizeof(ql_elm(tcache_t)));
-	tcache->next_gc_bin = 0;
-	tcache->arena = NULL;
-	tcache->dyn_alloc = mem;
+tcache_init(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
+    void *mem) {
+	tcache->tcache_slow = tcache_slow;
+	tcache_slow->tcache = tcache;
+
+	memset(&tcache_slow->link, 0, sizeof(ql_elm(tcache_t)));
+	tcache_slow->next_gc_bin = 0;
+	tcache_slow->arena = NULL;
+	tcache_slow->dyn_alloc = mem;
 
 	assert((TCACHE_NSLOTS_SMALL_MAX & 1U) == 0);
 	memset(tcache->bins_small, 0, sizeof(cache_bin_t) * SC_NBINS);
@@ -444,8 +454,8 @@ tcache_init(tsd_t *tsd, tcache_t *tcache, void *mem) {
 	cache_bin_preincrement(tcache_bin_info, nhbins, mem,
 	    &cur_offset);
 	for (; i < SC_NBINS; i++) {
-		tcache->lg_fill_div[i] = 1;
-		tcache->bin_refilled[i] = false;
+		tcache_slow->lg_fill_div[i] = 1;
+		tcache_slow->bin_refilled[i] = false;
 		cache_bin_t *bin = tcache_small_bin_get(tcache, i);
 		cache_bin_init(bin, &tcache_bin_info[i], mem,
 		    &cur_offset);
@@ -464,7 +474,9 @@ tcache_init(tsd_t *tsd, tcache_t *tcache, void *mem) {
 /* Initialize auto tcache (embedded in TSD). */
 bool
 tsd_tcache_data_init(tsd_t *tsd) {
+	tcache_slow_t *tcache_slow = tsd_tcache_slowp_get_unsafe(tsd);
 	tcache_t *tcache = tsd_tcachep_get_unsafe(tsd);
+
 	assert(cache_bin_still_zero_initialized(
 	    tcache_small_bin_get(tcache, 0)));
 	size_t alignment = tcache_bin_alloc_alignment;
@@ -476,7 +488,7 @@ tsd_tcache_data_init(tsd_t *tsd) {
 		return true;
 	}
 
-	tcache_init(tsd, tcache, mem);
+	tcache_init(tsd, tcache_slow, tcache, mem);
 	/*
 	 * Initialization is a bit tricky here.  After malloc init is done, all
 	 * threads can rely on arena_choose and associate tcache accordingly.
@@ -485,20 +497,22 @@ tsd_tcache_data_init(tsd_t *tsd) {
 	 * associate its tcache to a0 temporarily, and later on
 	 * arena_choose_hard() will re-associate properly.
 	 */
-	tcache->arena = NULL;
+	tcache_slow->arena = NULL;
 	arena_t *arena;
 	if (!malloc_initialized()) {
 		/* If in initialization, assign to a0. */
 		arena = arena_get(tsd_tsdn(tsd), 0, false);
-		tcache_arena_associate(tsd_tsdn(tsd), tcache, arena);
+		tcache_arena_associate(tsd_tsdn(tsd), tcache_slow, tcache,
+		    arena);
 	} else {
 		arena = arena_choose(tsd, NULL);
 		/* This may happen if thread.tcache.enabled is used. */
-		if (tcache->arena == NULL) {
-			tcache_arena_associate(tsd_tsdn(tsd), tcache, arena);
+		if (tcache_slow->arena == NULL) {
+			tcache_arena_associate(tsd_tsdn(tsd), tcache_slow,
+			    tcache, arena);
 		}
 	}
-	assert(arena == tcache->arena);
+	assert(arena == tcache_slow->arena);
 
 	return false;
 }
@@ -511,7 +525,8 @@ tcache_create_explicit(tsd_t *tsd) {
 	 * the beginning of the whole allocation (for freeing).  The makes sure
 	 * the cache bins have the requested alignment.
 	 */
-	size_t size = tcache_bin_alloc_size + sizeof(tcache_t);
+	size_t size = tcache_bin_alloc_size + sizeof(tcache_t)
+	    + sizeof(tcache_slow_t);
 	/* Naturally align the pointer stacks. */
 	size = PTR_CEILING(size);
 	size = sz_sa2u(size, tcache_bin_alloc_alignment);
@@ -522,16 +537,20 @@ tcache_create_explicit(tsd_t *tsd) {
 		return NULL;
 	}
 	tcache_t *tcache = (void *)((uintptr_t)mem + tcache_bin_alloc_size);
-	tcache_init(tsd, tcache, mem);
+	tcache_slow_t *tcache_slow =
+	    (void *)((uintptr_t)mem + tcache_bin_alloc_size + sizeof(tcache_t));
+	tcache_init(tsd, tcache_slow, tcache, mem);
 
-	tcache_arena_associate(tsd_tsdn(tsd), tcache, arena_ichoose(tsd, NULL));
+	tcache_arena_associate(tsd_tsdn(tsd), tcache_slow, tcache,
+	    arena_ichoose(tsd, NULL));
 
 	return tcache;
 }
 
 static void
 tcache_flush_cache(tsd_t *tsd, tcache_t *tcache) {
-	assert(tcache->arena != NULL);
+	tcache_slow_t *tcache_slow = tcache->tcache_slow;
+	assert(tcache_slow->arena != NULL);
 
 	for (unsigned i = 0; i < SC_NBINS; i++) {
 		cache_bin_t *tbin = tcache_small_bin_get(tcache, i);
@@ -559,15 +578,17 @@ tcache_flush(tsd_t *tsd) {
 
 static void
 tcache_destroy(tsd_t *tsd, tcache_t *tcache, bool tsd_tcache) {
+	tcache_slow_t *tcache_slow = tcache->tcache_slow;
 	tcache_flush_cache(tsd, tcache);
-	arena_t *arena = tcache->arena;
-	tcache_arena_dissociate(tsd_tsdn(tsd), tcache);
+	arena_t *arena = tcache_slow->arena;
+	tcache_arena_dissociate(tsd_tsdn(tsd), tcache_slow, tcache);
 
 	if (tsd_tcache) {
 		cache_bin_t *bin = tcache_small_bin_get(tcache, 0);
 		cache_bin_assert_empty(bin, &tcache_bin_info[0]);
 	}
-	idalloctm(tsd_tsdn(tsd), tcache->dyn_alloc, NULL, NULL, true, true);
+	idalloctm(tsd_tsdn(tsd), tcache_slow->dyn_alloc, NULL, NULL, true,
+	    true);
 
 	/*
 	 * The deallocation and tcache flush above may not trigger decay since
