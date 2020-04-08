@@ -53,7 +53,7 @@ struct arena_s {
 	 *
 	 * Synchronization: tcache_ql_mtx.
 	 */
-	ql_head(tcache_t)			tcache_ql;
+	ql_head(tcache_slow_t)			tcache_ql;
 	ql_head(cache_bin_array_descriptor_t)	cache_bin_array_descriptor_ql;
 	malloc_mutex_t				tcache_ql_mtx;
 

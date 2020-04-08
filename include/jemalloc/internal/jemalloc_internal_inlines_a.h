@@ -129,7 +129,7 @@ tcache_available(tsd_t *tsd) {
 	 */
 	if (likely(tsd_tcache_enabled_get(tsd))) {
 		/* Associated arena == NULL implies tcache init in progress. */
-		assert(tsd_tcachep_get(tsd)->arena == NULL ||
+		assert(tsd_tcache_slowp_get(tsd)->arena == NULL ||
 		    !cache_bin_still_zero_initialized(
 		    tcache_small_bin_get(tsd_tcachep_get(tsd), 0)));
 		return true;
@@ -145,6 +145,15 @@ tcache_get(tsd_t *tsd) {
 	}
 
 	return tsd_tcachep_get(tsd);
+}
+
+JEMALLOC_ALWAYS_INLINE tcache_slow_t *
+tcache_slow_get(tsd_t *tsd) {
+	if (!tcache_available(tsd)) {
+		return NULL;
+	}
+
+	return tsd_tcache_slowp_get(tsd);
 }
 
 static inline void
