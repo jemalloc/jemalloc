@@ -49,19 +49,7 @@ struct tcache_slow_s {
 
 struct tcache_s {
 	tcache_slow_t	*tcache_slow;
-	/*
-	 * The pointer stacks associated with bins follow as a contiguous array.
-	 * During tcache initialization, the avail pointer in each element of
-	 * tbins is initialized to point to the proper offset within this array.
-	 */
-	cache_bin_t	bins_small[SC_NBINS];
-
-	/*
-	 * We put the cache bins for large size classes at the end of the
-	 * struct, since some of them might not get used.  This might end up
-	 * letting us avoid touching an extra page if we don't have to.
-	 */
-	cache_bin_t	bins_large[SC_NSIZES-SC_NBINS];
+	cache_bin_t	bins[SC_NSIZES];
 };
 
 /* Linkage for list of available (previously used) explicit tcache IDs. */

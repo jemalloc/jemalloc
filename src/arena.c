@@ -148,18 +148,11 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
 	cache_bin_array_descriptor_t *descriptor;
 	ql_foreach(descriptor, &arena->cache_bin_array_descriptor_ql, link) {
-		for (szind_t i = 0; i < SC_NBINS; i++) {
-			cache_bin_t *tbin = &descriptor->bins_small[i];
+		for (szind_t i = 0; i < nhbins; i++) {
+			cache_bin_t *cache_bin = &descriptor->bins[i];
 			astats->tcache_bytes +=
-			    cache_bin_ncached_get(tbin,
-				&tcache_bin_info[i]) * sz_index2size(i);
-		}
-		for (szind_t i = 0; i < nhbins - SC_NBINS; i++) {
-			cache_bin_t *tbin = &descriptor->bins_large[i];
-			astats->tcache_bytes +=
-			    cache_bin_ncached_get(tbin,
-			    &tcache_bin_info[i + SC_NBINS])
-			    * sz_index2size(i + SC_NBINS);
+			    cache_bin_ncached_get(cache_bin,
+			    &tcache_bin_info[i]) * sz_index2size(i);
 		}
 	}
 	malloc_mutex_prof_read(tsdn,
@@ -1697,7 +1690,7 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 			ql_tail_insert(&arena->tcache_ql, tcache_slow, link);
 			cache_bin_array_descriptor_init(
 			    &tcache_slow->cache_bin_array_descriptor,
-			    tcache->bins_small, tcache->bins_large);
+			    tcache->bins);
 			ql_tail_insert(&arena->cache_bin_array_descriptor_ql,
 			    &tcache_slow->cache_bin_array_descriptor, link);
 		}

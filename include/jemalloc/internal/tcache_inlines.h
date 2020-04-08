@@ -30,12 +30,11 @@ JEMALLOC_ALWAYS_INLINE void *
 tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
     size_t size, szind_t binind, bool zero, bool slow_path) {
 	void *ret;
-	cache_bin_t *bin;
 	bool tcache_success;
 	size_t usize JEMALLOC_CC_SILENCE_INIT(0);
 
 	assert(binind < SC_NBINS);
-	bin = tcache_small_bin_get(tcache, binind);
+	cache_bin_t *bin = &tcache->bins[binind];
 	ret = cache_bin_alloc(bin, &tcache_success);
 	assert(tcache_success == (ret != NULL));
 	if (unlikely(!tcache_success)) {
@@ -74,11 +73,10 @@ JEMALLOC_ALWAYS_INLINE void *
 tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
     szind_t binind, bool zero, bool slow_path) {
 	void *ret;
-	cache_bin_t *bin;
 	bool tcache_success;
 
-	assert(binind >= SC_NBINS &&binind < nhbins);
-	bin = tcache_large_bin_get(tcache, binind);
+	assert(binind >= SC_NBINS && binind < nhbins);
+	cache_bin_t *bin = &tcache->bins[binind];
 	ret = cache_bin_alloc(bin, &tcache_success);
 	assert(tcache_success == (ret != NULL));
 	if (unlikely(!tcache_success)) {
@@ -120,12 +118,10 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 JEMALLOC_ALWAYS_INLINE void
 tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
     bool slow_path) {
-	cache_bin_t *bin;
-
 	assert(tcache_salloc(tsd_tsdn(tsd), ptr)
 	    <= SC_SMALL_MAXCLASS);
 
-	bin = tcache_small_bin_get(tcache, binind);
+	cache_bin_t *bin = &tcache->bins[binind];
 	if (unlikely(!cache_bin_dalloc_easy(bin, ptr))) {
 		unsigned remain = cache_bin_info_ncached_max(
 		    &tcache_bin_info[binind]) >> 1;
@@ -138,13 +134,12 @@ tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 JEMALLOC_ALWAYS_INLINE void
 tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
     bool slow_path) {
-	cache_bin_t *bin;
 
 	assert(tcache_salloc(tsd_tsdn(tsd), ptr)
 	    > SC_SMALL_MAXCLASS);
 	assert(tcache_salloc(tsd_tsdn(tsd), ptr) <= tcache_maxclass);
 
-	bin = tcache_large_bin_get(tcache, binind);
+	cache_bin_t *bin = &tcache->bins[binind];
 	if (unlikely(!cache_bin_dalloc_easy(bin, ptr))) {
 		unsigned remain = cache_bin_info_ncached_max(
 		    &tcache_bin_info[binind]) >> 1;
