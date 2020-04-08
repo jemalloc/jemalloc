@@ -43,19 +43,12 @@ tcache_salloc(tsdn_t *tsdn, const void *ptr) {
 void
 tcache_event_hard(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache) {
 	szind_t binind = tcache_slow->next_gc_bin;
-	cache_bin_t *tbin;
-	bool is_small;
-	if (binind < SC_NBINS) {
-		tbin = tcache_small_bin_get(tcache, binind);
-		is_small = true;
-	} else {
-		tbin = tcache_large_bin_get(tcache, binind);
-		is_small = false;
-	}
+	bool is_small = (binind < SC_NBINS);
+	cache_bin_t *cache_bin = &tcache->bins[binind];
 
-	cache_bin_sz_t low_water = cache_bin_low_water_get(tbin,
+	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin,
 	    &tcache_bin_info[binind]);
-	cache_bin_sz_t ncached = cache_bin_ncached_get(tbin,
+	cache_bin_sz_t ncached = cache_bin_ncached_get(cache_bin,
 	    &tcache_bin_info[binind]);
 	if (low_water > 0) {
 		/*
@@ -63,7 +56,7 @@ tcache_event_hard(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache) {
 		 */
 		if (is_small) {
 			assert(!tcache_slow->bin_refilled[binind]);
-			tcache_bin_flush_small(tsd, tcache, tbin, binind,
+			tcache_bin_flush_small(tsd, tcache, cache_bin, binind,
 			    ncached - low_water + (low_water >> 2));
 			/*
 			 * Reduce fill count by 2X.  Limit lg_fill_div such that
@@ -75,7 +68,7 @@ tcache_event_hard(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache) {
 				tcache_slow->lg_fill_div[binind]++;
 			}
 		} else {
-			tcache_bin_flush_large(tsd, tcache, tbin, binind,
+			tcache_bin_flush_large(tsd, tcache, cache_bin, binind,
 			     ncached - low_water + (low_water >> 2));
 		}
 	} else if (is_small && tcache_slow->bin_refilled[binind]) {
@@ -89,7 +82,7 @@ tcache_event_hard(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache) {
 		}
 		tcache_slow->bin_refilled[binind] = false;
 	}
-	cache_bin_low_water_set(tbin);
+	cache_bin_low_water_set(cache_bin);
 
 	tcache_slow->next_gc_bin++;
 	if (tcache_slow->next_gc_bin == nhbins) {
@@ -99,7 +92,7 @@ tcache_event_hard(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache) {
 
 void *
 tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena,
-    tcache_t *tcache, cache_bin_t *tbin, szind_t binind,
+    tcache_t *tcache, cache_bin_t *cache_bin, szind_t binind,
     bool *tcache_success) {
 	tcache_slow_t *tcache_slow = tcache->tcache_slow;
 	void *ret;
@@ -107,10 +100,10 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena,
 	assert(tcache_slow->arena != NULL);
 	unsigned nfill = cache_bin_info_ncached_max(&tcache_bin_info[binind])
 	    >> tcache_slow->lg_fill_div[binind];
-	arena_cache_bin_fill_small(tsdn, arena, tbin, &tcache_bin_info[binind],
-	    binind, nfill);
+	arena_cache_bin_fill_small(tsdn, arena, cache_bin,
+	    &tcache_bin_info[binind], binind, nfill);
 	tcache_slow->bin_refilled[binind] = true;
-	ret = cache_bin_alloc(tbin, tcache_success);
+	ret = cache_bin_alloc(cache_bin, tcache_success);
 
 	return ret;
 }
@@ -154,7 +147,7 @@ tcache_bin_flush_match(edata_t *edata, unsigned cur_arena_ind,
 }
 
 JEMALLOC_ALWAYS_INLINE void
-tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
+tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
     szind_t binind, unsigned rem, bool small) {
 	tcache_slow_t *tcache_slow = tcache->tcache_slow;
 	/*
@@ -168,7 +161,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 	} else {
 		assert(binind < nhbins);
 	}
-	cache_bin_sz_t ncached = cache_bin_ncached_get(tbin,
+	cache_bin_sz_t ncached = cache_bin_ncached_get(cache_bin,
 	    &tcache_bin_info[binind]);
 	assert((cache_bin_sz_t)rem <= ncached);
 	arena_t *tcache_arena = tcache_slow->arena;
@@ -182,7 +175,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 	VARIABLE_ARRAY(edata_t *, item_edata, nflush + 1);
 	CACHE_BIN_PTR_ARRAY_DECLARE(ptrs, nflush);
 
-	cache_bin_init_ptr_array_for_flush(tbin, &tcache_bin_info[binind],
+	cache_bin_init_ptr_array_for_flush(cache_bin, &tcache_bin_info[binind],
 	    &ptrs, nflush);
 
 	/* Look up edata once per item. */
@@ -249,13 +242,13 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 			if (small) {
 				cur_bin->stats.nflushes++;
 				cur_bin->stats.nrequests +=
-				    tbin->tstats.nrequests;
-				tbin->tstats.nrequests = 0;
+				    cache_bin->tstats.nrequests;
+				cache_bin->tstats.nrequests = 0;
 			} else {
 				arena_stats_large_flush_nrequests_add(tsdn,
 				    &tcache_arena->stats, binind,
-				    tbin->tstats.nrequests);
-				tbin->tstats.nrequests = 0;
+				    cache_bin->tstats.nrequests);
+				cache_bin->tstats.nrequests = 0;
 			}
 		}
 
@@ -336,31 +329,31 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
 			bin_t *bin = arena_bin_choose_lock(tsdn, tcache_arena,
 			    binind, &binshard);
 			bin->stats.nflushes++;
-			bin->stats.nrequests += tbin->tstats.nrequests;
-			tbin->tstats.nrequests = 0;
+			bin->stats.nrequests += cache_bin->tstats.nrequests;
+			cache_bin->tstats.nrequests = 0;
 			malloc_mutex_unlock(tsdn, &bin->lock);
 		} else {
 			arena_stats_large_flush_nrequests_add(tsdn,
 			    &tcache_arena->stats, binind,
-			    tbin->tstats.nrequests);
-			tbin->tstats.nrequests = 0;
+			    cache_bin->tstats.nrequests);
+			cache_bin->tstats.nrequests = 0;
 		}
 	}
 
-	cache_bin_finish_flush(tbin, &tcache_bin_info[binind], &ptrs,
+	cache_bin_finish_flush(cache_bin, &tcache_bin_info[binind], &ptrs,
 	    ncached - rem);
 }
 
 void
-tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
+tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
     szind_t binind, unsigned rem) {
-	tcache_bin_flush_impl(tsd, tcache, tbin, binind, rem, true);
+	tcache_bin_flush_impl(tsd, tcache, cache_bin, binind, rem, true);
 }
 
 void
-tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
+tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
     szind_t binind, unsigned rem) {
-	tcache_bin_flush_impl(tsd, tcache, tbin, binind, rem, false);
+	tcache_bin_flush_impl(tsd, tcache, cache_bin, binind, rem, false);
 }
 
 void
@@ -376,8 +369,7 @@ tcache_arena_associate(tsdn_t *tsdn, tcache_slow_t *tcache_slow,
 		ql_elm_new(tcache_slow, link);
 		ql_tail_insert(&arena->tcache_ql, tcache_slow, link);
 		cache_bin_array_descriptor_init(
-		    &tcache_slow->cache_bin_array_descriptor,
-		    tcache->bins_small, tcache->bins_large);
+		    &tcache_slow->cache_bin_array_descriptor, tcache->bins);
 		ql_tail_insert(&arena->cache_bin_array_descriptor_ql,
 		    &tcache_slow->cache_bin_array_descriptor, link);
 
@@ -446,23 +438,18 @@ tcache_init(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	tcache_slow->dyn_alloc = mem;
 
 	assert((TCACHE_NSLOTS_SMALL_MAX & 1U) == 0);
-	memset(tcache->bins_small, 0, sizeof(cache_bin_t) * SC_NBINS);
-	memset(tcache->bins_large, 0, sizeof(cache_bin_t) * (nhbins - SC_NBINS));
+	memset(tcache->bins, 0, sizeof(cache_bin_t) * nhbins);
 
-	unsigned i = 0;
 	size_t cur_offset = 0;
 	cache_bin_preincrement(tcache_bin_info, nhbins, mem,
 	    &cur_offset);
-	for (; i < SC_NBINS; i++) {
-		tcache_slow->lg_fill_div[i] = 1;
-		tcache_slow->bin_refilled[i] = false;
-		cache_bin_t *bin = tcache_small_bin_get(tcache, i);
-		cache_bin_init(bin, &tcache_bin_info[i], mem,
-		    &cur_offset);
-	}
-	for (; i < nhbins; i++) {
-		cache_bin_t *bin = tcache_large_bin_get(tcache, i);
-		cache_bin_init(bin, &tcache_bin_info[i], mem,
+	for (unsigned i = 0; i < nhbins; i++) {
+		if (i < SC_NBINS) {
+			tcache_slow->lg_fill_div[i] = 1;
+			tcache_slow->bin_refilled[i] = false;
+		}
+		cache_bin_t *cache_bin = &tcache->bins[i];
+		cache_bin_init(cache_bin, &tcache_bin_info[i], mem,
 		    &cur_offset);
 	}
 	cache_bin_postincrement(tcache_bin_info, nhbins, mem,
@@ -477,8 +464,7 @@ tsd_tcache_data_init(tsd_t *tsd) {
 	tcache_slow_t *tcache_slow = tsd_tcache_slowp_get_unsafe(tsd);
 	tcache_t *tcache = tsd_tcachep_get_unsafe(tsd);
 
-	assert(cache_bin_still_zero_initialized(
-	    tcache_small_bin_get(tcache, 0)));
+	assert(cache_bin_still_zero_initialized(&tcache->bins[0]));
 	size_t alignment = tcache_bin_alloc_alignment;
 	size_t size = sz_sa2u(tcache_bin_alloc_size, alignment);
 
@@ -552,20 +538,15 @@ tcache_flush_cache(tsd_t *tsd, tcache_t *tcache) {
 	tcache_slow_t *tcache_slow = tcache->tcache_slow;
 	assert(tcache_slow->arena != NULL);
 
-	for (unsigned i = 0; i < SC_NBINS; i++) {
-		cache_bin_t *tbin = tcache_small_bin_get(tcache, i);
-		tcache_bin_flush_small(tsd, tcache, tbin, i, 0);
-
-		if (config_stats) {
-			assert(tbin->tstats.nrequests == 0);
+	for (unsigned i = 0; i < nhbins; i++) {
+		cache_bin_t *cache_bin = &tcache->bins[i];
+		if (i < SC_NBINS) {
+			tcache_bin_flush_small(tsd, tcache, cache_bin, i, 0);
+		} else {
+			tcache_bin_flush_large(tsd, tcache, cache_bin, i, 0);
 		}
-	}
-	for (unsigned i = SC_NBINS; i < nhbins; i++) {
-		cache_bin_t *tbin = tcache_large_bin_get(tcache, i);
-		tcache_bin_flush_large(tsd, tcache, tbin, i, 0);
-
 		if (config_stats) {
-			assert(tbin->tstats.nrequests == 0);
+			assert(cache_bin->tstats.nrequests == 0);
 		}
 	}
 }
@@ -584,8 +565,8 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache, bool tsd_tcache) {
 	tcache_arena_dissociate(tsd_tsdn(tsd), tcache_slow, tcache);
 
 	if (tsd_tcache) {
-		cache_bin_t *bin = tcache_small_bin_get(tcache, 0);
-		cache_bin_assert_empty(bin, &tcache_bin_info[0]);
+		cache_bin_t *cache_bin = &tcache->bins[0];
+		cache_bin_assert_empty(cache_bin, &tcache_bin_info[0]);
 	}
 	idalloctm(tsd_tsdn(tsd), tcache_slow->dyn_alloc, NULL, NULL, true,
 	    true);
@@ -614,13 +595,11 @@ tcache_cleanup(tsd_t *tsd) {
 	tcache_t *tcache = tsd_tcachep_get(tsd);
 	if (!tcache_available(tsd)) {
 		assert(tsd_tcache_enabled_get(tsd) == false);
-		assert(cache_bin_still_zero_initialized(
-		    tcache_small_bin_get(tcache, 0)));
+		assert(cache_bin_still_zero_initialized(&tcache->bins[0]));
 		return;
 	}
 	assert(tsd_tcache_enabled_get(tsd));
-	assert(!cache_bin_still_zero_initialized(
-	    tcache_small_bin_get(tcache, 0)));
+	assert(!cache_bin_still_zero_initialized(&tcache->bins[0]));
 
 	tcache_destroy(tsd, tcache, true);
 	if (config_debug) {
@@ -628,33 +607,28 @@ tcache_cleanup(tsd_t *tsd) {
 		 * For debug testing only, we want to pretend we're still in the
 		 * zero-initialized state.
 		 */
-		memset(tcache->bins_small, 0, sizeof(cache_bin_t) * SC_NBINS);
-		memset(tcache->bins_large, 0,
-		    sizeof(cache_bin_t) * (nhbins - SC_NBINS));
+		memset(tcache->bins, 0, sizeof(cache_bin_t) * nhbins);
 	}
 }
 
 void
 tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
-	unsigned i;
-
 	cassert(config_stats);
 
 	/* Merge and reset tcache stats. */
-	for (i = 0; i < SC_NBINS; i++) {
-		cache_bin_t *tbin = tcache_small_bin_get(tcache, i);
-		unsigned binshard;
-		bin_t *bin = arena_bin_choose_lock(tsdn, arena, i, &binshard);
-		bin->stats.nrequests += tbin->tstats.nrequests;
-		malloc_mutex_unlock(tsdn, &bin->lock);
-		tbin->tstats.nrequests = 0;
-	}
-
-	for (; i < nhbins; i++) {
-		cache_bin_t *tbin = tcache_large_bin_get(tcache, i);
-		arena_stats_large_flush_nrequests_add(tsdn, &arena->stats, i,
-		    tbin->tstats.nrequests);
-		tbin->tstats.nrequests = 0;
+	for (unsigned i = 0; i < nhbins; i++) {
+		cache_bin_t *cache_bin = &tcache->bins[i];
+		if (i < SC_NBINS) {
+			unsigned binshard;
+			bin_t *bin = arena_bin_choose_lock(tsdn, arena, i,
+			    &binshard);
+			bin->stats.nrequests += cache_bin->tstats.nrequests;
+			malloc_mutex_unlock(tsdn, &bin->lock);
+		} else {
+			arena_stats_large_flush_nrequests_add(tsdn,
+			    &arena->stats, i, cache_bin->tstats.nrequests);
+		}
+		cache_bin->tstats.nrequests = 0;
 	}
 }
 
@@ -823,4 +797,8 @@ tcache_postfork_parent(tsdn_t *tsdn) {
 void
 tcache_postfork_child(tsdn_t *tsdn) {
 	malloc_mutex_postfork_child(tsdn, &tcaches_mtx);
+}
+
+void tcache_assert_initialized(tcache_t *tcache) {
+	assert(!cache_bin_still_zero_initialized(&tcache->bins[0]));
 }

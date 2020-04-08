@@ -106,16 +106,14 @@ struct cache_bin_array_descriptor_s {
 	 */
 	ql_elm(cache_bin_array_descriptor_t) link;
 	/* Pointers to the tcache bins. */
-	cache_bin_t *bins_small;
-	cache_bin_t *bins_large;
+	cache_bin_t *bins;
 };
 
 static inline void
 cache_bin_array_descriptor_init(cache_bin_array_descriptor_t *descriptor,
-    cache_bin_t *bins_small, cache_bin_t *bins_large) {
+    cache_bin_t *bins) {
 	ql_elm_new(descriptor, link);
-	descriptor->bins_small = bins_small;
-	descriptor->bins_large = bins_large;
+	descriptor->bins = bins;
 }
 
 /* Returns ncached_max: Upper limit on ncached. */

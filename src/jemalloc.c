@@ -2495,7 +2495,7 @@ je_malloc(size_t size) {
 	assert(tsd_fast(tsd));
 
 	tcache_t *tcache = tsd_tcachep_get(tsd);
-	cache_bin_t *bin = tcache_small_bin_get(tcache, ind);
+	cache_bin_t *bin = &tcache->bins[ind];
 	bool tcache_success;
 	void *ret;
 
@@ -2828,7 +2828,7 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 	}
 
 	tcache_t *tcache = tsd_tcachep_get(tsd);
-	cache_bin_t *bin = tcache_small_bin_get(tcache, alloc_ctx.szind);
+	cache_bin_t *bin = &tcache->bins[alloc_ctx.szind];
 
 	/*
 	 * If junking were enabled, this is where we would do it.  It's not

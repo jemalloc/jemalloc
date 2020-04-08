@@ -108,18 +108,6 @@ decay_ticker_get(tsd_t *tsd, unsigned ind) {
 	return &tdata->decay_ticker;
 }
 
-JEMALLOC_ALWAYS_INLINE cache_bin_t *
-tcache_small_bin_get(tcache_t *tcache, szind_t binind) {
-	assert(binind < SC_NBINS);
-	return &tcache->bins_small[binind];
-}
-
-JEMALLOC_ALWAYS_INLINE cache_bin_t *
-tcache_large_bin_get(tcache_t *tcache, szind_t binind) {
-	assert(binind >= SC_NBINS &&binind < nhbins);
-	return &tcache->bins_large[binind - SC_NBINS];
-}
-
 JEMALLOC_ALWAYS_INLINE bool
 tcache_available(tsd_t *tsd) {
 	/*
@@ -129,9 +117,9 @@ tcache_available(tsd_t *tsd) {
 	 */
 	if (likely(tsd_tcache_enabled_get(tsd))) {
 		/* Associated arena == NULL implies tcache init in progress. */
-		assert(tsd_tcache_slowp_get(tsd)->arena == NULL ||
-		    !cache_bin_still_zero_initialized(
-		    tcache_small_bin_get(tsd_tcachep_get(tsd), 0)));
+		if (config_debug && tsd_tcache_slowp_get(tsd)->arena != NULL) {
+			tcache_assert_initialized(tsd_tcachep_get(tsd));
+		}
 		return true;
 	}
 

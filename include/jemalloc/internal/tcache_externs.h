@@ -53,4 +53,6 @@ void tcache_flush(tsd_t *tsd);
 bool tsd_tcache_data_init(tsd_t *tsd);
 bool tsd_tcache_enabled_data_init(tsd_t *tsd);
 
+void tcache_assert_initialized(tcache_t *tcache);
+
 #endif /* JEMALLOC_INTERNAL_TCACHE_EXTERNS_H */
