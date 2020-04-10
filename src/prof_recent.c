@@ -43,6 +43,20 @@ prof_recent_alloc_max_update(tsd_t *tsd, ssize_t max) {
 	return old_max;
 }
 
+static prof_recent_t *
+prof_recent_allocate_node(tsdn_t *tsdn) {
+	return (prof_recent_t *)iallocztm(tsdn, sizeof(prof_recent_t),
+	    sz_size2index(sizeof(prof_recent_t)), false, NULL, true,
+	    arena_get(tsdn, 0, false), true);
+}
+
+static void
+prof_recent_free_node(tsdn_t *tsdn, prof_recent_t *node) {
+	assert(node != NULL);
+	assert(isalloc(tsdn, node) == sz_s2u(sizeof(prof_recent_t)));
+	idalloctm(tsdn, node, NULL, NULL, true, true);
+}
+
 static inline void
 increment_recent_count(tsd_t *tsd, prof_tctx_t *tctx) {
 	malloc_mutex_assert_owner(tsd_tsdn(tsd), tctx->tdata->lock);
@@ -277,10 +291,7 @@ prof_recent_alloc(tsd_t *tsd, edata_t *edata, size_t size) {
 	    prof_recent_alloc_count < prof_recent_alloc_max_get(tsd)) {
 		assert(prof_recent_alloc_max_get(tsd) != 0);
 		malloc_mutex_unlock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
-		reserve = (prof_recent_t *)iallocztm(tsd_tsdn(tsd),
-		    sizeof(prof_recent_t), sz_size2index(sizeof(prof_recent_t)),
-		    false, NULL, true, arena_get(tsd_tsdn(tsd), 0, false),
-		    true);
+		reserve = prof_recent_allocate_node(tsd_tsdn(tsd));
 		malloc_mutex_lock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 		prof_recent_alloc_assert_count(tsd);
 	}
@@ -331,7 +342,7 @@ prof_recent_alloc(tsd_t *tsd, edata_t *edata, size_t size) {
 	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 
 	if (reserve != NULL) {
-		idalloctm(tsd_tsdn(tsd), reserve, NULL, NULL, true, true);
+		prof_recent_free_node(tsd_tsdn(tsd), reserve);
 	}
 
 	/*
@@ -353,7 +364,7 @@ label_rollback:
 	prof_recent_alloc_assert_count(tsd);
 	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 	if (reserve != NULL) {
-		idalloctm(tsd_tsdn(tsd), reserve, NULL, NULL, true, true);
+		prof_recent_free_node(tsd_tsdn(tsd), reserve);
 	}
 	decrement_recent_count(tsd, tctx);
 }
@@ -422,7 +433,7 @@ prof_recent_alloc_max_ctl_write(tsd_t *tsd, ssize_t max) {
 		if (node->dalloc_tctx != NULL) {
 			decrement_recent_count(tsd, node->dalloc_tctx);
 		}
-		idalloctm(tsd_tsdn(tsd), node, NULL, NULL, true, true);
+		prof_recent_free_node(tsd_tsdn(tsd), node);
 		--count;
 	} while (!ql_empty(&old_list));
 	assert(count == 0);
