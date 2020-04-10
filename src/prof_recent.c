@@ -431,7 +431,7 @@ prof_recent_alloc_max_ctl_write(tsd_t *tsd, ssize_t max) {
 }
 
 static void
-dump_bt(emitter_t *emitter, prof_tctx_t *tctx) {
+prof_recent_alloc_dump_bt(emitter_t *emitter, prof_tctx_t *tctx) {
 	char bt_buf[2 * sizeof(intptr_t) + 3];
 	char *s = bt_buf;
 	assert(tctx != NULL);
@@ -440,6 +440,43 @@ dump_bt(emitter_t *emitter, prof_tctx_t *tctx) {
 		malloc_snprintf(bt_buf, sizeof(bt_buf), "%p", bt->vec[i]);
 		emitter_json_value(emitter, emitter_type_string, &s);
 	}
+}
+
+static void
+prof_recent_alloc_dump_node(emitter_t *emitter, prof_recent_t *node) {
+	emitter_json_object_begin(emitter);
+
+	emitter_json_kv(emitter, "size", emitter_type_size, &node->size);
+	size_t usize = sz_s2u(node->size);
+	emitter_json_kv(emitter, "usize", emitter_type_size, &usize);
+	bool released = node->alloc_edata == NULL;
+	emitter_json_kv(emitter, "released", emitter_type_bool, &released);
+
+	emitter_json_kv(emitter, "alloc_thread_uid", emitter_type_uint64,
+	    &node->alloc_tctx->thr_uid);
+	uint64_t alloc_time_ns = nstime_ns(&node->alloc_time);
+	emitter_json_kv(emitter, "alloc_time", emitter_type_uint64,
+	    &alloc_time_ns);
+	emitter_json_array_kv_begin(emitter, "alloc_trace");
+	prof_recent_alloc_dump_bt(emitter, node->alloc_tctx);
+	emitter_json_array_end(emitter);
+
+	if (node->dalloc_tctx != NULL) {
+		assert(released);
+		emitter_json_kv(emitter, "dalloc_thread_uid",
+		    emitter_type_uint64, &node->dalloc_tctx->thr_uid);
+		assert(!nstime_equals_zero(&node->dalloc_time));
+		uint64_t dalloc_time_ns = nstime_ns(&node->dalloc_time);
+		emitter_json_kv(emitter, "dalloc_time", emitter_type_uint64,
+		    &dalloc_time_ns);
+		emitter_json_array_kv_begin(emitter, "dalloc_trace");
+		prof_recent_alloc_dump_bt(emitter, node->dalloc_tctx);
+		emitter_json_array_end(emitter);
+	} else {
+		assert(nstime_equals_zero(&node->dalloc_time));
+	}
+
+	emitter_json_object_end(emitter);
 }
 
 #define PROF_RECENT_PRINT_BUFSIZE 4096
@@ -465,42 +502,9 @@ prof_recent_alloc_dump(tsd_t *tsd, write_cb_t *write_cb, void *cbopaque) {
 	emitter_json_kv(&emitter, "recent_alloc_max", emitter_type_ssize, &max);
 
 	emitter_json_array_kv_begin(&emitter, "recent_alloc");
-	prof_recent_t *n;
-	ql_foreach(n, &prof_recent_alloc_list, link) {
-		emitter_json_object_begin(&emitter);
-
-		emitter_json_kv(&emitter, "size", emitter_type_size, &n->size);
-		size_t usize = sz_s2u(n->size);
-		emitter_json_kv(&emitter, "usize", emitter_type_size, &usize);
-		bool released = n->alloc_edata == NULL;
-		emitter_json_kv(&emitter, "released", emitter_type_bool,
-		    &released);
-
-		emitter_json_kv(&emitter, "alloc_thread_uid",
-		    emitter_type_uint64, &n->alloc_tctx->thr_uid);
-		uint64_t alloc_time_ns = nstime_ns(&n->alloc_time);
-		emitter_json_kv(&emitter, "alloc_time", emitter_type_uint64,
-		    &alloc_time_ns);
-		emitter_json_array_kv_begin(&emitter, "alloc_trace");
-		dump_bt(&emitter, n->alloc_tctx);
-		emitter_json_array_end(&emitter);
-
-		if (n->dalloc_tctx != NULL) {
-			assert(released);
-			emitter_json_kv(&emitter, "dalloc_thread_uid",
-			    emitter_type_uint64, &n->dalloc_tctx->thr_uid);
-			assert(!nstime_equals_zero(&n->dalloc_time));
-			uint64_t dalloc_time_ns = nstime_ns(&n->dalloc_time);
-			emitter_json_kv(&emitter, "dalloc_time",
-			    emitter_type_uint64, &dalloc_time_ns);
-			emitter_json_array_kv_begin(&emitter, "dalloc_trace");
-			dump_bt(&emitter, n->dalloc_tctx);
-			emitter_json_array_end(&emitter);
-		} else {
-			assert(nstime_equals_zero(&n->dalloc_time));
-		}
-
-		emitter_json_object_end(&emitter);
+	prof_recent_t *node;
+	ql_foreach(node, &prof_recent_alloc_list, link) {
+		prof_recent_alloc_dump_node(&emitter, node);
 	}
 	emitter_json_array_end(&emitter);
 
