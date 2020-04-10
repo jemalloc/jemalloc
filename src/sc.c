@@ -245,7 +245,7 @@ size_classes(
 	assert(sc_data->lg_large_minclass == SC_LG_LARGE_MINCLASS);
 	assert(sc_data->large_maxclass == SC_LARGE_MAXCLASS);
 
-	/* 
+	/*
 	 * In the allocation fastpath, we want to assume that we can
 	 * unconditionally subtract the requested allocation size from
 	 * a ssize_t, and detect passing through 0 correctly.  This
@@ -262,7 +262,7 @@ sc_data_init(sc_data_t *sc_data) {
 	int lg_max_lookup = 12;
 
 	size_classes(sc_data, LG_SIZEOF_PTR, LG_QUANTUM, SC_LG_TINY_MIN,
-	    lg_max_lookup, LG_PAGE, 2);
+	    lg_max_lookup, LG_PAGE, SC_LG_NGROUP);
 
 	sc_data->initialized = true;
 }
