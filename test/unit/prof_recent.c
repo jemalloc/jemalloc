@@ -7,7 +7,7 @@
 
 /* Invariant before and after every test (when config_prof is on) */
 static void
-confirm_prof_setup(tsd_t *tsd) {
+confirm_prof_setup() {
 	/* Options */
 	assert_true(opt_prof, "opt_prof not on");
 	assert_true(opt_prof_active, "opt_prof_active not on");
@@ -16,13 +16,13 @@ confirm_prof_setup(tsd_t *tsd) {
 
 	/* Dynamics */
 	assert_true(prof_active, "prof_active not on");
-	assert_zd_eq(prof_recent_alloc_max_ctl_read(tsd), OPT_ALLOC_MAX,
+	assert_zd_eq(prof_recent_alloc_max_ctl_read(), OPT_ALLOC_MAX,
 	    "prof_recent_alloc_max not set correctly");
 }
 
 TEST_BEGIN(test_confirm_setup) {
 	test_skip_if(!config_prof);
-	confirm_prof_setup(tsd_fetch());
+	confirm_prof_setup();
 }
 TEST_END
 
@@ -58,13 +58,11 @@ TEST_BEGIN(test_prof_recent_on) {
 	ssize_t past, future;
 	size_t len = sizeof(ssize_t);
 
-	tsd_t *tsd = tsd_fetch();
-
-	confirm_prof_setup(tsd);
+	confirm_prof_setup();
 
 	assert_d_eq(mallctl("experimental.prof_recent.alloc_max",
 	    NULL, NULL, NULL, 0), 0, "no-op mallctl should be allowed");
-	confirm_prof_setup(tsd);
+	confirm_prof_setup();
 
 	assert_d_eq(mallctl("experimental.prof_recent.alloc_max",
 	    &past, &len, NULL, 0), 0, "Read error");
@@ -93,7 +91,7 @@ TEST_BEGIN(test_prof_recent_on) {
 	expect_zd_eq(past, -1,
 	    "Output should not be touched given invalid write");
 
-	confirm_prof_setup(tsd);
+	confirm_prof_setup();
 }
 TEST_END
 
@@ -151,9 +149,7 @@ TEST_BEGIN(test_prof_recent_alloc) {
 	prof_recent_t *n;
 	ssize_t future;
 
-	tsd_t *tsd = tsd_fetch();
-
-	confirm_prof_setup(tsd);
+	confirm_prof_setup();
 
 	/*
 	 * First batch of 2 * OPT_ALLOC_MAX allocations.  After the
@@ -190,7 +186,7 @@ TEST_BEGIN(test_prof_recent_alloc) {
 		free(p);
 	}
 
-	confirm_prof_setup(tsd);
+	confirm_prof_setup();
 
 	b = false;
 	assert_d_eq(mallctl("prof.active", NULL, NULL, &b, sizeof(bool)), 0,
@@ -219,7 +215,7 @@ TEST_BEGIN(test_prof_recent_alloc) {
 	assert_d_eq(mallctl("prof.active", NULL, NULL, &b, sizeof(bool)), 0,
 	    "mallctl for turning on prof_active failed");
 
-	confirm_prof_setup(tsd);
+	confirm_prof_setup();
 
 	/*
 	 * Third batch of OPT_ALLOC_MAX allocations.  Since prof_active is
@@ -338,7 +334,7 @@ TEST_BEGIN(test_prof_recent_alloc) {
 	assert_true(ql_empty(&prof_recent_alloc_list),
 	    "Recent list should be empty");
 
-	confirm_prof_setup(tsd);
+	confirm_prof_setup();
 }
 TEST_END
 
@@ -485,8 +481,7 @@ confirm_record(const char *template,
 TEST_BEGIN(test_prof_recent_alloc_dump) {
 	test_skip_if(!config_prof);
 
-	tsd_t *tsd = tsd_fetch();
-	confirm_prof_setup(tsd);
+	confirm_prof_setup();
 
 	ssize_t future;
 	void *p, *q;
@@ -531,7 +526,7 @@ TEST_BEGIN(test_prof_recent_alloc_dump) {
 	future = OPT_ALLOC_MAX;
 	assert_d_eq(mallctl("experimental.prof_recent.alloc_max",
 	    NULL, NULL, &future, sizeof(ssize_t)), 0, "Write error");
-	confirm_prof_setup(tsd);
+	confirm_prof_setup();
 }
 TEST_END
 
@@ -588,7 +583,7 @@ f_thread(void *arg) {
 		} else if (rand % 5 == 0) {
 			prof_recent_alloc_dump(tsd, test_write_cb, NULL);
 		} else if (rand % 5 == 1) {
-			last_max = prof_recent_alloc_max_ctl_read(tsd);
+			last_max = prof_recent_alloc_max_ctl_read();
 		} else if (rand % 5 == 2) {
 			last_max =
 			    prof_recent_alloc_max_ctl_write(tsd, test_max * 2);
@@ -613,8 +608,7 @@ f_thread(void *arg) {
 TEST_BEGIN(test_prof_recent_stress) {
 	test_skip_if(!config_prof);
 
-	tsd_t *tsd = tsd_fetch();
-	confirm_prof_setup(tsd);
+	confirm_prof_setup();
 
 	test_max = OPT_ALLOC_MAX;
 	for (size_t i = 0; i < N_THREADS; i++) {
@@ -643,7 +637,7 @@ TEST_BEGIN(test_prof_recent_stress) {
 	test_max = OPT_ALLOC_MAX;
 	assert_d_eq(mallctl("experimental.prof_recent.alloc_max",
 	    NULL, NULL, &test_max, sizeof(ssize_t)), 0, "Write error");
-	confirm_prof_setup(tsd);
+	confirm_prof_setup();
 }
 TEST_END
 
