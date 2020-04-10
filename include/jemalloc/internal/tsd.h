@@ -77,7 +77,8 @@ typedef ql_elm(tsd_t) tsd_link_t;
     O(binshards,		tsd_binshards_t,	tsd_binshards_t)\
     O(tsd_link,			tsd_link_t,		tsd_link_t)	\
     O(in_hook,			bool,			bool)		\
-    O(tcache_slow,		tcache_slow_t,		tcache_slow_t)
+    O(tcache_slow,		tcache_slow_t,		tcache_slow_t)	\
+    O(rtree_ctx,		rtree_ctx_t,		rtree_ctx_t)
 
 #define TSD_DATA_SLOW_INITIALIZER					\
     /* tcache_enabled */	TCACHE_ENABLED_ZERO_INITIALIZER,	\
@@ -102,7 +103,8 @@ typedef ql_elm(tsd_t) tsd_link_t;
     /* binshards */		TSD_BINSHARDS_ZERO_INITIALIZER,		\
     /* tsd_link */		{NULL},					\
     /* in_hook */		false,					\
-    /* tcache_slow */		TCACHE_SLOW_ZERO_INITIALIZER,
+    /* tcache_slow */		TCACHE_SLOW_ZERO_INITIALIZER,		\
+    /* rtree_ctx */		RTREE_CTX_ZERO_INITIALIZER,
 
 /*  O(name,			type,			nullable type) */
 #define TSD_DATA_FAST							\
@@ -110,7 +112,6 @@ typedef ql_elm(tsd_t) tsd_link_t;
     O(thread_allocated_next_event_fast,	uint64_t,	uint64_t)	\
     O(thread_deallocated,	uint64_t,		uint64_t)	\
     O(thread_deallocated_next_event_fast, uint64_t,	uint64_t)	\
-    O(rtree_ctx,		rtree_ctx_t,		rtree_ctx_t)	\
     O(tcache,			tcache_t,		tcache_t)
 
 #define TSD_DATA_FAST_INITIALIZER					\
@@ -118,7 +119,6 @@ typedef ql_elm(tsd_t) tsd_link_t;
     /* thread_allocated_next_event_fast */ 0, 				\
     /* thread_deallocated */	0,					\
     /* thread_deallocated_next_event_fast */	0,			\
-    /* rtree_ctx */		RTREE_CTX_ZERO_INITIALIZER,		\
     /* tcache */		TCACHE_ZERO_INITIALIZER,
 
 /*  O(name,			type,			nullable type) */
