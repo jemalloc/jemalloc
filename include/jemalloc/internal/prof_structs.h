@@ -205,8 +205,8 @@ struct prof_recent_s {
 
 	ql_elm(prof_recent_t) link;
 	size_t size;
+	atomic_p_t alloc_edata; /* NULL means allocation has been freed. */
 	prof_tctx_t *alloc_tctx;
-	edata_t *alloc_edata; /* NULL means allocation has been freed. */
 	prof_tctx_t *dalloc_tctx;
 };
 
