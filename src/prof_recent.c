@@ -102,6 +102,26 @@ decrement_recent_count(tsd_t *tsd, prof_tctx_t *tctx) {
 	prof_tctx_try_destroy(tsd, tctx);
 }
 
+#ifndef JEMALLOC_JET
+static inline
+#endif
+edata_t *
+prof_recent_alloc_edata_get_no_lock(const prof_recent_t *n) {
+	return (edata_t *)atomic_load_p(&n->alloc_edata, ATOMIC_ACQUIRE);
+}
+
+static inline edata_t *
+prof_recent_alloc_edata_get(tsd_t *tsd, const prof_recent_t *n) {
+	malloc_mutex_assert_owner(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
+	return prof_recent_alloc_edata_get_no_lock(n);
+}
+
+static void
+prof_recent_alloc_edata_set(tsd_t *tsd, prof_recent_t *n, edata_t *edata) {
+	malloc_mutex_assert_owner(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
+	atomic_store_p(&n->alloc_edata, edata, ATOMIC_RELEASE);
+}
+
 void
 edata_prof_recent_alloc_init(edata_t *edata) {
 	edata_prof_recent_alloc_set_dont_call_directly(edata, NULL);
@@ -120,7 +140,8 @@ edata_prof_recent_alloc_get(tsd_t *tsd, const edata_t *edata) {
 	malloc_mutex_assert_owner(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 	prof_recent_t *recent_alloc =
 	    edata_prof_recent_alloc_get_no_lock(edata);
-	assert(recent_alloc == NULL || recent_alloc->alloc_edata == edata);
+	assert(recent_alloc == NULL ||
+	    prof_recent_alloc_edata_get(tsd, recent_alloc) == edata);
 	return recent_alloc;
 }
 
@@ -137,22 +158,24 @@ edata_prof_recent_alloc_update_internal(tsd_t *tsd, edata_t *edata,
 static void
 edata_prof_recent_alloc_set(tsd_t *tsd, edata_t *edata,
     prof_recent_t *recent_alloc) {
+	malloc_mutex_assert_owner(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 	assert(recent_alloc != NULL);
 	prof_recent_t *old_recent_alloc =
 	    edata_prof_recent_alloc_update_internal(tsd, edata, recent_alloc);
 	assert(old_recent_alloc == NULL);
-	recent_alloc->alloc_edata = edata;
+	prof_recent_alloc_edata_set(tsd, recent_alloc, edata);
 }
 
 static void
 edata_prof_recent_alloc_reset(tsd_t *tsd, edata_t *edata,
     prof_recent_t *recent_alloc) {
+	malloc_mutex_assert_owner(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 	assert(recent_alloc != NULL);
 	prof_recent_t *old_recent_alloc =
 	    edata_prof_recent_alloc_update_internal(tsd, edata, NULL);
 	assert(old_recent_alloc == recent_alloc);
-	assert(edata == recent_alloc->alloc_edata);
-	recent_alloc->alloc_edata = NULL;
+	assert(edata == prof_recent_alloc_edata_get(tsd, recent_alloc));
+	prof_recent_alloc_edata_set(tsd, recent_alloc, NULL);
 }
 
 /*
@@ -191,7 +214,6 @@ prof_recent_alloc_reset(tsd_t *tsd, edata_t *edata) {
 	/* Check again after acquiring the lock.  */
 	prof_recent_t *recent = edata_prof_recent_alloc_get(tsd, edata);
 	if (recent != NULL) {
-		edata_prof_recent_alloc_reset(tsd, edata, recent);
 		assert(nstime_equals_zero(&recent->dalloc_time));
 		assert(recent->dalloc_tctx == NULL);
 		if (dalloc_tctx != NULL) {
@@ -199,6 +221,7 @@ prof_recent_alloc_reset(tsd_t *tsd, edata_t *edata) {
 			recent->dalloc_tctx = dalloc_tctx;
 			dalloc_tctx = NULL;
 		}
+		edata_prof_recent_alloc_reset(tsd, edata, recent);
 	}
 	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 
@@ -209,10 +232,11 @@ prof_recent_alloc_reset(tsd_t *tsd, edata_t *edata) {
 }
 
 static void
-prof_recent_alloc_evict_edata(tsd_t *tsd, prof_recent_t *recent) {
+prof_recent_alloc_evict_edata(tsd_t *tsd, prof_recent_t *recent_alloc) {
 	malloc_mutex_assert_owner(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
-	if (recent->alloc_edata != NULL) {
-		edata_prof_recent_alloc_reset(tsd, recent->alloc_edata, recent);
+	edata_t *edata = prof_recent_alloc_edata_get(tsd, recent_alloc);
+	if (edata != NULL) {
+		edata_prof_recent_alloc_reset(tsd, edata, recent_alloc);
 	}
 }
 
@@ -333,9 +357,9 @@ prof_recent_alloc(tsd_t *tsd, edata_t *edata, size_t size) {
 	tail->size = size;
 	nstime_copy(&tail->alloc_time, edata_prof_alloc_time_get(edata));
 	tail->alloc_tctx = tctx;
-	edata_prof_recent_alloc_set(tsd, edata, tail);
 	nstime_init_zero(&tail->dalloc_time);
 	tail->dalloc_tctx = NULL;
+	edata_prof_recent_alloc_set(tsd, edata, tail);
 
 	assert(!prof_recent_alloc_is_empty(tsd));
 	prof_recent_alloc_assert_count(tsd);
@@ -460,7 +484,7 @@ prof_recent_alloc_dump_node(emitter_t *emitter, prof_recent_t *node) {
 	emitter_json_kv(emitter, "size", emitter_type_size, &node->size);
 	size_t usize = sz_s2u(node->size);
 	emitter_json_kv(emitter, "usize", emitter_type_size, &usize);
-	bool released = node->alloc_edata == NULL;
+	bool released = prof_recent_alloc_edata_get_no_lock(node) == NULL;
 	emitter_json_kv(emitter, "released", emitter_type_bool, &released);
 
 	emitter_json_kv(emitter, "alloc_thread_uid", emitter_type_uint64,
@@ -472,8 +496,7 @@ prof_recent_alloc_dump_node(emitter_t *emitter, prof_recent_t *node) {
 	prof_recent_alloc_dump_bt(emitter, node->alloc_tctx);
 	emitter_json_array_end(emitter);
 
-	if (node->dalloc_tctx != NULL) {
-		assert(released);
+	if (released && node->dalloc_tctx != NULL) {
 		emitter_json_kv(emitter, "dalloc_thread_uid",
 		    emitter_type_uint64, &node->dalloc_tctx->thr_uid);
 		assert(!nstime_equals_zero(&node->dalloc_time));
@@ -483,8 +506,6 @@ prof_recent_alloc_dump_node(emitter_t *emitter, prof_recent_t *node) {
 		emitter_json_array_kv_begin(emitter, "dalloc_trace");
 		prof_recent_alloc_dump_bt(emitter, node->dalloc_tctx);
 		emitter_json_array_end(emitter);
-	} else {
-		assert(nstime_equals_zero(&node->dalloc_time));
 	}
 
 	emitter_json_object_end(emitter);
