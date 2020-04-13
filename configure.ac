@@ -1552,9 +1552,7 @@ fi
 
 AC_ARG_WITH([lg_quantum],
   [AS_HELP_STRING([--with-lg-quantum=<lg-quantum>],
-   [Base 2 log of minimum allocation alignment])],
-  [LG_QUANTA="$with_lg_quantum"],
-  [LG_QUANTA="3 4"])
+   [Base 2 log of minimum allocation alignment])])
 if test "x$with_lg_quantum" != "x" ; then
   AC_DEFINE_UNQUOTED([LG_QUANTUM], [$with_lg_quantum])
 fi
