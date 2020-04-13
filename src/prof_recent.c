@@ -399,23 +399,17 @@ prof_recent_alloc_max_ctl_read() {
 	return prof_recent_alloc_max_get_no_lock();
 }
 
-ssize_t
-prof_recent_alloc_max_ctl_write(tsd_t *tsd, ssize_t max) {
-	assert(max >= -1);
-
-	malloc_mutex_lock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
-	prof_recent_alloc_assert_count(tsd);
-
-	const ssize_t old_max = prof_recent_alloc_max_update(tsd, max);
-
+static void
+prof_recent_alloc_restore_locked(tsd_t *tsd, prof_recent_list_t *to_delete) {
+	malloc_mutex_assert_owner(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
+	ssize_t max = prof_recent_alloc_max_get(tsd);
 	if (max == -1 || prof_recent_alloc_count <= max) {
 		/* Easy case - no need to alter the list. */
-		malloc_mutex_unlock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
-		return old_max;
+		ql_new(to_delete);
+		prof_recent_alloc_assert_count(tsd);
+		return;
 	}
 
-	/* For verification purpose only. */
-	ssize_t count = prof_recent_alloc_count - max;
 	prof_recent_t *node;
 	ql_foreach(node, &prof_recent_alloc_list, link) {
 		if (prof_recent_alloc_count == max) {
@@ -426,42 +420,41 @@ prof_recent_alloc_max_ctl_write(tsd_t *tsd, ssize_t max) {
 	}
 	assert(prof_recent_alloc_count == max);
 
-	prof_recent_list_t old_list;
-	ql_move(&old_list, &prof_recent_alloc_list);
+	ql_move(to_delete, &prof_recent_alloc_list);
 	if (max == 0) {
 		assert(node == NULL);
 	} else {
 		assert(node != NULL);
-		ql_split(&old_list, node, &prof_recent_alloc_list, link);
+		ql_split(to_delete, node, &prof_recent_alloc_list, link);
 	}
-	assert(!ql_empty(&old_list));
-
+	assert(!ql_empty(to_delete));
 	prof_recent_alloc_assert_count(tsd);
-	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
+}
 
-	/*
-	 * Asynchronously handle the tctx of the to-be-deleted nodes, so that
-	 * there's no simultaneous holdings of prof_recent_alloc_mtx and
-	 * tdata->lock.  In the worst case there can be slightly extra space
-	 * overhead taken by these nodes, but the total number of nodes at any
-	 * time is bounded by (max + sum(decreases)), where "max" means the
-	 * most recent prof_recent_alloc_max and "sum(decreases)" means the
-	 * sum of the deltas of all decreases in prof_recent_alloc_max in the
-	 * past.  This (max + sum(decreases)) value is completely transparent
-	 * to and controlled by application.
-	 */
-	do {
-		node = ql_first(&old_list);
-		ql_remove(&old_list, node, link);
+static void
+prof_recent_alloc_async_cleanup(tsd_t *tsd, prof_recent_list_t *to_delete) {
+	malloc_mutex_assert_not_owner(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
+	while (!ql_empty(to_delete)) {
+		prof_recent_t *node = ql_first(to_delete);
+		ql_remove(to_delete, node, link);
 		decrement_recent_count(tsd, node->alloc_tctx);
 		if (node->dalloc_tctx != NULL) {
 			decrement_recent_count(tsd, node->dalloc_tctx);
 		}
 		prof_recent_free_node(tsd_tsdn(tsd), node);
-		--count;
-	} while (!ql_empty(&old_list));
-	assert(count == 0);
+	}
+}
 
+ssize_t
+prof_recent_alloc_max_ctl_write(tsd_t *tsd, ssize_t max) {
+	assert(max >= -1);
+	malloc_mutex_lock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
+	prof_recent_alloc_assert_count(tsd);
+	const ssize_t old_max = prof_recent_alloc_max_update(tsd, max);
+	prof_recent_list_t to_delete;
+	prof_recent_alloc_restore_locked(tsd, &to_delete);
+	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
+	prof_recent_alloc_async_cleanup(tsd, &to_delete);
 	return old_max;
 }
 
