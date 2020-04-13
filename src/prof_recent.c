@@ -18,6 +18,8 @@ static
 #endif
 prof_recent_list_t prof_recent_alloc_list;
 
+malloc_mutex_t prof_recent_dump_mtx; /* Protects dumping. */
+
 static void
 prof_recent_alloc_max_init() {
 	atomic_store_zd(&prof_recent_alloc_max, opt_prof_recent_alloc_max,
@@ -433,6 +435,7 @@ prof_recent_alloc_restore_locked(tsd_t *tsd, prof_recent_list_t *to_delete) {
 
 static void
 prof_recent_alloc_async_cleanup(tsd_t *tsd, prof_recent_list_t *to_delete) {
+	malloc_mutex_assert_not_owner(tsd_tsdn(tsd), &prof_recent_dump_mtx);
 	malloc_mutex_assert_not_owner(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 	while (!ql_empty(to_delete)) {
 		prof_recent_t *node = ql_first(to_delete);
@@ -507,6 +510,7 @@ prof_recent_alloc_dump_node(emitter_t *emitter, prof_recent_t *node) {
 #define PROF_RECENT_PRINT_BUFSIZE 65536
 void
 prof_recent_alloc_dump(tsd_t *tsd, write_cb_t *write_cb, void *cbopaque) {
+	malloc_mutex_lock(tsd_tsdn(tsd), &prof_recent_dump_mtx);
 	buf_writer_t buf_writer;
 	buf_writer_init(tsd_tsdn(tsd), &buf_writer, write_cb, cbopaque, NULL,
 	    PROF_RECENT_PRINT_BUFSIZE);
@@ -543,8 +547,10 @@ prof_recent_alloc_dump(tsd_t *tsd, write_cb_t *write_cb, void *cbopaque) {
 	prof_recent_alloc_restore_locked(tsd, &temp_list);
 	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 
-	prof_recent_alloc_async_cleanup(tsd, &temp_list);
 	buf_writer_terminate(tsd_tsdn(tsd), &buf_writer);
+	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_recent_dump_mtx);
+
+	prof_recent_alloc_async_cleanup(tsd, &temp_list);
 }
 #undef PROF_RECENT_PRINT_BUFSIZE
 
@@ -552,9 +558,13 @@ bool
 prof_recent_init() {
 	prof_recent_alloc_max_init();
 
-	if (malloc_mutex_init(&prof_recent_alloc_mtx,
-	    "prof_recent_alloc", WITNESS_RANK_PROF_RECENT_ALLOC,
-	    malloc_mutex_rank_exclusive)) {
+	if (malloc_mutex_init(&prof_recent_alloc_mtx, "prof_recent_alloc",
+	    WITNESS_RANK_PROF_RECENT_ALLOC, malloc_mutex_rank_exclusive)) {
+		return true;
+	}
+
+	if (malloc_mutex_init(&prof_recent_dump_mtx, "prof_recent_dump",
+	    WITNESS_RANK_PROF_RECENT_DUMP, malloc_mutex_rank_exclusive)) {
 		return true;
 	}
 
