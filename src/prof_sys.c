@@ -2,6 +2,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/buf_writer.h"
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/prof_data.h"
 #include "jemalloc/internal/prof_sys.h"
@@ -55,7 +56,7 @@ static bool prof_dump_handle_error_locally;
  * all profile dumps.
  */
 static char prof_dump_buf[PROF_DUMP_BUFSIZE];
-static size_t prof_dump_buf_end;
+static buf_writer_t prof_dump_buf_writer;
 static int prof_dump_fd;
 
 void
@@ -377,49 +378,24 @@ prof_dump_open(const char *filename) {
 prof_dump_write_file_t *JET_MUTABLE prof_dump_write_file = malloc_write_fd;
 
 static void
-prof_dump_flush() {
+prof_dump_flush(void *cbopaque, const char *s) {
 	cassert(config_prof);
+	assert(cbopaque == NULL);
 	if (!prof_dump_error) {
-		ssize_t err = prof_dump_write_file(prof_dump_fd, prof_dump_buf,
-		    prof_dump_buf_end);
+		ssize_t err = prof_dump_write_file(prof_dump_fd, s, strlen(s));
 		prof_dump_check_possible_error(err == -1,
 		    "<jemalloc>: failed to write during heap profile flush\n");
 	}
-	prof_dump_buf_end = 0;
 }
 
 static void
 prof_dump_write(const char *s) {
-	size_t i, slen, n;
-
-	cassert(config_prof);
-
-	i = 0;
-	slen = strlen(s);
-	while (i < slen) {
-		/* Flush the buffer if it is full. */
-		if (prof_dump_buf_end == PROF_DUMP_BUFSIZE) {
-			prof_dump_flush();
-		}
-
-		if (prof_dump_buf_end + slen - i <= PROF_DUMP_BUFSIZE) {
-			/* Finish writing. */
-			n = slen - i;
-		} else {
-			/* Write as much of s as will fit. */
-			n = PROF_DUMP_BUFSIZE - prof_dump_buf_end;
-		}
-		memcpy(&prof_dump_buf[prof_dump_buf_end], &s[i], n);
-		prof_dump_buf_end += n;
-		i += n;
-	}
-	assert(i == slen);
+	buf_writer_cb(&prof_dump_buf_writer, s);
 }
 
 static void
 prof_dump_close() {
 	if (prof_dump_fd != -1) {
-		prof_dump_flush();
 		close(prof_dump_fd);
 	}
 }
@@ -471,6 +447,13 @@ prof_dump_open_maps_impl() {
 prof_dump_open_maps_t *JET_MUTABLE prof_dump_open_maps =
     prof_dump_open_maps_impl;
 
+static ssize_t
+prof_dump_read_maps_cb(void *read_cbopaque, void *buf, size_t limit) {
+	int mfd = *(int *)read_cbopaque;
+	assert(mfd != -1);
+	return malloc_read_fd(mfd, buf, limit);
+}
+
 static void
 prof_dump_maps() {
 	int mfd = prof_dump_open_maps();
@@ -479,17 +462,7 @@ prof_dump_maps() {
 	}
 
 	prof_dump_write("\nMAPPED_LIBRARIES:\n");
-	ssize_t nread = 0;
-	do {
-		prof_dump_buf_end += nread;
-		if (prof_dump_buf_end == PROF_DUMP_BUFSIZE) {
-			/* Make space in prof_dump_buf before read(). */
-			prof_dump_flush();
-		}
-		nread = malloc_read_fd(mfd, &prof_dump_buf[prof_dump_buf_end],
-		    PROF_DUMP_BUFSIZE - prof_dump_buf_end);
-	} while (nread > 0);
-
+	buf_writer_pipe(&prof_dump_buf_writer, prof_dump_read_maps_cb, &mfd);
 	close(mfd);
 }
 
@@ -511,8 +484,12 @@ prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_mtx);
 
 	prof_dump_open(filename);
+	bool err = buf_writer_init(tsd_tsdn(tsd), &prof_dump_buf_writer,
+	    prof_dump_flush, NULL, prof_dump_buf, PROF_DUMP_BUFSIZE);
+	assert(!err);
 	prof_dump_impl(tsd, tdata, prof_dump_write, leakcheck);
 	prof_dump_maps();
+	buf_writer_terminate(tsd_tsdn(tsd), &prof_dump_buf_writer);
 	prof_dump_close();
 
 	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_mtx);
