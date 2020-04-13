@@ -513,31 +513,37 @@ prof_recent_alloc_dump(tsd_t *tsd, write_cb_t *write_cb, void *cbopaque) {
 	emitter_t emitter;
 	emitter_init(&emitter, emitter_output_json_compact, buf_writer_cb,
 	    &buf_writer);
-	emitter_begin(&emitter);
+	prof_recent_list_t temp_list;
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 	prof_recent_alloc_assert_count(tsd);
+	ssize_t dump_max = prof_recent_alloc_max_get(tsd);
+	ql_move(&temp_list, &prof_recent_alloc_list);
+	ssize_t dump_count = prof_recent_alloc_count;
+	prof_recent_alloc_count = 0;
+	prof_recent_alloc_assert_count(tsd);
+	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 
-	/*
-	 * Set prof_recent_alloc_max to 0 so that dumping won't block sampled
-	 * allocations: the allocations can complete but will not be recorded.
-	 */
-	ssize_t max = prof_recent_alloc_max_update(tsd, 0);
-
-	emitter_json_kv(&emitter, "recent_alloc_max", emitter_type_ssize, &max);
-
+	emitter_begin(&emitter);
+	emitter_json_kv(&emitter, "recent_alloc_max", emitter_type_ssize,
+	    &dump_max);
 	emitter_json_array_kv_begin(&emitter, "recent_alloc");
 	prof_recent_t *node;
-	ql_foreach(node, &prof_recent_alloc_list, link) {
+	ql_foreach(node, &temp_list, link) {
 		prof_recent_alloc_dump_node(&emitter, node);
 	}
 	emitter_json_array_end(&emitter);
+	emitter_end(&emitter);
 
-	max = prof_recent_alloc_max_update(tsd, max);
-	assert(max == 0);
+	malloc_mutex_lock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
+	prof_recent_alloc_assert_count(tsd);
+	ql_concat(&temp_list, &prof_recent_alloc_list, link);
+	ql_move(&prof_recent_alloc_list, &temp_list);
+	prof_recent_alloc_count += dump_count;
+	prof_recent_alloc_restore_locked(tsd, &temp_list);
 	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 
-	emitter_end(&emitter);
+	prof_recent_alloc_async_cleanup(tsd, &temp_list);
 	buf_writer_terminate(tsd_tsdn(tsd), &buf_writer);
 }
 #undef PROF_RECENT_PRINT_BUFSIZE
