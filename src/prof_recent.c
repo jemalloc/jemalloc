@@ -504,7 +504,7 @@ prof_recent_alloc_dump_node(emitter_t *emitter, prof_recent_t *node) {
 	emitter_json_object_end(emitter);
 }
 
-#define PROF_RECENT_PRINT_BUFSIZE 4096
+#define PROF_RECENT_PRINT_BUFSIZE 65536
 void
 prof_recent_alloc_dump(tsd_t *tsd, write_cb_t *write_cb, void *cbopaque) {
 	buf_writer_t buf_writer;
