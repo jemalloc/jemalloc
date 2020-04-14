@@ -88,6 +88,36 @@ locked_dec_u64(tsdn_t *tsdn, malloc_mutex_t *mtx, locked_u64_t *p,
 #endif
 }
 
+/* Increment and take modulus.  Returns whether the modulo made any change.  */
+static inline bool
+locked_inc_mod_u64(tsdn_t *tsdn, malloc_mutex_t *mtx, locked_u64_t *p,
+    const uint64_t x, const uint64_t modulus) {
+	LOCKEDINT_MTX_ASSERT_INTERNAL(tsdn, mtx);
+	uint64_t before, after;
+	bool overflow;
+#ifdef JEMALLOC_ATOMIC_U64
+	before = atomic_load_u64(&p->val, ATOMIC_RELAXED);
+	do {
+		after = before + x;
+		assert(after >= before);
+		overflow = (after >= modulus);
+		if (overflow) {
+			after %= modulus;
+		}
+	} while (!atomic_compare_exchange_weak_u64(&p->val, &before, after,
+	    ATOMIC_RELAXED, ATOMIC_RELAXED));
+#else
+	before = p->val;
+	after = before + x;
+	overflow = (after >= modulus);
+	if (overflow) {
+		after %= modulus;
+	}
+	p->val = after;
+#endif
+	return overflow;
+}
+
 /*
  * Non-atomically sets *dst += src.  *dst needs external synchronization.
  * This lets us avoid the cost of a fetch_add when its unnecessary (note that
@@ -110,7 +140,15 @@ locked_read_u64_unsynchronized(locked_u64_t *p) {
 #else
 	return p->val;
 #endif
+}
 
+static inline void
+locked_init_u64_unsynchronized(locked_u64_t *p, uint64_t x) {
+#ifdef JEMALLOC_ATOMIC_U64
+	atomic_store_u64(&p->val, x, ATOMIC_RELAXED);
+#else
+	p->val = x;
+#endif
 }
 
 static inline size_t
