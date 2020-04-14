@@ -90,7 +90,7 @@ arena_stats_init(tsdn_t *tsdn, arena_stats_t *arena_stats) {
 			assert(((char *)arena_stats)[i] == 0);
 		}
 	}
-	if (LOCKEDINT_MTX_INIT(LOCKEDINT_MTX(arena_stats->mtx), "arena_stats",
+	if (LOCKEDINT_MTX_INIT(arena_stats->mtx, "arena_stats",
 	    WITNESS_RANK_ARENA_STATS, malloc_mutex_rank_exclusive)) {
 		return true;
 	}
