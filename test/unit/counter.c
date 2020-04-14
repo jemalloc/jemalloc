@@ -27,12 +27,7 @@ TEST_END
 
 void
 expect_counter_value(counter_accum_t *c, uint64_t v) {
-	uint64_t accum;
-#ifdef JEMALLOC_ATOMIC_U64
-	accum = atomic_load_u64(&(c->accumbytes), ATOMIC_RELAXED);
-#else
-	accum = c->accumbytes;
-#endif
+	uint64_t accum = locked_read_u64_unsynchronized(&c->accumbytes);
 	expect_u64_eq(accum, v, "Counter value mismatch");
 }
 
