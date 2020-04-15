@@ -44,5 +44,8 @@ bool stats_interval_accum(tsd_t *tsd, uint64_t bytes);
 void stats_print(write_cb_t *write_cb, void *cbopaque, const char *opts);
 
 bool stats_boot(void);
+void stats_prefork(tsdn_t *tsdn);
+void stats_postfork_parent(tsdn_t *tsdn);
+void stats_postfork_child(tsdn_t *tsdn);
 
 #endif /* JEMALLOC_INTERNAL_STATS_H */

@@ -3989,6 +3989,7 @@ _malloc_prefork(void)
 		}
 	}
 	prof_prefork1(tsd_tsdn(tsd));
+	stats_prefork(tsd_tsdn(tsd));
 	tsd_prefork(tsd);
 }
 
@@ -4016,6 +4017,7 @@ _malloc_postfork(void)
 
 	witness_postfork_parent(tsd_witness_tsdp_get(tsd));
 	/* Release all mutexes, now that fork() has completed. */
+	stats_postfork_parent(tsd_tsdn(tsd));
 	for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
 		arena_t *arena;
 
@@ -4045,6 +4047,7 @@ jemalloc_postfork_child(void) {
 
 	witness_postfork_child(tsd_witness_tsdp_get(tsd));
 	/* Release all mutexes, now that fork() has completed. */
+	stats_postfork_child(tsd_tsdn(tsd));
 	for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
 		arena_t *arena;
 

@@ -1526,3 +1526,18 @@ stats_boot(void) {
 
 	return counter_accum_init(&stats_interval_accumulated, stats_interval);
 }
+
+void
+stats_prefork(tsdn_t *tsdn) {
+	counter_prefork(tsdn, &stats_interval_accumulated);
+}
+
+void
+stats_postfork_parent(tsdn_t *tsdn) {
+	counter_postfork_parent(tsdn, &stats_interval_accumulated);
+}
+
+void
+stats_postfork_child(tsdn_t *tsdn) {
+	counter_postfork_child(tsdn, &stats_interval_accumulated);
+}
