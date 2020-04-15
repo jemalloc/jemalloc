@@ -1463,12 +1463,6 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		}
 	}
 
-	if (config_prof) {
-		if (prof_accum_init()) {
-			goto label_error;
-		}
-	}
-
 	atomic_store_u(&arena->dss_prec, (unsigned)extent_dss_prec_get(),
 	    ATOMIC_RELAXED);
 
