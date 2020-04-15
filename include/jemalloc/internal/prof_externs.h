@@ -48,9 +48,6 @@ extern size_t lg_prof_sample;
 
 extern bool prof_booted;
 
-/* Functions only accessed in prof_inlines_a.h */
-bool prof_idump_accum_impl(tsdn_t *tsdn, uint64_t accumbytes);
-
 /* Functions only accessed in prof_inlines_b.h */
 prof_tdata_t *prof_tdata_init(tsd_t *tsd);
 prof_tdata_t *prof_tdata_reinit(tsd_t *tsd, prof_tdata_t *tdata);
@@ -78,6 +75,7 @@ void prof_cnt_all(uint64_t *curobjs, uint64_t *curbytes, uint64_t *accumobjs,
 int prof_getpid(void);
 void prof_get_default_filename(tsdn_t *tsdn, char *filename, uint64_t ind);
 bool prof_accum_init(void);
+bool prof_idump_accum(tsdn_t *tsdn, uint64_t accumbytes);
 void prof_idump(tsdn_t *tsdn);
 bool prof_mdump(tsd_t *tsd, const char *filename);
 void prof_gdump(tsdn_t *tsdn);
