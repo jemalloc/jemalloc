@@ -25,15 +25,4 @@ prof_active_get_unlocked(void) {
 	return prof_active;
 }
 
-JEMALLOC_ALWAYS_INLINE bool
-prof_idump_accum(tsdn_t *tsdn, uint64_t accumbytes) {
-	cassert(config_prof);
-
-	if (prof_interval == 0 || !prof_active_get_unlocked()) {
-		return false;
-	}
-
-	return prof_idump_accum_impl(tsdn, accumbytes);
-}
-
 #endif /* JEMALLOC_INTERNAL_PROF_INLINES_A_H */

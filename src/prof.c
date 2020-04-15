@@ -649,8 +649,12 @@ prof_accum_init(void) {
 }
 
 bool
-prof_idump_accum_impl(tsdn_t *tsdn, uint64_t accumbytes) {
+prof_idump_accum(tsdn_t *tsdn, uint64_t accumbytes) {
 	cassert(config_prof);
+
+	if (prof_interval == 0 || !prof_active_get_unlocked()) {
+		return false;
+	}
 
 	return counter_accum(tsdn, &prof_idump_accumulated, accumbytes);
 }
