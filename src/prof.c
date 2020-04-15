@@ -50,7 +50,7 @@ bool opt_prof_accum = false;
 char opt_prof_prefix[PROF_DUMP_FILENAME_LEN];
 bool opt_prof_experimental_use_sys_thread_name = false;
 
-/* Accessed via prof_idump_[accum/rollback](). */
+/* Accessed via prof_idump_accum(). */
 static counter_accum_t prof_idump_accumulated;
 
 /*
@@ -653,16 +653,6 @@ prof_idump_accum_impl(tsdn_t *tsdn, uint64_t accumbytes) {
 	cassert(config_prof);
 
 	return counter_accum(tsdn, &prof_idump_accumulated, accumbytes);
-}
-
-void
-prof_idump_rollback_impl(tsdn_t *tsdn, size_t usize) {
-	cassert(config_prof);
-
-	/* Rollback is only done on arena_prof_promote of small sizes. */
-	assert(SC_LARGE_MINCLASS > usize);
-	return counter_rollback(tsdn, &prof_idump_accumulated,
-	    SC_LARGE_MINCLASS - usize);
 }
 
 bool

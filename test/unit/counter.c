@@ -36,48 +36,6 @@ expect_counter_value(counter_accum_t *c, uint64_t v) {
 	expect_u64_eq(accum, v, "Counter value mismatch");
 }
 
-TEST_BEGIN(test_counter_rollback) {
-	uint64_t half_interval = interval / 2;
-
-	counter_accum_t c;
-	counter_accum_init(&c, interval);
-
-	tsd_t *tsd = tsd_fetch();
-	counter_rollback(tsd_tsdn(tsd), &c, half_interval);
-
-	bool trigger;
-	trigger = counter_accum(tsd_tsdn(tsd), &c, half_interval);
-	expect_b_eq(trigger, false, "Should not trigger");
-	counter_rollback(tsd_tsdn(tsd), &c, half_interval + 1);
-	expect_counter_value(&c,  0);
-
-	trigger = counter_accum(tsd_tsdn(tsd), &c, half_interval);
-	expect_b_eq(trigger, false, "Should not trigger");
-	counter_rollback(tsd_tsdn(tsd), &c, half_interval - 1);
-	expect_counter_value(&c,  1);
-
-	counter_rollback(tsd_tsdn(tsd), &c, 1);
-	expect_counter_value(&c,  0);
-
-	trigger = counter_accum(tsd_tsdn(tsd), &c, half_interval);
-	expect_b_eq(trigger, false, "Should not trigger");
-	counter_rollback(tsd_tsdn(tsd), &c, 1);
-	expect_counter_value(&c,  half_interval - 1);
-
-	trigger = counter_accum(tsd_tsdn(tsd), &c, half_interval);
-	expect_b_eq(trigger, false, "Should not trigger");
-	expect_counter_value(&c,  interval - 1);
-
-	trigger = counter_accum(tsd_tsdn(tsd), &c, 1);
-	expect_b_eq(trigger, true, "Should have triggered");
-	expect_counter_value(&c, 0);
-
-	trigger = counter_accum(tsd_tsdn(tsd), &c, interval + 1);
-	expect_b_eq(trigger, true, "Should have triggered");
-	expect_counter_value(&c, 1);
-}
-TEST_END
-
 #define N_THDS (16)
 #define N_ITER_THD (1 << 12)
 #define ITER_INCREMENT (interval >> 4)
@@ -123,6 +81,5 @@ int
 main(void) {
 	return test(
 	    test_counter_accum,
-	    test_counter_rollback,
 	    test_counter_mt);
 }
