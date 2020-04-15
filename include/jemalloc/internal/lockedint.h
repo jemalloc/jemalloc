@@ -31,12 +31,20 @@ struct locked_zu_s {
 #  define LOCKEDINT_MTX(mtx) (&(mtx))
 #  define LOCKEDINT_MTX_LOCK(tsdn, mu) malloc_mutex_lock(tsdn, &(mu))
 #  define LOCKEDINT_MTX_UNLOCK(tsdn, mu) malloc_mutex_unlock(tsdn, &(mu))
+#  define LOCKEDINT_MTX_PREFORK(tsdn, mu) malloc_mutex_prefork(tsdn, &(mu))
+#  define LOCKEDINT_MTX_POSTFORK_PARENT(tsdn, mu)			\
+    malloc_mutex_postfork_parent(tsdn, &(mu))
+#  define LOCKEDINT_MTX_POSTFORK_CHILD(tsdn, mu)			\
+    malloc_mutex_postfork_child(tsdn, &(mu))
 #else
 #  define LOCKEDINT_MTX_DECLARE(name)
 #  define LOCKEDINT_MTX(ptr) NULL
 #  define LOCKEDINT_MTX_INIT(ptr, name, rank, rank_mode) false
 #  define LOCKEDINT_MTX_LOCK(tsdn, mu) do {} while (0)
 #  define LOCKEDINT_MTX_UNLOCK(tsdn, mu) do {} while (0)
+#  define LOCKEDINT_MTX_PREFORK(tsdn, mu)
+#  define LOCKEDINT_MTX_POSTFORK_PARENT(tsdn, mu)
+#  define LOCKEDINT_MTX_POSTFORK_CHILD(tsdn, mu)
 #endif
 
 static inline uint64_t

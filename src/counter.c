@@ -20,3 +20,18 @@ counter_accum_init(counter_accum_t *counter, uint64_t interval) {
 
 	return false;
 }
+
+void
+counter_prefork(tsdn_t *tsdn, counter_accum_t *counter) {
+	LOCKEDINT_MTX_PREFORK(tsdn, counter->mtx);
+}
+
+void
+counter_postfork_parent(tsdn_t *tsdn, counter_accum_t *counter) {
+	LOCKEDINT_MTX_POSTFORK_PARENT(tsdn, counter->mtx);
+}
+
+void
+counter_postfork_child(tsdn_t *tsdn, counter_accum_t *counter) {
+	LOCKEDINT_MTX_POSTFORK_CHILD(tsdn, counter->mtx);
+}
