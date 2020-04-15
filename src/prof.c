@@ -518,16 +518,11 @@ prof_backtrace(tsd_t *tsd, prof_bt_t *bt) {
  * (e.g.
  * -mno-sse) in order for the workaround to be complete.
  */
-void
-prof_sample_threshold_update(tsd_t *tsd) {
+uint64_t
+prof_sample_new_event_wait(tsd_t *tsd) {
 #ifdef JEMALLOC_PROF
-	if (!config_prof) {
-		return;
-	}
-
 	if (lg_prof_sample == 0) {
-		te_prof_sample_event_update(tsd, TE_MIN_START_WAIT);
-		return;
+		return TE_MIN_START_WAIT;
 	}
 
 	/*
@@ -557,10 +552,12 @@ prof_sample_threshold_update(tsd_t *tsd) {
 	 */
 	uint64_t r = prng_lg_range_u64(tsd_prng_statep_get(tsd), 53);
 	double u = (r == 0U) ? 1.0 : (double)r * (1.0/9007199254740992.0L);
-	uint64_t bytes_until_sample = (uint64_t)(log(u) /
+	return (uint64_t)(log(u) /
 	    log(1.0 - (1.0 / (double)((uint64_t)1U << lg_prof_sample))))
 	    + (uint64_t)1U;
-	te_prof_sample_event_update(tsd, bytes_until_sample);
+#else
+	not_reached();
+	return TE_MAX_START_WAIT;
 #endif
 }
 

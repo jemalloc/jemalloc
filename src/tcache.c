@@ -40,6 +40,16 @@ tcache_salloc(tsdn_t *tsdn, const void *ptr) {
 	return arena_salloc(tsdn, ptr);
 }
 
+uint64_t
+tcache_gc_new_event_wait(tsd_t *tsd) {
+	return TCACHE_GC_INCR_BYTES;
+}
+
+uint64_t
+tcache_gc_dalloc_new_event_wait(tsd_t *tsd) {
+	return TCACHE_GC_INCR_BYTES;
+}
+
 void
 tcache_event_hard(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache) {
 	szind_t binind = tcache_slow->next_gc_bin;

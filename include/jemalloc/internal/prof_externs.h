@@ -74,7 +74,6 @@ void prof_cnt_all(uint64_t *curobjs, uint64_t *curbytes, uint64_t *accumobjs,
 #endif
 int prof_getpid(void);
 void prof_get_default_filename(tsdn_t *tsdn, char *filename, uint64_t ind);
-bool prof_idump_accum(tsdn_t *tsdn, uint64_t accumbytes);
 void prof_idump(tsdn_t *tsdn);
 bool prof_mdump(tsd_t *tsd, const char *filename);
 void prof_gdump(tsdn_t *tsdn);
@@ -99,7 +98,9 @@ void prof_prefork0(tsdn_t *tsdn);
 void prof_prefork1(tsdn_t *tsdn);
 void prof_postfork_parent(tsdn_t *tsdn);
 void prof_postfork_child(tsdn_t *tsdn);
-void prof_sample_threshold_update(tsd_t *tsd);
+/* Only accessed by thread event. */
+uint64_t prof_sample_new_event_wait(tsd_t *tsd);
+bool prof_idump_accum(tsdn_t *tsdn, uint64_t accumbytes);
 
 bool prof_log_start(tsdn_t *tsdn, const char *filename);
 bool prof_log_stop(tsdn_t *tsdn);

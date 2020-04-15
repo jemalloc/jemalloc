@@ -4,6 +4,17 @@
 
 #include "jemalloc/internal/thread_event.h"
 
+/*
+ * Signatures for functions computing new event wait time.  The functions
+ * should be defined by the modules owning each event.  The signatures here are
+ * used to verify that the definitions are in the right shape.
+ */
+#define E(event, condition_unused, is_alloc_event_unused)		\
+uint64_t event##_new_event_wait(tsd_t *tsd);
+
+ITERATE_OVER_ALL_EVENTS
+#undef E
+
 /* TSD event init function signatures. */
 #define E(event, condition_unused, is_alloc_event_unused)		\
 static void te_tsd_##event##_event_init(tsd_t *tsd);
@@ -22,26 +33,29 @@ ITERATE_OVER_ALL_EVENTS
 static void
 te_tsd_tcache_gc_event_init(tsd_t *tsd) {
 	assert(TCACHE_GC_INCR_BYTES > 0);
-	te_tcache_gc_event_update(tsd, TCACHE_GC_INCR_BYTES);
+	uint64_t wait = tcache_gc_new_event_wait(tsd);
+	te_tcache_gc_event_update(tsd, wait);
 }
 
 static void
 te_tsd_tcache_gc_dalloc_event_init(tsd_t *tsd) {
 	assert(TCACHE_GC_INCR_BYTES > 0);
-	te_tcache_gc_dalloc_event_update(tsd, TCACHE_GC_INCR_BYTES);
+	uint64_t wait = tcache_gc_dalloc_new_event_wait(tsd);
+	te_tcache_gc_dalloc_event_update(tsd, wait);
 }
 
 static void
 te_tsd_prof_sample_event_init(tsd_t *tsd) {
 	assert(config_prof && opt_prof);
-	prof_sample_threshold_update(tsd);
+	uint64_t wait = prof_sample_new_event_wait(tsd);
+	te_prof_sample_event_update(tsd, wait);
 }
 
 static void
 te_tsd_stats_interval_event_init(tsd_t *tsd) {
 	assert(opt_stats_interval >= 0);
-	uint64_t interval = stats_interval_accum_batch_size();
-	te_stats_interval_event_update(tsd, interval);
+	uint64_t wait = stats_interval_new_event_wait(tsd);
+	te_stats_interval_event_update(tsd, wait);
 }
 
 /* Handler functions. */
