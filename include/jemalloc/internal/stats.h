@@ -45,5 +45,8 @@ void stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
     const char *opts);
 
 bool stats_boot(void);
+void stats_prefork(tsdn_t *tsdn);
+void stats_postfork_parent(tsdn_t *tsdn);
+void stats_postfork_child(tsdn_t *tsdn);
 
 #endif /* JEMALLOC_INTERNAL_STATS_H */
