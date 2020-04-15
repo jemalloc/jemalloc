@@ -197,30 +197,34 @@
     (SC_LG_BASE_MAX - SC_LG_FIRST_REGULAR_BASE + 1) - 1)
 #define SC_NSIZES (SC_NTINY + SC_NPSEUDO + SC_NREGULAR)
 
-/* The number of size classes that are a multiple of the page size. */
-#define SC_NPSIZES (							\
-    /* Start with all the size classes. */				\
-    SC_NSIZES								\
-    /* Subtract out those groups with too small a base. */		\
-    - (LG_PAGE - 1 - SC_LG_FIRST_REGULAR_BASE) * SC_NGROUP		\
-    /* And the pseudo-group. */						\
-    - SC_NPSEUDO							\
-    /* And the tiny group. */						\
-    - SC_NTINY								\
-    /* Sizes where ndelta*delta is not a multiple of the page size. */	\
-    - (SC_LG_NGROUP * SC_NGROUP))
 /*
- * Note that the last line is computed as the sum of the second column in the
- * following table:
- *                      lg(base) | count of sizes to exclude
- * ------------------------------|-----------------------------
- *                   LG_PAGE - 1 | SC_NGROUP - 1
- *                       LG_PAGE | SC_NGROUP - 1
- *                   LG_PAGE + 1 | SC_NGROUP - 2
- *                   LG_PAGE + 2 | SC_NGROUP - 4
- *                           ... | ...
- *  LG_PAGE + (SC_LG_NGROUP - 1) | SC_NGROUP - (SC_NGROUP / 2)
+ * The number of size classes that are a multiple of the page size.
+ *
+ * Here are the first few bases that have a page-sized SC.
+ *
+ *      lg(base) |     base | highest SC | page-multiple SCs
+ * --------------|------------------------------------------
+ *   LG_PAGE - 1 | PAGE / 2 |       PAGE | 1
+ *       LG_PAGE |     PAGE |   2 * PAGE | 1
+ *   LG_PAGE + 1 | 2 * PAGE |   4 * PAGE | 2
+ *   LG_PAGE + 2 | 4 * PAGE |   8 * PAGE | 4
+ *
+ * The number of page-multiple SCs continues to grow in powers of two, up until
+ * lg_delta == lg_page, which corresponds to setting lg_base to lg_page +
+ * SC_LG_NGROUP.  So, then, the number of size classes that are multiples of the
+ * page size whose lg_delta is less than the page size are
+ * is 1 + (2**0 + 2**1 + ... + 2**(lg_ngroup - 1) == 2**lg_ngroup.
+ *
+ * For each base with lg_base in [lg_page + lg_ngroup, lg_base_max), there are
+ * NGROUP page-sized size classes, and when lg_base == lg_base_max, there are
+ * NGROUP - 1.
+ *
+ * This gives us the quantity we seek.
  */
+#define SC_NPSIZES (							\
+    SC_NGROUP								\
+    + (SC_LG_BASE_MAX - (LG_PAGE + SC_LG_NGROUP)) * SC_NGROUP		\
+    + SC_NGROUP - 1)
 
 /*
  * We declare a size class is binnable if size < page size * group. Or, in other
