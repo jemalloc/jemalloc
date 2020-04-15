@@ -50,7 +50,6 @@ extern bool prof_booted;
 
 /* Functions only accessed in prof_inlines_a.h */
 bool prof_idump_accum_impl(tsdn_t *tsdn, uint64_t accumbytes);
-void prof_idump_rollback_impl(tsdn_t *tsdn, size_t usize);
 
 /* Functions only accessed in prof_inlines_b.h */
 prof_tdata_t *prof_tdata_init(tsd_t *tsd);

@@ -36,15 +36,4 @@ prof_idump_accum(tsdn_t *tsdn, uint64_t accumbytes) {
 	return prof_idump_accum_impl(tsdn, accumbytes);
 }
 
-JEMALLOC_ALWAYS_INLINE void
-prof_idump_rollback(tsdn_t *tsdn, size_t usize) {
-	cassert(config_prof);
-
-	if (prof_interval == 0 || !prof_active_get_unlocked()) {
-		return;
-	}
-
-	prof_idump_rollback_impl(tsdn, usize);
-}
-
 #endif /* JEMALLOC_INTERNAL_PROF_INLINES_A_H */

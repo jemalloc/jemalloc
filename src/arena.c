@@ -1061,8 +1061,6 @@ arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize) {
 	edata_szind_set(edata, szind);
 	emap_remap(tsdn, &arena_emap_global, edata, szind, /* slab */ false);
 
-	prof_idump_rollback(tsdn, usize);
-
 	assert(isalloc(tsdn, ptr) == usize);
 }
 
