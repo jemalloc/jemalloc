@@ -57,9 +57,6 @@ struct arena_s {
 	ql_head(cache_bin_array_descriptor_t)	cache_bin_array_descriptor_ql;
 	malloc_mutex_t				tcache_ql_mtx;
 
-	/* Synchronization: internal. */
-	counter_accum_t		prof_accum;
-
 	/*
 	 * Represents a dss_prec_t, but atomically.
 	 *
