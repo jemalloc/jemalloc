@@ -246,8 +246,9 @@
 #  error "Too many small size classes"
 #endif
 
-/* The largest size class in the lookup table. */
-#define SC_LOOKUP_MAXCLASS ((size_t)1 << 12)
+/* The largest size class in the lookup table, and its binary log. */
+#define SC_LG_MAX_LOOKUP 12
+#define SC_LOOKUP_MAXCLASS ((size_t)1 << SC_LG_MAX_LOOKUP)
 
 /* Internal, only used for the definition of SC_SMALL_MAXCLASS. */
 #define SC_SMALL_MAX_BASE ((size_t)1 << (LG_PAGE + SC_LG_NGROUP - 1))
