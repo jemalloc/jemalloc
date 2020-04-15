@@ -1111,6 +1111,7 @@ prof_prefork0(tsdn_t *tsdn) {
 void
 prof_prefork1(tsdn_t *tsdn) {
 	if (config_prof && opt_prof) {
+		counter_prefork(tsdn, &prof_idump_accumulated);
 		malloc_mutex_prefork(tsdn, &prof_active_mtx);
 		malloc_mutex_prefork(tsdn, &prof_dump_filename_mtx);
 		malloc_mutex_prefork(tsdn, &prof_gdump_mtx);
@@ -1132,6 +1133,7 @@ prof_postfork_parent(tsdn_t *tsdn) {
 		malloc_mutex_postfork_parent(tsdn, &prof_gdump_mtx);
 		malloc_mutex_postfork_parent(tsdn, &prof_dump_filename_mtx);
 		malloc_mutex_postfork_parent(tsdn, &prof_active_mtx);
+		counter_postfork_parent(tsdn, &prof_idump_accumulated);
 		for (i = 0; i < PROF_NCTX_LOCKS; i++) {
 			malloc_mutex_postfork_parent(tsdn, &gctx_locks[i]);
 		}
@@ -1156,6 +1158,7 @@ prof_postfork_child(tsdn_t *tsdn) {
 		malloc_mutex_postfork_child(tsdn, &prof_gdump_mtx);
 		malloc_mutex_postfork_child(tsdn, &prof_dump_filename_mtx);
 		malloc_mutex_postfork_child(tsdn, &prof_active_mtx);
+		counter_postfork_child(tsdn, &prof_idump_accumulated);
 		for (i = 0; i < PROF_NCTX_LOCKS; i++) {
 			malloc_mutex_postfork_child(tsdn, &gctx_locks[i]);
 		}
