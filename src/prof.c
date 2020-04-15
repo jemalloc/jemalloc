@@ -641,8 +641,8 @@ prof_fdump(void) {
 	prof_dump(tsd, false, filename, opt_prof_leak);
 }
 
-bool
-prof_accum_init(void) {
+static bool
+prof_idump_accum_init(void) {
 	cassert(config_prof);
 
 	return counter_accum_init(&prof_idump_accumulated, prof_interval);
@@ -1018,6 +1018,10 @@ prof_boot2(tsd_t *tsd, base_t *base) {
 		next_thr_uid = 0;
 		if (malloc_mutex_init(&next_thr_uid_mtx, "prof_next_thr_uid",
 		    WITNESS_RANK_PROF_NEXT_THR_UID, malloc_mutex_rank_exclusive)) {
+			return true;
+		}
+
+		if (prof_idump_accum_init()) {
 			return true;
 		}
 
