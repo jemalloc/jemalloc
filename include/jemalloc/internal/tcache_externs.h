@@ -26,8 +26,6 @@ extern cache_bin_info_t *tcache_bin_info;
 extern tcaches_t	*tcaches;
 
 size_t	tcache_salloc(tsdn_t *tsdn, const void *ptr);
-void	tcache_event_hard(tsd_t *tsd, tcache_slow_t *tcache_slow,
-    tcache_t *tcache);
 void	*tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
     cache_bin_t *tbin, szind_t binind, bool *tcache_success);
 
@@ -54,5 +52,11 @@ bool tsd_tcache_data_init(tsd_t *tsd);
 bool tsd_tcache_enabled_data_init(tsd_t *tsd);
 
 void tcache_assert_initialized(tcache_t *tcache);
+
+/* Only accessed by thread event. */
+uint64_t tcache_gc_new_event_wait(tsd_t *tsd);
+uint64_t tcache_gc_dalloc_new_event_wait(tsd_t *tsd);
+void tcache_event_hard(tsd_t *tsd, tcache_slow_t *tcache_slow,
+    tcache_t *tcache);
 
 #endif /* JEMALLOC_INTERNAL_TCACHE_EXTERNS_H */

@@ -37,7 +37,8 @@ extern char opt_stats_interval_opts[stats_print_tot_num_options+1];
 #define STATS_INTERVAL_ACCUM_LG_BATCH_SIZE 6
 #define STATS_INTERVAL_ACCUM_BATCH_MAX (4 << 20)
 
-uint64_t stats_interval_accum_batch_size(void);
+/* Only accessed by thread event. */
+uint64_t stats_interval_new_event_wait(tsd_t *tsd);
 bool stats_interval_accum(tsd_t *tsd, uint64_t bytes);
 
 /* Implements je_malloc_stats_print. */

@@ -1499,7 +1499,7 @@ stats_interval_accum(tsd_t *tsd, uint64_t bytes) {
 }
 
 uint64_t
-stats_interval_accum_batch_size(void) {
+stats_interval_new_event_wait(tsd_t *tsd) {
 	return stats_interval_accum_batch;
 }
 
