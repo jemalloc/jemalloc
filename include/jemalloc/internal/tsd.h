@@ -86,14 +86,14 @@ typedef ql_elm(tsd_t) tsd_link_t;
     /* reentrancy_level */	0,					\
     /* narenas_tdata */		0,					\
     /* thread_allocated_last_event */	0,				\
-    /* thread_allocated_next_event */	TE_MIN_START_WAIT,		\
+    /* thread_allocated_next_event */	0,				\
     /* thread_deallocated_last_event */	0,				\
-    /* thread_deallocated_next_event */	TE_MIN_START_WAIT,		\
-    /* tcache_gc_event_wait */		TE_MIN_START_WAIT,		\
-    /* tcache_gc_dalloc_event_wait */	TE_MIN_START_WAIT,		\
-    /* prof_sample_event_wait */	TE_MIN_START_WAIT,		\
+    /* thread_deallocated_next_event */	0,				\
+    /* tcache_gc_event_wait */		0,				\
+    /* tcache_gc_dalloc_event_wait */	0,				\
+    /* prof_sample_event_wait */	0,				\
     /* prof_sample_last_event */	0,				\
-    /* stats_interval_event_wait */	TE_MIN_START_WAIT,		\
+    /* stats_interval_event_wait */	0,				\
     /* stats_interval_last_event */	0,				\
     /* prof_tdata */		NULL,					\
     /* prng_state */		0,					\
@@ -130,12 +130,6 @@ typedef ql_elm(tsd_t) tsd_link_t;
     /* witness */		WITNESS_TSD_INITIALIZER			\
     /* test data */		MALLOC_TEST_TSD_INITIALIZER
 
-
-/*
- * TE_MIN_START_WAIT should not exceed the minimal allocation usize.
- */
-#define TE_MIN_START_WAIT ((uint64_t)1U)
-#define TE_MAX_START_WAIT UINT64_MAX
 
 #define TSD_INITIALIZER {						\
     				TSD_DATA_SLOW_INITIALIZER		\

@@ -6,6 +6,12 @@
 /* "te" is short for "thread_event" */
 
 /*
+ * TE_MIN_START_WAIT should not exceed the minimal allocation usize.
+ */
+#define TE_MIN_START_WAIT ((uint64_t)1U)
+#define TE_MAX_START_WAIT UINT64_MAX
+
+/*
  * Maximum threshold on thread_(de)allocated_next_event_fast, so that there is
  * no need to check overflow in malloc fast path. (The allocation size in malloc
  * fast path never exceeds SC_LOOKUP_MAXCLASS.)
