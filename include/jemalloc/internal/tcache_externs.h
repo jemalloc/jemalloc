@@ -55,7 +55,9 @@ void tcache_assert_initialized(tcache_t *tcache);
 
 /* Only accessed by thread event. */
 uint64_t tcache_gc_new_event_wait(tsd_t *tsd);
+uint64_t tcache_gc_postponed_event_wait(tsd_t *tsd);
 uint64_t tcache_gc_dalloc_new_event_wait(tsd_t *tsd);
+uint64_t tcache_gc_dalloc_postponed_event_wait(tsd_t *tsd);
 void tcache_event_hard(tsd_t *tsd, tcache_slow_t *tcache_slow,
     tcache_t *tcache);
 

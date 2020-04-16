@@ -46,8 +46,18 @@ tcache_gc_new_event_wait(tsd_t *tsd) {
 }
 
 uint64_t
+tcache_gc_postponed_event_wait(tsd_t *tsd) {
+	return TE_MIN_START_WAIT;
+}
+
+uint64_t
 tcache_gc_dalloc_new_event_wait(tsd_t *tsd) {
 	return TCACHE_GC_INCR_BYTES;
+}
+
+uint64_t
+tcache_gc_dalloc_postponed_event_wait(tsd_t *tsd) {
+	return TE_MIN_START_WAIT;
 }
 
 void
