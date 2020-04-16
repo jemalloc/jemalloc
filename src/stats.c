@@ -1503,6 +1503,11 @@ stats_interval_new_event_wait(tsd_t *tsd) {
 	return stats_interval_accum_batch;
 }
 
+uint64_t
+stats_interval_postponed_event_wait(tsd_t *tsd) {
+	return TE_MIN_START_WAIT;
+}
+
 bool
 stats_boot(void) {
 	uint64_t stats_interval;

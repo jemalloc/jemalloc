@@ -5,12 +5,19 @@
 #include "jemalloc/internal/thread_event.h"
 
 /*
- * Signatures for functions computing new event wait time.  The functions
- * should be defined by the modules owning each event.  The signatures here are
- * used to verify that the definitions are in the right shape.
+ * Signatures for functions computing new / postponed event wait time.  New
+ * event wait time is the time till the next event if an event is currently
+ * being triggered; postponed event wait time is the time till the next event
+ * if an event should be triggered but needs to be postponed, e.g. when the TSD
+ * is not nominal or during reentrancy.
+ *
+ * These event wait time computation functions should be defined by the modules
+ * owning each event.  The signatures here are used to verify that the
+ * definitions follow the right format.
  */
 #define E(event, condition_unused, is_alloc_event_unused)		\
-uint64_t event##_new_event_wait(tsd_t *tsd);
+uint64_t event##_new_event_wait(tsd_t *tsd);				\
+uint64_t event##_postponed_event_wait(tsd_t *tsd);
 
 ITERATE_OVER_ALL_EVENTS
 #undef E
@@ -256,7 +263,7 @@ te_event_trigger(tsd_t *tsd, te_ctx_t *ctx) {
 		if (event_wait > accumbytes) {				\
 			event_wait -= accumbytes;			\
 		} else if (!allow_event_trigger) {			\
-			event_wait = TE_MIN_START_WAIT;			\
+			event_wait = event##_postponed_event_wait(tsd);	\
 		} else {						\
 			is_##event##_triggered = true;			\
 			event_wait = event##_new_event_wait(tsd);	\

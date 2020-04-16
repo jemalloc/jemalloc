@@ -98,8 +98,10 @@ void prof_prefork0(tsdn_t *tsdn);
 void prof_prefork1(tsdn_t *tsdn);
 void prof_postfork_parent(tsdn_t *tsdn);
 void prof_postfork_child(tsdn_t *tsdn);
+
 /* Only accessed by thread event. */
 uint64_t prof_sample_new_event_wait(tsd_t *tsd);
+uint64_t prof_sample_postponed_event_wait(tsd_t *tsd);
 bool prof_idump_accum(tsdn_t *tsdn, uint64_t accumbytes);
 
 bool prof_log_start(tsdn_t *tsdn, const char *filename);

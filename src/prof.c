@@ -561,6 +561,11 @@ prof_sample_new_event_wait(tsd_t *tsd) {
 #endif
 }
 
+uint64_t
+prof_sample_postponed_event_wait(tsd_t *tsd) {
+	return TE_MIN_START_WAIT;
+}
+
 int
 prof_getpid(void) {
 #ifdef _WIN32
