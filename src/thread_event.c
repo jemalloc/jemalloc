@@ -40,53 +40,16 @@ uint64_t event##_new_event_wait(tsd_t *tsd);
 ITERATE_OVER_ALL_EVENTS
 #undef E
 
-/* TSD event init function signatures. */
-#define E(event, condition_unused, is_alloc_event_unused)		\
-static void te_tsd_##event##_event_init(tsd_t *tsd);
-
-ITERATE_OVER_ALL_EVENTS
-#undef E
-
 /* Event handler function signatures. */
 #define E(event, condition_unused, is_alloc_event_unused)		\
-static void te_##event##_event_handler(tsd_t *tsd);
+static void event##_event_handler(tsd_t *tsd);
 
 ITERATE_OVER_ALL_EVENTS
 #undef E
-
-/* (Re)Init functions. */
-static void
-te_tsd_tcache_gc_event_init(tsd_t *tsd) {
-	assert(TCACHE_GC_INCR_BYTES > 0);
-	uint64_t wait = tcache_gc_new_event_wait(tsd);
-	te_tcache_gc_event_update(tsd, wait);
-}
-
-static void
-te_tsd_tcache_gc_dalloc_event_init(tsd_t *tsd) {
-	assert(TCACHE_GC_INCR_BYTES > 0);
-	uint64_t wait = tcache_gc_dalloc_new_event_wait(tsd);
-	te_tcache_gc_dalloc_event_update(tsd, wait);
-}
-
-static void
-te_tsd_prof_sample_event_init(tsd_t *tsd) {
-	assert(config_prof && opt_prof);
-	uint64_t wait = prof_sample_new_event_wait(tsd);
-	te_prof_sample_event_update(tsd, wait);
-}
-
-static void
-te_tsd_stats_interval_event_init(tsd_t *tsd) {
-	assert(opt_stats_interval >= 0);
-	uint64_t wait = stats_interval_new_event_wait(tsd);
-	te_stats_interval_event_update(tsd, wait);
-}
 
 /* Handler functions. */
 static void
 tcache_gc_event(tsd_t *tsd) {
-	assert(TCACHE_GC_INCR_BYTES > 0);
 	tcache_t *tcache = tcache_get(tsd);
 	if (tcache != NULL) {
 		tcache_slow_t *tcache_slow = tsd_tcache_slowp_get(tsd);
@@ -95,45 +58,35 @@ tcache_gc_event(tsd_t *tsd) {
 }
 
 static void
-te_tcache_gc_event_handler(tsd_t *tsd) {
-	assert(tcache_gc_event_wait_get(tsd) == 0U);
-	te_tsd_tcache_gc_event_init(tsd);
+tcache_gc_event_handler(tsd_t *tsd) {
 	tcache_gc_event(tsd);
 }
 
 static void
-te_tcache_gc_dalloc_event_handler(tsd_t *tsd) {
-	assert(tcache_gc_dalloc_event_wait_get(tsd) == 0U);
-	te_tsd_tcache_gc_dalloc_event_init(tsd);
+tcache_gc_dalloc_event_handler(tsd_t *tsd) {
 	tcache_gc_event(tsd);
 }
 
 static void
-te_prof_sample_event_handler(tsd_t *tsd) {
-	assert(config_prof && opt_prof);
-	assert(prof_sample_event_wait_get(tsd) == 0U);
+prof_sample_event_handler(tsd_t *tsd) {
 	uint64_t last_event = thread_allocated_last_event_get(tsd);
 	uint64_t last_sample_event = prof_sample_last_event_get(tsd);
 	prof_sample_last_event_set(tsd, last_event);
 	if (prof_idump_accum(tsd_tsdn(tsd), last_event - last_sample_event)) {
 		prof_idump(tsd_tsdn(tsd));
 	}
-	te_tsd_prof_sample_event_init(tsd);
 }
 
 static void
-te_stats_interval_event_handler(tsd_t *tsd) {
-	assert(opt_stats_interval >= 0);
-	assert(stats_interval_event_wait_get(tsd) == 0U);
+stats_interval_event_handler(tsd_t *tsd) {
 	uint64_t last_event = thread_allocated_last_event_get(tsd);
 	uint64_t last_stats_event = stats_interval_last_event_get(tsd);
 	stats_interval_last_event_set(tsd, last_event);
-
 	if (stats_interval_accum(tsd, last_event - last_stats_event)) {
 		je_malloc_stats_print(NULL, NULL, opt_stats_interval_opts);
 	}
-	te_tsd_stats_interval_event_init(tsd);
 }
+
 /* Per event facilities done. */
 
 static bool
@@ -352,7 +305,9 @@ te_event_trigger(tsd_t *tsd, te_ctx_t *ctx, bool delay_event) {
 	if (is_alloc == alloc_event && condition &&			\
 	    event##_event_wait_get(tsd) == 0U) {			\
 		assert(allow_event_trigger);				\
-		te_##event##_event_handler(tsd);			\
+		uint64_t wait = event##_new_event_wait(tsd);		\
+		te_##event##_event_update(tsd, wait);			\
+		event##_event_handler(tsd);				\
 	}
 
 	ITERATE_OVER_ALL_EVENTS
@@ -384,7 +339,8 @@ void tsd_te_init(tsd_t *tsd) {
 
 #define E(event, condition, is_alloc_event_unused)			\
 	if (condition) {						\
-		te_tsd_##event##_event_init(tsd);			\
+		uint64_t wait = event##_new_event_wait(tsd);		\
+		te_##event##_event_update(tsd, wait);			\
 	}
 
 	ITERATE_OVER_ALL_EVENTS
