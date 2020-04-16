@@ -563,7 +563,15 @@ prof_sample_new_event_wait(tsd_t *tsd) {
 
 uint64_t
 prof_sample_postponed_event_wait(tsd_t *tsd) {
-	return TE_MIN_START_WAIT;
+	/*
+	 * The postponed wait time for prof sample event is computed as if we
+	 * want a new wait time (i.e. as if the event were triggered).  If we
+	 * instead postpone to the immediate next allocation, like how we're
+	 * handling the other events, then we can have sampling bias, if e.g.
+	 * the allocation immediately following a reentrancy always comes from
+	 * the same stack trace.
+	 */
+	return prof_sample_new_event_wait(tsd);
 }
 
 int
