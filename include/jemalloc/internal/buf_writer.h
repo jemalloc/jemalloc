@@ -10,8 +10,6 @@
  * some "option like" content for the write_cb, so it doesn't matter.
  */
 
-typedef void (write_cb_t)(void *, const char *);
-
 typedef struct {
 	write_cb_t *write_cb;
 	void *cbopaque;

@@ -68,7 +68,7 @@ typedef struct emitter_s emitter_t;
 struct emitter_s {
 	emitter_output_t output;
 	/* The output information. */
-	void (*write_cb)(void *, const char *);
+	write_cb_t *write_cb;
 	void *cbopaque;
 	int nesting_depth;
 	/* True if we've already emitted a value at the given depth. */
@@ -240,7 +240,7 @@ emitter_json_key_prefix(emitter_t *emitter) {
 
 static inline void
 emitter_init(emitter_t *emitter, emitter_output_t emitter_output,
-    void (*write_cb)(void *, const char *), void *cbopaque) {
+    write_cb_t *write_cb, void *cbopaque) {
 	emitter->output = emitter_output;
 	emitter->write_cb = write_cb;
 	emitter->cbopaque = cbopaque;

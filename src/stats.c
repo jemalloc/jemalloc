@@ -1431,8 +1431,7 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 }
 
 void
-stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
-    const char *opts) {
+stats_print(write_cb_t *write_cb, void *cbopaque, const char *opts) {
 	int err;
 	uint64_t epoch;
 	size_t u64sz;

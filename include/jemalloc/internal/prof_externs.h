@@ -106,7 +106,6 @@ bool prof_log_stop(tsdn_t *tsdn);
 
 ssize_t prof_recent_alloc_max_ctl_read();
 ssize_t prof_recent_alloc_max_ctl_write(tsd_t *tsd, ssize_t max);
-void prof_recent_alloc_dump(tsd_t *tsd, void (*write_cb)(void *, const char *),
-    void *cbopaque);
+void prof_recent_alloc_dump(tsd_t *tsd, write_cb_t *write_cb, void *cbopaque);
 
 #endif /* JEMALLOC_INTERNAL_PROF_EXTERNS_H */

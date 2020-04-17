@@ -619,8 +619,8 @@ malloc_snprintf(char *str, size_t size, const char *format, ...) {
 }
 
 void
-malloc_vcprintf(void (*write_cb)(void *, const char *), void *cbopaque,
-    const char *format, va_list ap) {
+malloc_vcprintf(write_cb_t *write_cb, void *cbopaque, const char *format,
+    va_list ap) {
 	char buf[MALLOC_PRINTF_BUFSIZE];
 
 	if (write_cb == NULL) {
@@ -643,8 +643,7 @@ malloc_vcprintf(void (*write_cb)(void *, const char *), void *cbopaque,
  */
 JEMALLOC_FORMAT_PRINTF(3, 4)
 void
-malloc_cprintf(void (*write_cb)(void *, const char *), void *cbopaque,
-    const char *format, ...) {
+malloc_cprintf(write_cb_t *write_cb, void *cbopaque, const char *format, ...) {
 	va_list ap;
 
 	va_start(ap, format);

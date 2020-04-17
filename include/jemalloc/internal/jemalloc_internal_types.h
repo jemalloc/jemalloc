@@ -17,6 +17,9 @@ enum zero_realloc_action_e {
 };
 typedef enum zero_realloc_action_e zero_realloc_action_t;
 
+/* Signature of write callback. */
+typedef void (write_cb_t)(void *, const char *);
+
 /*
  * Flags bits:
  *
