@@ -50,7 +50,7 @@ bool opt_prof_accum = false;
 char opt_prof_prefix[PROF_DUMP_FILENAME_LEN];
 bool opt_prof_experimental_use_sys_thread_name = false;
 
-/* Accessed via prof_idump_accum(). */
+/* Accessed via prof_sample_event_handler(). */
 static counter_accum_t prof_idump_accumulated;
 
 /*
@@ -574,6 +574,18 @@ prof_sample_postponed_event_wait(tsd_t *tsd) {
 	return prof_sample_new_event_wait(tsd);
 }
 
+void
+prof_sample_event_handler(tsd_t *tsd, uint64_t elapsed) {
+	cassert(config_prof);
+	assert(elapsed > 0 && elapsed != TE_INVALID_ELAPSED);
+	if (prof_interval == 0 || !prof_active_get_unlocked()) {
+		return;
+	}
+	if (counter_accum(tsd_tsdn(tsd), &prof_idump_accumulated, elapsed)) {
+		prof_idump(tsd_tsdn(tsd));
+	}
+}
+
 int
 prof_getpid(void) {
 #ifdef _WIN32
@@ -656,17 +668,6 @@ prof_idump_accum_init(void) {
 	cassert(config_prof);
 
 	return counter_accum_init(&prof_idump_accumulated, prof_interval);
-}
-
-bool
-prof_idump_accum(tsdn_t *tsdn, uint64_t accumbytes) {
-	cassert(config_prof);
-
-	if (prof_interval == 0 || !prof_active_get_unlocked()) {
-		return false;
-	}
-
-	return counter_accum(tsdn, &prof_idump_accumulated, accumbytes);
 }
 
 bool

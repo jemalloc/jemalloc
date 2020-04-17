@@ -40,7 +40,7 @@ extern char opt_stats_interval_opts[stats_print_tot_num_options+1];
 /* Only accessed by thread event. */
 uint64_t stats_interval_new_event_wait(tsd_t *tsd);
 uint64_t stats_interval_postponed_event_wait(tsd_t *tsd);
-bool stats_interval_accum(tsd_t *tsd, uint64_t bytes);
+void stats_interval_event_handler(tsd_t *tsd, uint64_t elapsed);
 
 /* Implements je_malloc_stats_print. */
 void stats_print(write_cb_t *write_cb, void *cbopaque, const char *opts);

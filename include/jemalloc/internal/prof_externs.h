@@ -102,7 +102,7 @@ void prof_postfork_child(tsdn_t *tsdn);
 /* Only accessed by thread event. */
 uint64_t prof_sample_new_event_wait(tsd_t *tsd);
 uint64_t prof_sample_postponed_event_wait(tsd_t *tsd);
-bool prof_idump_accum(tsdn_t *tsdn, uint64_t accumbytes);
+void prof_sample_event_handler(tsd_t *tsd, uint64_t elapsed);
 
 bool prof_log_start(tsdn_t *tsdn, const char *filename);
 bool prof_log_stop(tsdn_t *tsdn);

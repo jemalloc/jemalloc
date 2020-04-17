@@ -23,6 +23,12 @@
  */
 #define TE_MAX_INTERVAL ((uint64_t)(4U << 20))
 
+/*
+ * Invalid elapsed time, for situations where elapsed time is not needed.  See
+ * comments in thread_event.c for more info.
+ */
+#define TE_INVALID_ELAPSED UINT64_MAX
+
 typedef struct te_ctx_s {
 	bool is_alloc;
 	uint64_t *current;

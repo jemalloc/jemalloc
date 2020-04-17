@@ -60,8 +60,14 @@ tcache_gc_dalloc_postponed_event_wait(tsd_t *tsd) {
 	return TE_MIN_START_WAIT;
 }
 
-void
-tcache_event_hard(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache) {
+static void
+tcache_event(tsd_t *tsd) {
+	tcache_t *tcache = tcache_get(tsd);
+	if (tcache == NULL) {
+		return;
+	}
+
+	tcache_slow_t *tcache_slow = tsd_tcache_slowp_get(tsd);
 	szind_t binind = tcache_slow->next_gc_bin;
 	bool is_small = (binind < SC_NBINS);
 	cache_bin_t *cache_bin = &tcache->bins[binind];
@@ -108,6 +114,18 @@ tcache_event_hard(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache) {
 	if (tcache_slow->next_gc_bin == nhbins) {
 		tcache_slow->next_gc_bin = 0;
 	}
+}
+
+void
+tcache_gc_event_handler(tsd_t *tsd, uint64_t elapsed) {
+	assert(elapsed == TE_INVALID_ELAPSED);
+	tcache_event(tsd);
+}
+
+void
+tcache_gc_dalloc_event_handler(tsd_t *tsd, uint64_t elapsed) {
+	assert(elapsed == TE_INVALID_ELAPSED);
+	tcache_event(tsd);
 }
 
 void *
