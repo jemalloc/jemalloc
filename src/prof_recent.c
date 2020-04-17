@@ -444,8 +444,7 @@ dump_bt(emitter_t *emitter, prof_tctx_t *tctx) {
 
 #define PROF_RECENT_PRINT_BUFSIZE 4096
 void
-prof_recent_alloc_dump(tsd_t *tsd, void (*write_cb)(void *, const char *),
-    void *cbopaque) {
+prof_recent_alloc_dump(tsd_t *tsd, write_cb_t *write_cb, void *cbopaque) {
 	buf_writer_t buf_writer;
 	buf_writer_init(tsd_tsdn(tsd), &buf_writer, write_cb, cbopaque, NULL,
 	    PROF_RECENT_PRINT_BUFSIZE);

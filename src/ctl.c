@@ -3522,7 +3522,7 @@ label_return:
 
 typedef struct write_cb_packet_s write_cb_packet_t;
 struct write_cb_packet_s {
-	void (*write_cb)(void *, const char *);
+	write_cb_t *write_cb;
 	void *cbopaque;
 };
 

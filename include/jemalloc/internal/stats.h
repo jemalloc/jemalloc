@@ -41,8 +41,7 @@ uint64_t stats_interval_accum_batch_size(void);
 bool stats_interval_accum(tsd_t *tsd, uint64_t bytes);
 
 /* Implements je_malloc_stats_print. */
-void stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
-    const char *opts);
+void stats_print(write_cb_t *write_cb, void *cbopaque, const char *opts);
 
 bool stats_boot(void);
 
