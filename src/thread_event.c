@@ -5,68 +5,59 @@
 #include "jemalloc/internal/thread_event.h"
 
 /*
- * Signatures for functions computing new / postponed event wait time.  New
+ * Signatures for event specific functions.  These functions should be defined
+ * by the modules owning each event.  The signatures here verify that the
+ * definitions follow the right format.
+ *
+ * The first two are functions computing new / postponed event wait time.  New
  * event wait time is the time till the next event if an event is currently
  * being triggered; postponed event wait time is the time till the next event
  * if an event should be triggered but needs to be postponed, e.g. when the TSD
  * is not nominal or during reentrancy.
  *
- * These event wait time computation functions should be defined by the modules
- * owning each event.  The signatures here are used to verify that the
- * definitions follow the right format.
+ * The third is the event handler function, which is called whenever an event
+ * is triggered.  The parameter is the elapsed time since the last time an
+ * event of the same type was triggered.
  */
 #define E(event, condition_unused, is_alloc_event_unused)		\
 uint64_t event##_new_event_wait(tsd_t *tsd);				\
-uint64_t event##_postponed_event_wait(tsd_t *tsd);
+uint64_t event##_postponed_event_wait(tsd_t *tsd);			\
+void event##_event_handler(tsd_t *tsd, uint64_t elapsed);
 
 ITERATE_OVER_ALL_EVENTS
 #undef E
 
-/* Event handler function signatures. */
+/* Signatures for internal functions fetching elapsed time. */
 #define E(event, condition_unused, is_alloc_event_unused)		\
-static void event##_event_handler(tsd_t *tsd);
+static uint64_t event##_fetch_elapsed(tsd_t *tsd);
 
 ITERATE_OVER_ALL_EVENTS
 #undef E
 
-/* Handler functions. */
-static void
-tcache_gc_event(tsd_t *tsd) {
-	tcache_t *tcache = tcache_get(tsd);
-	if (tcache != NULL) {
-		tcache_slow_t *tcache_slow = tsd_tcache_slowp_get(tsd);
-		tcache_event_hard(tsd, tcache_slow, tcache);
-	}
+static uint64_t
+tcache_gc_fetch_elapsed(tsd_t *tsd) {
+	return TE_INVALID_ELAPSED;
 }
 
-static void
-tcache_gc_event_handler(tsd_t *tsd) {
-	tcache_gc_event(tsd);
+static uint64_t
+tcache_gc_dalloc_fetch_elapsed(tsd_t *tsd) {
+	return TE_INVALID_ELAPSED;
 }
 
-static void
-tcache_gc_dalloc_event_handler(tsd_t *tsd) {
-	tcache_gc_event(tsd);
-}
-
-static void
-prof_sample_event_handler(tsd_t *tsd) {
+static uint64_t
+prof_sample_fetch_elapsed(tsd_t *tsd) {
 	uint64_t last_event = thread_allocated_last_event_get(tsd);
 	uint64_t last_sample_event = prof_sample_last_event_get(tsd);
 	prof_sample_last_event_set(tsd, last_event);
-	if (prof_idump_accum(tsd_tsdn(tsd), last_event - last_sample_event)) {
-		prof_idump(tsd_tsdn(tsd));
-	}
+	return last_event - last_sample_event;
 }
 
-static void
-stats_interval_event_handler(tsd_t *tsd) {
+static uint64_t
+stats_interval_fetch_elapsed(tsd_t *tsd) {
 	uint64_t last_event = thread_allocated_last_event_get(tsd);
 	uint64_t last_stats_event = stats_interval_last_event_get(tsd);
 	stats_interval_last_event_set(tsd, last_event);
-	if (stats_interval_accum(tsd, last_event - last_stats_event)) {
-		je_malloc_stats_print(NULL, NULL, opt_stats_interval_opts);
-	}
+	return last_event - last_stats_event;
 }
 
 /* Per event facilities done. */
@@ -286,7 +277,8 @@ te_event_trigger(tsd_t *tsd, te_ctx_t *ctx) {
 	if (is_alloc == alloc_event && condition &&			\
 	    is_##event##_triggered) {					\
 		assert(allow_event_trigger);				\
-		event##_event_handler(tsd);				\
+		uint64_t elapsed = event##_fetch_elapsed(tsd);		\
+		event##_event_handler(tsd, elapsed);			\
 	}
 
 	ITERATE_OVER_ALL_EVENTS

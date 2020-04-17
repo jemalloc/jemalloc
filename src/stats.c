@@ -1494,11 +1494,6 @@ stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 	emitter_end(&emitter);
 }
 
-bool
-stats_interval_accum(tsd_t *tsd, uint64_t bytes) {
-	return counter_accum(tsd_tsdn(tsd), &stats_interval_accumulated, bytes);
-}
-
 uint64_t
 stats_interval_new_event_wait(tsd_t *tsd) {
 	return stats_interval_accum_batch;
@@ -1507,6 +1502,15 @@ stats_interval_new_event_wait(tsd_t *tsd) {
 uint64_t
 stats_interval_postponed_event_wait(tsd_t *tsd) {
 	return TE_MIN_START_WAIT;
+}
+
+void
+stats_interval_event_handler(tsd_t *tsd, uint64_t elapsed) {
+	assert(elapsed > 0 && elapsed != TE_INVALID_ELAPSED);
+	if (counter_accum(tsd_tsdn(tsd), &stats_interval_accumulated,
+	    elapsed)) {
+		je_malloc_stats_print(NULL, NULL, opt_stats_interval_opts);
+	}
 }
 
 bool
