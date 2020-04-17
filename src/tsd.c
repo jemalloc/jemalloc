@@ -221,14 +221,8 @@ tsd_state_set(tsd_t *tsd, uint8_t new_state) {
 	te_recompute_fast_threshold(tsd);
 }
 
-static bool
-tsd_data_init(tsd_t *tsd) {
-	/*
-	 * We initialize the rtree context first (before the tcache), since the
-	 * tcache initialization depends on it.
-	 */
-	rtree_ctx_data_init(tsd_rtree_ctxp_get_unsafe(tsd));
-
+static void
+tsd_prng_state_init(tsd_t *tsd) {
 	/*
 	 * A nondeterministic seed based on the address of tsd reduces
 	 * the likelihood of lockstep non-uniform cache index
@@ -238,10 +232,17 @@ tsd_data_init(tsd_t *tsd) {
 	 */
 	*tsd_prng_statep_get(tsd) = config_debug ? 0 :
 	    (uint64_t)(uintptr_t)tsd;
+}
 
-	/* event_init may use the prng state above. */
-	tsd_te_init(tsd);
-
+static bool
+tsd_data_init(tsd_t *tsd) {
+	/*
+	 * We initialize the rtree context first (before the tcache), since the
+	 * tcache initialization depends on it.
+	 */
+	rtree_ctx_data_init(tsd_rtree_ctxp_get_unsafe(tsd));
+	tsd_prng_state_init(tsd);
+	tsd_te_init(tsd); /* event_init may use the prng state above. */
 	return tsd_tcache_enabled_data_init(tsd);
 }
 
@@ -270,6 +271,8 @@ tsd_data_init_nocleanup(tsd_t *tsd) {
 	*tsd_arenas_tdata_bypassp_get(tsd) = true;
 	*tsd_tcache_enabledp_get_unsafe(tsd) = false;
 	*tsd_reentrancy_levelp_get(tsd) = 1;
+	tsd_prng_state_init(tsd);
+	tsd_te_init(tsd); /* event_init may use the prng state above. */
 	assert_tsd_data_cleanup_done(tsd);
 
 	return false;
