@@ -37,28 +37,6 @@ static char *prof_dump_prefix = NULL;
 /* The fallback allocator profiling functionality will use. */
 base_t *prof_base;
 
-/* The following are needed for dumping and are protected by prof_dump_mtx. */
-/*
- * Whether there has been an error in the dumping process, which could have
- * happened either in file opening or in file writing.  When an error has
- * already occurred, we will stop further writing to the file.
- */
-static bool prof_dump_error;
-/*
- * Whether error should be handled locally: if true, then we print out error
- * message as well as abort (if opt_abort is true) when an error occurred, and
- * we also report the error back to the caller in the end; if false, then we
- * only report the error back to the caller in the end.
- */
-static bool prof_dump_handle_error_locally;
-/*
- * This buffer is rather large for stack allocation, so use a single buffer for
- * all profile dumps.
- */
-static char prof_dump_buf[PROF_DUMP_BUFSIZE];
-static buf_writer_t prof_dump_buf_writer;
-static int prof_dump_fd;
-
 void
 bt_init(prof_bt_t *bt, void **vec) {
 	cassert(config_prof);
@@ -337,15 +315,42 @@ prof_getpid(void) {
 #endif
 }
 
+/*
+ * This buffer is rather large for stack allocation, so use a single buffer for
+ * all profile dumps; protected by prof_dump_mtx.
+ */
+static char prof_dump_buf[PROF_DUMP_BUFSIZE];
+
+typedef struct prof_dump_arg_s prof_dump_arg_t;
+struct prof_dump_arg_s {
+	/*
+	 * Whether error should be handled locally: if true, then we print out
+	 * error message as well as abort (if opt_abort is true) when an error
+	 * occurred, and we also report the error back to the caller in the end;
+	 * if false, then we only report the error back to the caller in the
+	 * end.
+	 */
+	const bool handle_error_locally;
+	/*
+	 * Whether there has been an error in the dumping process, which could
+	 * have happened either in file opening or in file writing.  When an
+	 * error has already occurred, we will stop further writing to the file.
+	 */
+	bool error;
+	/* File descriptor of the dump file. */
+	int prof_dump_fd;
+};
+
 static void
-prof_dump_check_possible_error(bool err_cond, const char *format, ...) {
-	assert(!prof_dump_error);
+prof_dump_check_possible_error(prof_dump_arg_t *arg, bool err_cond,
+    const char *format, ...) {
+	assert(!arg->error);
 	if (!err_cond) {
 		return;
 	}
 
-	prof_dump_error = true;
-	if (!prof_dump_handle_error_locally) {
+	arg->error = true;
+	if (!arg->handle_error_locally) {
 		return;
 	}
 
@@ -369,29 +374,30 @@ prof_dump_open_file_t *JET_MUTABLE prof_dump_open_file =
     prof_dump_open_file_impl;
 
 static void
-prof_dump_open(const char *filename) {
-	prof_dump_fd = prof_dump_open_file(filename, 0644);
-	prof_dump_check_possible_error(prof_dump_fd == -1,
+prof_dump_open(prof_dump_arg_t *arg, const char *filename) {
+	arg->prof_dump_fd = prof_dump_open_file(filename, 0644);
+	prof_dump_check_possible_error(arg, arg->prof_dump_fd == -1,
 	    "<jemalloc>: failed to open \"%s\"\n", filename);
 }
 
 prof_dump_write_file_t *JET_MUTABLE prof_dump_write_file = malloc_write_fd;
 
 static void
-prof_dump_flush(void *cbopaque, const char *s) {
+prof_dump_flush(void *opaque, const char *s) {
 	cassert(config_prof);
-	assert(cbopaque == NULL);
-	if (!prof_dump_error) {
-		ssize_t err = prof_dump_write_file(prof_dump_fd, s, strlen(s));
-		prof_dump_check_possible_error(err == -1,
+	prof_dump_arg_t *arg = (prof_dump_arg_t *)opaque;
+	if (!arg->error) {
+		ssize_t err = prof_dump_write_file(arg->prof_dump_fd, s,
+		    strlen(s));
+		prof_dump_check_possible_error(arg, err == -1,
 		    "<jemalloc>: failed to write during heap profile flush\n");
 	}
 }
 
 static void
-prof_dump_close() {
-	if (prof_dump_fd != -1) {
-		close(prof_dump_fd);
+prof_dump_close(prof_dump_arg_t *arg) {
+	if (arg->prof_dump_fd != -1) {
+		close(arg->prof_dump_fd);
 	}
 }
 
@@ -450,14 +456,14 @@ prof_dump_read_maps_cb(void *read_cbopaque, void *buf, size_t limit) {
 }
 
 static void
-prof_dump_maps() {
+prof_dump_maps(buf_writer_t *buf_writer) {
 	int mfd = prof_dump_open_maps();
 	if (mfd == -1) {
 		return;
 	}
 
-	buf_writer_cb(&prof_dump_buf_writer, "\nMAPPED_LIBRARIES:\n");
-	buf_writer_pipe(&prof_dump_buf_writer, prof_dump_read_maps_cb, &mfd);
+	buf_writer_cb(buf_writer, "\nMAPPED_LIBRARIES:\n");
+	buf_writer_pipe(buf_writer, prof_dump_read_maps_cb, &mfd);
 	close(mfd);
 }
 
@@ -472,26 +478,26 @@ prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
 		return true;
 	}
 
-	prof_dump_error = false;
-	prof_dump_handle_error_locally = !propagate_err;
+	prof_dump_arg_t arg = {/* handle_error_locally */ !propagate_err,
+	    /* error */ false, /* prof_dump_fd */ -1};
 
 	pre_reentrancy(tsd, NULL);
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_mtx);
 
-	prof_dump_open(filename);
-	bool err = buf_writer_init(tsd_tsdn(tsd), &prof_dump_buf_writer,
-	    prof_dump_flush, NULL, prof_dump_buf, PROF_DUMP_BUFSIZE);
+	prof_dump_open(&arg, filename);
+	buf_writer_t buf_writer;
+	bool err = buf_writer_init(tsd_tsdn(tsd), &buf_writer, prof_dump_flush,
+	    &arg, prof_dump_buf, PROF_DUMP_BUFSIZE);
 	assert(!err);
-	prof_dump_impl(tsd, buf_writer_cb, &prof_dump_buf_writer, tdata,
-	    leakcheck);
-	prof_dump_maps();
-	buf_writer_terminate(tsd_tsdn(tsd), &prof_dump_buf_writer);
-	prof_dump_close();
+	prof_dump_impl(tsd, buf_writer_cb, &buf_writer, tdata, leakcheck);
+	prof_dump_maps(&buf_writer);
+	buf_writer_terminate(tsd_tsdn(tsd), &buf_writer);
+	prof_dump_close(&arg);
 
 	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_mtx);
 	post_reentrancy(tsd);
 
-	return prof_dump_error;
+	return arg.error;
 }
 
 /*
