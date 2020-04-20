@@ -586,8 +586,8 @@ prof_tctx_merge_iter(prof_tctx_tree_t *tctxs, prof_tctx_t *tctx, void *arg) {
 	return NULL;
 }
 
-typedef struct prof_tctx_dump_iter_arg_s prof_tctx_dump_iter_arg_t;
-struct prof_tctx_dump_iter_arg_s {
+typedef struct prof_dump_iter_arg_s prof_dump_iter_arg_t;
+struct prof_dump_iter_arg_s {
 	tsdn_t *tsdn;
 	write_cb_t *prof_dump_write;
 	void *cbopaque;
@@ -595,7 +595,7 @@ struct prof_tctx_dump_iter_arg_s {
 
 static prof_tctx_t *
 prof_tctx_dump_iter(prof_tctx_tree_t *tctxs, prof_tctx_t *tctx, void *opaque) {
-	prof_tctx_dump_iter_arg_t *arg = (prof_tctx_dump_iter_arg_t *)opaque;
+	prof_dump_iter_arg_t *arg = (prof_dump_iter_arg_t *)opaque;
 	malloc_mutex_assert_owner(arg->tsdn, tctx->gctx->lock);
 
 	switch (tctx->state) {
@@ -770,12 +770,6 @@ prof_tdata_merge_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
 	return NULL;
 }
 
-typedef struct prof_tdata_dump_iter_arg_s prof_tdata_dump_iter_arg_t;
-struct prof_tdata_dump_iter_arg_s {
-	write_cb_t *prof_dump_write;
-	void *cbopaque;
-};
-
 static prof_tdata_t *
 prof_tdata_dump_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
     void *opaque) {
@@ -783,7 +777,7 @@ prof_tdata_dump_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
 		return NULL;
 	}
 
-	prof_tdata_dump_iter_arg_t *arg = (prof_tdata_dump_iter_arg_t *)opaque;
+	prof_dump_iter_arg_t *arg = (prof_dump_iter_arg_t *)opaque;
 	prof_dump_printf(arg->prof_dump_write, arg->cbopaque, "  t%"FMTu64": ",
 	    tdata->thr_uid);
 	prof_dump_print_cnts(arg->prof_dump_write, arg->cbopaque,
@@ -804,7 +798,7 @@ prof_dump_header_impl(tsdn_t *tsdn, write_cb_t *prof_dump_write,
 	prof_dump_print_cnts(prof_dump_write, cbopaque, cnt_all);
 	prof_dump_write(cbopaque, "\n");
 
-	prof_tdata_dump_iter_arg_t arg = {prof_dump_write, cbopaque};
+	prof_dump_iter_arg_t arg = {tsdn, prof_dump_write, cbopaque};
 	malloc_mutex_lock(tsdn, &tdatas_mtx);
 	tdata_tree_iter(&tdatas, NULL, prof_tdata_dump_iter, &arg);
 	malloc_mutex_unlock(tsdn, &tdatas_mtx);
@@ -837,7 +831,7 @@ prof_dump_gctx(tsdn_t *tsdn, write_cb_t *prof_dump_write, void *cbopaque,
 	prof_dump_print_cnts(prof_dump_write, cbopaque, &gctx->cnt_summed);
 	prof_dump_write(cbopaque, "\n");
 
-	prof_tctx_dump_iter_arg_t arg = {tsdn, prof_dump_write, cbopaque};
+	prof_dump_iter_arg_t arg = {tsdn, prof_dump_write, cbopaque};
 	tctx_tree_iter(&gctx->tctxs, NULL, prof_tctx_dump_iter, &arg);
 }
 
@@ -874,16 +868,9 @@ prof_leakcheck(const prof_cnt_t *cnt_all, size_t leak_ngctx) {
 #endif
 }
 
-typedef struct prof_gctx_dump_iter_arg_s prof_gctx_dump_iter_arg_t;
-struct prof_gctx_dump_iter_arg_s {
-	tsdn_t *tsdn;
-	write_cb_t *prof_dump_write;
-	void *cbopaque;
-};
-
 static prof_gctx_t *
 prof_gctx_dump_iter(prof_gctx_tree_t *gctxs, prof_gctx_t *gctx, void *opaque) {
-	prof_gctx_dump_iter_arg_t *arg = (prof_gctx_dump_iter_arg_t *)opaque;
+	prof_dump_iter_arg_t *arg = (prof_dump_iter_arg_t *)opaque;
 	malloc_mutex_lock(arg->tsdn, gctx->lock);
 	prof_dump_gctx(arg->tsdn, arg->prof_dump_write, arg->cbopaque, gctx,
 	    &gctx->bt, gctxs);
@@ -944,10 +931,9 @@ prof_dump_impl(tsd_t *tsd, write_cb_t *prof_dump_write, void *cbopaque,
 	    &prof_gctx_merge_iter_arg, &gctxs);
 	prof_dump_header(tsd_tsdn(tsd), prof_dump_write, cbopaque,
 	    &prof_tdata_merge_iter_arg.cnt_all);
-	prof_gctx_dump_iter_arg_t prof_gctx_dump_iter_arg = {tsd_tsdn(tsd),
+	prof_dump_iter_arg_t prof_dump_iter_arg = {tsd_tsdn(tsd),
 	    prof_dump_write, cbopaque};
-	gctx_tree_iter(&gctxs, NULL, prof_gctx_dump_iter,
-	    &prof_gctx_dump_iter_arg);
+	gctx_tree_iter(&gctxs, NULL, prof_gctx_dump_iter, &prof_dump_iter_arg);
 	prof_gctx_finish(tsd, &gctxs);
 	if (leakcheck) {
 		prof_leakcheck(&prof_tdata_merge_iter_arg.cnt_all,
