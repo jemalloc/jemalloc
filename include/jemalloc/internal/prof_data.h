@@ -28,8 +28,7 @@ void prof_tctx_try_destroy(tsd_t *tsd, prof_tctx_t *tctx);
 /* Used in unit tests. */
 size_t prof_tdata_count(void);
 size_t prof_bt_count(void);
-typedef void (prof_dump_header_t)(tsdn_t *, write_cb_t *, void *,
-    const prof_cnt_t *);
+typedef void (prof_dump_header_t)(void *, const prof_cnt_t *);
 extern prof_dump_header_t *JET_MUTABLE prof_dump_header;
 void prof_cnt_all(uint64_t *curobjs, uint64_t *curbytes, uint64_t *accumobjs,
     uint64_t *accumbytes);
