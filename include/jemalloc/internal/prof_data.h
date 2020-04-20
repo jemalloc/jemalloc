@@ -17,8 +17,8 @@ bool prof_data_init(tsd_t *tsd);
 prof_tctx_t *prof_lookup(tsd_t *tsd, prof_bt_t *bt);
 char *prof_thread_name_alloc(tsd_t *tsd, const char *thread_name);
 int prof_thread_name_set_impl(tsd_t *tsd, const char *thread_name);
-void prof_dump_impl(tsd_t *tsd, prof_tdata_t *tdata,
-    void (*write_cb)(const char *), bool leakcheck);
+void prof_dump_impl(tsd_t *tsd, write_cb_t *prof_dump_write, void *cbopaque,
+    prof_tdata_t *tdata, bool leakcheck);
 prof_tdata_t * prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid,
     uint64_t thr_discrim, char *thread_name, bool active);
 void prof_tdata_detach(tsd_t *tsd, prof_tdata_t *tdata);
@@ -28,7 +28,8 @@ void prof_tctx_try_destroy(tsd_t *tsd, prof_tctx_t *tctx);
 /* Used in unit tests. */
 size_t prof_tdata_count(void);
 size_t prof_bt_count(void);
-typedef void (prof_dump_header_t)(tsdn_t *, const prof_cnt_t *);
+typedef void (prof_dump_header_t)(tsdn_t *, write_cb_t *, void *,
+    const prof_cnt_t *);
 extern prof_dump_header_t *JET_MUTABLE prof_dump_header;
 void prof_cnt_all(uint64_t *curobjs, uint64_t *curbytes, uint64_t *accumobjs,
     uint64_t *accumbytes);

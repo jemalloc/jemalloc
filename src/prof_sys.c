@@ -389,11 +389,6 @@ prof_dump_flush(void *cbopaque, const char *s) {
 }
 
 static void
-prof_dump_write(const char *s) {
-	buf_writer_cb(&prof_dump_buf_writer, s);
-}
-
-static void
 prof_dump_close() {
 	if (prof_dump_fd != -1) {
 		close(prof_dump_fd);
@@ -461,7 +456,7 @@ prof_dump_maps() {
 		return;
 	}
 
-	prof_dump_write("\nMAPPED_LIBRARIES:\n");
+	buf_writer_cb(&prof_dump_buf_writer, "\nMAPPED_LIBRARIES:\n");
 	buf_writer_pipe(&prof_dump_buf_writer, prof_dump_read_maps_cb, &mfd);
 	close(mfd);
 }
@@ -487,7 +482,8 @@ prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
 	bool err = buf_writer_init(tsd_tsdn(tsd), &prof_dump_buf_writer,
 	    prof_dump_flush, NULL, prof_dump_buf, PROF_DUMP_BUFSIZE);
 	assert(!err);
-	prof_dump_impl(tsd, tdata, prof_dump_write, leakcheck);
+	prof_dump_impl(tsd, buf_writer_cb, &prof_dump_buf_writer, tdata,
+	    leakcheck);
 	prof_dump_maps();
 	buf_writer_terminate(tsd_tsdn(tsd), &prof_dump_buf_writer);
 	prof_dump_close();
