@@ -653,6 +653,7 @@ prof_dump_gctx_prep(tsdn_t *tsdn, prof_gctx_t *gctx, prof_gctx_tree_t *gctxs) {
 	malloc_mutex_unlock(tsdn, gctx->lock);
 }
 
+typedef struct prof_gctx_merge_iter_arg_s prof_gctx_merge_iter_arg_t;
 struct prof_gctx_merge_iter_arg_s {
 	tsdn_t	*tsdn;
 	size_t	leak_ngctx;
@@ -660,8 +661,7 @@ struct prof_gctx_merge_iter_arg_s {
 
 static prof_gctx_t *
 prof_gctx_merge_iter(prof_gctx_tree_t *gctxs, prof_gctx_t *gctx, void *opaque) {
-	struct prof_gctx_merge_iter_arg_s *arg =
-	    (struct prof_gctx_merge_iter_arg_s *)opaque;
+	prof_gctx_merge_iter_arg_t *arg = (prof_gctx_merge_iter_arg_t *)opaque;
 
 	malloc_mutex_lock(arg->tsdn, gctx->lock);
 	tctx_tree_iter(&gctx->tctxs, NULL, prof_tctx_merge_iter,
@@ -720,6 +720,7 @@ prof_gctx_finish(tsd_t *tsd, prof_gctx_tree_t *gctxs) {
 	}
 }
 
+typedef struct prof_tdata_merge_iter_arg_s prof_tdata_merge_iter_arg_t;
 struct prof_tdata_merge_iter_arg_s {
 	tsdn_t		*tsdn;
 	prof_cnt_t	cnt_all;
@@ -728,8 +729,8 @@ struct prof_tdata_merge_iter_arg_s {
 static prof_tdata_t *
 prof_tdata_merge_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
     void *opaque) {
-	struct prof_tdata_merge_iter_arg_s *arg =
-	    (struct prof_tdata_merge_iter_arg_s *)opaque;
+	prof_tdata_merge_iter_arg_t *arg =
+	    (prof_tdata_merge_iter_arg_t *)opaque;
 
 	malloc_mutex_lock(arg->tsdn, tdata->lock);
 	if (!tdata->expired) {
@@ -862,8 +863,8 @@ prof_gctx_dump_iter(prof_gctx_tree_t *gctxs, prof_gctx_t *gctx, void *opaque) {
 
 static void
 prof_dump_prep(tsd_t *tsd, prof_tdata_t *tdata,
-    struct prof_tdata_merge_iter_arg_s *prof_tdata_merge_iter_arg,
-    struct prof_gctx_merge_iter_arg_s *prof_gctx_merge_iter_arg,
+    prof_tdata_merge_iter_arg_t *prof_tdata_merge_iter_arg,
+    prof_gctx_merge_iter_arg_t *prof_gctx_merge_iter_arg,
     prof_gctx_tree_t *gctxs) {
 	size_t tabind;
 	union {
@@ -908,8 +909,8 @@ prof_dump_impl(tsd_t *tsd, prof_tdata_t *tdata, void (*write_cb)(const char *),
 	malloc_mutex_assert_owner(tsd_tsdn(tsd), &prof_dump_mtx);
 	prof_dump_write = write_cb;
 	prof_gctx_tree_t gctxs;
-	struct prof_tdata_merge_iter_arg_s prof_tdata_merge_iter_arg;
-	struct prof_gctx_merge_iter_arg_s prof_gctx_merge_iter_arg;
+	prof_tdata_merge_iter_arg_t prof_tdata_merge_iter_arg;
+	prof_gctx_merge_iter_arg_t prof_gctx_merge_iter_arg;
 	prof_dump_prep(tsd, tdata, &prof_tdata_merge_iter_arg,
 	    &prof_gctx_merge_iter_arg, &gctxs);
 	prof_dump_header(tsd_tsdn(tsd), &prof_tdata_merge_iter_arg.cnt_all);
@@ -928,8 +929,8 @@ prof_cnt_all(uint64_t *curobjs, uint64_t *curbytes, uint64_t *accumobjs,
     uint64_t *accumbytes) {
 	tsd_t *tsd;
 	prof_tdata_t *tdata;
-	struct prof_tdata_merge_iter_arg_s prof_tdata_merge_iter_arg;
-	struct prof_gctx_merge_iter_arg_s prof_gctx_merge_iter_arg;
+	prof_tdata_merge_iter_arg_t prof_tdata_merge_iter_arg;
+	prof_gctx_merge_iter_arg_t prof_gctx_merge_iter_arg;
 	prof_gctx_tree_t gctxs;
 
 	tsd = tsd_fetch();
