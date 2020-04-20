@@ -87,7 +87,8 @@ TEST_END
 bool prof_dump_header_intercepted = false;
 prof_cnt_t cnt_all_copy = {0, 0, 0, 0};
 static void
-prof_dump_header_intercept(tsdn_t *tsdn, const prof_cnt_t *cnt_all) {
+prof_dump_header_intercept(tsdn_t *tsdn, write_cb_t *cb, void *cbopaque,
+    const prof_cnt_t *cnt_all) {
 	prof_dump_header_intercepted = true;
 	memcpy(&cnt_all_copy, cnt_all, sizeof(prof_cnt_t));
 }
