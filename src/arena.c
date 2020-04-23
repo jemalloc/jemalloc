@@ -739,21 +739,20 @@ arena_bin_refill_slabcur_no_fresh_slab(tsdn_t *tsdn, arena_t *arena,
 	return (bin->slabcur == NULL);
 }
 
-/* Choose a bin shard and return the locked bin. */
 bin_t *
-arena_bin_choose_lock(tsdn_t *tsdn, arena_t *arena, szind_t binind,
-    unsigned *binshard) {
-	bin_t *bin;
+arena_bin_choose(tsdn_t *tsdn, arena_t *arena, szind_t binind,
+    unsigned *binshard_p) {
+	unsigned binshard;
 	if (tsdn_null(tsdn) || tsd_arena_get(tsdn_tsd(tsdn)) == NULL) {
-		*binshard = 0;
+		binshard = 0;
 	} else {
-		*binshard = tsd_binshardsp_get(tsdn_tsd(tsdn))->binshard[binind];
+		binshard = tsd_binshardsp_get(tsdn_tsd(tsdn))->binshard[binind];
 	}
-	assert(*binshard < bin_infos[binind].n_shards);
-	bin = &arena->bins[binind].bin_shards[*binshard];
-	malloc_mutex_lock(tsdn, &bin->lock);
-
-	return bin;
+	assert(binshard < bin_infos[binind].n_shards);
+	if (binshard_p != NULL) {
+		*binshard_p = binshard;
+	}
+	return &arena->bins[binind].bin_shards[binshard];
 }
 
 void
@@ -797,11 +796,12 @@ arena_cache_bin_fill_small(tsdn_t *tsdn, arena_t *arena,
 	edata_t *fresh_slab = NULL;
 	bool alloc_and_retry = false;
 	unsigned filled = 0;
-
-	bin_t *bin;
 	unsigned binshard;
+	bin_t *bin = arena_bin_choose(tsdn, arena, binind, &binshard);
+
 label_refill:
-	bin = arena_bin_choose_lock(tsdn, arena, binind, &binshard);
+	malloc_mutex_lock(tsdn, &bin->lock);
+
 	while (filled < nfill) {
 		/* Try batch-fill from slabcur first. */
 		edata_t *slabcur = bin->slabcur;
@@ -854,6 +854,7 @@ label_refill:
 		bin->stats.nfills++;
 		cache_bin->tstats.nrequests = 0;
 	}
+
 	malloc_mutex_unlock(tsdn, &bin->lock);
 
 	if (alloc_and_retry) {
@@ -906,8 +907,9 @@ arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero) {
 	const bin_info_t *bin_info = &bin_infos[binind];
 	size_t usize = sz_index2size(binind);
 	unsigned binshard;
-	bin_t *bin = arena_bin_choose_lock(tsdn, arena, binind, &binshard);
+	bin_t *bin = arena_bin_choose(tsdn, arena, binind, &binshard);
 
+	malloc_mutex_lock(tsdn, &bin->lock);
 	edata_t *fresh_slab = NULL;
 	void *ret = arena_bin_malloc_no_fresh_slab(tsdn, arena, bin, binind);
 	if (ret == NULL) {
