@@ -649,10 +649,11 @@ case "${host}" in
   *-*-bitrig*)
 	abi="elf"
 	;;
-  *-*-linux-android)
+  *-*-linux-android*)
 	dnl syscall(2) and secure_getenv(3) are exposed by _GNU_SOURCE.
 	JE_APPEND_VS(CPPFLAGS, -D_GNU_SOURCE)
 	abi="elf"
+	glibc="0"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS], [ ])
 	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H])
 	AC_DEFINE([JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY], [ ])
@@ -667,6 +668,7 @@ case "${host}" in
 	dnl syscall(2) and secure_getenv(3) are exposed by _GNU_SOURCE.
 	JE_APPEND_VS(CPPFLAGS, -D_GNU_SOURCE)
 	abi="elf"
+	glibc="1"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS], [ ])
 	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H])
 	AC_DEFINE([JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY], [ ])
@@ -2188,37 +2190,39 @@ fi
 dnl ============================================================================
 dnl Check for glibc malloc hooks
 
-JE_COMPILABLE([glibc malloc hook], [
-#include <stddef.h>
+if test "x$glibc" = "x1" ; then
+  JE_COMPILABLE([glibc malloc hook], [
+  #include <stddef.h>
 
-extern void (* __free_hook)(void *ptr);
-extern void *(* __malloc_hook)(size_t size);
-extern void *(* __realloc_hook)(void *ptr, size_t size);
+  extern void (* __free_hook)(void *ptr);
+  extern void *(* __malloc_hook)(size_t size);
+  extern void *(* __realloc_hook)(void *ptr, size_t size);
 ], [
-  void *ptr = 0L;
-  if (__malloc_hook) ptr = __malloc_hook(1);
-  if (__realloc_hook) ptr = __realloc_hook(ptr, 2);
-  if (__free_hook && ptr) __free_hook(ptr);
+    void *ptr = 0L;
+    if (__malloc_hook) ptr = __malloc_hook(1);
+    if (__realloc_hook) ptr = __realloc_hook(ptr, 2);
+    if (__free_hook && ptr) __free_hook(ptr);
 ], [je_cv_glibc_malloc_hook])
-if test "x${je_cv_glibc_malloc_hook}" = "xyes" ; then
-  if test "x${JEMALLOC_PREFIX}" = "x" ; then
-    AC_DEFINE([JEMALLOC_GLIBC_MALLOC_HOOK], [ ])
-    wrap_syms="${wrap_syms} __free_hook __malloc_hook __realloc_hook"
+  if test "x${je_cv_glibc_malloc_hook}" = "xyes" ; then
+    if test "x${JEMALLOC_PREFIX}" = "x" ; then
+      AC_DEFINE([JEMALLOC_GLIBC_MALLOC_HOOK], [ ])
+      wrap_syms="${wrap_syms} __free_hook __malloc_hook __realloc_hook"
+    fi
   fi
-fi
 
-JE_COMPILABLE([glibc memalign hook], [
-#include <stddef.h>
+  JE_COMPILABLE([glibc memalign hook], [
+  #include <stddef.h>
 
-extern void *(* __memalign_hook)(size_t alignment, size_t size);
+  extern void *(* __memalign_hook)(size_t alignment, size_t size);
 ], [
-  void *ptr = 0L;
-  if (__memalign_hook) ptr = __memalign_hook(16, 7);
+    void *ptr = 0L;
+    if (__memalign_hook) ptr = __memalign_hook(16, 7);
 ], [je_cv_glibc_memalign_hook])
-if test "x${je_cv_glibc_memalign_hook}" = "xyes" ; then
-  if test "x${JEMALLOC_PREFIX}" = "x" ; then
-    AC_DEFINE([JEMALLOC_GLIBC_MEMALIGN_HOOK], [ ])
-    wrap_syms="${wrap_syms} __memalign_hook"
+  if test "x${je_cv_glibc_memalign_hook}" = "xyes" ; then
+    if test "x${JEMALLOC_PREFIX}" = "x" ; then
+      AC_DEFINE([JEMALLOC_GLIBC_MEMALIGN_HOOK], [ ])
+      wrap_syms="${wrap_syms} __memalign_hook"
+    fi
   fi
 fi
 
