@@ -87,6 +87,8 @@ bool arena_is_huge(unsigned arena_ind);
 arena_t *arena_choose_huge(tsd_t *tsd);
 bin_t *arena_bin_choose(tsdn_t *tsdn, arena_t *arena, szind_t binind,
     unsigned *binshard);
+size_t arena_fill_small_fresh(tsdn_t *tsdn, arena_t *arena, szind_t binind,
+    void **ptrs, size_t nfill);
 void arena_boot(sc_data_t *sc_data);
 void arena_prefork0(tsdn_t *tsdn, arena_t *arena);
 void arena_prefork1(tsdn_t *tsdn, arena_t *arena);

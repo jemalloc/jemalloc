@@ -883,6 +883,68 @@ label_refill:
 	arena_decay_tick(tsdn, arena);
 }
 
+size_t
+arena_fill_small_fresh(tsdn_t *tsdn, arena_t *arena, szind_t binind,
+    void **ptrs, size_t nfill) {
+	assert(binind < SC_NBINS);
+	const bin_info_t *bin_info = &bin_infos[binind];
+	const size_t nregs = bin_info->nregs;
+	assert(nregs > 0);
+	const bool manual_arena = !arena_is_auto(arena);
+	unsigned binshard;
+	bin_t *bin = arena_bin_choose(tsdn, arena, binind, &binshard);
+
+	size_t nslab = 0;
+	size_t filled = 0;
+	edata_t *slab = NULL;
+	edata_list_active_t fulls;
+	edata_list_active_init(&fulls);
+
+	while (filled < nfill && (slab = arena_slab_alloc(tsdn, arena, binind,
+	    binshard, bin_info)) != NULL) {
+		assert((size_t)edata_nfree_get(slab) == nregs);
+		++nslab;
+		size_t batch = nfill - filled;
+		if (batch > nregs) {
+			batch = nregs;
+		}
+		assert(batch > 0);
+		arena_slab_reg_alloc_batch(slab, bin_info, (unsigned)batch,
+		    &ptrs[filled]);
+		filled += batch;
+		if (batch == nregs) {
+			if (manual_arena) {
+				edata_list_active_append(&fulls, slab);
+			}
+			slab = NULL;
+		}
+	}
+
+	malloc_mutex_lock(tsdn, &bin->lock);
+	/*
+	 * Only the last slab can be non-empty, and the last slab is non-empty
+	 * iff slab != NULL.
+	 */
+	if (slab != NULL) {
+		arena_bin_lower_slab(tsdn, arena, slab, bin);
+	}
+	if (manual_arena) {
+		edata_list_active_concat(&bin->slabs_full, &fulls);
+	}
+	assert(edata_list_active_empty(&fulls));
+	if (config_stats) {
+		bin->stats.nslabs += nslab;
+		bin->stats.curslabs += nslab;
+		bin->stats.nmalloc += filled;
+		bin->stats.nrequests += filled;
+		bin->stats.curregs += filled;
+	}
+	malloc_mutex_unlock(tsdn, &bin->lock);
+
+	arena_decay_tick(tsdn, arena);
+	return filled;
+}
+
 /*
  * Without allocating a new slab, try arena_slab_reg_alloc() and re-fill
  * bin->slabcur if necessary.
