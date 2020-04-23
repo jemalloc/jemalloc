@@ -274,7 +274,6 @@ te_prof_sample_event_lookahead_surplus(tsd_t *tsd, size_t usize,
 
 JEMALLOC_ALWAYS_INLINE bool
 te_prof_sample_event_lookahead(tsd_t *tsd, size_t usize) {
-	assert(usize == sz_s2u(usize));
 	return te_prof_sample_event_lookahead_surplus(tsd, usize, NULL);
 }
 
