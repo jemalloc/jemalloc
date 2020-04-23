@@ -229,6 +229,17 @@ prof_sample_aligned(const void *ptr) {
 	return ((uintptr_t)ptr & PAGE_MASK) == 0;
 }
 
+JEMALLOC_ALWAYS_INLINE bool
+prof_sampled(tsd_t *tsd, const void *ptr) {
+	prof_info_t prof_info;
+	prof_info_get(tsd, ptr, NULL, &prof_info);
+	bool sampled = (uintptr_t)prof_info.alloc_tctx > (uintptr_t)1U;
+	if (sampled) {
+		assert(prof_sample_aligned(ptr));
+	}
+	return sampled;
+}
+
 JEMALLOC_ALWAYS_INLINE void
 prof_free(tsd_t *tsd, const void *ptr, size_t usize,
     emap_alloc_ctx_t *alloc_ctx) {

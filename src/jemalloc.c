@@ -3916,6 +3916,120 @@ je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr) {
 	return ret;
 }
 
+static void
+batch_alloc_prof_sample_assert(tsd_t *tsd, size_t batch, size_t usize) {
+	assert(config_prof && opt_prof);
+	bool prof_sample_event = te_prof_sample_event_lookahead(tsd,
+	    batch * usize);
+	assert(!prof_sample_event);
+	size_t surplus;
+	prof_sample_event = te_prof_sample_event_lookahead_surplus(tsd,
+	    (batch + 1) * usize, &surplus);
+	assert(prof_sample_event);
+	assert(surplus < usize);
+}
+
+size_t
+batch_alloc(void **ptrs, size_t num, size_t size, int flags) {
+	LOG("core.batch_alloc.entry",
+	    "ptrs: %p, num: %zu, size: %zu, flags: %d", ptrs, num, size, flags);
+
+	tsd_t *tsd = tsd_fetch();
+	check_entry_exit_locking(tsd_tsdn(tsd));
+
+	size_t filled = 0;
+
+	if (unlikely(tsd == NULL || tsd_reentrancy_level_get(tsd) > 0)) {
+		goto label_done;
+	}
+
+	size_t alignment = MALLOCX_ALIGN_GET(flags);
+	size_t usize;
+	if (aligned_usize_get(size, alignment, &usize, NULL, false)) {
+		goto label_done;
+	}
+
+	szind_t ind = sz_size2index(usize);
+	if (unlikely(ind >= SC_NBINS)) {
+		/* No optimization for large sizes. */
+		void *p;
+		while (filled < num && (p = je_mallocx(size, flags)) != NULL) {
+			ptrs[filled++] = p;
+		}
+		goto label_done;
+	}
+
+	bool zero = zero_get(MALLOCX_ZERO_GET(flags), /* slow */ true);
+
+	unsigned arena_ind = mallocx_arena_get(flags);
+	arena_t *arena;
+	if (arena_get_from_ind(tsd, arena_ind, &arena)) {
+		goto label_done;
+	}
+	if (arena == NULL) {
+		arena = arena_choose(tsd, NULL);
+	}
+	if (unlikely(arena == NULL)) {
+		goto label_done;
+	}
+
+	while (filled < num) {
+		size_t batch = num - filled;
+		size_t surplus = SIZE_MAX; /* Dead store. */
+		bool prof_sample_event = config_prof && opt_prof
+		    && te_prof_sample_event_lookahead_surplus(tsd,
+		    batch * usize, &surplus);
+
+		if (prof_sample_event) {
+			/*
+			 * Adjust so that the batch does not trigger prof
+			 * sampling.
+			 */
+			batch -= surplus / usize + 1;
+			batch_alloc_prof_sample_assert(tsd, batch, usize);
+		}
+
+		size_t n = arena_fill_small_fresh(tsd_tsdn(tsd), arena,
+		    ind, ptrs + filled, batch, zero);
+		filled += n;
+
+		/*
+		 * For thread events other than prof sampling, trigger them as
+		 * if there's a single allocation of size (n * usize).  This is
+		 * fine because:
+		 * (a) these events do not alter the allocation itself, and
+		 * (b) it's possible that some event would have been triggered
+		 *     multiple times, instead of only once, if the allocations
+		 *     were handled individually, but it would do no harm (or
+		 *     even be beneficial) to coalesce the triggerings.
+		 */
+		thread_alloc_event(tsd, n * usize);
+
+		if (n < batch) { /* OOM */
+			break;
+		}
+
+		if (prof_sample_event) {
+			/*
+			 * The next allocation will be prof sampled.  The
+			 * thread event logic is handled within the mallocx()
+			 * call.
+			 */
+			void *p = je_mallocx(size, flags);
+			if (p == NULL) { /* OOM */
+				break;
+			}
+			assert(prof_sampled(tsd, p));
+			ptrs[filled++] = p;
+		}
+	}
+
+label_done:
+	check_entry_exit_locking(tsd_tsdn(tsd));
+	LOG("core.batch_alloc.exit", "result: %zu", filled);
+	return filled;
+}
+
 /*
  * End non-standard functions.
  */

@@ -54,6 +54,7 @@ void arena_migrate(tsd_t *tsd, unsigned oldind, unsigned newind);
 void iarena_cleanup(tsd_t *tsd);
 void arena_cleanup(tsd_t *tsd);
 void arenas_tdata_cleanup(tsd_t *tsd);
+size_t batch_alloc(void **ptrs, size_t num, size_t size, int flags);
 void jemalloc_prefork(void);
 void jemalloc_postfork_parent(void);
 void jemalloc_postfork_child(void);
