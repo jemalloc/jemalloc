@@ -416,6 +416,16 @@ case "${host_cpu}" in
 	    fi
 	fi
 	;;
+  aarch64|arm*)
+	HAVE_CPU_SPINWAIT=1
+    AC_CACHE_VAL([je_cv_yield],
+      [JE_COMPILABLE([yield instruction], [],
+                    [[__asm__ volatile("yield"); return 0;]],
+                    [je_cv_yield])])
+	if test "x${je_cv_yield}" = "xyes" ; then
+	CPU_SPINWAIT='__asm__ volatile("yield")'
+	fi
+    ;;
   *)
 	HAVE_CPU_SPINWAIT=0
 	;;
