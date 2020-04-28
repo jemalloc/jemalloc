@@ -48,7 +48,7 @@ extern size_t lg_prof_sample;
 
 extern bool prof_booted;
 
-/* Functions only accessed in prof_inlines_b.h */
+/* Functions only accessed in prof_inlines.h */
 prof_tdata_t *prof_tdata_init(tsd_t *tsd);
 prof_tdata_t *prof_tdata_reinit(tsd_t *tsd, prof_tdata_t *tdata);
 
