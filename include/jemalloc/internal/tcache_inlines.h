@@ -31,7 +31,6 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
     size_t size, szind_t binind, bool zero, bool slow_path) {
 	void *ret;
 	bool tcache_success;
-	size_t usize JEMALLOC_CC_SILENCE_INIT(0);
 
 	assert(binind < SC_NBINS);
 	cache_bin_t *bin = &tcache->bins[binind];
@@ -52,15 +51,9 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
 	}
 
 	assert(ret);
-	/*
-	 * Only compute usize if required.  The checks in the following if
-	 * statement are all static.
-	 */
-	if (config_prof || (slow_path && config_fill) || unlikely(zero)) {
-		usize = sz_index2size(binind);
-		assert(tcache_salloc(tsd_tsdn(tsd), ret) == usize);
-	}
 	if (unlikely(zero)) {
+		size_t usize = sz_index2size(binind);
+		assert(tcache_salloc(tsd_tsdn(tsd), ret) == usize);
 		memset(ret, 0, usize);
 	}
 	if (config_stats) {
@@ -94,16 +87,9 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 			return NULL;
 		}
 	} else {
-		size_t usize JEMALLOC_CC_SILENCE_INIT(0);
-
-		/* Only compute usize on demand */
-		if (config_prof || (slow_path && config_fill) ||
-		    unlikely(zero)) {
-			usize = sz_index2size(binind);
-			assert(usize <= tcache_maxclass);
-		}
-
 		if (unlikely(zero)) {
+			size_t usize = sz_index2size(binind);
+			assert(usize <= tcache_maxclass);
 			memset(ret, 0, usize);
 		}
 
