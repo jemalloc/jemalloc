@@ -32,9 +32,6 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 		return NULL;
 	}
 
-	if (config_fill && unlikely(opt_zero)) {
-		zero = true;
-	}
 	if (likely(!tsdn_null(tsdn))) {
 		arena = arena_choose_maybe_huge(tsdn_tsd(tsdn), arena, usize);
 	}

@@ -2165,7 +2165,9 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	}
 
 	/* This is the beginning of the "core" algorithm. */
-
+	if (config_fill && sopts->slow && opt_zero) {
+		dopts->zero = true;
+	}
 	if (dopts->alignment == 0) {
 		ind = sz_size2index(size);
 		if (unlikely(ind >= SC_NSIZES)) {
@@ -2263,12 +2265,9 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 
 	assert(usize == isalloc(tsd_tsdn(tsd), allocation));
 
-	if (config_fill && sopts->slow && !dopts->zero) {
-		if (unlikely(opt_junk_alloc)) {
-			junk_alloc_callback(allocation, usize);
-		} else if (unlikely(opt_zero)) {
-			memset(allocation, 0, usize);
-		}
+	if (config_fill && sopts->slow && !dopts->zero
+	    && unlikely(opt_junk_alloc)) {
+		junk_alloc_callback(allocation, usize);
 	}
 
 	if (sopts->slow) {
@@ -3210,7 +3209,6 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 	size_t usize;
 	size_t old_usize;
 	size_t alignment = MALLOCX_ALIGN_GET(flags);
-	bool zero = flags & MALLOCX_ZERO;
 	arena_t *arena;
 	tcache_t *tcache;
 
@@ -3219,6 +3217,11 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 	assert(malloc_initialized() || IS_INITIALIZER);
 	tsd = tsd_fetch();
 	check_entry_exit_locking(tsd_tsdn(tsd));
+
+	bool zero = flags & MALLOCX_ZERO;
+	if (config_fill && unlikely(opt_zero)) {
+		zero = true;
+	}
 
 	if (unlikely((flags & MALLOCX_ARENA_MASK) != 0)) {
 		unsigned arena_ind = MALLOCX_ARENA_GET(flags);
@@ -3275,14 +3278,11 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 	UTRACE(ptr, size, p);
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
-	if (config_fill && malloc_slow && !zero && usize > old_usize) {
+	if (config_fill && unlikely(opt_junk_alloc) && usize > old_usize
+	    && !zero) {
 		size_t excess_len = usize - old_usize;
 		void *excess_start = (void *)((uintptr_t)p + old_usize);
-		if (unlikely(opt_junk_alloc)) {
-			junk_alloc_callback(excess_start, excess_len);
-		} else if (unlikely(opt_zero)) {
-			memset(excess_start, 0, excess_len);
-		}
+		junk_alloc_callback(excess_start, excess_len);
 	}
 
 	return p;
@@ -3497,7 +3497,11 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	tsd_t *tsd;
 	size_t usize, old_usize;
 	size_t alignment = MALLOCX_ALIGN_GET(flags);
+
 	bool zero = flags & MALLOCX_ZERO;
+	if (config_fill && unlikely(opt_zero)) {
+		zero = true;
+	}
 
 	LOG("core.xallocx.entry", "ptr: %p, size: %zu, extra: %zu, "
 	    "flags: %d", ptr, size, extra, flags);
@@ -3561,16 +3565,11 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	thread_alloc_event(tsd, usize);
 	thread_dalloc_event(tsd, old_usize);
 
-	if (config_fill && malloc_slow) {
-		if (usize > old_usize && !zero) {
-			size_t excess_len = usize - old_usize;
-			void *excess_start = (void *)((uintptr_t)ptr + old_usize);
-			if (unlikely(opt_junk_alloc)) {
-				junk_alloc_callback(excess_start, excess_len);
-			} else if (unlikely(opt_zero)) {
-				memset(excess_start, 0, excess_len);
-			}
-		}
+	if (config_fill && unlikely(opt_junk_alloc) && usize > old_usize &&
+	    !zero) {
+		size_t excess_len = usize - old_usize;
+		void *excess_start = (void *)((uintptr_t)ptr + old_usize);
+		junk_alloc_callback(excess_start, excess_len);
 	}
 label_not_resized:
 	if (unlikely(!tsd_fast(tsd))) {
