@@ -287,6 +287,7 @@ else
 CPP_SRCS :=
 TESTS_INTEGRATION_CPP :=
 endif
+TESTS_ANALYZE := $(srcroot)test/analyze/rand.c
 TESTS_STRESS := $(srcroot)test/stress/microbench.c \
 	$(srcroot)test/stress/fill_flush.c \
 	$(srcroot)test/stress/large_microbench.c \
@@ -294,7 +295,8 @@ TESTS_STRESS := $(srcroot)test/stress/microbench.c \
 	$(srcroot)test/stress/sizes.c
 
 
-TESTS := $(TESTS_UNIT) $(TESTS_INTEGRATION) $(TESTS_INTEGRATION_CPP) $(TESTS_STRESS)
+TESTS := $(TESTS_UNIT) $(TESTS_INTEGRATION) $(TESTS_INTEGRATION_CPP) \
+	$(TESTS_ANALYZE) $(TESTS_STRESS)
 
 PRIVATE_NAMESPACE_HDRS := $(objroot)include/jemalloc/internal/private_namespace.h $(objroot)include/jemalloc/internal/private_namespace_jet.h
 PRIVATE_NAMESPACE_GEN_HDRS := $(PRIVATE_NAMESPACE_HDRS:%.h=%.gen.h)
@@ -310,14 +312,19 @@ C_JET_OBJS := $(C_SRCS:$(srcroot)%.c=$(objroot)%.jet.$(O))
 C_TESTLIB_UNIT_OBJS := $(C_TESTLIB_SRCS:$(srcroot)%.c=$(objroot)%.unit.$(O))
 C_TESTLIB_INTEGRATION_OBJS := $(C_TESTLIB_SRCS:$(srcroot)%.c=$(objroot)%.integration.$(O))
 C_UTIL_INTEGRATION_OBJS := $(C_UTIL_INTEGRATION_SRCS:$(srcroot)%.c=$(objroot)%.integration.$(O))
+C_TESTLIB_ANALYZE_OBJS := $(C_TESTLIB_SRCS:$(srcroot)%.c=$(objroot)%.analyze.$(O))
 C_TESTLIB_STRESS_OBJS := $(C_TESTLIB_SRCS:$(srcroot)%.c=$(objroot)%.stress.$(O))
-C_TESTLIB_OBJS := $(C_TESTLIB_UNIT_OBJS) $(C_TESTLIB_INTEGRATION_OBJS) $(C_UTIL_INTEGRATION_OBJS) $(C_TESTLIB_STRESS_OBJS)
+C_TESTLIB_OBJS := $(C_TESTLIB_UNIT_OBJS) $(C_TESTLIB_INTEGRATION_OBJS) \
+	$(C_UTIL_INTEGRATION_OBJS) $(C_TESTLIB_ANALYZE_OBJS) \
+	$(C_TESTLIB_STRESS_OBJS)
 
 TESTS_UNIT_OBJS := $(TESTS_UNIT:$(srcroot)%.c=$(objroot)%.$(O))
 TESTS_INTEGRATION_OBJS := $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%.$(O))
 TESTS_INTEGRATION_CPP_OBJS := $(TESTS_INTEGRATION_CPP:$(srcroot)%.cpp=$(objroot)%.$(O))
+TESTS_ANALYZE_OBJS := $(TESTS_ANALYZE:$(srcroot)%.c=$(objroot)%.$(O))
 TESTS_STRESS_OBJS := $(TESTS_STRESS:$(srcroot)%.c=$(objroot)%.$(O))
-TESTS_OBJS := $(TESTS_UNIT_OBJS) $(TESTS_INTEGRATION_OBJS) $(TESTS_STRESS_OBJS)
+TESTS_OBJS := $(TESTS_UNIT_OBJS) $(TESTS_INTEGRATION_OBJS) $(TESTS_ANALYZE_OBJS) \
+	$(TESTS_STRESS_OBJS)
 TESTS_CPP_OBJS := $(TESTS_INTEGRATION_CPP_OBJS)
 
 .PHONY: all dist build_doc_html build_doc_man build_doc
@@ -391,12 +398,15 @@ $(C_TESTLIB_UNIT_OBJS): CPPFLAGS += -DJEMALLOC_UNIT_TEST
 $(C_TESTLIB_INTEGRATION_OBJS): $(objroot)test/src/%.integration.$(O): $(srcroot)test/src/%.c
 $(C_TESTLIB_INTEGRATION_OBJS): CPPFLAGS += -DJEMALLOC_INTEGRATION_TEST
 $(C_UTIL_INTEGRATION_OBJS): $(objroot)src/%.integration.$(O): $(srcroot)src/%.c
+$(C_TESTLIB_ANALYZE_OBJS): $(objroot)test/src/%.analyze.$(O): $(srcroot)test/src/%.c
+$(C_TESTLIB_ANALYZE_OBJS): CPPFLAGS += -DJEMALLOC_ANALYZE_TEST
 $(C_TESTLIB_STRESS_OBJS): $(objroot)test/src/%.stress.$(O): $(srcroot)test/src/%.c
 $(C_TESTLIB_STRESS_OBJS): CPPFLAGS += -DJEMALLOC_STRESS_TEST -DJEMALLOC_STRESS_TESTLIB
 $(C_TESTLIB_OBJS): CPPFLAGS += -I$(srcroot)test/include -I$(objroot)test/include
 $(TESTS_UNIT_OBJS): CPPFLAGS += -DJEMALLOC_UNIT_TEST
 $(TESTS_INTEGRATION_OBJS): CPPFLAGS += -DJEMALLOC_INTEGRATION_TEST
 $(TESTS_INTEGRATION_CPP_OBJS): CPPFLAGS += -DJEMALLOC_INTEGRATION_CPP_TEST
+$(TESTS_ANALYZE_OBJS): CPPFLAGS += -DJEMALLOC_ANALYZE_TEST
 $(TESTS_STRESS_OBJS): CPPFLAGS += -DJEMALLOC_STRESS_TEST
 $(TESTS_OBJS): $(objroot)test/%.$(O): $(srcroot)test/%.c
 $(TESTS_CPP_OBJS): $(objroot)test/%.$(O): $(srcroot)test/%.cpp
@@ -416,7 +426,7 @@ $(TESTS_OBJS) $(TESTS_CPP_OBJS): $(objroot)test/include/test/jemalloc_test.h
 endif
 
 $(C_OBJS) $(CPP_OBJS) $(C_PIC_OBJS) $(CPP_PIC_OBJS) $(C_TESTLIB_INTEGRATION_OBJS) $(C_UTIL_INTEGRATION_OBJS) $(TESTS_INTEGRATION_OBJS) $(TESTS_INTEGRATION_CPP_OBJS): $(objroot)include/jemalloc/internal/private_namespace.h
-$(C_JET_OBJS) $(C_TESTLIB_UNIT_OBJS) $(C_TESTLIB_STRESS_OBJS) $(TESTS_UNIT_OBJS) $(TESTS_STRESS_OBJS): $(objroot)include/jemalloc/internal/private_namespace_jet.h
+$(C_JET_OBJS) $(C_TESTLIB_UNIT_OBJS) $(C_TESTLIB_ANALYZE_OBJS) $(C_TESTLIB_STRESS_OBJS) $(TESTS_UNIT_OBJS) $(TESTS_ANALYZE_OBJS) $(TESTS_STRESS_OBJS): $(objroot)include/jemalloc/internal/private_namespace_jet.h
 
 $(C_SYM_OBJS) $(C_OBJS) $(C_PIC_OBJS) $(C_JET_SYM_OBJS) $(C_JET_OBJS) $(C_TESTLIB_OBJS) $(TESTS_OBJS): %.$(O):
 	@mkdir -p $(@D)
@@ -478,6 +488,10 @@ $(objroot)test/integration/%$(EXE): $(objroot)test/integration/%.$(O) $(C_TESTLI
 $(objroot)test/integration/cpp/%$(EXE): $(objroot)test/integration/cpp/%.$(O) $(C_TESTLIB_INTEGRATION_OBJS) $(C_UTIL_INTEGRATION_OBJS) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
 	@mkdir -p $(@D)
 	$(CXX) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB) $(LDFLAGS) $(filter-out -lm,$(LIBS)) -lm $(EXTRA_LDFLAGS)
+
+$(objroot)test/analyze/%$(EXE): $(objroot)test/analyze/%.$(O) $(C_JET_OBJS) $(C_TESTLIB_ANALYZE_OBJS)
+	@mkdir -p $(@D)
+	$(CC) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(LDFLAGS) $(filter-out -lm,$(LIBS)) $(LM) $(EXTRA_LDFLAGS)
 
 $(objroot)test/stress/%$(EXE): $(objroot)test/stress/%.$(O) $(C_JET_OBJS) $(C_TESTLIB_STRESS_OBJS) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
 	@mkdir -p $(@D)
@@ -559,13 +573,16 @@ endif
 
 tests_unit: $(TESTS_UNIT:$(srcroot)%.c=$(objroot)%$(EXE))
 tests_integration: $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%$(EXE)) $(TESTS_INTEGRATION_CPP:$(srcroot)%.cpp=$(objroot)%$(EXE))
+tests_analyze: $(TESTS_ANALYZE:$(srcroot)%.c=$(objroot)%$(EXE))
 tests_stress: $(TESTS_STRESS:$(srcroot)%.c=$(objroot)%$(EXE))
-tests: tests_unit tests_integration tests_stress
+tests: tests_unit tests_integration tests_analyze tests_stress
 
 check_unit_dir:
 	@mkdir -p $(objroot)test/unit
 check_integration_dir:
 	@mkdir -p $(objroot)test/integration
+analyze_dir:
+	@mkdir -p $(objroot)test/analyze
 stress_dir:
 	@mkdir -p $(objroot)test/stress
 check_dir: check_unit_dir check_integration_dir
@@ -582,6 +599,12 @@ check_integration_decay: tests_integration check_integration_dir
 	$(MALLOC_CONF)="dirty_decay_ms:0,muzzy_decay_ms:0" $(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%) $(TESTS_INTEGRATION_CPP:$(srcroot)%.cpp=$(objroot)%)
 check_integration: tests_integration check_integration_dir
 	$(SHELL) $(objroot)test/test.sh $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%) $(TESTS_INTEGRATION_CPP:$(srcroot)%.cpp=$(objroot)%)
+analyze: tests_analyze analyze_dir
+ifeq ($(enable_prof), 1)
+	$(MALLOC_CONF)="prof:true" $(SHELL) $(objroot)test/test.sh $(TESTS_ANALYZE:$(srcroot)%.c=$(objroot)%)
+else
+	$(SHELL) $(objroot)test/test.sh $(TESTS_ANALYZE:$(srcroot)%.c=$(objroot)%)
+endif
 stress: tests_stress stress_dir
 	$(SHELL) $(objroot)test/test.sh $(TESTS_STRESS:$(srcroot)%.c=$(objroot)%)
 check: check_unit check_integration check_integration_decay check_integration_prof
