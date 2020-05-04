@@ -38,9 +38,9 @@ extern "C" {
 
 /******************************************************************************/
 /*
- * For unit tests, expose all public and private interfaces.
+ * For unit tests and analytics tests, expose all public and private interfaces.
  */
-#ifdef JEMALLOC_UNIT_TEST
+#if defined(JEMALLOC_UNIT_TEST) || defined (JEMALLOC_ANALYZE_TEST)
 #  define JEMALLOC_JET
 #  define JEMALLOC_MANGLE
 #  include "jemalloc/internal/jemalloc_preamble.h"
