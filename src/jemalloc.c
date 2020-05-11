@@ -1389,6 +1389,10 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			CONF_HANDLE_UNSIGNED(opt_tcache_nslots_large,
 			    "tcache_nslots_large", 1, 2048,
 			    CONF_CHECK_MIN, CONF_CHECK_MAX, /* clip */ true)
+			CONF_HANDLE_SIZE_T(opt_tcache_gc_incr_bytes,
+			    "tcache_gc_incr_bytes", 1024, SIZE_T_MAX,
+			    CONF_CHECK_MIN, CONF_DONT_CHECK_MAX,
+			    /* clip */ true)
 
 			/*
 			 * The runtime option of oversize_threshold remains
