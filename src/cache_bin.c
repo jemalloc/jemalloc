@@ -6,6 +6,7 @@
 void
 cache_bin_info_init(cache_bin_info_t *info,
     cache_bin_sz_t ncached_max) {
+	assert(ncached_max <= CACHE_BIN_NCACHED_MAX);
 	size_t stack_size = (size_t)ncached_max * sizeof(void *);
 	assert(stack_size < ((size_t)1 << (sizeof(cache_bin_sz_t) * 8)));
 	info->ncached_max = (cache_bin_sz_t)ncached_max;
