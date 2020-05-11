@@ -69,7 +69,6 @@ TEST_BEGIN(test_array_vs_item_large) {
 }
 TEST_END
 
-
 int main(void) {
 	return test_no_reentrancy(
 	    test_array_vs_item_small,

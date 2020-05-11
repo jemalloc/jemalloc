@@ -53,10 +53,10 @@ void tsd_te_init(tsd_t *tsd);
  *  E(event,		(condition), is_alloc_event)
  */
 #define ITERATE_OVER_ALL_EVENTS						\
-    E(tcache_gc,	(TCACHE_GC_INCR_BYTES > 0), true)		\
+    E(tcache_gc,	(opt_tcache_gc_incr_bytes > 0), true)		\
     E(prof_sample,	(config_prof && opt_prof), true)	    	\
     E(stats_interval,	(opt_stats_interval >= 0), true)	    	\
-    E(tcache_gc_dalloc,	(TCACHE_GC_INCR_BYTES > 0), false)
+    E(tcache_gc_dalloc,	(opt_tcache_gc_incr_bytes > 0), false)
 
 #define E(event, condition_unused, is_alloc_event_unused)		\
     C(event##_event_wait)
