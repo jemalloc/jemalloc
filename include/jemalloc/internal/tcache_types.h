@@ -20,17 +20,6 @@ typedef struct tcaches_s tcaches_t;
 /* (1U << opt_lg_tcache_max) is used to compute tcache_maxclass. */
 #define LG_TCACHE_MAXCLASS_DEFAULT	15
 
-/*
- * TCACHE_GC_SWEEP is the approximate number of allocation events between
- * full GC sweeps.  Integer rounding may cause the actual number to be
- * slightly higher, since GC is performed incrementally.
- */
-#define TCACHE_GC_SWEEP			8192
-
-/* Number of tcache deallocation events between incremental GCs. */
-#define TCACHE_GC_INCR							\
-    ((TCACHE_GC_SWEEP / SC_NBINS) + ((TCACHE_GC_SWEEP / SC_NBINS == 0) ? 0 : 1))
-
 /* Number of allocation bytes between tcache incremental GCs. */
 #define TCACHE_GC_INCR_BYTES 65536U
 
