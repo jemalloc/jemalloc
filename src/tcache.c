@@ -34,6 +34,20 @@ unsigned opt_tcache_nslots_large = 20;
 ssize_t	opt_lg_tcache_nslots_mul = -1;
 
 /*
+ * With default settings, we may end up flushing small bins frequently with
+ * small flush amounts.  To limit this tendency, we can set a number of bytes to
+ * "delay" by.  If we try to flush N M-byte items, we decrease that size-class's
+ * delay by N * M.  So, if delay is 1024 and we're looking at the 64-byte size
+ * class, we won't do any flushing until we've been asked to flush 1024/64 == 16
+ * items.  This can happen in any configuration (i.e. being asked to flush 16
+ * items once, or 4 items 4 times).
+ *
+ * Practically, this is stored as a count of items in a uint8_t, so the
+ * effective maximum value for a size class is 255 * sz.
+ */
+size_t opt_tcache_gc_delay_bytes = 0;
+
+/*
  * Number of allocation bytes between tcache incremental GCs.  Again, this
  * default just seems to work well; more tuning is possible.
  */
@@ -86,6 +100,67 @@ tcache_gc_dalloc_postponed_event_wait(tsd_t *tsd) {
 	return TE_MIN_START_WAIT;
 }
 
+static uint8_t
+tcache_gc_item_delay_compute(szind_t szind) {
+	assert(szind < SC_NBINS);
+	size_t sz = sz_index2size(szind);
+	size_t item_delay = opt_tcache_gc_delay_bytes / sz;
+	size_t delay_max = ZU(1)
+	    << (sizeof(((tcache_slow_t *)NULL)->bin_flush_delay_items[0]) * 8);
+	if (item_delay >= delay_max) {
+		item_delay = delay_max - 1;
+	}
+	return item_delay;
+}
+
+static void
+tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
+    szind_t szind) {
+	/* Aim to flush 3/4 of items below low-water. */
+	assert(szind < SC_NBINS);
+
+	cache_bin_t *cache_bin = &tcache->bins[szind];
+	cache_bin_sz_t ncached = cache_bin_ncached_get(cache_bin,
+	    &tcache_bin_info[szind]);
+	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin,
+	    &tcache_bin_info[szind]);
+	assert(!tcache_slow->bin_refilled[szind]);
+
+	size_t nflush = low_water - (low_water >> 2);
+	if (nflush < tcache_slow->bin_flush_delay_items[szind]) {
+		tcache_slow->bin_flush_delay_items[szind] -= nflush;
+		return;
+	} else {
+		tcache_slow->bin_flush_delay_items[szind]
+		    = tcache_gc_item_delay_compute(szind);
+	}
+
+	tcache_bin_flush_small(tsd, tcache, cache_bin, szind, ncached - nflush);
+
+	/*
+	 * Reduce fill count by 2X.  Limit lg_fill_div such that
+	 * the fill count is always at least 1.
+	 */
+	if ((cache_bin_info_ncached_max(&tcache_bin_info[szind])
+	    >> (tcache_slow->lg_fill_div[szind] + 1)) >= 1) {
+		tcache_slow->lg_fill_div[szind]++;
+	}
+}
+
+static void
+tcache_gc_large(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
+    szind_t szind) {
+	/* Like the small GC; flush 3/4 of untouched items. */
+	assert(szind >= SC_NBINS);
+	cache_bin_t *cache_bin = &tcache->bins[szind];
+	cache_bin_sz_t ncached = cache_bin_ncached_get(cache_bin,
+	    &tcache_bin_info[szind]);
+	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin,
+	    &tcache_bin_info[szind]);
+	tcache_bin_flush_large(tsd, tcache, cache_bin, szind,
+	    ncached - low_water + (low_water >> 2));
+}
+
 static void
 tcache_event(tsd_t *tsd) {
 	tcache_t *tcache = tcache_get(tsd);
@@ -94,45 +169,28 @@ tcache_event(tsd_t *tsd) {
 	}
 
 	tcache_slow_t *tcache_slow = tsd_tcache_slowp_get(tsd);
-	szind_t binind = tcache_slow->next_gc_bin;
-	bool is_small = (binind < SC_NBINS);
-	cache_bin_t *cache_bin = &tcache->bins[binind];
+	szind_t szind = tcache_slow->next_gc_bin;
+	bool is_small = (szind < SC_NBINS);
+	cache_bin_t *cache_bin = &tcache->bins[szind];
 
 	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin,
-	    &tcache_bin_info[binind]);
-	cache_bin_sz_t ncached = cache_bin_ncached_get(cache_bin,
-	    &tcache_bin_info[binind]);
+	    &tcache_bin_info[szind]);
 	if (low_water > 0) {
-		/*
-		 * Flush (ceiling) 3/4 of the objects below the low water mark.
-		 */
 		if (is_small) {
-			assert(!tcache_slow->bin_refilled[binind]);
-			tcache_bin_flush_small(tsd, tcache, cache_bin, binind,
-			    ncached - low_water + (low_water >> 2));
-			/*
-			 * Reduce fill count by 2X.  Limit lg_fill_div such that
-			 * the fill count is always at least 1.
-			 */
-			if ((cache_bin_info_ncached_max(
-			    &tcache_bin_info[binind]) >>
-			    (tcache_slow->lg_fill_div[binind] + 1)) >= 1) {
-				tcache_slow->lg_fill_div[binind]++;
-			}
+			tcache_gc_small(tsd, tcache_slow, tcache, szind);
 		} else {
-			tcache_bin_flush_large(tsd, tcache, cache_bin, binind,
-			     ncached - low_water + (low_water >> 2));
+			tcache_gc_large(tsd, tcache_slow, tcache, szind);
 		}
-	} else if (is_small && tcache_slow->bin_refilled[binind]) {
+	} else if (is_small && tcache_slow->bin_refilled[szind]) {
 		assert(low_water == 0);
 		/*
 		 * Increase fill count by 2X for small bins.  Make sure
 		 * lg_fill_div stays greater than 0.
 		 */
-		if (tcache_slow->lg_fill_div[binind] > 1) {
-			tcache_slow->lg_fill_div[binind]--;
+		if (tcache_slow->lg_fill_div[szind] > 1) {
+			tcache_slow->lg_fill_div[szind]--;
 		}
-		tcache_slow->bin_refilled[binind] = false;
+		tcache_slow->bin_refilled[szind] = false;
 	}
 	cache_bin_low_water_set(cache_bin);
 
@@ -519,6 +577,10 @@ tcache_init(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	    &cur_offset);
 	/* Sanity check that the whole stack is used. */
 	assert(cur_offset == tcache_bin_alloc_size);
+	for (unsigned i = 0; i < SC_NBINS; i++) {
+		tcache_slow->bin_flush_delay_items[i]
+		    = tcache_gc_item_delay_compute(i);
+	}
 }
 
 /* Initialize auto tcache (embedded in TSD). */

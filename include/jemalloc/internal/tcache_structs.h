@@ -37,6 +37,11 @@ struct tcache_slow_s {
 	/* For small bins, whether has been refilled since last GC. */
 	bool		bin_refilled[SC_NBINS];
 	/*
+	 * For small bins, the number of items we can pretend to flush before
+	 * actually flushing.
+	 */
+	uint8_t		bin_flush_delay_items[SC_NBINS];
+	/*
 	 * The start of the allocation containing the dynamic allocation for
 	 * either the cache bins alone, or the cache bin memory as well as this
 	 * tcache_slow_t and its associated tcache_t.
