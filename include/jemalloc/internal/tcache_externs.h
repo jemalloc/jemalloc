@@ -1,9 +1,13 @@
 #ifndef JEMALLOC_INTERNAL_TCACHE_EXTERNS_H
 #define JEMALLOC_INTERNAL_TCACHE_EXTERNS_H
 
-extern bool	opt_tcache;
-extern ssize_t	opt_lg_tcache_max;
+extern bool opt_tcache;
+extern ssize_t opt_lg_tcache_max;
 extern ssize_t	opt_lg_tcache_nslots_mul;
+extern unsigned opt_tcache_nslots_small_min;
+extern unsigned opt_tcache_nslots_small_max;
+extern unsigned opt_tcache_nslots_large;
+extern ssize_t opt_lg_tcache_shift;
 
 /*
  * Number of tcache bins.  There are SC_NBINS small-object bins, plus 0 or more

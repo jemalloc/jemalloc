@@ -53,12 +53,13 @@ do_flush_test(cache_bin_t *bin, cache_bin_info_t *info, void **ptrs,
 }
 
 TEST_BEGIN(test_cache_bin) {
+	const int ncached_max = 100;
 	bool success;
 	void *ptr;
 
 	cache_bin_t bin;
 	cache_bin_info_t info;
-	cache_bin_info_init(&info, TCACHE_NSLOTS_SMALL_MAX);
+	cache_bin_info_init(&info, ncached_max);
 
 	size_t size;
 	size_t alignment;
@@ -74,7 +75,7 @@ TEST_BEGIN(test_cache_bin) {
 	assert_zu_eq(cur_offset, size, "Should use all requested memory");
 
 	/* Initialize to empty; should then have 0 elements. */
-	cache_bin_sz_t ncached_max = cache_bin_info_ncached_max(&info);
+	expect_d_eq(ncached_max, cache_bin_info_ncached_max(&info), "");
 	expect_true(cache_bin_ncached_get(&bin, &info) == 0, "");
 	expect_true(cache_bin_low_water_get(&bin, &info) == 0, "");
 
