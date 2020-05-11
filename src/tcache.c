@@ -13,6 +13,16 @@
 bool	opt_tcache = true;
 ssize_t	opt_lg_tcache_max = LG_TCACHE_MAXCLASS_DEFAULT;
 
+/*
+ * We attempt to make the number of slots in a tcache bin for a given size class
+ * equal to the number of objects in a slab times some multiplier.  By default,
+ * the multiplier is 1/2 (i.e. we set the maximum number of objects in the
+ * tcache to half the number of objects in a slab).
+ * This is bounded by some other constraints as well, like the fact that it
+ * must be even, must be less than TCACHE_NSLOTS_SMALL_MAX, etc..
+ */
+ssize_t	opt_lg_tcache_nslots_mul = -1;
+
 cache_bin_info_t	*tcache_bin_info;
 
 /* Total stack size required (per tcache).  Include the padding above. */
@@ -778,6 +788,37 @@ tcaches_destroy(tsd_t *tsd, unsigned ind) {
 	}
 }
 
+static unsigned
+tcache_ncached_max_compute(szind_t szind) {
+	if (szind >= SC_NBINS) {
+		assert(szind < nhbins);
+		return TCACHE_NSLOTS_LARGE;
+	}
+	unsigned slab_nregs = bin_infos[szind].nregs;
+
+	unsigned candidate;
+	if (opt_lg_tcache_nslots_mul < 0) {
+		candidate = slab_nregs >> (-opt_lg_tcache_nslots_mul);
+	} else {
+		candidate = slab_nregs << opt_lg_tcache_nslots_mul;
+	}
+	if (candidate % 2 != 0) {
+		/*
+		 * We need the candidate size to be even -- we assume that we
+		 * can divide by two and get a positive number (e.g. when
+		 * flushing).
+		 */
+		++candidate;
+	}
+	if (candidate <= TCACHE_NSLOTS_SMALL_MIN) {
+		return TCACHE_NSLOTS_SMALL_MIN;
+	} else if (candidate <= TCACHE_NSLOTS_SMALL_MAX) {
+		return candidate;
+	} else {
+		return TCACHE_NSLOTS_SMALL_MAX;
+	}
+}
+
 bool
 tcache_boot(tsdn_t *tsdn, base_t *base) {
 	/* If necessary, clamp opt_lg_tcache_max. */
@@ -801,23 +842,12 @@ tcache_boot(tsdn_t *tsdn, base_t *base) {
 	if (tcache_bin_info == NULL) {
 		return true;
 	}
-	unsigned i, ncached_max;
-	for (i = 0; i < SC_NBINS; i++) {
-		if ((bin_infos[i].nregs << 1) <= TCACHE_NSLOTS_SMALL_MIN) {
-			ncached_max = TCACHE_NSLOTS_SMALL_MIN;
-		} else if ((bin_infos[i].nregs << 1) <=
-		    TCACHE_NSLOTS_SMALL_MAX) {
-			ncached_max = bin_infos[i].nregs << 1;
-		} else {
-			ncached_max = TCACHE_NSLOTS_SMALL_MAX;
-		}
+	for (szind_t i = 0; i < nhbins; i++) {
+		unsigned ncached_max = tcache_ncached_max_compute(i);
 		cache_bin_info_init(&tcache_bin_info[i], ncached_max);
 	}
-	for (; i < nhbins; i++) {
-		cache_bin_info_init(&tcache_bin_info[i], TCACHE_NSLOTS_LARGE);
-	}
-	cache_bin_info_compute_alloc(tcache_bin_info, i, &tcache_bin_alloc_size,
-	    &tcache_bin_alloc_alignment);
+	cache_bin_info_compute_alloc(tcache_bin_info, nhbins,
+	    &tcache_bin_alloc_size, &tcache_bin_alloc_alignment);
 
 	return false;
 }
