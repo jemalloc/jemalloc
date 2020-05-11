@@ -1373,6 +1373,12 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			CONF_HANDLE_BOOL(opt_tcache, "tcache")
 			CONF_HANDLE_SSIZE_T(opt_lg_tcache_max, "lg_tcache_max",
 			    -1, (sizeof(size_t) << 3) - 1)
+			/*
+			 * Anyone trying to set a value outside -16 to 16 is
+			 * deeply confused.
+			 */
+			CONF_HANDLE_SSIZE_T(opt_lg_tcache_nslots_mul,
+			    "lg_tcache_nslots_mul", -16, 16)
 
 			/*
 			 * The runtime option of oversize_threshold remains
