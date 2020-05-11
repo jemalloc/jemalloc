@@ -10,8 +10,13 @@
 /******************************************************************************/
 /* Data. */
 
-bool	opt_tcache = true;
-ssize_t	opt_lg_tcache_max = LG_TCACHE_MAXCLASS_DEFAULT;
+bool opt_tcache = true;
+ssize_t opt_lg_tcache_max = LG_TCACHE_MAXCLASS_DEFAULT;
+
+/* Reasonable defaults for min and max values. */
+unsigned opt_tcache_nslots_small_min = 20;
+unsigned opt_tcache_nslots_small_max = 200;
+unsigned opt_tcache_nslots_large = 20;
 
 /*
  * We attempt to make the number of slots in a tcache bin for a given size class
@@ -19,7 +24,7 @@ ssize_t	opt_lg_tcache_max = LG_TCACHE_MAXCLASS_DEFAULT;
  * the multiplier is 1/2 (i.e. we set the maximum number of objects in the
  * tcache to half the number of objects in a slab).
  * This is bounded by some other constraints as well, like the fact that it
- * must be even, must be less than TCACHE_NSLOTS_SMALL_MAX, etc..
+ * must be even, must be less than opt_tcache_nslots_small_max, etc..
  */
 ssize_t	opt_lg_tcache_nslots_mul = -1;
 
@@ -485,7 +490,6 @@ tcache_init(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	tcache_slow->arena = NULL;
 	tcache_slow->dyn_alloc = mem;
 
-	assert((TCACHE_NSLOTS_SMALL_MAX & 1U) == 0);
 	memset(tcache->bins, 0, sizeof(cache_bin_t) * nhbins);
 
 	size_t cur_offset = 0;
@@ -792,9 +796,36 @@ static unsigned
 tcache_ncached_max_compute(szind_t szind) {
 	if (szind >= SC_NBINS) {
 		assert(szind < nhbins);
-		return TCACHE_NSLOTS_LARGE;
+		return opt_tcache_nslots_large;
 	}
 	unsigned slab_nregs = bin_infos[szind].nregs;
+
+	/* We may modify these values; start with the opt versions. */
+	unsigned nslots_small_min = opt_tcache_nslots_small_min;
+	unsigned nslots_small_max = opt_tcache_nslots_small_max;
+
+	/*
+	 * Clamp values to meet our constraints -- even, nonzero, min < max, and
+	 * suitable for a cache bin size.
+	 */
+	if (opt_tcache_nslots_small_max > CACHE_BIN_NCACHED_MAX) {
+		nslots_small_max = CACHE_BIN_NCACHED_MAX;
+	}
+	if (nslots_small_min % 2 != 0) {
+		nslots_small_min++;
+	}
+	if (nslots_small_max % 2 != 0) {
+		nslots_small_max--;
+	}
+	if (nslots_small_min < 2) {
+		nslots_small_min = 2;
+	}
+	if (nslots_small_max < 2) {
+		nslots_small_max = 2;
+	}
+	if (nslots_small_min > nslots_small_max) {
+		nslots_small_min = nslots_small_max;
+	}
 
 	unsigned candidate;
 	if (opt_lg_tcache_nslots_mul < 0) {
@@ -810,12 +841,12 @@ tcache_ncached_max_compute(szind_t szind) {
 		 */
 		++candidate;
 	}
-	if (candidate <= TCACHE_NSLOTS_SMALL_MIN) {
-		return TCACHE_NSLOTS_SMALL_MIN;
-	} else if (candidate <= TCACHE_NSLOTS_SMALL_MAX) {
+	if (candidate <= nslots_small_min) {
+		return nslots_small_min;
+	} else if (candidate <= nslots_small_max) {
 		return candidate;
 	} else {
-		return TCACHE_NSLOTS_SMALL_MAX;
+		return nslots_small_max;
 	}
 }
 
