@@ -11,7 +11,12 @@
 /* Data. */
 
 bool opt_tcache = true;
-ssize_t opt_lg_tcache_max = LG_TCACHE_MAXCLASS_DEFAULT;
+
+/*
+ * (1U << opt_lg_tcache_max) is used to compute tcache_maxclass.  This choice
+ * (32kb by default) works well as a default in practice.
+ */
+ssize_t opt_lg_tcache_max = 15;
 
 /* Reasonable defaults for min and max values. */
 unsigned opt_tcache_nslots_small_min = 20;
