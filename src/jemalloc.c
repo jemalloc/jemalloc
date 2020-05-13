@@ -2074,6 +2074,37 @@ dynamic_opts_init(dynamic_opts_t *dynamic_opts) {
 	dynamic_opts->arena_ind = ARENA_IND_AUTOMATIC;
 }
 
+/*
+ * ind parameter is optional and is only checked and filled if alignment == 0;
+ * return true if result is out of range.
+ */
+JEMALLOC_ALWAYS_INLINE bool
+aligned_usize_get(size_t size, size_t alignment, size_t *usize, szind_t *ind,
+    bool bump_empty_aligned_alloc) {
+	assert(usize != NULL);
+	if (alignment == 0) {
+		if (ind != NULL) {
+			*ind = sz_size2index(size);
+			if (unlikely(*ind >= SC_NSIZES)) {
+				return true;
+			}
+			*usize = sz_index2size(*ind);
+			assert(*usize > 0 && *usize <= SC_LARGE_MAXCLASS);
+			return false;
+		}
+		*usize = sz_s2u(size);
+	} else {
+		if (bump_empty_aligned_alloc && unlikely(size == 0)) {
+			size = 1;
+		}
+		*usize = sz_sa2u(size, alignment);
+	}
+	if (unlikely(*usize == 0 || *usize > SC_LARGE_MAXCLASS)) {
+		return true;
+	}
+	return false;
+}
+
 /* ind is ignored if dopts->alignment > 0. */
 JEMALLOC_ALWAYS_INLINE void *
 imalloc_no_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
@@ -2227,26 +2258,11 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	if (config_fill && sopts->slow && opt_zero) {
 		dopts->zero = true;
 	}
-	if (dopts->alignment == 0) {
-		ind = sz_size2index(size);
-		if (unlikely(ind >= SC_NSIZES)) {
-			goto label_oom;
-		}
-		usize = sz_index2size(ind);
-		assert(usize > 0 && usize <= SC_LARGE_MAXCLASS);
-		dopts->usize = usize;
-	} else {
-		if (sopts->bump_empty_aligned_alloc) {
-			if (unlikely(size == 0)) {
-				size = 1;
-			}
-		}
-		usize = sz_sa2u(size, dopts->alignment);
-		dopts->usize = usize;
-		if (unlikely(usize == 0 || usize > SC_LARGE_MAXCLASS)) {
-			goto label_oom;
-		}
+	if (aligned_usize_get(size, dopts->alignment, &usize, &ind,
+	    sopts->bump_empty_aligned_alloc)) {
+		goto label_oom;
 	}
+	dopts->usize = usize;
 	/* Validate the user input. */
 	if (sopts->assert_nonempty_alloc) {
 		assert (size != 0);
@@ -3109,9 +3125,7 @@ JEMALLOC_SMALLOCX_CONCAT_HELPER2(je_smallocx_, JEMALLOC_VERSION_GID_IDENT)
 	dopts.num_items = 1;
 	dopts.item_size = size;
 	if (unlikely(flags != 0)) {
-		if ((flags & MALLOCX_LG_ALIGN_MASK) != 0) {
-			dopts.alignment = MALLOCX_ALIGN_GET_SPECIFIED(flags);
-		}
+		dopts.alignment = MALLOCX_ALIGN_GET(flags);
 
 		dopts.zero = MALLOCX_ZERO_GET(flags);
 
@@ -3162,9 +3176,7 @@ je_mallocx(size_t size, int flags) {
 	dopts.num_items = 1;
 	dopts.item_size = size;
 	if (unlikely(flags != 0)) {
-		if ((flags & MALLOCX_LG_ALIGN_MASK) != 0) {
-			dopts.alignment = MALLOCX_ALIGN_GET_SPECIFIED(flags);
-		}
+		dopts.alignment = MALLOCX_ALIGN_GET(flags);
 
 		dopts.zero = MALLOCX_ZERO_GET(flags);
 
@@ -3316,9 +3328,7 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 	hook_ralloc_args_t hook_args = {is_realloc, {(uintptr_t)ptr, size,
 		flags, 0}};
 	if (config_prof && opt_prof) {
-		usize = (alignment == 0) ?
-		    sz_s2u(size) : sz_sa2u(size, alignment);
-		if (unlikely(usize == 0 || usize > SC_LARGE_MAXCLASS)) {
+		if (aligned_usize_get(size, alignment, &usize, NULL, false)) {
 			goto label_oom;
 		}
 		p = irallocx_prof(tsd, ptr, old_usize, size, alignment, &usize,
@@ -3501,22 +3511,14 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 	 * prof_realloc() will use the actual usize to decide whether to sample.
 	 */
 	size_t usize_max;
-	if (alignment == 0) {
-		usize_max = sz_s2u(size+extra);
-		assert(usize_max > 0
-		    && usize_max <= SC_LARGE_MAXCLASS);
-	} else {
-		usize_max = sz_sa2u(size+extra, alignment);
-		if (unlikely(usize_max == 0
-		    || usize_max > SC_LARGE_MAXCLASS)) {
-			/*
-			 * usize_max is out of range, and chances are that
-			 * allocation will fail, but use the maximum possible
-			 * value and carry on with prof_alloc_prep(), just in
-			 * case allocation succeeds.
-			 */
-			usize_max = SC_LARGE_MAXCLASS;
-		}
+	if (aligned_usize_get(size + extra, alignment, &usize_max, NULL,
+	    false)) {
+		/*
+		 * usize_max is out of range, and chances are that allocation
+		 * will fail, but use the maximum possible value and carry on
+		 * with prof_alloc_prep(), just in case allocation succeeds.
+		 */
+		usize_max = SC_LARGE_MAXCLASS;
 	}
 	bool prof_active = prof_active_get_unlocked();
 	bool sample_event = te_prof_sample_event_lookahead(tsd, usize_max);
@@ -3726,13 +3728,9 @@ je_dallocx(void *ptr, int flags) {
 JEMALLOC_ALWAYS_INLINE size_t
 inallocx(tsdn_t *tsdn, size_t size, int flags) {
 	check_entry_exit_locking(tsdn);
-
 	size_t usize;
-	if (likely((flags & MALLOCX_LG_ALIGN_MASK) == 0)) {
-		usize = sz_s2u(size);
-	} else {
-		usize = sz_sa2u(size, MALLOCX_ALIGN_GET_SPECIFIED(flags));
-	}
+	/* In case of out of range, let the user see it rather than fail. */
+	aligned_usize_get(size, MALLOCX_ALIGN_GET(flags), &usize, NULL, false);
 	check_entry_exit_locking(tsdn);
 	return usize;
 }
