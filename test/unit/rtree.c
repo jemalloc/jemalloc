@@ -33,7 +33,7 @@ TEST_END
 #undef SEED
 
 TEST_BEGIN(test_rtree_extrema) {
-	edata_t edata_a, edata_b;
+	edata_t edata_a = {0}, edata_b = {0};
 	edata_init(&edata_a, INVALID_ARENA_IND, NULL, SC_LARGE_MINCLASS,
 	    false, sz_size2index(SC_LARGE_MINCLASS), 0,
 	    extent_state_active, false, false, false, EXTENT_NOT_HEAD);
@@ -91,7 +91,7 @@ TEST_BEGIN(test_rtree_bits) {
 	uintptr_t keys[] = {PAGE, PAGE + 1,
 	    PAGE + (((uintptr_t)1) << LG_PAGE) - 1};
 
-	edata_t edata;
+	edata_t edata = {0};
 	edata_init(&edata, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
 	    extent_state_active, false, false, false, EXTENT_NOT_HEAD);
 
@@ -141,7 +141,7 @@ TEST_BEGIN(test_rtree_random) {
 	rtree_ctx_t rtree_ctx;
 	rtree_ctx_data_init(&rtree_ctx);
 
-	edata_t edata;
+	edata_t edata = {0};
 	edata_init(&edata, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
 	    extent_state_active, false, false, false, EXTENT_NOT_HEAD);
 

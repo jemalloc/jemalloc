@@ -247,7 +247,7 @@ emap_split_prepare(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
 	 * and commit state, and head status.  This is a fake edata_t, used to
 	 * facilitate a lookup.
 	 */
-	edata_t lead;
+	edata_t lead = {0};
 	edata_init(&lead, 0U, edata_addr_get(edata), size_a, false, 0, 0,
 	    extent_state_active, false, false, false, EXTENT_NOT_HEAD);
 

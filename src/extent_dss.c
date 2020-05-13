@@ -198,7 +198,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 					*commit = pages_decommit(ret, size);
 				}
 				if (*zero && *commit) {
-					edata_t edata;
+					edata_t edata = {0};
 					ehooks_t *ehooks = arena_get_ehooks(
 					    arena);
 
