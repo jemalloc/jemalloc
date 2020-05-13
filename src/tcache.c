@@ -34,6 +34,12 @@ unsigned opt_tcache_nslots_large = 20;
 ssize_t	opt_lg_tcache_nslots_mul = -1;
 
 /*
+ * Number of allocation bytes between tcache incremental GCs.  Again, this
+ * default just seems to work well; more tuning is possible.
+ */
+size_t opt_tcache_gc_incr_bytes = 65536;
+
+/*
  * With default settings, we may end up flushing small bins frequently with
  * small flush amounts.  To limit this tendency, we can set a number of bytes to
  * "delay" by.  If we try to flush N M-byte items, we decrease that size-class's
@@ -46,12 +52,6 @@ ssize_t	opt_lg_tcache_nslots_mul = -1;
  * effective maximum value for a size class is 255 * sz.
  */
 size_t opt_tcache_gc_delay_bytes = 0;
-
-/*
- * Number of allocation bytes between tcache incremental GCs.  Again, this
- * default just seems to work well; more tuning is possible.
- */
-size_t opt_tcache_gc_incr_bytes = 65536;
 
 cache_bin_info_t	*tcache_bin_info;
 

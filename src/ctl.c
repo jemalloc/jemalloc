@@ -103,9 +103,15 @@ CTL_PROTO(opt_zero)
 CTL_PROTO(opt_utrace)
 CTL_PROTO(opt_xmalloc)
 CTL_PROTO(opt_tcache)
+CTL_PROTO(opt_lg_tcache_max)
+CTL_PROTO(opt_tcache_nslots_small_min)
+CTL_PROTO(opt_tcache_nslots_small_max)
+CTL_PROTO(opt_tcache_nslots_large)
+CTL_PROTO(opt_lg_tcache_nslots_mul)
+CTL_PROTO(opt_tcache_gc_incr_bytes)
+CTL_PROTO(opt_tcache_gc_delay_bytes)
 CTL_PROTO(opt_thp)
 CTL_PROTO(opt_lg_extent_max_active_fit)
-CTL_PROTO(opt_lg_tcache_max)
 CTL_PROTO(opt_prof)
 CTL_PROTO(opt_prof_prefix)
 CTL_PROTO(opt_prof_active)
@@ -340,9 +346,17 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("utrace"),	CTL(opt_utrace)},
 	{NAME("xmalloc"),	CTL(opt_xmalloc)},
 	{NAME("tcache"),	CTL(opt_tcache)},
+	{NAME("lg_tcache_max"),	CTL(opt_lg_tcache_max)},
+	{NAME("tcache_nslots_small_min"),
+		CTL(opt_tcache_nslots_small_min)},
+	{NAME("tcache_nslots_small_max"),
+		CTL(opt_tcache_nslots_small_max)},
+	{NAME("tcache_nslots_large"),	CTL(opt_tcache_nslots_large)},
+	{NAME("lg_tcache_nslots_mul"),	CTL(opt_lg_tcache_nslots_mul)},
+	{NAME("tcache_gc_incr_bytes"),	CTL(opt_tcache_gc_incr_bytes)},
+	{NAME("tcache_gc_delay_bytes"),	CTL(opt_tcache_gc_delay_bytes)},
 	{NAME("thp"),		CTL(opt_thp)},
 	{NAME("lg_extent_max_active_fit"), CTL(opt_lg_extent_max_active_fit)},
-	{NAME("lg_tcache_max"),	CTL(opt_lg_tcache_max)},
 	{NAME("prof"),		CTL(opt_prof)},
 	{NAME("prof_prefix"),	CTL(opt_prof_prefix)},
 	{NAME("prof_active"),	CTL(opt_prof_active)},
@@ -1793,10 +1807,18 @@ CTL_RO_NL_CGEN(config_fill, opt_zero, opt_zero, bool)
 CTL_RO_NL_CGEN(config_utrace, opt_utrace, opt_utrace, bool)
 CTL_RO_NL_CGEN(config_xmalloc, opt_xmalloc, opt_xmalloc, bool)
 CTL_RO_NL_GEN(opt_tcache, opt_tcache, bool)
+CTL_RO_NL_GEN(opt_lg_tcache_max, opt_lg_tcache_max, ssize_t)
+CTL_RO_NL_GEN(opt_tcache_nslots_small_min, opt_tcache_nslots_small_min,
+    unsigned)
+CTL_RO_NL_GEN(opt_tcache_nslots_small_max, opt_tcache_nslots_small_max,
+    unsigned)
+CTL_RO_NL_GEN(opt_tcache_nslots_large, opt_tcache_nslots_large, unsigned)
+CTL_RO_NL_GEN(opt_lg_tcache_nslots_mul, opt_lg_tcache_nslots_mul, ssize_t)
+CTL_RO_NL_GEN(opt_tcache_gc_incr_bytes, opt_tcache_gc_incr_bytes, size_t)
+CTL_RO_NL_GEN(opt_tcache_gc_delay_bytes, opt_tcache_gc_delay_bytes, size_t)
 CTL_RO_NL_GEN(opt_thp, thp_mode_names[opt_thp], const char *)
 CTL_RO_NL_GEN(opt_lg_extent_max_active_fit, opt_lg_extent_max_active_fit,
     size_t)
-CTL_RO_NL_GEN(opt_lg_tcache_max, opt_lg_tcache_max, ssize_t)
 CTL_RO_NL_CGEN(config_prof, opt_prof, opt_prof, bool)
 CTL_RO_NL_CGEN(config_prof, opt_prof_prefix, opt_prof_prefix, const char *)
 CTL_RO_NL_CGEN(config_prof, opt_prof_active, opt_prof_active, bool)
