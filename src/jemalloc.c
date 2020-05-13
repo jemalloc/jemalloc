@@ -1282,9 +1282,17 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				}
 				CONF_CONTINUE;
 			}
-			CONF_HANDLE_UNSIGNED(opt_narenas, "narenas", 1,
-			    UINT_MAX, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX,
-			    false)
+			if (CONF_MATCH("narenas")) {
+				if (CONF_MATCH_VALUE("default")) {
+					opt_narenas = 0;
+					CONF_CONTINUE;
+				} else {
+					CONF_HANDLE_UNSIGNED(opt_narenas,
+					    "narenas", 1, UINT_MAX,
+					    CONF_CHECK_MIN, CONF_DONT_CHECK_MAX,
+					    /* clip */ false)
+				}
+			}
 			if (CONF_MATCH("bin_shards")) {
 				const char *bin_shards_segment_cur = v;
 				size_t vlen_left = vlen;
