@@ -2164,6 +2164,10 @@ imalloc_no_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
 		arena = NULL;
 	} else {
 		arena = arena_get(tsd_tsdn(tsd), dopts->arena_ind, true);
+		if (unlikely(arena == NULL) &&
+		    dopts->arena_ind >= narenas_auto) {
+			return NULL;
+		}
 	}
 
 	if (unlikely(dopts->alignment != 0)) {
@@ -3315,7 +3319,7 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 	if (unlikely((flags & MALLOCX_ARENA_MASK) != 0)) {
 		unsigned arena_ind = MALLOCX_ARENA_GET(flags);
 		arena = arena_get(tsd_tsdn(tsd), arena_ind, true);
-		if (unlikely(arena == NULL)) {
+		if (unlikely(arena == NULL) && arena_ind >= narenas_auto) {
 			goto label_oom;
 		}
 	} else {
