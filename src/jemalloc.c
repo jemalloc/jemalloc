@@ -2105,6 +2105,15 @@ aligned_usize_get(size_t size, size_t alignment, size_t *usize, szind_t *ind,
 	return false;
 }
 
+JEMALLOC_ALWAYS_INLINE bool
+zero_get(bool guarantee, bool slow) {
+	if (config_fill && slow && unlikely(opt_zero)) {
+		return true;
+	} else {
+		return guarantee;
+	}
+}
+
 /* ind is ignored if dopts->alignment > 0. */
 JEMALLOC_ALWAYS_INLINE void *
 imalloc_no_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
@@ -2255,9 +2264,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	}
 
 	/* This is the beginning of the "core" algorithm. */
-	if (config_fill && sopts->slow && opt_zero) {
-		dopts->zero = true;
-	}
+	dopts->zero = zero_get(dopts->zero, sopts->slow);
 	if (aligned_usize_get(size, dopts->alignment, &usize, &ind,
 	    sopts->bump_empty_aligned_alloc)) {
 		goto label_oom;
@@ -3293,10 +3300,7 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 	tsd = tsd_fetch();
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
-	bool zero = flags & MALLOCX_ZERO;
-	if (config_fill && unlikely(opt_zero)) {
-		zero = true;
-	}
+	bool zero = zero_get(MALLOCX_ZERO_GET(flags), /* slow */ true);
 
 	if (unlikely((flags & MALLOCX_ARENA_MASK) != 0)) {
 		unsigned arena_ind = MALLOCX_ARENA_GET(flags);
@@ -3562,11 +3566,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	tsd_t *tsd;
 	size_t usize, old_usize;
 	size_t alignment = MALLOCX_ALIGN_GET(flags);
-
-	bool zero = flags & MALLOCX_ZERO;
-	if (config_fill && unlikely(opt_zero)) {
-		zero = true;
-	}
+	bool zero = zero_get(MALLOCX_ZERO_GET(flags), /* slow */ true);
 
 	LOG("core.xallocx.entry", "ptr: %p, size: %zu, extra: %zu, "
 	    "flags: %d", ptr, size, extra, flags);
