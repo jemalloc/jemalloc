@@ -507,6 +507,13 @@ edata_is_head_set(edata_t *edata, bool is_head) {
 	    ((uint64_t)is_head << EDATA_BITS_IS_HEAD_SHIFT);
 }
 
+/*
+ * Because this function is implemented as a sequence of bitfield modifications,
+ * even though each individual bit is properly initialized, we technically read
+ * uninitialized data within it.  This is mostly fine, since most callers get
+ * their edatas from zeroing sources, but callers who make stack edata_ts need
+ * to manually zero them.
+ */
 static inline void
 edata_init(edata_t *edata, unsigned arena_ind, void *addr, size_t size,
     bool slab, szind_t szind, size_t sn, extent_state_t state, bool zeroed,
