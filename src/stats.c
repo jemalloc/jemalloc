@@ -1113,6 +1113,8 @@ stats_general_print(emitter_t *emitter) {
 	OPT_WRITE_SSIZE_T("lg_tcache_nslots_mul")
 	OPT_WRITE_SIZE_T("tcache_gc_incr_bytes")
 	OPT_WRITE_SIZE_T("tcache_gc_delay_bytes")
+	OPT_WRITE_UNSIGNED("lg_tcache_flush_small_div")
+	OPT_WRITE_UNSIGNED("lg_tcache_flush_large_div")
 	OPT_WRITE_CHAR_P("thp")
 	OPT_WRITE_BOOL("prof")
 	OPT_WRITE_CHAR_P("prof_prefix")

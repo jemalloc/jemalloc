@@ -10,6 +10,8 @@ extern unsigned opt_tcache_nslots_large;
 extern ssize_t opt_lg_tcache_shift;
 extern size_t opt_tcache_gc_incr_bytes;
 extern size_t opt_tcache_gc_delay_bytes;
+extern unsigned opt_lg_tcache_flush_small_div;
+extern unsigned opt_lg_tcache_flush_large_div;
 
 /*
  * Number of tcache bins.  There are SC_NBINS small-object bins, plus 0 or more
