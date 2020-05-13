@@ -2114,27 +2114,45 @@ zero_get(bool guarantee, bool slow) {
 	}
 }
 
+JEMALLOC_ALWAYS_INLINE tcache_t *
+tcache_get_from_ind(tsd_t *tsd, unsigned tcache_ind, bool slow, bool is_alloc) {
+	tcache_t *tcache;
+	if (tcache_ind == TCACHE_IND_AUTOMATIC) {
+		if (likely(!slow)) {
+			/* Getting tcache ptr unconditionally. */
+			tcache = tsd_tcachep_get(tsd);
+			assert(tcache == tcache_get(tsd));
+		} else if (is_alloc ||
+		    likely(tsd_reentrancy_level_get(tsd) == 0)) {
+			tcache = tcache_get(tsd);
+		} else {
+			tcache = NULL;
+		}
+	} else {
+		/*
+		 * Should not specify tcache on deallocation path when being
+		 * reentrant.
+		 */
+		assert(is_alloc || tsd_reentrancy_level_get(tsd) == 0 ||
+		    tsd_state_nocleanup(tsd));
+		if (tcache_ind == TCACHE_IND_NONE) {
+			tcache = NULL;
+		} else {
+			tcache = tcaches_get(tsd, tcache_ind);
+		}
+	}
+	return tcache;
+}
+
 /* ind is ignored if dopts->alignment > 0. */
 JEMALLOC_ALWAYS_INLINE void *
 imalloc_no_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
     size_t size, size_t usize, szind_t ind) {
-	tcache_t *tcache;
 	arena_t *arena;
 
 	/* Fill in the tcache. */
-	if (dopts->tcache_ind == TCACHE_IND_AUTOMATIC) {
-		if (likely(!sopts->slow)) {
-			/* Getting tcache ptr unconditionally. */
-			tcache = tsd_tcachep_get(tsd);
-			assert(tcache == tcache_get(tsd));
-		} else {
-			tcache = tcache_get(tsd);
-		}
-	} else if (dopts->tcache_ind == TCACHE_IND_NONE) {
-		tcache = NULL;
-	} else {
-		tcache = tcaches_get(tsd, dopts->tcache_ind);
-	}
+	tcache_t *tcache = tcache_get_from_ind(tsd, dopts->tcache_ind,
+	    sopts->slow, /* is_alloc */ true);
 
 	/* Fill in the arena. */
 	if (dopts->arena_ind == ARENA_IND_AUTOMATIC) {
@@ -2579,7 +2597,8 @@ je_malloc(size_t size) {
 	}
 	assert(tsd_fast(tsd));
 
-	tcache_t *tcache = tsd_tcachep_get(tsd);
+	tcache_t *tcache = tcache_get_from_ind(tsd, TCACHE_IND_AUTOMATIC,
+	    /* slow */ false, /* is_alloc */ true);
 	cache_bin_t *bin = &tcache->bins[ind];
 	bool tcache_success;
 	void *ret;
@@ -2839,22 +2858,20 @@ free_default(void *ptr) {
 		tsd_t *tsd = tsd_fetch_min();
 		check_entry_exit_locking(tsd_tsdn(tsd));
 
-		tcache_t *tcache;
 		if (likely(tsd_fast(tsd))) {
-			tsd_assert_fast(tsd);
-			/* Unconditionally get tcache ptr on fast path. */
-			tcache = tsd_tcachep_get(tsd);
-			ifree(tsd, ptr, tcache, false);
+			tcache_t *tcache = tcache_get_from_ind(tsd,
+			    TCACHE_IND_AUTOMATIC, /* slow */ false,
+			    /* is_alloc */ false);
+			ifree(tsd, ptr, tcache, /* slow */ false);
 		} else {
-			if (likely(tsd_reentrancy_level_get(tsd) == 0)) {
-				tcache = tcache_get(tsd);
-			} else {
-				tcache = NULL;
-			}
+			tcache_t *tcache = tcache_get_from_ind(tsd,
+			    TCACHE_IND_AUTOMATIC, /* slow */ true,
+			    /* is_alloc */ false);
 			uintptr_t args_raw[3] = {(uintptr_t)ptr};
 			hook_invoke_dalloc(hook_dalloc_free, ptr, args_raw);
-			ifree(tsd, ptr, tcache, true);
+			ifree(tsd, ptr, tcache, /* slow */ true);
 		}
+
 		check_entry_exit_locking(tsd_tsdn(tsd));
 	}
 }
@@ -2912,7 +2929,8 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 		return false;
 	}
 
-	tcache_t *tcache = tsd_tcachep_get(tsd);
+	tcache_t *tcache = tcache_get_from_ind(tsd, TCACHE_IND_AUTOMATIC,
+	    /* slow */ false, /* is_alloc */ false);
 	cache_bin_t *bin = &tcache->bins[alloc_ctx.szind];
 
 	/*
@@ -3088,6 +3106,17 @@ int __posix_memalign(void** r, size_t a, size_t s) PREALIAS(je_posix_memalign);
  * Begin non-standard functions.
  */
 
+JEMALLOC_ALWAYS_INLINE unsigned
+mallocx_tcache_get(int flags) {
+	if (likely((flags & MALLOCX_TCACHE_MASK) == 0)) {
+		return TCACHE_IND_AUTOMATIC;
+	} else if ((flags & MALLOCX_TCACHE_MASK) == MALLOCX_TCACHE_NONE) {
+		return TCACHE_IND_NONE;
+	} else {
+		return MALLOCX_TCACHE_GET(flags);
+	}
+}
+
 #ifdef JEMALLOC_EXPERIMENTAL_SMALLOCX_API
 
 #define JEMALLOC_SMALLOCX_CONCAT_HELPER(x, y) x ## y
@@ -3136,16 +3165,7 @@ JEMALLOC_SMALLOCX_CONCAT_HELPER2(je_smallocx_, JEMALLOC_VERSION_GID_IDENT)
 
 		dopts.zero = MALLOCX_ZERO_GET(flags);
 
-		if ((flags & MALLOCX_TCACHE_MASK) != 0) {
-			if ((flags & MALLOCX_TCACHE_MASK)
-			    == MALLOCX_TCACHE_NONE) {
-				dopts.tcache_ind = TCACHE_IND_NONE;
-			} else {
-				dopts.tcache_ind = MALLOCX_TCACHE_GET(flags);
-			}
-		} else {
-			dopts.tcache_ind = TCACHE_IND_AUTOMATIC;
-		}
+		dopts.tcache_ind = mallocx_tcache_get(flags);
 
 		if ((flags & MALLOCX_ARENA_MASK) != 0)
 			dopts.arena_ind = MALLOCX_ARENA_GET(flags);
@@ -3187,16 +3207,7 @@ je_mallocx(size_t size, int flags) {
 
 		dopts.zero = MALLOCX_ZERO_GET(flags);
 
-		if ((flags & MALLOCX_TCACHE_MASK) != 0) {
-			if ((flags & MALLOCX_TCACHE_MASK)
-			    == MALLOCX_TCACHE_NONE) {
-				dopts.tcache_ind = TCACHE_IND_NONE;
-			} else {
-				dopts.tcache_ind = MALLOCX_TCACHE_GET(flags);
-			}
-		} else {
-			dopts.tcache_ind = TCACHE_IND_AUTOMATIC;
-		}
+		dopts.tcache_ind = mallocx_tcache_get(flags);
 
 		if ((flags & MALLOCX_ARENA_MASK) != 0)
 			dopts.arena_ind = MALLOCX_ARENA_GET(flags);
@@ -3292,7 +3303,6 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 	size_t old_usize;
 	size_t alignment = MALLOCX_ALIGN_GET(flags);
 	arena_t *arena;
-	tcache_t *tcache;
 
 	assert(ptr != NULL);
 	assert(size != 0);
@@ -3312,15 +3322,9 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 		arena = NULL;
 	}
 
-	if (unlikely((flags & MALLOCX_TCACHE_MASK) != 0)) {
-		if ((flags & MALLOCX_TCACHE_MASK) == MALLOCX_TCACHE_NONE) {
-			tcache = NULL;
-		} else {
-			tcache = tcaches_get(tsd, MALLOCX_TCACHE_GET(flags));
-		}
-	} else {
-		tcache = tcache_get(tsd);
-	}
+	unsigned tcache_ind = mallocx_tcache_get(flags);
+	tcache_t *tcache = tcache_get_from_ind(tsd, tcache_ind,
+	    /* slow */ true, /* is_alloc */ true);
 
 	emap_alloc_ctx_t alloc_ctx;
 	emap_alloc_ctx_lookup(tsd_tsdn(tsd), &arena_emap_global, ptr,
@@ -3400,19 +3404,14 @@ do_realloc_nonnull_zero(void *ptr) {
 		return do_rallocx(ptr, 1, MALLOCX_TCACHE_NONE, true);
 	} else if (opt_zero_realloc_action == zero_realloc_action_free) {
 		UTRACE(ptr, 0, 0);
-		tcache_t *tcache;
 		tsd_t *tsd = tsd_fetch();
 		check_entry_exit_locking(tsd_tsdn(tsd));
 
-		if (tsd_reentrancy_level_get(tsd) == 0) {
-			tcache = tcache_get(tsd);
-		} else {
-			tcache = NULL;
-		}
-
+		tcache_t *tcache = tcache_get_from_ind(tsd,
+		    TCACHE_IND_AUTOMATIC, /* slow */ true,
+		    /* is_alloc */ false);
 		uintptr_t args[3] = {(uintptr_t)ptr, 0};
 		hook_invoke_dalloc(hook_dalloc_realloc, ptr, args);
-
 		ifree(tsd, ptr, tcache, true);
 
 		check_entry_exit_locking(tsd_tsdn(tsd));
@@ -3688,28 +3687,9 @@ je_dallocx(void *ptr, int flags) {
 	bool fast = tsd_fast(tsd);
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
-	tcache_t *tcache;
-	if (unlikely((flags & MALLOCX_TCACHE_MASK) != 0)) {
-		/* Not allowed to be reentrant and specify a custom tcache. */
-		assert(tsd_reentrancy_level_get(tsd) == 0 ||
-		    tsd_state_nocleanup(tsd));
-		if ((flags & MALLOCX_TCACHE_MASK) == MALLOCX_TCACHE_NONE) {
-			tcache = NULL;
-		} else {
-			tcache = tcaches_get(tsd, MALLOCX_TCACHE_GET(flags));
-		}
-	} else {
-		if (likely(fast)) {
-			tcache = tsd_tcachep_get(tsd);
-			assert(tcache == tcache_get(tsd));
-		} else {
-			if (likely(tsd_reentrancy_level_get(tsd) == 0)) {
-				tcache = tcache_get(tsd);
-			}  else {
-				tcache = NULL;
-			}
-		}
-	}
+	unsigned tcache_ind = mallocx_tcache_get(flags);
+	tcache_t *tcache = tcache_get_from_ind(tsd, tcache_ind, !fast,
+	    /* is_alloc */ false);
 
 	UTRACE(ptr, 0, 0);
 	if (likely(fast)) {
@@ -3746,28 +3726,9 @@ sdallocx_default(void *ptr, size_t size, int flags) {
 	assert(usize == isalloc(tsd_tsdn(tsd), ptr));
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
-	tcache_t *tcache;
-	if (unlikely((flags & MALLOCX_TCACHE_MASK) != 0)) {
-		/* Not allowed to be reentrant and specify a custom tcache. */
-		assert(tsd_reentrancy_level_get(tsd) == 0 ||
-		    tsd_state_nocleanup(tsd));
-		if ((flags & MALLOCX_TCACHE_MASK) == MALLOCX_TCACHE_NONE) {
-			tcache = NULL;
-		} else {
-			tcache = tcaches_get(tsd, MALLOCX_TCACHE_GET(flags));
-		}
-	} else {
-		if (likely(fast)) {
-			tcache = tsd_tcachep_get(tsd);
-			assert(tcache == tcache_get(tsd));
-		} else {
-			if (likely(tsd_reentrancy_level_get(tsd) == 0)) {
-				tcache = tcache_get(tsd);
-			} else {
-				tcache = NULL;
-			}
-		}
-	}
+	unsigned tcache_ind = mallocx_tcache_get(flags);
+	tcache_t *tcache = tcache_get_from_ind(tsd, tcache_ind, !fast,
+	    /* is_alloc */ false);
 
 	UTRACE(ptr, 0, 0);
 	if (likely(fast)) {
