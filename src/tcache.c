@@ -53,6 +53,13 @@ size_t opt_tcache_gc_incr_bytes = 65536;
  */
 size_t opt_tcache_gc_delay_bytes = 0;
 
+/*
+ * When a cache bin is flushed because it's full, how much of it do we flush?
+ * By default, we flush half the maximum number of items.
+ */
+unsigned opt_lg_tcache_flush_small_div = 1;
+unsigned opt_lg_tcache_flush_large_div = 1;
+
 cache_bin_info_t	*tcache_bin_info;
 
 /* Total stack size required (per tcache).  Include the padding above. */
