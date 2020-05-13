@@ -2085,30 +2085,37 @@ tcache_get_from_ind(tsd_t *tsd, unsigned tcache_ind, bool slow, bool is_alloc) {
 	return tcache;
 }
 
-/* ind is ignored if dopts->alignment > 0. */
-JEMALLOC_ALWAYS_INLINE void *
-imalloc_no_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
-    size_t size, size_t usize, szind_t ind) {
-	arena_t *arena;
-
-	/* Fill in the tcache. */
-	tcache_t *tcache = tcache_get_from_ind(tsd, dopts->tcache_ind,
-	    sopts->slow, /* is_alloc */ true);
-
-	/* Fill in the arena. */
-	if (dopts->arena_ind == ARENA_IND_AUTOMATIC) {
+/* Return true if a manual arena is specified and arena_get() OOMs. */
+JEMALLOC_ALWAYS_INLINE bool
+arena_get_from_ind(tsd_t *tsd, unsigned arena_ind, arena_t **arena_p) {
+	if (arena_ind == ARENA_IND_AUTOMATIC) {
 		/*
 		 * In case of automatic arena management, we defer arena
 		 * computation until as late as we can, hoping to fill the
 		 * allocation out of the tcache.
 		 */
-		arena = NULL;
+		*arena_p = NULL;
 	} else {
-		arena = arena_get(tsd_tsdn(tsd), dopts->arena_ind, true);
-		if (unlikely(arena == NULL) &&
-		    dopts->arena_ind >= narenas_auto) {
-			return NULL;
+		*arena_p = arena_get(tsd_tsdn(tsd), arena_ind, true);
+		if (unlikely(*arena_p == NULL) && arena_ind >= narenas_auto) {
+			return true;
 		}
+	}
+	return false;
+}
+
+/* ind is ignored if dopts->alignment > 0. */
+JEMALLOC_ALWAYS_INLINE void *
+imalloc_no_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
+    size_t size, size_t usize, szind_t ind) {
+	/* Fill in the tcache. */
+	tcache_t *tcache = tcache_get_from_ind(tsd, dopts->tcache_ind,
+	    sopts->slow, /* is_alloc */ true);
+
+	/* Fill in the arena. */
+	arena_t *arena;
+	if (arena_get_from_ind(tsd, dopts->arena_ind, &arena)) {
+		return NULL;
 	}
 
 	if (unlikely(dopts->alignment != 0)) {
@@ -3058,6 +3065,15 @@ mallocx_tcache_get(int flags) {
 	}
 }
 
+JEMALLOC_ALWAYS_INLINE unsigned
+mallocx_arena_get(int flags) {
+	if (unlikely((flags & MALLOCX_ARENA_MASK) != 0)) {
+		return MALLOCX_ARENA_GET(flags);
+	} else {
+		return ARENA_IND_AUTOMATIC;
+	}
+}
+
 #ifdef JEMALLOC_EXPERIMENTAL_SMALLOCX_API
 
 #define JEMALLOC_SMALLOCX_CONCAT_HELPER(x, y) x ## y
@@ -3103,13 +3119,9 @@ JEMALLOC_SMALLOCX_CONCAT_HELPER2(je_smallocx_, JEMALLOC_VERSION_GID_IDENT)
 	dopts.item_size = size;
 	if (unlikely(flags != 0)) {
 		dopts.alignment = MALLOCX_ALIGN_GET(flags);
-
 		dopts.zero = MALLOCX_ZERO_GET(flags);
-
 		dopts.tcache_ind = mallocx_tcache_get(flags);
-
-		if ((flags & MALLOCX_ARENA_MASK) != 0)
-			dopts.arena_ind = MALLOCX_ARENA_GET(flags);
+		dopts.arena_ind = mallocx_arena_get(flags);
 	}
 
 	imalloc(&sopts, &dopts);
@@ -3145,13 +3157,9 @@ je_mallocx(size_t size, int flags) {
 	dopts.item_size = size;
 	if (unlikely(flags != 0)) {
 		dopts.alignment = MALLOCX_ALIGN_GET(flags);
-
 		dopts.zero = MALLOCX_ZERO_GET(flags);
-
 		dopts.tcache_ind = mallocx_tcache_get(flags);
-
-		if ((flags & MALLOCX_ARENA_MASK) != 0)
-			dopts.arena_ind = MALLOCX_ARENA_GET(flags);
+		dopts.arena_ind = mallocx_arena_get(flags);
 	}
 
 	imalloc(&sopts, &dopts);
@@ -3253,14 +3261,9 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 
 	bool zero = zero_get(MALLOCX_ZERO_GET(flags), /* slow */ true);
 
-	if (unlikely((flags & MALLOCX_ARENA_MASK) != 0)) {
-		unsigned arena_ind = MALLOCX_ARENA_GET(flags);
-		arena = arena_get(tsd_tsdn(tsd), arena_ind, true);
-		if (unlikely(arena == NULL) && arena_ind >= narenas_auto) {
-			goto label_oom;
-		}
-	} else {
-		arena = NULL;
+	unsigned arena_ind = mallocx_arena_get(flags);
+	if (arena_get_from_ind(tsd, arena_ind, &arena)) {
+		goto label_oom;
 	}
 
 	unsigned tcache_ind = mallocx_tcache_get(flags);
