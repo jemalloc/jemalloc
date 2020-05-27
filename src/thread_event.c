@@ -60,6 +60,16 @@ stats_interval_fetch_elapsed(tsd_t *tsd) {
 	return last_event - last_stats_event;
 }
 
+static uint64_t
+peak_alloc_fetch_elapsed(tsd_t *tsd) {
+	return TE_INVALID_ELAPSED;
+}
+
+static uint64_t
+peak_dalloc_fetch_elapsed(tsd_t *tsd) {
+	return TE_INVALID_ELAPSED;
+}
+
 /* Per event facilities done. */
 
 static bool

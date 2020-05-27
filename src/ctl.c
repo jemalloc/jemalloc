@@ -9,6 +9,7 @@
 #include "jemalloc/internal/inspect.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/nstime.h"
+#include "jemalloc/internal/peak_event.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/util.h"
 
@@ -61,6 +62,8 @@ CTL_PROTO(background_thread)
 CTL_PROTO(max_background_threads)
 CTL_PROTO(thread_tcache_enabled)
 CTL_PROTO(thread_tcache_flush)
+CTL_PROTO(thread_peak_read)
+CTL_PROTO(thread_peak_reset)
 CTL_PROTO(thread_prof_name)
 CTL_PROTO(thread_prof_active)
 CTL_PROTO(thread_arena)
@@ -294,6 +297,11 @@ static const ctl_named_node_t	thread_tcache_node[] = {
 	{NAME("flush"),		CTL(thread_tcache_flush)}
 };
 
+static const ctl_named_node_t	thread_peak_node[] = {
+	{NAME("read"),		CTL(thread_peak_read)},
+	{NAME("reset"),		CTL(thread_peak_reset)},
+};
+
 static const ctl_named_node_t	thread_prof_node[] = {
 	{NAME("name"),		CTL(thread_prof_name)},
 	{NAME("active"),	CTL(thread_prof_active)}
@@ -306,6 +314,7 @@ static const ctl_named_node_t	thread_node[] = {
 	{NAME("deallocated"),	CTL(thread_deallocated)},
 	{NAME("deallocatedp"),	CTL(thread_deallocatedp)},
 	{NAME("tcache"),	CHILD(named, thread_tcache)},
+	{NAME("peak"),		CHILD(named, thread_peak)},
 	{NAME("prof"),		CHILD(named, thread_prof)},
 	{NAME("idle"),		CTL(thread_idle)}
 };
@@ -1948,6 +1957,38 @@ thread_tcache_flush_ctl(tsd_t *tsd, const size_t *mib,
 
 	tcache_flush(tsd);
 
+	ret = 0;
+label_return:
+	return ret;
+}
+
+static int
+thread_peak_read_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp,
+    size_t newlen) {
+	int ret;
+	if (!config_stats) {
+		return ENOENT;
+	}
+	READONLY();
+	peak_event_update(tsd);
+	uint64_t result = peak_event_max(tsd);
+	READ(result, uint64_t);
+	ret = 0;
+label_return:
+	return ret;
+}
+
+static int
+thread_peak_reset_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp,
+    size_t newlen) {
+	int ret;
+	if (!config_stats) {
+		return ENOENT;
+	}
+	NEITHER_READ_NOR_WRITE();
+	peak_event_zero(tsd);
 	ret = 0;
 label_return:
 	return ret;

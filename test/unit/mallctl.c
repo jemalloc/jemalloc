@@ -955,6 +955,73 @@ TEST_BEGIN(test_thread_idle) {
 }
 TEST_END
 
+TEST_BEGIN(test_thread_peak) {
+	test_skip_if(!config_stats);
+
+	/*
+	 * We don't commit to any stable amount of accuracy for peak tracking
+	 * (in practice, when this test was written, we made sure to be within
+	 * 100k).  But 10MB is big for more or less any definition of big.
+	 */
+	size_t big_size = 10 * 1024 * 1024;
+	size_t small_size = 256;
+
+	void *ptr;
+	int err;
+	size_t sz;
+	uint64_t peak;
+	sz = sizeof(uint64_t);
+
+	err = mallctl("thread.peak.reset", NULL, NULL, NULL, 0);
+	expect_d_eq(err, 0, "");
+	ptr = mallocx(SC_SMALL_MAXCLASS, 0);
+	err = mallctl("thread.peak.read", &peak, &sz, NULL, 0);
+	expect_d_eq(err, 0, "");
+	expect_u64_eq(peak, SC_SMALL_MAXCLASS, "Missed an update");
+	free(ptr);
+	err = mallctl("thread.peak.read", &peak, &sz, NULL, 0);
+	expect_d_eq(err, 0, "");
+	expect_u64_eq(peak, SC_SMALL_MAXCLASS, "Freeing changed peak");
+	ptr = mallocx(big_size, 0);
+	free(ptr);
+	/*
+	 * The peak should have hit big_size in the last two lines, even though
+	 * the net allocated bytes has since dropped back down to zero.  We
+	 * should have noticed the peak change without having down any mallctl
+	 * calls while net allocated bytes was high.
+	 */
+	err = mallctl("thread.peak.read", &peak, &sz, NULL, 0);
+	expect_d_eq(err, 0, "");
+	expect_u64_ge(peak, big_size, "Missed a peak change.");
+
+	/* Allocate big_size, but using small allocations. */
+	size_t nallocs = big_size / small_size;
+	void **ptrs = calloc(nallocs, sizeof(void *));
+	err = mallctl("thread.peak.reset", NULL, NULL, NULL, 0);
+	expect_d_eq(err, 0, "");
+	err = mallctl("thread.peak.read", &peak, &sz, NULL, 0);
+	expect_d_eq(err, 0, "");
+	expect_u64_eq(0, peak, "Missed a reset.");
+	for (size_t i = 0; i < nallocs; i++) {
+		ptrs[i] = mallocx(small_size, 0);
+	}
+	for (size_t i = 0; i < nallocs; i++) {
+		free(ptrs[i]);
+	}
+	err = mallctl("thread.peak.read", &peak, &sz, NULL, 0);
+	expect_d_eq(err, 0, "");
+	/*
+	 * We don't guarantee exactness; make sure we're within 10% of the peak,
+	 * though.
+	 */
+	expect_u64_ge(peak, nallocx(small_size, 0) * nallocs * 9 / 10,
+	    "Missed some peak changes.");
+	expect_u64_le(peak, nallocx(small_size, 0) * nallocs * 11 / 10,
+	    "Overcounted peak changes.");
+	free(ptrs);
+}
+TEST_END
+
 int
 main(void) {
 	return test(
@@ -987,5 +1054,6 @@ main(void) {
 	    test_stats_arenas,
 	    test_hooks,
 	    test_hooks_exhaustion,
-	    test_thread_idle);
+	    test_thread_idle,
+	    test_thread_peak);
 }

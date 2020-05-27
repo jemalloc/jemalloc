@@ -1621,6 +1621,42 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         should not be modified by the application.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="thread.peak.read">
+        <term>
+          <mallctl>thread.peak.read</mallctl>
+          (<type>uint64_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Get an approximation of the maximum value of the
+        difference between the number of bytes allocated and the number of bytes
+        deallocated by the calling thread since the last call to <link
+        linkend="thread.peak.reset"><mallctl>thread.peak.reset</mallctl></link>,
+        or since the thread's creation if it has not called <link
+        linkend="thread.peak.reset"><mallctl>thread.peak.reset</mallctl></link>.
+        No guarantees are made about the quality of the approximation, but
+        jemalloc currently endeavors to maintain accuracy to within one hundred
+        kilobytes.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry id="thread.peak.reset">
+        <term>
+          <mallctl>thread.peak.reset</mallctl>
+          (<type>void</type>)
+          <literal>--</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Resets the counter for net bytes allocated in the calling
+        thread to zero. This affects subsequent calls to <link
+        linkend="thread.peak.read"><mallctl>thread.peak.read</mallctl></link>,
+        but not the values returned by <link
+        linkend="thread.allocated"><mallctl>thread.allocated</mallctl></link>
+        or <link
+        linkend="thread.deallocated"><mallctl>thread.deallocated</mallctl></link>.
+        </para></listitem>
+      </varlistentry>
+
       <varlistentry id="thread.tcache.enabled">
         <term>
           <mallctl>thread.tcache.enabled</mallctl>

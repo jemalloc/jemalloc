@@ -5,6 +5,7 @@
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/bin_types.h"
 #include "jemalloc/internal/jemalloc_internal_externs.h"
+#include "jemalloc/internal/peak.h"
 #include "jemalloc/internal/prof_types.h"
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/rtree_tsd.h"
@@ -69,6 +70,8 @@ typedef ql_elm(tsd_t) tsd_link_t;
     O(prof_sample_last_event,	uint64_t,		uint64_t)	\
     O(stats_interval_event_wait,	uint64_t,	uint64_t)	\
     O(stats_interval_last_event,	uint64_t,	uint64_t)	\
+    O(peak_alloc_event_wait,	uint64_t,		uint64_t)	\
+    O(peak_dalloc_event_wait,	uint64_t,	uint64_t)		\
     O(prof_tdata,		prof_tdata_t *,		prof_tdata_t *)	\
     O(prng_state,		uint64_t,		uint64_t)	\
     O(iarena,			arena_t *,		arena_t *)	\
@@ -77,6 +80,7 @@ typedef ql_elm(tsd_t) tsd_link_t;
     O(binshards,		tsd_binshards_t,	tsd_binshards_t)\
     O(tsd_link,			tsd_link_t,		tsd_link_t)	\
     O(in_hook,			bool,			bool)		\
+    O(peak,			peak_t,			peak_t)		\
     O(tcache_slow,		tcache_slow_t,		tcache_slow_t)	\
     O(rtree_ctx,		rtree_ctx_t,		rtree_ctx_t)
 
@@ -95,6 +99,8 @@ typedef ql_elm(tsd_t) tsd_link_t;
     /* prof_sample_last_event */	0,				\
     /* stats_interval_event_wait */	0,				\
     /* stats_interval_last_event */	0,				\
+    /* peak_alloc_event_wait */		0,				\
+    /* peak_dalloc_event_wait */	0,				\
     /* prof_tdata */		NULL,					\
     /* prng_state */		0,					\
     /* iarena */		NULL,					\
@@ -103,6 +109,7 @@ typedef ql_elm(tsd_t) tsd_link_t;
     /* binshards */		TSD_BINSHARDS_ZERO_INITIALIZER,		\
     /* tsd_link */		{NULL},					\
     /* in_hook */		false,					\
+    /* peak */			PEAK_INITIALIZER,			\
     /* tcache_slow */		TCACHE_SLOW_ZERO_INITIALIZER,		\
     /* rtree_ctx */		RTREE_CTX_ZERO_INITIALIZER,
 
