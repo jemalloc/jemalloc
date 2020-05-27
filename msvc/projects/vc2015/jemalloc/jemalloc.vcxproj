@@ -70,6 +70,7 @@
     <ClCompile Include="..\..\..\..\src\pa.c" />
     <ClCompile Include="..\..\..\..\src\pa_extra.c" />
     <ClCompile Include="..\..\..\..\src\pages.c" />
+    <ClCompile Include="..\..\..\..\src\peak_event.c" />
     <ClCompile Include="..\..\..\..\src\prng.c" />
     <ClCompile Include="..\..\..\..\src\prof.c" />
     <ClCompile Include="..\..\..\..\src\prof_data.c" />
