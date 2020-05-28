@@ -256,6 +256,8 @@ if test "x$GCC" = "xyes" ; then
   dnl has lots of nested structs).  See the discussion at.
   dnl https://gcc.gnu.org/bugzilla/show_bug.cgi?id=53119
   JE_CFLAGS_ADD([-Wno-missing-braces])
+  dnl This one too.
+  JE_CFLAGS_ADD([-Wno-missing-field-initializers])
   JE_CFLAGS_ADD([-pipe])
   JE_CFLAGS_ADD([-g3])
 elif test "x$je_cv_msvc" = "xyes" ; then
