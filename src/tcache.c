@@ -142,7 +142,8 @@ tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 		    = tcache_gc_item_delay_compute(szind);
 	}
 
-	tcache_bin_flush_small(tsd, tcache, cache_bin, szind, ncached - nflush);
+	tcache_bin_flush_small(tsd, tcache, cache_bin, szind,
+	    (unsigned)(ncached - nflush));
 
 	/*
 	 * Reduce fill count by 2X.  Limit lg_fill_div such that
@@ -165,7 +166,7 @@ tcache_gc_large(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin,
 	    &tcache_bin_info[szind]);
 	tcache_bin_flush_large(tsd, tcache, cache_bin, szind,
-	    ncached - low_water + (low_water >> 2));
+	    (unsigned)(ncached - low_water + (low_water >> 2)));
 }
 
 static void
