@@ -454,16 +454,16 @@ bool
 arena_dirty_decay_ms_set(tsdn_t *tsdn, arena_t *arena,
     ssize_t decay_ms) {
 	return arena_decay_ms_set(tsdn, arena, &arena->pa_shard.decay_dirty,
-	    &arena->pa_shard.stats->decay_dirty, &arena->pa_shard.ecache_dirty,
-	    decay_ms);
+	    &arena->pa_shard.stats->decay_dirty,
+	    &arena->pa_shard.pac.ecache_dirty, decay_ms);
 }
 
 bool
 arena_muzzy_decay_ms_set(tsdn_t *tsdn, arena_t *arena,
     ssize_t decay_ms) {
 	return arena_decay_ms_set(tsdn, arena, &arena->pa_shard.decay_muzzy,
-	    &arena->pa_shard.stats->decay_muzzy, &arena->pa_shard.ecache_muzzy,
-	    decay_ms);
+	    &arena->pa_shard.stats->decay_muzzy,
+	    &arena->pa_shard.pac.ecache_muzzy, decay_ms);
 }
 
 static bool
@@ -521,8 +521,8 @@ static bool
 arena_decay_dirty(tsdn_t *tsdn, arena_t *arena, bool is_background_thread,
     bool all) {
 	return arena_decay_impl(tsdn, arena, &arena->pa_shard.decay_dirty,
-	    &arena->pa_shard.stats->decay_dirty, &arena->pa_shard.ecache_dirty,
-	    is_background_thread, all);
+	    &arena->pa_shard.stats->decay_dirty,
+	    &arena->pa_shard.pac.ecache_dirty, is_background_thread, all);
 }
 
 static bool
@@ -532,8 +532,8 @@ arena_decay_muzzy(tsdn_t *tsdn, arena_t *arena, bool is_background_thread,
 		return false;
 	}
 	return arena_decay_impl(tsdn, arena, &arena->pa_shard.decay_muzzy,
-	    &arena->pa_shard.stats->decay_muzzy, &arena->pa_shard.ecache_muzzy,
-	    is_background_thread, all);
+	    &arena->pa_shard.stats->decay_muzzy,
+	    &arena->pa_shard.pac.ecache_muzzy, is_background_thread, all);
 }
 
 void
