@@ -7,7 +7,16 @@
 #include "jemalloc/internal/edata_cache.h"
 #include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/lockedint.h"
+#include "jemalloc/internal/pac.h"
 #include "jemalloc/internal/pai.h"
+
+/*
+ * The page allocator; responsible for acquiring pages of memory for
+ * allocations.  It picks the implementation of the page allocator interface
+ * (i.e. a pai_t) to handle a given page-level allocation request.  For now, the
+ * only such implementation is the PAC code ("page allocator classic"), but
+ * others will be coming soon.
+ */
 
 enum pa_decay_purge_setting_e {
 	PA_DECAY_PURGE_ALWAYS,
@@ -15,11 +24,6 @@ enum pa_decay_purge_setting_e {
 	PA_DECAY_PURGE_ON_EPOCH_ADVANCE
 };
 typedef enum pa_decay_purge_setting_e pa_decay_purge_setting_t;
-
-/*
- * The page allocator; responsible for acquiring pages of memory for
- * allocations.
- */
 
 typedef struct pa_shard_decay_stats_s pa_shard_decay_stats_t;
 struct pa_shard_decay_stats_s {
@@ -117,16 +121,7 @@ struct pa_shard_s {
 	 * this is the *only* pai, but we'll soon grow another.
 	 */
 	pai_t ecache_pai;
-
-	/*
-	 * Collections of extents that were previously allocated.  These are
-	 * used when allocating extents, in an attempt to re-use address space.
-	 *
-	 * Synchronization: internal.
-	 */
-	ecache_t ecache_dirty;
-	ecache_t ecache_muzzy;
-	ecache_t ecache_retained;
+	pac_t pac;
 
 	/* The source of edata_t objects. */
 	edata_cache_t edata_cache;
@@ -167,7 +162,7 @@ pa_shard_muzzy_decay_ms_get(pa_shard_t *shard) {
 
 static inline bool
 pa_shard_dont_decay_muzzy(pa_shard_t *shard) {
-	return ecache_npages_get(&shard->ecache_muzzy) == 0 &&
+	return ecache_npages_get(&shard->pac.ecache_muzzy) == 0 &&
 	    pa_shard_muzzy_decay_ms_get(shard) <= 0;
 }
 

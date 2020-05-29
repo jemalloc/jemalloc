@@ -90,7 +90,7 @@ do_alloc_free_purge(void *arg) {
 		pa_decay_all(TSDN_NULL, &test_data->shard,
 		    &test_data->shard.decay_dirty,
 		    &test_data->stats.decay_dirty,
-		    &test_data->shard.ecache_dirty, true);
+		    &test_data->shard.pac.ecache_dirty, true);
 		malloc_mutex_unlock(TSDN_NULL,
 		    &test_data->shard.decay_dirty.mtx);
 	}

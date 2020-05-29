@@ -647,7 +647,7 @@ extent_grow_retained(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 		goto label_err;
 	}
 
-	edata_init(edata, ecache_ind_get(&shard->ecache_retained), ptr,
+	edata_init(edata, ecache_ind_get(&shard->pac.ecache_retained), ptr,
 	    alloc_size, false, SC_NSIZES, pa_shard_extent_sn_next(shard),
 	    extent_state_active, zeroed, committed, /* ranged */ false,
 	    EXTENT_IS_HEAD);
@@ -673,11 +673,11 @@ extent_grow_retained(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	if (result == extent_split_interior_ok) {
 		if (lead != NULL) {
 			extent_record(tsdn, shard, ehooks,
-			    &shard->ecache_retained, lead, true);
+			    &shard->pac.ecache_retained, lead, true);
 		}
 		if (trail != NULL) {
 			extent_record(tsdn, shard, ehooks,
-			    &shard->ecache_retained, trail, true);
+			    &shard->pac.ecache_retained, trail, true);
 		}
 	} else {
 		/*
@@ -690,12 +690,12 @@ extent_grow_retained(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 				extent_gdump_add(tsdn, to_salvage);
 			}
 			extent_record(tsdn, shard, ehooks,
-			    &shard->ecache_retained, to_salvage, true);
+			    &shard->pac.ecache_retained, to_salvage, true);
 		}
 		if (to_leak != NULL) {
 			extent_deregister_no_gdump_sub(tsdn, shard, to_leak);
 			extents_abandon_vm(tsdn, shard, ehooks,
-			    &shard->ecache_retained, to_leak, true);
+			    &shard->pac.ecache_retained, to_leak, true);
 		}
 		goto label_err;
 	}
@@ -704,7 +704,7 @@ extent_grow_retained(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 		if (extent_commit_impl(tsdn, ehooks, edata, 0,
 		    edata_size_get(edata), true)) {
 			extent_record(tsdn, shard, ehooks,
-			    &shard->ecache_retained, edata, true);
+			    &shard->pac.ecache_retained, edata, true);
 			goto label_err;
 		}
 		/* A successful commit should return zeroed memory. */
@@ -756,8 +756,8 @@ extent_alloc_retained(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	malloc_mutex_lock(tsdn, &shard->ecache_grow.mtx);
 
 	edata_t *edata = extent_recycle(tsdn, shard, ehooks,
-	    &shard->ecache_retained, new_addr, size, alignment, zero, commit,
-	    /* growing_retained */ true);
+	    &shard->pac.ecache_retained, new_addr, size, alignment, zero,
+	    commit, /* growing_retained */ true);
 	if (edata != NULL) {
 		malloc_mutex_unlock(tsdn, &shard->ecache_grow.mtx);
 		if (config_prof) {
@@ -792,7 +792,7 @@ extent_alloc_wrapper(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 		edata_cache_put(tsdn, &shard->edata_cache, edata);
 		return NULL;
 	}
-	edata_init(edata, ecache_ind_get(&shard->ecache_dirty), addr,
+	edata_init(edata, ecache_ind_get(&shard->pac.ecache_dirty), addr,
 	    size, /* slab */ false, SC_NSIZES, pa_shard_extent_sn_next(shard),
 	    extent_state_active, zero, *commit, /* ranged */ false,
 	    EXTENT_NOT_HEAD);
@@ -972,7 +972,7 @@ extent_record(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 		edata = extent_try_coalesce(tsdn, shard,  ehooks, ecache, edata,
 		    NULL, growing_retained);
 	} else if (edata_size_get(edata) >= SC_LARGE_MINCLASS) {
-		assert(ecache == &shard->ecache_dirty);
+		assert(ecache == &shard->pac.ecache_dirty);
 		/* Always coalesce large extents eagerly. */
 		bool coalesced;
 		do {
@@ -1072,7 +1072,7 @@ extent_dalloc_wrapper(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 		extent_gdump_sub(tsdn, edata);
 	}
 
-	extent_record(tsdn, shard, ehooks, &shard->ecache_retained, edata,
+	extent_record(tsdn, shard, ehooks, &shard->pac.ecache_retained, edata,
 	    false);
 }
 
