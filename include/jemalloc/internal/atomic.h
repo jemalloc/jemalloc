@@ -63,6 +63,13 @@
 	    type oldval = atomic_load_##short_type(a, ATOMIC_RELAXED);	\
 	    type newval = oldval + inc;					\
 	    atomic_store_##short_type(a, newval, ATOMIC_RELAXED);	\
+	}								\
+    ATOMIC_INLINE void							\
+    atomic_load_sub_store_##short_type(atomic_##short_type##_t *a,	\
+	type inc) {							\
+	    type oldval = atomic_load_##short_type(a, ATOMIC_RELAXED);	\
+	    type newval = oldval - inc;					\
+	    atomic_store_##short_type(a, newval, ATOMIC_RELAXED);	\
 	}
 
 /*
