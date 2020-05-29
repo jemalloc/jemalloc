@@ -7,6 +7,7 @@
 #include "jemalloc/internal/edata_cache.h"
 #include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/lockedint.h"
+#include "jemalloc/internal/pai.h"
 
 enum pa_decay_purge_setting_e {
 	PA_DECAY_PURGE_ALWAYS,
@@ -109,6 +110,13 @@ struct pa_shard_s {
 	 * Synchronization: atomic.
 	 */
 	atomic_zu_t nactive;
+
+	/*
+	 * An interface for page allocation from the ecache framework (i.e. a
+	 * cascade of ecache_dirty, ecache_muzzy, ecache_retained).  Right now
+	 * this is the *only* pai, but we'll soon grow another.
+	 */
+	pai_t ecache_pai;
 
 	/*
 	 * Collections of extents that were previously allocated.  These are

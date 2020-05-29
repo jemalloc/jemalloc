@@ -1,6 +1,14 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
+static edata_t *ecache_pai_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
+    size_t alignment, bool zero);
+static bool ecache_pai_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata,
+    size_t old_size, size_t new_size, bool zero);
+static bool ecache_pai_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata,
+    size_t old_size, size_t new_size);
+static void ecache_pai_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata);
+
 static void
 pa_nactive_add(pa_shard_t *shard, size_t add_pages) {
 	atomic_fetch_add_zu(&shard->nactive, add_pages, ATOMIC_RELAXED);
@@ -71,6 +79,11 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
 	shard->emap = emap;
 	shard->base = base;
 
+	shard->ecache_pai.alloc = &ecache_pai_alloc;
+	shard->ecache_pai.expand = &ecache_pai_expand;
+	shard->ecache_pai.shrink = &ecache_pai_shrink;
+	shard->ecache_pai.dalloc = &ecache_pai_dalloc;
+
 	return false;
 }
 
@@ -110,13 +123,11 @@ pa_shard_may_have_muzzy(pa_shard_t *shard) {
 	return pa_shard_muzzy_decay_ms_get(shard) != 0;
 }
 
-edata_t *
-pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
-    bool slab, szind_t szind, bool zero) {
-	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
-	    WITNESS_RANK_CORE, 0);
-
-	size_t mapped_add = 0;
+static edata_t *
+ecache_pai_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment,
+    bool zero) {
+	pa_shard_t *shard =
+	    (pa_shard_t *)((uintptr_t)self - offsetof(pa_shard_t, ecache_pai));
 
 	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
 	edata_t *edata = ecache_alloc(tsdn, shard, ehooks,
@@ -129,14 +140,25 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 	if (edata == NULL) {
 		edata = ecache_alloc_grow(tsdn, shard, ehooks,
 		    &shard->ecache_retained, NULL, size, alignment, zero);
-		mapped_add = size;
+		if (config_stats && edata != NULL) {
+			atomic_fetch_add_zu(&shard->stats->pa_mapped, size,
+			    ATOMIC_RELAXED);
+		}
 	}
+	return edata;
+}
+
+edata_t *
+pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
+    bool slab, szind_t szind, bool zero) {
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
+
+	edata_t *edata = pai_alloc(tsdn, &shard->ecache_pai, size, alignment,
+	    zero);
+
 	if (edata != NULL) {
 		pa_nactive_add(shard, size >> LG_PAGE);
-		if (config_stats && mapped_add > 0) {
-			atomic_fetch_add_zu(&shard->stats->pa_mapped,
-			    mapped_add, ATOMIC_RELAXED);
-		}
 		emap_remap(tsdn, shard->emap, edata, szind, slab);
 		edata_szind_set(edata, szind);
 		edata_slab_set(edata, slab);
@@ -147,18 +169,17 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 	return edata;
 }
 
-bool
-pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
-    size_t new_size, szind_t szind, bool zero) {
-	assert(new_size > old_size);
-	assert(edata_size_get(edata) == old_size);
-	assert((new_size & PAGE_MASK) == 0);
+static bool
+ecache_pai_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
+    size_t new_size, bool zero) {
+	pa_shard_t *shard =
+	    (pa_shard_t *)((uintptr_t)self - offsetof(pa_shard_t, ecache_pai));
 
 	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
 	void *trail_begin = edata_past_get(edata);
-	size_t expand_amount = new_size - old_size;
 
 	size_t mapped_add = 0;
+	size_t expand_amount = new_size - old_size;
 
 	if (ehooks_merge_will_fail(ehooks)) {
 		return true;
@@ -186,9 +207,50 @@ pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 		atomic_fetch_add_zu(&shard->stats->pa_mapped, mapped_add,
 		    ATOMIC_RELAXED);
 	}
+	return false;
+}
+
+bool
+pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
+    size_t new_size, szind_t szind, bool zero) {
+	assert(new_size > old_size);
+	assert(edata_size_get(edata) == old_size);
+	assert((new_size & PAGE_MASK) == 0);
+
+	size_t expand_amount = new_size - old_size;
+
+	bool error = pai_expand(tsdn, &shard->ecache_pai, edata, old_size,
+	    new_size, zero);
+	if (error) {
+		return true;
+	}
+
 	pa_nactive_add(shard, expand_amount >> LG_PAGE);
 	edata_szind_set(edata, szind);
 	emap_remap(tsdn, shard->emap, edata, szind, /* slab */ false);
+	return false;
+}
+
+static bool
+ecache_pai_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
+    size_t new_size) {
+	pa_shard_t *shard =
+	    (pa_shard_t *)((uintptr_t)self - offsetof(pa_shard_t, ecache_pai));
+
+	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
+	size_t shrink_amount = old_size - new_size;
+
+
+	if (ehooks_split_will_fail(ehooks)) {
+		return true;
+	}
+
+	edata_t *trail = extent_split_wrapper(tsdn, shard, ehooks, edata,
+	    new_size, shrink_amount);
+	if (trail == NULL) {
+		return true;
+	}
+	ecache_dalloc(tsdn, shard, ehooks, &shard->ecache_dirty, trail);
 	return false;
 }
 
@@ -200,26 +262,26 @@ pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 	assert((new_size & PAGE_MASK) == 0);
 	size_t shrink_amount = old_size - new_size;
 
-	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
 	*generated_dirty = false;
-
-	if (ehooks_split_will_fail(ehooks)) {
-		return true;
-	}
-
-	edata_t *trail = extent_split_wrapper(tsdn, shard, ehooks, edata,
-	    new_size, shrink_amount);
-	if (trail == NULL) {
+	bool error = pai_shrink(tsdn, &shard->ecache_pai, edata, old_size,
+	    new_size);
+	if (error) {
 		return true;
 	}
 	pa_nactive_sub(shard, shrink_amount >> LG_PAGE);
-
-	ecache_dalloc(tsdn, shard, ehooks, &shard->ecache_dirty, trail);
 	*generated_dirty = true;
 
 	edata_szind_set(edata, szind);
 	emap_remap(tsdn, shard->emap, edata, szind, /* slab */ false);
 	return false;
+}
+
+static void
+ecache_pai_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
+	pa_shard_t *shard =
+	    (pa_shard_t *)((uintptr_t)self - offsetof(pa_shard_t, ecache_pai));
+	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
+	ecache_dalloc(tsdn, shard, ehooks, &shard->ecache_dirty, edata);
 }
 
 void
@@ -232,8 +294,7 @@ pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
 	}
 	edata_szind_set(edata, SC_NSIZES);
 	pa_nactive_sub(shard, edata_size_get(edata) >> LG_PAGE);
-	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
-	ecache_dalloc(tsdn, shard, ehooks, &shard->ecache_dirty, edata);
+	pai_dalloc(tsdn, &shard->ecache_pai, edata);
 	*generated_dirty = true;
 }
 
