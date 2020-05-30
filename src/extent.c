@@ -210,7 +210,7 @@ extents_abandon_vm(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 			    edata_size_get(edata), growing_retained);
 		}
 	}
-	edata_cache_put(tsdn, &shard->edata_cache, edata);
+	edata_cache_put(tsdn, shard->pac.edata_cache, edata);
 }
 
 static void
@@ -632,7 +632,7 @@ extent_grow_retained(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 		    shard->ecache_grow.next + egn_skip);
 	}
 
-	edata_t *edata = edata_cache_get(tsdn, &shard->edata_cache);
+	edata_t *edata = edata_cache_get(tsdn, shard->pac.edata_cache);
 	if (edata == NULL) {
 		goto label_err;
 	}
@@ -643,7 +643,7 @@ extent_grow_retained(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	    &committed);
 
 	if (ptr == NULL) {
-		edata_cache_put(tsdn, &shard->edata_cache, edata);
+		edata_cache_put(tsdn, shard->pac.edata_cache, edata);
 		goto label_err;
 	}
 
@@ -653,7 +653,7 @@ extent_grow_retained(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	    EXTENT_IS_HEAD);
 
 	if (extent_register_no_gdump_add(tsdn, shard, edata)) {
-		edata_cache_put(tsdn, &shard->edata_cache, edata);
+		edata_cache_put(tsdn, shard->pac.edata_cache, edata);
 		goto label_err;
 	}
 
@@ -781,7 +781,7 @@ extent_alloc_wrapper(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	edata_t *edata = edata_cache_get(tsdn, &shard->edata_cache);
+	edata_t *edata = edata_cache_get(tsdn, shard->pac.edata_cache);
 	if (edata == NULL) {
 		return NULL;
 	}
@@ -789,7 +789,7 @@ extent_alloc_wrapper(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	void *addr = ehooks_alloc(tsdn, ehooks, new_addr, size, palignment,
 	    &zero, commit);
 	if (addr == NULL) {
-		edata_cache_put(tsdn, &shard->edata_cache, edata);
+		edata_cache_put(tsdn, shard->pac.edata_cache, edata);
 		return NULL;
 	}
 	edata_init(edata, ecache_ind_get(&shard->pac.ecache_dirty), addr,
@@ -797,7 +797,7 @@ extent_alloc_wrapper(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	    extent_state_active, zero, *commit, /* ranged */ false,
 	    EXTENT_NOT_HEAD);
 	if (extent_register(tsdn, shard, edata)) {
-		edata_cache_put(tsdn, &shard->edata_cache, edata);
+		edata_cache_put(tsdn, shard->pac.edata_cache, edata);
 		return NULL;
 	}
 
@@ -1000,7 +1000,7 @@ extent_dalloc_gap(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	    WITNESS_RANK_CORE, 0);
 
 	if (extent_register(tsdn, shard, edata)) {
-		edata_cache_put(tsdn, &shard->edata_cache, edata);
+		edata_cache_put(tsdn, shard->pac.edata_cache, edata);
 		return;
 	}
 	extent_dalloc_wrapper(tsdn, shard, ehooks, edata);
@@ -1023,7 +1023,7 @@ extent_dalloc_wrapper_try(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	    edata_size_get(edata), edata_committed_get(edata));
 
 	if (!err) {
-		edata_cache_put(tsdn, &shard->edata_cache, edata);
+		edata_cache_put(tsdn, shard->pac.edata_cache, edata);
 	}
 
 	return err;
@@ -1093,7 +1093,7 @@ extent_destroy_wrapper(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	ehooks_destroy(tsdn, ehooks, edata_base_get(edata),
 	    edata_size_get(edata), edata_committed_get(edata));
 
-	edata_cache_put(tsdn, &shard->edata_cache, edata);
+	edata_cache_put(tsdn, shard->pac.edata_cache, edata);
 }
 
 static bool
@@ -1177,7 +1177,7 @@ extent_split_impl(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 		return NULL;
 	}
 
-	edata_t *trail = edata_cache_get(tsdn, &shard->edata_cache);
+	edata_t *trail = edata_cache_get(tsdn, shard->pac.edata_cache);
 	if (trail == NULL) {
 		goto label_error_a;
 	}
@@ -1214,7 +1214,7 @@ extent_split_impl(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 label_error_c:
 	emap_unlock_edata2(tsdn, shard->emap, edata, trail);
 label_error_b:
-	edata_cache_put(tsdn, &shard->edata_cache, trail);
+	edata_cache_put(tsdn, shard->pac.edata_cache, trail);
 label_error_a:
 	return NULL;
 }
@@ -1262,7 +1262,7 @@ extent_merge_impl(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks, edata_t *a,
 	emap_merge_commit(tsdn, shard->emap, &prepare, a, b);
 	emap_unlock_edata2(tsdn, shard->emap, a, b);
 
-	edata_cache_put(tsdn, &shard->edata_cache, b);
+	edata_cache_put(tsdn, shard->pac.edata_cache, b);
 
 	return false;
 }

@@ -20,6 +20,8 @@ struct pac_s {
 	ecache_t ecache_dirty;
 	ecache_t ecache_muzzy;
 	ecache_t ecache_retained;
+
+	edata_cache_t *edata_cache;
 };
 
 #endif /* JEMALLOC_INTERNAL_PAC_H */
