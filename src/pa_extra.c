@@ -26,7 +26,6 @@ pa_shard_prefork3(tsdn_t *tsdn, pa_shard_t *shard) {
 	ecache_prefork(tsdn, &shard->pac.ecache_retained);
 }
 
-
 void
 pa_shard_prefork4(tsdn_t *tsdn, pa_shard_t *shard) {
 	edata_cache_prefork(tsdn, &shard->edata_cache);

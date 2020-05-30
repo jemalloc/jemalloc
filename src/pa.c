@@ -57,6 +57,7 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
 	if (edata_cache_init(&shard->edata_cache, base)) {
 		return true;
 	}
+	shard->pac.edata_cache = &shard->edata_cache;
 
 	if (ecache_grow_init(tsdn, &shard->ecache_grow)) {
 		return true;
