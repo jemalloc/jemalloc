@@ -282,15 +282,15 @@ extent_register_impl(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
 	 * We need to hold the lock to protect against a concurrent coalesce
 	 * operation that sees us in a partial state.
 	 */
-	emap_lock_edata(tsdn, shard->emap, edata);
+	emap_lock_edata(tsdn, shard->pac.emap, edata);
 
-	if (emap_register_boundary(tsdn, shard->emap, edata, SC_NSIZES,
+	if (emap_register_boundary(tsdn, shard->pac.emap, edata, SC_NSIZES,
 	    /* slab */ false)) {
-		emap_unlock_edata(tsdn, shard->emap, edata);
+		emap_unlock_edata(tsdn, shard->pac.emap, edata);
 		return true;
 	}
 
-	emap_unlock_edata(tsdn, shard->emap, edata);
+	emap_unlock_edata(tsdn, shard->pac.emap, edata);
 
 	if (config_prof && gdump_add) {
 		extent_gdump_add(tsdn, edata);
@@ -321,9 +321,9 @@ extent_reregister(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata) {
 static void
 extent_deregister_impl(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
     bool gdump) {
-	emap_lock_edata(tsdn, shard->emap, edata);
-	emap_deregister_boundary(tsdn, shard->emap, edata);
-	emap_unlock_edata(tsdn, shard->emap, edata);
+	emap_lock_edata(tsdn, shard->pac.emap, edata);
+	emap_deregister_boundary(tsdn, shard->pac.emap, edata);
+	emap_unlock_edata(tsdn, shard->pac.emap, edata);
 
 	if (config_prof && gdump) {
 		extent_gdump_sub(tsdn, edata);
@@ -371,8 +371,8 @@ extent_recycle_extract(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	malloc_mutex_lock(tsdn, &ecache->mtx);
 	edata_t *edata;
 	if (new_addr != NULL) {
-		edata = emap_lock_edata_from_addr(tsdn, shard->emap, new_addr,
-		    false);
+		edata = emap_lock_edata_from_addr(tsdn, shard->pac.emap,
+		    new_addr, false);
 		if (edata != NULL) {
 			/*
 			 * We might null-out edata to report an error, but we
@@ -386,7 +386,7 @@ extent_recycle_extract(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 			    != ecache->state) {
 				edata = NULL;
 			}
-			emap_unlock_edata(tsdn, shard->emap, unlock_edata);
+			emap_unlock_edata(tsdn, shard->pac.emap, unlock_edata);
 		}
 	} else {
 		/*
@@ -545,7 +545,7 @@ extent_recycle_split(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 			extent_deregister_no_gdump_sub(tsdn, shard, to_leak);
 			extents_abandon_vm(tsdn, shard, ehooks, ecache, to_leak,
 			    growing_retained);
-			assert(emap_lock_edata_from_addr(tsdn, shard->emap,
+			assert(emap_lock_edata_from_addr(tsdn, shard->pac.emap,
 			    leak, false) == NULL);
 		}
 		return NULL;
@@ -863,7 +863,7 @@ extent_try_coalesce_impl(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 		again = false;
 
 		/* Try to coalesce forward. */
-		edata_t *next = emap_lock_edata_from_addr(tsdn, shard->emap,
+		edata_t *next = emap_lock_edata_from_addr(tsdn, shard->pac.emap,
 		    edata_past_get(edata), inactive_only);
 		if (next != NULL) {
 			/*
@@ -874,7 +874,7 @@ extent_try_coalesce_impl(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 			bool can_coalesce = extent_can_coalesce(ecache,
 			    edata, next);
 
-			emap_unlock_edata(tsdn, shard->emap, next);
+			emap_unlock_edata(tsdn, shard->pac.emap, next);
 
 			if (can_coalesce && !extent_coalesce(tsdn, shard,
 			    ehooks, ecache, edata, next, true,
@@ -889,12 +889,12 @@ extent_try_coalesce_impl(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 		}
 
 		/* Try to coalesce backward. */
-		edata_t *prev = emap_lock_edata_from_addr(tsdn, shard->emap,
+		edata_t *prev = emap_lock_edata_from_addr(tsdn, shard->pac.emap,
 		    edata_before_get(edata), inactive_only);
 		if (prev != NULL) {
 			bool can_coalesce = extent_can_coalesce(ecache, edata,
 			    prev);
-			emap_unlock_edata(tsdn, shard->emap, prev);
+			emap_unlock_edata(tsdn, shard->pac.emap, prev);
 
 			if (can_coalesce && !extent_coalesce(tsdn, shard,
 			    ehooks, ecache, edata, prev, false,
@@ -966,7 +966,7 @@ extent_record(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 
 	malloc_mutex_lock(tsdn, &ecache->mtx);
 
-	emap_assert_mapped(tsdn, shard->emap, edata);
+	emap_assert_mapped(tsdn, shard->pac.emap, edata);
 
 	if (!ecache->delay_coalesce) {
 		edata = extent_try_coalesce(tsdn, shard,  ehooks, ecache, edata,
@@ -1189,13 +1189,13 @@ extent_split_impl(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	    edata_committed_get(edata), edata_ranged_get(edata),
 	    EXTENT_NOT_HEAD);
 	emap_prepare_t prepare;
-	bool err = emap_split_prepare(tsdn, shard->emap, &prepare, edata,
+	bool err = emap_split_prepare(tsdn, shard->pac.emap, &prepare, edata,
 	    size_a, trail, size_b);
 	if (err) {
 		goto label_error_b;
 	}
 
-	emap_lock_edata2(tsdn, shard->emap, edata, trail);
+	emap_lock_edata2(tsdn, shard->pac.emap, edata, trail);
 
 	err = ehooks_split(tsdn, ehooks, edata_base_get(edata), size_a + size_b,
 	    size_a, size_b, edata_committed_get(edata));
@@ -1205,14 +1205,14 @@ extent_split_impl(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	}
 
 	edata_size_set(edata, size_a);
-	emap_split_commit(tsdn, shard->emap, &prepare, edata, size_a, trail,
+	emap_split_commit(tsdn, shard->pac.emap, &prepare, edata, size_a, trail,
 	    size_b);
 
-	emap_unlock_edata2(tsdn, shard->emap, edata, trail);
+	emap_unlock_edata2(tsdn, shard->pac.emap, edata, trail);
 
 	return trail;
 label_error_c:
-	emap_unlock_edata2(tsdn, shard->emap, edata, trail);
+	emap_unlock_edata2(tsdn, shard->pac.emap, edata, trail);
 label_error_b:
 	edata_cache_put(tsdn, shard->pac.edata_cache, trail);
 label_error_a:
@@ -1250,17 +1250,17 @@ extent_merge_impl(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks, edata_t *a,
 	 * than extent_{,de}register() to do things in the right order.
 	 */
 	emap_prepare_t prepare;
-	emap_merge_prepare(tsdn, shard->emap, &prepare, a, b);
+	emap_merge_prepare(tsdn, shard->pac.emap, &prepare, a, b);
 
-	emap_lock_edata2(tsdn, shard->emap, a, b);
+	emap_lock_edata2(tsdn, shard->pac.emap, a, b);
 
 	edata_size_set(a, edata_size_get(a) + edata_size_get(b));
 	edata_sn_set(a, (edata_sn_get(a) < edata_sn_get(b)) ?
 	    edata_sn_get(a) : edata_sn_get(b));
 	edata_zeroed_set(a, edata_zeroed_get(a) && edata_zeroed_get(b));
 
-	emap_merge_commit(tsdn, shard->emap, &prepare, a, b);
-	emap_unlock_edata2(tsdn, shard->emap, a, b);
+	emap_merge_commit(tsdn, shard->pac.emap, &prepare, a, b);
+	emap_unlock_edata2(tsdn, shard->pac.emap, a, b);
 
 	edata_cache_put(tsdn, shard->pac.edata_cache, b);
 
