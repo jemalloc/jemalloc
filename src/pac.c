@@ -4,7 +4,8 @@
 #include "jemalloc/internal/pac.h"
 
 bool
-pac_init(tsdn_t *tsdn, pac_t *pac, unsigned ind, edata_cache_t *edata_cache) {
+pac_init(tsdn_t *tsdn, pac_t *pac, unsigned ind, emap_t *emap,
+    edata_cache_t *edata_cache) {
 	/*
 	 * Delay coalescing for dirty extents despite the disruptive effect on
 	 * memory layout for best-fit extent allocation, since cached extents
@@ -34,6 +35,7 @@ pac_init(tsdn_t *tsdn, pac_t *pac, unsigned ind, edata_cache_t *edata_cache) {
 		return true;
 	}
 
+	pac->emap = emap;
 	pac->edata_cache = edata_cache;
 	return false;
 }
