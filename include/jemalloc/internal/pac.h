@@ -24,4 +24,7 @@ struct pac_s {
 	edata_cache_t *edata_cache;
 };
 
+bool pac_init(tsdn_t *tsdn, pac_t *pac, unsigned ind,
+    edata_cache_t *edata_cache);
+
 #endif /* JEMALLOC_INTERNAL_PAC_H */
