@@ -201,12 +201,12 @@ static uint64_t
 arena_decay_compute_purge_interval(tsdn_t *tsdn, arena_t *arena) {
 	uint64_t i1, i2;
 	i1 = arena_decay_compute_purge_interval_impl(tsdn,
-	    &arena->pa_shard.decay_dirty, &arena->pa_shard.pac.ecache_dirty);
+	    &arena->pa_shard.pac.decay_dirty, &arena->pa_shard.pac.ecache_dirty);
 	if (i1 == BACKGROUND_THREAD_MIN_INTERVAL_NS) {
 		return i1;
 	}
 	i2 = arena_decay_compute_purge_interval_impl(tsdn,
-	    &arena->pa_shard.decay_muzzy, &arena->pa_shard.pac.ecache_muzzy);
+	    &arena->pa_shard.pac.decay_muzzy, &arena->pa_shard.pac.ecache_muzzy);
 
 	return i1 < i2 ? i1 : i2;
 }

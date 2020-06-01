@@ -5,7 +5,8 @@
 
 bool
 pac_init(tsdn_t *tsdn, pac_t *pac, unsigned ind, emap_t *emap,
-    edata_cache_t *edata_cache) {
+    edata_cache_t *edata_cache, nstime_t *cur_time, ssize_t dirty_decay_ms,
+    ssize_t muzzy_decay_ms) {
 	/*
 	 * Delay coalescing for dirty extents despite the disruptive effect on
 	 * memory layout for best-fit extent allocation, since cached extents
@@ -35,6 +36,12 @@ pac_init(tsdn_t *tsdn, pac_t *pac, unsigned ind, emap_t *emap,
 		return true;
 	}
 	if (ecache_grow_init(tsdn, &pac->ecache_grow)) {
+		return true;
+	}
+	if (decay_init(&pac->decay_dirty, cur_time, dirty_decay_ms)) {
+		return true;
+	}
+	if (decay_init(&pac->decay_muzzy, cur_time, muzzy_decay_ms)) {
 		return true;
 	}
 

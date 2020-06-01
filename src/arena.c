@@ -397,12 +397,12 @@ arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
 
 ssize_t
 arena_dirty_decay_ms_get(arena_t *arena) {
-	return pa_shard_dirty_decay_ms_get(&arena->pa_shard);
+	return pac_dirty_decay_ms_get(&arena->pa_shard.pac);
 }
 
 ssize_t
 arena_muzzy_decay_ms_get(arena_t *arena) {
-	return pa_shard_muzzy_decay_ms_get(&arena->pa_shard);
+	return pac_muzzy_decay_ms_get(&arena->pa_shard.pac);
 }
 
 /*
@@ -453,7 +453,7 @@ arena_decay_ms_set(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 bool
 arena_dirty_decay_ms_set(tsdn_t *tsdn, arena_t *arena,
     ssize_t decay_ms) {
-	return arena_decay_ms_set(tsdn, arena, &arena->pa_shard.decay_dirty,
+	return arena_decay_ms_set(tsdn, arena, &arena->pa_shard.pac.decay_dirty,
 	    &arena->pa_shard.stats->decay_dirty,
 	    &arena->pa_shard.pac.ecache_dirty, decay_ms);
 }
@@ -461,7 +461,7 @@ arena_dirty_decay_ms_set(tsdn_t *tsdn, arena_t *arena,
 bool
 arena_muzzy_decay_ms_set(tsdn_t *tsdn, arena_t *arena,
     ssize_t decay_ms) {
-	return arena_decay_ms_set(tsdn, arena, &arena->pa_shard.decay_muzzy,
+	return arena_decay_ms_set(tsdn, arena, &arena->pa_shard.pac.decay_muzzy,
 	    &arena->pa_shard.stats->decay_muzzy,
 	    &arena->pa_shard.pac.ecache_muzzy, decay_ms);
 }
@@ -520,7 +520,7 @@ arena_decay_impl(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 static bool
 arena_decay_dirty(tsdn_t *tsdn, arena_t *arena, bool is_background_thread,
     bool all) {
-	return arena_decay_impl(tsdn, arena, &arena->pa_shard.decay_dirty,
+	return arena_decay_impl(tsdn, arena, &arena->pa_shard.pac.decay_dirty,
 	    &arena->pa_shard.stats->decay_dirty,
 	    &arena->pa_shard.pac.ecache_dirty, is_background_thread, all);
 }
@@ -531,7 +531,7 @@ arena_decay_muzzy(tsdn_t *tsdn, arena_t *arena, bool is_background_thread,
 	if (pa_shard_dont_decay_muzzy(&arena->pa_shard)) {
 		return false;
 	}
-	return arena_decay_impl(tsdn, arena, &arena->pa_shard.decay_muzzy,
+	return arena_decay_impl(tsdn, arena, &arena->pa_shard.pac.decay_muzzy,
 	    &arena->pa_shard.stats->decay_muzzy,
 	    &arena->pa_shard.pac.ecache_muzzy, is_background_thread, all);
 }
