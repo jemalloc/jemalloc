@@ -126,21 +126,11 @@ struct pa_shard_s {
 	/* The source of edata_t objects. */
 	edata_cache_t edata_cache;
 
-
 	/* Extent serial number generator state. */
 	atomic_zu_t extent_sn_next;
 
 	malloc_mutex_t *stats_mtx;
 	pa_shard_stats_t *stats;
-
-	/*
-	 * Decay-based purging state, responsible for scheduling extent state
-	 * transitions.
-	 *
-	 * Synchronization: via the internal mutex.
-	 */
-	decay_t decay_dirty; /* dirty --> muzzy */
-	decay_t decay_muzzy; /* muzzy --> retained */
 
 	/* The emap this shard is tied to. */
 	emap_t *emap;
@@ -149,25 +139,16 @@ struct pa_shard_s {
 	base_t *base;
 };
 
-static inline ssize_t
-pa_shard_dirty_decay_ms_get(pa_shard_t *shard) {
-	return decay_ms_read(&shard->decay_dirty);
-}
-static inline ssize_t
-pa_shard_muzzy_decay_ms_get(pa_shard_t *shard) {
-	return decay_ms_read(&shard->decay_muzzy);
-}
-
 static inline bool
 pa_shard_dont_decay_muzzy(pa_shard_t *shard) {
 	return ecache_npages_get(&shard->pac.ecache_muzzy) == 0 &&
-	    pa_shard_muzzy_decay_ms_get(shard) <= 0;
+	    pac_muzzy_decay_ms_get(&shard->pac) <= 0;
 }
 
 static inline bool
 pa_shard_may_force_decay(pa_shard_t *shard) {
-	return !(pa_shard_dirty_decay_ms_get(shard) == -1
-	    || pa_shard_muzzy_decay_ms_get(shard) == -1);
+	return !(pac_dirty_decay_ms_get(&shard->pac) == -1
+	    || pac_muzzy_decay_ms_get(&shard->pac) == -1);
 }
 
 static inline ehooks_t *

@@ -29,14 +29,8 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
 	if (edata_cache_init(&shard->edata_cache, base)) {
 		return true;
 	}
-	if (pac_init(tsdn, &shard->pac, ind, emap, &shard->edata_cache)) {
-		return true;
-	}
-
-	if (decay_init(&shard->decay_dirty, cur_time, dirty_decay_ms)) {
-		return true;
-	}
-	if (decay_init(&shard->decay_muzzy, cur_time, muzzy_decay_ms)) {
+	if (pac_init(tsdn, &shard->pac, ind, emap, &shard->edata_cache,
+	    cur_time, dirty_decay_ms, muzzy_decay_ms)) {
 		return true;
 	}
 
@@ -91,7 +85,7 @@ pa_shard_extent_sn_next(pa_shard_t *shard) {
 
 static bool
 pa_shard_may_have_muzzy(pa_shard_t *shard) {
-	return pa_shard_muzzy_decay_ms_get(shard) != 0;
+	return pac_muzzy_decay_ms_get(&shard->pac) != 0;
 }
 
 static edata_t *
