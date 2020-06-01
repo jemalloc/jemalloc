@@ -32,9 +32,6 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
 	if (pac_init(tsdn, &shard->pac, ind, emap, &shard->edata_cache)) {
 		return true;
 	}
-	if (ecache_grow_init(tsdn, &shard->ecache_grow)) {
-		return true;
-	}
 
 	if (decay_init(&shard->decay_dirty, cur_time, dirty_decay_ms)) {
 		return true;
@@ -455,23 +452,6 @@ pa_maybe_decay_purge(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
 bool
 pa_shard_retain_grow_limit_get_set(tsdn_t *tsdn, pa_shard_t *shard,
     size_t *old_limit, size_t *new_limit) {
-	pszind_t new_ind JEMALLOC_CC_SILENCE_INIT(0);
-	if (new_limit != NULL) {
-		size_t limit = *new_limit;
-		/* Grow no more than the new limit. */
-		if ((new_ind = sz_psz2ind(limit + 1) - 1) >= SC_NPSIZES) {
-			return true;
-		}
-	}
-
-	malloc_mutex_lock(tsdn, &shard->ecache_grow.mtx);
-	if (old_limit != NULL) {
-		*old_limit = sz_pind2sz(shard->ecache_grow.limit);
-	}
-	if (new_limit != NULL) {
-		shard->ecache_grow.limit = new_ind;
-	}
-	malloc_mutex_unlock(tsdn, &shard->ecache_grow.mtx);
-
-	return false;
+	return pac_retain_grow_limit_get_set(tsdn, &shard->pac, old_limit,
+	    new_limit);
 }

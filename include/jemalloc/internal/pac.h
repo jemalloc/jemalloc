@@ -23,9 +23,14 @@ struct pac_s {
 
 	emap_t *emap;
 	edata_cache_t *edata_cache;
+
+	/* The grow info for the retained ecache. */
+	ecache_grow_t ecache_grow;
 };
 
 bool pac_init(tsdn_t *tsdn, pac_t *pac, unsigned ind, emap_t *emap,
     edata_cache_t *edata_cache);
+bool pac_retain_grow_limit_get_set(tsdn_t *tsdn, pac_t *pac, size_t *old_limit,
+    size_t *new_limit);
 
 #endif /* JEMALLOC_INTERNAL_PAC_H */
