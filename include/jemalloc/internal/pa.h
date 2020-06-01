@@ -126,8 +126,6 @@ struct pa_shard_s {
 	/* The source of edata_t objects. */
 	edata_cache_t edata_cache;
 
-	/* The grow info for the retained ecache. */
-	ecache_grow_t ecache_grow;
 
 	/* Extent serial number generator state. */
 	atomic_zu_t extent_sn_next;

@@ -34,8 +34,36 @@ pac_init(tsdn_t *tsdn, pac_t *pac, unsigned ind, emap_t *emap,
 	    ind, /* delay_coalesce */ false)) {
 		return true;
 	}
+	if (ecache_grow_init(tsdn, &pac->ecache_grow)) {
+		return true;
+	}
 
 	pac->emap = emap;
 	pac->edata_cache = edata_cache;
 	return false;
 }
+
+bool
+pac_retain_grow_limit_get_set(tsdn_t *tsdn, pac_t *pac, size_t *old_limit,
+    size_t *new_limit) {
+	pszind_t new_ind JEMALLOC_CC_SILENCE_INIT(0);
+	if (new_limit != NULL) {
+		size_t limit = *new_limit;
+		/* Grow no more than the new limit. */
+		if ((new_ind = sz_psz2ind(limit + 1) - 1) >= SC_NPSIZES) {
+			return true;
+		}
+	}
+
+	malloc_mutex_lock(tsdn, &pac->ecache_grow.mtx);
+	if (old_limit != NULL) {
+		*old_limit = sz_pind2sz(pac->ecache_grow.limit);
+	}
+	if (new_limit != NULL) {
+		pac->ecache_grow.limit = new_ind;
+	}
+	malloc_mutex_unlock(tsdn, &pac->ecache_grow.mtx);
+
+	return false;
+}
+
