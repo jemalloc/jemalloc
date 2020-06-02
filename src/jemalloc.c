@@ -14,6 +14,7 @@
 #include "jemalloc/internal/log.h"
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/nstime.h"
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/safety_check.h"
 #include "jemalloc/internal/sc.h"
@@ -1497,6 +1498,26 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				CONF_HANDLE_BOOL(
 				    opt_prof_experimental_use_sys_thread_name,
 				    "prof_experimental_use_sys_thread_name")
+				if (CONF_MATCH("prof_time_resolution")) {
+					if (CONF_MATCH_VALUE("default")) {
+						opt_prof_time_res =
+						    prof_time_res_default;
+					} else if (CONF_MATCH_VALUE("high")) {
+						if (!config_high_res_timer) {
+							CONF_ERROR(
+							    "No high resolution"
+							    " timer support",
+							    k, klen, v, vlen);
+						} else {
+							opt_prof_time_res =
+							    prof_time_res_high;
+						}
+					} else {
+						CONF_ERROR("Invalid conf value",
+						    k, klen, v, vlen);
+					}
+				}
+				CONF_CONTINUE;
 			}
 			if (config_log) {
 				if (CONF_MATCH("log")) {

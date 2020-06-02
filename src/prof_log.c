@@ -235,7 +235,7 @@ prof_try_log(tsd_t *tsd, size_t usize, prof_info_t *prof_info) {
 
 	nstime_t alloc_time = prof_info->alloc_time;
 	nstime_t free_time;
-	nstime_init_update(&free_time);
+	nstime_prof_init_update(&free_time);
 
 	size_t sz = sizeof(prof_alloc_node_t);
 	prof_alloc_node_t *new_node = (prof_alloc_node_t *)
@@ -571,6 +571,11 @@ prof_log_emit_metadata(emitter_t *emitter) {
 
 	emitter_json_kv(emitter, "lg_sample_rate",
 	    emitter_type_int, &lg_prof_sample);
+
+  const char *res_type =
+    prof_time_res_mode_names[opt_prof_time_res];
+  emitter_json_kv(emitter, "prof_time_resolution",
+      emitter_type_string, &res_type);
 
 	int pid = prof_getpid();
 	emitter_json_kv(emitter, "pid", emitter_type_int, &pid);

@@ -1776,6 +1776,18 @@ if test "x${je_cv_mach_absolute_time}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_HAVE_MACH_ABSOLUTE_TIME])
 fi
 
+dnl check for CLOCK_REALTIME (always should be available on Linux)
+JE_COMPILABLE([clock_gettime(CLOCK_REALTIME, ...)], [
+#include <time.h>
+], [
+	struct timespec ts;
+
+	clock_gettime(CLOCK_REALTIME, &ts);
+], [je_cv_clock_realtime])
+if test "x${je_cv_clock_realtime}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_CLOCK_REALTIME])
+fi
+
 dnl Use syscall(2) (if available) by default.
 AC_ARG_ENABLE([syscall],
   [AS_HELP_STRING([--disable-syscall], [Disable use of syscall(2)])],

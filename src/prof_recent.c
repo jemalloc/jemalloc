@@ -219,7 +219,7 @@ prof_recent_alloc_reset(tsd_t *tsd, edata_t *edata) {
 		assert(nstime_equals_zero(&recent->dalloc_time));
 		assert(recent->dalloc_tctx == NULL);
 		if (dalloc_tctx != NULL) {
-			nstime_update(&recent->dalloc_time);
+			nstime_prof_update(&recent->dalloc_time);
 			recent->dalloc_tctx = dalloc_tctx;
 			dalloc_tctx = NULL;
 		}

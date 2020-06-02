@@ -209,5 +209,12 @@ static const bool have_background_thread =
     false
 #endif
     ;
+static const bool config_high_res_timer =
+#ifdef JEMALLOC_HAVE_CLOCK_REALTIME
+    true
+#else
+    false
+#endif
+    ;
 
 #endif /* JEMALLOC_PREAMBLE_H */
