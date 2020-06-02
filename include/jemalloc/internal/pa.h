@@ -84,9 +84,6 @@ struct pa_shard_s {
 	/* The source of edata_t objects. */
 	edata_cache_t edata_cache;
 
-	/* Extent serial number generator state. */
-	atomic_zu_t extent_sn_next;
-
 	malloc_mutex_t *stats_mtx;
 	pa_shard_stats_t *stats;
 
@@ -130,8 +127,6 @@ void pa_shard_reset(pa_shard_t *shard);
  * last step in destroying the shard.
  */
 void pa_shard_destroy_retained(tsdn_t *tsdn, pa_shard_t *shard);
-
-size_t pa_shard_extent_sn_next(pa_shard_t *shard);
 
 /* Gets an edata for the given allocation. */
 edata_t *pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size,

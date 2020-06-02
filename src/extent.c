@@ -50,6 +50,11 @@ static edata_t *extent_alloc_retained(tsdn_t *tsdn, pa_shard_t *shard,
 
 /******************************************************************************/
 
+size_t
+extent_sn_next(pac_t *pac) {
+	return atomic_fetch_add_zu(&pac->extent_sn_next, 1, ATOMIC_RELAXED);
+}
+
 static bool
 extent_try_delayed_coalesce(tsdn_t *tsdn, pa_shard_t *shard,
     ehooks_t *ehooks, ecache_t *ecache, edata_t *edata) {
@@ -648,7 +653,7 @@ extent_grow_retained(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	}
 
 	edata_init(edata, ecache_ind_get(&shard->pac.ecache_retained), ptr,
-	    alloc_size, false, SC_NSIZES, pa_shard_extent_sn_next(shard),
+	    alloc_size, false, SC_NSIZES, extent_sn_next(&shard->pac),
 	    extent_state_active, zeroed, committed, /* ranged */ false,
 	    EXTENT_IS_HEAD);
 
@@ -793,7 +798,7 @@ extent_alloc_wrapper(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 		return NULL;
 	}
 	edata_init(edata, ecache_ind_get(&shard->pac.ecache_dirty), addr,
-	    size, /* slab */ false, SC_NSIZES, pa_shard_extent_sn_next(shard),
+	    size, /* slab */ false, SC_NSIZES, extent_sn_next(&shard->pac),
 	    extent_state_active, zero, *commit, /* ranged */ false,
 	    EXTENT_NOT_HEAD);
 	if (extent_register(tsdn, shard, edata)) {

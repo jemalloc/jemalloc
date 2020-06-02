@@ -154,9 +154,10 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 			if (gap_size_page != 0) {
 				edata_init(gap, arena_ind_get(arena),
 				    gap_addr_page, gap_size_page, false,
-				    SC_NSIZES, pa_shard_extent_sn_next(
-					&arena->pa_shard), extent_state_active,
-				    false, true, false, EXTENT_NOT_HEAD);
+				    SC_NSIZES, extent_sn_next(
+					&arena->pa_shard.pac),
+				    extent_state_active, false, true, false,
+				    EXTENT_NOT_HEAD);
 			}
 			/*
 			 * Compute the address just past the end of the desired

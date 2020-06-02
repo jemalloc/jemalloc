@@ -48,7 +48,7 @@ edata_t *extent_split_wrapper(tsdn_t *tsdn, pa_shard_t *shard,
     ehooks_t *ehooks, edata_t *edata, size_t size_a, size_t size_b);
 bool extent_merge_wrapper(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     edata_t *a, edata_t *b);
-
+size_t extent_sn_next(pac_t *pac);
 bool extent_boot(void);
 
 #endif /* JEMALLOC_INTERNAL_EXTENT_H */
