@@ -80,7 +80,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     const char **dss, ssize_t *dirty_decay_ms, ssize_t *muzzy_decay_ms,
     size_t *nactive, size_t *ndirty, size_t *nmuzzy, arena_stats_t *astats,
     bin_stats_data_t *bstats, arena_stats_large_t *lstats,
-    pa_extent_stats_t *estats) {
+    pac_estats_t *estats) {
 	cassert(config_stats);
 
 	arena_basic_stats_merge(tsdn, arena, nthreads, dss, dirty_decay_ms,
@@ -89,8 +89,8 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	size_t base_allocated, base_resident, base_mapped, metadata_thp;
 	base_stats_get(tsdn, arena->base, &base_allocated, &base_resident,
 	    &base_mapped, &metadata_thp);
-	size_t pa_mapped = pa_shard_pa_mapped(&arena->pa_shard);
-	astats->mapped += base_mapped + pa_mapped;
+	size_t pac_mapped_sz = pac_mapped(&arena->pa_shard.pac);
+	astats->mapped += base_mapped + pac_mapped_sz;
 	astats->resident += base_resident;
 
 	LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
@@ -423,7 +423,7 @@ arena_decide_unforced_decay_purge_setting(bool is_background_thread) {
 
 static bool
 arena_decay_ms_set(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
-    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache, ssize_t decay_ms) {
+    pac_decay_stats_t *decay_stats, ecache_t *ecache, ssize_t decay_ms) {
 	if (!decay_ms_valid(decay_ms)) {
 		return true;
 	}
@@ -454,7 +454,7 @@ bool
 arena_dirty_decay_ms_set(tsdn_t *tsdn, arena_t *arena,
     ssize_t decay_ms) {
 	return arena_decay_ms_set(tsdn, arena, &arena->pa_shard.pac.decay_dirty,
-	    &arena->pa_shard.stats->decay_dirty,
+	    &arena->pa_shard.pac.stats->decay_dirty,
 	    &arena->pa_shard.pac.ecache_dirty, decay_ms);
 }
 
@@ -462,13 +462,13 @@ bool
 arena_muzzy_decay_ms_set(tsdn_t *tsdn, arena_t *arena,
     ssize_t decay_ms) {
 	return arena_decay_ms_set(tsdn, arena, &arena->pa_shard.pac.decay_muzzy,
-	    &arena->pa_shard.stats->decay_muzzy,
+	    &arena->pa_shard.pac.stats->decay_muzzy,
 	    &arena->pa_shard.pac.ecache_muzzy, decay_ms);
 }
 
 static bool
 arena_decay_impl(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
-    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache,
+    pac_decay_stats_t *decay_stats, ecache_t *ecache,
     bool is_background_thread, bool all) {
 	if (all) {
 		malloc_mutex_lock(tsdn, &decay->mtx);
@@ -521,7 +521,7 @@ static bool
 arena_decay_dirty(tsdn_t *tsdn, arena_t *arena, bool is_background_thread,
     bool all) {
 	return arena_decay_impl(tsdn, arena, &arena->pa_shard.pac.decay_dirty,
-	    &arena->pa_shard.stats->decay_dirty,
+	    &arena->pa_shard.pac.stats->decay_dirty,
 	    &arena->pa_shard.pac.ecache_dirty, is_background_thread, all);
 }
 
@@ -532,7 +532,7 @@ arena_decay_muzzy(tsdn_t *tsdn, arena_t *arena, bool is_background_thread,
 		return false;
 	}
 	return arena_decay_impl(tsdn, arena, &arena->pa_shard.pac.decay_muzzy,
-	    &arena->pa_shard.stats->decay_muzzy,
+	    &arena->pa_shard.pac.stats->decay_muzzy,
 	    &arena->pa_shard.pac.ecache_muzzy, is_background_thread, all);
 }
 

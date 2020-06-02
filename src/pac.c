@@ -6,7 +6,7 @@
 bool
 pac_init(tsdn_t *tsdn, pac_t *pac, unsigned ind, emap_t *emap,
     edata_cache_t *edata_cache, nstime_t *cur_time, ssize_t dirty_decay_ms,
-    ssize_t muzzy_decay_ms) {
+    ssize_t muzzy_decay_ms, pac_stats_t *pac_stats, malloc_mutex_t *stats_mtx) {
 	/*
 	 * Delay coalescing for dirty extents despite the disruptive effect on
 	 * memory layout for best-fit extent allocation, since cached extents
@@ -47,6 +47,8 @@ pac_init(tsdn_t *tsdn, pac_t *pac, unsigned ind, emap_t *emap,
 
 	pac->emap = emap;
 	pac->edata_cache = edata_cache;
+	pac->stats = pac_stats;
+	pac->stats_mtx = stats_mtx;
 	return false;
 }
 

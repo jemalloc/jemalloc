@@ -27,7 +27,7 @@ void arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     const char **dss, ssize_t *dirty_decay_ms, ssize_t *muzzy_decay_ms,
     size_t *nactive, size_t *ndirty, size_t *nmuzzy, arena_stats_t *astats,
     bin_stats_data_t *bstats, arena_stats_large_t *lstats,
-    pa_extent_stats_t *estats);
+    pac_estats_t *estats);
 void arena_handle_new_dirty_pages(tsdn_t *tsdn, arena_t *arena);
 #ifdef JEMALLOC_JET
 size_t arena_slab_regind(edata_t *slab, szind_t binind, const void *ptr);
