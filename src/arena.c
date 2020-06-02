@@ -410,14 +410,14 @@ arena_muzzy_decay_ms_get(arena_t *arena) {
  * specifically requested it), should we purge ourselves, or wait for the
  * background thread to get to it.
  */
-static pa_decay_purge_setting_t
+static pac_decay_purge_setting_t
 arena_decide_unforced_decay_purge_setting(bool is_background_thread) {
 	if (is_background_thread) {
-		return PA_DECAY_PURGE_ALWAYS;
+		return PAC_DECAY_PURGE_ALWAYS;
 	} else if (!is_background_thread && background_thread_enabled()) {
-		return PA_DECAY_PURGE_NEVER;
+		return PAC_DECAY_PURGE_NEVER;
 	} else {
-		return PA_DECAY_PURGE_ON_EPOCH_ADVANCE;
+		return PAC_DECAY_PURGE_ON_EPOCH_ADVANCE;
 	}
 }
 
@@ -440,7 +440,7 @@ arena_decay_ms_set(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 	nstime_t cur_time;
 	nstime_init_update(&cur_time);
 	decay_reinit(decay, &cur_time, decay_ms);
-	pa_decay_purge_setting_t decay_purge =
+	pac_decay_purge_setting_t decay_purge =
 	    arena_decide_unforced_decay_purge_setting(
 		/* is_background_thread */ false);
 	pa_maybe_decay_purge(tsdn, &arena->pa_shard, decay, decay_stats, ecache,
@@ -497,7 +497,7 @@ arena_decay_impl(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 		/* No need to wait if another thread is in progress. */
 		return true;
 	}
-	pa_decay_purge_setting_t decay_purge =
+	pac_decay_purge_setting_t decay_purge =
 	    arena_decide_unforced_decay_purge_setting(is_background_thread);
 	bool epoch_advanced = pa_maybe_decay_purge(tsdn, &arena->pa_shard,
 	    decay, decay_stats, ecache, decay_purge);

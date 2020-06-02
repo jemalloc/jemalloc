@@ -9,6 +9,14 @@
  * - Can use efficient OS-level zeroing primitives for demand-filled pages.
  */
 
+/* How "eager" decay/purging should be. */
+enum pac_decay_purge_setting_e {
+	PAC_DECAY_PURGE_ALWAYS,
+	PAC_DECAY_PURGE_NEVER,
+	PAC_DECAY_PURGE_ON_EPOCH_ADVANCE
+};
+typedef enum pac_decay_purge_setting_e pac_decay_purge_setting_t;
+
 typedef struct pac_decay_stats_s pac_decay_stats_t;
 struct pac_decay_stats_s {
 	/* Total number of purge sweeps. */

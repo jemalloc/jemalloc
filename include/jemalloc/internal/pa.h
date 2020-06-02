@@ -18,13 +18,6 @@
  * others will be coming soon.
  */
 
-enum pa_decay_purge_setting_e {
-	PA_DECAY_PURGE_ALWAYS,
-	PA_DECAY_PURGE_NEVER,
-	PA_DECAY_PURGE_ON_EPOCH_ADVANCE
-};
-typedef enum pa_decay_purge_setting_e pa_decay_purge_setting_t;
-
 /*
  * The stats for a particular pa_shard.  Because of the way the ctl module
  * handles stats epoch data collection (it has its own arena_stats, and merges
@@ -163,7 +156,7 @@ void pa_decay_all(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
  */
 bool pa_maybe_decay_purge(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
     pac_decay_stats_t *decay_stats, ecache_t *ecache,
-    pa_decay_purge_setting_t decay_purge_setting);
+    pac_decay_purge_setting_t decay_purge_setting);
 
 /*
  * Gets / sets the maximum amount that we'll grow an arena down the

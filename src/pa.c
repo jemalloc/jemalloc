@@ -403,7 +403,7 @@ pa_decay_try_purge(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
 bool
 pa_maybe_decay_purge(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
     pac_decay_stats_t *decay_stats, ecache_t *ecache,
-    pa_decay_purge_setting_t decay_purge_setting) {
+    pac_decay_purge_setting_t decay_purge_setting) {
 	malloc_mutex_assert_owner(tsdn, &decay->mtx);
 
 	/* Purge all or nothing if the option is disabled. */
@@ -429,9 +429,9 @@ pa_maybe_decay_purge(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
 	size_t npages_current = ecache_npages_get(ecache);
 	bool epoch_advanced = decay_maybe_advance_epoch(decay, &time,
 	    npages_current);
-	if (decay_purge_setting == PA_DECAY_PURGE_ALWAYS
+	if (decay_purge_setting == PAC_DECAY_PURGE_ALWAYS
 	    || (epoch_advanced && decay_purge_setting
-	    == PA_DECAY_PURGE_ON_EPOCH_ADVANCE)) {
+	    == PAC_DECAY_PURGE_ON_EPOCH_ADVANCE)) {
 		size_t npages_limit = decay_npages_limit_get(decay);
 		pa_decay_try_purge(tsdn, shard, decay, decay_stats, ecache,
 		    npages_current, npages_limit);
