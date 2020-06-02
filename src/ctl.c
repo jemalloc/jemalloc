@@ -831,7 +831,7 @@ ctl_arena_clear(ctl_arena_t *ctl_arena) {
 		memset(ctl_arena->astats->lstats, 0, (SC_NSIZES - SC_NBINS) *
 		    sizeof(arena_stats_large_t));
 		memset(ctl_arena->astats->estats, 0, SC_NPSIZES *
-		    sizeof(pa_extent_stats_t));
+		    sizeof(pac_estats_t));
 	}
 }
 
@@ -889,32 +889,31 @@ ctl_arena_stats_sdmerge(ctl_arena_t *ctl_sdarena, ctl_arena_t *ctl_arena,
 
 		if (!destroyed) {
 			sdstats->astats.mapped += astats->astats.mapped;
-			sdstats->astats.pa_shard_stats.retained
-			    += astats->astats.pa_shard_stats.retained;
+			sdstats->astats.pa_shard_stats.pac_stats.retained
+			    += astats->astats.pa_shard_stats.pac_stats.retained;
 			sdstats->astats.pa_shard_stats.edata_avail
 			    += astats->astats.pa_shard_stats.edata_avail;
 		}
 
+		ctl_accum_locked_u64(
+		    &sdstats->astats.pa_shard_stats.pac_stats.decay_dirty.npurge,
+		    &astats->astats.pa_shard_stats.pac_stats.decay_dirty.npurge);
+		ctl_accum_locked_u64(
+		    &sdstats->astats.pa_shard_stats.pac_stats.decay_dirty.nmadvise,
+		    &astats->astats.pa_shard_stats.pac_stats.decay_dirty.nmadvise);
+		ctl_accum_locked_u64(
+		    &sdstats->astats.pa_shard_stats.pac_stats.decay_dirty.purged,
+		    &astats->astats.pa_shard_stats.pac_stats.decay_dirty.purged);
 
 		ctl_accum_locked_u64(
-		    &sdstats->astats.pa_shard_stats.decay_dirty.npurge,
-		    &astats->astats.pa_shard_stats.decay_dirty.npurge);
+		    &sdstats->astats.pa_shard_stats.pac_stats.decay_muzzy.npurge,
+		    &astats->astats.pa_shard_stats.pac_stats.decay_muzzy.npurge);
 		ctl_accum_locked_u64(
-		    &sdstats->astats.pa_shard_stats.decay_dirty.nmadvise,
-		    &astats->astats.pa_shard_stats.decay_dirty.nmadvise);
+		    &sdstats->astats.pa_shard_stats.pac_stats.decay_muzzy.nmadvise,
+		    &astats->astats.pa_shard_stats.pac_stats.decay_muzzy.nmadvise);
 		ctl_accum_locked_u64(
-		    &sdstats->astats.pa_shard_stats.decay_dirty.purged,
-		    &astats->astats.pa_shard_stats.decay_dirty.purged);
-
-		ctl_accum_locked_u64(
-		    &sdstats->astats.pa_shard_stats.decay_muzzy.npurge,
-		    &astats->astats.pa_shard_stats.decay_muzzy.npurge);
-		ctl_accum_locked_u64(
-		    &sdstats->astats.pa_shard_stats.decay_muzzy.nmadvise,
-		    &astats->astats.pa_shard_stats.decay_muzzy.nmadvise);
-		ctl_accum_locked_u64(
-		    &sdstats->astats.pa_shard_stats.decay_muzzy.purged,
-		    &astats->astats.pa_shard_stats.decay_muzzy.purged);
+		    &sdstats->astats.pa_shard_stats.pac_stats.decay_muzzy.purged,
+		    &astats->astats.pa_shard_stats.pac_stats.decay_muzzy.purged);
 
 #define OP(mtx) malloc_mutex_prof_merge(				\
 		    &(sdstats->astats.mutex_prof_data[			\
@@ -957,8 +956,8 @@ MUTEX_PROF_ARENA_MUTEXES
 		    += astats->astats.nrequests_large;
 		sdstats->astats.nflushes_large += astats->astats.nflushes_large;
 		ctl_accum_atomic_zu(
-		    &sdstats->astats.pa_shard_stats.abandoned_vm,
-		    &astats->astats.pa_shard_stats.abandoned_vm);
+		    &sdstats->astats.pa_shard_stats.pac_stats.abandoned_vm,
+		    &astats->astats.pa_shard_stats.pac_stats.abandoned_vm);
 
 		sdstats->astats.tcache_bytes += astats->astats.tcache_bytes;
 
@@ -1117,8 +1116,8 @@ ctl_refresh(tsdn_t *tsdn) {
 		ctl_stats->metadata_thp =
 		    ctl_sarena->astats->astats.metadata_thp;
 		ctl_stats->mapped = ctl_sarena->astats->astats.mapped;
-		ctl_stats->retained =
-		    ctl_sarena->astats->astats.pa_shard_stats.retained;
+		ctl_stats->retained = ctl_sarena->astats->astats
+		    .pa_shard_stats.pac_stats.retained;
 
 		ctl_background_thread_stats_read(tsdn);
 
@@ -2976,35 +2975,34 @@ CTL_RO_GEN(stats_arenas_i_pmuzzy, arenas_i(mib[2])->pmuzzy, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_mapped,
     arenas_i(mib[2])->astats->astats.mapped, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_retained,
-    arenas_i(mib[2])->astats->astats.pa_shard_stats.retained,
-    size_t)
+    arenas_i(mib[2])->astats->astats.pa_shard_stats.pac_stats.retained, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_extent_avail,
     arenas_i(mib[2])->astats->astats.pa_shard_stats.edata_avail, size_t)
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_dirty_npurge,
     locked_read_u64_unsynchronized(
-    &arenas_i(mib[2])->astats->astats.pa_shard_stats.decay_dirty.npurge),
+    &arenas_i(mib[2])->astats->astats.pa_shard_stats.pac_stats.decay_dirty.npurge),
     uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_dirty_nmadvise,
     locked_read_u64_unsynchronized(
-    &arenas_i(mib[2])->astats->astats.pa_shard_stats.decay_dirty.nmadvise),
+    &arenas_i(mib[2])->astats->astats.pa_shard_stats.pac_stats.decay_dirty.nmadvise),
     uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_dirty_purged,
     locked_read_u64_unsynchronized(
-    &arenas_i(mib[2])->astats->astats.pa_shard_stats.decay_dirty.purged),
+    &arenas_i(mib[2])->astats->astats.pa_shard_stats.pac_stats.decay_dirty.purged),
     uint64_t)
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_muzzy_npurge,
     locked_read_u64_unsynchronized(
-    &arenas_i(mib[2])->astats->astats.pa_shard_stats.decay_muzzy.npurge),
+    &arenas_i(mib[2])->astats->astats.pa_shard_stats.pac_stats.decay_muzzy.npurge),
     uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_muzzy_nmadvise,
     locked_read_u64_unsynchronized(
-    &arenas_i(mib[2])->astats->astats.pa_shard_stats.decay_muzzy.nmadvise),
+    &arenas_i(mib[2])->astats->astats.pa_shard_stats.pac_stats.decay_muzzy.nmadvise),
     uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_muzzy_purged,
     locked_read_u64_unsynchronized(
-    &arenas_i(mib[2])->astats->astats.pa_shard_stats.decay_muzzy.purged),
+    &arenas_i(mib[2])->astats->astats.pa_shard_stats.pac_stats.decay_muzzy.purged),
     uint64_t)
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_base,
@@ -3022,7 +3020,7 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_resident,
     size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_abandoned_vm,
     atomic_load_zu(
-    &arenas_i(mib[2])->astats->astats.pa_shard_stats.abandoned_vm,
+    &arenas_i(mib[2])->astats->astats.pa_shard_stats.pac_stats.abandoned_vm,
     ATOMIC_RELAXED), size_t)
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_small_allocated,

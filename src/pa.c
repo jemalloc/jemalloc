@@ -30,7 +30,8 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
 		return true;
 	}
 	if (pac_init(tsdn, &shard->pac, ind, emap, &shard->edata_cache,
-	    cur_time, dirty_decay_ms, muzzy_decay_ms)) {
+	    cur_time, dirty_decay_ms, muzzy_decay_ms, &stats->pac_stats,
+	    stats_mtx)) {
 		return true;
 	}
 
@@ -106,7 +107,7 @@ ecache_pai_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment,
 		edata = ecache_alloc_grow(tsdn, shard, ehooks,
 		    &shard->pac.ecache_retained, NULL, size, alignment, zero);
 		if (config_stats && edata != NULL) {
-			atomic_fetch_add_zu(&shard->stats->pa_mapped, size,
+			atomic_fetch_add_zu(&shard->pac.stats->pac_mapped, size,
 			    ATOMIC_RELAXED);
 		}
 	}
@@ -170,7 +171,7 @@ ecache_pai_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
 		return true;
 	}
 	if (config_stats && mapped_add > 0) {
-		atomic_fetch_add_zu(&shard->stats->pa_mapped, mapped_add,
+		atomic_fetch_add_zu(&shard->pac.stats->pac_mapped, mapped_add,
 		    ATOMIC_RELAXED);
 	}
 	return false;
@@ -288,7 +289,7 @@ pa_stash_decayed(tsdn_t *tsdn, pa_shard_t *shard, ecache_t *ecache,
 
 static size_t
 pa_decay_stashed(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
-    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay,
+    pac_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay,
     edata_list_inactive_t *decay_extents) {
 	bool err;
 
@@ -343,7 +344,7 @@ pa_decay_stashed(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
 		locked_inc_u64(tsdn, LOCKEDINT_MTX(*shard->stats_mtx),
 		    &decay_stats->purged, npurged);
 		LOCKEDINT_MTX_UNLOCK(tsdn, *shard->stats_mtx);
-		atomic_fetch_sub_zu(&shard->stats->pa_mapped,
+		atomic_fetch_sub_zu(&shard->pac.stats->pac_mapped,
 		    nunmapped << LG_PAGE, ATOMIC_RELAXED);
 	}
 
@@ -359,7 +360,7 @@ pa_decay_stashed(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
  */
 static void
 pa_decay_to_limit(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
-    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay,
+    pac_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay,
     size_t npages_limit, size_t npages_decay_max) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 1);
@@ -386,7 +387,7 @@ pa_decay_to_limit(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
 
 void
 pa_decay_all(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
-    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay) {
+    pac_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay) {
 	malloc_mutex_assert_owner(tsdn, &decay->mtx);
 	pa_decay_to_limit(tsdn, shard, decay, decay_stats, ecache, fully_decay,
 	    /* npages_limit */ 0, ecache_npages_get(ecache));
@@ -394,7 +395,7 @@ pa_decay_all(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
 
 static void
 pa_decay_try_purge(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
-    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache,
+    pac_decay_stats_t *decay_stats, ecache_t *ecache,
     size_t current_npages, size_t npages_limit) {
 	if (current_npages > npages_limit) {
 		pa_decay_to_limit(tsdn, shard, decay, decay_stats, ecache,
@@ -405,7 +406,7 @@ pa_decay_try_purge(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
 
 bool
 pa_maybe_decay_purge(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
-    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache,
+    pac_decay_stats_t *decay_stats, ecache_t *ecache,
     pa_decay_purge_setting_t decay_purge_setting) {
 	malloc_mutex_assert_owner(tsdn, &decay->mtx);
 

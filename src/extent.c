@@ -196,7 +196,7 @@ extents_abandon_vm(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *edata, bool growing_retained) {
 	size_t sz = edata_size_get(edata);
 	if (config_stats) {
-		atomic_fetch_add_zu(&shard->stats->abandoned_vm, sz,
+		atomic_fetch_add_zu(&shard->pac.stats->abandoned_vm, sz,
 		    ATOMIC_RELAXED);
 	}
 	/*
@@ -938,20 +938,19 @@ extent_maximally_purge(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	extent_dalloc_wrapper(tsdn, shard, ehooks, edata);
 	if (config_stats) {
 		/* Update stats accordingly. */
-		LOCKEDINT_MTX_LOCK(tsdn, *shard->stats_mtx);
+		LOCKEDINT_MTX_LOCK(tsdn, *shard->pac.stats_mtx);
 		locked_inc_u64(tsdn,
-		    LOCKEDINT_MTX(*shard->stats_mtx),
-		    &shard->stats->decay_dirty.nmadvise, 1);
+		    LOCKEDINT_MTX(*shard->pac.stats_mtx),
+		    &shard->pac.stats->decay_dirty.nmadvise, 1);
 		locked_inc_u64(tsdn,
-		    LOCKEDINT_MTX(*shard->stats_mtx),
-		    &shard->stats->decay_dirty.purged,
+		    LOCKEDINT_MTX(*shard->pac.stats_mtx),
+		    &shard->pac.stats->decay_dirty.purged,
 		    extent_size >> LG_PAGE);
-		LOCKEDINT_MTX_UNLOCK(tsdn, *shard->stats_mtx);
-		atomic_fetch_sub_zu(&shard->stats->pa_mapped, extent_size,
+		LOCKEDINT_MTX_UNLOCK(tsdn, *shard->pac.stats_mtx);
+		atomic_fetch_sub_zu(&shard->pac.stats->pac_mapped, extent_size,
 		    ATOMIC_RELAXED);
 	}
 }
-
 
 /*
  * Does the metadata management portions of putting an unused extent into the

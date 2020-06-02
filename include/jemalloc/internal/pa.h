@@ -25,33 +25,6 @@ enum pa_decay_purge_setting_e {
 };
 typedef enum pa_decay_purge_setting_e pa_decay_purge_setting_t;
 
-typedef struct pa_shard_decay_stats_s pa_shard_decay_stats_t;
-struct pa_shard_decay_stats_s {
-	/* Total number of purge sweeps. */
-	locked_u64_t npurge;
-	/* Total number of madvise calls made. */
-	locked_u64_t nmadvise;
-	/* Total number of pages purged. */
-	locked_u64_t purged;
-};
-
-typedef struct pa_extent_stats_s pa_extent_stats_t;
-struct pa_extent_stats_s {
-	/*
-	 * Stats for a given index in the range [0, SC_NPSIZES] in the various
-	 * ecache_ts.
-	 * We track both bytes and # of extents: two extents in the same bucket
-	 * may have different sizes if adjacent size classes differ by more than
-	 * a page, so bytes cannot always be derived from # of extents.
-	 */
-	size_t ndirty;
-	size_t dirty_bytes;
-	size_t nmuzzy;
-	size_t muzzy_bytes;
-	size_t nretained;
-	size_t retained_bytes;
-};
-
 /*
  * The stats for a particular pa_shard.  Because of the way the ctl module
  * handles stats epoch data collection (it has its own arena_stats, and merges
@@ -65,30 +38,15 @@ struct pa_extent_stats_s {
  */
 typedef struct pa_shard_stats_s pa_shard_stats_t;
 struct pa_shard_stats_s {
-	pa_shard_decay_stats_t decay_dirty;
-	pa_shard_decay_stats_t decay_muzzy;
-
-	/*
-	 * Number of unused virtual memory bytes currently retained.  Retained
-	 * bytes are technically mapped (though always decommitted or purged),
-	 * but they are excluded from the mapped statistic (above).
-	 */
-	size_t retained; /* Derived. */
-
-	/*
-	 * Number of bytes currently mapped, excluding retained memory (and any
-	 * base-allocated memory, which is tracked by the arena stats).
-	 *
-	 * We name this "pa_mapped" to avoid confusion with the arena_stats
-	 * "mapped".
-	 */
-	atomic_zu_t pa_mapped;
-
 	/* Number of edata_t structs allocated by base, but not being used. */
 	size_t edata_avail; /* Derived. */
-
-	/* VM space had to be leaked (undocumented).  Normally 0. */
-	atomic_zu_t abandoned_vm;
+	/*
+	 * Stats specific to the PAC.  For now, these are the only stats that
+	 * exist, but there will eventually be other page allocators.  Things
+	 * like edata_avail make sense in a cross-PA sense, but things like
+	 * npurges don't.
+	 */
+	pac_stats_t pac_stats;
 };
 
 /*
@@ -208,14 +166,14 @@ void pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
  * concurrently with the call.
  */
 void pa_decay_all(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
-    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay);
+    pac_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay);
 /*
  * Updates decay settings for the current time, and conditionally purges in
  * response (depending on decay_purge_setting).  Returns whether or not the
  * epoch advanced.
  */
 bool pa_maybe_decay_purge(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
-    pa_shard_decay_stats_t *decay_stats, ecache_t *ecache,
+    pac_decay_stats_t *decay_stats, ecache_t *ecache,
     pa_decay_purge_setting_t decay_purge_setting);
 
 /*
@@ -251,13 +209,8 @@ void pa_shard_postfork_child(tsdn_t *tsdn, pa_shard_t *shard);
 void pa_shard_basic_stats_merge(pa_shard_t *shard, size_t *nactive,
     size_t *ndirty, size_t *nmuzzy);
 
-static inline size_t
-pa_shard_pa_mapped(pa_shard_t *shard) {
-	return atomic_load_zu(&shard->stats->pa_mapped, ATOMIC_RELAXED);
-}
-
 void pa_shard_stats_merge(tsdn_t *tsdn, pa_shard_t *shard,
-    pa_shard_stats_t *shard_stats_out, pa_extent_stats_t *extent_stats_out,
+    pa_shard_stats_t *pa_shard_stats_out, pac_estats_t *estats_out,
     size_t *resident);
 
 /*
