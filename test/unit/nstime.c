@@ -206,28 +206,6 @@ TEST_BEGIN(test_nstime_monotonic) {
 }
 TEST_END
 
-TEST_BEGIN(test_nstime_update) {
-	nstime_t nst;
-
-	expect_false(nstime_init_update(&nst), "Basic time update failed.");
-
-	/* Only Rip Van Winkle sleeps this long. */
-	{
-		nstime_t addend;
-		nstime_init2(&addend, 631152000, 0);
-		nstime_add(&nst, &addend);
-	}
-	{
-		nstime_t nst0;
-		nstime_copy(&nst0, &nst);
-		expect_true(nstime_update(&nst),
-		    "Update should detect time roll-back.");
-		expect_d_eq(nstime_compare(&nst, &nst0), 0,
-		    "Time should not have been modified");
-	}
-}
-TEST_END
-
 int
 main(void) {
 	return test(
@@ -242,6 +220,5 @@ main(void) {
 	    test_nstime_imultiply,
 	    test_nstime_idivide,
 	    test_nstime_divide,
-	    test_nstime_monotonic,
-	    test_nstime_update);
+	    test_nstime_monotonic);
 }

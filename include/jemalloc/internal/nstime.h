@@ -30,10 +30,23 @@ uint64_t nstime_divide(const nstime_t *time, const nstime_t *divisor);
 typedef bool (nstime_monotonic_t)(void);
 extern nstime_monotonic_t *JET_MUTABLE nstime_monotonic;
 
-typedef bool (nstime_update_t)(nstime_t *);
+typedef void (nstime_update_t)(nstime_t *);
 extern nstime_update_t *JET_MUTABLE nstime_update;
 
-bool nstime_init_update(nstime_t *time);
+typedef void (nstime_prof_update_t)(nstime_t *);
+extern nstime_prof_update_t *JET_MUTABLE nstime_prof_update;
+
+void nstime_init_update(nstime_t *time);
+void nstime_prof_init_update(nstime_t *time);
+
+enum prof_time_res_e {
+	prof_time_res_default = 0,
+	prof_time_res_high = 1
+};
+typedef enum prof_time_res_e prof_time_res_t;
+
+extern prof_time_res_t opt_prof_time_res;
+extern const char *prof_time_res_mode_names[];
 
 JEMALLOC_ALWAYS_INLINE void
 nstime_init_zero(nstime_t *time) {

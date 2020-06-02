@@ -3,6 +3,7 @@
 
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/tsd_types.h"
+#include "jemalloc/internal/nstime.h"
 
 /* TSD checks this to set thread local slow state accordingly. */
 extern bool malloc_slow;
