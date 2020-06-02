@@ -90,6 +90,9 @@ struct pac_s {
 
 	malloc_mutex_t *stats_mtx;
 	pac_stats_t *stats;
+
+	/* Extent serial number generator state. */
+	atomic_zu_t extent_sn_next;
 };
 
 bool pac_init(tsdn_t *tsdn, pac_t *pac, unsigned ind, emap_t *emap,

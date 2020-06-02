@@ -35,7 +35,6 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
 		return true;
 	}
 
-	atomic_store_zu(&shard->extent_sn_next, 0, ATOMIC_RELAXED);
 	atomic_store_zu(&shard->nactive, 0, ATOMIC_RELAXED);
 
 	shard->stats_mtx = stats_mtx;
@@ -77,11 +76,6 @@ pa_shard_destroy_retained(tsdn_t *tsdn, pa_shard_t *shard) {
 	    &shard->pac.ecache_retained, 0)) != NULL) {
 		extent_destroy_wrapper(tsdn, shard, ehooks, edata);
 	}
-}
-
-size_t
-pa_shard_extent_sn_next(pa_shard_t *shard) {
-	return atomic_fetch_add_zu(&shard->extent_sn_next, 1, ATOMIC_RELAXED);
 }
 
 static bool
