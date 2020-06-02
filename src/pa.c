@@ -72,9 +72,9 @@ pa_shard_destroy_retained(tsdn_t *tsdn, pa_shard_t *shard) {
 	 */
 	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
 	edata_t *edata;
-	while ((edata = ecache_evict(tsdn, shard, ehooks,
+	while ((edata = ecache_evict(tsdn, &shard->pac, ehooks,
 	    &shard->pac.ecache_retained, 0)) != NULL) {
-		extent_destroy_wrapper(tsdn, shard, ehooks, edata);
+		extent_destroy_wrapper(tsdn, &shard->pac, ehooks, edata);
 	}
 }
 
@@ -90,15 +90,15 @@ ecache_pai_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment,
 	    (pa_shard_t *)((uintptr_t)self - offsetof(pa_shard_t, ecache_pai));
 
 	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
-	edata_t *edata = ecache_alloc(tsdn, shard, ehooks,
+	edata_t *edata = ecache_alloc(tsdn, &shard->pac, ehooks,
 	    &shard->pac.ecache_dirty, NULL, size, alignment, zero);
 
 	if (edata == NULL && pa_shard_may_have_muzzy(shard)) {
-		edata = ecache_alloc(tsdn, shard, ehooks,
+		edata = ecache_alloc(tsdn, &shard->pac, ehooks,
 		    &shard->pac.ecache_muzzy, NULL, size, alignment, zero);
 	}
 	if (edata == NULL) {
-		edata = ecache_alloc_grow(tsdn, shard, ehooks,
+		edata = ecache_alloc_grow(tsdn, &shard->pac, ehooks,
 		    &shard->pac.ecache_retained, NULL, size, alignment, zero);
 		if (config_stats && edata != NULL) {
 			atomic_fetch_add_zu(&shard->pac.stats->pac_mapped, size,
@@ -144,15 +144,15 @@ ecache_pai_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
 	if (ehooks_merge_will_fail(ehooks)) {
 		return true;
 	}
-	edata_t *trail = ecache_alloc(tsdn, shard, ehooks,
+	edata_t *trail = ecache_alloc(tsdn, &shard->pac, ehooks,
 	    &shard->pac.ecache_dirty, trail_begin, expand_amount, PAGE, zero);
 	if (trail == NULL) {
-		trail = ecache_alloc(tsdn, shard, ehooks,
+		trail = ecache_alloc(tsdn, &shard->pac, ehooks,
 		    &shard->pac.ecache_muzzy, trail_begin, expand_amount, PAGE,
 		    zero);
 	}
 	if (trail == NULL) {
-		trail = ecache_alloc_grow(tsdn, shard, ehooks,
+		trail = ecache_alloc_grow(tsdn, &shard->pac, ehooks,
 		    &shard->pac.ecache_retained, trail_begin, expand_amount,
 		    PAGE, zero);
 		mapped_add = expand_amount;
@@ -160,8 +160,8 @@ ecache_pai_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
 	if (trail == NULL) {
 		return true;
 	}
-	if (extent_merge_wrapper(tsdn, shard, ehooks, edata, trail)) {
-		extent_dalloc_wrapper(tsdn, shard, ehooks, trail);
+	if (extent_merge_wrapper(tsdn, &shard->pac, ehooks, edata, trail)) {
+		extent_dalloc_wrapper(tsdn, &shard->pac, ehooks, trail);
 		return true;
 	}
 	if (config_stats && mapped_add > 0) {
@@ -206,12 +206,13 @@ ecache_pai_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
 		return true;
 	}
 
-	edata_t *trail = extent_split_wrapper(tsdn, shard, ehooks, edata,
+	edata_t *trail = extent_split_wrapper(tsdn, &shard->pac, ehooks, edata,
 	    new_size, shrink_amount);
 	if (trail == NULL) {
 		return true;
 	}
-	ecache_dalloc(tsdn, shard, ehooks, &shard->pac.ecache_dirty, trail);
+	ecache_dalloc(tsdn, &shard->pac, ehooks, &shard->pac.ecache_dirty,
+	    trail);
 	return false;
 }
 
@@ -242,7 +243,8 @@ ecache_pai_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 	pa_shard_t *shard =
 	    (pa_shard_t *)((uintptr_t)self - offsetof(pa_shard_t, ecache_pai));
 	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
-	ecache_dalloc(tsdn, shard, ehooks, &shard->pac.ecache_dirty, edata);
+	ecache_dalloc(tsdn, &shard->pac, ehooks, &shard->pac.ecache_dirty,
+	    edata);
 }
 
 void
@@ -270,7 +272,7 @@ pa_stash_decayed(tsdn_t *tsdn, pa_shard_t *shard, ecache_t *ecache,
 	/* Stash extents according to npages_limit. */
 	size_t nstashed = 0;
 	while (nstashed < npages_decay_max) {
-		edata_t *edata = ecache_evict(tsdn, shard, ehooks, ecache,
+		edata_t *edata = ecache_evict(tsdn, &shard->pac, ehooks, ecache,
 		    npages_limit);
 		if (edata == NULL) {
 			break;
@@ -313,14 +315,14 @@ pa_decay_stashed(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
 				err = extent_purge_lazy_wrapper(tsdn, ehooks,
 				    edata, /* offset */ 0, size);
 				if (!err) {
-					ecache_dalloc(tsdn, shard, ehooks,
+					ecache_dalloc(tsdn, &shard->pac, ehooks,
 					    &shard->pac.ecache_muzzy, edata);
 					break;
 				}
 			}
 			JEMALLOC_FALLTHROUGH;
 		case extent_state_muzzy:
-			extent_dalloc_wrapper(tsdn, shard, ehooks, edata);
+			extent_dalloc_wrapper(tsdn, &shard->pac, ehooks, edata);
 			nunmapped += npages;
 			break;
 		case extent_state_retained:

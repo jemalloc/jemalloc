@@ -189,7 +189,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 					ehooks_t *ehooks = arena_get_ehooks(
 					    arena);
 					extent_dalloc_gap(tsdn,
-					    &arena->pa_shard, ehooks, gap);
+					    &arena->pa_shard.pac, ehooks, gap);
 				} else {
 					edata_cache_put(tsdn,
 					    &arena->pa_shard.edata_cache, gap);
