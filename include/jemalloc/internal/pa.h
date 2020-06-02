@@ -100,12 +100,6 @@ pa_shard_dont_decay_muzzy(pa_shard_t *shard) {
 	    pac_muzzy_decay_ms_get(&shard->pac) <= 0;
 }
 
-static inline bool
-pa_shard_may_force_decay(pa_shard_t *shard) {
-	return !(pac_dirty_decay_ms_get(&shard->pac) == -1
-	    || pac_muzzy_decay_ms_get(&shard->pac) == -1);
-}
-
 static inline ehooks_t *
 pa_shard_ehooks_get(pa_shard_t *shard) {
 	return base_ehooks_get(shard->base);
