@@ -29,7 +29,7 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
 	if (edata_cache_init(&shard->edata_cache, base)) {
 		return true;
 	}
-	if (pac_init(tsdn, &shard->pac, ind, emap, &shard->edata_cache,
+	if (pac_init(tsdn, &shard->pac, base, emap, &shard->edata_cache,
 	    cur_time, dirty_decay_ms, muzzy_decay_ms, &stats->pac_stats,
 	    stats_mtx)) {
 		return true;

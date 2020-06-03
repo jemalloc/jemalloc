@@ -443,8 +443,8 @@ arena_decay_ms_set(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 	pac_decay_purge_setting_t decay_purge =
 	    arena_decide_unforced_decay_purge_setting(
 		/* is_background_thread */ false);
-	pa_maybe_decay_purge(tsdn, &arena->pa_shard, decay, decay_stats, ecache,
-	    decay_purge);
+	pac_maybe_decay_purge(tsdn, &arena->pa_shard.pac, decay, decay_stats,
+	    ecache, decay_purge);
 	malloc_mutex_unlock(tsdn, &decay->mtx);
 
 	return false;
@@ -472,8 +472,8 @@ arena_decay_impl(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
     bool is_background_thread, bool all) {
 	if (all) {
 		malloc_mutex_lock(tsdn, &decay->mtx);
-		pa_decay_all(tsdn, &arena->pa_shard, decay, decay_stats, ecache,
-		    /* fully_decay */ all);
+		pac_decay_all(tsdn, &arena->pa_shard.pac, decay, decay_stats,
+		    ecache, /* fully_decay */ all);
 		malloc_mutex_unlock(tsdn, &decay->mtx);
 		/*
 		 * The previous pa_decay_all call may not have actually decayed
@@ -499,7 +499,7 @@ arena_decay_impl(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 	}
 	pac_decay_purge_setting_t decay_purge =
 	    arena_decide_unforced_decay_purge_setting(is_background_thread);
-	bool epoch_advanced = pa_maybe_decay_purge(tsdn, &arena->pa_shard,
+	bool epoch_advanced = pac_maybe_decay_purge(tsdn, &arena->pa_shard.pac,
 	    decay, decay_stats, ecache, decay_purge);
 	size_t npages_new;
 	if (epoch_advanced) {
@@ -1401,8 +1401,8 @@ bool
 arena_retain_grow_limit_get_set(tsd_t *tsd, arena_t *arena, size_t *old_limit,
     size_t *new_limit) {
 	assert(opt_retain);
-	return pa_shard_retain_grow_limit_get_set(tsd_tsdn(tsd),
-	    &arena->pa_shard, old_limit, new_limit);
+	return pac_retain_grow_limit_get_set(tsd_tsdn(tsd),
+	    &arena->pa_shard.pac, old_limit, new_limit);
 }
 
 unsigned
