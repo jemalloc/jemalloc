@@ -81,6 +81,7 @@ struct pac_s {
 	ecache_t ecache_muzzy;
 	ecache_t ecache_retained;
 
+	base_t *base;
 	emap_t *emap;
 	edata_cache_t *edata_cache;
 
@@ -103,7 +104,7 @@ struct pac_s {
 	atomic_zu_t extent_sn_next;
 };
 
-bool pac_init(tsdn_t *tsdn, pac_t *pac, unsigned ind, emap_t *emap,
+bool pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
     edata_cache_t *edata_cache, nstime_t *cur_time, ssize_t dirty_decay_ms,
     ssize_t muzzy_decay_ms, pac_stats_t *pac_stats, malloc_mutex_t *stats_mtx);
 bool pac_retain_grow_limit_get_set(tsdn_t *tsdn, pac_t *pac, size_t *old_limit,
@@ -125,5 +126,38 @@ static inline size_t
 pac_mapped(pac_t *pac) {
 	return atomic_load_zu(&pac->stats->pac_mapped, ATOMIC_RELAXED);
 }
+
+/*
+ * All purging functions require holding decay->mtx.  This is one of the few
+ * places external modules are allowed to peek inside pa_shard_t internals.
+ */
+
+/*
+ * Decays the number of pages currently in the ecache.  This might not leave the
+ * ecache empty if other threads are inserting dirty objects into it
+ * concurrently with the call.
+ */
+void pac_decay_all(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
+    pac_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay);
+/*
+ * Updates decay settings for the current time, and conditionally purges in
+ * response (depending on decay_purge_setting).  Returns whether or not the
+ * epoch advanced.
+ */
+bool pac_maybe_decay_purge(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
+    pac_decay_stats_t *decay_stats, ecache_t *ecache,
+    pac_decay_purge_setting_t decay_purge_setting);
+
+/*
+ * Gets / sets the maximum amount that we'll grow an arena down the
+ * grow-retained pathways (unless forced to by an allocaction request).
+ *
+ * Set new_limit to NULL if it's just a query, or old_limit to NULL if you don't
+ * care about the previous value.
+ *
+ * Returns true on error (if the new limit is not valid).
+ */
+bool pac_retain_grow_limit_get_set(tsdn_t *tsdn, pac_t *pac, size_t *old_limit,
+    size_t *new_limit);
 
 #endif /* JEMALLOC_INTERNAL_PAC_H */

@@ -3,10 +3,16 @@
 
 #include "jemalloc/internal/pac.h"
 
+static ehooks_t *
+pac_ehooks_get(pac_t *pac) {
+	return base_ehooks_get(pac->base);
+}
+
 bool
-pac_init(tsdn_t *tsdn, pac_t *pac, unsigned ind, emap_t *emap,
+pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
     edata_cache_t *edata_cache, nstime_t *cur_time, ssize_t dirty_decay_ms,
     ssize_t muzzy_decay_ms, pac_stats_t *pac_stats, malloc_mutex_t *stats_mtx) {
+	unsigned ind = base_ind_get(base);
 	/*
 	 * Delay coalescing for dirty extents despite the disruptive effect on
 	 * memory layout for best-fit extent allocation, since cached extents
@@ -45,6 +51,7 @@ pac_init(tsdn_t *tsdn, pac_t *pac, unsigned ind, emap_t *emap,
 		return true;
 	}
 
+	pac->base = base;
 	pac->emap = emap;
 	pac->edata_cache = edata_cache;
 	pac->stats = pac_stats;
@@ -75,4 +82,182 @@ pac_retain_grow_limit_get_set(tsdn_t *tsdn, pac_t *pac, size_t *old_limit,
 	malloc_mutex_unlock(tsdn, &pac->ecache_grow.mtx);
 
 	return false;
+}
+
+static size_t
+pac_stash_decayed(tsdn_t *tsdn, pac_t *pac, ecache_t *ecache,
+    size_t npages_limit, size_t npages_decay_max, edata_list_t *result) {
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
+	ehooks_t *ehooks = pac_ehooks_get(pac);
+
+	/* Stash extents according to npages_limit. */
+	size_t nstashed = 0;
+	while (nstashed < npages_decay_max) {
+		edata_t *edata = ecache_evict(tsdn, pac, ehooks, ecache,
+		    npages_limit);
+		if (edata == NULL) {
+			break;
+		}
+		edata_list_append(result, edata);
+		nstashed += edata_size_get(edata) >> LG_PAGE;
+	}
+	return nstashed;
+}
+
+static size_t
+pac_decay_stashed(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
+    pac_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay,
+    edata_list_t *decay_extents) {
+	bool err;
+
+	size_t nmadvise = 0;
+	size_t nunmapped = 0;
+	size_t npurged = 0;
+
+	ehooks_t *ehooks = pac_ehooks_get(pac);
+
+	bool try_muzzy = !fully_decay && pac_muzzy_decay_ms_get(pac) != 0;
+
+	for (edata_t *edata = edata_list_first(decay_extents); edata !=
+	    NULL; edata = edata_list_first(decay_extents)) {
+		edata_list_remove(decay_extents, edata);
+
+		size_t size = edata_size_get(edata);
+		size_t npages = size >> LG_PAGE;
+
+		nmadvise++;
+		npurged += npages;
+
+		switch (ecache->state) {
+		case extent_state_active:
+			not_reached();
+		case extent_state_dirty:
+			if (try_muzzy) {
+				err = extent_purge_lazy_wrapper(tsdn, ehooks,
+				    edata, /* offset */ 0, size);
+				if (!err) {
+					ecache_dalloc(tsdn, pac, ehooks,
+					    &pac->ecache_muzzy, edata);
+					break;
+				}
+			}
+			JEMALLOC_FALLTHROUGH;
+		case extent_state_muzzy:
+			extent_dalloc_wrapper(tsdn, pac, ehooks, edata);
+			nunmapped += npages;
+			break;
+		case extent_state_retained:
+		default:
+			not_reached();
+		}
+	}
+
+	if (config_stats) {
+		LOCKEDINT_MTX_LOCK(tsdn, *pac->stats_mtx);
+		locked_inc_u64(tsdn, LOCKEDINT_MTX(*pac->stats_mtx),
+		    &decay_stats->npurge, 1);
+		locked_inc_u64(tsdn, LOCKEDINT_MTX(*pac->stats_mtx),
+		    &decay_stats->nmadvise, nmadvise);
+		locked_inc_u64(tsdn, LOCKEDINT_MTX(*pac->stats_mtx),
+		    &decay_stats->purged, npurged);
+		LOCKEDINT_MTX_UNLOCK(tsdn, *pac->stats_mtx);
+		atomic_fetch_sub_zu(&pac->stats->pac_mapped,
+		    nunmapped << LG_PAGE, ATOMIC_RELAXED);
+	}
+
+	return npurged;
+}
+
+/*
+ * npages_limit: Decay at most npages_decay_max pages without violating the
+ * invariant: (ecache_npages_get(ecache) >= npages_limit).  We need an upper
+ * bound on number of pages in order to prevent unbounded growth (namely in
+ * stashed), otherwise unbounded new pages could be added to extents during the
+ * current decay run, so that the purging thread never finishes.
+ */
+static void
+pac_decay_to_limit(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
+    pac_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay,
+    size_t npages_limit, size_t npages_decay_max) {
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 1);
+
+	if (decay->purging || npages_decay_max == 0) {
+		return;
+	}
+	decay->purging = true;
+	malloc_mutex_unlock(tsdn, &decay->mtx);
+
+	edata_list_t decay_extents;
+	edata_list_init(&decay_extents);
+	size_t npurge = pac_stash_decayed(tsdn, pac, ecache, npages_limit,
+	    npages_decay_max, &decay_extents);
+	if (npurge != 0) {
+		size_t npurged = pac_decay_stashed(tsdn, pac, decay,
+		    decay_stats, ecache, fully_decay, &decay_extents);
+		assert(npurged == npurge);
+	}
+
+	malloc_mutex_lock(tsdn, &decay->mtx);
+	decay->purging = false;
+}
+
+void
+pac_decay_all(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
+    pac_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay) {
+	malloc_mutex_assert_owner(tsdn, &decay->mtx);
+	pac_decay_to_limit(tsdn, pac, decay, decay_stats, ecache, fully_decay,
+	    /* npages_limit */ 0, ecache_npages_get(ecache));
+}
+
+static void
+pac_decay_try_purge(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
+    pac_decay_stats_t *decay_stats, ecache_t *ecache,
+    size_t current_npages, size_t npages_limit) {
+	if (current_npages > npages_limit) {
+		pac_decay_to_limit(tsdn, pac, decay, decay_stats, ecache,
+		    /* fully_decay */ false, npages_limit,
+		    current_npages - npages_limit);
+	}
+}
+
+bool
+pac_maybe_decay_purge(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
+    pac_decay_stats_t *decay_stats, ecache_t *ecache,
+    pac_decay_purge_setting_t decay_purge_setting) {
+	malloc_mutex_assert_owner(tsdn, &decay->mtx);
+
+	/* Purge all or nothing if the option is disabled. */
+	ssize_t decay_ms = decay_ms_read(decay);
+	if (decay_ms <= 0) {
+		if (decay_ms == 0) {
+			pac_decay_to_limit(tsdn, pac, decay, decay_stats,
+			    ecache, /* fully_decay */ false,
+			    /* npages_limit */ 0, ecache_npages_get(ecache));
+		}
+		return false;
+	}
+
+	/*
+	 * If the deadline has been reached, advance to the current epoch and
+	 * purge to the new limit if necessary.  Note that dirty pages created
+	 * during the current epoch are not subject to purge until a future
+	 * epoch, so as a result purging only happens during epoch advances, or
+	 * being triggered by background threads (scheduled event).
+	 */
+	nstime_t time;
+	nstime_init_update(&time);
+	size_t npages_current = ecache_npages_get(ecache);
+	bool epoch_advanced = decay_maybe_advance_epoch(decay, &time,
+	    npages_current);
+	if (decay_purge_setting == PAC_DECAY_PURGE_ALWAYS
+	    || (epoch_advanced && decay_purge_setting
+	    == PAC_DECAY_PURGE_ON_EPOCH_ADVANCE)) {
+		size_t npages_limit = decay_npages_limit_get(decay);
+		pac_decay_try_purge(tsdn, pac, decay, decay_stats, ecache,
+		    npages_current, npages_limit);
+	}
+
+	return epoch_advanced;
 }
