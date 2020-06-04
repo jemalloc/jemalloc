@@ -425,7 +425,6 @@ arena_decay_ms_get(arena_t *arena, extent_state_t state) {
 	return pa_decay_ms_get(&arena->pa_shard, state);
 }
 
-
 static bool
 arena_decay_impl(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
     pac_decay_stats_t *decay_stats, ecache_t *ecache,
@@ -435,21 +434,6 @@ arena_decay_impl(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 		pac_decay_all(tsdn, &arena->pa_shard.pac, decay, decay_stats,
 		    ecache, /* fully_decay */ all);
 		malloc_mutex_unlock(tsdn, &decay->mtx);
-		/*
-		 * The previous pa_decay_all call may not have actually decayed
-		 * all pages, if new pages were added concurrently with the
-		 * purge.
-		 *
-		 * I don't think we need an activity check for that case (some
-		 * other thread must be deallocating, and they should do one),
-		 * but we do one anyways.  This line comes out of a refactoring
-		 * diff in which the check was pulled out of the callee, and so
-		 * an extra redundant check minimizes the change.  We should
-		 * reevaluate.
-		 */
-		assert(!is_background_thread);
-		arena_background_thread_inactivity_check(tsdn, arena,
-		    /* is_background_thread */ false);
 		return false;
 	}
 
