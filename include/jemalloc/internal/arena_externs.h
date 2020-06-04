@@ -40,10 +40,9 @@ void arena_extent_ralloc_large_shrink(tsdn_t *tsdn, arena_t *arena,
     edata_t *edata, size_t oldsize);
 void arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena,
     edata_t *edata, size_t oldsize);
-ssize_t arena_dirty_decay_ms_get(arena_t *arena);
-bool arena_dirty_decay_ms_set(tsdn_t *tsdn, arena_t *arena, ssize_t decay_ms);
-ssize_t arena_muzzy_decay_ms_get(arena_t *arena);
-bool arena_muzzy_decay_ms_set(tsdn_t *tsdn, arena_t *arena, ssize_t decay_ms);
+bool arena_decay_ms_set(tsdn_t *tsdn, arena_t *arena, extent_state_t state,
+    ssize_t decay_ms);
+ssize_t arena_decay_ms_get(arena_t *arena, extent_state_t state);
 void arena_decay(tsdn_t *tsdn, arena_t *arena, bool is_background_thread,
     bool all);
 void arena_reset(tsd_t *tsd, arena_t *arena);

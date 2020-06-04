@@ -70,8 +70,8 @@ arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     size_t *nactive, size_t *ndirty, size_t *nmuzzy) {
 	*nthreads += arena_nthreads_get(arena, false);
 	*dss = dss_prec_names[arena_dss_prec_get(arena)];
-	*dirty_decay_ms = arena_dirty_decay_ms_get(arena);
-	*muzzy_decay_ms = arena_muzzy_decay_ms_get(arena);
+	*dirty_decay_ms = arena_decay_ms_get(arena, extent_state_dirty);
+	*muzzy_decay_ms = arena_decay_ms_get(arena, extent_state_muzzy);
 	pa_shard_basic_stats_merge(&arena->pa_shard, nactive, ndirty, nmuzzy);
 }
 
@@ -189,7 +189,7 @@ void arena_handle_new_dirty_pages(tsdn_t *tsdn, arena_t *arena) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	if (arena_dirty_decay_ms_get(arena) == 0) {
+	if (arena_decay_ms_get(arena, extent_state_dirty) == 0) {
 		arena_decay_dirty(tsdn, arena, false, true);
 	} else {
 		arena_background_thread_inactivity_check(tsdn, arena, false);
@@ -395,76 +395,36 @@ arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
 	}
 }
 
-ssize_t
-arena_dirty_decay_ms_get(arena_t *arena) {
-	return pac_dirty_decay_ms_get(&arena->pa_shard.pac);
-}
-
-ssize_t
-arena_muzzy_decay_ms_get(arena_t *arena) {
-	return pac_muzzy_decay_ms_get(&arena->pa_shard.pac);
-}
-
 /*
  * In situations where we're not forcing a decay (i.e. because the user
  * specifically requested it), should we purge ourselves, or wait for the
  * background thread to get to it.
  */
-static pac_decay_purge_setting_t
-arena_decide_unforced_decay_purge_setting(bool is_background_thread) {
+static pac_purge_eagerness_t
+arena_decide_unforced_purge_eagerness(bool is_background_thread) {
 	if (is_background_thread) {
-		return PAC_DECAY_PURGE_ALWAYS;
+		return PAC_PURGE_ALWAYS;
 	} else if (!is_background_thread && background_thread_enabled()) {
-		return PAC_DECAY_PURGE_NEVER;
+		return PAC_PURGE_NEVER;
 	} else {
-		return PAC_DECAY_PURGE_ON_EPOCH_ADVANCE;
+		return PAC_PURGE_ON_EPOCH_ADVANCE;
 	}
 }
 
-static bool
-arena_decay_ms_set(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
-    pac_decay_stats_t *decay_stats, ecache_t *ecache, ssize_t decay_ms) {
-	if (!decay_ms_valid(decay_ms)) {
-		return true;
-	}
-
-	malloc_mutex_lock(tsdn, &decay->mtx);
-	/*
-	 * Restart decay backlog from scratch, which may cause many dirty pages
-	 * to be immediately purged.  It would conceptually be possible to map
-	 * the old backlog onto the new backlog, but there is no justification
-	 * for such complexity since decay_ms changes are intended to be
-	 * infrequent, either between the {-1, 0, >0} states, or a one-time
-	 * arbitrary change during initial arena configuration.
-	 */
-	nstime_t cur_time;
-	nstime_init_update(&cur_time);
-	decay_reinit(decay, &cur_time, decay_ms);
-	pac_decay_purge_setting_t decay_purge =
-	    arena_decide_unforced_decay_purge_setting(
-		/* is_background_thread */ false);
-	pac_maybe_decay_purge(tsdn, &arena->pa_shard.pac, decay, decay_stats,
-	    ecache, decay_purge);
-	malloc_mutex_unlock(tsdn, &decay->mtx);
-
-	return false;
-}
-
 bool
-arena_dirty_decay_ms_set(tsdn_t *tsdn, arena_t *arena,
+arena_decay_ms_set(tsdn_t *tsdn, arena_t *arena, extent_state_t state,
     ssize_t decay_ms) {
-	return arena_decay_ms_set(tsdn, arena, &arena->pa_shard.pac.decay_dirty,
-	    &arena->pa_shard.pac.stats->decay_dirty,
-	    &arena->pa_shard.pac.ecache_dirty, decay_ms);
+	pac_purge_eagerness_t eagerness = arena_decide_unforced_purge_eagerness(
+	    /* is_background_thread */ false);
+	return pa_decay_ms_set(tsdn, &arena->pa_shard, state, decay_ms,
+	    eagerness);
 }
 
-bool
-arena_muzzy_decay_ms_set(tsdn_t *tsdn, arena_t *arena,
-    ssize_t decay_ms) {
-	return arena_decay_ms_set(tsdn, arena, &arena->pa_shard.pac.decay_muzzy,
-	    &arena->pa_shard.pac.stats->decay_muzzy,
-	    &arena->pa_shard.pac.ecache_muzzy, decay_ms);
+ssize_t
+arena_decay_ms_get(arena_t *arena, extent_state_t state) {
+	return pa_decay_ms_get(&arena->pa_shard, state);
 }
+
 
 static bool
 arena_decay_impl(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
@@ -497,10 +457,10 @@ arena_decay_impl(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 		/* No need to wait if another thread is in progress. */
 		return true;
 	}
-	pac_decay_purge_setting_t decay_purge =
-	    arena_decide_unforced_decay_purge_setting(is_background_thread);
+	pac_purge_eagerness_t eagerness =
+	    arena_decide_unforced_purge_eagerness(is_background_thread);
 	bool epoch_advanced = pac_maybe_decay_purge(tsdn, &arena->pa_shard.pac,
-	    decay, decay_stats, ecache, decay_purge);
+	    decay, decay_stats, ecache, eagerness);
 	size_t npages_new;
 	if (epoch_advanced) {
 		/* Backlog is updated on epoch advance. */
@@ -1546,10 +1506,12 @@ arena_choose_huge(tsd_t *tsd) {
 		 * expected for huge allocations.
 		 */
 		if (arena_dirty_decay_ms_default_get() > 0) {
-			arena_dirty_decay_ms_set(tsd_tsdn(tsd), huge_arena, 0);
+			arena_decay_ms_set(tsd_tsdn(tsd), huge_arena,
+			    extent_state_dirty, 0);
 		}
 		if (arena_muzzy_decay_ms_default_get() > 0) {
-			arena_muzzy_decay_ms_set(tsd_tsdn(tsd), huge_arena, 0);
+			arena_decay_ms_set(tsd_tsdn(tsd), huge_arena,
+			    extent_state_muzzy, 0);
 		}
 	}
 
