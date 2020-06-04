@@ -78,9 +78,9 @@ pa_shard_destroy_retained(tsdn_t *tsdn, pa_shard_t *shard) {
 	}
 }
 
-static bool
+static inline bool
 pa_shard_may_have_muzzy(pa_shard_t *shard) {
-	return pac_muzzy_decay_ms_get(&shard->pac) != 0;
+	return pac_decay_ms_get(&shard->pac, extent_state_muzzy) != 0;
 }
 
 static edata_t *
@@ -389,60 +389,20 @@ pa_decay_all(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
 	    /* npages_limit */ 0, ecache_npages_get(ecache));
 }
 
-static void
-pa_decay_try_purge(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
-    pac_decay_stats_t *decay_stats, ecache_t *ecache,
-    size_t current_npages, size_t npages_limit) {
-	if (current_npages > npages_limit) {
-		pa_decay_to_limit(tsdn, shard, decay, decay_stats, ecache,
-		    /* fully_decay */ false, npages_limit,
-		    current_npages - npages_limit);
-	}
-}
-
-bool
-pa_maybe_decay_purge(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
-    pac_decay_stats_t *decay_stats, ecache_t *ecache,
-    pac_decay_purge_setting_t decay_purge_setting) {
-	malloc_mutex_assert_owner(tsdn, &decay->mtx);
-
-	/* Purge all or nothing if the option is disabled. */
-	ssize_t decay_ms = decay_ms_read(decay);
-	if (decay_ms <= 0) {
-		if (decay_ms == 0) {
-			pa_decay_to_limit(tsdn, shard, decay, decay_stats,
-			    ecache, /* fully_decay */ false,
-			    /* npages_limit */ 0, ecache_npages_get(ecache));
-		}
-		return false;
-	}
-
-	/*
-	 * If the deadline has been reached, advance to the current epoch and
-	 * purge to the new limit if necessary.  Note that dirty pages created
-	 * during the current epoch are not subject to purge until a future
-	 * epoch, so as a result purging only happens during epoch advances, or
-	 * being triggered by background threads (scheduled event).
-	 */
-	nstime_t time;
-	nstime_init_update(&time);
-	size_t npages_current = ecache_npages_get(ecache);
-	bool epoch_advanced = decay_maybe_advance_epoch(decay, &time,
-	    npages_current);
-	if (decay_purge_setting == PAC_DECAY_PURGE_ALWAYS
-	    || (epoch_advanced && decay_purge_setting
-	    == PAC_DECAY_PURGE_ON_EPOCH_ADVANCE)) {
-		size_t npages_limit = decay_npages_limit_get(decay);
-		pa_decay_try_purge(tsdn, shard, decay, decay_stats, ecache,
-		    npages_current, npages_limit);
-	}
-
-	return epoch_advanced;
-}
-
 bool
 pa_shard_retain_grow_limit_get_set(tsdn_t *tsdn, pa_shard_t *shard,
     size_t *old_limit, size_t *new_limit) {
 	return pac_retain_grow_limit_get_set(tsdn, &shard->pac, old_limit,
 	    new_limit);
+}
+
+bool
+pa_decay_ms_set(tsdn_t *tsdn, pa_shard_t *shard, extent_state_t state,
+    ssize_t decay_ms, pac_purge_eagerness_t eagerness) {
+	return pac_decay_ms_set(tsdn, &shard->pac, state, decay_ms, eagerness);
+}
+
+ssize_t
+pa_decay_ms_get(pa_shard_t *shard, extent_state_t state) {
+	return pac_decay_ms_get(&shard->pac, state);
 }

@@ -8,6 +8,27 @@ pac_ehooks_get(pac_t *pac) {
 	return base_ehooks_get(pac->base);
 }
 
+static inline void
+pac_decay_data_get(pac_t *pac, extent_state_t state,
+    decay_t **r_decay, pac_decay_stats_t **r_decay_stats, ecache_t **r_ecache) {
+	switch(state) {
+	case extent_state_dirty:
+		*r_decay = &pac->decay_dirty;
+		*r_decay_stats = &pac->stats->decay_dirty;
+		*r_ecache = &pac->ecache_dirty;
+		return;
+	case extent_state_muzzy:
+		*r_decay = &pac->decay_muzzy;
+		*r_decay_stats = &pac->stats->decay_muzzy;
+		*r_ecache = &pac->ecache_muzzy;
+		return;
+	default:
+		unreachable();
+	}
+}
+
+
+
 bool
 pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
     edata_cache_t *edata_cache, nstime_t *cur_time, ssize_t dirty_decay_ms,
@@ -117,7 +138,8 @@ pac_decay_stashed(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
 
 	ehooks_t *ehooks = pac_ehooks_get(pac);
 
-	bool try_muzzy = !fully_decay && pac_muzzy_decay_ms_get(pac) != 0;
+	bool try_muzzy = !fully_decay
+	    && pac_decay_ms_get(pac, extent_state_muzzy) != 0;
 
 	for (edata_t *edata = edata_list_first(decay_extents); edata !=
 	    NULL; edata = edata_list_first(decay_extents)) {
@@ -225,7 +247,7 @@ pac_decay_try_purge(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
 bool
 pac_maybe_decay_purge(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
     pac_decay_stats_t *decay_stats, ecache_t *ecache,
-    pac_decay_purge_setting_t decay_purge_setting) {
+    pac_purge_eagerness_t eagerness) {
 	malloc_mutex_assert_owner(tsdn, &decay->mtx);
 
 	/* Purge all or nothing if the option is disabled. */
@@ -251,13 +273,51 @@ pac_maybe_decay_purge(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
 	size_t npages_current = ecache_npages_get(ecache);
 	bool epoch_advanced = decay_maybe_advance_epoch(decay, &time,
 	    npages_current);
-	if (decay_purge_setting == PAC_DECAY_PURGE_ALWAYS
-	    || (epoch_advanced && decay_purge_setting
-	    == PAC_DECAY_PURGE_ON_EPOCH_ADVANCE)) {
+	if (eagerness == PAC_PURGE_ALWAYS
+	    || (epoch_advanced && eagerness == PAC_PURGE_ON_EPOCH_ADVANCE)) {
 		size_t npages_limit = decay_npages_limit_get(decay);
 		pac_decay_try_purge(tsdn, pac, decay, decay_stats, ecache,
 		    npages_current, npages_limit);
 	}
 
 	return epoch_advanced;
+}
+
+bool
+pac_decay_ms_set(tsdn_t *tsdn, pac_t *pac, extent_state_t state,
+    ssize_t decay_ms, pac_purge_eagerness_t eagerness) {
+	decay_t *decay;
+	pac_decay_stats_t *decay_stats;
+	ecache_t *ecache;
+	pac_decay_data_get(pac, state, &decay, &decay_stats, &ecache);
+
+	if (!decay_ms_valid(decay_ms)) {
+		return true;
+	}
+
+	malloc_mutex_lock(tsdn, &decay->mtx);
+	/*
+	 * Restart decay backlog from scratch, which may cause many dirty pages
+	 * to be immediately purged.  It would conceptually be possible to map
+	 * the old backlog onto the new backlog, but there is no justification
+	 * for such complexity since decay_ms changes are intended to be
+	 * infrequent, either between the {-1, 0, >0} states, or a one-time
+	 * arbitrary change during initial arena configuration.
+	 */
+	nstime_t cur_time;
+	nstime_init_update(&cur_time);
+	decay_reinit(decay, &cur_time, decay_ms);
+	pac_maybe_decay_purge(tsdn, pac, decay, decay_stats, ecache, eagerness);
+	malloc_mutex_unlock(tsdn, &decay->mtx);
+
+	return false;
+}
+
+ssize_t
+pac_decay_ms_get(pac_t *pac, extent_state_t state) {
+	decay_t *decay;
+	pac_decay_stats_t *decay_stats;
+	ecache_t *ecache;
+	pac_decay_data_get(pac, state, &decay, &decay_stats, &ecache);
+	return decay_ms_read(decay);
 }

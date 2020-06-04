@@ -10,12 +10,12 @@
  */
 
 /* How "eager" decay/purging should be. */
-enum pac_decay_purge_setting_e {
-	PAC_DECAY_PURGE_ALWAYS,
-	PAC_DECAY_PURGE_NEVER,
-	PAC_DECAY_PURGE_ON_EPOCH_ADVANCE
+enum pac_purge_eagerness_e {
+	PAC_PURGE_ALWAYS,
+	PAC_PURGE_NEVER,
+	PAC_PURGE_ON_EPOCH_ADVANCE
 };
-typedef enum pac_decay_purge_setting_e pac_decay_purge_setting_t;
+typedef enum pac_purge_eagerness_e pac_purge_eagerness_t;
 
 typedef struct pac_decay_stats_s pac_decay_stats_t;
 struct pac_decay_stats_s {
@@ -112,16 +112,6 @@ bool pac_retain_grow_limit_get_set(tsdn_t *tsdn, pac_t *pac, size_t *old_limit,
 void pac_stats_merge(tsdn_t *tsdn, pac_t *pac, pac_stats_t *pac_stats_out,
     pac_estats_t *estats_out, size_t *resident);
 
-static inline ssize_t
-pac_dirty_decay_ms_get(pac_t *pac) {
-	return decay_ms_read(&pac->decay_dirty);
-}
-
-static inline ssize_t
-pac_muzzy_decay_ms_get(pac_t *pac) {
-	return decay_ms_read(&pac->decay_muzzy);
-}
-
 static inline size_t
 pac_mapped(pac_t *pac) {
 	return atomic_load_zu(&pac->stats->pac_mapped, ATOMIC_RELAXED);
@@ -146,7 +136,7 @@ void pac_decay_all(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
  */
 bool pac_maybe_decay_purge(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
     pac_decay_stats_t *decay_stats, ecache_t *ecache,
-    pac_decay_purge_setting_t decay_purge_setting);
+    pac_purge_eagerness_t eagerness);
 
 /*
  * Gets / sets the maximum amount that we'll grow an arena down the
@@ -160,4 +150,7 @@ bool pac_maybe_decay_purge(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
 bool pac_retain_grow_limit_get_set(tsdn_t *tsdn, pac_t *pac, size_t *old_limit,
     size_t *new_limit);
 
+bool pac_decay_ms_set(tsdn_t *tsdn, pac_t *pac, extent_state_t state,
+    ssize_t decay_ms, pac_purge_eagerness_t eagerness);
+ssize_t pac_decay_ms_get(pac_t *pac, extent_state_t state);
 #endif /* JEMALLOC_INTERNAL_PAC_H */

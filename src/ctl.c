@@ -2430,10 +2430,10 @@ arena_i_decay_ms_ctl_impl(tsd_t *tsd, const size_t *mib, size_t miblen,
 		ret = EFAULT;
 		goto label_return;
 	}
+	extent_state_t state = dirty ? extent_state_dirty : extent_state_muzzy;
 
 	if (oldp != NULL && oldlenp != NULL) {
-		size_t oldval = dirty ? arena_dirty_decay_ms_get(arena) :
-		    arena_muzzy_decay_ms_get(arena);
+		size_t oldval = arena_decay_ms_get(arena, state);
 		READ(oldval, ssize_t);
 	}
 	if (newp != NULL) {
@@ -2452,9 +2452,9 @@ arena_i_decay_ms_ctl_impl(tsd_t *tsd, const size_t *mib, size_t miblen,
 				goto label_return;
 			}
 		}
-		if (dirty ? arena_dirty_decay_ms_set(tsd_tsdn(tsd), arena,
-		    *(ssize_t *)newp) : arena_muzzy_decay_ms_set(tsd_tsdn(tsd),
-		    arena, *(ssize_t *)newp)) {
+
+		if (arena_decay_ms_set(tsd_tsdn(tsd), arena, state,
+		    *(ssize_t *)newp)) {
 			ret = EFAULT;
 			goto label_return;
 		}

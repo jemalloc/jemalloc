@@ -90,7 +90,7 @@ struct pa_shard_s {
 static inline bool
 pa_shard_dont_decay_muzzy(pa_shard_t *shard) {
 	return ecache_npages_get(&shard->pac.ecache_muzzy) == 0 &&
-	    pac_muzzy_decay_ms_get(&shard->pac) <= 0;
+	    pac_decay_ms_get(&shard->pac, extent_state_muzzy) <= 0;
 }
 
 static inline ehooks_t *
@@ -136,6 +136,10 @@ bool pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
  */
 void pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
     bool *generated_dirty);
+
+bool pa_decay_ms_set(tsdn_t *tsdn, pa_shard_t *shard, extent_state_t state,
+    ssize_t decay_ms, pac_purge_eagerness_t eagerness);
+ssize_t pa_decay_ms_get(pa_shard_t *shard, extent_state_t state);
 
 /******************************************************************************/
 /*

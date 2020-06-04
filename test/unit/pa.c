@@ -107,7 +107,6 @@ TEST_BEGIN(test_alloc_free_purge_thds) {
 	for (int i = 0; i < 4; i++) {
 		thd_join(thds[i], NULL);
 	}
-
 }
 TEST_END
 

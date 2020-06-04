@@ -55,8 +55,8 @@ extent_sn_next(pac_t *pac) {
 
 static inline bool
 extent_may_force_decay(pac_t *pac) {
-	return !(pac_dirty_decay_ms_get(pac) == -1
-	    || pac_muzzy_decay_ms_get(pac) == -1);
+	return !(pac_decay_ms_get(pac, extent_state_dirty) == -1
+	    || pac_decay_ms_get(pac, extent_state_muzzy) == -1);
 }
 
 static bool
