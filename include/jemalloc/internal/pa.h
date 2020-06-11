@@ -113,7 +113,7 @@ void pa_shard_reset(pa_shard_t *shard);
  * decaying all active, dirty, and muzzy extents to the retained state, as the
  * last step in destroying the shard.
  */
-void pa_shard_destroy_retained(tsdn_t *tsdn, pa_shard_t *shard);
+void pa_shard_destroy(tsdn_t *tsdn, pa_shard_t *shard);
 
 /* Gets an edata for the given allocation. */
 edata_t *pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size,
