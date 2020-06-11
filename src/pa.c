@@ -239,7 +239,8 @@ pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
 
 static size_t
 pa_stash_decayed(tsdn_t *tsdn, pa_shard_t *shard, ecache_t *ecache,
-    size_t npages_limit, size_t npages_decay_max, edata_list_t *result) {
+    size_t npages_limit, size_t npages_decay_max,
+    edata_list_inactive_t *result) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 	ehooks_t *ehooks = pa_shard_ehooks_get(shard);
@@ -252,7 +253,7 @@ pa_stash_decayed(tsdn_t *tsdn, pa_shard_t *shard, ecache_t *ecache,
 		if (edata == NULL) {
 			break;
 		}
-		edata_list_append(result, edata);
+		edata_list_inactive_append(result, edata);
 		nstashed += edata_size_get(edata) >> LG_PAGE;
 	}
 	return nstashed;
@@ -261,7 +262,7 @@ pa_stash_decayed(tsdn_t *tsdn, pa_shard_t *shard, ecache_t *ecache,
 static size_t
 pa_decay_stashed(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
     pa_shard_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay,
-    edata_list_t *decay_extents) {
+    edata_list_inactive_t *decay_extents) {
 	bool err;
 
 	size_t nmadvise = 0;
@@ -272,9 +273,9 @@ pa_decay_stashed(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
 
 	bool try_muzzy = !fully_decay && pa_shard_may_have_muzzy(shard);
 
-	for (edata_t *edata = edata_list_first(decay_extents); edata !=
-	    NULL; edata = edata_list_first(decay_extents)) {
-		edata_list_remove(decay_extents, edata);
+	for (edata_t *edata = edata_list_inactive_first(decay_extents);
+	    edata != NULL; edata = edata_list_inactive_first(decay_extents)) {
+		edata_list_inactive_remove(decay_extents, edata);
 
 		size_t size = edata_size_get(edata);
 		size_t npages = size >> LG_PAGE;
@@ -342,8 +343,8 @@ pa_decay_to_limit(tsdn_t *tsdn, pa_shard_t *shard, decay_t *decay,
 	decay->purging = true;
 	malloc_mutex_unlock(tsdn, &decay->mtx);
 
-	edata_list_t decay_extents;
-	edata_list_init(&decay_extents);
+	edata_list_inactive_t decay_extents;
+	edata_list_inactive_init(&decay_extents);
 	size_t npurge = pa_stash_decayed(tsdn, shard, ecache, npages_limit,
 	    npages_decay_max, &decay_extents);
 	if (npurge != 0) {

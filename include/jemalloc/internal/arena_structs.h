@@ -69,7 +69,7 @@ struct arena_s {
 	 *
 	 * Synchronization: large_mtx.
 	 */
-	edata_list_t		large;
+	edata_list_active_t	large;
 	/* Synchronizes all large allocation/update/deallocation. */
 	malloc_mutex_t		large_mtx;
 

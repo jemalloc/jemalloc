@@ -43,7 +43,7 @@ large_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 	if (!arena_is_auto(arena)) {
 		/* Insert edata into large. */
 		malloc_mutex_lock(tsdn, &arena->large_mtx);
-		edata_list_append(&arena->large, edata);
+		edata_list_active_append(&arena->large, edata);
 		malloc_mutex_unlock(tsdn, &arena->large_mtx);
 	}
 
@@ -225,14 +225,14 @@ large_dalloc_prep_impl(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
 		/* See comments in arena_bin_slabs_full_insert(). */
 		if (!arena_is_auto(arena)) {
 			malloc_mutex_lock(tsdn, &arena->large_mtx);
-			edata_list_remove(&arena->large, edata);
+			edata_list_active_remove(&arena->large, edata);
 			malloc_mutex_unlock(tsdn, &arena->large_mtx);
 		}
 	} else {
 		/* Only hold the large_mtx if necessary. */
 		if (!arena_is_auto(arena)) {
 			malloc_mutex_assert_owner(tsdn, &arena->large_mtx);
-			edata_list_remove(&arena->large, edata);
+			edata_list_active_remove(&arena->large, edata);
 		}
 	}
 	arena_extent_dalloc_large_prep(tsdn, arena, edata);

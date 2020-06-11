@@ -12,7 +12,7 @@ eset_init(eset_t *eset, extent_state_t state) {
 		edata_heap_new(&eset->heaps[i]);
 	}
 	bitmap_init(eset->bitmap, &eset_bitmap_info, true);
-	edata_list_init(&eset->lru);
+	edata_list_inactive_init(&eset->lru);
 	atomic_store_zu(&eset->npages, 0, ATOMIC_RELAXED);
 	eset->state = state;
 }
@@ -65,7 +65,7 @@ eset_insert(eset_t *eset, edata_t *edata) {
 		eset_stats_add(eset, pind, size);
 	}
 
-	edata_list_append(&eset->lru, edata);
+	edata_list_inactive_append(&eset->lru, edata);
 	size_t npages = size >> LG_PAGE;
 	/*
 	 * All modifications to npages hold the mutex (as asserted above), so we
@@ -95,7 +95,7 @@ eset_remove(eset_t *eset, edata_t *edata) {
 		bitmap_set(eset->bitmap, &eset_bitmap_info,
 		    (size_t)pind);
 	}
-	edata_list_remove(&eset->lru, edata);
+	edata_list_inactive_remove(&eset->lru, edata);
 	size_t npages = size >> LG_PAGE;
 	/*
 	 * As in eset_insert, we hold eset->mtx and so don't need atomic
