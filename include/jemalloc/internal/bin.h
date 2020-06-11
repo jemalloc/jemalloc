@@ -32,7 +32,7 @@ struct bin_s {
 	edata_heap_t		slabs_nonfull;
 
 	/* List used to track full slabs. */
-	edata_list_t		slabs_full;
+	edata_list_active_t	slabs_full;
 
 	/* Bin statistics. */
 	bin_stats_t	stats;

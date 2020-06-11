@@ -59,7 +59,7 @@ edata_cache_postfork_child(tsdn_t *tsdn, edata_cache_t *edata_cache) {
 
 void
 edata_cache_small_init(edata_cache_small_t *ecs, edata_cache_t *fallback) {
-	edata_list_init(&ecs->list);
+	edata_list_inactive_init(&ecs->list);
 	ecs->count = 0;
 	ecs->fallback = fallback;
 }
@@ -67,9 +67,9 @@ edata_cache_small_init(edata_cache_small_t *ecs, edata_cache_t *fallback) {
 edata_t *
 edata_cache_small_get(edata_cache_small_t *ecs) {
 	assert(ecs->count > 0);
-	edata_t *edata = edata_list_first(&ecs->list);
+	edata_t *edata = edata_list_inactive_first(&ecs->list);
 	assert(edata != NULL);
-	edata_list_remove(&ecs->list, edata);
+	edata_list_inactive_remove(&ecs->list, edata);
 	ecs->count--;
 	return edata;
 }
@@ -77,7 +77,7 @@ edata_cache_small_get(edata_cache_small_t *ecs) {
 void
 edata_cache_small_put(edata_cache_small_t *ecs, edata_t *edata) {
 	assert(edata != NULL);
-	edata_list_append(&ecs->list, edata);
+	edata_list_inactive_append(&ecs->list, edata);
 	ecs->count++;
 }
 
@@ -93,7 +93,7 @@ bool edata_cache_small_prepare(tsdn_t *tsdn, edata_cache_small_t *ecs,
 		if (edata == NULL) {
 			return true;
 		}
-		ql_elm_new(edata, ql_link);
+		ql_elm_new(edata, ql_link_inactive);
 		edata_cache_small_put(ecs, edata);
 	}
 	return false;

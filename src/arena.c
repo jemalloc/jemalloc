@@ -595,7 +595,7 @@ arena_bin_slabs_full_insert(arena_t *arena, bin_t *bin, edata_t *slab) {
 	if (arena_is_auto(arena)) {
 		return;
 	}
-	edata_list_append(&bin->slabs_full, slab);
+	edata_list_active_append(&bin->slabs_full, slab);
 }
 
 static void
@@ -603,7 +603,7 @@ arena_bin_slabs_full_remove(arena_t *arena, bin_t *bin, edata_t *slab) {
 	if (arena_is_auto(arena)) {
 		return;
 	}
-	edata_list_remove(&bin->slabs_full, slab);
+	edata_list_active_remove(&bin->slabs_full, slab);
 }
 
 static void
@@ -623,8 +623,8 @@ arena_bin_reset(tsd_t *tsd, arena_t *arena, bin_t *bin) {
 		arena_slab_dalloc(tsd_tsdn(tsd), arena, slab);
 		malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
 	}
-	for (slab = edata_list_first(&bin->slabs_full); slab != NULL;
-	     slab = edata_list_first(&bin->slabs_full)) {
+	for (slab = edata_list_active_first(&bin->slabs_full); slab != NULL;
+	     slab = edata_list_active_first(&bin->slabs_full)) {
 		arena_bin_slabs_full_remove(arena, bin, slab);
 		malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
 		arena_slab_dalloc(tsd_tsdn(tsd), arena, slab);
@@ -656,8 +656,8 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 	/* Large allocations. */
 	malloc_mutex_lock(tsd_tsdn(tsd), &arena->large_mtx);
 
-	for (edata_t *edata = edata_list_first(&arena->large); edata !=
-	    NULL; edata = edata_list_first(&arena->large)) {
+	for (edata_t *edata = edata_list_active_first(&arena->large);
+	    edata != NULL; edata = edata_list_active_first(&arena->large)) {
 		void *ptr = edata_base_get(edata);
 		size_t usize;
 
@@ -1466,7 +1466,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	atomic_store_u(&arena->dss_prec, (unsigned)extent_dss_prec_get(),
 	    ATOMIC_RELAXED);
 
-	edata_list_init(&arena->large);
+	edata_list_active_init(&arena->large);
 	if (malloc_mutex_init(&arena->large_mtx, "arena_large",
 	    WITNESS_RANK_ARENA_LARGE, malloc_mutex_rank_exclusive)) {
 		goto label_error;

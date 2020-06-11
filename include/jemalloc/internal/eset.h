@@ -25,7 +25,7 @@ struct eset_s {
 	bitmap_t bitmap[BITMAP_GROUPS(SC_NPSIZES + 1)];
 
 	/* LRU of all extents in heaps. */
-	edata_list_t lru;
+	edata_list_inactive_t lru;
 
 	/* Page sum for all extents in heaps. */
 	atomic_zu_t npages;

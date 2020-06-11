@@ -27,7 +27,7 @@ void edata_cache_postfork_child(tsdn_t *tsdn, edata_cache_t *edata_cache);
 
 typedef struct edata_cache_small_s edata_cache_small_t;
 struct edata_cache_small_s {
-	edata_list_t list;
+	edata_list_inactive_t list;
 	size_t count;
 	edata_cache_t *fallback;
 };

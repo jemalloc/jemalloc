@@ -139,7 +139,7 @@ ecache_evict(tsdn_t *tsdn, pa_shard_t *shard, ehooks_t *ehooks,
 	edata_t *edata;
 	while (true) {
 		/* Get the LRU extent, if any. */
-		edata = edata_list_first(&ecache->eset.lru);
+		edata = edata_list_inactive_first(&ecache->eset.lru);
 		if (edata == NULL) {
 			goto label_return;
 		}

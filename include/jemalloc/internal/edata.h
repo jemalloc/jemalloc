@@ -185,22 +185,28 @@ struct edata_s {
 		size_t			e_bsize;
 	};
 
-	/*
-	 * List linkage, used by a variety of lists:
-	 * - bin_t's slabs_full
-	 * - extents_t's LRU
-	 * - stashed dirty extents
-	 * - arena's large allocations
-	 */
-	ql_elm(edata_t) ql_link;
-
-	/*
-	 * Linkage for per size class sn/address-ordered heaps, and
-	 * for extent_avail
-	 */
-	phn(edata_t)		ph_link;
+	union {
+		/*
+		 * List linkage used when the edata_t is active; either in
+		 * arena's large allocations or bin_t's slabs_full.
+		 */
+		ql_elm(edata_t)	ql_link_active;
+		/*
+		 * Pairing heap linkage.  Used whenever the extent is inactive
+		 * (in the page allocators), or when it is active and in
+		 * slabs_nonfull, or when the edata_t is unassociated with an
+		 * extent and sitting in an edata_cache.
+		 */
+		phn(edata_t)	ph_link;
+	};
 
 	union {
+		/*
+		 * List linkage used when the extent is inactive:
+		 * - Stashed dirty extents
+		 * - Ecache LRU functionality.
+		 */
+		ql_elm(edata_t) ql_link_inactive;
 		/* Small region slab metadata. */
 		slab_data_t	e_slab_data;
 
@@ -209,7 +215,8 @@ struct edata_s {
 	};
 };
 
-TYPED_LIST(edata_list, edata_t, ql_link)
+TYPED_LIST(edata_list_active, edata_t, ql_link_active)
+TYPED_LIST(edata_list_inactive, edata_t, ql_link_inactive)
 
 static inline unsigned
 edata_arena_ind_get(const edata_t *edata) {
