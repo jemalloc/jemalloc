@@ -645,7 +645,7 @@ arena_destroy(tsd_t *tsd, arena_t *arena) {
 	 * extents, so only retained extents may remain and it's safe to call
 	 * pa_shard_destroy_retained.
 	 */
-	pa_shard_destroy_retained(tsd_tsdn(tsd), &arena->pa_shard);
+	pa_shard_destroy(tsd_tsdn(tsd), &arena->pa_shard);
 
 	/*
 	 * Remove the arena pointer from the arenas array.  We rely on the fact

@@ -321,3 +321,34 @@ pac_decay_ms_get(pac_t *pac, extent_state_t state) {
 	pac_decay_data_get(pac, state, &decay, &decay_stats, &ecache);
 	return decay_ms_read(decay);
 }
+
+void
+pac_reset(tsdn_t *tsdn, pac_t *pac) {
+	/*
+	 * No-op for now; purging is still done at the arena-level.  It should
+	 * get moved in here, though.
+	 */
+	(void)tsdn;
+	(void)pac;
+}
+
+void
+pac_destroy(tsdn_t *tsdn, pac_t *pac) {
+	assert(ecache_npages_get(&pac->ecache_dirty) == 0);
+	assert(ecache_npages_get(&pac->ecache_muzzy) == 0);
+	/*
+	 * Iterate over the retained extents and destroy them.  This gives the
+	 * extent allocator underlying the extent hooks an opportunity to unmap
+	 * all retained memory without having to keep its own metadata
+	 * structures.  In practice, virtual memory for dss-allocated extents is
+	 * leaked here, so best practice is to avoid dss for arenas to be
+	 * destroyed, or provide custom extent hooks that track retained
+	 * dss-based extents for later reuse.
+	 */
+	ehooks_t *ehooks = pac_ehooks_get(pac);
+	edata_t *edata;
+	while ((edata = ecache_evict(tsdn, pac, ehooks,
+	    &pac->ecache_retained, 0)) != NULL) {
+		extent_destroy_wrapper(tsdn, pac, ehooks, edata);
+	}
+}
