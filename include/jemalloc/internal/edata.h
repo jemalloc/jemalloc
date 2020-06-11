@@ -10,6 +10,7 @@
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/slab_data.h"
 #include "jemalloc/internal/sz.h"
+#include "jemalloc/internal/typed_list.h"
 
 enum extent_state_e {
 	extent_state_active   = 0,
@@ -58,7 +59,6 @@ struct edata_map_info_s {
 
 /* Extent (span of pages).  Use accessor functions for e_* fields. */
 typedef struct edata_s edata_t;
-typedef ql_head(edata_t) edata_list_t;
 typedef ph(edata_t) edata_tree_t;
 typedef ph(edata_t) edata_heap_t;
 struct edata_s {
@@ -208,6 +208,8 @@ struct edata_s {
 		e_prof_info_t	e_prof_info;
 	};
 };
+
+TYPED_LIST(edata_list, edata_t, ql_link)
 
 static inline unsigned
 edata_arena_ind_get(const edata_t *edata) {
@@ -531,7 +533,6 @@ edata_init(edata_t *edata, unsigned arena_ind, void *addr, size_t size,
 	edata_zeroed_set(edata, zeroed);
 	edata_committed_set(edata, committed);
 	edata_ranged_set(edata, ranged);
-	ql_elm_new(edata, ql_link);
 	edata_is_head_set(edata, is_head == EXTENT_IS_HEAD);
 	if (config_prof) {
 		edata_prof_tctx_set(edata, NULL);
@@ -550,43 +551,6 @@ edata_binit(edata_t *edata, void *addr, size_t bsize, size_t sn) {
 	edata_zeroed_set(edata, true);
 	edata_committed_set(edata, true);
 	edata_ranged_set(edata, false);
-}
-
-static inline void
-edata_list_init(edata_list_t *list) {
-	ql_new(list);
-}
-
-static inline edata_t *
-edata_list_first(const edata_list_t *list) {
-	return ql_first(list);
-}
-
-static inline edata_t *
-edata_list_last(const edata_list_t *list) {
-	return ql_last(list, ql_link);
-}
-
-static inline void
-edata_list_append(edata_list_t *list, edata_t *edata) {
-	ql_tail_insert(list, edata, ql_link);
-}
-
-static inline void
-edata_list_prepend(edata_list_t *list, edata_t *edata) {
-	ql_head_insert(list, edata, ql_link);
-}
-
-static inline void
-edata_list_replace(edata_list_t *list, edata_t *to_remove,
-    edata_t *to_insert) {
-	ql_after_insert(to_remove, to_insert, ql_link);
-	ql_remove(list, to_remove, ql_link);
-}
-
-static inline void
-edata_list_remove(edata_list_t *list, edata_t *edata) {
-	ql_remove(list, edata, ql_link);
 }
 
 static inline int
