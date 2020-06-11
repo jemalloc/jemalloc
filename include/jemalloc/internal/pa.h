@@ -66,12 +66,7 @@ struct pa_shard_s {
 	 */
 	atomic_zu_t nactive;
 
-	/*
-	 * An interface for page allocation from the ecache framework (i.e. a
-	 * cascade of ecache_dirty, ecache_muzzy, ecache_retained).  Right now
-	 * this is the *only* pai, but we'll soon grow another.
-	 */
-	pai_t ecache_pai;
+	/* Allocates from a PAC. */
 	pac_t pac;
 
 	/* The source of edata_t objects. */

@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_PAC_H
 #define JEMALLOC_INTERNAL_PAC_H
 
+#include "jemalloc/internal/pai.h"
+
 /*
  * Page allocator classic; an implementation of the PAI interface that:
  * - Can be used for arenas with custom extent hooks.
@@ -71,6 +73,11 @@ struct pac_stats_s {
 
 typedef struct pac_s pac_t;
 struct pac_s {
+	/*
+	 * Must be the first member (we convert it to a PAC given only a
+	 * pointer).  The handle to the allocation interface.
+	 */
+	pai_t pai;
 	/*
 	 * Collections of extents that were previously allocated.  These are
 	 * used when allocating extents, in an attempt to re-use address space.
