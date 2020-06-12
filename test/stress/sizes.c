@@ -17,7 +17,7 @@ do_print(const char *name, size_t sz_bytes) {
 
 	size_t ind = 0;
 	double sz = sz_bytes;
-	while (sz >= 1024 && ind < sizes_max) {
+	while (sz >= 1024 && ind < sizes_max - 1) {
 		sz /= 1024;
 		ind++;
 	}
