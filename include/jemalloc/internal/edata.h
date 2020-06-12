@@ -185,6 +185,18 @@ struct edata_s {
 		size_t			e_bsize;
 	};
 
+	/*
+	 * Reserved for hugepages -- once that allocator is more settled, we
+	 * might be able to claw some of this back.  Until then, don't get any
+	 * funny ideas about using the space we just freed up to keep some other
+	 * bit of metadata around.  That kind of thinking can be hazardous to
+	 * your health.
+	 *
+	 * This keeps the size of an edata_t at exactly 128 bytes on
+	 * architectures with 8-byte pointers and 4k pages.
+	 */
+	void *reserved1, *reserved2;
+
 	union {
 		/*
 		 * List linkage used when the edata_t is active; either in
