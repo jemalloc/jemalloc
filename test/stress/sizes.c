@@ -43,6 +43,9 @@ main() {
 	P(prof_tctx_t);
 	P(prof_gctx_t);
 	P(prof_tdata_t);
+	P(rtree_t);
+	P(rtree_leaf_elm_t);
+	P(slab_data_t);
 	P(tcache_t);
 	P(tcache_slow_t);
 	P(tsd_t);
