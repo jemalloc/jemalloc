@@ -2437,7 +2437,11 @@ malloc_default(size_t size) {
 	static_opts_t sopts;
 	dynamic_opts_t dopts;
 
-	LOG("core.malloc.entry", "size: %zu", size);
+	/*
+	 * This variant has logging hook on exit but not on entry.  It's callled
+	 * only by je_malloc, below, which emits the entry one for us (and, if
+	 * it calls us, does so only via tail call).
+	 */
 
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
