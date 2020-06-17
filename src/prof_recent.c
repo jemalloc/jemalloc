@@ -12,10 +12,6 @@ ssize_t opt_prof_recent_alloc_max = PROF_RECENT_ALLOC_MAX_DEFAULT;
 malloc_mutex_t prof_recent_alloc_mtx; /* Protects the fields below */
 static atomic_zd_t prof_recent_alloc_max;
 static ssize_t prof_recent_alloc_count = 0;
-#ifndef JEMALLOC_JET
-typedef ql_head(prof_recent_t) prof_recent_list_t;
-static
-#endif
 prof_recent_list_t prof_recent_alloc_list;
 
 malloc_mutex_t prof_recent_dump_mtx; /* Protects dumping. */
@@ -104,12 +100,14 @@ decrement_recent_count(tsd_t *tsd, prof_tctx_t *tctx) {
 	prof_tctx_try_destroy(tsd, tctx);
 }
 
-#ifndef JEMALLOC_JET
-static inline
-#endif
-edata_t *
+static inline edata_t *
 prof_recent_alloc_edata_get_no_lock(const prof_recent_t *n) {
 	return (edata_t *)atomic_load_p(&n->alloc_edata, ATOMIC_ACQUIRE);
+}
+
+edata_t *
+prof_recent_alloc_edata_get_no_lock_test(const prof_recent_t *n) {
+	return prof_recent_alloc_edata_get_no_lock(n);
 }
 
 static inline edata_t *
@@ -129,12 +127,14 @@ edata_prof_recent_alloc_init(edata_t *edata) {
 	edata_prof_recent_alloc_set_dont_call_directly(edata, NULL);
 }
 
-#ifndef JEMALLOC_JET
-static inline
-#endif
-prof_recent_t *
+static inline prof_recent_t *
 edata_prof_recent_alloc_get_no_lock(const edata_t *edata) {
 	return edata_prof_recent_alloc_get_dont_call_directly(edata);
+}
+
+prof_recent_t *
+edata_prof_recent_alloc_get_no_lock_test(const edata_t *edata) {
+	return edata_prof_recent_alloc_get_no_lock(edata);
 }
 
 static inline prof_recent_t *

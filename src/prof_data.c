@@ -421,7 +421,7 @@ prof_tctx_create(tsd_t *tsd) {
 	return prof_lookup(tsd, &bt);
 }
 
-#ifdef JEMALLOC_JET
+/* Used in unit tests. */
 static prof_tdata_t *
 prof_tdata_count_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
     void *arg) {
@@ -432,6 +432,7 @@ prof_tdata_count_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
 	return NULL;
 }
 
+/* Used in unit tests. */
 size_t
 prof_tdata_count(void) {
 	size_t tdata_count = 0;
@@ -446,6 +447,7 @@ prof_tdata_count(void) {
 	return tdata_count;
 }
 
+/* Used in unit tests. */
 size_t
 prof_bt_count(void) {
 	size_t bt_count;
@@ -464,7 +466,6 @@ prof_bt_count(void) {
 
 	return bt_count;
 }
-#endif
 
 static int
 prof_dump_open_impl(bool propagate_err, const char *filename) {
@@ -1174,7 +1175,7 @@ prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
 	return false;
 }
 
-#ifdef JEMALLOC_JET
+/* Used in unit tests. */
 void
 prof_cnt_all(uint64_t *curobjs, uint64_t *curbytes, uint64_t *accumobjs,
     uint64_t *accumbytes) {
@@ -1219,7 +1220,6 @@ prof_cnt_all(uint64_t *curobjs, uint64_t *curbytes, uint64_t *accumobjs,
 		*accumbytes = prof_tdata_merge_iter_arg.cnt_all.accumbytes;
 	}
 }
-#endif
 
 void
 prof_bt_hash(const void *key, size_t r_hash[2]) {

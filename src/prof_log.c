@@ -27,9 +27,8 @@ enum prof_logging_state_e {
  */
 prof_logging_state_t prof_logging_state = prof_logging_state_stopped;
 
-#ifdef JEMALLOC_JET
+/* Used in unit tests. */
 static bool prof_log_dummy = false;
-#endif
 
 /* Incremented for every log file that is output. */
 static uint64_t log_seq = 0;
@@ -305,7 +304,7 @@ prof_thr_node_keycomp(const void *k1, const void *k2) {
 	return thr_node1->thr_uid == thr_node2->thr_uid;
 }
 
-#ifdef JEMALLOC_JET
+/* Used in unit tests. */
 size_t
 prof_log_bt_count(void) {
 	size_t cnt = 0;
@@ -317,6 +316,7 @@ prof_log_bt_count(void) {
 	return cnt;
 }
 
+/* Used in unit tests. */
 size_t
 prof_log_alloc_count(void) {
 	size_t cnt = 0;
@@ -328,6 +328,7 @@ prof_log_alloc_count(void) {
 	return cnt;
 }
 
+/* Used in unit tests. */
 size_t
 prof_log_thr_count(void) {
 	size_t cnt = 0;
@@ -339,11 +340,13 @@ prof_log_thr_count(void) {
 	return cnt;
 }
 
+/* Used in unit tests. */
 bool
 prof_log_is_logging(void) {
 	return prof_logging_state == prof_logging_state_started;
 }
 
+/* Used in unit tests. */
 bool
 prof_log_rep_check(void) {
 	if (prof_logging_state == prof_logging_state_stopped
@@ -395,11 +398,11 @@ prof_log_rep_check(void) {
 	return false;
 }
 
+/* Used in unit tests. */
 void
 prof_log_dummy_set(bool new_value) {
 	prof_log_dummy = new_value;
 }
-#endif
 
 bool
 prof_log_start(tsdn_t *tsdn, const char *filename) {
@@ -451,11 +454,9 @@ prof_emitter_write_cb(void *opaque, const char *to_write) {
 	struct prof_emitter_cb_arg_s *arg =
 	    (struct prof_emitter_cb_arg_s *)opaque;
 	size_t bytes = strlen(to_write);
-#ifdef JEMALLOC_JET
 	if (prof_log_dummy) {
 		return;
 	}
-#endif
 	arg->ret = malloc_write_fd(arg->fd, to_write, bytes);
 }
 
@@ -612,15 +613,11 @@ prof_log_stop(tsdn_t *tsdn) {
 	/* Create a file. */
 
 	int fd;
-#ifdef JEMALLOC_JET
 	if (prof_log_dummy) {
 		fd = 0;
 	} else {
 		fd = creat(log_filename, 0644);
 	}
-#else
-	fd = creat(log_filename, 0644);
-#endif
 
 	if (fd == -1) {
 		malloc_printf("<jemalloc>: creat() for log file \"%s\" "
@@ -668,11 +665,9 @@ prof_log_stop(tsdn_t *tsdn) {
 	prof_logging_state = prof_logging_state_stopped;
 	malloc_mutex_unlock(tsdn, &log_mtx);
 
-#ifdef JEMALLOC_JET
 	if (prof_log_dummy) {
 		return false;
 	}
-#endif
 	return close(fd) || arg.ret == -1;
 }
 #undef PROF_LOG_STOP_BUFSIZE
