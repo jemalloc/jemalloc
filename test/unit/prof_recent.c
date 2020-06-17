@@ -103,11 +103,11 @@ confirm_malloc(void *p) {
 	assert_ptr_not_null(p, "malloc failed unexpectedly");
 	edata_t *e = emap_edata_lookup(TSDN_NULL, &arena_emap_global, p);
 	assert_ptr_not_null(e, "NULL edata for living pointer");
-	prof_recent_t *n = edata_prof_recent_alloc_get_no_lock(e);
+	prof_recent_t *n = edata_prof_recent_alloc_get_no_lock_test(e);
 	assert_ptr_not_null(n, "Record in edata should not be NULL");
 	expect_ptr_not_null(n->alloc_tctx,
 	    "alloc_tctx in record should not be NULL");
-	expect_ptr_eq(e, prof_recent_alloc_edata_get_no_lock(n),
+	expect_ptr_eq(e, prof_recent_alloc_edata_get_no_lock_test(n),
 	    "edata pointer in record is not correct");
 	expect_ptr_null(n->dalloc_tctx, "dalloc_tctx in record should be NULL");
 }
@@ -122,10 +122,10 @@ static void
 confirm_record_living(prof_recent_t *n) {
 	expect_ptr_not_null(n->alloc_tctx,
 	    "alloc_tctx in record should not be NULL");
-	edata_t *edata = prof_recent_alloc_edata_get_no_lock(n);
+	edata_t *edata = prof_recent_alloc_edata_get_no_lock_test(n);
 	assert_ptr_not_null(edata,
 	    "Recorded edata should not be NULL for living pointer");
-	expect_ptr_eq(n, edata_prof_recent_alloc_get_no_lock(edata),
+	expect_ptr_eq(n, edata_prof_recent_alloc_get_no_lock_test(edata),
 	    "Record in edata is not correct");
 	expect_ptr_null(n->dalloc_tctx, "dalloc_tctx in record should be NULL");
 }
@@ -134,7 +134,7 @@ static void
 confirm_record_released(prof_recent_t *n) {
 	expect_ptr_not_null(n->alloc_tctx,
 	    "alloc_tctx in record should not be NULL");
-	expect_ptr_null(prof_recent_alloc_edata_get_no_lock(n),
+	expect_ptr_null(prof_recent_alloc_edata_get_no_lock_test(n),
 	    "Recorded edata should be NULL for released pointer");
 	expect_ptr_not_null(n->dalloc_tctx,
 	    "dalloc_tctx in record should not be NULL for released pointer");

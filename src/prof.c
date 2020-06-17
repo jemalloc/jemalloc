@@ -205,12 +205,8 @@ prof_read_sys_thread_name_impl(char *buf, size_t limit) {
 	return ENOSYS;
 #endif
 }
-#ifdef JEMALLOC_JET
 prof_read_sys_thread_name_t *JET_MUTABLE prof_read_sys_thread_name =
     prof_read_sys_thread_name_impl;
-#else
-#define prof_read_sys_thread_name prof_read_sys_thread_name_impl
-#endif
 
 static void
 prof_fetch_sys_thread_name(tsd_t *tsd) {

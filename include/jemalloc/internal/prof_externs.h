@@ -57,21 +57,6 @@ void prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t size,
     size_t usize, prof_tctx_t *tctx);
 void prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_info_t *prof_info);
 prof_tctx_t *prof_tctx_create(tsd_t *tsd);
-#ifdef JEMALLOC_JET
-typedef int (prof_read_sys_thread_name_t)(char *buf, size_t limit);
-extern prof_read_sys_thread_name_t *JET_MUTABLE prof_read_sys_thread_name;
-size_t prof_tdata_count(void);
-size_t prof_bt_count(void);
-#endif
-typedef int (prof_dump_open_t)(bool, const char *);
-extern prof_dump_open_t *JET_MUTABLE prof_dump_open;
-
-typedef bool (prof_dump_header_t)(tsdn_t *, bool, const prof_cnt_t *);
-extern prof_dump_header_t *JET_MUTABLE prof_dump_header;
-#ifdef JEMALLOC_JET
-void prof_cnt_all(uint64_t *curobjs, uint64_t *curbytes, uint64_t *accumobjs,
-    uint64_t *accumbytes);
-#endif
 int prof_getpid(void);
 void prof_get_default_filename(tsdn_t *tsdn, char *filename, uint64_t ind);
 void prof_idump(tsdn_t *tsdn);
@@ -103,6 +88,18 @@ void prof_postfork_child(tsdn_t *tsdn);
 uint64_t prof_sample_new_event_wait(tsd_t *tsd);
 uint64_t prof_sample_postponed_event_wait(tsd_t *tsd);
 void prof_sample_event_handler(tsd_t *tsd, uint64_t elapsed);
+
+/* Used by unit tests. */
+typedef int (prof_read_sys_thread_name_t)(char *buf, size_t limit);
+extern prof_read_sys_thread_name_t *JET_MUTABLE prof_read_sys_thread_name;
+size_t prof_tdata_count(void);
+size_t prof_bt_count(void);
+typedef int (prof_dump_open_t)(bool, const char *);
+extern prof_dump_open_t *JET_MUTABLE prof_dump_open;
+typedef bool (prof_dump_header_t)(tsdn_t *, bool, const prof_cnt_t *);
+extern prof_dump_header_t *JET_MUTABLE prof_dump_header;
+void prof_cnt_all(uint64_t *curobjs, uint64_t *curbytes, uint64_t *accumobjs,
+    uint64_t *accumbytes);
 
 bool prof_log_start(tsdn_t *tsdn, const char *filename);
 bool prof_log_stop(tsdn_t *tsdn);
