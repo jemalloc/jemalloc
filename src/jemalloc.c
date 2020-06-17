@@ -1516,8 +1516,8 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 						CONF_ERROR("Invalid conf value",
 						    k, klen, v, vlen);
 					}
+					CONF_CONTINUE;
 				}
-				CONF_CONTINUE;
 			}
 			if (config_log) {
 				if (CONF_MATCH("log")) {
