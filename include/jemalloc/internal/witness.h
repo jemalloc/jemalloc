@@ -7,62 +7,65 @@
 /* LOCK RANKS */
 /******************************************************************************/
 
-/*
- * Witnesses with rank WITNESS_RANK_OMIT are completely ignored by the witness
- * machinery.
- */
+enum witness_rank_e {
+	/*
+	 * Order matters within this enum listing -- higher valued locks can
+	 * only be acquired after lower-valued ones.  We use the
+	 * auto-incrementing-ness of enum values to enforce this.
+	 */
 
-#define WITNESS_RANK_OMIT		0U
+	/*
+	 * Witnesses with rank WITNESS_RANK_OMIT are completely ignored by the
+	 * witness machinery.
+	 */
+	WITNESS_RANK_OMIT,
+	WITNESS_RANK_MIN,
+	WITNESS_RANK_INIT = WITNESS_RANK_MIN,
+	WITNESS_RANK_CTL,
+	WITNESS_RANK_TCACHES,
+	WITNESS_RANK_ARENAS,
+	WITNESS_RANK_BACKGROUND_THREAD_GLOBAL,
+	WITNESS_RANK_PROF_DUMP,
+	WITNESS_RANK_PROF_BT2GCTX,
+	WITNESS_RANK_PROF_TDATAS,
+	WITNESS_RANK_PROF_TDATA,
+	WITNESS_RANK_PROF_LOG,
+	WITNESS_RANK_PROF_GCTX,
+	WITNESS_RANK_PROF_RECENT_DUMP,
+	WITNESS_RANK_BACKGROUND_THREAD,
+	/*
+	 * Used as an argument to witness_assert_depth_to_rank() in order to
+	 * validate depth excluding non-core locks with lower ranks.  Since the
+	 * rank argument to witness_assert_depth_to_rank() is inclusive rather
+	 * than exclusive, this definition can have the same value as the
+	 * minimally ranked core lock.
+	 */
+	WITNESS_RANK_CORE,
+	WITNESS_RANK_DECAY = WITNESS_RANK_CORE,
+	WITNESS_RANK_TCACHE_QL,
+	WITNESS_RANK_EXTENT_GROW,
+	WITNESS_RANK_EXTENTS,
+	WITNESS_RANK_EDATA_CACHE,
 
-#define WITNESS_RANK_MIN		1U
+	WITNESS_RANK_EMAP,
+	WITNESS_RANK_RTREE,
+	WITNESS_RANK_BASE,
+	WITNESS_RANK_ARENA_LARGE,
+	WITNESS_RANK_HOOK,
 
-#define WITNESS_RANK_INIT		1U
-#define WITNESS_RANK_CTL		1U
-#define WITNESS_RANK_TCACHES		2U
-#define WITNESS_RANK_ARENAS		3U
-
-#define WITNESS_RANK_BACKGROUND_THREAD_GLOBAL	4U
-
-#define WITNESS_RANK_PROF_DUMP		5U
-#define WITNESS_RANK_PROF_BT2GCTX	6U
-#define WITNESS_RANK_PROF_TDATAS	7U
-#define WITNESS_RANK_PROF_TDATA		8U
-#define WITNESS_RANK_PROF_LOG		9U
-#define WITNESS_RANK_PROF_GCTX		10U
-#define WITNESS_RANK_PROF_RECENT_DUMP	11U
-#define WITNESS_RANK_BACKGROUND_THREAD	12U
-
-/*
- * Used as an argument to witness_assert_depth_to_rank() in order to validate
- * depth excluding non-core locks with lower ranks.  Since the rank argument to
- * witness_assert_depth_to_rank() is inclusive rather than exclusive, this
- * definition can have the same value as the minimally ranked core lock.
- */
-#define WITNESS_RANK_CORE		13U
-
-#define WITNESS_RANK_DECAY		13U
-#define WITNESS_RANK_TCACHE_QL		14U
-#define WITNESS_RANK_EXTENT_GROW	15U
-#define WITNESS_RANK_EXTENTS		16U
-#define WITNESS_RANK_EDATA_CACHE	17U
-
-#define WITNESS_RANK_EMAP		18U
-#define WITNESS_RANK_RTREE		19U
-#define WITNESS_RANK_BASE		20U
-#define WITNESS_RANK_ARENA_LARGE	21U
-#define WITNESS_RANK_HOOK		22U
-
-#define WITNESS_RANK_LEAF		0xffffffffU
-#define WITNESS_RANK_BIN		WITNESS_RANK_LEAF
-#define WITNESS_RANK_ARENA_STATS	WITNESS_RANK_LEAF
-#define WITNESS_RANK_COUNTER_ACCUM	WITNESS_RANK_LEAF
-#define WITNESS_RANK_DSS		WITNESS_RANK_LEAF
-#define WITNESS_RANK_PROF_ACTIVE	WITNESS_RANK_LEAF
-#define WITNESS_RANK_PROF_DUMP_FILENAME	WITNESS_RANK_LEAF
-#define WITNESS_RANK_PROF_GDUMP		WITNESS_RANK_LEAF
-#define WITNESS_RANK_PROF_NEXT_THR_UID	WITNESS_RANK_LEAF
-#define WITNESS_RANK_PROF_RECENT_ALLOC	WITNESS_RANK_LEAF
-#define WITNESS_RANK_PROF_THREAD_ACTIVE_INIT	WITNESS_RANK_LEAF
+	WITNESS_RANK_LEAF=0x1000,
+	WITNESS_RANK_BIN = WITNESS_RANK_LEAF,
+	WITNESS_RANK_ARENA_STATS = WITNESS_RANK_LEAF,
+	WITNESS_RANK_COUNTER_ACCUM = WITNESS_RANK_LEAF,
+	WITNESS_RANK_DSS = WITNESS_RANK_LEAF,
+	WITNESS_RANK_PROF_ACTIVE = WITNESS_RANK_LEAF,
+	WITNESS_RANK_PROF_DUMP_FILENAME = WITNESS_RANK_LEAF,
+	WITNESS_RANK_PROF_GDUMP = WITNESS_RANK_LEAF,
+	WITNESS_RANK_PROF_NEXT_THR_UID = WITNESS_RANK_LEAF,
+	WITNESS_RANK_PROF_RECENT_ALLOC = WITNESS_RANK_LEAF,
+	WITNESS_RANK_PROF_THREAD_ACTIVE_INIT = WITNESS_RANK_LEAF,
+};
+typedef enum witness_rank_e witness_rank_t;
 
 /******************************************************************************/
 /* PER-WITNESS DATA */
@@ -74,7 +77,6 @@
 #endif
 
 typedef struct witness_s witness_t;
-typedef unsigned witness_rank_t;
 typedef ql_head(witness_t) witness_list_t;
 typedef int witness_comp_t (const witness_t *, void *, const witness_t *,
     void *);
@@ -84,8 +86,8 @@ struct witness_s {
 	const char		*name;
 
 	/*
-	 * Witness rank, where 0 is lowest and UINT_MAX is highest.  Witnesses
-	 * must be acquired in order of increasing rank.
+	 * Witness rank, where 0 is lowest and WITNESS_RANK_LEAF is highest.
+	 * Witnesses must be acquired in order of increasing rank.
 	 */
 	witness_rank_t		rank;
 
