@@ -29,7 +29,7 @@ extern ssize_t opt_prof_recent_alloc_max;
 extern malloc_mutex_t prof_recent_alloc_mtx;
 
 /* Whether to use thread name provided by the system or by mallctl. */
-extern bool opt_prof_experimental_use_sys_thread_name;
+extern bool opt_prof_sys_thread_name;
 
 /* Accessed via prof_active_[gs]et{_unlocked,}(). */
 extern bool prof_active;
@@ -90,8 +90,8 @@ uint64_t prof_sample_postponed_event_wait(tsd_t *tsd);
 void prof_sample_event_handler(tsd_t *tsd, uint64_t elapsed);
 
 /* Used by unit tests. */
-typedef int (prof_read_sys_thread_name_t)(char *buf, size_t limit);
-extern prof_read_sys_thread_name_t *JET_MUTABLE prof_read_sys_thread_name;
+typedef int (prof_sys_thread_name_read_t)(char *buf, size_t limit);
+extern prof_sys_thread_name_read_t *JET_MUTABLE prof_sys_thread_name_read;
 size_t prof_tdata_count(void);
 size_t prof_bt_count(void);
 typedef int (prof_dump_open_t)(bool, const char *);

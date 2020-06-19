@@ -3,31 +3,31 @@
 static const char *test_thread_name = "test_name";
 
 static int
-test_prof_read_sys_thread_name_error(char *buf, size_t limit) {
+test_prof_sys_thread_name_read_error(char *buf, size_t limit) {
 	return ENOSYS;
 }
 
 static int
-test_prof_read_sys_thread_name(char *buf, size_t limit) {
+test_prof_sys_thread_name_read(char *buf, size_t limit) {
 	assert(strlen(test_thread_name) < limit);
 	strncpy(buf, test_thread_name, limit);
 	return 0;
 }
 
 static int
-test_prof_read_sys_thread_name_clear(char *buf, size_t limit) {
+test_prof_sys_thread_name_read_clear(char *buf, size_t limit) {
 	assert(limit > 0);
 	buf[0] = '\0';
 	return 0;
 }
 
-TEST_BEGIN(test_prof_experimental_use_sys_thread_name) {
+TEST_BEGIN(test_prof_sys_thread_name) {
 	test_skip_if(!config_prof);
 
 	bool oldval;
 	size_t sz = sizeof(oldval);
-	assert_d_eq(mallctl("opt.prof_experimental_use_sys_thread_name",
-	    &oldval, &sz, NULL,	0), 0, "mallctl failed");
+	assert_d_eq(mallctl("opt.prof_sys_thread_name", &oldval, &sz, NULL, 0),
+	    0, "mallctl failed");
 	assert_true(oldval, "option was not set correctly");
 
 	const char *thread_name;
@@ -42,7 +42,7 @@ TEST_BEGIN(test_prof_experimental_use_sys_thread_name) {
 	assert_ptr_eq(thread_name, test_thread_name,
 	    "Thread name should not be touched");
 
-	prof_read_sys_thread_name = test_prof_read_sys_thread_name_error;
+	prof_sys_thread_name_read = test_prof_sys_thread_name_read_error;
 	void *p = malloc(1);
 	free(p);
 	assert_d_eq(mallctl("thread.prof.name", &thread_name, &sz, NULL, 0), 0,
@@ -50,7 +50,7 @@ TEST_BEGIN(test_prof_experimental_use_sys_thread_name) {
 	assert_str_eq(thread_name, "",
 	    "Thread name should stay the same if the system call fails");
 
-	prof_read_sys_thread_name = test_prof_read_sys_thread_name;
+	prof_sys_thread_name_read = test_prof_sys_thread_name_read;
 	p = malloc(1);
 	free(p);
 	assert_d_eq(mallctl("thread.prof.name", &thread_name, &sz, NULL, 0), 0,
@@ -58,7 +58,7 @@ TEST_BEGIN(test_prof_experimental_use_sys_thread_name) {
 	assert_str_eq(thread_name, test_thread_name,
 	    "Thread name should be changed if the system call succeeds");
 
-	prof_read_sys_thread_name = test_prof_read_sys_thread_name_clear;
+	prof_sys_thread_name_read = test_prof_sys_thread_name_read_clear;
 	p = malloc(1);
 	free(p);
 	assert_d_eq(mallctl("thread.prof.name", &thread_name, &sz, NULL, 0), 0,
@@ -71,5 +71,5 @@ TEST_END
 int
 main(void) {
 	return test(
-	    test_prof_experimental_use_sys_thread_name);
+	    test_prof_sys_thread_name);
 }

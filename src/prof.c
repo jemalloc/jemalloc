@@ -47,7 +47,7 @@ bool opt_prof_final = false;
 bool opt_prof_leak = false;
 bool opt_prof_accum = false;
 char opt_prof_prefix[PROF_DUMP_FILENAME_LEN];
-bool opt_prof_experimental_use_sys_thread_name = false;
+bool opt_prof_sys_thread_name = false;
 
 /* Accessed via prof_sample_event_handler(). */
 static counter_accum_t prof_idump_accumulated;
@@ -197,21 +197,21 @@ prof_thread_name_set_impl(tsd_t *tsd, const char *thread_name) {
 }
 
 static int
-prof_read_sys_thread_name_impl(char *buf, size_t limit) {
+prof_sys_thread_name_read_impl(char *buf, size_t limit) {
 #ifdef JEMALLOC_HAVE_PTHREAD_SETNAME_NP
 	return pthread_getname_np(pthread_self(), buf, limit);
 #else
 	return ENOSYS;
 #endif
 }
-prof_read_sys_thread_name_t *JET_MUTABLE prof_read_sys_thread_name =
-    prof_read_sys_thread_name_impl;
+prof_sys_thread_name_read_t *JET_MUTABLE prof_sys_thread_name_read =
+    prof_sys_thread_name_read_impl;
 
 static void
-prof_fetch_sys_thread_name(tsd_t *tsd) {
+prof_sys_thread_name_fetch(tsd_t *tsd) {
 #define THREAD_NAME_MAX_LEN 16
 	char buf[THREAD_NAME_MAX_LEN];
-	if (!prof_read_sys_thread_name(buf, THREAD_NAME_MAX_LEN)) {
+	if (!prof_sys_thread_name_read(buf, THREAD_NAME_MAX_LEN)) {
 		prof_thread_name_set_impl(tsd, buf);
 	}
 #undef THREAD_NAME_MAX_LEN
@@ -220,8 +220,8 @@ prof_fetch_sys_thread_name(tsd_t *tsd) {
 void
 prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t size,
     size_t usize, prof_tctx_t *tctx) {
-	if (opt_prof_experimental_use_sys_thread_name) {
-		prof_fetch_sys_thread_name(tsd);
+	if (opt_prof_sys_thread_name) {
+		prof_sys_thread_name_fetch(tsd);
 	}
 
 	edata_t *edata = emap_edata_lookup(tsd_tsdn(tsd), &arena_emap_global,
@@ -870,7 +870,7 @@ prof_thread_name_get(tsd_t *tsd) {
 
 int
 prof_thread_name_set(tsd_t *tsd, const char *thread_name) {
-	if (opt_prof_experimental_use_sys_thread_name) {
+	if (opt_prof_sys_thread_name) {
 		return ENOENT;
 	} else {
 		return prof_thread_name_set_impl(tsd, thread_name);
