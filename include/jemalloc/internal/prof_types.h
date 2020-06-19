@@ -29,7 +29,12 @@ typedef struct prof_recent_s prof_recent_t;
 #define PROF_CKH_MINITEMS		64
 
 /* Size of memory buffer to use when writing dump files. */
-#define PROF_DUMP_BUFSIZE		65536
+#ifndef JEMALLOC_PROF
+/* Minimize memory bloat for non-prof builds. */
+#  define PROF_DUMP_BUFSIZE		1
+#else
+#  define PROF_DUMP_BUFSIZE		65536
+#endif
 
 /* Size of stack-allocated buffer used by prof_printf(). */
 #define PROF_PRINTF_BUFSIZE		128

@@ -59,14 +59,7 @@ static prof_tdata_tree_t tdatas;
  * This buffer is rather large for stack allocation, so use a single buffer for
  * all profile dumps.
  */
-static char prof_dump_buf[
-    /* Minimize memory bloat for non-prof builds. */
-#ifdef JEMALLOC_PROF
-    PROF_DUMP_BUFSIZE
-#else
-    1
-#endif
-];
+static char prof_dump_buf[PROF_DUMP_BUFSIZE];
 static size_t prof_dump_buf_end;
 static int prof_dump_fd;
 
