@@ -32,6 +32,9 @@ typedef struct prof_recent_s prof_recent_t;
 #ifndef JEMALLOC_PROF
 /* Minimize memory bloat for non-prof builds. */
 #  define PROF_DUMP_BUFSIZE		1
+#elif defined(JEMALLOC_DEBUG)
+/* Use a small buffer size in debug build, mainly to facilitate testing. */
+#  define PROF_DUMP_BUFSIZE		16
 #else
 #  define PROF_DUMP_BUFSIZE		65536
 #endif
