@@ -55,9 +55,6 @@
     <ClCompile Include="..\..\..\..\src\extent_mmap.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\src\hash.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\src\hook.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -97,9 +94,6 @@
     <ClCompile Include="..\..\..\..\src\peak_event.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\src\prng.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\src\prof.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -134,9 +128,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\src\thread_event.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\src\ticker.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\src\tsd.c">
