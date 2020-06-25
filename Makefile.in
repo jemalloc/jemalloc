@@ -287,12 +287,12 @@ else
 CPP_SRCS :=
 TESTS_INTEGRATION_CPP :=
 endif
-TESTS_ANALYZE := $(srcroot)test/analyze/rand.c
+TESTS_ANALYZE := $(srcroot)test/analyze/rand.c \
+	$(srcroot)test/analyze/sizes.c
 TESTS_STRESS := $(srcroot)test/stress/microbench.c \
 	$(srcroot)test/stress/fill_flush.c \
 	$(srcroot)test/stress/large_microbench.c \
-	$(srcroot)test/stress/hookbench.c \
-	$(srcroot)test/stress/sizes.c
+	$(srcroot)test/stress/hookbench.c
 
 
 TESTS := $(TESTS_UNIT) $(TESTS_INTEGRATION) $(TESTS_INTEGRATION_CPP) \
