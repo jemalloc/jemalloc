@@ -15,7 +15,13 @@ typedef struct prof_recent_s prof_recent_t;
 #else
 #  define PROF_PREFIX_DEFAULT		""
 #endif
-#define LG_PROF_SAMPLE_DEFAULT		19
+
+#ifdef JEMALLOC_JET
+#  define LG_PROF_SAMPLE_DEFAULT	0
+#else
+#  define LG_PROF_SAMPLE_DEFAULT	19
+#endif
+
 #define LG_PROF_INTERVAL_DEFAULT	-1
 
 /*
