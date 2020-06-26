@@ -30,6 +30,7 @@ bool opt_prof_gdump = false;
 bool opt_prof_final = false;
 bool opt_prof_leak = false;
 bool opt_prof_accum = false;
+bool opt_prof_dump_surplus = false;
 char opt_prof_prefix[PROF_DUMP_FILENAME_LEN];
 bool opt_prof_sys_thread_name = false;
 

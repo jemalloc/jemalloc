@@ -519,7 +519,10 @@ prof_dump_print_cnts(write_cb_t *prof_dump_write, void *cbopaque,
     const prof_cnt_t *cnts) {
 	prof_dump_printf(prof_dump_write, cbopaque,
 	    "%"FMTu64": %"FMTu64" [%"FMTu64": %"FMTu64"]",
-	    cnts->curobjs, cnts->curbytes, cnts->accumobjs, cnts->accumbytes);
+	    cnts->curobjs,
+	    opt_prof_dump_surplus ? cnts->cursurplus : cnts->curbytes,
+	    cnts->accumobjs,
+	    opt_prof_dump_surplus ? cnts->accumsurplus : cnts->accumbytes);
 }
 
 static void

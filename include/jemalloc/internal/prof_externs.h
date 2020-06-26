@@ -20,6 +20,9 @@ extern char opt_prof_prefix[
 #endif
     1];
 
+/* If true, print total surplus rather than total bytes in prof dumps. */
+extern bool opt_prof_dump_surplus;
+
 /* For recording recent allocations */
 extern ssize_t opt_prof_recent_alloc_max;
 
