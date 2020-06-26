@@ -84,44 +84,25 @@ TEST_BEGIN(test_prof_reset_basic) {
 }
 TEST_END
 
-bool prof_dump_header_intercepted = false;
-prof_cnt_t cnt_all_copy = {0, 0, 0, 0};
-static void
-prof_dump_header_intercept(void *opaque, const prof_cnt_t *cnt_all) {
-	prof_dump_header_intercepted = true;
-	memcpy(&cnt_all_copy, cnt_all, sizeof(prof_cnt_t));
-}
-
 TEST_BEGIN(test_prof_reset_cleanup) {
-	void *p;
-	prof_dump_header_t *prof_dump_header_orig;
-
 	test_skip_if(!config_prof);
 
 	set_prof_active(true);
 
 	expect_zu_eq(prof_bt_count(), 0, "Expected 0 backtraces");
-	p = mallocx(1, 0);
+	void *p = mallocx(1, 0);
 	expect_ptr_not_null(p, "Unexpected mallocx() failure");
 	expect_zu_eq(prof_bt_count(), 1, "Expected 1 backtrace");
 
-	prof_dump_header_orig = prof_dump_header;
-	prof_dump_header = prof_dump_header_intercept;
-	expect_false(prof_dump_header_intercepted, "Unexpected intercept");
-
-	expect_d_eq(mallctl("prof.dump", NULL, NULL, NULL, 0),
-	    0, "Unexpected error while dumping heap profile");
-	expect_true(prof_dump_header_intercepted, "Expected intercept");
-	expect_u64_eq(cnt_all_copy.curobjs, 1, "Expected 1 allocation");
+	prof_cnt_t cnt_all;
+	prof_cnt_all(&cnt_all);
+	expect_u64_eq(cnt_all.curobjs, 1, "Expected 1 allocation");
 
 	expect_d_eq(mallctl("prof.reset", NULL, NULL, NULL, 0), 0,
 	    "Unexpected error while resetting heap profile data");
-	expect_d_eq(mallctl("prof.dump", NULL, NULL, NULL, 0),
-	    0, "Unexpected error while dumping heap profile");
-	expect_u64_eq(cnt_all_copy.curobjs, 0, "Expected 0 allocations");
+	prof_cnt_all(&cnt_all);
+	expect_u64_eq(cnt_all.curobjs, 0, "Expected 0 allocations");
 	expect_zu_eq(prof_bt_count(), 1, "Expected 1 backtrace");
-
-	prof_dump_header = prof_dump_header_orig;
 
 	dallocx(p, 0);
 	expect_zu_eq(prof_bt_count(), 0, "Expected 0 backtraces");

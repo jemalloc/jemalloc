@@ -792,8 +792,7 @@ prof_tdata_dump_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
 }
 
 static void
-prof_dump_header_impl(void *opaque, const prof_cnt_t *cnt_all) {
-	prof_dump_iter_arg_t *arg = (prof_dump_iter_arg_t *)opaque;
+prof_dump_header(prof_dump_iter_arg_t *arg, const prof_cnt_t *cnt_all) {
 	prof_dump_printf(arg->prof_dump_write, arg->cbopaque,
 	    "heap_v2/%"FMTu64"\n  t*: ", ((uint64_t)1U << lg_prof_sample));
 	prof_dump_print_cnts(arg->prof_dump_write, arg->cbopaque, cnt_all);
@@ -803,7 +802,6 @@ prof_dump_header_impl(void *opaque, const prof_cnt_t *cnt_all) {
 	tdata_tree_iter(&tdatas, NULL, prof_tdata_dump_iter, arg);
 	malloc_mutex_unlock(arg->tsdn, &tdatas_mtx);
 }
-prof_dump_header_t *JET_MUTABLE prof_dump_header = prof_dump_header_impl;
 
 static void
 prof_dump_gctx(prof_dump_iter_arg_t *arg, prof_gctx_t *gctx,
