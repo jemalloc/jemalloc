@@ -30,7 +30,6 @@ size_t prof_tdata_count(void);
 size_t prof_bt_count(void);
 typedef void (prof_dump_header_t)(void *, const prof_cnt_t *);
 extern prof_dump_header_t *JET_MUTABLE prof_dump_header;
-void prof_cnt_all(uint64_t *curobjs, uint64_t *curbytes, uint64_t *accumobjs,
-    uint64_t *accumbytes);
+void prof_cnt_all(prof_cnt_t *cnt_all);
 
 #endif /* JEMALLOC_INTERNAL_PROF_DATA_H */

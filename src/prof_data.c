@@ -939,46 +939,16 @@ prof_dump_impl(tsd_t *tsd, write_cb_t *prof_dump_write, void *cbopaque,
 
 /* Used in unit tests. */
 void
-prof_cnt_all(uint64_t *curobjs, uint64_t *curbytes, uint64_t *accumobjs,
-    uint64_t *accumbytes) {
-	tsd_t *tsd;
-	prof_tdata_t *tdata;
-	prof_cnt_t cnt_all;
-	size_t leak_ngctx;
-	prof_gctx_tree_t gctxs;
-
-	tsd = tsd_fetch();
-	tdata = prof_tdata_get(tsd, false);
+prof_cnt_all(prof_cnt_t *cnt_all) {
+	tsd_t *tsd = tsd_fetch();
+	prof_tdata_t *tdata = prof_tdata_get(tsd, false);
 	if (tdata == NULL) {
-		if (curobjs != NULL) {
-			*curobjs = 0;
-		}
-		if (curbytes != NULL) {
-			*curbytes = 0;
-		}
-		if (accumobjs != NULL) {
-			*accumobjs = 0;
-		}
-		if (accumbytes != NULL) {
-			*accumbytes = 0;
-		}
-		return;
-	}
-
-	prof_dump_prep(tsd, tdata, &cnt_all, &leak_ngctx, &gctxs);
-	prof_gctx_finish(tsd, &gctxs);
-
-	if (curobjs != NULL) {
-		*curobjs = cnt_all.curobjs;
-	}
-	if (curbytes != NULL) {
-		*curbytes = cnt_all.curbytes;
-	}
-	if (accumobjs != NULL) {
-		*accumobjs = cnt_all.accumobjs;
-	}
-	if (accumbytes != NULL) {
-		*accumbytes = cnt_all.accumbytes;
+		memset(cnt_all, 0, sizeof(prof_cnt_t));
+	} else {
+		size_t leak_ngctx;
+		prof_gctx_tree_t gctxs;
+		prof_dump_prep(tsd, tdata, cnt_all, &leak_ngctx, &gctxs);
+		prof_gctx_finish(tsd, &gctxs);
 	}
 }
 
