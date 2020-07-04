@@ -1879,6 +1879,14 @@ if test "x$have__pthread_mutex_init_calloc_cb" = "x1" ; then
   wrap_syms="${wrap_syms} _malloc_prefork _malloc_postfork"
 fi
 
+AC_CHECK_FUNC([memcntl],
+	      [have_memcntl="1"],
+	      [have_memcntl="0"],
+	      )
+if test "x$have_memcntl" = "x1" ; then
+  AC_DEFINE([JEMALLOC_HAVE_MEMCNTL], [ ])
+fi
+
 dnl Disable lazy locking by default.
 AC_ARG_ENABLE([lazy_lock],
   [AS_HELP_STRING([--enable-lazy-lock],

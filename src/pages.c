@@ -363,8 +363,13 @@ pages_huge_impl(void *addr, size_t size, bool aligned) {
 		assert(HUGEPAGE_ADDR2BASE(addr) == addr);
 		assert(HUGEPAGE_CEILING(size) == size);
 	}
-#ifdef JEMALLOC_HAVE_MADVISE_HUGE
+#if defined(JEMALLOC_HAVE_MADVISE_HUGE)
 	return (madvise(addr, size, MADV_HUGEPAGE) != 0);
+#elif defined(JEMALLOC_HAVE_MEMCNTL)
+	struct memcntl_mha m = {0};
+	m.mha_cmd = MHA_MAPSIZE_VA;
+	m.mha_pagesize = HUGEPAGE;
+	return (memcntl(addr, size, MC_HAT_ADVISE, (caddr_t)&m, 0, 0) == 0);
 #else
 	return true;
 #endif
@@ -561,14 +566,14 @@ pages_set_thp_state (void *ptr, size_t size) {
 
 static void
 init_thp_state(void) {
-	if (!have_madvise_huge) {
+	if (!have_madvise_huge && !have_memcntl) {
 		if (metadata_thp_enabled() && opt_abort) {
 			malloc_write("<jemalloc>: no MADV_HUGEPAGE support\n");
 			abort();
 		}
 		goto label_error;
 	}
-
+#if defined(JEMALLOC_HAVE_MADVISE_HUGE)
 	static const char sys_state_madvise[] = "always [madvise] never\n";
 	static const char sys_state_always[] = "[always] madvise never\n";
 	static const char sys_state_never[] = "always madvise [never]\n";
@@ -608,6 +613,10 @@ init_thp_state(void) {
 		goto label_error;
 	}
 	return;
+#elif defined(JEMALLOC_HAVE_MEMCNTL)
+	init_system_thp_mode = thp_mode_default;
+	return;
+#endif
 label_error:
 	opt_thp = init_system_thp_mode = thp_mode_not_supported;
 }

@@ -1533,7 +1533,7 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				for (int i = 0; i < thp_mode_names_limit; i++) {
 					if (strncmp(thp_mode_names[i],v, vlen)
 					    == 0) {
-						if (!have_madvise_huge) {
+						if (!have_madvise_huge && !have_memcntl) {
 							CONF_ERROR(
 							    "No THP support",
 							    k, klen, v, vlen);
