@@ -301,6 +301,11 @@
  */
 #undef JEMALLOC_THP
 
+/*
+ * Defined if memcntl page admin call is supported
+ */
+#undef JEMALLOC_HAVE_MEMCNTL
+
 /* Define if operating system has alloca.h header. */
 #undef JEMALLOC_HAS_ALLOCA_H
 

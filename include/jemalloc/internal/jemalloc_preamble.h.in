@@ -217,4 +217,12 @@ static const bool config_high_res_timer =
 #endif
     ;
 
+static const bool have_memcntl =
+#ifdef JEMALLOC_HAVE_MEMCNTL
+    true
+#else
+    false
+#endif
+    ;
+
 #endif /* JEMALLOC_PREAMBLE_H */
