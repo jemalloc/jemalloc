@@ -87,7 +87,7 @@ struct prof_alloc_node_s {
 };
 
 /*
- * Created on the first call to prof_log_start and deleted on prof_log_stop.
+ * Created on the first call to prof_try_log and deleted on prof_log_stop.
  * These are the backtraces and threads that have already been logged by an
  * allocation.
  */
@@ -406,7 +406,7 @@ prof_log_dummy_set(bool new_value) {
 
 bool
 prof_log_start(tsdn_t *tsdn, const char *filename) {
-	if (!opt_prof || !prof_booted) {
+	if (!opt_prof) {
 		return true;
 	}
 
@@ -429,7 +429,7 @@ prof_log_start(tsdn_t *tsdn, const char *filename) {
 	}
 
 	if (!ret) {
-		nstime_update(&log_start_timestamp);
+		nstime_prof_init_update(&log_start_timestamp);
 	}
 
 	malloc_mutex_unlock(tsdn, &log_mtx);
@@ -573,10 +573,9 @@ prof_log_emit_metadata(emitter_t *emitter) {
 	emitter_json_kv(emitter, "lg_sample_rate",
 	    emitter_type_int, &lg_prof_sample);
 
-  const char *res_type =
-    prof_time_res_mode_names[opt_prof_time_res];
-  emitter_json_kv(emitter, "prof_time_resolution",
-      emitter_type_string, &res_type);
+	const char *res_type = prof_time_res_mode_names[opt_prof_time_res];
+	emitter_json_kv(emitter, "prof_time_resolution", emitter_type_string,
+	    &res_type);
 
 	int pid = prof_getpid();
 	emitter_json_kv(emitter, "pid", emitter_type_int, &pid);
@@ -673,6 +672,11 @@ prof_log_stop(tsdn_t *tsdn) {
 #undef PROF_LOG_STOP_BUFSIZE
 
 bool prof_log_init(tsd_t *tsd) {
+	if (malloc_mutex_init(&log_mtx, "prof_log",
+	    WITNESS_RANK_PROF_LOG, malloc_mutex_rank_exclusive)) {
+		return true;
+	}
+
 	if (opt_prof_log) {
 		prof_log_start(tsd_tsdn(tsd), NULL);
 	}
@@ -683,26 +687,9 @@ bool prof_log_init(tsd_t *tsd) {
 		if (opt_abort) {
 			abort();
 		}
-	}
-
-	if (malloc_mutex_init(&log_mtx, "prof_log",
-	    WITNESS_RANK_PROF_LOG, malloc_mutex_rank_exclusive)) {
 		return true;
 	}
 
-	if (ckh_new(tsd, &log_bt_node_set, PROF_CKH_MINITEMS,
-	    prof_bt_node_hash, prof_bt_node_keycomp)) {
-		return true;
-	}
-
-	if (ckh_new(tsd, &log_thr_node_set, PROF_CKH_MINITEMS,
-	    prof_thr_node_hash, prof_thr_node_keycomp)) {
-		return true;
-	}
-
-	nstime_init_zero(&log_start_timestamp);
-
-	log_tables_initialized = true;
 	return false;
 }
 
