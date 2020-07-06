@@ -152,8 +152,7 @@ nstime_monotonic_impl(void) {
 }
 nstime_monotonic_t *JET_MUTABLE nstime_monotonic = nstime_monotonic_impl;
 
-prof_time_res_t opt_prof_time_res =
-	prof_time_res_default;
+prof_time_res_t opt_prof_time_res = prof_time_res_high;
 
 const char *prof_time_res_mode_names[] = {
 	"default",
@@ -192,7 +191,7 @@ nstime_update_impl(nstime_t *time) {
 	nstime_t old_time;
 
 	nstime_copy(&old_time, time);
-  nstime_get(time);
+	nstime_get(time);
 
 	/* Handle non-monotonic clocks. */
 	if (unlikely(nstime_compare(&old_time, time) > 0)) {
@@ -212,5 +211,3 @@ nstime_prof_init_update(nstime_t *time) {
 	nstime_init_zero(time);
 	nstime_prof_update(time);
 }
-
-
