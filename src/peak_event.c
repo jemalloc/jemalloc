@@ -5,12 +5,12 @@
 #include "jemalloc/internal/peak_event.h"
 
 /*
- * Update every 100k by default.  We're not exposing this as a configuration
+ * Update every 64K by default.  We're not exposing this as a configuration
  * option for now; we don't want to bind ourselves too tightly to any particular
  * performance requirements for small values, or guarantee that we'll even be
  * able to provide fine-grained accuracy.
  */
-#define PEAK_EVENT_WAIT (100 * 1024)
+#define PEAK_EVENT_WAIT (64 * 1024)
 
 /* Update the peak with current tsd state. */
 void
