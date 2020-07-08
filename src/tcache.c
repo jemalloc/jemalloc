@@ -25,12 +25,12 @@ unsigned opt_tcache_nslots_large = 20;
 /*
  * We attempt to make the number of slots in a tcache bin for a given size class
  * equal to the number of objects in a slab times some multiplier.  By default,
- * the multiplier is 1/2 (i.e. we set the maximum number of objects in the
- * tcache to half the number of objects in a slab).
+ * the multiplier is 2 (i.e. we set the maximum number of objects in the tcache
+ * to twice the number of objects in a slab).
  * This is bounded by some other constraints as well, like the fact that it
  * must be even, must be less than opt_tcache_nslots_small_max, etc..
  */
-ssize_t	opt_lg_tcache_nslots_mul = -1;
+ssize_t	opt_lg_tcache_nslots_mul = 1;
 
 /*
  * Number of allocation bytes between tcache incremental GCs.  Again, this
