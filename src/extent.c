@@ -86,7 +86,7 @@ ecache_alloc(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 	bool commit = true;
 	edata_t *edata = extent_recycle(tsdn, pac, ehooks, ecache, new_addr,
 	    size, alignment, zero, &commit, false);
-	assert(edata == NULL || !edata_ranged_get(edata));
+	assert(edata == NULL || edata_pai_get(edata) == EXTENT_PAI_PAC);
 	return edata;
 }
 
@@ -115,7 +115,7 @@ ecache_alloc_grow(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 		    size, alignment, zero, &commit);
 	}
 
-	assert(edata == NULL || !edata_ranged_get(edata));
+	assert(edata == NULL || edata_pai_get(edata) == EXTENT_PAI_PAC);
 	return edata;
 }
 
@@ -124,7 +124,7 @@ ecache_dalloc(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
     edata_t *edata) {
 	assert(edata_base_get(edata) != NULL);
 	assert(edata_size_get(edata) != 0);
-	assert(!edata_ranged_get(edata));
+	assert(edata_pai_get(edata) == EXTENT_PAI_PAC);
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
@@ -650,7 +650,7 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 
 	edata_init(edata, ecache_ind_get(&pac->ecache_retained), ptr,
 	    alloc_size, false, SC_NSIZES, extent_sn_next(pac),
-	    extent_state_active, zeroed, committed, /* ranged */ false,
+	    extent_state_active, zeroed, committed, EXTENT_PAI_PAC,
 	    EXTENT_IS_HEAD);
 
 	if (extent_register_no_gdump_add(tsdn, pac, edata)) {
@@ -790,7 +790,7 @@ extent_alloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	}
 	edata_init(edata, ecache_ind_get(&pac->ecache_dirty), addr,
 	    size, /* slab */ false, SC_NSIZES, extent_sn_next(pac),
-	    extent_state_active, zero, *commit, /* ranged */ false,
+	    extent_state_active, zero, *commit, EXTENT_PAI_PAC,
 	    EXTENT_NOT_HEAD);
 	if (extent_register(tsdn, pac, edata)) {
 		edata_cache_put(tsdn, pac->edata_cache, edata);
@@ -1026,7 +1026,7 @@ extent_dalloc_wrapper_try(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 void
 extent_dalloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     edata_t *edata) {
-	assert(!edata_ranged_get(edata));
+	assert(edata_pai_get(edata) == EXTENT_PAI_PAC);
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
@@ -1180,8 +1180,7 @@ extent_split_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	    (void *)((uintptr_t)edata_base_get(edata) + size_a), size_b,
 	    /* slab */ false, SC_NSIZES, edata_sn_get(edata),
 	    edata_state_get(edata), edata_zeroed_get(edata),
-	    edata_committed_get(edata), edata_ranged_get(edata),
-	    EXTENT_NOT_HEAD);
+	    edata_committed_get(edata), EXTENT_PAI_PAC, EXTENT_NOT_HEAD);
 	emap_prepare_t prepare;
 	bool err = emap_split_prepare(tsdn, pac->emap, &prepare, edata,
 	    size_a, trail, size_b);

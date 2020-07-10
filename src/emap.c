@@ -249,7 +249,7 @@ emap_split_prepare(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
 	 */
 	edata_t lead = {0};
 	edata_init(&lead, 0U, edata_addr_get(edata), size_a, false, 0, 0,
-	    extent_state_active, false, false, false, EXTENT_NOT_HEAD);
+	    extent_state_active, false, false, EXTENT_PAI_PAC, EXTENT_NOT_HEAD);
 
 	emap_rtree_leaf_elms_lookup(tsdn, emap, rtree_ctx, &lead, false, true,
 	    &prepare->lead_elm_a, &prepare->lead_elm_b);

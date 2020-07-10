@@ -26,6 +26,16 @@ enum extent_head_state_e {
 };
 typedef enum extent_head_state_e extent_head_state_t;
 
+/*
+ * Which implementation of the page allocator interface, (PAI, defined in
+ * pai.h) owns the given extent?
+ */
+enum extent_pai_e {
+	EXTENT_PAI_PAC = 0,
+	EXTENT_PAI_HPA = 1
+};
+typedef enum extent_pai_e extent_pai_t;
+
 struct e_prof_info_s {
 	/* Time when this was allocated. */
 	nstime_t	e_prof_alloc_time;
@@ -68,7 +78,7 @@ struct edata_s {
 	 * a: arena_ind
 	 * b: slab
 	 * c: committed
-	 * r: ranged
+	 * p: pai
 	 * z: zeroed
 	 * t: state
 	 * i: szind
@@ -76,7 +86,7 @@ struct edata_s {
 	 * s: bin_shard
 	 * n: sn
 	 *
-	 * nnnnnnnn ... nnnnnnss ssssffff ffffffii iiiiiitt zrcbaaaa aaaaaaaa
+	 * nnnnnnnn ... nnnnnnss ssssffff ffffffii iiiiiitt zpcbaaaa aaaaaaaa
 	 *
 	 * arena_ind: Arena from which this extent came, or all 1 bits if
 	 *            unassociated.
@@ -91,10 +101,7 @@ struct edata_s {
 	 *            as on a system that overcommits and satisfies physical
 	 *            memory needs on demand via soft page faults.
 	 *
-	 * ranged: Whether or not this extent is currently owned by the range
-	 *         allocator.  This may be false even if the extent originally
-	 *         came from a range allocator; this indicates its *current*
-	 *         owner, not its original owner.
+	 * pai: The pai flag is an extent_pai_t.
 	 *
 	 * zeroed: The zeroed flag is used by extent recycling code to track
 	 *         whether memory is zero-filled.
@@ -136,12 +143,12 @@ struct edata_s {
 #define EDATA_BITS_COMMITTED_SHIFT  (EDATA_BITS_SLAB_WIDTH + EDATA_BITS_SLAB_SHIFT)
 #define EDATA_BITS_COMMITTED_MASK  MASK(EDATA_BITS_COMMITTED_WIDTH, EDATA_BITS_COMMITTED_SHIFT)
 
-#define EDATA_BITS_RANGED_WIDTH  1
-#define EDATA_BITS_RANGED_SHIFT  (EDATA_BITS_COMMITTED_WIDTH + EDATA_BITS_COMMITTED_SHIFT)
-#define EDATA_BITS_RANGED_MASK  MASK(EDATA_BITS_RANGED_WIDTH, EDATA_BITS_RANGED_SHIFT)
+#define EDATA_BITS_PAI_WIDTH  1
+#define EDATA_BITS_PAI_SHIFT  (EDATA_BITS_COMMITTED_WIDTH + EDATA_BITS_COMMITTED_SHIFT)
+#define EDATA_BITS_PAI_MASK  MASK(EDATA_BITS_PAI_WIDTH, EDATA_BITS_PAI_SHIFT)
 
 #define EDATA_BITS_ZEROED_WIDTH  1
-#define EDATA_BITS_ZEROED_SHIFT  (EDATA_BITS_RANGED_WIDTH + EDATA_BITS_RANGED_SHIFT)
+#define EDATA_BITS_ZEROED_SHIFT  (EDATA_BITS_PAI_WIDTH + EDATA_BITS_PAI_SHIFT)
 #define EDATA_BITS_ZEROED_MASK  MASK(EDATA_BITS_ZEROED_WIDTH, EDATA_BITS_ZEROED_SHIFT)
 
 #define EDATA_BITS_STATE_WIDTH  2
@@ -291,10 +298,10 @@ edata_committed_get(const edata_t *edata) {
 	    EDATA_BITS_COMMITTED_SHIFT);
 }
 
-static inline bool
-edata_ranged_get(const edata_t *edata) {
-	return (bool)((edata->e_bits & EDATA_BITS_RANGED_MASK) >>
-	    EDATA_BITS_RANGED_SHIFT);
+static inline extent_pai_t
+edata_pai_get(const edata_t *edata) {
+	return (extent_pai_t)((edata->e_bits & EDATA_BITS_PAI_MASK) >>
+	    EDATA_BITS_PAI_SHIFT);
 }
 
 static inline bool
@@ -488,9 +495,9 @@ edata_committed_set(edata_t *edata, bool committed) {
 }
 
 static inline void
-edata_ranged_set(edata_t *edata, bool ranged) {
-	edata->e_bits = (edata->e_bits & ~EDATA_BITS_RANGED_MASK) |
-	    ((uint64_t)ranged << EDATA_BITS_RANGED_SHIFT);
+edata_pai_set(edata_t *edata, extent_pai_t pai) {
+	edata->e_bits = (edata->e_bits & ~EDATA_BITS_PAI_MASK) |
+	    ((uint64_t)pai << EDATA_BITS_PAI_SHIFT);
 }
 
 static inline void
@@ -538,9 +545,8 @@ edata_is_head_set(edata_t *edata, bool is_head) {
 static inline void
 edata_init(edata_t *edata, unsigned arena_ind, void *addr, size_t size,
     bool slab, szind_t szind, size_t sn, extent_state_t state, bool zeroed,
-    bool committed, bool ranged, extent_head_state_t is_head) {
+    bool committed, extent_pai_t pai, extent_head_state_t is_head) {
 	assert(addr == PAGE_ADDR2BASE(addr) || !slab);
-	assert(ranged == false);
 
 	edata_arena_ind_set(edata, arena_ind);
 	edata_addr_set(edata, addr);
@@ -551,7 +557,7 @@ edata_init(edata_t *edata, unsigned arena_ind, void *addr, size_t size,
 	edata_state_set(edata, state);
 	edata_zeroed_set(edata, zeroed);
 	edata_committed_set(edata, committed);
-	edata_ranged_set(edata, ranged);
+	edata_pai_set(edata, pai);
 	edata_is_head_set(edata, is_head == EXTENT_IS_HEAD);
 	if (config_prof) {
 		edata_prof_tctx_set(edata, NULL);
@@ -569,7 +575,12 @@ edata_binit(edata_t *edata, void *addr, size_t bsize, size_t sn) {
 	edata_state_set(edata, extent_state_active);
 	edata_zeroed_set(edata, true);
 	edata_committed_set(edata, true);
-	edata_ranged_set(edata, false);
+	/*
+	 * This isn't strictly true, but base allocated extents never get
+	 * deallocated and can't be looked up in the emap, but no sense in
+	 * wasting a state bit to encode this fact.
+	 */
+	edata_pai_set(edata, EXTENT_PAI_PAC);
 }
 
 static inline int
