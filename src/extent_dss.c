@@ -156,8 +156,8 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 				    gap_addr_page, gap_size_page, false,
 				    SC_NSIZES, extent_sn_next(
 					&arena->pa_shard.pac),
-				    extent_state_active, false, true, false,
-				    EXTENT_NOT_HEAD);
+				    extent_state_active, false, true,
+				    EXTENT_PAI_PAC, EXTENT_NOT_HEAD);
 			}
 			/*
 			 * Compute the address just past the end of the desired
@@ -206,7 +206,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 					    arena_ind_get(arena), ret, size,
 					    size, false, SC_NSIZES,
 					    extent_state_active, false, true,
-					    false, EXTENT_NOT_HEAD);
+					    EXTENT_PAI_PAC, EXTENT_NOT_HEAD);
 					if (extent_purge_forced_wrapper(tsdn,
 					    ehooks, &edata, 0, size)) {
 						memset(ret, 0, size);
