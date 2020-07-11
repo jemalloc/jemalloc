@@ -202,7 +202,31 @@ struct edata_s {
 	 * This keeps the size of an edata_t at exactly 128 bytes on
 	 * architectures with 8-byte pointers and 4k pages.
 	 */
-	void *reserved1, *reserved2;
+	void *reserved1;
+	union {
+		/*
+		 * We could steal a low bit from these fields to indicate what
+		 * sort of "thing" this is (a page slab, an object within a page
+		 * slab, or a non-pageslab range).  We don't do this yet, but it
+		 * would enable some extra asserts.
+		 */
+
+		/*
+		 * If this edata is from an HPA, it may be part of some larger
+		 * pageslab.  Track it if so.  Otherwise (either because it's
+		 * not part of a pageslab, or not from the HPA at all), NULL.
+		 */
+		edata_t *ps;
+		/*
+		 * If this edata *is* a pageslab, then it has some longest free
+		 * range in it.  Track it.
+		 */
+		struct {
+			uint32_t longest_free_range;
+			/* Not yet tracked. */
+			/* uint32_t longest_free_range_pos; */
+		};
+	};
 
 	union {
 		/*
@@ -346,6 +370,18 @@ edata_bsize_get(const edata_t *edata) {
 	return edata->e_bsize;
 }
 
+static inline edata_t *
+edata_ps_get(const edata_t *edata) {
+	assert(edata_pai_get(edata) == EXTENT_PAI_HPA);
+	return edata->ps;
+}
+
+static inline uint32_t
+edata_longest_free_range_get(const edata_t *edata) {
+	assert(edata_pai_get(edata) == EXTENT_PAI_HPA);
+	return edata->longest_free_range;
+}
+
 static inline void *
 edata_before_get(const edata_t *edata) {
 	return (void *)((uintptr_t)edata_base_get(edata) - PAGE);
@@ -426,6 +462,19 @@ edata_esn_set(edata_t *edata, size_t esn) {
 static inline void
 edata_bsize_set(edata_t *edata, size_t bsize) {
 	edata->e_bsize = bsize;
+}
+
+static inline void
+edata_ps_set(edata_t *edata, edata_t *ps) {
+	assert(edata_pai_get(edata) == EXTENT_PAI_HPA || ps == NULL);
+	edata->ps = ps;
+}
+
+static inline void
+edata_longest_free_range_set(edata_t *edata, uint32_t longest_free_range) {
+	assert(edata_pai_get(edata) == EXTENT_PAI_HPA
+	    || longest_free_range == 0);
+	edata->longest_free_range = longest_free_range;
 }
 
 static inline void
@@ -562,6 +611,8 @@ edata_init(edata_t *edata, unsigned arena_ind, void *addr, size_t size,
 	if (config_prof) {
 		edata_prof_tctx_set(edata, NULL);
 	}
+	edata_ps_set(edata, NULL);
+	edata_longest_free_range_set(edata, 0);
 }
 
 static inline void
@@ -581,6 +632,8 @@ edata_binit(edata_t *edata, void *addr, size_t bsize, size_t sn) {
 	 * wasting a state bit to encode this fact.
 	 */
 	edata_pai_set(edata, EXTENT_PAI_PAC);
+	edata_ps_set(edata, NULL);
+	edata_longest_free_range_set(edata, 0);
 }
 
 static inline int
