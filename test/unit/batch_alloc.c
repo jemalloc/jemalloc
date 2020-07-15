@@ -52,6 +52,24 @@ release_batch(void **ptrs, size_t batch) {
 	}
 }
 
+typedef struct batch_alloc_packet_s batch_alloc_packet_t;
+struct batch_alloc_packet_s {
+	void **ptrs;
+	size_t num;
+	size_t size;
+	int flags;
+};
+
+static size_t
+batch_alloc_wrapper(void **ptrs, size_t num, size_t size, int flags) {
+	batch_alloc_packet_t batch_alloc_packet = {ptrs, num, size, flags};
+	size_t filled;
+	size_t len = sizeof(size_t);
+	assert_d_eq(mallctl("experimental.batch_alloc", &filled, &len,
+	    &batch_alloc_packet, sizeof(batch_alloc_packet)), 0, "");
+	return filled;
+}
+
 static void
 test_wrapper(size_t size, size_t alignment, bool zero) {
 	const size_t usize =
@@ -82,7 +100,8 @@ test_wrapper(size_t size, size_t alignment, bool zero) {
 			if (zero) {
 				flags |= MALLOCX_ZERO;
 			}
-			size_t filled = batch_alloc(ptrs, batch, size, flags);
+			size_t filled = batch_alloc_wrapper(ptrs, batch, size,
+			    flags);
 			assert_zu_eq(filled, batch, "");
 			verify_batch(ptrs, batch, usize, zero, nregs);
 			release_batch(ptrs, batch);
