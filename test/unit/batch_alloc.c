@@ -80,6 +80,24 @@ release_batch(void **ptrs, size_t batch, size_t size) {
 	}
 }
 
+typedef struct batch_alloc_packet_s batch_alloc_packet_t;
+struct batch_alloc_packet_s {
+	void **ptrs;
+	size_t num;
+	size_t size;
+	int flags;
+};
+
+static size_t
+batch_alloc_wrapper(void **ptrs, size_t num, size_t size, int flags) {
+	batch_alloc_packet_t batch_alloc_packet = {ptrs, num, size, flags};
+	size_t filled;
+	size_t len = sizeof(size_t);
+	assert_d_eq(mallctl("experimental.batch_alloc", &filled, &len,
+	    &batch_alloc_packet, sizeof(batch_alloc_packet)), 0, "");
+	return filled;
+}
+
 static void
 test_wrapper(size_t size, size_t alignment, bool zero, unsigned arena_flag) {
 	tsd_t *tsd = tsd_fetch();
@@ -131,7 +149,8 @@ test_wrapper(size_t size, size_t alignment, bool zero, unsigned arena_flag) {
 			assert(batch < BATCH_MAX);
 			bin_stats_t stats_before, stats_after;
 			memcpy(&stats_before, &bin->stats, sizeof(bin_stats_t));
-			size_t filled = batch_alloc(ptrs, batch, size, flags);
+			size_t filled = batch_alloc_wrapper(ptrs, batch, size,
+			    flags);
 			assert_zu_eq(filled, batch, "");
 			memcpy(&stats_after, &bin->stats, sizeof(bin_stats_t));
 			verify_stats(&stats_before, &stats_after, batch, nregs);

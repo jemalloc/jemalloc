@@ -254,6 +254,7 @@ CTL_PROTO(experimental_arenas_i_pactivep)
 INDEX_PROTO(experimental_arenas_i)
 CTL_PROTO(experimental_prof_recent_alloc_max)
 CTL_PROTO(experimental_prof_recent_alloc_dump)
+CTL_PROTO(experimental_batch_alloc)
 
 #define MUTEX_STATS_CTL_PROTO_GEN(n)					\
 CTL_PROTO(stats_##n##_num_ops)						\
@@ -675,7 +676,8 @@ static const ctl_named_node_t experimental_node[] = {
 	{NAME("hooks"),		CHILD(named, experimental_hooks)},
 	{NAME("utilization"),	CHILD(named, experimental_utilization)},
 	{NAME("arenas"),	CHILD(indexed, experimental_arenas)},
-	{NAME("prof_recent"),	CHILD(named, experimental_prof_recent)}
+	{NAME("prof_recent"),	CHILD(named, experimental_prof_recent)},
+	{NAME("batch_alloc"),	CTL(experimental_batch_alloc)}
 };
 
 static const ctl_named_node_t	root_node[] = {
@@ -3631,6 +3633,34 @@ experimental_prof_recent_alloc_dump_ctl(tsd_t *tsd, const size_t *mib,
 
 	prof_recent_alloc_dump(tsd, write_cb_packet.write_cb,
 	    write_cb_packet.cbopaque);
+
+	ret = 0;
+
+label_return:
+	return ret;
+}
+
+typedef struct batch_alloc_packet_s batch_alloc_packet_t;
+struct batch_alloc_packet_s {
+	void **ptrs;
+	size_t num;
+	size_t size;
+	int flags;
+};
+
+static int
+experimental_batch_alloc_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+
+	VERIFY_READ(size_t);
+
+	batch_alloc_packet_t batch_alloc_packet;
+	ASSURED_WRITE(batch_alloc_packet, batch_alloc_packet_t);
+	size_t filled = batch_alloc(batch_alloc_packet.ptrs,
+	    batch_alloc_packet.num, batch_alloc_packet.size,
+	    batch_alloc_packet.flags);
+	READ(filled, size_t);
 
 	ret = 0;
 
