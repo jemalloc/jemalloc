@@ -136,7 +136,7 @@ prng_range_u32(atomic_u32_t *state, uint32_t range, bool atomic) {
 	assert(range > 1);
 
 	/* Compute the ceiling of lg(range). */
-	lg_range = ffs_u32(pow2_ceil_u32(range)) - 1;
+	lg_range = ffs_u32(pow2_ceil_u32(range));
 
 	/* Generate a result in [0..range) via repeated trial. */
 	do {
@@ -154,7 +154,7 @@ prng_range_u64(uint64_t *state, uint64_t range) {
 	assert(range > 1);
 
 	/* Compute the ceiling of lg(range). */
-	lg_range = ffs_u64(pow2_ceil_u64(range)) - 1;
+	lg_range = ffs_u64(pow2_ceil_u64(range));
 
 	/* Generate a result in [0..range) via repeated trial. */
 	do {
@@ -172,7 +172,7 @@ prng_range_zu(atomic_zu_t *state, size_t range, bool atomic) {
 	assert(range > 1);
 
 	/* Compute the ceiling of lg(range). */
-	lg_range = ffs_u64(pow2_ceil_u64(range)) - 1;
+	lg_range = ffs_u64(pow2_ceil_u64(range));
 
 	/* Generate a result in [0..range) via repeated trial. */
 	do {

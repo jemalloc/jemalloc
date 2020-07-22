@@ -101,11 +101,63 @@ TEST_BEGIN(test_lg_ceil_floor) {
 }
 TEST_END
 
+#define TEST_FFS(t, suf, test_suf, pri) do {				\
+	for (unsigned i = 0; i < sizeof(t) * 8; i++) {			\
+		for (unsigned j = 0; j <= i; j++) {			\
+			for (unsigned k = 0; k <= j; k++) {		\
+				t x = (t)1 << i;			\
+				x |= (t)1 << j;				\
+				x |= (t)1 << k;				\
+				expect_##test_suf##_eq(ffs_##suf(x), k,	\
+				    "Unexpected result, x=%"pri, x);	\
+			}						\
+		}							\
+	}								\
+} while(0)
+
+TEST_BEGIN(test_ffs_u) {
+	TEST_FFS(unsigned, u, u,"u");
+}
+TEST_END
+
+
+TEST_BEGIN(test_ffs_lu) {
+	TEST_FFS(unsigned long, lu, lu, "lu");
+}
+TEST_END
+
+TEST_BEGIN(test_ffs_llu) {
+	TEST_FFS(unsigned long long, llu, qd, "llu");
+}
+TEST_END
+
+TEST_BEGIN(test_ffs_u32) {
+	TEST_FFS(uint32_t, u32, u32, FMTu32);
+}
+TEST_END
+
+
+TEST_BEGIN(test_ffs_u64) {
+	TEST_FFS(uint64_t, u64, u64, FMTu64);
+}
+TEST_END
+
+TEST_BEGIN(test_ffs_zu) {
+	TEST_FFS(size_t, zu, zu, "zu");
+}
+TEST_END
+
 int
 main(void) {
 	return test(
 	    test_pow2_ceil_u64,
 	    test_pow2_ceil_u32,
 	    test_pow2_ceil_zu,
-	    test_lg_ceil_floor);
+	    test_lg_ceil_floor,
+	    test_ffs_u,
+	    test_ffs_lu,
+	    test_ffs_llu,
+	    test_ffs_u32,
+	    test_ffs_u64,
+	    test_ffs_zu);
 }

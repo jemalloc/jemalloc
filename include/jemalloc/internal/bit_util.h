@@ -11,20 +11,29 @@
 #  error JEMALLOC_INTERNAL_FFS{,L,LL} should have been defined by configure
 #endif
 
-
+/*
+ * Unlike the builtins and posix ffs functions, our ffs requires a non-zero
+ * input, and returns the position of the lowest bit set (as opposed to the
+ * posix versions, which return 1 larger than that position and use a return
+ * value of zero as a sentinel.  This tends to simplify logic in callers, and
+ * allows for consistency with the builtins we build fls on top of.
+ */
 BIT_UTIL_INLINE unsigned
-ffs_llu(unsigned long long bitmap) {
-	return JEMALLOC_INTERNAL_FFSLL(bitmap);
+ffs_llu(unsigned long long x) {
+	util_assume(x != 0);
+	return JEMALLOC_INTERNAL_FFSLL(x) - 1;
 }
 
 BIT_UTIL_INLINE unsigned
-ffs_lu(unsigned long bitmap) {
-	return JEMALLOC_INTERNAL_FFSL(bitmap);
+ffs_lu(unsigned long x) {
+	util_assume(x != 0);
+	return JEMALLOC_INTERNAL_FFSL(x) - 1;
 }
 
 BIT_UTIL_INLINE unsigned
-ffs_u(unsigned bitmap) {
-	return JEMALLOC_INTERNAL_FFS(bitmap);
+ffs_u(unsigned x) {
+	util_assume(x != 0);
+	return JEMALLOC_INTERNAL_FFS(x) - 1;
 }
 
 #ifdef JEMALLOC_INTERNAL_POPCOUNTL
@@ -41,7 +50,8 @@ popcount_lu(unsigned long bitmap) {
 
 BIT_UTIL_INLINE size_t
 cfs_lu(unsigned long* bitmap) {
-	size_t bit = ffs_lu(*bitmap) - 1;
+	util_assume(*bitmap != 0);
+	size_t bit = ffs_lu(*bitmap);
 	*bitmap ^= ZU(1) << bit;
 	return bit;
 }
@@ -209,7 +219,7 @@ lg_floor(size_t x) {
 		return (8 << LG_SIZEOF_PTR) - 1;
 	}
 	x++;
-	return ffs_zu(x) - 2;
+	return ffs_zu(x) - 1;
 }
 #endif
 
