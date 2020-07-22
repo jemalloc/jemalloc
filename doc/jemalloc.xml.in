@@ -3608,7 +3608,8 @@ MAPPED_LIBRARIES:
             <constant>NULL</constant>, and <parameter>newlen</parameter> is too
             large or too small.  Alternatively, <parameter>*oldlenp</parameter>
             is too large or too small; in this case as much data as possible
-            are read despite the error.</para></listitem>
+            are read despite the error, with the amount of data read being
+            recorded in <parameter>*oldlenp</parameter>.</para></listitem>
           </varlistentry>
           <varlistentry>
             <term><errorname>ENOENT</errorname></term>
