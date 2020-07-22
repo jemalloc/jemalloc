@@ -42,6 +42,14 @@ list_type##_replace(list_type##_t *list, el_type *to_remove,		\
 static inline void							\
 list_type##_remove(list_type##_t *list, el_type *item) {		\
 	ql_remove(&list->head, item, linkage);				\
+}									\
+static inline bool							\
+list_type##_empty(list_type##_t *list) {				\
+	return ql_empty(&list->head);					\
+}									\
+static inline void							\
+list_type##_concat(list_type##_t *list_a, list_type##_t *list_b) {	\
+	ql_concat(&list_a->head, &list_b->head, linkage);		\
 }
 
 #endif /* JEMALLOC_INTERNAL_TYPED_LIST_H */
