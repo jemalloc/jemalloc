@@ -2118,7 +2118,7 @@ esac
 fi
 
 dnl ============================================================================
-dnl Check for __builtin_clz() and __builtin_clzl().
+dnl Check for __builtin_clz(), __builtin_clzl(), and __builtin_clzll().
 
 AC_CACHE_CHECK([for __builtin_clz],
                [je_cv_builtin_clz],
@@ -2131,6 +2131,10 @@ AC_CACHE_CHECK([for __builtin_clz],
                                                 {
                                                         unsigned long x = 0;
                                                         int y = __builtin_clzl(x);
+                                                }
+                                                {
+                                                        unsigned long long x = 0;
+                                                        int y = __builtin_clzll(x);
                                                 }
                                                 ])],
                                [je_cv_builtin_clz=yes],

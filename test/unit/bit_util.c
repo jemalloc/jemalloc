@@ -120,7 +120,6 @@ TEST_BEGIN(test_ffs_u) {
 }
 TEST_END
 
-
 TEST_BEGIN(test_ffs_lu) {
 	TEST_FFS(unsigned long, lu, lu, "lu");
 }
@@ -136,7 +135,6 @@ TEST_BEGIN(test_ffs_u32) {
 }
 TEST_END
 
-
 TEST_BEGIN(test_ffs_u64) {
 	TEST_FFS(uint64_t, u64, u64, FMTu64);
 }
@@ -147,9 +145,69 @@ TEST_BEGIN(test_ffs_zu) {
 }
 TEST_END
 
+#define TEST_FLS(t, suf, test_suf, pri) do {				\
+	for (unsigned i = 0; i < sizeof(t) * 8; i++) {			\
+		for (unsigned j = 0; j <= i; j++) {			\
+			for (unsigned k = 0; k <= j; k++) {		\
+				t x = (t)1 << i;			\
+				x |= (t)1 << j;				\
+				x |= (t)1 << k;				\
+				expect_##test_suf##_eq(fls_##suf(x), i,	\
+				    "Unexpected result, x=%"pri, x);	\
+			}						\
+		}							\
+	}								\
+} while(0)
+
+TEST_BEGIN(test_fls_u) {
+	TEST_FLS(unsigned, u, u,"u");
+}
+TEST_END
+
+TEST_BEGIN(test_fls_lu) {
+	TEST_FLS(unsigned long, lu, lu, "lu");
+}
+TEST_END
+
+TEST_BEGIN(test_fls_llu) {
+	TEST_FLS(unsigned long long, llu, qd, "llu");
+}
+TEST_END
+
+TEST_BEGIN(test_fls_u32) {
+	TEST_FLS(uint32_t, u32, u32, FMTu32);
+}
+TEST_END
+
+TEST_BEGIN(test_fls_u64) {
+	TEST_FLS(uint64_t, u64, u64, FMTu64);
+}
+TEST_END
+
+TEST_BEGIN(test_fls_zu) {
+	TEST_FLS(size_t, zu, zu, "zu");
+}
+TEST_END
+
+TEST_BEGIN(test_fls_u_slow) {
+	TEST_FLS(unsigned, u_slow, u,"u");
+}
+TEST_END
+
+TEST_BEGIN(test_fls_lu_slow) {
+	TEST_FLS(unsigned long, lu_slow, lu, "lu");
+}
+TEST_END
+
+TEST_BEGIN(test_fls_llu_slow) {
+	TEST_FLS(unsigned long long, llu_slow, qd, "llu");
+}
+TEST_END
+
+
 int
 main(void) {
-	return test(
+	return test_no_reentrancy(
 	    test_pow2_ceil_u64,
 	    test_pow2_ceil_u32,
 	    test_pow2_ceil_zu,
@@ -159,5 +217,14 @@ main(void) {
 	    test_ffs_llu,
 	    test_ffs_u32,
 	    test_ffs_u64,
-	    test_ffs_zu);
+	    test_ffs_zu,
+	    test_fls_u,
+	    test_fls_lu,
+	    test_fls_llu,
+	    test_fls_u32,
+	    test_fls_u64,
+	    test_fls_zu,
+	    test_fls_u_slow,
+	    test_fls_lu_slow,
+	    test_fls_llu_slow);
 }
