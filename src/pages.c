@@ -211,8 +211,8 @@ pages_map(void *addr, size_t size, size_t alignment, bool *commit) {
 			flags |= MAP_FIXED | MAP_EXCL;
 		} else {
 			unsigned alignment_bits = ffs_zu(alignment);
-			assert(alignment_bits > 1);
-			flags |= MAP_ALIGNED(alignment_bits - 1);
+			assert(alignment_bits > 0);
+			flags |= MAP_ALIGNED(alignment_bits);
 		}
 
 		void *ret = mmap(addr, size, prot, flags, -1, 0);
@@ -600,7 +600,7 @@ init_thp_state(void) {
 #endif
 
         if (nread < 0) {
-		goto label_error; 
+		goto label_error;
         }
 
 	if (strncmp(buf, sys_state_madvise, (size_t)nread) == 0) {
