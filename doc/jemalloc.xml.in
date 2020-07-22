@@ -1760,7 +1760,16 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         automatically managed one that is used by default.  Each explicit cache
         can be used by only one thread at a time; the application must assure
         that this constraint holds.
+        </para>
+
+        <para>If the amount of space supplied for storing the thread-specific
+        cache identifier does not equal
+        <code language="C">sizeof(<type>unsigned</type>)</code>, no
+        thread-specific cache will be created, no data will be written to the
+        space pointed by <parameter>oldp</parameter>, and
+        <parameter>*oldlenp</parameter> will be set to 0.
         </para></listitem>
+
       </varlistentry>
 
       <varlistentry id="tcache.flush">
@@ -2300,7 +2309,14 @@ struct extent_hooks_s {
         </term>
         <listitem><para>Explicitly create a new arena outside the range of
         automatically managed arenas, with optionally specified extent hooks,
-        and return the new arena index.</para></listitem>
+        and return the new arena index.</para>
+
+        <para>If the amount of space supplied for storing the arena index does
+        not equal <code language="C">sizeof(<type>unsigned</type>)</code>, no
+        arena will be created, no data will be written to the space pointed by
+        <parameter>oldp</parameter>, and <parameter>*oldlenp</parameter> will
+        be set to 0.
+        </para></listitem>
       </varlistentry>
 
       <varlistentry id="arenas.lookup">
@@ -3607,7 +3623,8 @@ MAPPED_LIBRARIES:
             <listitem><para><parameter>newp</parameter> is not
             <constant>NULL</constant>, and <parameter>newlen</parameter> is too
             large or too small.  Alternatively, <parameter>*oldlenp</parameter>
-            is too large or too small; in this case as much data as possible
+            is too large or too small; when it happens, except for a very few
+            cases explicitly documented otherwise, as much data as possible
             are read despite the error, with the amount of data read being
             recorded in <parameter>*oldlenp</parameter>.</para></listitem>
           </varlistentry>

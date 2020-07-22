@@ -1488,6 +1488,15 @@ ctl_mtx_assert_held(tsdn_t *tsdn) {
 	}								\
 } while (0)
 
+/* Verify that the space provided is enough. */
+#define VERIFY_READ(t)	do {						\
+	if (oldp == NULL || oldlenp == NULL || *oldlenp != sizeof(t)) {	\
+		*oldlenp = 0;						\
+		ret = EINVAL;						\
+		goto label_return;					\
+	}								\
+} while (0)
+
 #define READ(v, t)	do {						\
 	if (oldp != NULL && oldlenp != NULL) {				\
 		if (*oldlenp != sizeof(t)) {				\
@@ -1559,8 +1568,8 @@ label_return:								\
 
 #define CTL_RO_CGEN(c, n, v, t)						\
 static int								\
-n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, \
-    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {			\
+n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,			\
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {		\
 	int ret;							\
 	t oldval;							\
 									\
@@ -1602,8 +1611,8 @@ label_return:								\
  */
 #define CTL_RO_NL_CGEN(c, n, v, t)					\
 static int								\
-n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, \
-    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {			\
+n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,			\
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {		\
 	int ret;							\
 	t oldval;							\
 									\
@@ -1621,8 +1630,8 @@ label_return:								\
 
 #define CTL_RO_NL_GEN(n, v, t)						\
 static int								\
-n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, \
-    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {			\
+n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,			\
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {		\
 	int ret;							\
 	t oldval;							\
 									\
@@ -1637,8 +1646,8 @@ label_return:								\
 
 #define CTL_RO_CONFIG_GEN(n, t)						\
 static int								\
-n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, \
-    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {			\
+n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,			\
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {		\
 	int ret;							\
 	t oldval;							\
 									\
@@ -2103,6 +2112,7 @@ tcache_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 	unsigned tcache_ind;
 
 	READONLY();
+	VERIFY_READ(unsigned);
 	if (tcaches_create(tsd, b0get(), &tcache_ind)) {
 		ret = EFAULT;
 		goto label_return;
@@ -2608,10 +2618,6 @@ arenas_narenas_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 	READONLY();
-	if (*oldlenp != sizeof(unsigned)) {
-		ret = EINVAL;
-		goto label_return;
-	}
 	narenas = ctl_arenas->narenas;
 	READ(narenas, unsigned);
 
@@ -2702,6 +2708,7 @@ arenas_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 
+	VERIFY_READ(unsigned);
 	extent_hooks = (extent_hooks_t *)&ehooks_default_extent_hooks;
 	WRITE(extent_hooks, extent_hooks_t *);
 	if ((arena_ind = ctl_arena_init(tsd, extent_hooks)) == UINT_MAX) {
@@ -2731,12 +2738,14 @@ arenas_lookup_ctl(tsd_t *tsd, const size_t *mib,
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 	WRITE(ptr, void *);
 	edata = emap_edata_lookup(tsd_tsdn(tsd), &arena_emap_global, ptr);
-	if (edata == NULL)
+	if (edata == NULL) {
 		goto label_return;
+	}
 
 	arena = arena_get_from_edata(edata);
-	if (arena == NULL)
+	if (arena == NULL) {
 		goto label_return;
+	}
 
 	arena_ind = arena_ind_get(arena);
 	READ(arena_ind, unsigned);
