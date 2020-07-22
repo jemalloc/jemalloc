@@ -1494,6 +1494,7 @@ ctl_mtx_assert_held(tsdn_t *tsdn) {
 			size_t	copylen = (sizeof(t) <= *oldlenp)	\
 			    ? sizeof(t) : *oldlenp;			\
 			memcpy(oldp, (void *)&(v), copylen);		\
+			*oldlenp = copylen;				\
 			ret = EINVAL;					\
 			goto label_return;				\
 		}							\
