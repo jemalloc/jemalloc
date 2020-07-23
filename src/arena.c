@@ -885,11 +885,13 @@ label_refill:
 
 size_t
 arena_fill_small_fresh(tsdn_t *tsdn, arena_t *arena, szind_t binind,
-    void **ptrs, size_t nfill) {
+    void **ptrs, size_t nfill, bool zero) {
 	assert(binind < SC_NBINS);
 	const bin_info_t *bin_info = &bin_infos[binind];
 	const size_t nregs = bin_info->nregs;
 	assert(nregs > 0);
+	const size_t usize = bin_info->reg_size;
+
 	const bool manual_arena = !arena_is_auto(arena);
 	unsigned binshard;
 	bin_t *bin = arena_bin_choose(tsdn, arena, binind, &binshard);
@@ -911,6 +913,10 @@ arena_fill_small_fresh(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 		assert(batch > 0);
 		arena_slab_reg_alloc_batch(slab, bin_info, (unsigned)batch,
 		    &ptrs[filled]);
+		assert(edata_addr_get(slab) == ptrs[filled]);
+		if (zero) {
+			memset(ptrs[filled], 0, batch * usize);
+		}
 		filled += batch;
 		if (batch == nregs) {
 			if (manual_arena) {
