@@ -219,4 +219,69 @@ fb_fls(fb_group_t *fb, size_t nbits, size_t max_bit) {
 	    /* forward */ false);
 }
 
+/* Returns whether or not we found a range. */
+JEMALLOC_ALWAYS_INLINE bool
+fb_iter_range_impl(fb_group_t *fb, size_t nbits, size_t start, size_t *r_begin,
+    size_t *r_len, bool val, bool forward) {
+	assert(start < nbits);
+	ssize_t next_range_begin = fb_find_impl(fb, nbits, start, val, forward);
+	if ((forward && next_range_begin == (ssize_t)nbits)
+	    || (!forward && next_range_begin == (ssize_t)-1)) {
+		return false;
+	}
+	/* Half open range; the set bits are [begin, end). */
+	ssize_t next_range_end = fb_find_impl(fb, nbits, next_range_begin, !val,
+	    forward);
+	if (forward) {
+		*r_begin = next_range_begin;
+		*r_len = next_range_end - next_range_begin;
+	} else {
+		*r_begin = next_range_end + 1;
+		*r_len = next_range_begin - next_range_end;
+	}
+	return true;
+}
+
+/*
+ * Used to iterate through ranges of set bits.
+ *
+ * Tries to find the next contiguous sequence of set bits with a first index >=
+ * start.  If one exists, puts the earliest bit of the range in *r_begin, its
+ * length in *r_len, and returns true.  Otherwise, returns false (without
+ * touching *r_begin or *r_end).
+ */
+static inline bool
+fb_srange_iter(fb_group_t *fb, size_t nbits, size_t start, size_t *r_begin,
+    size_t *r_len) {
+	return fb_iter_range_impl(fb, nbits, start, r_begin, r_len,
+	    /* val */ true, /* forward */ true);
+}
+
+/*
+ * The same as fb_srange_iter, but searches backwards from start rather than
+ * forwards.  (The position returned is still the earliest bit in the range).
+ */
+static inline bool
+fb_srange_riter(fb_group_t *fb, size_t nbits, size_t start, size_t *r_begin,
+    size_t *r_len) {
+	return fb_iter_range_impl(fb, nbits, start, r_begin, r_len,
+	    /* val */ true, /* forward */ false);
+}
+
+/* Similar to fb_srange_iter, but searches for unset bits. */
+static inline bool
+fb_urange_iter(fb_group_t *fb, size_t nbits, size_t start, size_t *r_begin,
+    size_t *r_len) {
+	return fb_iter_range_impl(fb, nbits, start, r_begin, r_len,
+	    /* val */ false, /* forward */ true);
+}
+
+/* Similar to fb_srange_riter, but searches for unset bits. */
+static inline bool
+fb_urange_riter(fb_group_t *fb, size_t nbits, size_t start, size_t *r_begin,
+    size_t *r_len) {
+	return fb_iter_range_impl(fb, nbits, start, r_begin, r_len,
+	    /* val */ false, /* forward */ false);
+}
+
 #endif /* JEMALLOC_INTERNAL_FB_H */
