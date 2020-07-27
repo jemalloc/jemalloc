@@ -301,6 +301,236 @@ TEST_BEGIN(test_empty_full) {
 }
 TEST_END
 
+TEST_BEGIN(test_iter_range_simple) {
+	size_t set_limit = 30;
+	size_t nbits = 100;
+	fb_group_t fb[FB_NGROUPS(100)];
+
+	fb_init(fb, nbits);
+
+	/*
+	 * Failing to initialize these can lead to build failures with -Wall;
+	 * the compiler can't prove that they're set.
+	 */
+	size_t begin = (size_t)-1;
+	size_t len = (size_t)-1;
+	bool result;
+
+	/* A set of checks with only the first set_limit bits *set*. */
+	fb_set_range(fb, nbits, 0, set_limit);
+	for (size_t i = 0; i < set_limit; i++) {
+		result = fb_srange_iter(fb, nbits, i, &begin, &len);
+		expect_true(result, "Should have found a range at %zu", i);
+		expect_zu_eq(i, begin, "Incorrect begin at %zu", i);
+		expect_zu_eq(set_limit - i, len, "Incorrect len at %zu", i);
+
+		result = fb_urange_iter(fb, nbits, i, &begin, &len);
+		expect_true(result, "Should have found a range at %zu", i);
+		expect_zu_eq(set_limit, begin, "Incorrect begin at %zu", i);
+		expect_zu_eq(nbits - set_limit, len, "Incorrect len at %zu", i);
+
+		result = fb_srange_riter(fb, nbits, i, &begin, &len);
+		expect_true(result, "Should have found a range at %zu", i);
+		expect_zu_eq(0, begin, "Incorrect begin at %zu", i);
+		expect_zu_eq(i + 1, len, "Incorrect len at %zu", i);
+
+		result = fb_urange_riter(fb, nbits, i, &begin, &len);
+		expect_false(result, "Should not have found a range at %zu", i);
+	}
+	for (size_t i = set_limit; i < nbits; i++) {
+		result = fb_srange_iter(fb, nbits, i, &begin, &len);
+		expect_false(result, "Should not have found a range at %zu", i);
+
+		result = fb_urange_iter(fb, nbits, i, &begin, &len);
+		expect_true(result, "Should have found a range at %zu", i);
+		expect_zu_eq(i, begin, "Incorrect begin at %zu", i);
+		expect_zu_eq(nbits - i, len, "Incorrect len at %zu", i);
+
+		result = fb_srange_riter(fb, nbits, i, &begin, &len);
+		expect_true(result, "Should have found a range at %zu", i);
+		expect_zu_eq(0, begin, "Incorrect begin at %zu", i);
+		expect_zu_eq(set_limit, len, "Incorrect len at %zu", i);
+
+		result = fb_urange_riter(fb, nbits, i, &begin, &len);
+		expect_true(result, "Should have found a range at %zu", i);
+		expect_zu_eq(set_limit, begin, "Incorrect begin at %zu", i);
+		expect_zu_eq(i - set_limit + 1, len, "Incorrect len at %zu", i);
+	}
+
+	/* A set of checks with only the first set_limit bits *unset*. */
+	fb_unset_range(fb, nbits, 0, set_limit);
+	fb_set_range(fb, nbits, set_limit, nbits - set_limit);
+	for (size_t i = 0; i < set_limit; i++) {
+		result = fb_srange_iter(fb, nbits, i, &begin, &len);
+		expect_true(result, "Should have found a range at %zu", i);
+		expect_zu_eq(set_limit, begin, "Incorrect begin at %zu", i);
+		expect_zu_eq(nbits - set_limit, len, "Incorrect len at %zu", i);
+
+		result = fb_urange_iter(fb, nbits, i, &begin, &len);
+		expect_true(result, "Should have found a range at %zu", i);
+		expect_zu_eq(i, begin, "Incorrect begin at %zu", i);
+		expect_zu_eq(set_limit - i, len, "Incorrect len at %zu", i);
+
+		result = fb_srange_riter(fb, nbits, i, &begin, &len);
+		expect_false(result, "Should not have found a range at %zu", i);
+
+		result = fb_urange_riter(fb, nbits, i, &begin, &len);
+		expect_true(result, "Should not have found a range at %zu", i);
+		expect_zu_eq(0, begin, "Incorrect begin at %zu", i);
+		expect_zu_eq(i + 1, len, "Incorrect len at %zu", i);
+	}
+	for (size_t i = set_limit; i < nbits; i++) {
+		result = fb_srange_iter(fb, nbits, i, &begin, &len);
+		expect_true(result, "Should have found a range at %zu", i);
+		expect_zu_eq(i, begin, "Incorrect begin at %zu", i);
+		expect_zu_eq(nbits - i, len, "Incorrect len at %zu", i);
+
+		result = fb_urange_iter(fb, nbits, i, &begin, &len);
+		expect_false(result, "Should not have found a range at %zu", i);
+
+		result = fb_srange_riter(fb, nbits, i, &begin, &len);
+		expect_true(result, "Should have found a range at %zu", i);
+		expect_zu_eq(set_limit, begin, "Incorrect begin at %zu", i);
+		expect_zu_eq(i - set_limit + 1, len, "Incorrect len at %zu", i);
+
+		result = fb_urange_riter(fb, nbits, i, &begin, &len);
+		expect_true(result, "Should have found a range at %zu", i);
+		expect_zu_eq(0, begin, "Incorrect begin at %zu", i);
+		expect_zu_eq(set_limit, len, "Incorrect len at %zu", i);
+	}
+
+}
+TEST_END
+
+/*
+ * Doing this bit-by-bit is too slow for a real implementation, but for testing
+ * code, it's easy to get right.  In the exhaustive tests, we'll compare the
+ * (fast but tricky) real implementation against the (slow but simple) testing
+ * one.
+ */
+static bool
+fb_iter_simple(fb_group_t *fb, size_t nbits, size_t start, size_t *r_begin,
+    size_t *r_len, bool val, bool forward) {
+	ssize_t stride = (forward ? (ssize_t)1 : (ssize_t)-1);
+	ssize_t range_begin = (ssize_t)start;
+	for (; range_begin != (ssize_t)nbits && range_begin != -1;
+	    range_begin += stride) {
+		if (fb_get(fb, nbits, range_begin) == val) {
+			ssize_t range_end = range_begin;
+			for (; range_end != (ssize_t)nbits && range_end != -1;
+			    range_end += stride) {
+				if (fb_get(fb, nbits, range_end) != val) {
+					break;
+				}
+			}
+			if (forward) {
+				*r_begin = range_begin;
+				*r_len = range_end - range_begin;
+			} else {
+				*r_begin = range_end + 1;
+				*r_len = range_begin - range_end;
+			}
+			return true;
+		}
+	}
+	return false;
+}
+
+static void
+expect_iter_results_at(fb_group_t *fb, size_t nbits, size_t pos,
+    bool val, bool forward) {
+	bool iter_res;
+	size_t iter_begin;
+	size_t iter_len;
+	if (val) {
+		if (forward) {
+			iter_res = fb_srange_iter(fb, nbits, pos,
+			    &iter_begin, &iter_len);
+		} else {
+			iter_res = fb_srange_riter(fb, nbits, pos,
+			    &iter_begin, &iter_len);
+		}
+	} else {
+		if (forward) {
+			iter_res = fb_urange_iter(fb, nbits, pos,
+			    &iter_begin, &iter_len);
+		} else {
+			iter_res = fb_urange_riter(fb, nbits, pos,
+			    &iter_begin, &iter_len);
+		}
+	}
+
+	bool simple_iter_res;
+	size_t simple_iter_begin;
+	size_t simple_iter_len;
+	simple_iter_res = fb_iter_simple(fb, nbits, pos, &simple_iter_begin,
+	    &simple_iter_len, val, forward);
+
+	expect_b_eq(iter_res, simple_iter_res, "Result mismatch at %zu", pos);
+	if (iter_res && simple_iter_res) {
+		assert_zu_eq(iter_begin, simple_iter_begin,
+		    "Begin mismatch at %zu", pos);
+		expect_zu_eq(iter_len, simple_iter_len,
+		    "Length mismatch at %zu", pos);
+	}
+}
+
+static void
+expect_iter_results(fb_group_t *fb, size_t nbits) {
+	for (size_t i = 0; i < nbits; i++) {
+		expect_iter_results_at(fb, nbits, i, false, false);
+		expect_iter_results_at(fb, nbits, i, false, true);
+		expect_iter_results_at(fb, nbits, i, true, false);
+		expect_iter_results_at(fb, nbits, i, true, true);
+	}
+}
+
+static void
+set_pattern_3(fb_group_t *fb, size_t nbits, bool zero_val) {
+	for (size_t i = 0; i < nbits; i++) {
+		if ((i % 6 < 3 && zero_val) || (i % 6 >= 3 && !zero_val)) {
+			fb_set(fb, nbits, i);
+		} else {
+			fb_unset(fb, nbits, i);
+		}
+	}
+}
+
+static void
+do_test_iter_range_exhaustive(size_t nbits) {
+	/* This test is also pretty slow. */
+	if (nbits > 1000) {
+		return;
+	}
+	size_t sz = FB_NGROUPS(nbits) * sizeof(fb_group_t);
+	fb_group_t *fb = malloc(sz);
+	fb_init(fb, nbits);
+
+	set_pattern_3(fb, nbits, /* zero_val */ true);
+	expect_iter_results(fb, nbits);
+
+	set_pattern_3(fb, nbits, /* zero_val */ false);
+	expect_iter_results(fb, nbits);
+
+	fb_set_range(fb, nbits, 0, nbits);
+	fb_unset_range(fb, nbits, 0, nbits / 2 == 0 ? 1 : nbits / 2);
+	expect_iter_results(fb, nbits);
+
+	fb_unset_range(fb, nbits, 0, nbits);
+	fb_set_range(fb, nbits, 0, nbits / 2 == 0 ? 1: nbits / 2);
+	expect_iter_results(fb, nbits);
+
+	free(fb);
+}
+
+TEST_BEGIN(test_iter_range_exhaustive) {
+#define NB(nbits) \
+	do_test_iter_range_exhaustive(nbits);
+	NBITS_TAB
+#undef NB
+}
+TEST_END
+
 int
 main(void) {
 	return test_no_reentrancy(
@@ -309,5 +539,7 @@ main(void) {
 	    test_search_simple,
 	    test_search_exhaustive,
 	    test_range_simple,
-	    test_empty_full);
+	    test_empty_full,
+	    test_iter_range_simple,
+	    test_iter_range_exhaustive);
 }
