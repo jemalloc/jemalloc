@@ -2114,7 +2114,17 @@ zero_get(bool guarantee, bool slow) {
 }
 
 JEMALLOC_ALWAYS_INLINE tcache_t *
-tcache_get_from_ind(tsd_t *tsd, unsigned tcache_ind, bool slow, bool is_alloc) {
+tcache_get_from_ind(tsd_t *tsd, unsigned tcache_ind, bool slow, bool is_alloc,
+    arena_t *arena) {
+	if (unlikely(arena != NULL)) {
+		/*
+		 * In cases where a manual arena is specified, we bypass tcache
+		 * to guarantee that the allocation comes from the designated
+		 * arena.
+		 */
+		assert(is_alloc);
+		return NULL;
+	}
 	tcache_t *tcache;
 	if (tcache_ind == TCACHE_IND_AUTOMATIC) {
 		if (likely(!slow)) {
@@ -2166,15 +2176,15 @@ arena_get_from_ind(tsd_t *tsd, unsigned arena_ind, arena_t **arena_p) {
 JEMALLOC_ALWAYS_INLINE void *
 imalloc_no_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
     size_t size, size_t usize, szind_t ind) {
-	/* Fill in the tcache. */
-	tcache_t *tcache = tcache_get_from_ind(tsd, dopts->tcache_ind,
-	    sopts->slow, /* is_alloc */ true);
-
 	/* Fill in the arena. */
 	arena_t *arena;
 	if (arena_get_from_ind(tsd, dopts->arena_ind, &arena)) {
 		return NULL;
 	}
+
+	/* Fill in the tcache. */
+	tcache_t *tcache = tcache_get_from_ind(tsd, dopts->tcache_ind,
+	    sopts->slow, /* is_alloc */ true, arena);
 
 	if (unlikely(dopts->alignment != 0)) {
 		return ipalloct(tsd_tsdn(tsd), usize, dopts->alignment,
@@ -2608,7 +2618,7 @@ je_malloc(size_t size) {
 	assert(tsd_fast(tsd));
 
 	tcache_t *tcache = tcache_get_from_ind(tsd, TCACHE_IND_AUTOMATIC,
-	    /* slow */ false, /* is_alloc */ true);
+	    /* slow */ false, /* is_alloc */ true, /* arena */ NULL);
 	cache_bin_t *bin = &tcache->bins[ind];
 	bool tcache_success;
 	void *ret;
@@ -2871,12 +2881,12 @@ free_default(void *ptr) {
 		if (likely(tsd_fast(tsd))) {
 			tcache_t *tcache = tcache_get_from_ind(tsd,
 			    TCACHE_IND_AUTOMATIC, /* slow */ false,
-			    /* is_alloc */ false);
+			    /* is_alloc */ false, /* arena */ NULL);
 			ifree(tsd, ptr, tcache, /* slow */ false);
 		} else {
 			tcache_t *tcache = tcache_get_from_ind(tsd,
 			    TCACHE_IND_AUTOMATIC, /* slow */ true,
-			    /* is_alloc */ false);
+			    /* is_alloc */ false, /* arena */ NULL);
 			uintptr_t args_raw[3] = {(uintptr_t)ptr};
 			hook_invoke_dalloc(hook_dalloc_free, ptr, args_raw);
 			ifree(tsd, ptr, tcache, /* slow */ true);
@@ -2940,7 +2950,7 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 	}
 
 	tcache_t *tcache = tcache_get_from_ind(tsd, TCACHE_IND_AUTOMATIC,
-	    /* slow */ false, /* is_alloc */ false);
+	    /* slow */ false, /* is_alloc */ false, /* arena */ NULL);
 	cache_bin_t *bin = &tcache->bins[alloc_ctx.szind];
 
 	/*
@@ -3330,7 +3340,7 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 
 	unsigned tcache_ind = mallocx_tcache_get(flags);
 	tcache_t *tcache = tcache_get_from_ind(tsd, tcache_ind,
-	    /* slow */ true, /* is_alloc */ true);
+	    /* slow */ true, /* is_alloc */ true, arena);
 
 	emap_alloc_ctx_t alloc_ctx;
 	emap_alloc_ctx_lookup(tsd_tsdn(tsd), &arena_emap_global, ptr,
@@ -3415,7 +3425,7 @@ do_realloc_nonnull_zero(void *ptr) {
 
 		tcache_t *tcache = tcache_get_from_ind(tsd,
 		    TCACHE_IND_AUTOMATIC, /* slow */ true,
-		    /* is_alloc */ false);
+		    /* is_alloc */ false, /* arena */ NULL);
 		uintptr_t args[3] = {(uintptr_t)ptr, 0};
 		hook_invoke_dalloc(hook_dalloc_realloc, ptr, args);
 		ifree(tsd, ptr, tcache, true);
@@ -3695,7 +3705,7 @@ je_dallocx(void *ptr, int flags) {
 
 	unsigned tcache_ind = mallocx_tcache_get(flags);
 	tcache_t *tcache = tcache_get_from_ind(tsd, tcache_ind, !fast,
-	    /* is_alloc */ false);
+	    /* is_alloc */ false, /* arena */ NULL);
 
 	UTRACE(ptr, 0, 0);
 	if (likely(fast)) {
@@ -3734,7 +3744,7 @@ sdallocx_default(void *ptr, size_t size, int flags) {
 
 	unsigned tcache_ind = mallocx_tcache_get(flags);
 	tcache_t *tcache = tcache_get_from_ind(tsd, tcache_ind, !fast,
-	    /* is_alloc */ false);
+	    /* is_alloc */ false, /* arena */ NULL);
 
 	UTRACE(ptr, 0, 0);
 	if (likely(fast)) {
