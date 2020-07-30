@@ -40,7 +40,7 @@ verify_batch(void **ptrs, size_t batch, size_t usize, bool zero,
 			    || prof_sampled(tsd, q), "");
 			j = 0;
 		} else {
-			expect_not_reached("");
+			assert_not_reached("");
 		}
 	}
 }
