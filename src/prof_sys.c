@@ -27,6 +27,8 @@
 
 malloc_mutex_t prof_dump_filename_mtx;
 
+bool prof_do_mock = false;
+
 static uint64_t prof_dump_seq;
 static uint64_t prof_dump_iseq;
 static uint64_t prof_dump_mseq;
@@ -267,11 +269,14 @@ prof_backtrace_impl(prof_bt_t *bt) {
 }
 #endif
 
+
+void (* JET_MUTABLE prof_backtrace_hook)(prof_bt_t *bt) = &prof_backtrace_impl;
+
 void
 prof_backtrace(tsd_t *tsd, prof_bt_t *bt) {
 	cassert(config_prof);
 	pre_reentrancy(tsd, NULL);
-	prof_backtrace_impl(bt);
+	prof_backtrace_hook(bt);
 	post_reentrancy(tsd);
 }
 

@@ -294,7 +294,8 @@ CPP_SRCS :=
 TESTS_INTEGRATION_CPP :=
 endif
 TESTS_ANALYZE := $(srcroot)test/analyze/rand.c \
-	$(srcroot)test/analyze/sizes.c
+	$(srcroot)test/analyze/sizes.c \
+	$(srcroot)test/analyze/prof_bias.c
 TESTS_STRESS := $(srcroot)test/stress/microbench.c \
 	$(srcroot)test/stress/fill_flush.c \
 	$(srcroot)test/stress/large_microbench.c \
