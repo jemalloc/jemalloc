@@ -32,6 +32,7 @@ bool opt_prof_leak = false;
 bool opt_prof_accum = false;
 char opt_prof_prefix[PROF_DUMP_FILENAME_LEN];
 bool opt_prof_sys_thread_name = false;
+bool opt_prof_unbias = true;
 
 /* Accessed via prof_sample_event_handler(). */
 static counter_accum_t prof_idump_accumulated;
@@ -60,12 +61,48 @@ static malloc_mutex_t prof_gdump_mtx;
 uint64_t prof_interval = 0;
 
 size_t lg_prof_sample;
+size_t prof_unbiased_sz[SC_NSIZES];
+size_t prof_shifted_unbiased_cnt[SC_NSIZES];
 
 static uint64_t next_thr_uid;
 static malloc_mutex_t next_thr_uid_mtx;
 
 /* Do not dump any profiles until bootstrapping is complete. */
 bool prof_booted = false;
+
+/******************************************************************************/
+
+void prof_unbias_map_init() {
+	/* See the comment in prof_sample_new_event_wait */
+#ifdef JEMALLOC_PROF
+	for (szind_t i = 0; i < SC_NSIZES; i++) {
+		double sz = (double)sz_index2size(i);
+		double rate = (double)(ZU(1) << lg_prof_sample);
+		double div_val = 1.0 - exp(-sz / rate);
+		double unbiased_sz = sz / div_val;
+		/*
+		 * The "true" right value for the unbiased count is
+		 * 1.0/(1 - exp(-sz/rate)).  The problem is, we keep the counts
+		 * as integers (for a variety of reasons -- rounding errors
+		 * could trigger asserts, and not all libcs can properly handle
+		 * floating point arithmetic during malloc calls inside libc).
+		 * Rounding to an integer, though, can lead to rounding errors
+		 * of over 30% for sizes close to the sampling rate.  So
+		 * instead, we multiply by a constant, dividing the maximum
+		 * possible roundoff error by that constant.  To avoid overflow
+		 * in summing up size_t values, the largest safe constant we can
+		 * pick is the size of the smallest allocation.
+		 */
+		double cnt_shift = (double)(ZU(1) << SC_LG_TINY_MIN);
+		double shifted_unbiased_cnt = cnt_shift / div_val;
+		prof_unbiased_sz[i] = (size_t)round(unbiased_sz);
+		prof_shifted_unbiased_cnt[i] = (size_t)round(
+		    shifted_unbiased_cnt);
+	}
+#else
+	unreachable();
+#endif
+}
 
 /******************************************************************************/
 
@@ -96,12 +133,30 @@ prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t size,
 	    ptr);
 	prof_info_set(tsd, edata, tctx);
 
+	szind_t szind = sz_size2index(size);
+
 	malloc_mutex_lock(tsd_tsdn(tsd), tctx->tdata->lock);
+	/*
+	 * We need to do these map lookups while holding the lock, to avoid the
+	 * possibility of races with prof_reset calls, which update the map and
+	 * then acquire the lock.  This actually still leaves a data race on the
+	 * contents of the unbias map, but we have not yet gone through and
+	 * atomic-ified the prof module, and compilers are not yet causing us
+	 * issues.  The key thing is to make sure that, if we read garbage data,
+	 * the prof_reset call is about to mark our tctx as expired before any
+	 * dumping of our corrupted output is attempted.
+	 */
+	size_t shifted_unbiased_cnt = prof_shifted_unbiased_cnt[szind];
+	size_t unbiased_bytes = prof_unbiased_sz[szind];
 	tctx->cnts.curobjs++;
+	tctx->cnts.curobjs_shifted_unbiased += shifted_unbiased_cnt;
 	tctx->cnts.curbytes += usize;
+	tctx->cnts.curbytes_unbiased += unbiased_bytes;
 	if (opt_prof_accum) {
 		tctx->cnts.accumobjs++;
+		tctx->cnts.accumobjs_shifted_unbiased += shifted_unbiased_cnt;
 		tctx->cnts.accumbytes += usize;
+		tctx->cnts.accumbytes_unbiased += unbiased_bytes;
 	}
 	bool record_recent = prof_recent_alloc_prepare(tsd, tctx);
 	tctx->prepared = false;
@@ -118,12 +173,21 @@ prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_info_t *prof_info) {
 	prof_tctx_t *tctx = prof_info->alloc_tctx;
 	assert((uintptr_t)tctx > (uintptr_t)1U);
 
+	szind_t szind = sz_size2index(usize);
 	malloc_mutex_lock(tsd_tsdn(tsd), tctx->tdata->lock);
 
 	assert(tctx->cnts.curobjs > 0);
 	assert(tctx->cnts.curbytes >= usize);
+	/*
+	 * It's not correct to do equivalent asserts for unbiased bytes, because
+	 * of the potential for races with prof.reset calls.  The map contents
+	 * should really be atomic, but we have not atomic-ified the prof module
+	 * yet.
+	 */
 	tctx->cnts.curobjs--;
+	tctx->cnts.curobjs_shifted_unbiased -= prof_shifted_unbiased_cnt[szind];
 	tctx->cnts.curbytes -= usize;
+	tctx->cnts.curbytes_unbiased -= prof_unbiased_sz[szind];
 
 	prof_try_log(tsd, usize, prof_info);
 
@@ -517,6 +581,7 @@ prof_boot2(tsd_t *tsd, base_t *base) {
 		unsigned i;
 
 		lg_prof_sample = opt_lg_prof_sample;
+		prof_unbias_map_init();
 
 		prof_active = opt_prof_active;
 		if (malloc_mutex_init(&prof_active_mtx, "prof_active",

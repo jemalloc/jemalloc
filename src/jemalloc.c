@@ -1517,6 +1517,16 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 					}
 					CONF_CONTINUE;
 				}
+				/*
+				 * Undocumented.  When set to false, don't
+				 * correct for an unbiasing bug in jeprof
+				 * attribution.  This can be handy if you want
+				 * to get consistent numbers from your binary
+				 * across different jemalloc versions, even if
+				 * those numbers are incorrect.  The default is
+				 * true.
+				 */
+				CONF_HANDLE_BOOL(opt_prof_unbias, "prof_unbias")
 			}
 			if (config_log) {
 				if (CONF_MATCH("log")) {

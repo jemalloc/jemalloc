@@ -514,12 +514,121 @@ prof_dump_printf(write_cb_t *prof_dump_write, void *cbopaque,
 	prof_dump_write(cbopaque, buf);
 }
 
+/*
+ * Casting a double to a uint64_t may not necessarily be in range; this can be
+ * UB.  I don't think this is practically possible with the cur counters, but
+ * plausibly could be with the accum counters.
+ */
+#ifdef JEMALLOC_PROF
+static uint64_t
+prof_double_uint64_cast(double d) {
+	/*
+	 * Note: UINT64_MAX + 1 is exactly representable as a double on all
+	 * reasonable platforms (certainly those we'll support).  Writing this
+	 * as !(a < b) instead of (a >= b) means that we're NaN-safe.
+	 */
+	double rounded = round(d);
+	if (!(rounded < (double)UINT64_MAX)) {
+		return UINT64_MAX;
+	}
+	return (uint64_t)rounded;
+}
+#endif
+
+/*
+ * The unbiasing story is long.  The jeprof unbiasing logic was copied from
+ * pprof.  Both shared an issue: they unbiased using the average size of the
+ * allocations at a particular stack trace.  This can work out OK if allocations
+ * are mostly of the same size given some stack, but not otherwise.  We now
+ * internally track what the unbiased results ought to be.  We can't just report
+ * them as they are though; they'll still go through the jeprof unbiasing
+ * process.  Instead, we figure out what values we can feed *into* jeprof's
+ * unbiasing mechanism that will lead to getting the right values out.
+ *
+ * It'll unbias count and aggregate size as:
+ *
+ *   c_out = c_in * 1/(1-exp(-s_in/c_in/R)
+ *   s_out = s_in * 1/(1-exp(-s_in/c_in/R)
+ *
+ * We want to solve for the values of c_in and s_in that will
+ * give the c_out and s_out that we've computed internally.
+ *
+ * Let's do a change of variables (both to make the math easier and to make it
+ * easier to write):
+ *   x = s_in / c_in
+ *   y = s_in
+ *   k = 1/R.
+ *
+ * Then
+ *   c_out = y/x * 1/(1-exp(-k*x))
+ *   s_out = y * 1/(1-exp(-k*x))
+ *
+ * The first equation gives:
+ *   y = x * c_out * (1-exp(-k*x))
+ * The second gives:
+ *   y = s_out * (1-exp(-k*x))
+ * So we have
+ *   x = s_out / c_out.
+ * And all the other values fall out from that.
+ *
+ * This is all a fair bit of work.  The thing we get out of it is that we don't
+ * break backwards compatibility with jeprof (and the various tools that have
+ * copied its unbiasing logic).  Eventually, we anticipate a v3 heap profile
+ * dump format based on JSON, at which point I think much of this logic can get
+ * cleaned up (since we'll be taking a compatibility break there anyways).
+ */
+static void
+prof_do_unbias(uint64_t c_out_shifted_i, uint64_t s_out_i, uint64_t *r_c_in,
+    uint64_t *r_s_in) {
+#ifdef JEMALLOC_PROF
+	if (c_out_shifted_i == 0 || s_out_i == 0) {
+		*r_c_in = 0;
+		*r_s_in = 0;
+		return;
+	}
+	/*
+	 * See the note in prof_unbias_map_init() to see why we take c_out in a
+	 * shifted form.
+	 */
+	double c_out = (double)c_out_shifted_i
+	    / (double)(ZU(1) << SC_LG_TINY_MIN);
+	double s_out = (double)s_out_i;
+	double R = (double)(ZU(1) << lg_prof_sample);
+
+	double x = s_out / c_out;
+	double y = s_out * (1.0 - exp(-x / R));
+
+	double c_in = y / x;
+	double s_in = y;
+
+	*r_c_in = prof_double_uint64_cast(c_in);
+	*r_s_in = prof_double_uint64_cast(s_in);
+#else
+	unreachable();
+#endif
+}
+
 static void
 prof_dump_print_cnts(write_cb_t *prof_dump_write, void *cbopaque,
     const prof_cnt_t *cnts) {
+	uint64_t curobjs;
+	uint64_t curbytes;
+	uint64_t accumobjs;
+	uint64_t accumbytes;
+	if (opt_prof_unbias) {
+		prof_do_unbias(cnts->curobjs_shifted_unbiased,
+		    cnts->curbytes_unbiased, &curobjs, &curbytes);
+		prof_do_unbias(cnts->accumobjs_shifted_unbiased,
+		    cnts->accumbytes_unbiased, &accumobjs, &accumbytes);
+	} else {
+		curobjs = cnts->curobjs;
+		curbytes = cnts->curbytes;
+		accumobjs = cnts->accumobjs;
+		accumbytes = cnts->accumbytes;
+	}
 	prof_dump_printf(prof_dump_write, cbopaque,
 	    "%"FMTu64": %"FMTu64" [%"FMTu64": %"FMTu64"]",
-	    cnts->curobjs, cnts->curbytes, cnts->accumobjs, cnts->accumbytes);
+	    curobjs, curbytes, accumobjs, accumbytes);
 }
 
 static void
@@ -539,12 +648,20 @@ prof_tctx_merge_tdata(tsdn_t *tsdn, prof_tctx_t *tctx, prof_tdata_t *tdata) {
 		memcpy(&tctx->dump_cnts, &tctx->cnts, sizeof(prof_cnt_t));
 
 		tdata->cnt_summed.curobjs += tctx->dump_cnts.curobjs;
+		tdata->cnt_summed.curobjs_shifted_unbiased
+		    += tctx->dump_cnts.curobjs_shifted_unbiased;
 		tdata->cnt_summed.curbytes += tctx->dump_cnts.curbytes;
+		tdata->cnt_summed.curbytes_unbiased
+		    += tctx->dump_cnts.curbytes_unbiased;
 		if (opt_prof_accum) {
 			tdata->cnt_summed.accumobjs +=
 			    tctx->dump_cnts.accumobjs;
+			tdata->cnt_summed.accumobjs_shifted_unbiased +=
+			    tctx->dump_cnts.accumobjs_shifted_unbiased;
 			tdata->cnt_summed.accumbytes +=
 			    tctx->dump_cnts.accumbytes;
+			tdata->cnt_summed.accumbytes_unbiased +=
+			    tctx->dump_cnts.accumbytes_unbiased;
 		}
 		break;
 	case prof_tctx_state_dumping:
@@ -558,10 +675,17 @@ prof_tctx_merge_gctx(tsdn_t *tsdn, prof_tctx_t *tctx, prof_gctx_t *gctx) {
 	malloc_mutex_assert_owner(tsdn, gctx->lock);
 
 	gctx->cnt_summed.curobjs += tctx->dump_cnts.curobjs;
+	gctx->cnt_summed.curobjs_shifted_unbiased
+	    += tctx->dump_cnts.curobjs_shifted_unbiased;
 	gctx->cnt_summed.curbytes += tctx->dump_cnts.curbytes;
+	gctx->cnt_summed.curbytes_unbiased += tctx->dump_cnts.curbytes_unbiased;
 	if (opt_prof_accum) {
 		gctx->cnt_summed.accumobjs += tctx->dump_cnts.accumobjs;
+		gctx->cnt_summed.accumobjs_shifted_unbiased
+		    += tctx->dump_cnts.accumobjs_shifted_unbiased;
 		gctx->cnt_summed.accumbytes += tctx->dump_cnts.accumbytes;
+		gctx->cnt_summed.accumbytes_unbiased
+		    += tctx->dump_cnts.accumbytes_unbiased;
 	}
 }
 
@@ -757,11 +881,19 @@ prof_tdata_merge_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
 		}
 
 		arg->cnt_all->curobjs += tdata->cnt_summed.curobjs;
+		arg->cnt_all->curobjs_shifted_unbiased
+		    += tdata->cnt_summed.curobjs_shifted_unbiased;
 		arg->cnt_all->curbytes += tdata->cnt_summed.curbytes;
+		arg->cnt_all->curbytes_unbiased
+		    += tdata->cnt_summed.curbytes_unbiased;
 		if (opt_prof_accum) {
 			arg->cnt_all->accumobjs += tdata->cnt_summed.accumobjs;
+			arg->cnt_all->accumobjs_shifted_unbiased
+			    += tdata->cnt_summed.accumobjs_shifted_unbiased;
 			arg->cnt_all->accumbytes +=
 			    tdata->cnt_summed.accumbytes;
+			arg->cnt_all->accumbytes_unbiased +=
+			    tdata->cnt_summed.accumbytes_unbiased;
 		}
 	} else {
 		tdata->dumping = false;
@@ -814,8 +946,16 @@ prof_dump_gctx(prof_dump_iter_arg_t *arg, prof_gctx_t *gctx,
 	    (opt_prof_accum && gctx->cnt_summed.accumobjs == 0)) {
 		assert(gctx->cnt_summed.curobjs == 0);
 		assert(gctx->cnt_summed.curbytes == 0);
+		/*
+		 * These asserts would not be correct -- see the comment on races
+		 * in prof.c
+		 * assert(gctx->cnt_summed.curobjs_unbiased == 0);
+		 * assert(gctx->cnt_summed.curbytes_unbiased == 0);
+		*/
 		assert(gctx->cnt_summed.accumobjs == 0);
+		assert(gctx->cnt_summed.accumobjs_shifted_unbiased == 0);
 		assert(gctx->cnt_summed.accumbytes == 0);
+		assert(gctx->cnt_summed.accumbytes_unbiased == 0);
 		return;
 	}
 
@@ -834,7 +974,7 @@ prof_dump_gctx(prof_dump_iter_arg_t *arg, prof_gctx_t *gctx,
 }
 
 /*
- * See prof_sample_threshold_update() comment for why the body of this function
+ * See prof_sample_new_event_wait() comment for why the body of this function
  * is conditionally compiled.
  */
 static void
@@ -1120,6 +1260,7 @@ prof_reset(tsd_t *tsd, size_t lg_sample) {
 	malloc_mutex_lock(tsd_tsdn(tsd), &tdatas_mtx);
 
 	lg_prof_sample = lg_sample;
+	prof_unbias_map_init();
 
 	next = NULL;
 	do {
@@ -1162,9 +1303,24 @@ prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx) {
 
 	assert(tctx->cnts.curobjs == 0);
 	assert(tctx->cnts.curbytes == 0);
+	/*
+	 * These asserts are not correct -- see the comment about races in
+	 * prof.c
+	 *
+	 * assert(tctx->cnts.curobjs_shifted_unbiased == 0);
+	 * assert(tctx->cnts.curbytes_unbiased == 0);
+	 */
 	assert(!opt_prof_accum);
 	assert(tctx->cnts.accumobjs == 0);
 	assert(tctx->cnts.accumbytes == 0);
+	/*
+	 * These ones are, since accumbyte counts never go down.  Either
+	 * prof_accum is off (in which case these should never have changed from
+	 * their initial value of zero), or it's on (in which case we shouldn't
+	 * be destroying this tctx).
+	 */
+	assert(tctx->cnts.accumobjs_shifted_unbiased == 0);
+	assert(tctx->cnts.accumbytes_unbiased == 0);
 
 	prof_gctx_t *gctx = tctx->gctx;
 

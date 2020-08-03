@@ -24,9 +24,13 @@ typedef struct {
 struct prof_cnt_s {
 	/* Profiling counters. */
 	uint64_t	curobjs;
+	uint64_t	curobjs_shifted_unbiased;
 	uint64_t	curbytes;
+	uint64_t	curbytes_unbiased;
 	uint64_t	accumobjs;
+	uint64_t	accumobjs_shifted_unbiased;
 	uint64_t	accumbytes;
+	uint64_t	accumbytes_unbiased;
 };
 
 typedef enum {

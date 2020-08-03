@@ -19,6 +19,7 @@ extern char opt_prof_prefix[
     PATH_MAX +
 #endif
     1];
+extern bool opt_prof_unbias;
 
 /* For recording recent allocations */
 extern ssize_t opt_prof_recent_alloc_max;
@@ -40,6 +41,9 @@ extern uint64_t prof_interval;
  * resets.
  */
 extern size_t lg_prof_sample;
+extern size_t prof_unbiased_sz[SC_NSIZES];
+extern size_t prof_shifted_unbiased_cnt[SC_NSIZES];
+void prof_unbias_map_init();
 
 extern bool prof_booted;
 
