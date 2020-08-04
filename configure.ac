@@ -1492,6 +1492,23 @@ if test "x$enable_opt_safety_checks" = "x1" ; then
 fi
 AC_SUBST([enable_opt_safety_checks])
 
+dnl Look for sized-deallocation bugs while otherwise being in opt mode.
+AC_ARG_ENABLE([opt-size-checks],
+  [AS_HELP_STRING([--enable-opt-size-checks],
+  [Perform sized-deallocation argument checks, even in opt mode])],
+[if test "x$enable_opt_size_checks" = "xno" ; then
+  enable_opt_size_checks="0"
+else
+  enable_opt_size_checks="1"
+fi
+],
+[enable_opt_size_checks="0"]
+)
+if test "x$enable_opt_size_checks" = "x1" ; then
+  AC_DEFINE([JEMALLOC_OPT_SIZE_CHECKS], [ ])
+fi
+AC_SUBST([enable_opt_size_checks])
+
 JE_COMPILABLE([a program using __builtin_unreachable], [
 void foo (void) {
   __builtin_unreachable();

@@ -2793,6 +2793,27 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 	thread_dalloc_event(tsd, usize);
 }
 
+JEMALLOC_ALWAYS_INLINE bool
+maybe_check_alloc_ctx(tsd_t *tsd, void *ptr, emap_alloc_ctx_t *alloc_ctx) {
+	if (config_opt_size_checks) {
+		emap_alloc_ctx_t dbg_ctx;
+		emap_alloc_ctx_lookup(tsd_tsdn(tsd), &arena_emap_global, ptr,
+		    &dbg_ctx);
+		if (alloc_ctx->szind != dbg_ctx.szind) {
+			safety_check_fail_sized_dealloc(
+			    /* curent_dealloc */ true);
+			return true;
+		}
+		if (alloc_ctx->slab != dbg_ctx.slab) {
+			safety_check_fail(
+			    "Internal heap corruption detected: "
+			    "mismatch in slab bit");
+			return true;
+		}
+	}
+	return false;
+}
+
 JEMALLOC_ALWAYS_INLINE void
 isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 	if (!slow_path) {
@@ -2823,13 +2844,6 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 				/* Non page aligned must be slab allocated. */
 				alloc_ctx.slab = true;
 			}
-			if (config_debug) {
-				emap_alloc_ctx_t dbg_ctx;
-				emap_alloc_ctx_lookup(tsd_tsdn(tsd),
-				    &arena_emap_global, ptr, &dbg_ctx);
-				assert(dbg_ctx.szind == alloc_ctx.szind);
-				assert(dbg_ctx.slab == alloc_ctx.slab);
-			}
 		} else if (opt_prof) {
 			emap_alloc_ctx_lookup(tsd_tsdn(tsd), &arena_emap_global,
 			    ptr, &alloc_ctx);
@@ -2844,6 +2858,16 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 			alloc_ctx.szind = sz_size2index(usize);
 			alloc_ctx.slab = (alloc_ctx.szind < SC_NBINS);
 		}
+	}
+	bool fail = maybe_check_alloc_ctx(tsd, ptr, &alloc_ctx);
+	if (fail) {
+		/*
+		 * This is a heap corruption bug.  In real life we'll crash; for
+		 * the unit test we just want to avoid breaking anything too
+		 * badly to get a test result out.  Let's leak instead of trying
+		 * to free.
+		 */
+		return;
 	}
 
 	if (config_prof && opt_prof) {
@@ -2934,8 +2958,15 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 			return false;
 		}
 		alloc_ctx.szind = sz_size2index_lookup(size);
-		alloc_ctx.slab = false;
+		/* This is a dead store, except when opt size checking is on. */
+		alloc_ctx.slab = (alloc_ctx.szind < SC_NBINS);
 	}
+	bool fail = maybe_check_alloc_ctx(tsd, ptr, &alloc_ctx);
+	if (fail) {
+		/* See the comment in isfree. */
+		return true;
+	}
+
 	uint64_t deallocated, threshold;
 	te_free_fastpath_ctx(tsd, &deallocated, &threshold, size_hint);
 
@@ -3739,7 +3770,6 @@ sdallocx_default(void *ptr, size_t size, int flags) {
 	tsd_t *tsd = tsd_fetch_min();
 	bool fast = tsd_fast(tsd);
 	size_t usize = inallocx(tsd_tsdn(tsd), size, flags);
-	assert(usize == isalloc(tsd_tsdn(tsd), ptr));
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
 	unsigned tcache_ind = mallocx_tcache_get(flags);

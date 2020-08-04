@@ -247,6 +247,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/sc.c \
 	$(srcroot)test/unit/seq.c \
 	$(srcroot)test/unit/SFMT.c \
+	$(srcroot)test/unit/size_check.c \
 	$(srcroot)test/unit/size_classes.c \
 	$(srcroot)test/unit/slab.c \
 	$(srcroot)test/unit/smoothstep.c \

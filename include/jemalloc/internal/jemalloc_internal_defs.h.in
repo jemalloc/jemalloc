@@ -373,4 +373,7 @@
 /* Performs additional safety checks when defined. */
 #undef JEMALLOC_OPT_SAFETY_CHECKS
 
+/* Performs additional size checks when defined. */
+#undef JEMALLOC_OPT_SIZE_CHECKS
+
 #endif /* JEMALLOC_INTERNAL_DEFS_H_ */
