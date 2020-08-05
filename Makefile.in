@@ -301,6 +301,7 @@ TESTS_STRESS := $(srcroot)test/stress/batch_alloc.c \
 	$(srcroot)test/stress/fill_flush.c \
 	$(srcroot)test/stress/hookbench.c \
 	$(srcroot)test/stress/large_microbench.c \
+	$(srcroot)test/stress/mallctl.c \
 	$(srcroot)test/stress/microbench.c
 	
 
