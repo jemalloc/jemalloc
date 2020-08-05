@@ -87,7 +87,7 @@ prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx) {
 
 void
 prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t size,
-    size_t usize, prof_tctx_t *tctx) {
+    size_t alignment, size_t usize, prof_tctx_t *tctx) {
 	if (opt_prof_sys_thread_name) {
 		prof_sys_thread_name_fetch(tsd);
 	}
@@ -108,7 +108,7 @@ prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t size,
 	malloc_mutex_unlock(tsd_tsdn(tsd), tctx->tdata->lock);
 	if (record_recent) {
 		assert(tctx == edata_prof_tctx_get(edata));
-		prof_recent_alloc(tsd, edata, size);
+		prof_recent_alloc(tsd, edata, size, alignment, usize);
 	}
 }
 
