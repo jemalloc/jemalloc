@@ -1297,7 +1297,7 @@ void *
 arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
     size_t size, size_t alignment, bool zero, tcache_t *tcache,
     hook_ralloc_args_t *hook_args) {
-	size_t usize = sz_s2u(size);
+	size_t usize = alignment == 0 ? sz_s2u(size) : sz_sa2u(size, alignment);
 	if (unlikely(usize == 0 || size > SC_LARGE_MAXCLASS)) {
 		return NULL;
 	}
