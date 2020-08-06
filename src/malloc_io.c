@@ -346,7 +346,11 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap) {
 	if (!left_justify && pad_len != 0) {				\
 		size_t j;						\
 		for (j = 0; j < pad_len; j++) {				\
-			APPEND_C(' ');					\
+			if (pad_zero) {					\
+				APPEND_C('0');				\
+			} else {					\
+				APPEND_C(' ');				\
+			}						\
 		}							\
 	}								\
 	/* Value. */							\
@@ -418,6 +422,8 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap) {
 			unsigned char len = '?';
 			char *s;
 			size_t slen;
+			bool first_width_digit = true;
+			bool pad_zero = false;
 
 			f++;
 			/* Flags. */
@@ -454,7 +460,12 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap) {
 					width = -width;
 				}
 				break;
-			case '0': case '1': case '2': case '3': case '4':
+			case '0':
+				if (first_width_digit) {
+					pad_zero = true;
+				}
+				JEMALLOC_FALLTHROUGH;
+			case '1': case '2': case '3': case '4':
 			case '5': case '6': case '7': case '8': case '9': {
 				uintmax_t uwidth;
 				set_errno(0);
@@ -462,6 +473,7 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap) {
 				assert(uwidth != UINTMAX_MAX || get_errno() !=
 				    ERANGE);
 				width = (int)uwidth;
+				first_width_digit = false;
 				break;
 			} default:
 				break;
@@ -518,6 +530,18 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap) {
 			case 'd': case 'i': {
 				intmax_t val JEMALLOC_CC_SILENCE_INIT(0);
 				char buf[D2S_BUFSIZE];
+
+				/*
+				 * Outputting negative, zero-padded numbers
+				 * would require a nontrivial rework of the
+				 * interaction between the width and padding
+				 * (since 0 padding goes between the '-' and the
+				 * number, while ' ' padding goes either before
+				 * the - or after the number.  Since we
+				 * currently don't ever need 0-padded negative
+				 * numbers, just don't bother supporting it.
+				 */
+				assert(!pad_zero);
 
 				GET_ARG_NUMERIC(val, len);
 				s = d2s(val, (plus_plus ? '+' : (plus_space ?
