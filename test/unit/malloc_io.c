@@ -175,6 +175,7 @@ TEST_BEGIN(test_malloc_snprintf) {
 	TEST("_1234_", "_%o_", 01234);
 	TEST("_01234_", "_%#o_", 01234);
 	TEST("_1234_", "_%u_", 1234);
+	TEST("01234", "%05u", 1234);
 
 	TEST("_1234_", "_%d_", 1234);
 	TEST("_ 1234_", "_% d_", 1234);
@@ -182,6 +183,15 @@ TEST_BEGIN(test_malloc_snprintf) {
 	TEST("_-1234_", "_%d_", -1234);
 	TEST("_-1234_", "_% d_", -1234);
 	TEST("_-1234_", "_%+d_", -1234);
+
+	/*
+	 * Morally, we should test these too, but 0-padded signed types are not
+	 * yet supported.
+	 *
+	 * TEST("01234", "%05", 1234);
+	 * TEST("-1234", "%05d", -1234);
+	 * TEST("-01234", "%06d", -1234);
+	*/
 
 	TEST("_-1234_", "_%d_", -1234);
 	TEST("_1234_", "_%d_", 1234);
