@@ -2,7 +2,7 @@
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 bool
-geom_grow_init(tsdn_t *tsdn, geom_grow_t *geom_grow) {
+geom_grow_init(geom_grow_t *geom_grow) {
 	geom_grow->next = sz_psz2ind(HUGEPAGE);
 	geom_grow->limit = sz_psz2ind(SC_LARGE_MAXCLASS);
 	if (malloc_mutex_init(&geom_grow->mtx, "extent_grow",

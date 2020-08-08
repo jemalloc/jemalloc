@@ -68,7 +68,7 @@ pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
 	    ind, /* delay_coalesce */ false)) {
 		return true;
 	}
-	if (geom_grow_init(tsdn, &pac->geom_grow)) {
+	if (geom_grow_init(&pac->geom_grow)) {
 		return true;
 	}
 	if (decay_init(&pac->decay_dirty, cur_time, dirty_decay_ms)) {
