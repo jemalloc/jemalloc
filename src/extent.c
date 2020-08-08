@@ -809,6 +809,15 @@ extent_can_coalesce(ecache_t *ecache, const edata_t *inner,
 		return false;
 	}
 
+	/*
+	 * We wouldn't really get into this situation because one or the other
+	 * edata would have to have a head bit set to true, but this is
+	 * conceptually correct and cheap.
+	 */
+	if (edata_pai_get(inner) != edata_pai_get(outer)) {
+		return false;
+	}
+
 	assert(edata_state_get(inner) == extent_state_active);
 	if (edata_state_get(outer) != ecache->state) {
 		return false;
