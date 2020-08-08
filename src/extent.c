@@ -625,16 +625,12 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	 * Find the next extent size in the series that would be large enough to
 	 * satisfy this request.
 	 */
-	pszind_t egn_skip = 0;
-	size_t alloc_size = sz_pind2sz(pac->geom_grow.next + egn_skip);
-	while (alloc_size < alloc_size_min) {
-		egn_skip++;
-		if (pac->geom_grow.next + egn_skip >=
-		    sz_psz2ind(SC_LARGE_MAXCLASS)) {
-			/* Outside legal range. */
-			goto label_err;
-		}
-		alloc_size = sz_pind2sz(pac->geom_grow.next + egn_skip);
+	size_t alloc_size;
+	pszind_t geom_grow_skip;
+	bool err = geom_grow_size_prepare(&pac->geom_grow, alloc_size_min,
+	    &alloc_size, &geom_grow_skip);
+	if (err) {
+		goto label_err;
 	}
 
 	edata_t *edata = edata_cache_get(tsdn, pac->edata_cache);
@@ -727,12 +723,8 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	 * Increment extent_grow_next if doing so wouldn't exceed the allowed
 	 * range.
 	 */
-	if (pac->geom_grow.next + egn_skip + 1 <= pac->geom_grow.limit) {
-		pac->geom_grow.next += egn_skip + 1;
-	} else {
-		pac->geom_grow.next = pac->geom_grow.limit;
-	}
 	/* All opportunities for failure are past. */
+	geom_grow_size_commit(&pac->geom_grow, geom_grow_skip);
 	malloc_mutex_unlock(tsdn, &pac->geom_grow.mtx);
 
 	if (config_prof) {
