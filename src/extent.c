@@ -614,7 +614,7 @@ extent_recycle(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 static edata_t *
 extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     size_t size, size_t alignment, bool zero, bool *commit) {
-	malloc_mutex_assert_owner(tsdn, &pac->ecache_grow.mtx);
+	malloc_mutex_assert_owner(tsdn, &pac->geom_grow.mtx);
 
 	size_t alloc_size_min = size + PAGE_CEILING(alignment) - PAGE;
 	/* Beware size_t wrap-around. */
@@ -626,15 +626,15 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	 * satisfy this request.
 	 */
 	pszind_t egn_skip = 0;
-	size_t alloc_size = sz_pind2sz(pac->ecache_grow.next + egn_skip);
+	size_t alloc_size = sz_pind2sz(pac->geom_grow.next + egn_skip);
 	while (alloc_size < alloc_size_min) {
 		egn_skip++;
-		if (pac->ecache_grow.next + egn_skip >=
+		if (pac->geom_grow.next + egn_skip >=
 		    sz_psz2ind(SC_LARGE_MAXCLASS)) {
 			/* Outside legal range. */
 			goto label_err;
 		}
-		alloc_size = sz_pind2sz(pac->ecache_grow.next + egn_skip);
+		alloc_size = sz_pind2sz(pac->geom_grow.next + egn_skip);
 	}
 
 	edata_t *edata = edata_cache_get(tsdn, pac->edata_cache);
@@ -727,13 +727,13 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	 * Increment extent_grow_next if doing so wouldn't exceed the allowed
 	 * range.
 	 */
-	if (pac->ecache_grow.next + egn_skip + 1 <= pac->ecache_grow.limit) {
-		pac->ecache_grow.next += egn_skip + 1;
+	if (pac->geom_grow.next + egn_skip + 1 <= pac->geom_grow.limit) {
+		pac->geom_grow.next += egn_skip + 1;
 	} else {
-		pac->ecache_grow.next = pac->ecache_grow.limit;
+		pac->geom_grow.next = pac->geom_grow.limit;
 	}
 	/* All opportunities for failure are past. */
-	malloc_mutex_unlock(tsdn, &pac->ecache_grow.mtx);
+	malloc_mutex_unlock(tsdn, &pac->geom_grow.mtx);
 
 	if (config_prof) {
 		/* Adjust gdump stats now that extent is final size. */
@@ -747,7 +747,7 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 
 	return edata;
 label_err:
-	malloc_mutex_unlock(tsdn, &pac->ecache_grow.mtx);
+	malloc_mutex_unlock(tsdn, &pac->geom_grow.mtx);
 	return NULL;
 }
 
@@ -757,13 +757,13 @@ extent_alloc_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	assert(size != 0);
 	assert(alignment != 0);
 
-	malloc_mutex_lock(tsdn, &pac->ecache_grow.mtx);
+	malloc_mutex_lock(tsdn, &pac->geom_grow.mtx);
 
 	edata_t *edata = extent_recycle(tsdn, pac, ehooks,
 	    &pac->ecache_retained, new_addr, size, alignment, zero,
 	    commit, /* growing_retained */ true);
 	if (edata != NULL) {
-		malloc_mutex_unlock(tsdn, &pac->ecache_grow.mtx);
+		malloc_mutex_unlock(tsdn, &pac->geom_grow.mtx);
 		if (config_prof) {
 			extent_gdump_add(tsdn, edata);
 		}
@@ -772,9 +772,9 @@ extent_alloc_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		    alignment, zero, commit);
 		/* extent_grow_retained() always releases extent_grow_mtx. */
 	} else {
-		malloc_mutex_unlock(tsdn, &pac->ecache_grow.mtx);
+		malloc_mutex_unlock(tsdn, &pac->geom_grow.mtx);
 	}
-	malloc_mutex_assert_not_owner(tsdn, &pac->ecache_grow.mtx);
+	malloc_mutex_assert_not_owner(tsdn, &pac->geom_grow.mtx);
 
 	return edata;
 }

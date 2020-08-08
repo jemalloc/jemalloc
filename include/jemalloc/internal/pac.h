@@ -1,7 +1,9 @@
 #ifndef JEMALLOC_INTERNAL_PAC_H
 #define JEMALLOC_INTERNAL_PAC_H
 
+#include "jemalloc/internal/geom_grow.h"
 #include "jemalloc/internal/pai.h"
+
 
 /*
  * Page allocator classic; an implementation of the PAI interface that:
@@ -93,7 +95,7 @@ struct pac_s {
 	edata_cache_t *edata_cache;
 
 	/* The grow info for the retained ecache. */
-	ecache_grow_t ecache_grow;
+	geom_grow_t geom_grow;
 
 	/*
 	 * Decay-based purging state, responsible for scheduling extent state
