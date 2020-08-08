@@ -68,7 +68,7 @@ pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
 	    ind, /* delay_coalesce */ false)) {
 		return true;
 	}
-	if (ecache_grow_init(tsdn, &pac->ecache_grow)) {
+	if (geom_grow_init(tsdn, &pac->geom_grow)) {
 		return true;
 	}
 	if (decay_init(&pac->decay_dirty, cur_time, dirty_decay_ms)) {
@@ -203,14 +203,14 @@ pac_retain_grow_limit_get_set(tsdn_t *tsdn, pac_t *pac, size_t *old_limit,
 		}
 	}
 
-	malloc_mutex_lock(tsdn, &pac->ecache_grow.mtx);
+	malloc_mutex_lock(tsdn, &pac->geom_grow.mtx);
 	if (old_limit != NULL) {
-		*old_limit = sz_pind2sz(pac->ecache_grow.limit);
+		*old_limit = sz_pind2sz(pac->geom_grow.limit);
 	}
 	if (new_limit != NULL) {
-		pac->ecache_grow.limit = new_ind;
+		pac->geom_grow.limit = new_ind;
 	}
-	malloc_mutex_unlock(tsdn, &pac->ecache_grow.mtx);
+	malloc_mutex_unlock(tsdn, &pac->geom_grow.mtx);
 
 	return false;
 }

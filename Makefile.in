@@ -117,6 +117,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/extent.c \
 	$(srcroot)src/extent_dss.c \
 	$(srcroot)src/extent_mmap.c \
+	$(srcroot)src/geom_grow.c \
 	$(srcroot)src/hook.c \
 	$(srcroot)src/inspect.c \
 	$(srcroot)src/large.c \
