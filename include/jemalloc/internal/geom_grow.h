@@ -48,7 +48,7 @@ geom_grow_size_commit(geom_grow_t *geom_grow, pszind_t skip) {
 
 }
 
-bool geom_grow_init(tsdn_t *tsdn, geom_grow_t *geom_grow);
+bool geom_grow_init(geom_grow_t *geom_grow);
 void geom_grow_prefork(tsdn_t *tsdn, geom_grow_t *geom_grow);
 void geom_grow_postfork_parent(tsdn_t *tsdn, geom_grow_t *geom_grow);
 void geom_grow_postfork_child(tsdn_t *tsdn, geom_grow_t *geom_grow);
