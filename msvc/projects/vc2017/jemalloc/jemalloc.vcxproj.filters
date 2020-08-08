@@ -58,6 +58,9 @@
     <ClCompile Include="..\..\..\..\src\hook.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\src\hpa_central.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\src\inspect.c">
       <Filter>Source Files</Filter>
     </ClCompile>
