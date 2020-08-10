@@ -13,6 +13,8 @@
 /doc/jemalloc.html
 /doc/jemalloc.3
 
+/doc_internal/PROFILING_INTERNALS.pdf
+
 /jemalloc.pc
 
 /lib/
