@@ -171,6 +171,39 @@ TEST_BEGIN(test_align) {
 }
 TEST_END
 
+TEST_BEGIN(test_align_enum) {
+/* Span both small sizes and large sizes. */
+#define LG_MIN 12
+#define LG_MAX 15
+	for (size_t lg_align = LG_MIN; lg_align <= LG_MAX; ++lg_align) {
+		for (size_t lg_size = LG_MIN; lg_size <= LG_MAX; ++lg_size) {
+			size_t size = 1 << lg_size;
+			for (size_t lg_align_next = LG_MIN;
+			    lg_align_next <= LG_MAX; ++lg_align_next) {
+				int flags = MALLOCX_LG_ALIGN(lg_align);
+				void *p = mallocx(1, flags);
+				assert_ptr_not_null(p,
+				    "Unexpected mallocx() error");
+				assert_zu_eq(nallocx(1, flags),
+				    malloc_usable_size(p),
+				    "Wrong mallocx() usable size");
+				int flags_next =
+				    MALLOCX_LG_ALIGN(lg_align_next);
+				p = rallocx(p, size, flags_next);
+				assert_ptr_not_null(p,
+				    "Unexpected rallocx() error");
+				expect_zu_eq(nallocx(size, flags_next),
+				    malloc_usable_size(p),
+				    "Wrong rallocx() usable size");
+				free(p);
+			}
+		}
+	}
+#undef LG_MAX
+#undef LG_MIN
+}
+TEST_END
+
 TEST_BEGIN(test_lg_align_and_zero) {
 	void *p, *q;
 	unsigned lg_align;
@@ -253,6 +286,7 @@ main(void) {
 	    test_grow_and_shrink,
 	    test_zero,
 	    test_align,
+	    test_align_enum,
 	    test_lg_align_and_zero,
 	    test_overflow);
 }
