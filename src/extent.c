@@ -614,7 +614,7 @@ extent_recycle(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 static edata_t *
 extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     size_t size, size_t alignment, bool zero, bool *commit) {
-	malloc_mutex_assert_owner(tsdn, &pac->geom_grow.mtx);
+	malloc_mutex_assert_owner(tsdn, &pac->grow_mtx);
 
 	size_t alloc_size_min = size + PAGE_CEILING(alignment) - PAGE;
 	/* Beware size_t wrap-around. */
@@ -725,7 +725,7 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	 */
 	/* All opportunities for failure are past. */
 	geom_grow_size_commit(&pac->geom_grow, geom_grow_skip);
-	malloc_mutex_unlock(tsdn, &pac->geom_grow.mtx);
+	malloc_mutex_unlock(tsdn, &pac->grow_mtx);
 
 	if (config_prof) {
 		/* Adjust gdump stats now that extent is final size. */
@@ -739,7 +739,7 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 
 	return edata;
 label_err:
-	malloc_mutex_unlock(tsdn, &pac->geom_grow.mtx);
+	malloc_mutex_unlock(tsdn, &pac->grow_mtx);
 	return NULL;
 }
 
@@ -749,24 +749,24 @@ extent_alloc_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	assert(size != 0);
 	assert(alignment != 0);
 
-	malloc_mutex_lock(tsdn, &pac->geom_grow.mtx);
+	malloc_mutex_lock(tsdn, &pac->grow_mtx);
 
 	edata_t *edata = extent_recycle(tsdn, pac, ehooks,
 	    &pac->ecache_retained, new_addr, size, alignment, zero,
 	    commit, /* growing_retained */ true);
 	if (edata != NULL) {
-		malloc_mutex_unlock(tsdn, &pac->geom_grow.mtx);
+		malloc_mutex_unlock(tsdn, &pac->grow_mtx);
 		if (config_prof) {
 			extent_gdump_add(tsdn, edata);
 		}
 	} else if (opt_retain && new_addr == NULL) {
 		edata = extent_grow_retained(tsdn, pac, ehooks, size,
 		    alignment, zero, commit);
-		/* extent_grow_retained() always releases extent_grow_mtx. */
+		/* extent_grow_retained() always releases pac->grow_mtx. */
 	} else {
-		malloc_mutex_unlock(tsdn, &pac->geom_grow.mtx);
+		malloc_mutex_unlock(tsdn, &pac->grow_mtx);
 	}
-	malloc_mutex_assert_not_owner(tsdn, &pac->geom_grow.mtx);
+	malloc_mutex_assert_not_owner(tsdn, &pac->grow_mtx);
 
 	return edata;
 }

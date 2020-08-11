@@ -96,6 +96,7 @@ struct pac_s {
 
 	/* The grow info for the retained ecache. */
 	geom_grow_t geom_grow;
+	malloc_mutex_t grow_mtx;
 
 	/*
 	 * Decay-based purging state, responsible for scheduling extent state

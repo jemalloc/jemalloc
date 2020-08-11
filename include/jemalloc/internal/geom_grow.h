@@ -13,12 +13,9 @@ struct geom_grow_s {
 	 * retain_grow_limit is the max allowed size ind to expand (unless the
 	 * required size is greater).  Default is no limit, and controlled
 	 * through mallctl only.
-	 *
-	 * Synchronization: mtx
 	 */
 	pszind_t next;
 	pszind_t limit;
-	malloc_mutex_t mtx;
 };
 
 static inline bool
@@ -48,9 +45,6 @@ geom_grow_size_commit(geom_grow_t *geom_grow, pszind_t skip) {
 
 }
 
-bool geom_grow_init(geom_grow_t *geom_grow);
-void geom_grow_prefork(tsdn_t *tsdn, geom_grow_t *geom_grow);
-void geom_grow_postfork_parent(tsdn_t *tsdn, geom_grow_t *geom_grow);
-void geom_grow_postfork_child(tsdn_t *tsdn, geom_grow_t *geom_grow);
+void geom_grow_init(geom_grow_t *geom_grow);
 
 #endif /* JEMALLOC_INTERNAL_ECACHE_GROW_H */
