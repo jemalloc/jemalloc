@@ -270,7 +270,7 @@ prof_recent_alloc_assert_count(tsd_t *tsd) {
 }
 
 void
-prof_recent_alloc(tsd_t *tsd, edata_t *edata, size_t size) {
+prof_recent_alloc(tsd_t *tsd, edata_t *edata, size_t size, size_t usize) {
 	assert(edata != NULL);
 	prof_tctx_t *tctx = edata_prof_tctx_get(edata);
 
@@ -356,6 +356,7 @@ prof_recent_alloc(tsd_t *tsd, edata_t *edata, size_t size) {
 	prof_recent_t *tail = ql_last(&prof_recent_alloc_list, link);
 	assert(tail != NULL);
 	tail->size = size;
+	tail->usize = usize;
 	nstime_copy(&tail->alloc_time, edata_prof_alloc_time_get(edata));
 	tail->alloc_tctx = tctx;
 	nstime_init_zero(&tail->dalloc_time);
@@ -477,8 +478,7 @@ prof_recent_alloc_dump_node(emitter_t *emitter, prof_recent_t *node) {
 	emitter_json_object_begin(emitter);
 
 	emitter_json_kv(emitter, "size", emitter_type_size, &node->size);
-	size_t usize = sz_s2u(node->size);
-	emitter_json_kv(emitter, "usize", emitter_type_size, &usize);
+	emitter_json_kv(emitter, "usize", emitter_type_size, &node->usize);
 	bool released = prof_recent_alloc_edata_get_no_lock(node) == NULL;
 	emitter_json_kv(emitter, "released", emitter_type_bool, &released);
 

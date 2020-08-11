@@ -129,7 +129,7 @@ prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t size,
 	malloc_mutex_unlock(tsd_tsdn(tsd), tctx->tdata->lock);
 	if (record_recent) {
 		assert(tctx == edata_prof_tctx_get(edata));
-		prof_recent_alloc(tsd, edata, size);
+		prof_recent_alloc(tsd, edata, size, usize);
 	}
 }
 
