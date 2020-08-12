@@ -127,6 +127,7 @@ bool	opt_utrace = false;
 bool	opt_xmalloc = false;
 bool	opt_zero = false;
 unsigned	opt_narenas = 0;
+unsigned	opt_narenas_ratio = 4;
 
 unsigned	ncpus;
 
@@ -1294,6 +1295,12 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 					    /* clip */ false)
 				}
 			}
+			if (CONF_MATCH("narenas_ratio")) {
+				CONF_HANDLE_UNSIGNED(opt_narenas_ratio,
+				    "narenas_ratio", 1, UINT_MAX,
+				    CONF_CHECK_MIN, CONF_DONT_CHECK_MAX,
+				    /* clip */ false)
+			}
 			if (CONF_MATCH("bin_shards")) {
 				const char *bin_shards_segment_cur = v;
 				size_t vlen_left = vlen;
@@ -1781,7 +1788,7 @@ malloc_narenas_default(void) {
 	 * default.
 	 */
 	if (ncpus > 1) {
-		return ncpus << 2;
+		return ncpus * opt_narenas_ratio;
 	} else {
 		return 1;
 	}
