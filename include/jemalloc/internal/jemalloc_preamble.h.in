@@ -185,8 +185,7 @@ static const bool config_opt_safety_checks =
  * general safety checks.
  */
 static const bool config_opt_size_checks =
-#if defined(JEMALLOC_OPT_SIZE_CHECKS) || defined(JEMALLOC_OPT_SAFETY_CHECKS) \
-    || defined(JEMALLOC_DEBUG)
+#if defined(JEMALLOC_OPT_SIZE_CHECKS) || defined(JEMALLOC_DEBUG)
     true
 #else
     false
