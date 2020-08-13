@@ -461,8 +461,12 @@ expect_iter_results_at(fb_group_t *fb, size_t nbits, size_t pos,
 	}
 
 	bool simple_iter_res;
-	size_t simple_iter_begin;
-	size_t simple_iter_len;
+	/*
+	 * These are dead stores, but the compiler can't always figure that out
+	 * statically, and warns on the uninitialized variable.
+	 */
+	size_t simple_iter_begin = 0;
+	size_t simple_iter_len = 0;
 	simple_iter_res = fb_iter_simple(fb, nbits, pos, &simple_iter_begin,
 	    &simple_iter_len, val, forward);
 
