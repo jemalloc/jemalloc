@@ -1558,6 +1558,51 @@ label_return:
 	return(ret);
 }
 
+int
+ctl_bymibname(tsd_t *tsd, size_t *mib, size_t miblen, const char *name,
+    size_t *miblenp, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+	const ctl_named_node_t *node;
+
+	if (!ctl_initialized && ctl_init(tsd)) {
+		ret = EAGAIN;
+		goto label_return;
+	}
+
+	ret = ctl_lookupbymib(tsd_tsdn(tsd), &node, mib, miblen);
+	if (ret != 0) {
+		goto label_return;
+	}
+	if (node == NULL || node->ctl != NULL) {
+		ret = ENOENT;
+		goto label_return;
+	}
+
+	assert(miblenp != NULL);
+	assert(*miblenp >= miblen);
+	*miblenp -= miblen;
+	/*
+	 * The same node supplies the starting node and stores the ending node.
+	 */
+	ret = ctl_lookup(tsd_tsdn(tsd), node, name, &node, mib + miblen,
+	    miblenp);
+	*miblenp += miblen;
+	if (ret != 0) {
+		goto label_return;
+	}
+
+	if (node != NULL && node->ctl) {
+		ret = node->ctl(tsd, mib, *miblenp, oldp, oldlenp, newp,
+		    newlen);
+	} else {
+		/* The name refers to a partial path through the ctl tree. */
+		ret = ENOENT;
+	}
+
+label_return:
+	return(ret);
+}
+
 bool
 ctl_boot(void) {
 	if (malloc_mutex_init(&ctl_mtx, "ctl", WITNESS_RANK_CTL,

@@ -187,6 +187,56 @@ TEST_BEGIN(test_mallctlmibnametomib) {
 }
 TEST_END
 
+TEST_BEGIN(test_mallctlbymibname) {
+	size_t mib[4];
+	size_t miblen = 4;
+	uint32_t result, result_ref;
+	size_t len_result = sizeof(uint32_t);
+
+	tsd_t *tsd = tsd_fetch();
+
+	/* Error cases. */
+
+	assert_d_eq(mallctlnametomib("arenas", mib, &miblen), 0,
+	    "Unexpected mallctlnametomib() failure");
+	assert_zu_eq(miblen, 1, "");
+
+	miblen = 4;
+	assert_d_eq(ctl_bymibname(tsd, mib, 1, "bin.0", &miblen,
+	    &result, &len_result, NULL, 0), ENOENT, "");
+	miblen = 4;
+	assert_d_eq(ctl_bymibname(tsd, mib, 1, "bin.0.bob", &miblen,
+	    &result, &len_result, NULL, 0), ENOENT, "");
+	assert_zu_eq(miblen, 4, "");
+
+	/* Valid cases. */
+
+	assert_d_eq(mallctl("arenas.bin.0.nregs", &result_ref, &len_result,
+	    NULL, 0), 0, "Unexpected mallctl() failure");
+	miblen = 4;
+
+	assert_d_eq(ctl_bymibname(tsd, mib, 0, "arenas.bin.0.nregs", &miblen,
+	    &result, &len_result, NULL, 0), 0, "");
+	assert_zu_eq(miblen, 4, "");
+	expect_zu_eq(result, result_ref, "Unexpected result");
+
+	assert_d_eq(ctl_bymibname(tsd, mib, 1, "bin.0.nregs", &miblen, &result,
+	    &len_result, NULL, 0), 0, "");
+	assert_zu_eq(miblen, 4, "");
+	expect_zu_eq(result, result_ref, "Unexpected result");
+
+	assert_d_eq(ctl_bymibname(tsd, mib, 2, "0.nregs", &miblen, &result,
+	    &len_result, NULL, 0), 0, "");
+	assert_zu_eq(miblen, 4, "");
+	expect_zu_eq(result, result_ref, "Unexpected result");
+
+	assert_d_eq(ctl_bymibname(tsd, mib, 3, "nregs", &miblen, &result,
+	    &len_result, NULL, 0), 0, "");
+	assert_zu_eq(miblen, 4, "");
+	expect_zu_eq(result, result_ref, "Unexpected result");
+}
+TEST_END
+
 TEST_BEGIN(test_mallctl_config) {
 #define TEST_MALLCTL_CONFIG(config, t) do {				\
 	t oldval;							\
@@ -1178,6 +1228,7 @@ main(void) {
 	    test_mallctlnametomib_short_mib,
 	    test_mallctlnametomib_short_name,
 	    test_mallctlmibnametomib,
+	    test_mallctlbymibname,
 	    test_mallctl_config,
 	    test_mallctl_opt,
 	    test_manpage_example,
