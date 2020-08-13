@@ -1468,21 +1468,13 @@ label_return:
 	return(ret);
 }
 
-int
-ctl_bymib(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen) {
+static int
+ctl_lookupbymib(tsdn_t *tsdn, const ctl_named_node_t **ending_nodep,
+    const size_t *mib, size_t miblen) {
 	int ret;
-	const ctl_named_node_t *node;
-	size_t i;
 
-	if (!ctl_initialized && ctl_init(tsd)) {
-		ret = EAGAIN;
-		goto label_return;
-	}
-
-	/* Iterate down the tree. */
-	node = super_root_node;
-	for (i = 0; i < miblen; i++) {
+	const ctl_named_node_t *node = super_root_node;
+	for (size_t i = 0; i < miblen; i++) {
 		assert(node);
 		assert(node->nchildren > 0);
 		if (ctl_named_node(node->children) != NULL) {
@@ -1497,12 +1489,35 @@ ctl_bymib(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 
 			/* Indexed element. */
 			inode = ctl_indexed_node(node->children);
-			node = inode->index(tsd_tsdn(tsd), mib, miblen, mib[i]);
+			node = inode->index(tsdn, mib, miblen, mib[i]);
 			if (node == NULL) {
 				ret = ENOENT;
 				goto label_return;
 			}
 		}
+	}
+	assert(ending_nodep != NULL);
+	*ending_nodep = node;
+	ret = 0;
+
+label_return:
+	return(ret);
+}
+
+int
+ctl_bymib(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+	const ctl_named_node_t *node;
+
+	if (!ctl_initialized && ctl_init(tsd)) {
+		ret = EAGAIN;
+		goto label_return;
+	}
+
+	ret = ctl_lookupbymib(tsd_tsdn(tsd), &node, mib, miblen);
+	if (ret != 0) {
+		goto label_return;
 	}
 
 	/* Call the ctl function. */
