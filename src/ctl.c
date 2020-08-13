@@ -1528,6 +1528,36 @@ label_return:
 	return(ret);
 }
 
+int
+ctl_mibnametomib(tsd_t *tsd, size_t *mib, size_t miblen, const char *name,
+    size_t *miblenp) {
+	int ret;
+	const ctl_named_node_t *node;
+
+	if (!ctl_initialized && ctl_init(tsd)) {
+		ret = EAGAIN;
+		goto label_return;
+	}
+
+	ret = ctl_lookupbymib(tsd_tsdn(tsd), &node, mib, miblen);
+	if (ret != 0) {
+		goto label_return;
+	}
+	if (node == NULL || node->ctl != NULL) {
+		ret = ENOENT;
+		goto label_return;
+	}
+
+	assert(miblenp != NULL);
+	assert(*miblenp >= miblen);
+	*miblenp -= miblen;
+	ret = ctl_lookup(tsd_tsdn(tsd), node, name, NULL, mib + miblen,
+	    miblenp);
+	*miblenp += miblen;
+label_return:
+	return(ret);
+}
+
 bool
 ctl_boot(void) {
 	if (malloc_mutex_init(&ctl_mtx, "ctl", WITNESS_RANK_CTL,

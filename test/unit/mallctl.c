@@ -1,5 +1,6 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/hook.h"
 #include "jemalloc/internal/util.h"
 
@@ -128,6 +129,61 @@ TEST_BEGIN(test_mallctlnametomib_short_name) {
 	expect_zu_eq(miblen, 3, "Unexpected mib output length");
 	expect_zu_eq(mib[3], 42,
 	    "mallctlnametomib() wrote past the end of the input mib");
+}
+TEST_END
+
+TEST_BEGIN(test_mallctlmibnametomib) {
+	size_t mib[4];
+	size_t miblen = 4;
+	uint32_t result, result_ref;
+	size_t len_result = sizeof(uint32_t);
+
+	tsd_t *tsd = tsd_fetch();
+
+	/* Error cases */
+	assert_d_eq(ctl_mibnametomib(tsd, mib, 0, "bob", &miblen), ENOENT, "");
+	assert_zu_eq(miblen, 4, "");
+	assert_d_eq(ctl_mibnametomib(tsd, mib, 0, "9999", &miblen), ENOENT, "");
+	assert_zu_eq(miblen, 4, "");
+
+	/* Valid case. */
+	assert_d_eq(ctl_mibnametomib(tsd, mib, 0, "arenas", &miblen), 0, "");
+	assert_zu_eq(miblen, 1, "");
+	miblen = 4;
+	assert_d_eq(ctl_mibnametomib(tsd, mib, 1, "bin", &miblen), 0, "");
+	assert_zu_eq(miblen, 2, "");
+	expect_d_eq(mallctlbymib(mib, miblen, &result, &len_result, NULL, 0),
+	    ENOENT, "mallctlbymib() should fail on partial path");
+
+	/* Error cases. */
+	miblen = 4;
+	assert_d_eq(ctl_mibnametomib(tsd, mib, 2, "bob", &miblen), ENOENT, "");
+	assert_zu_eq(miblen, 4, "");
+	assert_d_eq(ctl_mibnametomib(tsd, mib, 2, "9999", &miblen), ENOENT, "");
+	assert_zu_eq(miblen, 4, "");
+
+	/* Valid case. */
+	assert_d_eq(ctl_mibnametomib(tsd, mib, 2, "0", &miblen), 0, "");
+	assert_zu_eq(miblen, 3, "");
+	expect_d_eq(mallctlbymib(mib, miblen, &result, &len_result, NULL, 0),
+	    ENOENT, "mallctlbymib() should fail on partial path");
+
+	/* Error cases. */
+	miblen = 4;
+	assert_d_eq(ctl_mibnametomib(tsd, mib, 3, "bob", &miblen), ENOENT, "");
+	assert_zu_eq(miblen, 4, "");
+	assert_d_eq(ctl_mibnametomib(tsd, mib, 3, "9999", &miblen), ENOENT, "");
+	assert_zu_eq(miblen, 4, "");
+
+	/* Valid case. */
+	assert_d_eq(ctl_mibnametomib(tsd, mib, 3, "nregs", &miblen), 0, "");
+	assert_zu_eq(miblen, 4, "");
+	assert_d_eq(mallctlbymib(mib, miblen, &result, &len_result, NULL, 0),
+	    0, "Unexpected mallctlbymib() failure");
+	assert_d_eq(mallctl("arenas.bin.0.nregs", &result_ref, &len_result,
+	    NULL, 0), 0, "Unexpected mallctl() failure");
+	expect_zu_eq(result, result_ref,
+	    "mallctlbymib() and mallctl() returned different result");
 }
 TEST_END
 
@@ -1121,6 +1177,7 @@ main(void) {
 	    test_mallctl_read_write,
 	    test_mallctlnametomib_short_mib,
 	    test_mallctlnametomib_short_name,
+	    test_mallctlmibnametomib,
 	    test_mallctl_config,
 	    test_mallctl_opt,
 	    test_manpage_example,
