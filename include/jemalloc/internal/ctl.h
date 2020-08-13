@@ -98,9 +98,10 @@ typedef struct ctl_arenas_s {
 int ctl_byname(tsd_t *tsd, const char *name, void *oldp, size_t *oldlenp,
     void *newp, size_t newlen);
 int ctl_nametomib(tsd_t *tsd, const char *name, size_t *mibp, size_t *miblenp);
-
 int ctl_bymib(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen);
+int ctl_mibnametomib(tsd_t *tsd, size_t *mib, size_t miblen, const char *name,
+    size_t *miblenp);
 bool ctl_boot(void);
 void ctl_prefork(tsdn_t *tsdn);
 void ctl_postfork_parent(tsdn_t *tsdn);
