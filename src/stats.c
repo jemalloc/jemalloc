@@ -6,6 +6,7 @@
 #include "jemalloc/internal/emitter.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/mutex_prof.h"
+#include "jemalloc/internal/prof_stats.h"
 
 const char *global_mutex_names[mutex_prof_num_global_mutexes] = {
 #define OP(mtx) #mtx,
@@ -298,7 +299,8 @@ mutex_stats_emit(emitter_t *emitter, emitter_row_t *row,
 
 JEMALLOC_COLD
 static void
-stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t uptime) {
+stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i,
+    uint64_t uptime) {
 	size_t page;
 	bool in_gap, in_gap_prev;
 	unsigned nbins, j;
@@ -313,6 +315,9 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 	emitter_row_t row;
 	emitter_row_init(&row);
 
+	bool prof_stats_on = config_prof && opt_prof && opt_prof_stats
+	    && i == MALLCTL_ARENAS_ALL;
+
 	COL_HDR(row, size, NULL, right, 20, size)
 	COL_HDR(row, ind, NULL, right, 4, unsigned)
 	COL_HDR(row, allocated, NULL, right, 13, uint64)
@@ -322,6 +327,16 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 	COL_HDR(row, ndalloc_ps, "(#/sec)", right, 8, uint64)
 	COL_HDR(row, nrequests, NULL, right, 13, uint64)
 	COL_HDR(row, nrequests_ps, "(#/sec)", right, 10, uint64)
+	COL_HDR_DECLARE(prof_live_requested);
+	COL_HDR_DECLARE(prof_live_count);
+	COL_HDR_DECLARE(prof_accum_requested);
+	COL_HDR_DECLARE(prof_accum_count);
+	if (prof_stats_on) {
+		COL_HDR_INIT(row, prof_live_requested, NULL, right, 21, uint64)
+		COL_HDR_INIT(row, prof_live_count, NULL, right, 17, uint64)
+		COL_HDR_INIT(row, prof_accum_requested, NULL, right, 21, uint64)
+		COL_HDR_INIT(row, prof_accum_count, NULL, right, 17, uint64)
+	}
 	COL_HDR(row, nshards, NULL, right, 9, unsigned)
 	COL_HDR(row, curregs, NULL, right, 13, size)
 	COL_HDR(row, curslabs, NULL, right, 13, size)
@@ -373,6 +388,11 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 	size_t arenas_bin_mib[CTL_MAX_DEPTH];
 	CTL_LEAF_PREPARE(arenas_bin_mib, 0, "arenas.bin");
 
+	size_t prof_stats_mib[CTL_MAX_DEPTH];
+	if (prof_stats_on) {
+		CTL_LEAF_PREPARE(prof_stats_mib, 0, "prof.stats.bins");
+	}
+
 	for (j = 0, in_gap = false; j < nbins; j++) {
 		uint64_t nslabs;
 		size_t reg_size, slab_size, curregs;
@@ -381,14 +401,28 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 		uint32_t nregs, nshards;
 		uint64_t nmalloc, ndalloc, nrequests, nfills, nflushes;
 		uint64_t nreslabs;
+		prof_stats_t prof_live;
+		prof_stats_t prof_accum;
 
 		stats_arenas_mib[4] = j;
 		arenas_bin_mib[2] = j;
 
 		CTL_LEAF(stats_arenas_mib, 5, "nslabs", &nslabs, uint64_t);
 
+		if (prof_stats_on) {
+			prof_stats_mib[3] = j;
+			CTL_LEAF(prof_stats_mib, 4, "live", &prof_live,
+			    prof_stats_t);
+			CTL_LEAF(prof_stats_mib, 4, "accum", &prof_accum,
+			    prof_stats_t);
+		}
+
 		in_gap_prev = in_gap;
-		in_gap = (nslabs == 0);
+		if (prof_stats_on) {
+			in_gap = (nslabs == 0 && prof_accum.count == 0);
+		} else {
+			in_gap = (nslabs == 0);
+		}
 
 		if (in_gap_prev && !in_gap) {
 			emitter_table_printf(emitter,
@@ -429,6 +463,16 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 		    &curregs);
 		emitter_json_kv(emitter, "nrequests", emitter_type_uint64,
 		    &nrequests);
+		if (prof_stats_on) {
+			emitter_json_kv(emitter, "prof_live_requested",
+			    emitter_type_uint64, &prof_live.req_sum);
+			emitter_json_kv(emitter, "prof_live_count",
+			    emitter_type_uint64, &prof_live.count);
+			emitter_json_kv(emitter, "prof_accum_requested",
+			    emitter_type_uint64, &prof_accum.req_sum);
+			emitter_json_kv(emitter, "prof_accum_count",
+			    emitter_type_uint64, &prof_accum.count);
+		}
 		emitter_json_kv(emitter, "nfills", emitter_type_uint64,
 		    &nfills);
 		emitter_json_kv(emitter, "nflushes", emitter_type_uint64,
@@ -475,6 +519,13 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 		col_ndalloc_ps.uint64_val = rate_per_second(ndalloc, uptime);
 		col_nrequests.uint64_val = nrequests;
 		col_nrequests_ps.uint64_val = rate_per_second(nrequests, uptime);
+		if (prof_stats_on) {
+			col_prof_live_requested.uint64_val = prof_live.req_sum;
+			col_prof_live_count.uint64_val = prof_live.count;
+			col_prof_accum_requested.uint64_val =
+			    prof_accum.req_sum;
+			col_prof_accum_count.uint64_val = prof_accum.count;
+		}
 		col_nshards.unsigned_val = nshards;
 		col_curregs.size_val = curregs;
 		col_curslabs.size_val = curslabs;
@@ -518,6 +569,9 @@ stats_arena_lextents_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	emitter_row_t row;
 	emitter_row_init(&row);
 
+	bool prof_stats_on = config_prof && opt_prof && opt_prof_stats
+	    && i == MALLCTL_ARENAS_ALL;
+
 	COL_HDR(row, size, NULL, right, 20, size)
 	COL_HDR(row, ind, NULL, right, 4, unsigned)
 	COL_HDR(row, allocated, NULL, right, 13, size)
@@ -527,6 +581,16 @@ stats_arena_lextents_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	COL_HDR(row, ndalloc_ps, "(#/sec)", right, 8, uint64)
 	COL_HDR(row, nrequests, NULL, right, 13, uint64)
 	COL_HDR(row, nrequests_ps, "(#/sec)", right, 8, uint64)
+	COL_HDR_DECLARE(prof_live_requested)
+	COL_HDR_DECLARE(prof_live_count)
+	COL_HDR_DECLARE(prof_accum_requested)
+	COL_HDR_DECLARE(prof_accum_count)
+	if (prof_stats_on) {
+		COL_HDR_INIT(row, prof_live_requested, NULL, right, 21, uint64)
+		COL_HDR_INIT(row, prof_live_count, NULL, right, 17, uint64)
+		COL_HDR_INIT(row, prof_accum_requested, NULL, right, 21, uint64)
+		COL_HDR_INIT(row, prof_accum_count, NULL, right, 17, uint64)
+	}
 	COL_HDR(row, curlextents, NULL, right, 13, size)
 
 	/* As with bins, we label the large extents table. */
@@ -543,9 +607,16 @@ stats_arena_lextents_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	size_t arenas_lextent_mib[CTL_MAX_DEPTH];
 	CTL_LEAF_PREPARE(arenas_lextent_mib, 0, "arenas.lextent");
 
+	size_t prof_stats_mib[CTL_MAX_DEPTH];
+	if (prof_stats_on) {
+		CTL_LEAF_PREPARE(prof_stats_mib, 0, "prof.stats.lextents");
+	}
+
 	for (j = 0, in_gap = false; j < nlextents; j++) {
 		uint64_t nmalloc, ndalloc, nrequests;
 		size_t lextent_size, curlextents;
+		prof_stats_t prof_live;
+		prof_stats_t prof_accum;
 
 		stats_arenas_mib[4] = j;
 		arenas_lextent_mib[2] = j;
@@ -567,7 +638,25 @@ stats_arena_lextents_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 		CTL_LEAF(stats_arenas_mib, 5, "curlextents", &curlextents,
 		    size_t);
 
+		if (prof_stats_on) {
+			prof_stats_mib[3] = j;
+			CTL_LEAF(prof_stats_mib, 4, "live", &prof_live,
+			    prof_stats_t);
+			CTL_LEAF(prof_stats_mib, 4, "accum", &prof_accum,
+			    prof_stats_t);
+		}
+
 		emitter_json_object_begin(emitter);
+		if (prof_stats_on) {
+			emitter_json_kv(emitter, "prof_live_requested",
+			    emitter_type_uint64, &prof_live.req_sum);
+			emitter_json_kv(emitter, "prof_live_count",
+			    emitter_type_uint64, &prof_live.count);
+			emitter_json_kv(emitter, "prof_accum_requested",
+			    emitter_type_uint64, &prof_accum.req_sum);
+			emitter_json_kv(emitter, "prof_accum_count",
+			    emitter_type_uint64, &prof_accum.count);
+		}
 		emitter_json_kv(emitter, "curlextents", emitter_type_size,
 		    &curlextents);
 		emitter_json_object_end(emitter);
@@ -581,6 +670,13 @@ stats_arena_lextents_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 		col_ndalloc_ps.uint64_val = rate_per_second(ndalloc, uptime);
 		col_nrequests.uint64_val = nrequests;
 		col_nrequests_ps.uint64_val = rate_per_second(nrequests, uptime);
+		if (prof_stats_on) {
+			col_prof_live_requested.uint64_val = prof_live.req_sum;
+			col_prof_live_count.uint64_val = prof_live.count;
+			col_prof_accum_requested.uint64_val =
+			    prof_accum.req_sum;
+			col_prof_accum_count.uint64_val = prof_accum.count;
+		}
 		col_curlextents.size_val = curlextents;
 
 		if (!in_gap) {
