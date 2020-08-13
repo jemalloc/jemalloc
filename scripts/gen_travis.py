@@ -114,6 +114,13 @@ include_rows = ""
 for combination in unusual_combinations_to_test:
     include_rows += format_job(combination)
 
+# PPC64LE build
+include_rows += '''\
+    # PPC64LE build
+    - os: linux
+      arch: ppc64le
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+'''
 # Development build
 include_rows += '''\
     # Development build
