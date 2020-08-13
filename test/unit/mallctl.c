@@ -117,6 +117,20 @@ TEST_BEGIN(test_mallctlnametomib_short_mib) {
 }
 TEST_END
 
+TEST_BEGIN(test_mallctlnametomib_short_name) {
+	size_t mib[4];
+	size_t miblen;
+
+	miblen = 4;
+	mib[3] = 42;
+	expect_d_eq(mallctlnametomib("arenas.bin.0", mib, &miblen), 0,
+	    "Unexpected mallctlnametomib() failure");
+	expect_zu_eq(miblen, 3, "Unexpected mib output length");
+	expect_zu_eq(mib[3], 42,
+	    "mallctlnametomib() wrote past the end of the input mib");
+}
+TEST_END
+
 TEST_BEGIN(test_mallctl_config) {
 #define TEST_MALLCTL_CONFIG(config, t) do {				\
 	t oldval;							\
@@ -1106,6 +1120,7 @@ main(void) {
 	    test_mallctlbymib_errors,
 	    test_mallctl_read_write,
 	    test_mallctlnametomib_short_mib,
+	    test_mallctlnametomib_short_name,
 	    test_mallctl_config,
 	    test_mallctl_opt,
 	    test_manpage_example,
