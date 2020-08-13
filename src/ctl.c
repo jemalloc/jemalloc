@@ -1329,7 +1329,8 @@ label_return:
 
 static int
 ctl_lookup(tsdn_t *tsdn, const ctl_named_node_t *starting_node,
-    const char *name, ctl_node_t const **nodesp, size_t *mibp, size_t *depthp) {
+    const char *name, const ctl_named_node_t **ending_nodep, size_t *mibp,
+    size_t *depthp) {
 	int ret;
 	const char *elm, *tdot, *dot;
 	size_t elen, i, j;
@@ -1357,10 +1358,6 @@ ctl_lookup(tsdn_t *tsdn, const ctl_named_node_t *starting_node,
 				if (strlen(child->name) == elen &&
 				    strncmp(elm, child->name, elen) == 0) {
 					node = child;
-					if (nodesp != NULL) {
-						nodesp[i] =
-						    (const ctl_node_t *)node;
-					}
 					mibp[i] = j;
 					break;
 				}
@@ -1387,9 +1384,6 @@ ctl_lookup(tsdn_t *tsdn, const ctl_named_node_t *starting_node,
 				goto label_return;
 			}
 
-			if (nodesp != NULL) {
-				nodesp[i] = (const ctl_node_t *)node;
-			}
 			mibp[i] = (size_t)index;
 		}
 
@@ -1419,6 +1413,9 @@ ctl_lookup(tsdn_t *tsdn, const ctl_named_node_t *starting_node,
 		    strchr(elm, '\0');
 		elen = (size_t)((uintptr_t)dot - (uintptr_t)elm);
 	}
+	if (ending_nodep != NULL) {
+		*ending_nodep = node;
+	}
 
 	ret = 0;
 label_return:
@@ -1430,7 +1427,6 @@ ctl_byname(tsd_t *tsd, const char *name, void *oldp, size_t *oldlenp,
     void *newp, size_t newlen) {
 	int ret;
 	size_t depth;
-	ctl_node_t const *nodes[CTL_MAX_DEPTH];
 	size_t mib[CTL_MAX_DEPTH];
 	const ctl_named_node_t *node;
 
@@ -1440,13 +1436,12 @@ ctl_byname(tsd_t *tsd, const char *name, void *oldp, size_t *oldlenp,
 	}
 
 	depth = CTL_MAX_DEPTH;
-	ret = ctl_lookup(tsd_tsdn(tsd), super_root_node, name, nodes, mib,
+	ret = ctl_lookup(tsd_tsdn(tsd), super_root_node, name, &node, mib,
 	    &depth);
 	if (ret != 0) {
 		goto label_return;
 	}
 
-	node = ctl_named_node(nodes[depth-1]);
 	if (node != NULL && node->ctl) {
 		ret = node->ctl(tsd, mib, depth, oldp, oldlenp, newp, newlen);
 	} else {
