@@ -1387,7 +1387,8 @@ ctl_lookup(tsdn_t *tsdn, const ctl_named_node_t *starting_node,
 			mibp[i] = (size_t)index;
 		}
 
-		if (node->ctl != NULL) {
+		/* Reached the end? */
+		if (node->ctl != NULL || *dot == '\0') {
 			/* Terminal node. */
 			if (*dot != '\0') {
 				/*
@@ -1403,11 +1404,6 @@ ctl_lookup(tsdn_t *tsdn, const ctl_named_node_t *starting_node,
 		}
 
 		/* Update elm. */
-		if (*dot == '\0') {
-			/* No more elements. */
-			ret = ENOENT;
-			goto label_return;
-		}
 		elm = &dot[1];
 		dot = ((tdot = strchr(elm, '.')) != NULL) ? tdot :
 		    strchr(elm, '\0');
