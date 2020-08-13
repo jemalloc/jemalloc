@@ -119,11 +119,12 @@ include_rows += '''\
     # PPC64LE build
     - os: linux
       arch: ppc64le
-      env: CC=gcc-8 CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc-8 CXX=g++-8 COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
       addons:
         apt:
           packages:
             - gcc-8
+            - g++-8
 '''
 # Development build
 include_rows += '''\
