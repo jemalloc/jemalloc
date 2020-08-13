@@ -1328,8 +1328,8 @@ label_return:
 }
 
 static int
-ctl_lookup(tsdn_t *tsdn, const char *name, ctl_node_t const **nodesp,
-    size_t *mibp, size_t *depthp) {
+ctl_lookup(tsdn_t *tsdn, const ctl_named_node_t *starting_node,
+    const char *name, ctl_node_t const **nodesp, size_t *mibp, size_t *depthp) {
 	int ret;
 	const char *elm, *tdot, *dot;
 	size_t elen, i, j;
@@ -1343,7 +1343,7 @@ ctl_lookup(tsdn_t *tsdn, const char *name, ctl_node_t const **nodesp,
 		ret = ENOENT;
 		goto label_return;
 	}
-	node = super_root_node;
+	node = starting_node;
 	for (i = 0; i < *depthp; i++) {
 		assert(node);
 		assert(node->nchildren > 0);
@@ -1440,7 +1440,8 @@ ctl_byname(tsd_t *tsd, const char *name, void *oldp, size_t *oldlenp,
 	}
 
 	depth = CTL_MAX_DEPTH;
-	ret = ctl_lookup(tsd_tsdn(tsd), name, nodes, mib, &depth);
+	ret = ctl_lookup(tsd_tsdn(tsd), super_root_node, name, nodes, mib,
+	    &depth);
 	if (ret != 0) {
 		goto label_return;
 	}
@@ -1466,7 +1467,8 @@ ctl_nametomib(tsd_t *tsd, const char *name, size_t *mibp, size_t *miblenp) {
 		goto label_return;
 	}
 
-	ret = ctl_lookup(tsd_tsdn(tsd), name, NULL, mibp, miblenp);
+	ret = ctl_lookup(tsd_tsdn(tsd), super_root_node, name, NULL, mibp,
+	    miblenp);
 label_return:
 	return(ret);
 }
