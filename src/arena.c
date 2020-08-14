@@ -37,6 +37,7 @@ static atomic_zd_t dirty_decay_ms_default;
 static atomic_zd_t muzzy_decay_ms_default;
 
 emap_t arena_emap_global;
+hpa_t arena_hpa_global;
 
 const uint64_t h_steps[SMOOTHSTEP_NSTEPS] = {
 #define STEP(step, h, x, y)			\
@@ -1360,6 +1361,8 @@ arena_set_extent_hooks(tsd_t *tsd, arena_t *arena,
 		info = arena_background_thread_info_get(arena);
 		malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
 	}
+	/* No using the HPA now that we have the custom hooks. */
+	pa_shard_disable_hpa(&arena->pa_shard);
 	extent_hooks_t *ret = base_extent_hooks_set(arena->base, extent_hooks);
 	if (have_background_thread) {
 		malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
@@ -1515,6 +1518,19 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	arena_set(ind, arena);
 
 	nstime_init_update(&arena->create_time);
+
+	/*
+	 * We turn on the HPA if set to.  There are two exceptions:
+	 * - Custom extent hooks (we should only return memory allocated from
+	 *   them in that case).
+	 * - Arena 0 initialization.  In this case, we're mid-bootstrapping, and
+	 *   so arena_hpa_global is not yet initialized.
+	 */
+	if (opt_hpa && ehooks_are_default(base_ehooks_get(base)) && ind != 0) {
+		if (pa_shard_enable_hpa(&arena->pa_shard, &arena_hpa_global)) {
+			goto label_error;
+		}
+	}
 
 	/* We don't support reentrancy for arena 0 bootstrapping. */
 	if (ind != 0) {

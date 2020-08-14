@@ -99,6 +99,7 @@ thd_start(void *arg) {
 
 TEST_BEGIN(test_retained) {
 	test_skip_if(!config_stats);
+	test_skip_if(opt_hpa);
 
 	arena_ind = do_arena_create(NULL);
 	sz = nallocx(HUGEPAGE, 0);

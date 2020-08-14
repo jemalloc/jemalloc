@@ -185,6 +185,7 @@ generate_dirty(unsigned arena_ind, size_t size) {
 
 TEST_BEGIN(test_decay_ticks) {
 	test_skip_if(check_background_thread_enabled());
+	test_skip_if(opt_hpa);
 
 	ticker_t *decay_ticker;
 	unsigned tick0, tick1, arena_ind;
@@ -424,6 +425,7 @@ decay_ticker_helper(unsigned arena_ind, int flags, bool dirty, ssize_t dt,
 
 TEST_BEGIN(test_decay_ticker) {
 	test_skip_if(check_background_thread_enabled());
+	test_skip_if(opt_hpa);
 #define NPS 2048
 	ssize_t ddt = opt_dirty_decay_ms;
 	ssize_t mdt = opt_muzzy_decay_ms;
@@ -485,6 +487,7 @@ TEST_END
 
 TEST_BEGIN(test_decay_nonmonotonic) {
 	test_skip_if(check_background_thread_enabled());
+	test_skip_if(opt_hpa);
 #define NPS (SMOOTHSTEP_NSTEPS + 1)
 	int flags = (MALLOCX_ARENA(0) | MALLOCX_TCACHE_NONE);
 	void *ps[NPS];
@@ -542,6 +545,7 @@ TEST_END
 
 TEST_BEGIN(test_decay_now) {
 	test_skip_if(check_background_thread_enabled());
+	test_skip_if(opt_hpa);
 
 	unsigned arena_ind = do_arena_create(0, 0);
 	expect_zu_eq(get_arena_pdirty(arena_ind), 0, "Unexpected dirty pages");
@@ -562,6 +566,7 @@ TEST_END
 
 TEST_BEGIN(test_decay_never) {
 	test_skip_if(check_background_thread_enabled() || !config_stats);
+	test_skip_if(opt_hpa);
 
 	unsigned arena_ind = do_arena_create(-1, -1);
 	int flags = MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE;

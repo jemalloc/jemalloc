@@ -6,6 +6,7 @@
 #include "jemalloc/internal/ecache.h"
 #include "jemalloc/internal/edata_cache.h"
 #include "jemalloc/internal/emap.h"
+#include "jemalloc/internal/hpa.h"
 #include "jemalloc/internal/lockedint.h"
 #include "jemalloc/internal/pac.h"
 #include "jemalloc/internal/pai.h"
@@ -66,11 +67,31 @@ struct pa_shard_s {
 	 */
 	atomic_zu_t nactive;
 
+	/*
+	 * Whether or not we should prefer the hugepage allocator.  Atomic since
+	 * it may be concurrently modified by a thread setting extent hooks.
+	 * Note that we still may do HPA operations in this arena; if use_hpa is
+	 * changed from true to false, we'll free back to the hugepage allocator
+	 * for those allocations.
+	 */
+	atomic_b_t use_hpa;
+	/*
+	 * If we never used the HPA to begin with, it wasn't initialized, and so
+	 * we shouldn't try to e.g. acquire its mutexes during fork.  This
+	 * tracks that knowledge.
+	 */
+	bool ever_used_hpa;
+
 	/* Allocates from a PAC. */
 	pac_t pac;
 
+	/* Allocates from a HPA. */
+	hpa_shard_t hpa_shard;
+
 	/* The source of edata_t objects. */
 	edata_cache_t edata_cache;
+
+	unsigned ind;
 
 	malloc_mutex_t *stats_mtx;
 	pa_shard_stats_t *stats;
@@ -97,6 +118,17 @@ pa_shard_ehooks_get(pa_shard_t *shard) {
 bool pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
     unsigned ind, pa_shard_stats_t *stats, malloc_mutex_t *stats_mtx,
     nstime_t *cur_time, ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms);
+
+/*
+ * This isn't exposed to users; we allow late enablement of the HPA shard so
+ * that we can boot without worrying about the HPA, then turn it on in a0.
+ */
+bool pa_shard_enable_hpa(pa_shard_t *shard, hpa_t *hpa);
+/*
+ * We stop using the HPA when custom extent hooks are installed, but still
+ * redirect deallocations to it.
+ */
+void pa_shard_disable_hpa(pa_shard_t *shard);
 
 /*
  * This does the PA-specific parts of arena reset (i.e. freeing all active

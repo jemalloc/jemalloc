@@ -1,6 +1,8 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/hpa.h"
+
 static void
 pa_nactive_add(pa_shard_t *shard, size_t add_pages) {
 	atomic_fetch_add_zu(&shard->nactive, add_pages, ATOMIC_RELAXED);
@@ -21,11 +23,17 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
 	if (edata_cache_init(&shard->edata_cache, base)) {
 		return true;
 	}
+
 	if (pac_init(tsdn, &shard->pac, base, emap, &shard->edata_cache,
 	    cur_time, dirty_decay_ms, muzzy_decay_ms, &stats->pac_stats,
 	    stats_mtx)) {
 		return true;
 	}
+
+	shard->ind = ind;
+
+	shard->ever_used_hpa = false;
+	atomic_store_b(&shard->use_hpa, false, ATOMIC_RELAXED);
 
 	atomic_store_zu(&shard->nactive, 0, ATOMIC_RELAXED);
 
@@ -39,6 +47,29 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
 	return false;
 }
 
+bool
+pa_shard_enable_hpa(pa_shard_t *shard, hpa_t *hpa) {
+	/*
+	 * These are constants for now; eventually they'll probably be
+	 * tuneable.
+	 */
+	size_t ps_goal = 512 * 1024;
+	size_t ps_alloc_max = 256 * 1024;
+	if (hpa_shard_init(&shard->hpa_shard, hpa, &shard->edata_cache,
+	    shard->ind, ps_goal, ps_alloc_max)) {
+		return true;
+	}
+	shard->ever_used_hpa = true;
+	atomic_store_b(&shard->use_hpa, true, ATOMIC_RELAXED);
+
+	return false;
+}
+
+void
+pa_shard_disable_hpa(pa_shard_t *shard) {
+	atomic_store_b(&shard->use_hpa, false, ATOMIC_RELAXED);
+}
+
 void
 pa_shard_reset(pa_shard_t *shard) {
 	atomic_store_zu(&shard->nactive, 0, ATOMIC_RELAXED);
@@ -49,14 +80,30 @@ pa_shard_destroy(tsdn_t *tsdn, pa_shard_t *shard) {
 	pac_destroy(tsdn, &shard->pac);
 }
 
+static pai_t *
+pa_get_pai(pa_shard_t *shard, edata_t *edata) {
+	return (edata_pai_get(edata) == EXTENT_PAI_PAC
+	    ? &shard->pac.pai : &shard->hpa_shard.pai);
+}
+
 edata_t *
 pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
     bool slab, szind_t szind, bool zero) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	edata_t *edata = pai_alloc(tsdn, &shard->pac.pai, size, alignment,
-	    zero);
+	edata_t *edata = NULL;
+	if (atomic_load_b(&shard->use_hpa, ATOMIC_RELAXED)) {
+		edata = pai_alloc(tsdn, &shard->hpa_shard.pai, size, alignment,
+		    zero);
+	}
+	/*
+	 * Fall back to the PAC if the HPA is off or couldn't serve the given
+	 * allocation request.
+	 */
+	if (edata == NULL) {
+		edata = pai_alloc(tsdn, &shard->pac.pai, size, alignment, zero);
+	}
 
 	if (edata != NULL) {
 		pa_nactive_add(shard, size >> LG_PAGE);
@@ -66,6 +113,9 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 		if (slab) {
 			emap_register_interior(tsdn, shard->emap, edata, szind);
 		}
+	}
+	if (edata != NULL) {
+		assert(edata_arena_ind_get(edata) == shard->ind);
 	}
 	return edata;
 }
@@ -79,8 +129,9 @@ pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 
 	size_t expand_amount = new_size - old_size;
 
-	bool error = pai_expand(tsdn, &shard->pac.pai, edata, old_size,
-	    new_size, zero);
+	pai_t *pai = pa_get_pai(shard, edata);
+
+	bool error = pai_expand(tsdn, pai, edata, old_size, new_size, zero);
 	if (error) {
 		return true;
 	}
@@ -100,13 +151,13 @@ pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 	size_t shrink_amount = old_size - new_size;
 
 	*generated_dirty = false;
-	bool error = pai_shrink(tsdn, &shard->pac.pai, edata, old_size,
-	    new_size);
+	pai_t *pai = pa_get_pai(shard, edata);
+	bool error = pai_shrink(tsdn, pai, edata, old_size, new_size);
 	if (error) {
 		return true;
 	}
 	pa_nactive_sub(shard, shrink_amount >> LG_PAGE);
-	*generated_dirty = true;
+	*generated_dirty = (edata_pai_get(edata) == EXTENT_PAI_PAC);
 
 	edata_szind_set(edata, szind);
 	emap_remap(tsdn, shard->emap, edata, szind, /* slab */ false);
@@ -123,8 +174,9 @@ pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
 	}
 	edata_szind_set(edata, SC_NSIZES);
 	pa_nactive_sub(shard, edata_size_get(edata) >> LG_PAGE);
-	pai_dalloc(tsdn, &shard->pac.pai, edata);
-	*generated_dirty = true;
+	pai_t *pai = pa_get_pai(shard, edata);
+	pai_dalloc(tsdn, pai, edata);
+	*generated_dirty = (edata_pai_get(edata) == EXTENT_PAI_PAC);
 }
 
 bool

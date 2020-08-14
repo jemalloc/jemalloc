@@ -17,6 +17,9 @@ pa_shard_prefork0(tsdn_t *tsdn, pa_shard_t *shard) {
 void
 pa_shard_prefork2(tsdn_t *tsdn, pa_shard_t *shard) {
 	malloc_mutex_prefork(tsdn, &shard->pac.grow_mtx);
+	if (shard->ever_used_hpa) {
+		hpa_shard_prefork2(tsdn, &shard->hpa_shard);
+	}
 }
 
 void
@@ -24,6 +27,9 @@ pa_shard_prefork3(tsdn_t *tsdn, pa_shard_t *shard) {
 	ecache_prefork(tsdn, &shard->pac.ecache_dirty);
 	ecache_prefork(tsdn, &shard->pac.ecache_muzzy);
 	ecache_prefork(tsdn, &shard->pac.ecache_retained);
+	if (shard->ever_used_hpa) {
+		hpa_shard_prefork3(tsdn, &shard->hpa_shard);
+	}
 }
 
 void
@@ -40,6 +46,9 @@ pa_shard_postfork_parent(tsdn_t *tsdn, pa_shard_t *shard) {
 	malloc_mutex_postfork_parent(tsdn, &shard->pac.grow_mtx);
 	malloc_mutex_postfork_parent(tsdn, &shard->pac.decay_dirty.mtx);
 	malloc_mutex_postfork_parent(tsdn, &shard->pac.decay_muzzy.mtx);
+	if (shard->ever_used_hpa) {
+		hpa_shard_postfork_parent(tsdn, &shard->hpa_shard);
+	}
 }
 
 void
@@ -51,6 +60,9 @@ pa_shard_postfork_child(tsdn_t *tsdn, pa_shard_t *shard) {
 	malloc_mutex_postfork_child(tsdn, &shard->pac.grow_mtx);
 	malloc_mutex_postfork_child(tsdn, &shard->pac.decay_dirty.mtx);
 	malloc_mutex_postfork_child(tsdn, &shard->pac.decay_muzzy.mtx);
+	if (shard->ever_used_hpa) {
+		hpa_shard_postfork_child(tsdn, &shard->hpa_shard);
+	}
 }
 
 void

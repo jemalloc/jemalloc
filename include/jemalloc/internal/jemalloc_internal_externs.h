@@ -12,6 +12,7 @@ extern bool malloc_slow;
 extern bool opt_abort;
 extern bool opt_abort_conf;
 extern bool opt_confirm_conf;
+extern bool opt_hpa;
 extern const char *opt_junk;
 extern bool opt_junk_alloc;
 extern bool opt_junk_free;
