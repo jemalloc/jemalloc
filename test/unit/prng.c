@@ -1,7 +1,6 @@
 #include "test/jemalloc_test.h"
 
-static void
-test_prng_lg_range_u32() {
+TEST_BEGIN(test_prng_lg_range_u32) {
 	uint32_t sa, sb;
 	uint32_t ra, rb;
 	unsigned lg_range;
@@ -35,10 +34,11 @@ test_prng_lg_range_u32() {
 		    "Expected high order bits of full-width result, "
 		    "lg_range=%u", lg_range);
 	}
-}
 
-static void
-test_prng_lg_range_u64(void) {
+}
+TEST_END
+
+TEST_BEGIN(test_prng_lg_range_u64) {
 	uint64_t sa, sb, ra, rb;
 	unsigned lg_range;
 
@@ -72,9 +72,9 @@ test_prng_lg_range_u64(void) {
 		    "lg_range=%u", lg_range);
 	}
 }
+TEST_END
 
-static void
-test_prng_lg_range_zu() {
+TEST_BEGIN(test_prng_lg_range_zu) {
 	size_t sa, sb;
 	size_t ra, rb;
 	unsigned lg_range;
@@ -109,129 +109,81 @@ test_prng_lg_range_zu() {
 		    lg_range)), "Expected high order bits of full-width "
 		    "result, lg_range=%u", lg_range);
 	}
-}
 
-TEST_BEGIN(test_prng_lg_range_u32_nonatomic) {
-	test_prng_lg_range_u32();
 }
 TEST_END
 
-TEST_BEGIN(test_prng_lg_range_u32_atomic) {
-	test_prng_lg_range_u32();
-}
-TEST_END
-
-TEST_BEGIN(test_prng_lg_range_u64_nonatomic) {
-	test_prng_lg_range_u64();
-}
-TEST_END
-
-TEST_BEGIN(test_prng_lg_range_zu_nonatomic) {
-	test_prng_lg_range_zu();
-}
-TEST_END
-
-TEST_BEGIN(test_prng_lg_range_zu_atomic) {
-	test_prng_lg_range_zu();
-}
-TEST_END
-
-static void
-test_prng_range_u32() {
+TEST_BEGIN(test_prng_range_u32) {
 	uint32_t range;
-#define MAX_RANGE	10000000
-#define RANGE_STEP	97
-#define NREPS		10
 
-	for (range = 2; range < MAX_RANGE; range += RANGE_STEP) {
+	const uint32_t max_range = 10000000;
+	const uint32_t range_step = 97;
+	const unsigned nreps = 10;
+
+	for (range = 2; range < max_range; range += range_step) {
 		uint32_t s;
 		unsigned rep;
 
 		s = range;
-		for (rep = 0; rep < NREPS; rep++) {
+		for (rep = 0; rep < nreps; rep++) {
 			uint32_t r = prng_range_u32(&s, range);
 
 			expect_u32_lt(r, range, "Out of range");
 		}
 	}
 }
+TEST_END
 
-static void
-test_prng_range_u64(void) {
+TEST_BEGIN(test_prng_range_u64) {
 	uint64_t range;
-#define MAX_RANGE	10000000
-#define RANGE_STEP	97
-#define NREPS		10
 
-	for (range = 2; range < MAX_RANGE; range += RANGE_STEP) {
+	const uint64_t max_range = 10000000;
+	const uint64_t range_step = 97;
+	const unsigned nreps = 10;
+
+	for (range = 2; range < max_range; range += range_step) {
 		uint64_t s;
 		unsigned rep;
 
 		s = range;
-		for (rep = 0; rep < NREPS; rep++) {
+		for (rep = 0; rep < nreps; rep++) {
 			uint64_t r = prng_range_u64(&s, range);
 
 			expect_u64_lt(r, range, "Out of range");
 		}
 	}
 }
+TEST_END
 
-static void
-test_prng_range_zu() {
+TEST_BEGIN(test_prng_range_zu) {
 	size_t range;
-#define MAX_RANGE	10000000
-#define RANGE_STEP	97
-#define NREPS		10
 
-	for (range = 2; range < MAX_RANGE; range += RANGE_STEP) {
+	const size_t max_range = 10000000;
+	const size_t range_step = 97;
+	const unsigned nreps = 10;
+
+
+	for (range = 2; range < max_range; range += range_step) {
 		size_t s;
 		unsigned rep;
 
 		s = range;
-		for (rep = 0; rep < NREPS; rep++) {
+		for (rep = 0; rep < nreps; rep++) {
 			size_t r = prng_range_zu(&s, range);
 
 			expect_zu_lt(r, range, "Out of range");
 		}
 	}
 }
-
-TEST_BEGIN(test_prng_range_u32_nonatomic) {
-	test_prng_range_u32(false);
-}
-TEST_END
-
-TEST_BEGIN(test_prng_range_u32_atomic) {
-	test_prng_range_u32(true);
-}
-TEST_END
-
-TEST_BEGIN(test_prng_range_u64_nonatomic) {
-	test_prng_range_u64();
-}
-TEST_END
-
-TEST_BEGIN(test_prng_range_zu_nonatomic) {
-	test_prng_range_zu(false);
-}
-TEST_END
-
-TEST_BEGIN(test_prng_range_zu_atomic) {
-	test_prng_range_zu(true);
-}
 TEST_END
 
 int
 main(void) {
-	return test(
-	    test_prng_lg_range_u32_nonatomic,
-	    test_prng_lg_range_u32_atomic,
-	    test_prng_lg_range_u64_nonatomic,
-	    test_prng_lg_range_zu_nonatomic,
-	    test_prng_lg_range_zu_atomic,
-	    test_prng_range_u32_nonatomic,
-	    test_prng_range_u32_atomic,
-	    test_prng_range_u64_nonatomic,
-	    test_prng_range_zu_nonatomic,
-	    test_prng_range_zu_atomic);
+	return test_no_reentrancy(
+	    test_prng_lg_range_u32,
+	    test_prng_lg_range_u64,
+	    test_prng_lg_range_zu,
+	    test_prng_range_u32,
+	    test_prng_range_u64,
+	    test_prng_range_zu);
 }
