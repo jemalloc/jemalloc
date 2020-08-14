@@ -1095,6 +1095,7 @@ stats_general_print(emitter_t *emitter) {
 	OPT_WRITE_UNSIGNED("narenas")
 	OPT_WRITE_CHAR_P("percpu_arena")
 	OPT_WRITE_SIZE_T("oversize_threshold")
+	OPT_WRITE_BOOL("hpa")
 	OPT_WRITE_CHAR_P("metadata_thp")
 	OPT_WRITE_BOOL_MUTABLE("background_thread", "background_thread")
 	OPT_WRITE_SSIZE_T_MUTABLE("dirty_decay_ms", "arenas.dirty_decay_ms")

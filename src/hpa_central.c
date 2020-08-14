@@ -79,6 +79,7 @@ hpa_central_alloc_reuse(tsdn_t *tsdn, hpa_central_t *central,
 		eset_insert(&central->eset, edata);
 		return NULL;
 	}
+	emap_assert_mapped(tsdn, central->emap, trail);
 	eset_insert(&central->eset, trail);
 
 label_success:
@@ -178,6 +179,7 @@ hpa_central_dalloc_merge(tsdn_t *tsdn, hpa_central_t *central, edata_t *a,
 void
 hpa_central_dalloc(tsdn_t *tsdn, hpa_central_t *central, edata_t *edata) {
 	assert(edata_state_get(edata) == extent_state_active);
+	assert(edata_ps_get(edata) == NULL);
 
 	/*
 	 * These should really be called at the pa interface level, but

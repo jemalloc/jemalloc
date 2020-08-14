@@ -119,7 +119,7 @@ TEST_BEGIN(test_stats_arenas_summary) {
 	    "Unexepected mallctl() result");
 
 	if (config_stats) {
-		if (!background_thread_enabled()) {
+		if (!background_thread_enabled() && !opt_hpa) {
 			expect_u64_gt(dirty_npurge + muzzy_npurge, 0,
 			    "At least one purge should have occurred");
 		}

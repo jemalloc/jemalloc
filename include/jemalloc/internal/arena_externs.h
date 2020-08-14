@@ -16,6 +16,7 @@ extern const char *percpu_arena_mode_names[];
 extern const uint64_t h_steps[SMOOTHSTEP_NSTEPS];
 extern malloc_mutex_t arenas_lock;
 extern emap_t arena_emap_global;
+extern hpa_t arena_hpa_global;
 
 extern size_t opt_oversize_threshold;
 extern size_t oversize_threshold;

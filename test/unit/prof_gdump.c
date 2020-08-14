@@ -17,6 +17,7 @@ prof_dump_open_file_intercept(const char *filename, int mode) {
 }
 
 TEST_BEGIN(test_gdump) {
+	test_skip_if(opt_hpa);
 	bool active, gdump, gdump_old;
 	void *p, *q, *r, *s;
 	size_t sz;
