@@ -264,22 +264,37 @@ mutex_stats_emit(emitter_t *emitter, emitter_row_t *row,
 #undef EMITTER_TYPE_uint64_t
 }
 
-#define COL(row_name, column_name, left_or_right, col_width, etype)      \
-	emitter_col_t col_##column_name;                                     \
-	emitter_col_init(&col_##column_name, &row_name);                     \
-	col_##column_name.justify = emitter_justify_##left_or_right;         \
-	col_##column_name.width = col_width;                                 \
+#define COL_DECLARE(column_name)					\
+	emitter_col_t col_##column_name;
+
+#define COL_INIT(row_name, column_name, left_or_right, col_width, etype)\
+	emitter_col_init(&col_##column_name, &row_name);		\
+	col_##column_name.justify = emitter_justify_##left_or_right;	\
+	col_##column_name.width = col_width;				\
 	col_##column_name.type = emitter_type_##etype;
 
-#define COL_HDR(row_name, column_name, human, left_or_right, col_width, etype)  \
-	COL(row_name, column_name, left_or_right, col_width, etype)	         \
-	emitter_col_t header_##column_name;                                  \
-	emitter_col_init(&header_##column_name, &header_##row_name);         \
-	header_##column_name.justify = emitter_justify_##left_or_right;      \
-	header_##column_name.width = col_width;                              \
-	header_##column_name.type = emitter_type_title;                      \
+#define COL(row_name, column_name, left_or_right, col_width, etype)	\
+	COL_DECLARE(column_name);					\
+	COL_INIT(row_name, column_name, left_or_right, col_width, etype)
+
+#define COL_HDR_DECLARE(column_name)					\
+	COL_DECLARE(column_name);					\
+	emitter_col_t header_##column_name;
+
+#define COL_HDR_INIT(row_name, column_name, human, left_or_right,	\
+	col_width, etype)						\
+	COL_INIT(row_name, column_name, left_or_right, col_width, etype)\
+	emitter_col_init(&header_##column_name, &header_##row_name);	\
+	header_##column_name.justify = emitter_justify_##left_or_right;	\
+	header_##column_name.width = col_width;				\
+	header_##column_name.type = emitter_type_title;			\
 	header_##column_name.str_val = human ? human : #column_name;
 
+#define COL_HDR(row_name, column_name, human, left_or_right, col_width,	\
+    etype)								\
+	COL_HDR_DECLARE(column_name)					\
+	COL_HDR_INIT(row_name, column_name, human, left_or_right,	\
+	    col_width, etype)
 
 JEMALLOC_COLD
 static void
