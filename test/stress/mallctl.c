@@ -44,9 +44,9 @@ size_t mib_long[6];
 static void
 mallctlbymib_long(void) {
 	size_t miblen = sizeof(mib_long)/sizeof(mib_long[0]);
-	const char *version;
-	size_t sz = sizeof(version);
-	int err = mallctlbymib(mib_long, miblen, &version, &sz, NULL, 0);
+	uint64_t nmalloc;
+	size_t sz = sizeof(nmalloc);
+	int err = mallctlbymib(mib_long, miblen, &nmalloc, &sz, NULL, 0);
 	assert_d_eq(err, 0, "mallctlbymib failure");
 }
 
