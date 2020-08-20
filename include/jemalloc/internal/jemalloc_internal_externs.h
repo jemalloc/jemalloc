@@ -21,6 +21,7 @@ extern bool opt_utrace;
 extern bool opt_xmalloc;
 extern bool opt_zero;
 extern unsigned opt_narenas;
+extern unsigned opt_narenas_ratio;
 extern zero_realloc_action_t opt_zero_realloc_action;
 extern const char *zero_realloc_mode_names[];
 extern atomic_zu_t zero_realloc_count;

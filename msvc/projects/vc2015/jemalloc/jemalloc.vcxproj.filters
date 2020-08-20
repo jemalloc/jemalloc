@@ -70,6 +70,9 @@
     <ClCompile Include="..\..\..\..\src\log.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\src\malloc_conf.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\src\malloc_io.c">
       <Filter>Source Files</Filter>
     </ClCompile>

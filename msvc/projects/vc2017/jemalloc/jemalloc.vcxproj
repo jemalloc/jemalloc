@@ -62,6 +62,7 @@
     <ClCompile Include="..\..\..\..\src\jemalloc.c" />
     <ClCompile Include="..\..\..\..\src\large.c" />
     <ClCompile Include="..\..\..\..\src\log.c" />
+    <ClCompile Include="..\..\..\..\src\malloc_conf.c" />
     <ClCompile Include="..\..\..\..\src\malloc_io.c" />
     <ClCompile Include="..\..\..\..\src\mutex.c" />
     <ClCompile Include="..\..\..\..\src\mutex_pool.c" />
