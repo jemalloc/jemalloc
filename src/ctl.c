@@ -12,6 +12,7 @@
 #include "jemalloc/internal/prof_data.h"
 #include "jemalloc/internal/prof_log.h"
 #include "jemalloc/internal/prof_recent.h"
+#include "jemalloc/internal/prof_stats.h"
 #include "jemalloc/internal/prof_sys.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/util.h"
@@ -183,6 +184,12 @@ CTL_PROTO(prof_interval)
 CTL_PROTO(lg_prof_sample)
 CTL_PROTO(prof_log_start)
 CTL_PROTO(prof_log_stop)
+CTL_PROTO(prof_stats_bins_i_live)
+CTL_PROTO(prof_stats_bins_i_accum)
+INDEX_PROTO(prof_stats_bins_i)
+CTL_PROTO(prof_stats_lextents_i_live)
+CTL_PROTO(prof_stats_lextents_i_accum)
+INDEX_PROTO(prof_stats_lextents_i)
 CTL_PROTO(stats_arenas_i_small_allocated)
 CTL_PROTO(stats_arenas_i_small_nmalloc)
 CTL_PROTO(stats_arenas_i_small_ndalloc)
@@ -494,6 +501,37 @@ static const ctl_named_node_t arenas_node[] = {
 	{NAME("lookup"),	CTL(arenas_lookup)}
 };
 
+static const ctl_named_node_t prof_stats_bins_i_node[] = {
+	{NAME("live"),		CTL(prof_stats_bins_i_live)},
+	{NAME("accum"),		CTL(prof_stats_bins_i_accum)}
+};
+
+static const ctl_named_node_t super_prof_stats_bins_i_node[] = {
+	{NAME(""),		CHILD(named, prof_stats_bins_i)}
+};
+
+static const ctl_indexed_node_t prof_stats_bins_node[] = {
+	{INDEX(prof_stats_bins_i)}
+};
+
+static const ctl_named_node_t prof_stats_lextents_i_node[] = {
+	{NAME("live"),		CTL(prof_stats_lextents_i_live)},
+	{NAME("accum"),		CTL(prof_stats_lextents_i_accum)}
+};
+
+static const ctl_named_node_t super_prof_stats_lextents_i_node[] = {
+	{NAME(""),		CHILD(named, prof_stats_lextents_i)}
+};
+
+static const ctl_indexed_node_t prof_stats_lextents_node[] = {
+	{INDEX(prof_stats_lextents_i)}
+};
+
+static const ctl_named_node_t	prof_stats_node[] = {
+	{NAME("bins"),		CHILD(indexed, prof_stats_bins)},
+	{NAME("lextents"),	CHILD(indexed, prof_stats_lextents)},
+};
+
 static const ctl_named_node_t	prof_node[] = {
 	{NAME("thread_active_init"), CTL(prof_thread_active_init)},
 	{NAME("active"),	CTL(prof_active)},
@@ -504,8 +542,10 @@ static const ctl_named_node_t	prof_node[] = {
 	{NAME("interval"),	CTL(prof_interval)},
 	{NAME("lg_sample"),	CTL(lg_prof_sample)},
 	{NAME("log_start"),	CTL(prof_log_start)},
-	{NAME("log_stop"),	CTL(prof_log_stop)}
+	{NAME("log_stop"),	CTL(prof_log_stop)},
+	{NAME("stats"),		CHILD(named, prof_stats)}
 };
+
 static const ctl_named_node_t stats_arenas_i_small_node[] = {
 	{NAME("allocated"),	CTL(stats_arenas_i_small_allocated)},
 	{NAME("nmalloc"),	CTL(stats_arenas_i_small_nmalloc)},
@@ -3974,4 +4014,132 @@ experimental_batch_alloc_ctl(tsd_t *tsd, const size_t *mib,
 
 label_return:
 	return ret;
+}
+
+static int
+prof_stats_bins_i_live_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+	unsigned binind;
+	prof_stats_t stats;
+
+	if (!(config_prof && opt_prof && opt_prof_stats)) {
+		ret = ENOENT;
+		goto label_return;
+	}
+
+	READONLY();
+	MIB_UNSIGNED(binind, 3);
+	if (binind >= SC_NBINS) {
+		ret = EINVAL;
+		goto label_return;
+	}
+	prof_stats_get_live(tsd, (szind_t)binind, &stats);
+	READ(stats, prof_stats_t);
+
+	ret = 0;
+label_return:
+	return ret;
+}
+
+static int
+prof_stats_bins_i_accum_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+	unsigned binind;
+	prof_stats_t stats;
+
+	if (!(config_prof && opt_prof && opt_prof_stats)) {
+		ret = ENOENT;
+		goto label_return;
+	}
+
+	READONLY();
+	MIB_UNSIGNED(binind, 3);
+	if (binind >= SC_NBINS) {
+		ret = EINVAL;
+		goto label_return;
+	}
+	prof_stats_get_accum(tsd, (szind_t)binind, &stats);
+	READ(stats, prof_stats_t);
+
+	ret = 0;
+label_return:
+	return ret;
+}
+
+static const ctl_named_node_t *
+prof_stats_bins_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen,
+    size_t i) {
+	if (!(config_prof && opt_prof && opt_prof_stats)) {
+		return NULL;
+	}
+	if (i >= SC_NBINS) {
+		return NULL;
+	}
+	return super_prof_stats_bins_i_node;
+}
+
+static int
+prof_stats_lextents_i_live_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+	unsigned lextent_ind;
+	prof_stats_t stats;
+
+	if (!(config_prof && opt_prof && opt_prof_stats)) {
+		ret = ENOENT;
+		goto label_return;
+	}
+
+	READONLY();
+	MIB_UNSIGNED(lextent_ind, 3);
+	if (lextent_ind >= SC_NSIZES - SC_NBINS) {
+		ret = EINVAL;
+		goto label_return;
+	}
+	prof_stats_get_live(tsd, (szind_t)(lextent_ind + SC_NBINS), &stats);
+	READ(stats, prof_stats_t);
+
+	ret = 0;
+label_return:
+	return ret;
+}
+
+static int
+prof_stats_lextents_i_accum_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+	unsigned lextent_ind;
+	prof_stats_t stats;
+
+	if (!(config_prof && opt_prof && opt_prof_stats)) {
+		ret = ENOENT;
+		goto label_return;
+	}
+
+	READONLY();
+	MIB_UNSIGNED(lextent_ind, 3);
+	if (lextent_ind >= SC_NSIZES - SC_NBINS) {
+		ret = EINVAL;
+		goto label_return;
+	}
+	prof_stats_get_accum(tsd, (szind_t)(lextent_ind + SC_NBINS), &stats);
+	READ(stats, prof_stats_t);
+
+	ret = 0;
+label_return:
+	return ret;
+}
+
+static const ctl_named_node_t *
+prof_stats_lextents_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen,
+    size_t i) {
+	if (!(config_prof && opt_prof && opt_prof_stats)) {
+		return NULL;
+	}
+	if (i >= SC_NSIZES - SC_NBINS) {
+		return NULL;
+	}
+	return super_prof_stats_lextents_i_node;
 }

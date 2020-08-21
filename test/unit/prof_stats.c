@@ -1,18 +1,33 @@
 #include "test/jemalloc_test.h"
 
-#include "jemalloc/internal/prof_stats.h"
-
 static void
 test_wrapper(szind_t ind) {
 #define N_PTRS 3
+#define MALLCTL_STR_LEN 64
 	assert(opt_prof && opt_prof_stats);
 
-	tsd_t *tsd = tsd_fetch();
+	char mallctl_live_str[MALLCTL_STR_LEN];
+	char mallctl_accum_str[MALLCTL_STR_LEN];
+	if (ind < SC_NBINS) {
+		malloc_snprintf(mallctl_live_str, MALLCTL_STR_LEN,
+		    "prof.stats.bins.%u.live", (unsigned)ind);
+		malloc_snprintf(mallctl_accum_str, MALLCTL_STR_LEN,
+		    "prof.stats.bins.%u.accum", (unsigned)ind);
+	} else {
+		malloc_snprintf(mallctl_live_str, MALLCTL_STR_LEN,
+		    "prof.stats.lextents.%u.live", (unsigned)(ind - SC_NBINS));
+		malloc_snprintf(mallctl_accum_str, MALLCTL_STR_LEN,
+		    "prof.stats.lextents.%u.accum", (unsigned)(ind - SC_NBINS));
+	}
 
-	prof_stats_t live_stats_orig;
-	prof_stats_get_live(tsd, ind, &live_stats_orig);
-	prof_stats_t accum_stats_orig;
-	prof_stats_get_accum(tsd, ind, &accum_stats_orig);
+	size_t stats_len = 2 * sizeof(uint64_t);
+
+	uint64_t live_stats_orig[2];
+	assert_d_eq(mallctl(mallctl_live_str, &live_stats_orig, &stats_len,
+	    NULL, 0), 0, "");
+	uint64_t accum_stats_orig[2];
+	assert_d_eq(mallctl(mallctl_accum_str, &accum_stats_orig, &stats_len,
+	    NULL, 0), 0, "");
 
 	void *ptrs[N_PTRS];
 
@@ -30,17 +45,19 @@ test_wrapper(szind_t ind) {
 		live_count++;
 		accum_req_sum += sz;
 		accum_count++;
-		prof_stats_t live_stats;
-		prof_stats_get_live(tsd, ind, &live_stats);
-		expect_u64_eq(live_stats.req_sum - live_stats_orig.req_sum,
+		uint64_t live_stats[2];
+		assert_d_eq(mallctl(mallctl_live_str, &live_stats, &stats_len,
+		    NULL, 0), 0, "");
+		expect_u64_eq(live_stats[0] - live_stats_orig[0],
 		    live_req_sum, "");
-		expect_u64_eq(live_stats.count - live_stats_orig.count,
+		expect_u64_eq(live_stats[1] - live_stats_orig[1],
 		    live_count, "");
-		prof_stats_t accum_stats;
-		prof_stats_get_accum(tsd, ind, &accum_stats);
-		expect_u64_eq(accum_stats.req_sum - accum_stats_orig.req_sum,
+		uint64_t accum_stats[2];
+		assert_d_eq(mallctl(mallctl_accum_str, &accum_stats, &stats_len,
+		    NULL, 0), 0, "");
+		expect_u64_eq(accum_stats[0] - accum_stats_orig[0],
 		    accum_req_sum, "");
-		expect_u64_eq(accum_stats.count - accum_stats_orig.count,
+		expect_u64_eq(accum_stats[1] - accum_stats_orig[1],
 		    accum_count, "");
 	}
 
@@ -49,19 +66,22 @@ test_wrapper(szind_t ind) {
 		free(ptrs[i]);
 		live_req_sum -= sz;
 		live_count--;
-		prof_stats_t live_stats;
-		prof_stats_get_live(tsd, ind, &live_stats);
-		expect_u64_eq(live_stats.req_sum - live_stats_orig.req_sum,
+		uint64_t live_stats[2];
+		assert_d_eq(mallctl(mallctl_live_str, &live_stats, &stats_len,
+		    NULL, 0), 0, "");
+		expect_u64_eq(live_stats[0] - live_stats_orig[0],
 		    live_req_sum, "");
-		expect_u64_eq(live_stats.count - live_stats_orig.count,
+		expect_u64_eq(live_stats[1] - live_stats_orig[1],
 		    live_count, "");
-		prof_stats_t accum_stats;
-		prof_stats_get_accum(tsd, ind, &accum_stats);
-		expect_u64_eq(accum_stats.req_sum - accum_stats_orig.req_sum,
+		uint64_t accum_stats[2];
+		assert_d_eq(mallctl(mallctl_accum_str, &accum_stats, &stats_len,
+		    NULL, 0), 0, "");
+		expect_u64_eq(accum_stats[0] - accum_stats_orig[0],
 		    accum_req_sum, "");
-		expect_u64_eq(accum_stats.count - accum_stats_orig.count,
+		expect_u64_eq(accum_stats[1] - accum_stats_orig[1],
 		    accum_count, "");
 	}
+#undef MALLCTL_STR_LEN
 #undef N_PTRS
 }
 
@@ -70,6 +90,9 @@ TEST_BEGIN(test_prof_stats) {
 	test_wrapper(0);
 	test_wrapper(1);
 	test_wrapper(2);
+	test_wrapper(SC_NBINS);
+	test_wrapper(SC_NBINS + 1);
+	test_wrapper(SC_NBINS + 2);
 }
 TEST_END
 
