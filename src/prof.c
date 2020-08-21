@@ -89,6 +89,8 @@ prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx) {
 void
 prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t size,
     size_t usize, prof_tctx_t *tctx) {
+	cassert(config_prof);
+
 	if (opt_prof_sys_thread_name) {
 		prof_sys_thread_name_fetch(tsd);
 	}
@@ -133,6 +135,8 @@ prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t size,
 
 void
 prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_info_t *prof_info) {
+	cassert(config_prof);
+
 	assert(prof_info != NULL);
 	prof_tctx_t *tctx = prof_info->alloc_tctx;
 	assert((uintptr_t)tctx > (uintptr_t)1U);

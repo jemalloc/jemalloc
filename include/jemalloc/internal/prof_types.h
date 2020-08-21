@@ -39,6 +39,14 @@ typedef struct prof_recent_s prof_recent_t;
 #  define PROF_DUMP_BUFSIZE		65536
 #endif
 
+/* Size of size class related tables */
+#ifdef JEMALLOC_PROF
+#  define PROF_SC_NSIZES		SC_NSIZES
+#else
+/* Minimize memory bloat for non-prof builds. */
+#  define PROF_SC_NSIZES		1
+#endif
+
 /* Size of stack-allocated buffer used by prof_printf(). */
 #define PROF_PRINTF_BUFSIZE		128
 
