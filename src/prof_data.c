@@ -59,8 +59,8 @@ static ckh_t bt2gctx;
  */
 static prof_tdata_tree_t tdatas;
 
-size_t prof_unbiased_sz[SC_NSIZES];
-size_t prof_shifted_unbiased_cnt[SC_NSIZES];
+size_t prof_unbiased_sz[PROF_SC_NSIZES];
+size_t prof_shifted_unbiased_cnt[PROF_SC_NSIZES];
 
 /******************************************************************************/
 /* Red-black trees. */

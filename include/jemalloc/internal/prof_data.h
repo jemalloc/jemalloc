@@ -10,8 +10,8 @@ extern malloc_mutex_t prof_dump_mtx;
 extern malloc_mutex_t *gctx_locks;
 extern malloc_mutex_t *tdata_locks;
 
-extern size_t prof_unbiased_sz[SC_NSIZES];
-extern size_t prof_shifted_unbiased_cnt[SC_NSIZES];
+extern size_t prof_unbiased_sz[PROF_SC_NSIZES];
+extern size_t prof_shifted_unbiased_cnt[PROF_SC_NSIZES];
 
 void prof_bt_hash(const void *key, size_t r_hash[2]);
 bool prof_bt_keycomp(const void *k1, const void *k2);
