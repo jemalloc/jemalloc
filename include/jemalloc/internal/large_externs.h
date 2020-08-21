@@ -19,6 +19,6 @@ size_t large_salloc(tsdn_t *tsdn, const edata_t *edata);
 void large_prof_info_get(tsd_t *tsd, edata_t *edata, prof_info_t *prof_info,
     bool reset_recent);
 void large_prof_tctx_reset(edata_t *edata);
-void large_prof_info_set(edata_t *edata, prof_tctx_t *tctx);
+void large_prof_info_set(edata_t *edata, prof_tctx_t *tctx, size_t size);
 
 #endif /* JEMALLOC_INTERNAL_LARGE_EXTERNS_H */

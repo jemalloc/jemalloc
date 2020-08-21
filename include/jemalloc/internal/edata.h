@@ -40,6 +40,8 @@ typedef enum extent_pai_e extent_pai_t;
 struct e_prof_info_s {
 	/* Time when this was allocated. */
 	nstime_t	e_prof_alloc_time;
+	/* Allocation request size. */
+	size_t		e_prof_alloc_size;
 	/* Points to a prof_tctx_t. */
 	atomic_p_t	e_prof_tctx;
 	/*
@@ -390,6 +392,11 @@ edata_prof_alloc_time_get(const edata_t *edata) {
 	return &edata->e_prof_info.e_prof_alloc_time;
 }
 
+static inline size_t
+edata_prof_alloc_size_get(const edata_t *edata) {
+	return edata->e_prof_info.e_prof_alloc_size;
+}
+
 static inline prof_recent_t *
 edata_prof_recent_alloc_get_dont_call_directly(const edata_t *edata) {
 	return (prof_recent_t *)atomic_load_p(
@@ -524,6 +531,11 @@ edata_prof_tctx_set(edata_t *edata, prof_tctx_t *tctx) {
 static inline void
 edata_prof_alloc_time_set(edata_t *edata, nstime_t *t) {
 	nstime_copy(&edata->e_prof_info.e_prof_alloc_time, t);
+}
+
+static inline void
+edata_prof_alloc_size_set(edata_t *edata, size_t size) {
+	edata->e_prof_info.e_prof_alloc_size = size;
 }
 
 static inline void
