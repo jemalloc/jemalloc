@@ -41,9 +41,6 @@ extern uint64_t prof_interval;
  * resets.
  */
 extern size_t lg_prof_sample;
-extern size_t prof_unbiased_sz[SC_NSIZES];
-extern size_t prof_shifted_unbiased_cnt[SC_NSIZES];
-void prof_unbias_map_init();
 
 extern bool prof_booted;
 
