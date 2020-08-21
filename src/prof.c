@@ -61,48 +61,12 @@ static malloc_mutex_t prof_gdump_mtx;
 uint64_t prof_interval = 0;
 
 size_t lg_prof_sample;
-size_t prof_unbiased_sz[SC_NSIZES];
-size_t prof_shifted_unbiased_cnt[SC_NSIZES];
 
 static uint64_t next_thr_uid;
 static malloc_mutex_t next_thr_uid_mtx;
 
 /* Do not dump any profiles until bootstrapping is complete. */
 bool prof_booted = false;
-
-/******************************************************************************/
-
-void prof_unbias_map_init() {
-	/* See the comment in prof_sample_new_event_wait */
-#ifdef JEMALLOC_PROF
-	for (szind_t i = 0; i < SC_NSIZES; i++) {
-		double sz = (double)sz_index2size(i);
-		double rate = (double)(ZU(1) << lg_prof_sample);
-		double div_val = 1.0 - exp(-sz / rate);
-		double unbiased_sz = sz / div_val;
-		/*
-		 * The "true" right value for the unbiased count is
-		 * 1.0/(1 - exp(-sz/rate)).  The problem is, we keep the counts
-		 * as integers (for a variety of reasons -- rounding errors
-		 * could trigger asserts, and not all libcs can properly handle
-		 * floating point arithmetic during malloc calls inside libc).
-		 * Rounding to an integer, though, can lead to rounding errors
-		 * of over 30% for sizes close to the sampling rate.  So
-		 * instead, we multiply by a constant, dividing the maximum
-		 * possible roundoff error by that constant.  To avoid overflow
-		 * in summing up size_t values, the largest safe constant we can
-		 * pick is the size of the smallest allocation.
-		 */
-		double cnt_shift = (double)(ZU(1) << SC_LG_TINY_MIN);
-		double shifted_unbiased_cnt = cnt_shift / div_val;
-		prof_unbiased_sz[i] = (size_t)round(unbiased_sz);
-		prof_shifted_unbiased_cnt[i] = (size_t)round(
-		    shifted_unbiased_cnt);
-	}
-#else
-	unreachable();
-#endif
-}
 
 /******************************************************************************/
 
