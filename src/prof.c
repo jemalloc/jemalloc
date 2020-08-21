@@ -97,7 +97,7 @@ prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t size,
 
 	edata_t *edata = emap_edata_lookup(tsd_tsdn(tsd), &arena_emap_global,
 	    ptr);
-	prof_info_set(tsd, edata, tctx);
+	prof_info_set(tsd, edata, tctx, size);
 
 	szind_t szind = sz_size2index(usize);
 

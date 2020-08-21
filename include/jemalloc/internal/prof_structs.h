@@ -103,6 +103,8 @@ struct prof_info_s {
 	nstime_t		alloc_time;
 	/* Points to the prof_tctx_t corresponding to the allocation. */
 	prof_tctx_t		*alloc_tctx;
+	/* Allocation request size. */
+	size_t			alloc_size;
 };
 
 struct prof_gctx_s {
