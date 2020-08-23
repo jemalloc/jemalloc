@@ -2347,11 +2347,9 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	 */
 
 	/* If profiling is on, get our profiling context. */
-	if (config_prof && opt_prof) {
-		bool prof_active = prof_active_get_unlocked();
+	if (config_prof && prof_active_get_unlocked()) {
 		bool sample_event = te_prof_sample_event_lookahead(tsd, usize);
-		prof_tctx_t *tctx = prof_alloc_prep(tsd, prof_active,
-		    sample_event);
+		prof_tctx_t *tctx = prof_alloc_prep(tsd, true, sample_event);
 
 		emap_alloc_ctx_t alloc_ctx;
 		if (likely((uintptr_t)tctx == (uintptr_t)1U)) {
