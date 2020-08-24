@@ -379,6 +379,10 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 			    "                     ---\n");
 		}
 
+		if (in_gap && !emitter_outputs_json(emitter)) {
+			continue;
+		}
+
 		CTL_LEAF(arenas_bin_mib, 3, "size", &reg_size, size_t);
 		CTL_LEAF(arenas_bin_mib, 3, "nregs", &nregs, uint32_t);
 		CTL_LEAF(arenas_bin_mib, 3, "slab_size", &slab_size, size_t);
