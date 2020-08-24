@@ -2370,7 +2370,6 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 		}
 		prof_malloc(tsd, allocation, size, usize, &alloc_ctx, tctx);
 	} else {
-		assert(!opt_prof);
 		allocation = imalloc_no_sample(sopts, dopts, tsd, size, usize,
 		    ind);
 		if (unlikely(allocation == NULL)) {
