@@ -3313,18 +3313,18 @@ irallocx_prof_sample(tsdn_t *tsdn, void *old_ptr, size_t old_usize,
 
 JEMALLOC_ALWAYS_INLINE void *
 irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
-    size_t alignment, size_t *usize, bool zero, tcache_t *tcache,
+    size_t alignment, size_t usize, bool zero, tcache_t *tcache,
     arena_t *arena, emap_alloc_ctx_t *alloc_ctx,
     hook_ralloc_args_t *hook_args) {
 	prof_info_t old_prof_info;
 	prof_info_get_and_reset_recent(tsd, old_ptr, alloc_ctx, &old_prof_info);
 	bool prof_active = prof_active_get_unlocked();
-	bool sample_event = te_prof_sample_event_lookahead(tsd, *usize);
+	bool sample_event = te_prof_sample_event_lookahead(tsd, usize);
 	prof_tctx_t *tctx = prof_alloc_prep(tsd, prof_active, sample_event);
 	void *p;
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
 		p = irallocx_prof_sample(tsd_tsdn(tsd), old_ptr, old_usize,
-		    *usize, alignment, zero, tcache, arena, tctx, hook_args);
+		    usize, alignment, zero, tcache, arena, tctx, hook_args);
 	} else {
 		p = iralloct(tsd_tsdn(tsd), old_ptr, old_usize, size, alignment,
 		    zero, tcache, arena, hook_args);
@@ -3333,22 +3333,8 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 		prof_alloc_rollback(tsd, tctx);
 		return NULL;
 	}
-
-	if (p == old_ptr && alignment != 0) {
-		/*
-		 * The allocation did not move, so it is possible that the size
-		 * class is smaller than would guarantee the requested
-		 * alignment, and that the alignment constraint was
-		 * serendipitously satisfied.  Additionally, old_usize may not
-		 * be the same as the current usize because of in-place large
-		 * reallocation.  Therefore, query the actual value of usize.
-		 */
-		assert(*usize >= isalloc(tsd_tsdn(tsd), p));
-		*usize = isalloc(tsd_tsdn(tsd), p);
-	}
-
-	sample_event = te_prof_sample_event_lookahead(tsd, *usize);
-	prof_realloc(tsd, p, size, *usize, tctx, prof_active, old_ptr,
+	assert(usize == isalloc(tsd_tsdn(tsd), p));
+	prof_realloc(tsd, p, size, usize, tctx, prof_active, old_ptr,
 	    old_usize, &old_prof_info, sample_event);
 
 	return p;
@@ -3386,14 +3372,14 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 	assert(alloc_ctx.szind != SC_NSIZES);
 	old_usize = sz_index2size(alloc_ctx.szind);
 	assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
+	if (aligned_usize_get(size, alignment, &usize, NULL, false)) {
+		goto label_oom;
+	}
 
 	hook_ralloc_args_t hook_args = {is_realloc, {(uintptr_t)ptr, size,
 		flags, 0}};
 	if (config_prof && opt_prof) {
-		if (aligned_usize_get(size, alignment, &usize, NULL, false)) {
-			goto label_oom;
-		}
-		p = irallocx_prof(tsd, ptr, old_usize, size, alignment, &usize,
+		p = irallocx_prof(tsd, ptr, old_usize, size, alignment, usize,
 		    zero, tcache, arena, &alloc_ctx, &hook_args);
 		if (unlikely(p == NULL)) {
 			goto label_oom;
@@ -3404,7 +3390,7 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 		if (unlikely(p == NULL)) {
 			goto label_oom;
 		}
-		usize = isalloc(tsd_tsdn(tsd), p);
+		assert(usize == isalloc(tsd_tsdn(tsd), p));
 	}
 	assert(alignment == 0 || ((uintptr_t)p & (alignment - 1)) == ZU(0));
 	thread_alloc_event(tsd, usize);
