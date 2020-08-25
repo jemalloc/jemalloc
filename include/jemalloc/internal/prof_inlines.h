@@ -1,5 +1,5 @@
-#ifndef JEMALLOC_INTERNAL_PROF_INLINES_B_H
-#define JEMALLOC_INTERNAL_PROF_INLINES_B_H
+#ifndef JEMALLOC_INTERNAL_PROF_INLINES_H
+#define JEMALLOC_INTERNAL_PROF_INLINES_H
 
 #include "jemalloc/internal/safety_check.h"
 #include "jemalloc/internal/sz.h"
@@ -115,9 +115,12 @@ prof_sample_should_skip(tsd_t *tsd, bool sample_event) {
 		return true;
 	}
 
-	if (tsd_reentrancy_level_get(tsd) > 0) {
-		return true;
-	}
+	/*
+	 * sample_event is always obtained from the thread event module, and
+	 * whenever it's true, it means that the thread event module has
+	 * already checked the reentrancy level.
+	 */
+	assert(tsd_reentrancy_level_get(tsd) == 0);
 
 	prof_tdata_t *tdata = prof_tdata_get(tsd, true);
 	if (unlikely(tdata == NULL)) {
@@ -255,4 +258,4 @@ prof_free(tsd_t *tsd, const void *ptr, size_t usize,
 	}
 }
 
-#endif /* JEMALLOC_INTERNAL_PROF_INLINES_B_H */
+#endif /* JEMALLOC_INTERNAL_PROF_INLINES_H */
