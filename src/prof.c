@@ -99,7 +99,7 @@ prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t size,
 	    ptr);
 	prof_info_set(tsd, edata, tctx);
 
-	szind_t szind = sz_size2index(size);
+	szind_t szind = sz_size2index(usize);
 
 	malloc_mutex_lock(tsd_tsdn(tsd), tctx->tdata->lock);
 	/*
