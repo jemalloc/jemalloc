@@ -21,6 +21,16 @@
  */
 #define PSSET_NPSIZES 64
 
+typedef struct psset_bin_stats_s psset_bin_stats_t;
+struct psset_bin_stats_s {
+	/* How many pageslabs are in this bin? */
+	size_t npageslabs;
+	/* Of them, how many pages are active? */
+	size_t nactive;
+	/* How many are inactive? */
+	size_t ninactive;
+};
+
 typedef struct psset_s psset_t;
 struct psset_s {
 	/*
@@ -29,6 +39,12 @@ struct psset_s {
 	 */
 	edata_heap_t pageslabs[PSSET_NPSIZES];
 	bitmap_t bitmap[BITMAP_GROUPS(PSSET_NPSIZES)];
+	/*
+	 * Full slabs don't live in any edata heap.  But we still track their
+	 * stats.
+	 */
+	psset_bin_stats_t full_slab_stats;
+	psset_bin_stats_t slab_stats[PSSET_NPSIZES];
 };
 
 void psset_init(psset_t *psset);

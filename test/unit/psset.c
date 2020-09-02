@@ -295,6 +295,81 @@ TEST_BEGIN(test_multi_pageslab) {
 }
 TEST_END
 
+static void
+stats_expect_empty(psset_bin_stats_t *stats) {
+	assert_zu_eq(0, stats->npageslabs,
+	    "Supposedly empty bin had positive npageslabs");
+	expect_zu_eq(0, stats->nactive, "Unexpected nonempty bin"
+	    "Supposedly empty bin had positive nactive");
+	expect_zu_eq(0, stats->ninactive, "Unexpected nonempty bin"
+	    "Supposedly empty bin had positive ninactive");
+}
+
+static void
+stats_expect(psset_t *psset, size_t nactive) {
+	if (nactive == PAGESLAB_PAGES) {
+		expect_zu_eq(1, psset->full_slab_stats.npageslabs,
+		    "Expected a full slab");
+		expect_zu_eq(PAGESLAB_PAGES, psset->full_slab_stats.nactive,
+		    "Should have exactly filled the bin");
+		expect_zu_eq(0, psset->full_slab_stats.ninactive,
+		    "Should never have inactive pages in a full slab");
+	} else {
+		stats_expect_empty(&psset->full_slab_stats);
+	}
+	size_t ninactive = PAGESLAB_PAGES - nactive;
+	pszind_t nonempty_pind = PSSET_NPSIZES;
+	if (ninactive != 0 && ninactive < PAGESLAB_PAGES) {
+		nonempty_pind = sz_psz2ind(sz_psz_quantize_floor(
+		    ninactive << LG_PAGE));
+	}
+	for (pszind_t i = 0; i < PSSET_NPSIZES; i++) {
+		if (i == nonempty_pind) {
+			assert_zu_eq(1, psset->slab_stats[i].npageslabs,
+			    "Should have found a slab");
+			expect_zu_eq(nactive, psset->slab_stats[i].nactive,
+			    "Mismatch in active pages");
+			expect_zu_eq(ninactive, psset->slab_stats[i].ninactive,
+			    "Mismatch in inactive pages");
+		} else {
+			stats_expect_empty(&psset->slab_stats[i]);
+		}
+	}
+}
+
+TEST_BEGIN(test_stats) {
+	bool err;
+	edata_t pageslab;
+	memset(&pageslab, 0, sizeof(pageslab));
+	edata_t alloc[PAGESLAB_PAGES];
+
+	edata_init(&pageslab, /* arena_ind */ 0, PAGESLAB_ADDR, PAGESLAB_SIZE,
+	    /* slab */ true, SC_NSIZES, PAGESLAB_SN, extent_state_active,
+	    /* zeroed */ false, /* comitted */ true, EXTENT_PAI_HPA,
+	    EXTENT_IS_HEAD);
+
+	psset_t psset;
+	psset_init(&psset);
+	stats_expect(&psset, 0);
+
+	edata_init_test(&alloc[0]);
+	psset_alloc_new(&psset, &pageslab, &alloc[0], PAGE);
+	for (size_t i = 1; i < PAGESLAB_PAGES; i++) {
+		stats_expect(&psset, i);
+		edata_init_test(&alloc[i]);
+		err = psset_alloc_reuse(&psset, &alloc[i], PAGE);
+		expect_false(err, "Nonempty psset failed page allocation.");
+	}
+	stats_expect(&psset, PAGESLAB_PAGES);
+	for (ssize_t i = PAGESLAB_PAGES - 1; i >= 0; i--) {
+		edata_t *ps = psset_dalloc(&psset, &alloc[i]);
+		expect_true((ps == NULL) == (i != 0),
+		    "psset_dalloc should only evict a slab on the last free");
+		stats_expect(&psset, i);
+	}
+}
+TEST_END
+
 int
 main(void) {
 	return test_no_reentrancy(
@@ -302,5 +377,6 @@ main(void) {
 	    test_fill,
 	    test_reuse,
 	    test_evict,
-	    test_multi_pageslab);
+	    test_multi_pageslab,
+	    test_stats);
 }

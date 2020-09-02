@@ -218,13 +218,17 @@ struct edata_s {
 		 */
 		edata_t *ps;
 		/*
-		 * If this edata *is* a pageslab, then it has some longest free
-		 * range in it.  Track it.
+		 * If this edata *is* a pageslab, then we cache some useful
+		 * information about its associated bitmap.
 		 */
 		struct {
+			/*
+			 * The longest free range a pageslab contains determines
+			 * the heap it lives in.  If we know that it didn't
+			 * change after an operation, we can avoid moving it
+			 * between heaps.
+			 */
 			uint32_t longest_free_range;
-			/* Not yet tracked. */
-			/* uint32_t longest_free_range_pos; */
 		};
 	};
 
