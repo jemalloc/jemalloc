@@ -14,6 +14,48 @@ psset_init(psset_t *psset) {
 		edata_heap_new(&psset->pageslabs[i]);
 	}
 	bitmap_init(psset->bitmap, &psset_bitmap_info, /* fill */ true);
+	psset->full_slab_stats.npageslabs = 0;
+	psset->full_slab_stats.nactive = 0;
+	psset->full_slab_stats.ninactive = 0;
+	for (unsigned i = 0; i < PSSET_NPSIZES; i++) {
+		psset->slab_stats[i].npageslabs = 0;
+		psset->slab_stats[i].nactive = 0;
+		psset->slab_stats[i].ninactive = 0;
+	}
+}
+
+/*
+ * The stats maintenance strategy is simple, but not necessarily obvious.
+ * edata_nfree and the bitmap must remain consistent at all times.  If they
+ * change while an edata is within an edata_heap (or full), then the associated
+ * stats bin (or the full bin) must also change.  If they change while not in a
+ * bin (say, in between extraction and reinsertion), then the bin stats need not
+ * change.  If a pageslab is removed from a bin (or becomes nonfull), it should
+ * no longer contribute to that bin's stats (or the full stats).  These help
+ * ensure we don't miss any heap modification operations.
+ */
+JEMALLOC_ALWAYS_INLINE void
+psset_bin_stats_adjust(psset_bin_stats_t *binstats, edata_t *ps, bool inc) {
+	size_t mul = inc ? (size_t)1 : (size_t)-1;
+
+	size_t npages = edata_size_get(ps) >> LG_PAGE;
+	size_t ninactive = edata_nfree_get(ps);
+	size_t nactive = npages - ninactive;
+	binstats->npageslabs += mul * 1;
+	binstats->nactive += mul * nactive;
+	binstats->ninactive += mul * ninactive;
+}
+
+static void
+psset_edata_heap_remove(psset_t *psset, pszind_t pind, edata_t *ps) {
+	edata_heap_remove(&psset->pageslabs[pind], ps);
+	psset_bin_stats_adjust(&psset->slab_stats[pind], ps, /* inc */ false);
+}
+
+static void
+psset_edata_heap_insert(psset_t *psset, pszind_t pind, edata_t *ps) {
+	edata_heap_insert(&psset->pageslabs[pind], ps);
+	psset_bin_stats_adjust(&psset->slab_stats[pind], ps, /* inc */ true);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -46,7 +88,8 @@ psset_recycle_extract(psset_t *psset, size_t size) {
 	if (ret == NULL) {
 		return NULL;
 	}
-	edata_heap_remove(&psset->pageslabs[ret_ind], ret);
+
+	psset_edata_heap_remove(psset, ret_ind, ret);
 	if (edata_heap_empty(&psset->pageslabs[ret_ind])) {
 		bitmap_set(psset->bitmap, &psset_bitmap_info, ret_ind);
 	}
@@ -67,7 +110,7 @@ psset_insert(psset_t *psset, edata_t *ps, size_t largest_range) {
 	if (edata_heap_empty(&psset->pageslabs[pind])) {
 		bitmap_unset(psset->bitmap, &psset_bitmap_info, (size_t)pind);
 	}
-	edata_heap_insert(&psset->pageslabs[pind], ps);
+	psset_edata_heap_insert(psset, pind, ps);
 }
 
 /*
@@ -120,6 +163,9 @@ psset_ps_alloc_insert(psset_t *psset, edata_t *ps, edata_t *r_edata,
 	    EXTENT_NOT_HEAD);
 	edata_ps_set(r_edata, ps);
 	fb_set_range(ps_fb, ps_npages, begin, npages);
+	edata_nfree_set(ps, (uint32_t)(edata_nfree_get(ps) - npages));
+	/* The pageslab isn't in a bin, so no bin stats need to change. */
+
 	/*
 	 * OK, we've got to put the pageslab back.  First we have to figure out
 	 * where, though; we've only checked run sizes before the pageslab we
@@ -144,7 +190,10 @@ psset_ps_alloc_insert(psset_t *psset, edata_t *ps, edata_t *r_edata,
 		start = begin + len;
 	}
 	edata_longest_free_range_set(ps, (uint32_t)largest_unchosen_range);
-	if (largest_unchosen_range != 0) {
+	if (largest_unchosen_range == 0) {
+		psset_bin_stats_adjust(&psset->full_slab_stats, ps,
+		    /* inc */ true);
+	} else {
 		psset_insert(psset, ps, largest_unchosen_range);
 	}
 }
@@ -164,8 +213,8 @@ psset_alloc_new(psset_t *psset, edata_t *ps, edata_t *r_edata, size_t size) {
 	fb_group_t *ps_fb = edata_slab_data_get(ps)->bitmap;
 	size_t ps_npages = edata_size_get(ps) >> LG_PAGE;
 	assert(fb_empty(ps_fb, ps_npages));
-
 	assert(ps_npages >= (size >> LG_PAGE));
+	edata_nfree_set(ps, (uint32_t)ps_npages);
 	psset_ps_alloc_insert(psset, ps, r_edata, size);
 }
 
@@ -177,6 +226,11 @@ psset_dalloc(psset_t *psset, edata_t *edata) {
 	edata_t *ps = edata_ps_get(edata);
 	fb_group_t *ps_fb = edata_slab_data_get(ps)->bitmap;
 	size_t ps_old_longest_free_range = edata_longest_free_range_get(ps);
+	pszind_t old_pind = SC_NPSIZES;
+	if (ps_old_longest_free_range != 0) {
+		old_pind = sz_psz2ind(sz_psz_quantize_floor(
+		    ps_old_longest_free_range << LG_PAGE));
+	}
 
 	size_t ps_npages = edata_size_get(ps) >> LG_PAGE;
 	size_t begin =
@@ -184,6 +238,23 @@ psset_dalloc(psset_t *psset, edata_t *edata) {
 	    >> LG_PAGE;
 	size_t len = edata_size_get(edata) >> LG_PAGE;
 	fb_unset_range(ps_fb, ps_npages, begin, len);
+	if (ps_old_longest_free_range == 0) {
+		/* We were in the (imaginary) full bin; update stats for it. */
+		psset_bin_stats_adjust(&psset->full_slab_stats, ps,
+		    /* inc */ false);
+	} else {
+		/*
+		 * The edata is still in the bin, need to update its
+		 * contribution.
+		 */
+		psset->slab_stats[old_pind].nactive -= len;
+		psset->slab_stats[old_pind].ninactive += len;
+	}
+	/*
+	 * Note that we want to do this after the stats updates, since if it was
+	 * full it psset_bin_stats_adjust would have looked at the old version.
+	 */
+	edata_nfree_set(ps, (uint32_t)(edata_nfree_get(ps) + len));
 
 	/* We might have just created a new, larger range. */
 	size_t new_begin = (size_t)(fb_fls(ps_fb, ps_npages, begin) + 1);
@@ -215,9 +286,7 @@ psset_dalloc(psset_t *psset, edata_t *edata) {
 	 * and the issue becomes moot).
 	 */
 	if (ps_old_longest_free_range > 0) {
-		pszind_t old_pind = sz_psz2ind(sz_psz_quantize_floor(
-		    ps_old_longest_free_range<< LG_PAGE));
-		edata_heap_remove(&psset->pageslabs[old_pind], ps);
+		psset_edata_heap_remove(psset, old_pind, ps);
 		if (edata_heap_empty(&psset->pageslabs[old_pind])) {
 			bitmap_set(psset->bitmap, &psset_bitmap_info,
 			    (size_t)old_pind);
@@ -234,6 +303,6 @@ psset_dalloc(psset_t *psset, edata_t *edata) {
 		bitmap_unset(psset->bitmap, &psset_bitmap_info,
 		    (size_t)new_pind);
 	}
-	edata_heap_insert(&psset->pageslabs[new_pind], ps);
+	psset_edata_heap_insert(psset, new_pind, ps);
 	return NULL;
 }
