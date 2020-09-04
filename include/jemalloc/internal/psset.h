@@ -31,6 +31,13 @@ struct psset_bin_stats_s {
 	size_t ninactive;
 };
 
+static inline void
+psset_bin_stats_accum(psset_bin_stats_t *dst, psset_bin_stats_t *src) {
+	dst->npageslabs += src->npageslabs;
+	dst->nactive += src->nactive;
+	dst->ninactive += src->ninactive;
+}
+
 typedef struct psset_s psset_t;
 struct psset_s {
 	/*

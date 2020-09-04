@@ -76,7 +76,7 @@ pa_shard_basic_stats_merge(pa_shard_t *shard, size_t *nactive, size_t *ndirty,
 void
 pa_shard_stats_merge(tsdn_t *tsdn, pa_shard_t *shard,
     pa_shard_stats_t *pa_shard_stats_out, pac_estats_t *estats_out,
-    size_t *resident) {
+    hpa_shard_stats_t *hpa_stats_out, size_t *resident) {
 	cassert(config_stats);
 
 	pa_shard_stats_out->pac_stats.retained +=
@@ -138,6 +138,18 @@ pa_shard_stats_merge(tsdn_t *tsdn, pa_shard_t *shard,
 		estats_out[i].muzzy_bytes = muzzy_bytes;
 		estats_out[i].retained_bytes = retained_bytes;
 	}
+
+	if (shard->ever_used_hpa) {
+		malloc_mutex_lock(tsdn, &shard->hpa_shard.mtx);
+		psset_bin_stats_accum(&hpa_stats_out->psset_full_slab_stats,
+		    &shard->hpa_shard.psset.full_slab_stats);
+		for (pszind_t i = 0; i < PSSET_NPSIZES; i++) {
+			psset_bin_stats_accum(
+			    &hpa_stats_out->psset_slab_stats[i],
+			    &shard->hpa_shard.psset.slab_stats[i]);
+		}
+		malloc_mutex_unlock(tsdn, &shard->hpa_shard.mtx);
+	}
 }
 
 static void
@@ -163,4 +175,12 @@ pa_shard_mtx_stats_read(tsdn_t *tsdn, pa_shard_t *shard,
 	    &shard->pac.decay_dirty.mtx, arena_prof_mutex_decay_dirty);
 	pa_shard_mtx_stats_read_single(tsdn, mutex_prof_data,
 	    &shard->pac.decay_muzzy.mtx, arena_prof_mutex_decay_muzzy);
+
+	if (shard->ever_used_hpa) {
+		pa_shard_mtx_stats_read_single(tsdn, mutex_prof_data,
+		    &shard->hpa_shard.mtx, arena_prof_mutex_hpa_shard);
+		pa_shard_mtx_stats_read_single(tsdn, mutex_prof_data,
+		    &shard->hpa_shard.grow_mtx,
+		    arena_prof_mutex_hpa_shard_grow);
+	}
 }

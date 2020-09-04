@@ -192,7 +192,7 @@ void pa_shard_basic_stats_merge(pa_shard_t *shard, size_t *nactive,
 
 void pa_shard_stats_merge(tsdn_t *tsdn, pa_shard_t *shard,
     pa_shard_stats_t *pa_shard_stats_out, pac_estats_t *estats_out,
-    size_t *resident);
+    hpa_shard_stats_t *hpa_stats_out, size_t *resident);
 
 /*
  * Reads the PA-owned mutex stats into the output stats array, at the
