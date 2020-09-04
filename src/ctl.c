@@ -1142,6 +1142,14 @@ ctl_refresh(tsdn_t *tsdn) {
 			READ_GLOBAL_MUTEX_PROF_DATA(
 			    global_prof_mutex_prof_dump, prof_dump_mtx);
 		}
+		if (opt_hpa) {
+			READ_GLOBAL_MUTEX_PROF_DATA(
+			    global_prof_mutex_hpa_central,
+			    arena_hpa_global.mtx);
+			READ_GLOBAL_MUTEX_PROF_DATA(
+			    global_prof_mutex_hpa_central_grow,
+			    arena_hpa_global.grow_mtx);
+		}
 		if (have_background_thread) {
 			READ_GLOBAL_MUTEX_PROF_DATA(
 			    global_prof_mutex_background_thread,
@@ -3133,6 +3141,10 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib,
 		MUTEX_PROF_RESET(bt2gctx_mtx);
 		MUTEX_PROF_RESET(tdatas_mtx);
 		MUTEX_PROF_RESET(prof_dump_mtx);
+	}
+	if (opt_hpa) {
+		MUTEX_PROF_RESET(arena_hpa_global.mtx);
+		MUTEX_PROF_RESET(arena_hpa_global.grow_mtx);
 	}
 
 
