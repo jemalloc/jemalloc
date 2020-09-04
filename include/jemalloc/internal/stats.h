@@ -11,7 +11,8 @@
     OPTION('b',		bins,		true,		false)		\
     OPTION('l',		large,		true,		false)		\
     OPTION('x',		mutex,		true,		false)		\
-    OPTION('e',		extents,	true,		false)
+    OPTION('e',		extents,	true,		false)		\
+    OPTION('h',		hpa,		config_stats,	false)
 
 enum {
 #define OPTION(o, v, d, s) stats_print_option_num_##v,

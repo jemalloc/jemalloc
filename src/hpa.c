@@ -258,7 +258,6 @@ hpa_from_pai(pai_t *self) {
 static edata_t *
 hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
     size_t alignment, bool zero) {
-
 	assert((size & PAGE_MASK) == 0);
 	hpa_shard_t *shard = hpa_from_pai(self);
 	/* We don't handle alignment or zeroing for now. */
