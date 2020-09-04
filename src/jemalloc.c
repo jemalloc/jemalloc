@@ -136,6 +136,8 @@ malloc_mutex_t arenas_lock;
 
 /* The global hpa, and whether it's on. */
 bool opt_hpa = false;
+size_t opt_hpa_slab_goal = 512 * 1024;
+size_t opt_hpa_slab_max_alloc = 256 * 1024;
 
 /*
  * Arenas that are used to service external requests.  Not all elements of the
@@ -1481,6 +1483,17 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 					   CONF_CHECK_MIN, CONF_CHECK_MAX,
 					   true);
 			CONF_HANDLE_BOOL(opt_hpa, "hpa")
+			/*
+			 * If someone violates these mins and maxes, they're
+			 * confused.
+			 */
+			CONF_HANDLE_SIZE_T(opt_hpa_slab_goal, "hpa_slab_goal",
+			    PAGE, 512 * PAGE, CONF_CHECK_MIN, CONF_CHECK_MAX,
+			    true)
+			CONF_HANDLE_SIZE_T(opt_hpa_slab_max_alloc,
+			    "hpa_slab_max_alloc", PAGE, 512 * PAGE,
+			    CONF_CHECK_MIN, CONF_CHECK_MAX, true)
+
 			if (CONF_MATCH("slab_sizes")) {
 				if (CONF_MATCH_VALUE("default")) {
 					sc_data_init(sc_data);
@@ -1787,7 +1800,8 @@ malloc_init_hard_a0_locked() {
 		    &a0->pa_shard.edata_cache)) {
 			return true;
 		}
-		if (pa_shard_enable_hpa(&a0->pa_shard, &arena_hpa_global)) {
+		if (pa_shard_enable_hpa(&a0->pa_shard, &arena_hpa_global,
+		    opt_hpa_slab_goal, opt_hpa_slab_max_alloc)) {
 			return true;
 		}
 	}

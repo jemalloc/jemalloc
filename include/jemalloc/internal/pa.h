@@ -123,7 +123,8 @@ bool pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
  * This isn't exposed to users; we allow late enablement of the HPA shard so
  * that we can boot without worrying about the HPA, then turn it on in a0.
  */
-bool pa_shard_enable_hpa(pa_shard_t *shard, hpa_t *hpa);
+bool pa_shard_enable_hpa(pa_shard_t *shard, hpa_t *hpa, size_t ps_goal,
+    size_t ps_alloc_max);
 /*
  * We stop using the HPA when custom extent hooks are installed, but still
  * redirect deallocations to it.

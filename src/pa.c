@@ -48,13 +48,14 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
 }
 
 bool
-pa_shard_enable_hpa(pa_shard_t *shard, hpa_t *hpa) {
-	/*
-	 * These are constants for now; eventually they'll probably be
-	 * tuneable.
-	 */
-	size_t ps_goal = 512 * 1024;
-	size_t ps_alloc_max = 256 * 1024;
+pa_shard_enable_hpa(pa_shard_t *shard, hpa_t *hpa, size_t ps_goal,
+    size_t ps_alloc_max) {
+	ps_goal &= ~PAGE_MASK;
+	ps_alloc_max &= ~PAGE_MASK;
+
+	if (ps_alloc_max > ps_goal) {
+		ps_alloc_max = ps_goal;
+	}
 	if (hpa_shard_init(&shard->hpa_shard, hpa, &shard->edata_cache,
 	    shard->ind, ps_goal, ps_alloc_max)) {
 		return true;
