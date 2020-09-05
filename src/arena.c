@@ -1528,7 +1528,8 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	 */
 	if (opt_hpa && ehooks_are_default(base_ehooks_get(base)) && ind != 0) {
 		if (pa_shard_enable_hpa(&arena->pa_shard, &arena_hpa_global,
-		    opt_hpa_slab_goal, opt_hpa_slab_max_alloc)) {
+		    opt_hpa_slab_goal, opt_hpa_slab_max_alloc,
+		    opt_hpa_small_max, opt_hpa_large_min)) {
 			goto label_error;
 		}
 	}

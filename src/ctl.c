@@ -93,6 +93,8 @@ CTL_PROTO(opt_confirm_conf)
 CTL_PROTO(opt_hpa)
 CTL_PROTO(opt_hpa_slab_goal)
 CTL_PROTO(opt_hpa_slab_max_alloc)
+CTL_PROTO(opt_hpa_small_max)
+CTL_PROTO(opt_hpa_large_min)
 CTL_PROTO(opt_metadata_thp)
 CTL_PROTO(opt_retain)
 CTL_PROTO(opt_dss)
@@ -348,7 +350,9 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("confirm_conf"),	CTL(opt_confirm_conf)},
 	{NAME("hpa"),		CTL(opt_hpa)},
 	{NAME("hpa_slab_goal"),	CTL(opt_hpa_slab_goal)},
-	{NAME("hpa_max_alloc"),	CTL(opt_hpa_slab_max_alloc)},
+	{NAME("hpa_slab_max_alloc"),	CTL(opt_hpa_slab_max_alloc)},
+	{NAME("hpa_small_max"),	CTL(opt_hpa_small_max)},
+	{NAME("hpa_large_min"),	CTL(opt_hpa_large_min)},
 	{NAME("metadata_thp"),	CTL(opt_metadata_thp)},
 	{NAME("retain"),	CTL(opt_retain)},
 	{NAME("dss"),		CTL(opt_dss)},
@@ -1833,6 +1837,8 @@ CTL_RO_NL_GEN(opt_confirm_conf, opt_confirm_conf, bool)
 CTL_RO_NL_GEN(opt_hpa, opt_hpa, bool)
 CTL_RO_NL_GEN(opt_hpa_slab_goal, opt_hpa_slab_goal, size_t)
 CTL_RO_NL_GEN(opt_hpa_slab_max_alloc, opt_hpa_slab_max_alloc, size_t)
+CTL_RO_NL_GEN(opt_hpa_small_max, opt_hpa_small_max, size_t)
+CTL_RO_NL_GEN(opt_hpa_large_min, opt_hpa_large_min, size_t)
 CTL_RO_NL_GEN(opt_metadata_thp, metadata_thp_mode_names[opt_metadata_thp],
     const char *)
 CTL_RO_NL_GEN(opt_retain, opt_retain, bool)

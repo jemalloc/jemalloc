@@ -8,6 +8,9 @@
 #define PS_GOAL (128 * PAGE)
 #define PS_ALLOC_MAX (64 * PAGE)
 
+#define HPA_SMALL_MAX (200 * PAGE)
+#define HPA_LARGE_MIN (300 * PAGE)
+
 typedef struct test_data_s test_data_t;
 struct test_data_s {
 	/*
@@ -57,7 +60,8 @@ create_test_data() {
 	assert_false(err, "");
 
 	err = hpa_shard_init(&test_data->shard, &test_data->hpa,
-	    &test_data->shard_edata_cache, SHARD_IND, PS_GOAL, PS_ALLOC_MAX);
+	    &test_data->shard_edata_cache, SHARD_IND, PS_GOAL, PS_ALLOC_MAX,
+	    HPA_SMALL_MAX, HPA_LARGE_MIN);
 	assert_false(err, "");
 
 	return (hpa_shard_t *)test_data;
@@ -70,6 +74,31 @@ destroy_test_data(hpa_shard_t *shard) {
 	base_delete(TSDN_NULL, test_data->hpa_base);
 	free(test_data);
 }
+
+TEST_BEGIN(test_small_max_large_min) {
+	test_skip_if(LG_SIZEOF_PTR != 3);
+
+	hpa_shard_t *shard = create_test_data();
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+
+	edata_t *edata;
+
+	/* Small max */
+	edata = pai_alloc(tsdn, &shard->pai, HPA_SMALL_MAX, PAGE, false);
+	expect_ptr_not_null(edata, "Allocation of small max failed");
+	edata = pai_alloc(tsdn, &shard->pai, HPA_SMALL_MAX + PAGE, PAGE, false);
+	expect_ptr_null(edata, "Allocation of larger than small max succeeded");
+
+	/* Large min */
+	edata = pai_alloc(tsdn, &shard->pai, HPA_LARGE_MIN, PAGE, false);
+	expect_ptr_not_null(edata, "Allocation of large min failed");
+	edata = pai_alloc(tsdn, &shard->pai, HPA_LARGE_MIN - PAGE, PAGE, false);
+	expect_ptr_null(edata,
+	    "Allocation of smaller than large min succeeded");
+
+	destroy_test_data(shard);
+}
+TEST_END
 
 typedef struct mem_contents_s mem_contents_t;
 struct mem_contents_s {
@@ -164,10 +193,10 @@ TEST_BEGIN(test_stress) {
 			 */
 			if (operation == 0) {
 				npages_min = 1;
-				npages_max = SC_LARGE_MINCLASS / PAGE - 1;
+				npages_max = HPA_SMALL_MAX / PAGE;
 			} else {
-				npages_min = SC_LARGE_MINCLASS / PAGE;
-				npages_max = 5 * npages_min;
+				npages_min = HPA_LARGE_MIN / PAGE;
+				npages_max = HPA_LARGE_MIN / PAGE + 20;
 			}
 			size_t npages = npages_min + prng_range_zu(&prng_state,
 			    npages_max - npages_min);
@@ -231,5 +260,6 @@ main(void) {
 	(void)mem_tree_reverse_iter;
 	(void)mem_tree_destroy;
 	return test_no_reentrancy(
+	    test_small_max_large_min,
 	    test_stress);
 }

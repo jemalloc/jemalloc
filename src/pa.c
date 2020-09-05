@@ -49,7 +49,7 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
 
 bool
 pa_shard_enable_hpa(pa_shard_t *shard, hpa_t *hpa, size_t ps_goal,
-    size_t ps_alloc_max) {
+    size_t ps_alloc_max, size_t small_max, size_t large_min) {
 	ps_goal &= ~PAGE_MASK;
 	ps_alloc_max &= ~PAGE_MASK;
 
@@ -57,7 +57,7 @@ pa_shard_enable_hpa(pa_shard_t *shard, hpa_t *hpa, size_t ps_goal,
 		ps_alloc_max = ps_goal;
 	}
 	if (hpa_shard_init(&shard->hpa_shard, hpa, &shard->edata_cache,
-	    shard->ind, ps_goal, ps_alloc_max)) {
+	    shard->ind, ps_goal, ps_alloc_max, small_max, large_min)) {
 		return true;
 	}
 	shard->ever_used_hpa = true;

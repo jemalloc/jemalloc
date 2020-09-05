@@ -50,7 +50,8 @@ hpa_init(hpa_t *hpa, base_t *base, emap_t *emap, edata_cache_t *edata_cache) {
 
 bool
 hpa_shard_init(hpa_shard_t *shard, hpa_t *hpa, edata_cache_t *edata_cache,
-    unsigned ind, size_t ps_goal, size_t ps_alloc_max) {
+    unsigned ind, size_t ps_goal, size_t ps_alloc_max, size_t small_max,
+    size_t large_min) {
 	bool err;
 	err = malloc_mutex_init(&shard->grow_mtx, "hpa_shard_grow",
 	    WITNESS_RANK_HPA_SHARD_GROW, malloc_mutex_rank_exclusive);
@@ -68,6 +69,8 @@ hpa_shard_init(hpa_shard_t *shard, hpa_t *hpa, edata_cache_t *edata_cache,
 	psset_init(&shard->psset);
 	shard->ps_goal = ps_goal;
 	shard->ps_alloc_max = ps_alloc_max;
+	shard->small_max = small_max;
+	shard->large_min = large_min;
 
 	/*
 	 * Fill these in last, so that if an hpa_shard gets used despite
@@ -195,7 +198,7 @@ hpa_alloc_central(tsdn_t *tsdn, hpa_shard_t *shard, size_t size_min,
 
 static edata_t *
 hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
-	assert(size < shard->ps_alloc_max);
+	assert(size <= shard->ps_alloc_max);
 
 	bool err;
 	edata_t *edata = edata_cache_get(tsdn, shard->edata_cache);
@@ -257,15 +260,17 @@ hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
     size_t alignment, bool zero) {
 
 	assert((size & PAGE_MASK) == 0);
+	hpa_shard_t *shard = hpa_from_pai(self);
 	/* We don't handle alignment or zeroing for now. */
 	if (alignment > PAGE || zero) {
+		return NULL;
+	}
+	if (size > shard->small_max && size < shard->large_min) {
 		return NULL;
 	}
 
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
-
-	hpa_shard_t *shard = hpa_from_pai(self);
 
 	edata_t *edata;
 	if (size <= shard->ps_alloc_max) {
