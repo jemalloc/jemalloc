@@ -59,6 +59,17 @@ struct hpa_shard_s {
 	 * fragmentation avoidance measure.
 	 */
 	size_t ps_alloc_max;
+	/*
+	 * What's the maximum size we'll try to allocate out of the shard at
+	 * all?
+	 */
+	size_t small_max;
+	/*
+	 * What's the minimum size for which we'll go straight to the global
+	 * arena?
+	 */
+	size_t large_min;
+
 	/* The arena ind we're associated with. */
 	unsigned ind;
 };
@@ -67,7 +78,7 @@ bool hpa_init(hpa_t *hpa, base_t *base, emap_t *emap,
     edata_cache_t *edata_cache);
 bool hpa_shard_init(hpa_shard_t *shard, hpa_t *hpa,
     edata_cache_t *edata_cache, unsigned ind, size_t ps_goal,
-    size_t ps_alloc_max);
+    size_t ps_alloc_max, size_t small_max, size_t large_min);
 void hpa_shard_destroy(tsdn_t *tsdn, hpa_shard_t *shard);
 
 /*

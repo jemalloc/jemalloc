@@ -124,7 +124,7 @@ bool pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
  * that we can boot without worrying about the HPA, then turn it on in a0.
  */
 bool pa_shard_enable_hpa(pa_shard_t *shard, hpa_t *hpa, size_t ps_goal,
-    size_t ps_alloc_max);
+    size_t ps_alloc_max, size_t small_max, size_t large_min);
 /*
  * We stop using the HPA when custom extent hooks are installed, but still
  * redirect deallocations to it.

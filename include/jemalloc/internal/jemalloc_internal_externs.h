@@ -15,6 +15,8 @@ extern bool opt_confirm_conf;
 extern bool opt_hpa;
 extern size_t opt_hpa_slab_goal;
 extern size_t opt_hpa_slab_max_alloc;
+extern size_t opt_hpa_small_max;
+extern size_t opt_hpa_large_min;
 extern const char *opt_junk;
 extern bool opt_junk_alloc;
 extern bool opt_junk_free;
