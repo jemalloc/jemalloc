@@ -363,6 +363,7 @@ call_dump() {
 
 typedef struct {
 	size_t size;
+	size_t usize;
 	bool released;
 } confirm_record_t;
 
@@ -421,7 +422,7 @@ confirm_record(const char *template,
 
 		ASSERT_STR("\"usize\"");
 		ASSERT_CHAR(':');
-		ASSERT_FORMATTED_STR("%zu", sz_s2u(record->size));
+		ASSERT_FORMATTED_STR("%zu", record->usize);
 		ASSERT_CHAR(',');
 
 		ASSERT_STR("\"released\"");
@@ -505,12 +506,14 @@ TEST_BEGIN(test_prof_recent_alloc_dump) {
 	p = malloc(7);
 	call_dump();
 	records[0].size = 7;
+	records[0].usize = sz_s2u(7);
 	records[0].released = false;
 	confirm_record(template, records, 1);
 
-	q = malloc(17);
+	q = mallocx(17, MALLOCX_ALIGN(128));
 	call_dump();
 	records[1].size = 17;
+	records[1].usize = sz_sa2u(17, 128);
 	records[1].released = false;
 	confirm_record(template, records, 2);
 
