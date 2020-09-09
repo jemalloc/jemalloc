@@ -270,8 +270,14 @@
 #define SC_LARGE_MAXCLASS (SC_MAX_BASE + (SC_NGROUP - 1) * SC_MAX_DELTA)
 
 /* Maximum number of regions in one slab. */
-#define SC_LG_SLAB_MAXREGS (LG_PAGE - SC_LG_TINY_MIN)
-#define SC_SLAB_MAXREGS (1U << LG_SLAB_MAXREGS)
+#ifndef LG_SLAB_MAXREGS
+#  define SC_LG_SLAB_MAXREGS (LG_PAGE - SC_LG_TINY_MIN)
+#elif (LG_SLAB_MAXREGS < (LG_PAGE - SC_LG_TINY_MIN))
+#  error "Unsupported SC_LG_SLAB_MAXREGS"
+#else
+#  define SC_LG_SLAB_MAXREGS LG_SLAB_MAXREGS
+#endif
+#define SC_SLAB_MAXREGS (1U << SC_LG_SLAB_MAXREGS)
 
 
 typedef struct sc_s sc_t;
