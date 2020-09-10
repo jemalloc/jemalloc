@@ -681,7 +681,7 @@ bool prof_log_init(tsd_t *tsd) {
 		prof_log_start(tsd_tsdn(tsd), NULL);
 	}
 
-	if (atexit(prof_log_stop_final) != 0) {
+	if (opt_prof_log && atexit(prof_log_stop_final) != 0) {
 		malloc_write("<jemalloc>: Error in atexit() "
 			     "for logging\n");
 		if (opt_abort) {
