@@ -675,7 +675,7 @@ case "${host}" in
 	  default_retain="1"
 	fi
 	;;
-  *-*-linux* | *-*-cygwin*)
+  *-*-linux*)
 	dnl syscall(2) and secure_getenv(3) are exposed by _GNU_SOURCE.
 	JE_APPEND_VS(CPPFLAGS, -D_GNU_SOURCE)
 	abi="elf"
@@ -727,7 +727,7 @@ case "${host}" in
 	fi
 	abi="xcoff"
 	;;
-  *-*-mingw*)
+  *-*-mingw* | *-*-cygwin*)
 	abi="pecoff"
 	force_tls="0"
 	maps_coalesce="0"
@@ -750,7 +750,6 @@ case "${host}" in
 	fi
 	case "${host}" in
 	  *-*-cygwin*)
-      is_cygwin="1"
 	    DUMP_SYMS="dumpbin /SYMBOLS"
 	    ;;
 	  *)
@@ -2233,7 +2232,7 @@ fi
 dnl ============================================================================
 dnl Enable background threads if possible.
 
-if test "x${have_pthread}" = "x1" -a "x${je_cv_os_unfair_lock}" != "xyes" -a "x${is_cywgin}" = "x1" ; then
+if test "x${have_pthread}" = "x1" -a "x${je_cv_os_unfair_lock}" != "xyes" ; then
   AC_DEFINE([JEMALLOC_BACKGROUND_THREAD])
 fi
 
