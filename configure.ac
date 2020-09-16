@@ -1589,10 +1589,10 @@ fi
 AC_ARG_WITH([lg_slab_maxregs],
   [AS_HELP_STRING([--with-lg-slab-maxregs=<lg-slab-maxregs>],
    [Base 2 log of maximum number of regions in a slab (used with malloc_conf slab_sizes)])],
-  [LG_SLAB_MAXREGS="with_lg_slab_maxregs"],
-  [LG_SLAB_MAXREGS=""])
+  [CONFIG_LG_SLAB_MAXREGS="with_lg_slab_maxregs"],
+  [CONFIG_LG_SLAB_MAXREGS=""])
 if test "x$with_lg_slab_maxregs" != "x" ; then
-  AC_DEFINE_UNQUOTED([LG_SLAB_MAXREGS], [$with_lg_slab_maxregs])
+  AC_DEFINE_UNQUOTED([CONFIG_LG_SLAB_MAXREGS], [$with_lg_slab_maxregs])
 fi
 
 AC_ARG_WITH([lg_page],
