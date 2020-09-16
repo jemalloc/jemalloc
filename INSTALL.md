@@ -250,13 +250,6 @@ any of the following arguments (not a definitive list) to 'configure':
     configuration, jemalloc will provide additional size classes that are not
     16-byte-aligned (24, 40, and 56).
 
-* `--with-lg-slab-maxregs=<lg-slab-maxregs>`
-
-    Specify the maximum number of regions in a slab, which is
-    (<lg-page> - <lg-tiny-min>) by default. This increases the limit of slab
-    sizes specified by "slab_sizes" in malloc_conf. This should never be less
-    than the default value.
-
 * `--with-lg-vaddr=<lg-vaddr>`
 
     Specify the number of significant virtual address bits.  By default, the
