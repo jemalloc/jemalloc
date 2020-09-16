@@ -183,7 +183,7 @@
 #undef LG_PAGE
 
 /* Maximum number of regions in a slab. */
-#undef LG_SLAB_MAXREGS
+#undef CONFIG_LG_SLAB_MAXREGS
 
 /*
  * One huge page is 2^LG_HUGEPAGE bytes.  Note that this is defined even if the
