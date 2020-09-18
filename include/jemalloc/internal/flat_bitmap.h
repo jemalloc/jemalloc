@@ -284,4 +284,29 @@ fb_urange_riter(fb_group_t *fb, size_t nbits, size_t start, size_t *r_begin,
 	    /* val */ false, /* forward */ false);
 }
 
+JEMALLOC_ALWAYS_INLINE size_t
+fb_range_longest_impl(fb_group_t *fb, size_t nbits, bool val) {
+	size_t begin = 0;
+	size_t longest_len = 0;
+	size_t len = 0;
+	while (begin < nbits && fb_iter_range_impl(fb, nbits, begin, &begin,
+	    &len, val, /* forward */ true)) {
+		if (len > longest_len) {
+			longest_len = len;
+		}
+		begin += len;
+	}
+	return longest_len;
+}
+
+static inline size_t
+fb_srange_longest(fb_group_t *fb, size_t nbits) {
+	return fb_range_longest_impl(fb, nbits, /* val */ true);
+}
+
+static inline size_t
+fb_urange_longest(fb_group_t *fb, size_t nbits) {
+	return fb_range_longest_impl(fb, nbits, /* val */ false);
+}
+
 #endif /* JEMALLOC_INTERNAL_FB_H */
