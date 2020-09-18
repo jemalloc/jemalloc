@@ -301,6 +301,10 @@ TEST_BEGIN(test_empty_full) {
 }
 TEST_END
 
+/*
+ * This tests both iter_range and the longest range functionality, which is
+ * built closely on top of it.
+ */
 TEST_BEGIN(test_iter_range_simple) {
 	size_t set_limit = 30;
 	size_t nbits = 100;
@@ -318,6 +322,10 @@ TEST_BEGIN(test_iter_range_simple) {
 
 	/* A set of checks with only the first set_limit bits *set*. */
 	fb_set_range(fb, nbits, 0, set_limit);
+	expect_zu_eq(set_limit, fb_srange_longest(fb, nbits),
+	    "Incorrect longest set range");
+	expect_zu_eq(nbits - set_limit, fb_urange_longest(fb, nbits),
+	    "Incorrect longest unset range");
 	for (size_t i = 0; i < set_limit; i++) {
 		result = fb_srange_iter(fb, nbits, i, &begin, &len);
 		expect_true(result, "Should have found a range at %zu", i);
@@ -360,6 +368,10 @@ TEST_BEGIN(test_iter_range_simple) {
 	/* A set of checks with only the first set_limit bits *unset*. */
 	fb_unset_range(fb, nbits, 0, set_limit);
 	fb_set_range(fb, nbits, set_limit, nbits - set_limit);
+	expect_zu_eq(nbits - set_limit, fb_srange_longest(fb, nbits),
+	    "Incorrect longest set range");
+	expect_zu_eq(set_limit, fb_urange_longest(fb, nbits),
+	    "Incorrect longest unset range");
 	for (size_t i = 0; i < set_limit; i++) {
 		result = fb_srange_iter(fb, nbits, i, &begin, &len);
 		expect_true(result, "Should have found a range at %zu", i);
@@ -436,6 +448,27 @@ fb_iter_simple(fb_group_t *fb, size_t nbits, size_t start, size_t *r_begin,
 	return false;
 }
 
+/* Similar, but for finding longest ranges. */
+static size_t
+fb_range_longest_simple(fb_group_t *fb, size_t nbits, bool val) {
+	size_t longest_so_far = 0;
+	for (size_t begin = 0; begin < nbits; begin++) {
+		if (fb_get(fb, nbits, begin) != val) {
+			continue;
+		}
+		size_t end = begin + 1;
+		for (; end < nbits; end++) {
+			if (fb_get(fb, nbits, end) != val) {
+				break;
+			}
+		}
+		if (end - begin > longest_so_far) {
+			longest_so_far = end - begin;
+		}
+	}
+	return longest_so_far;
+}
+
 static void
 expect_iter_results_at(fb_group_t *fb, size_t nbits, size_t pos,
     bool val, bool forward) {
@@ -487,6 +520,10 @@ expect_iter_results(fb_group_t *fb, size_t nbits) {
 		expect_iter_results_at(fb, nbits, i, true, false);
 		expect_iter_results_at(fb, nbits, i, true, true);
 	}
+	expect_zu_eq(fb_range_longest_simple(fb, nbits, true),
+	    fb_srange_longest(fb, nbits), "Longest range mismatch");
+	expect_zu_eq(fb_range_longest_simple(fb, nbits, false),
+	    fb_urange_longest(fb, nbits), "Longest range mismatch");
 }
 
 static void
@@ -527,6 +564,10 @@ do_test_iter_range_exhaustive(size_t nbits) {
 	free(fb);
 }
 
+/*
+ * Like test_iter_range_simple, this tests both iteration and longest-range
+ * computation.
+ */
 TEST_BEGIN(test_iter_range_exhaustive) {
 #define NB(nbits) \
 	do_test_iter_range_exhaustive(nbits);
