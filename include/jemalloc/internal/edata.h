@@ -71,6 +71,7 @@ struct edata_map_info_s {
 typedef struct edata_s edata_t;
 typedef ph(edata_t) edata_tree_t;
 typedef ph(edata_t) edata_heap_t;
+typedef ph(edata_t) edata_age_heap_t;
 struct edata_s {
 	/*
 	 * Bitfield containing several fields:
@@ -193,16 +194,11 @@ struct edata_s {
 	};
 
 	/*
-	 * Reserved for hugepages -- once that allocator is more settled, we
-	 * might be able to claw some of this back.  Until then, don't get any
-	 * funny ideas about using the space we just freed up to keep some other
-	 * bit of metadata around.  That kind of thinking can be hazardous to
-	 * your health.
-	 *
-	 * This keeps the size of an edata_t at exactly 128 bytes on
-	 * architectures with 8-byte pointers and 4k pages.
+	 * In some context-specific sense, the age of an active extent.  Each
+	 * context can pick a specific meaning, and share the definition of the
+	 * edata_age_heap_t below.
 	 */
-	void *reserved1;
+	uint64_t age;
 	union {
 		/*
 		 * We could steal a low bit from these fields to indicate what
@@ -374,6 +370,11 @@ edata_bsize_get(const edata_t *edata) {
 	return edata->e_bsize;
 }
 
+static inline uint64_t
+edata_age_get(const edata_t *edata) {
+	return edata->age;
+}
+
 static inline edata_t *
 edata_ps_get(const edata_t *edata) {
 	assert(edata_pai_get(edata) == EXTENT_PAI_HPA);
@@ -466,6 +467,11 @@ edata_esn_set(edata_t *edata, size_t esn) {
 static inline void
 edata_bsize_set(edata_t *edata, size_t bsize) {
 	edata->e_bsize = bsize;
+}
+
+static inline void
+edata_age_set(edata_t *edata, uint64_t age) {
+	edata->age = age;
 }
 
 static inline void
@@ -615,6 +621,7 @@ edata_init(edata_t *edata, unsigned arena_ind, void *addr, size_t size,
 	if (config_prof) {
 		edata_prof_tctx_set(edata, NULL);
 	}
+	edata_age_set(edata, 0);
 	edata_ps_set(edata, NULL);
 	edata_longest_free_range_set(edata, 0);
 }
@@ -630,6 +637,7 @@ edata_binit(edata_t *edata, void *addr, size_t bsize, size_t sn) {
 	edata_state_set(edata, extent_state_active);
 	edata_zeroed_set(edata, true);
 	edata_committed_set(edata, true);
+	edata_age_set(edata, 0);
 	/*
 	 * This isn't strictly true, but base allocated extents never get
 	 * deallocated and can't be looked up in the emap, but no sense in
@@ -698,7 +706,25 @@ edata_esnead_comp(const edata_t *a, const edata_t *b) {
 	return ret;
 }
 
+static inline int
+edata_age_comp(const edata_t *a, const edata_t *b) {
+	uint64_t a_age = edata_age_get(a);
+	uint64_t b_age = edata_age_get(b);
+
+	/*
+	 * Equal ages are possible in certain race conditions, like two distinct
+	 * threads simultaneously allocating a new fresh slab without holding a
+	 * bin lock.
+	 */
+	int ret = (a_age > b_age) - (a_age < b_age);
+	if (ret != 0) {
+		return ret;
+	}
+	return edata_snad_comp(a, b);
+}
+
 ph_proto(, edata_avail_, edata_tree_t, edata_t)
 ph_proto(, edata_heap_, edata_heap_t, edata_t)
+ph_proto(, edata_age_heap_, edata_age_heap_t, edata_t);
 
 #endif /* JEMALLOC_INTERNAL_EDATA_H */
