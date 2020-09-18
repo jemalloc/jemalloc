@@ -11,7 +11,7 @@ static const bitmap_info_t psset_bitmap_info =
 void
 psset_init(psset_t *psset) {
 	for (unsigned i = 0; i < PSSET_NPSIZES; i++) {
-		edata_heap_new(&psset->pageslabs[i]);
+		edata_age_heap_new(&psset->pageslabs[i]);
 	}
 	bitmap_init(psset->bitmap, &psset_bitmap_info, /* fill */ true);
 	psset->full_slab_stats.npageslabs = 0;
@@ -22,6 +22,7 @@ psset_init(psset_t *psset) {
 		psset->slab_stats[i].nactive = 0;
 		psset->slab_stats[i].ninactive = 0;
 	}
+	psset->age_counter = 0;
 }
 
 /*
@@ -48,13 +49,13 @@ psset_bin_stats_adjust(psset_bin_stats_t *binstats, edata_t *ps, bool inc) {
 
 static void
 psset_edata_heap_remove(psset_t *psset, pszind_t pind, edata_t *ps) {
-	edata_heap_remove(&psset->pageslabs[pind], ps);
+	edata_age_heap_remove(&psset->pageslabs[pind], ps);
 	psset_bin_stats_adjust(&psset->slab_stats[pind], ps, /* inc */ false);
 }
 
 static void
 psset_edata_heap_insert(psset_t *psset, pszind_t pind, edata_t *ps) {
-	edata_heap_insert(&psset->pageslabs[pind], ps);
+	edata_age_heap_insert(&psset->pageslabs[pind], ps);
 	psset_bin_stats_adjust(&psset->slab_stats[pind], ps, /* inc */ true);
 }
 
@@ -70,32 +71,24 @@ psset_assert_ps_consistent(edata_t *ps) {
  */
 static edata_t *
 psset_recycle_extract(psset_t *psset, size_t size) {
-	pszind_t ret_ind;
-	edata_t *ret = NULL;
-	pszind_t pind = sz_psz2ind(sz_psz_quantize_ceil(size));
-	for (pszind_t i = (pszind_t)bitmap_ffu(psset->bitmap,
-	    &psset_bitmap_info, (size_t)pind);
-	    i < PSSET_NPSIZES;
-	    i = (pszind_t)bitmap_ffu(psset->bitmap, &psset_bitmap_info,
-		(size_t)i + 1)) {
-		assert(!edata_heap_empty(&psset->pageslabs[i]));
-		edata_t *ps = edata_heap_first(&psset->pageslabs[i]);
-		if (ret == NULL || edata_snad_comp(ps, ret) < 0) {
-			ret = ps;
-			ret_ind = i;
-		}
+	pszind_t min_pind = sz_psz2ind(sz_psz_quantize_ceil(size));
+	pszind_t pind = (pszind_t)bitmap_ffu(psset->bitmap, &psset_bitmap_info,
+	    (size_t)min_pind);
+	if (pind == PSSET_NPSIZES) {
+		return NULL;
 	}
-	if (ret == NULL) {
+	edata_t *ps = edata_age_heap_first(&psset->pageslabs[pind]);
+	if (ps == NULL) {
 		return NULL;
 	}
 
-	psset_edata_heap_remove(psset, ret_ind, ret);
-	if (edata_heap_empty(&psset->pageslabs[ret_ind])) {
-		bitmap_set(psset->bitmap, &psset_bitmap_info, ret_ind);
+	psset_edata_heap_remove(psset, pind, ps);
+	if (edata_age_heap_empty(&psset->pageslabs[pind])) {
+		bitmap_set(psset->bitmap, &psset_bitmap_info, pind);
 	}
 
-	psset_assert_ps_consistent(ret);
-	return ret;
+	psset_assert_ps_consistent(ps);
+	return ps;
 }
 
 static void
@@ -107,7 +100,7 @@ psset_insert(psset_t *psset, edata_t *ps, size_t largest_range) {
 
 	assert(pind < PSSET_NPSIZES);
 
-	if (edata_heap_empty(&psset->pageslabs[pind])) {
+	if (edata_age_heap_empty(&psset->pageslabs[pind])) {
 		bitmap_unset(psset->bitmap, &psset_bitmap_info, (size_t)pind);
 	}
 	psset_edata_heap_insert(psset, pind, ps);
@@ -215,6 +208,8 @@ psset_alloc_new(psset_t *psset, edata_t *ps, edata_t *r_edata, size_t size) {
 	assert(fb_empty(ps_fb, ps_npages));
 	assert(ps_npages >= (size >> LG_PAGE));
 	edata_nfree_set(ps, (uint32_t)ps_npages);
+	edata_age_set(ps, psset->age_counter);
+	psset->age_counter++;
 	psset_ps_alloc_insert(psset, ps, r_edata, size);
 }
 
@@ -287,7 +282,7 @@ psset_dalloc(psset_t *psset, edata_t *edata) {
 	 */
 	if (ps_old_longest_free_range > 0) {
 		psset_edata_heap_remove(psset, old_pind, ps);
-		if (edata_heap_empty(&psset->pageslabs[old_pind])) {
+		if (edata_age_heap_empty(&psset->pageslabs[old_pind])) {
 			bitmap_set(psset->bitmap, &psset_bitmap_info,
 			    (size_t)old_pind);
 		}
@@ -299,7 +294,7 @@ psset_dalloc(psset_t *psset, edata_t *edata) {
 	/* Otherwise, it gets reinserted. */
 	pszind_t new_pind = sz_psz2ind(sz_psz_quantize_floor(
 	    new_range_len << LG_PAGE));
-	if (edata_heap_empty(&psset->pageslabs[new_pind])) {
+	if (edata_age_heap_empty(&psset->pageslabs[new_pind])) {
 		bitmap_unset(psset->bitmap, &psset_bitmap_info,
 		    (size_t)new_pind);
 	}

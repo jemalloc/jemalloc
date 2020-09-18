@@ -44,7 +44,7 @@ struct psset_s {
 	 * The pageslabs, quantized by the size class of the largest contiguous
 	 * free run of pages in a pageslab.
 	 */
-	edata_heap_t pageslabs[PSSET_NPSIZES];
+	edata_age_heap_t pageslabs[PSSET_NPSIZES];
 	bitmap_t bitmap[BITMAP_GROUPS(PSSET_NPSIZES)];
 	/*
 	 * Full slabs don't live in any edata heap.  But we still track their
@@ -52,6 +52,9 @@ struct psset_s {
 	 */
 	psset_bin_stats_t full_slab_stats;
 	psset_bin_stats_t slab_stats[PSSET_NPSIZES];
+
+	/* How many alloc_new calls have happened? */
+	uint64_t age_counter;
 };
 
 void psset_init(psset_t *psset);
