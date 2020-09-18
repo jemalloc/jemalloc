@@ -266,8 +266,7 @@ TEST_BEGIN(test_multi_pageslab) {
 
 	/*
 	 * Free up a 2-page hole in the earlier slab, and a 1-page one in the
-	 * later one.  We should still pick the earlier slab for a 1-page
-	 * allocation.
+	 * later one.  We should still pick the later one.
 	 */
 	ps = psset_dalloc(&psset, &alloc[0][0]);
 	expect_ptr_null(ps, "Unexpected eviction");
@@ -276,8 +275,8 @@ TEST_BEGIN(test_multi_pageslab) {
 	ps = psset_dalloc(&psset, &alloc[1][0]);
 	expect_ptr_null(ps, "Unexpected eviction");
 	err = psset_alloc_reuse(&psset, &alloc[0][0], PAGE);
-	expect_ptr_eq(&pageslab[0], edata_ps_get(&alloc[0][0]),
-	    "Should have picked first pageslab");
+	expect_ptr_eq(&pageslab[1], edata_ps_get(&alloc[0][0]),
+	    "Should have picked the fuller pageslab");
 
 	/*
 	 * Now both slabs have 1-page holes. Free up a second one in the later
@@ -370,6 +369,76 @@ TEST_BEGIN(test_stats) {
 }
 TEST_END
 
+TEST_BEGIN(test_oldest_fit) {
+	bool err;
+	edata_t alloc[PAGESLAB_PAGES];
+	edata_t worse_alloc[PAGESLAB_PAGES];
+
+	edata_t pageslab;
+	memset(&pageslab, 0, sizeof(pageslab));
+	edata_init(&pageslab, /* arena_ind */ 0, (void *)(10 * PAGESLAB_SIZE),
+	    PAGESLAB_SIZE, /* slab */ true, SC_NSIZES, PAGESLAB_SN + 1,
+	    extent_state_active, /* zeroed */ false, /* comitted */ true,
+	    EXTENT_PAI_HPA, EXTENT_IS_HEAD);
+
+	/*
+	 * This pageslab is better from an edata_comp_snad POV, but will be
+	 * added to the set after the previous one, and so should be less
+	 * preferred for allocations.
+	 */
+	edata_t worse_pageslab;
+	memset(&worse_pageslab, 0, sizeof(pageslab));
+	edata_init(&worse_pageslab, /* arena_ind */ 0,
+	    (void *)(9 * PAGESLAB_SIZE), PAGESLAB_SIZE, /* slab */ true,
+	    SC_NSIZES, PAGESLAB_SN - 1, extent_state_active, /* zeroed */ false,
+	    /* comitted */ true, EXTENT_PAI_HPA, EXTENT_IS_HEAD);
+
+	psset_t psset;
+	psset_init(&psset);
+
+	edata_init_test(&alloc[0]);
+	psset_alloc_new(&psset, &pageslab, &alloc[0], PAGE);
+	for (size_t i = 1; i < PAGESLAB_PAGES; i++) {
+		edata_init_test(&alloc[i]);
+		err = psset_alloc_reuse(&psset, &alloc[i], PAGE);
+		expect_false(err, "Nonempty psset failed page allocation.");
+		expect_ptr_eq(&pageslab, edata_ps_get(&alloc[i]),
+		    "Allocated from the wrong pageslab");
+	}
+
+	edata_init_test(&worse_alloc[0]);
+	psset_alloc_new(&psset, &worse_pageslab, &worse_alloc[0], PAGE);
+	expect_ptr_eq(&worse_pageslab, edata_ps_get(&worse_alloc[0]),
+	    "Allocated from the wrong pageslab");
+	/*
+	 * Make the two pssets otherwise indistinguishable; all full except for
+	 * a single page.
+	 */
+	for (size_t i = 1; i < PAGESLAB_PAGES - 1; i++) {
+		edata_init_test(&worse_alloc[i]);
+		err = psset_alloc_reuse(&psset, &alloc[i], PAGE);
+		expect_false(err, "Nonempty psset failed page allocation.");
+		expect_ptr_eq(&worse_pageslab, edata_ps_get(&alloc[i]),
+		    "Allocated from the wrong pageslab");
+	}
+
+	/* Deallocate the last page from the older pageslab. */
+	edata_t *evicted = psset_dalloc(&psset, &alloc[PAGESLAB_PAGES - 1]);
+	expect_ptr_null(evicted, "Unexpected eviction");
+
+	/*
+	 * This edata is the whole purpose for the test; it should come from the
+	 * older pageslab.
+	 */
+	edata_t test_edata;
+	edata_init_test(&test_edata);
+	err = psset_alloc_reuse(&psset, &test_edata, PAGE);
+	expect_false(err, "Nonempty psset failed page allocation");
+	expect_ptr_eq(&pageslab, edata_ps_get(&test_edata),
+	    "Allocated from the wrong pageslab");
+}
+TEST_END
+
 int
 main(void) {
 	return test_no_reentrancy(
@@ -378,5 +447,6 @@ main(void) {
 	    test_reuse,
 	    test_evict,
 	    test_multi_pageslab,
-	    test_stats);
+	    test_stats,
+	    test_oldest_fit);
 }
