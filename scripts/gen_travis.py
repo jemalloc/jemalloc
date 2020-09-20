@@ -22,6 +22,9 @@ before_script:
 
 script:
   - make check
+  # trigger possible for incorrect detection of ncpus
+  # (assumes getconf if taskset exists)
+  - if command -v taskset >/dev/null; then echo "Running on last CPU" && taskset --cpu-list $(( $(getconf _NPROCESSORS_ONLN)-1 )) make check; fi
 """
 
 # The 'default' configuration is gcc, on linux, with no compiler or configure
