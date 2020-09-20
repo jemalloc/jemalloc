@@ -790,30 +790,6 @@ malloc_ncpus(void) {
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);
 	result = si.dwNumberOfProcessors;
-#elif defined(CPU_COUNT)
-	/*
-	 * glibc >= 2.6 has the CPU_COUNT macro.
-	 *
-	 * glibc's sysconf() uses isspace().  glibc allocates for the first time
-	 * *before* setting up the isspace tables.  Therefore we need a
-	 * different method to get the number of CPUs.
-	 *
-	 * The getaffinity approach is also preferred when only a subset of CPUs
-	 * is available, to avoid using more arenas than necessary.
-	 */
-	{
-#  if defined(__FreeBSD__)
-		cpuset_t set;
-#  else
-		cpu_set_t set;
-#  endif
-#  if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
-		sched_getaffinity(0, sizeof(set), &set);
-#  else
-		pthread_getaffinity_np(pthread_self(), sizeof(set), &set);
-#  endif
-		result = CPU_COUNT(&set);
-	}
 #else
 	result = sysconf(_SC_NPROCESSORS_ONLN);
 #endif
