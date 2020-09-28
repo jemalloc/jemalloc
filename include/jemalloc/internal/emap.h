@@ -127,6 +127,15 @@ emap_assert_mapped(tsdn_t *tsdn, emap_t *emap, edata_t *edata) {
 	}
 }
 
+/* Assert that the given edata isn't in the map. */
+void emap_do_assert_not_mapped(tsdn_t *tsdn, emap_t *emap, edata_t *edata);
+static inline void
+emap_assert_not_mapped(tsdn_t *tsdn, emap_t *emap, edata_t *edata) {
+	if (config_debug) {
+		emap_do_assert_not_mapped(tsdn, emap, edata);
+	}
+}
+
 JEMALLOC_ALWAYS_INLINE edata_t *
 emap_edata_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr) {
 	rtree_ctx_t rtree_ctx_fallback;

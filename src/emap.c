@@ -323,3 +323,16 @@ emap_do_assert_mapped(tsdn_t *tsdn, emap_t *emap, edata_t *edata) {
 	assert(rtree_read(tsdn, &emap->rtree, rtree_ctx,
 	    (uintptr_t)edata_base_get(edata)).edata == edata);
 }
+
+void
+emap_do_assert_not_mapped(tsdn_t *tsdn, emap_t *emap, edata_t *edata) {
+	emap_full_alloc_ctx_t context1 = {0};
+	emap_full_alloc_ctx_try_lookup(tsdn, emap, edata_base_get(edata),
+	    &context1);
+	assert(context1.edata == NULL);
+
+	emap_full_alloc_ctx_t context2 = {0};
+	emap_full_alloc_ctx_try_lookup(tsdn, emap, edata_last_get(edata),
+	    &context2);
+	assert(context2.edata == NULL);
+}
