@@ -123,6 +123,7 @@ CTL_PROTO(opt_lg_extent_max_active_fit)
 CTL_PROTO(opt_prof)
 CTL_PROTO(opt_prof_prefix)
 CTL_PROTO(opt_prof_active)
+CTL_PROTO(opt_prof_dump_overwrite)
 CTL_PROTO(opt_prof_thread_active_init)
 CTL_PROTO(opt_lg_prof_sample)
 CTL_PROTO(opt_lg_prof_interval)
@@ -380,6 +381,7 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("prof"),		CTL(opt_prof)},
 	{NAME("prof_prefix"),	CTL(opt_prof_prefix)},
 	{NAME("prof_active"),	CTL(opt_prof_active)},
+	{NAME("prof_dump_overwrite"),	CTL(opt_prof_dump_overwrite)},
 	{NAME("prof_thread_active_init"), CTL(opt_prof_thread_active_init)},
 	{NAME("lg_prof_sample"), CTL(opt_lg_prof_sample)},
 	{NAME("lg_prof_interval"), CTL(opt_lg_prof_interval)},
@@ -1856,6 +1858,8 @@ CTL_RO_NL_GEN(opt_lg_extent_max_active_fit, opt_lg_extent_max_active_fit,
 CTL_RO_NL_CGEN(config_prof, opt_prof, opt_prof, bool)
 CTL_RO_NL_CGEN(config_prof, opt_prof_prefix, opt_prof_prefix, const char *)
 CTL_RO_NL_CGEN(config_prof, opt_prof_active, opt_prof_active, bool)
+CTL_RO_NL_CGEN(config_prof, opt_prof_dump_overwrite,
+    opt_prof_dump_overwrite, bool)
 CTL_RO_NL_CGEN(config_prof, opt_prof_thread_active_init,
     opt_prof_thread_active_init, bool)
 CTL_RO_NL_CGEN(config_prof, opt_lg_prof_sample, opt_lg_prof_sample, size_t)

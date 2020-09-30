@@ -1486,6 +1486,8 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				CONF_HANDLE_CHAR_P(opt_prof_prefix,
 				    "prof_prefix", "jeprof")
 				CONF_HANDLE_BOOL(opt_prof_active, "prof_active")
+				CONF_HANDLE_BOOL(opt_prof_dump_overwrite,
+				    "prof_dump_overwrite")
 				CONF_HANDLE_BOOL(opt_prof_thread_active_init,
 				    "prof_thread_active_init")
 				CONF_HANDLE_SIZE_T(opt_lg_prof_sample,

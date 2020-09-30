@@ -373,6 +373,7 @@ prof_dump_check_possible_error(prof_dump_arg_t *arg, bool err_cond,
 
 static int
 prof_dump_open_file_impl(const char *filename, int mode) {
+	unlink(filename);
 	return creat(filename, mode);
 }
 prof_dump_open_file_t *JET_MUTABLE prof_dump_open_file =
@@ -544,16 +545,23 @@ prof_dump_filename(tsd_t *tsd, char *filename, char v, uint64_t vseq) {
 	assert(tsd_reentrancy_level_get(tsd) == 0);
 	const char *prof_prefix = prof_dump_prefix_get(tsd_tsdn(tsd));
 
-	if (vseq != VSEQ_INVALID) {
-	        /* "<prefix>.<pid>.<seq>.v<vseq>.heap" */
-		malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
-		    "%s.%d.%"FMTu64".%c%"FMTu64".heap",
-		    prof_prefix, prof_getpid(), prof_dump_seq, v, vseq);
-	} else {
-	        /* "<prefix>.<pid>.<seq>.<v>.heap" */
-		malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
-		    "%s.%d.%"FMTu64".%c.heap",
-		    prof_prefix, prof_getpid(), prof_dump_seq, v);
+	if (!opt_prof_dump_overwrite) {
+	    if (vseq != VSEQ_INVALID) {
+	            /* "<prefix>.<pid>.<seq>.v<vseq>.heap" */
+		    malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
+		        "%s.%d.%"FMTu64".%c%"FMTu64".heap",
+		        prof_prefix, prof_getpid(), prof_dump_seq, v, vseq);
+	    } else {
+	            /* "<prefix>.<pid>.<seq>.<v>.heap" */
+		    malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
+		        "%s.%d.%"FMTu64".%c.heap",
+		        prof_prefix, prof_getpid(), prof_dump_seq, v);
+	    }
+	} else { // opt_prof_dump_overwrite
+	    /* "<prefix>.<pid>.<v>.heap" */
+	    malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
+	        "%s.%d.%c.heap",
+	        prof_prefix, prof_getpid(), v);
 	}
 	prof_dump_seq++;
 }

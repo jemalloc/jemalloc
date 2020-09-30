@@ -24,6 +24,9 @@ extern bool opt_prof_unbias;
 /* For recording recent allocations */
 extern ssize_t opt_prof_recent_alloc_max;
 
+/* Whether to overwrite seq-less dump filenames */
+extern bool opt_prof_dump_overwrite;
+
 /* Whether to use thread name provided by the system or by mallctl. */
 extern bool opt_prof_sys_thread_name;
 
