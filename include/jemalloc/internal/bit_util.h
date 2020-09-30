@@ -75,7 +75,7 @@ fls_u_slow(unsigned x) {
 
 #undef DO_FLS_SLOW
 
-#ifdef JEMALLOC_HAVE_BUILTIN_CLZ
+#ifdef JEMALLOC_HAVE_BUILTIN_CLZ  && !defined(__TINYC__)
 static inline unsigned
 fls_llu(unsigned long long x) {
 	util_assume(x != 0);
