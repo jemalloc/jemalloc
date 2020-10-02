@@ -5,6 +5,7 @@
 # and then just replace it with
 #    find -name '*.c' -o -name '*.h' -o -name '*.cpp
 FILES=(
+    src/jemalloc.c
 )
 
 if command -v clang-format &> /dev/null; then
