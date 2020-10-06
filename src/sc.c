@@ -257,8 +257,6 @@ size_classes(
 
 void
 sc_data_init(sc_data_t *sc_data) {
-	assert(!sc_data->initialized);
-
 	size_classes(sc_data, LG_SIZEOF_PTR, LG_QUANTUM, SC_LG_TINY_MIN,
 	    SC_LG_MAX_LOOKUP, LG_PAGE, SC_LG_NGROUP);
 
