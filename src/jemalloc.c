@@ -1458,6 +1458,10 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 					   CONF_CHECK_MIN, CONF_CHECK_MAX,
 					   true);
 			if (CONF_MATCH("slab_sizes")) {
+				if (CONF_MATCH_VALUE("default")) {
+					sc_data_init(sc_data);
+					CONF_CONTINUE;
+				}
 				bool err;
 				const char *slab_size_segment_cur = v;
 				size_t vlen_left = vlen;
