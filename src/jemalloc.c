@@ -2972,11 +2972,6 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 		/* This is a dead store, except when opt size checking is on. */
 		alloc_ctx.slab = (alloc_ctx.szind < SC_NBINS);
 	}
-	bool fail = maybe_check_alloc_ctx(tsd, ptr, &alloc_ctx);
-	if (fail) {
-		/* See the comment in isfree. */
-		return true;
-	}
 
 	uint64_t deallocated, threshold;
 	te_free_fastpath_ctx(tsd, &deallocated, &threshold, size_hint);
@@ -2985,10 +2980,19 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 	uint64_t deallocated_after = deallocated + usize;
 	/*
 	 * Check for events and tsd non-nominal (fast_threshold will be set to
-	 * 0) in a single branch.
+	 * 0) in a single branch.  Note that this handles the uninitialized case
+	 * as well (TSD init will be triggered on the non-fastpath).  Therefore
+	 * anything depends on a functional TSD (e.g. the alloc_ctx sanity check
+	 * below) needs to be after this branch.
 	 */
 	if (unlikely(deallocated_after >= threshold)) {
 		return false;
+	}
+
+	bool fail = maybe_check_alloc_ctx(tsd, ptr, &alloc_ctx);
+	if (fail) {
+		/* See the comment in isfree. */
+		return true;
 	}
 
 	tcache_t *tcache = tcache_get_from_ind(tsd, TCACHE_IND_AUTOMATIC,
