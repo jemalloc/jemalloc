@@ -204,6 +204,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/counter.c \
 	$(srcroot)test/unit/decay.c \
 	$(srcroot)test/unit/div.c \
+	$(srcroot)test/unit/double_free.c \
 	$(srcroot)test/unit/edata_cache.c \
 	$(srcroot)test/unit/emitter.c \
 	$(srcroot)test/unit/extent_quantize.c \
@@ -308,7 +309,6 @@ TESTS_STRESS := $(srcroot)test/stress/batch_alloc.c \
 	$(srcroot)test/stress/large_microbench.c \
 	$(srcroot)test/stress/mallctl.c \
 	$(srcroot)test/stress/microbench.c
-	
 
 
 TESTS := $(TESTS_UNIT) $(TESTS_INTEGRATION) $(TESTS_INTEGRATION_CPP) \

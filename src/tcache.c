@@ -428,6 +428,10 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 					dalloc_count++;
 				}
 			} else {
+				if (large_dalloc_safety_checks(edata, binind)) {
+					/* See the comment in isfree. */
+					continue;
+				}
 				large_dalloc_finish(tsdn, edata);
 			}
 		}

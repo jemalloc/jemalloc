@@ -2812,7 +2812,7 @@ maybe_check_alloc_ctx(tsd_t *tsd, void *ptr, emap_alloc_ctx_t *alloc_ctx) {
 		    &dbg_ctx);
 		if (alloc_ctx->szind != dbg_ctx.szind) {
 			safety_check_fail_sized_dealloc(
-			    /* curent_dealloc */ true);
+			    /* current_dealloc */ true);
 			return true;
 		}
 		if (alloc_ctx->slab != dbg_ctx.slab) {
