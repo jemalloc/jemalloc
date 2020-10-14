@@ -5,6 +5,7 @@
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/rtree.h"
+#include "jemalloc/internal/safety_check.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/ticker.h"
@@ -203,6 +204,32 @@ arena_vsalloc(tsdn_t *tsdn, const void *ptr) {
 	return sz_index2size(full_alloc_ctx.szind);
 }
 
+JEMALLOC_ALWAYS_INLINE bool
+large_dalloc_safety_checks(edata_t *edata, szind_t szind) {
+	if (!config_opt_safety_checks) {
+		return false;
+	}
+
+	/*
+	 * Eagerly detect double free and sized dealloc bugs for large sizes.
+	 * The cost is low enough (as edata will be accessed anyway) to be
+	 * enabled all the time.
+	 */
+	if (unlikely(edata_state_get(edata) != extent_state_active)) {
+		safety_check_fail("Invalid deallocation detected: "
+		    "pages being freed (%p) not currently active, "
+		    "possibly caused by double free bugs.",
+		    (uintptr_t)edata_addr_get(edata));
+		return true;
+	}
+	if (unlikely(sz_index2size(szind) != edata_usize_get(edata))) {
+		safety_check_fail_sized_dealloc(/* current_dealloc */ true);
+		return true;
+	}
+
+	return false;
+}
+
 static inline void
 arena_dalloc_large_no_tcache(tsdn_t *tsdn, void *ptr, szind_t szind) {
 	if (config_prof && unlikely(szind < SC_NBINS)) {
@@ -210,6 +237,10 @@ arena_dalloc_large_no_tcache(tsdn_t *tsdn, void *ptr, szind_t szind) {
 	} else {
 		edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global,
 		    ptr);
+		if (large_dalloc_safety_checks(edata, szind)) {
+			/* See the comment in isfree. */
+			return;
+		}
 		large_dalloc(tsdn, edata);
 	}
 }
@@ -250,6 +281,10 @@ arena_dalloc_large(tsdn_t *tsdn, void *ptr, tcache_t *tcache, szind_t szind,
 	} else {
 		edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global,
 		    ptr);
+		if (large_dalloc_safety_checks(edata, szind)) {
+			/* See the comment in isfree. */
+			return;
+		}
 		large_dalloc(tsdn, edata);
 	}
 }
