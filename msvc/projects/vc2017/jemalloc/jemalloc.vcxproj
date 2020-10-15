@@ -82,6 +82,7 @@
     <ClCompile Include="..\..\..\..\src\rtree.c" />
     <ClCompile Include="..\..\..\..\src\safety_check.c" />
     <ClCompile Include="..\..\..\..\src\sc.c" />
+    <ClCompile Include="..\..\..\..\src\sec.c" />
     <ClCompile Include="..\..\..\..\src\stats.c" />
     <ClCompile Include="..\..\..\..\src\sz.c" />
     <ClCompile Include="..\..\..\..\src\tcache.c" />
