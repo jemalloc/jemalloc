@@ -99,7 +99,6 @@ struct cache_bin_s {
 	 * array.
 	 */
 	uint16_t low_bits_empty;
-
 };
 
 /*
