@@ -936,19 +936,19 @@ tcache_ncached_max_compute(szind_t szind) {
 bool
 tcache_boot(tsdn_t *tsdn, base_t *base) {
 	/* If necessary, clamp opt_lg_tcache_max. */
-	if (opt_lg_tcache_max < 0 || (ZU(1) << opt_lg_tcache_max) <
-	    SC_SMALL_MAXCLASS) {
+	tcache_maxclass = opt_lg_tcache_max < 0 ? 0 :
+	    ZU(1) << opt_lg_tcache_max;
+	if (tcache_maxclass < SC_SMALL_MAXCLASS) {
 		tcache_maxclass = SC_SMALL_MAXCLASS;
-	} else {
-		tcache_maxclass = (ZU(1) << opt_lg_tcache_max);
+	} else if (tcache_maxclass > TCACHE_MAXCLASS_LIMIT) {
+		tcache_maxclass = TCACHE_MAXCLASS_LIMIT;
 	}
+	nhbins = sz_size2index(tcache_maxclass) + 1;
 
 	if (malloc_mutex_init(&tcaches_mtx, "tcaches", WITNESS_RANK_TCACHES,
 	    malloc_mutex_rank_exclusive)) {
 		return true;
 	}
-
-	nhbins = sz_size2index(tcache_maxclass) + 1;
 
 	/* Initialize tcache_bin_info. */
 	tcache_bin_info = (cache_bin_info_t *)base_alloc(tsdn, base,
