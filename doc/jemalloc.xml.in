@@ -1314,8 +1314,8 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </term>
         <listitem><para>Maximum size class (log base 2) to cache in the
         thread-specific cache (tcache).  At a minimum, all small size classes
-        are cached, and at a maximum all large size classes are cached.  The
-        default maximum is 32 KiB (2^15).</para></listitem>
+        are cached; and at a maximum, size classes up to 8 MiB can be cached.
+        The default maximum is 32 KiB (2^15).</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.thp">

@@ -54,7 +54,7 @@ struct tcache_slow_s {
 
 struct tcache_s {
 	tcache_slow_t	*tcache_slow;
-	cache_bin_t	bins[SC_NSIZES];
+	cache_bin_t	bins[TCACHE_NBINS_MAX];
 };
 
 /* Linkage for list of available (previously used) explicit tcache IDs. */
