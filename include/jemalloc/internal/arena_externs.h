@@ -28,7 +28,7 @@ void arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     const char **dss, ssize_t *dirty_decay_ms, ssize_t *muzzy_decay_ms,
     size_t *nactive, size_t *ndirty, size_t *nmuzzy, arena_stats_t *astats,
     bin_stats_data_t *bstats, arena_stats_large_t *lstats,
-    pac_estats_t *estats, hpa_shard_stats_t *hpastats);
+    pac_estats_t *estats, hpa_shard_stats_t *hpastats, sec_stats_t *secstats);
 void arena_handle_new_dirty_pages(tsdn_t *tsdn, arena_t *arena);
 #ifdef JEMALLOC_JET
 size_t arena_slab_regind(edata_t *slab, szind_t binind, const void *ptr);
@@ -99,6 +99,7 @@ void arena_prefork4(tsdn_t *tsdn, arena_t *arena);
 void arena_prefork5(tsdn_t *tsdn, arena_t *arena);
 void arena_prefork6(tsdn_t *tsdn, arena_t *arena);
 void arena_prefork7(tsdn_t *tsdn, arena_t *arena);
+void arena_prefork8(tsdn_t *tsdn, arena_t *arena);
 void arena_postfork_parent(tsdn_t *tsdn, arena_t *arena);
 void arena_postfork_child(tsdn_t *tsdn, arena_t *arena);
 

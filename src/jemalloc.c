@@ -141,6 +141,11 @@ size_t opt_hpa_slab_max_alloc = 256 * 1024;
 size_t opt_hpa_small_max = 32 * 1024;
 size_t opt_hpa_large_min = 4 * 1024 * 1024;
 
+size_t opt_hpa_sec_max_alloc = 32 * 1024;
+/* These settings correspond to a maximum of 1MB cached per arena. */
+size_t opt_hpa_sec_max_bytes = 256 * 1024;
+size_t opt_hpa_sec_nshards = 4;
+
 /*
  * Arenas that are used to service external requests.  Not all elements of the
  * arenas array are necessarily used; arenas are created lazily as needed.
@@ -1494,11 +1499,18 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			    true)
 			CONF_HANDLE_SIZE_T(opt_hpa_slab_max_alloc,
 			    "hpa_slab_max_alloc", PAGE, 512 * PAGE,
-			    CONF_CHECK_MIN, CONF_CHECK_MAX, true)
+			    CONF_CHECK_MIN, CONF_CHECK_MAX, true);
 			CONF_HANDLE_SIZE_T(opt_hpa_small_max, "hpa_small_max",
-			    PAGE, 0, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true)
+			    PAGE, 0, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
 			CONF_HANDLE_SIZE_T(opt_hpa_large_min, "hpa_large_min",
-			    PAGE, 0, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true)
+			    PAGE, 0, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
+
+			CONF_HANDLE_SIZE_T(opt_hpa_sec_max_alloc, "hpa_sec_max_alloc",
+			    PAGE, 0, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
+			CONF_HANDLE_SIZE_T(opt_hpa_sec_max_bytes, "hpa_sec_max_bytes",
+			    PAGE, 0, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
+			CONF_HANDLE_SIZE_T(opt_hpa_sec_nshards, "hpa_sec_nshards",
+			    0, 0, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
 
 			if (CONF_MATCH("slab_sizes")) {
 				if (CONF_MATCH_VALUE("default")) {
@@ -1808,7 +1820,8 @@ malloc_init_hard_a0_locked() {
 		}
 		if (pa_shard_enable_hpa(&a0->pa_shard, &arena_hpa_global,
 		    opt_hpa_slab_goal, opt_hpa_slab_max_alloc,
-		    opt_hpa_small_max, opt_hpa_large_min)) {
+		    opt_hpa_small_max, opt_hpa_large_min, opt_hpa_sec_nshards,
+		    opt_hpa_sec_max_alloc, opt_hpa_sec_max_bytes)) {
 			return true;
 		}
 	}
@@ -4226,7 +4239,7 @@ _malloc_prefork(void)
 		background_thread_prefork1(tsd_tsdn(tsd));
 	}
 	/* Break arena prefork into stages to preserve lock order. */
-	for (i = 0; i < 8; i++) {
+	for (i = 0; i < 9; i++) {
 		for (j = 0; j < narenas; j++) {
 			if ((arena = arena_get(tsd_tsdn(tsd), j, false)) !=
 			    NULL) {
@@ -4255,12 +4268,15 @@ _malloc_prefork(void)
 				case 7:
 					arena_prefork7(tsd_tsdn(tsd), arena);
 					break;
+				case 8:
+					arena_prefork8(tsd_tsdn(tsd), arena);
+					break;
 				default: not_reached();
 				}
 			}
 		}
-		if (i == 3 && opt_hpa) {
-			hpa_prefork3(tsd_tsdn(tsd), &arena_hpa_global);
+		if (i == 4 && opt_hpa) {
+			hpa_prefork4(tsd_tsdn(tsd), &arena_hpa_global);
 		}
 
 	}

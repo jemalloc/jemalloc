@@ -95,6 +95,9 @@ CTL_PROTO(opt_hpa_slab_goal)
 CTL_PROTO(opt_hpa_slab_max_alloc)
 CTL_PROTO(opt_hpa_small_max)
 CTL_PROTO(opt_hpa_large_min)
+CTL_PROTO(opt_hpa_sec_max_alloc)
+CTL_PROTO(opt_hpa_sec_max_bytes)
+CTL_PROTO(opt_hpa_sec_nshards)
 CTL_PROTO(opt_metadata_thp)
 CTL_PROTO(opt_retain)
 CTL_PROTO(opt_dss)
@@ -246,6 +249,7 @@ CTL_PROTO(stats_arenas_i_metadata_thp)
 CTL_PROTO(stats_arenas_i_tcache_bytes)
 CTL_PROTO(stats_arenas_i_resident)
 CTL_PROTO(stats_arenas_i_abandoned_vm)
+CTL_PROTO(stats_arenas_i_hpa_sec_bytes)
 INDEX_PROTO(stats_arenas_i)
 CTL_PROTO(stats_allocated)
 CTL_PROTO(stats_active)
@@ -360,6 +364,9 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("hpa_slab_max_alloc"),	CTL(opt_hpa_slab_max_alloc)},
 	{NAME("hpa_small_max"),	CTL(opt_hpa_small_max)},
 	{NAME("hpa_large_min"),	CTL(opt_hpa_large_min)},
+	{NAME("hpa_sec_max_alloc"),	CTL(opt_hpa_sec_max_alloc)},
+	{NAME("hpa_sec_max_bytes"),	CTL(opt_hpa_sec_max_bytes)},
+	{NAME("hpa_sec_nshards"),	CTL(opt_hpa_sec_nshards)},
 	{NAME("metadata_thp"),	CTL(opt_metadata_thp)},
 	{NAME("retain"),	CTL(opt_retain)},
 	{NAME("dss"),		CTL(opt_dss)},
@@ -650,6 +657,7 @@ static const ctl_named_node_t stats_arenas_i_node[] = {
 	{NAME("tcache_bytes"),	CTL(stats_arenas_i_tcache_bytes)},
 	{NAME("resident"),	CTL(stats_arenas_i_resident)},
 	{NAME("abandoned_vm"),	CTL(stats_arenas_i_abandoned_vm)},
+	{NAME("hpa_sec_bytes"),	CTL(stats_arenas_i_hpa_sec_bytes)},
 	{NAME("small"),		CHILD(named, stats_arenas_i_small)},
 	{NAME("large"),		CHILD(named, stats_arenas_i_large)},
 	{NAME("bins"),		CHILD(indexed, stats_arenas_i_bins)},
@@ -889,6 +897,8 @@ ctl_arena_clear(ctl_arena_t *ctl_arena) {
 		    sizeof(pac_estats_t));
 		memset(&ctl_arena->astats->hpastats, 0,
 		    sizeof(hpa_shard_stats_t));
+		memset(&ctl_arena->astats->secstats, 0,
+		    sizeof(sec_stats_t));
 	}
 }
 
@@ -903,7 +913,7 @@ ctl_arena_stats_amerge(tsdn_t *tsdn, ctl_arena_t *ctl_arena, arena_t *arena) {
 		    &ctl_arena->pdirty, &ctl_arena->pmuzzy,
 		    &ctl_arena->astats->astats, ctl_arena->astats->bstats,
 		    ctl_arena->astats->lstats, ctl_arena->astats->estats,
-		    &ctl_arena->astats->hpastats);
+		    &ctl_arena->astats->hpastats, &ctl_arena->astats->secstats);
 
 		for (i = 0; i < SC_NBINS; i++) {
 			bin_stats_t *bstats =
@@ -1089,6 +1099,7 @@ MUTEX_PROF_ARENA_MUTEXES
 			    &astats->hpastats.psset_slab_stats[i]);
 		}
 
+		sec_stats_accum(&sdstats->secstats, &astats->secstats);
 	}
 }
 
@@ -1895,6 +1906,9 @@ CTL_RO_NL_GEN(opt_hpa_slab_goal, opt_hpa_slab_goal, size_t)
 CTL_RO_NL_GEN(opt_hpa_slab_max_alloc, opt_hpa_slab_max_alloc, size_t)
 CTL_RO_NL_GEN(opt_hpa_small_max, opt_hpa_small_max, size_t)
 CTL_RO_NL_GEN(opt_hpa_large_min, opt_hpa_large_min, size_t)
+CTL_RO_NL_GEN(opt_hpa_sec_max_alloc, opt_hpa_sec_max_alloc, size_t)
+CTL_RO_NL_GEN(opt_hpa_sec_max_bytes, opt_hpa_sec_max_bytes, size_t)
+CTL_RO_NL_GEN(opt_hpa_sec_nshards, opt_hpa_sec_nshards, size_t)
 CTL_RO_NL_GEN(opt_metadata_thp, metadata_thp_mode_names[opt_metadata_thp],
     const char *)
 CTL_RO_NL_GEN(opt_retain, opt_retain, bool)
@@ -3113,6 +3127,9 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_abandoned_vm,
     atomic_load_zu(
     &arenas_i(mib[2])->astats->astats.pa_shard_stats.pac_stats.abandoned_vm,
     ATOMIC_RELAXED), size_t)
+
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_sec_bytes,
+    arenas_i(mib[2])->astats->secstats.bytes, size_t)
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_small_allocated,
     arenas_i(mib[2])->astats->allocated_small, size_t)

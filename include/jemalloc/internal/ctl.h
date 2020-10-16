@@ -46,6 +46,7 @@ typedef struct ctl_arena_stats_s {
 	arena_stats_large_t lstats[SC_NSIZES - SC_NBINS];
 	pac_estats_t estats[SC_NPSIZES];
 	hpa_shard_stats_t hpastats;
+	sec_stats_t secstats;
 } ctl_arena_stats_t;
 
 typedef struct ctl_stats_s {

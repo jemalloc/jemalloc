@@ -10,6 +10,7 @@
 #include "jemalloc/internal/lockedint.h"
 #include "jemalloc/internal/pac.h"
 #include "jemalloc/internal/pai.h"
+#include "jemalloc/internal/sec.h"
 
 /*
  * The page allocator; responsible for acquiring pages of memory for
@@ -85,7 +86,12 @@ struct pa_shard_s {
 	/* Allocates from a PAC. */
 	pac_t pac;
 
-	/* Allocates from a HPA. */
+	/*
+	 * We place a small extent cache in front of the HPA, since we intend
+	 * these configurations to use many fewer arenas, and therefore have a
+	 * higher risk of hot locks.
+	 */
+	sec_t hpa_sec;
 	hpa_shard_t hpa_shard;
 
 	/* The source of edata_t objects. */
@@ -124,18 +130,20 @@ bool pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
  * that we can boot without worrying about the HPA, then turn it on in a0.
  */
 bool pa_shard_enable_hpa(pa_shard_t *shard, hpa_t *hpa, size_t ps_goal,
-    size_t ps_alloc_max, size_t small_max, size_t large_min);
+    size_t ps_alloc_max, size_t small_max, size_t large_min, size_t sec_nshards,
+    size_t sec_alloc_max, size_t sec_bytes_max);
 /*
  * We stop using the HPA when custom extent hooks are installed, but still
  * redirect deallocations to it.
  */
-void pa_shard_disable_hpa(pa_shard_t *shard);
+void pa_shard_disable_hpa(tsdn_t *tsdn, pa_shard_t *shard);
 
 /*
  * This does the PA-specific parts of arena reset (i.e. freeing all active
  * allocations).
  */
-void pa_shard_reset(pa_shard_t *shard);
+void pa_shard_reset(tsdn_t *tsdn, pa_shard_t *shard);
+
 /*
  * Destroy all the remaining retained extents.  Should only be called after
  * decaying all active, dirty, and muzzy extents to the retained state, as the
@@ -184,6 +192,7 @@ void pa_shard_prefork0(tsdn_t *tsdn, pa_shard_t *shard);
 void pa_shard_prefork2(tsdn_t *tsdn, pa_shard_t *shard);
 void pa_shard_prefork3(tsdn_t *tsdn, pa_shard_t *shard);
 void pa_shard_prefork4(tsdn_t *tsdn, pa_shard_t *shard);
+void pa_shard_prefork5(tsdn_t *tsdn, pa_shard_t *shard);
 void pa_shard_postfork_parent(tsdn_t *tsdn, pa_shard_t *shard);
 void pa_shard_postfork_child(tsdn_t *tsdn, pa_shard_t *shard);
 
@@ -192,7 +201,8 @@ void pa_shard_basic_stats_merge(pa_shard_t *shard, size_t *nactive,
 
 void pa_shard_stats_merge(tsdn_t *tsdn, pa_shard_t *shard,
     pa_shard_stats_t *pa_shard_stats_out, pac_estats_t *estats_out,
-    hpa_shard_stats_t *hpa_stats_out, size_t *resident);
+    hpa_shard_stats_t *hpa_stats_out, sec_stats_t *sec_stats_out,
+    size_t *resident);
 
 /*
  * Reads the PA-owned mutex stats into the output stats array, at the

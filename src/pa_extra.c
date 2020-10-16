@@ -16,17 +16,14 @@ pa_shard_prefork0(tsdn_t *tsdn, pa_shard_t *shard) {
 
 void
 pa_shard_prefork2(tsdn_t *tsdn, pa_shard_t *shard) {
-	malloc_mutex_prefork(tsdn, &shard->pac.grow_mtx);
 	if (shard->ever_used_hpa) {
-		hpa_shard_prefork2(tsdn, &shard->hpa_shard);
+		sec_prefork2(tsdn, &shard->hpa_sec);
 	}
 }
 
 void
 pa_shard_prefork3(tsdn_t *tsdn, pa_shard_t *shard) {
-	ecache_prefork(tsdn, &shard->pac.ecache_dirty);
-	ecache_prefork(tsdn, &shard->pac.ecache_muzzy);
-	ecache_prefork(tsdn, &shard->pac.ecache_retained);
+	malloc_mutex_prefork(tsdn, &shard->pac.grow_mtx);
 	if (shard->ever_used_hpa) {
 		hpa_shard_prefork3(tsdn, &shard->hpa_shard);
 	}
@@ -34,6 +31,16 @@ pa_shard_prefork3(tsdn_t *tsdn, pa_shard_t *shard) {
 
 void
 pa_shard_prefork4(tsdn_t *tsdn, pa_shard_t *shard) {
+	ecache_prefork(tsdn, &shard->pac.ecache_dirty);
+	ecache_prefork(tsdn, &shard->pac.ecache_muzzy);
+	ecache_prefork(tsdn, &shard->pac.ecache_retained);
+	if (shard->ever_used_hpa) {
+		hpa_shard_prefork4(tsdn, &shard->hpa_shard);
+	}
+}
+
+void
+pa_shard_prefork5(tsdn_t *tsdn, pa_shard_t *shard) {
 	edata_cache_prefork(tsdn, &shard->edata_cache);
 }
 
@@ -47,6 +54,7 @@ pa_shard_postfork_parent(tsdn_t *tsdn, pa_shard_t *shard) {
 	malloc_mutex_postfork_parent(tsdn, &shard->pac.decay_dirty.mtx);
 	malloc_mutex_postfork_parent(tsdn, &shard->pac.decay_muzzy.mtx);
 	if (shard->ever_used_hpa) {
+		sec_postfork_parent(tsdn, &shard->hpa_sec);
 		hpa_shard_postfork_parent(tsdn, &shard->hpa_shard);
 	}
 }
@@ -61,6 +69,7 @@ pa_shard_postfork_child(tsdn_t *tsdn, pa_shard_t *shard) {
 	malloc_mutex_postfork_child(tsdn, &shard->pac.decay_dirty.mtx);
 	malloc_mutex_postfork_child(tsdn, &shard->pac.decay_muzzy.mtx);
 	if (shard->ever_used_hpa) {
+		sec_postfork_child(tsdn, &shard->hpa_sec);
 		hpa_shard_postfork_child(tsdn, &shard->hpa_shard);
 	}
 }
@@ -76,7 +85,8 @@ pa_shard_basic_stats_merge(pa_shard_t *shard, size_t *nactive, size_t *ndirty,
 void
 pa_shard_stats_merge(tsdn_t *tsdn, pa_shard_t *shard,
     pa_shard_stats_t *pa_shard_stats_out, pac_estats_t *estats_out,
-    hpa_shard_stats_t *hpa_stats_out, size_t *resident) {
+    hpa_shard_stats_t *hpa_stats_out, sec_stats_t *sec_stats_out,
+    size_t *resident) {
 	cassert(config_stats);
 
 	pa_shard_stats_out->pac_stats.retained +=
@@ -149,6 +159,7 @@ pa_shard_stats_merge(tsdn_t *tsdn, pa_shard_t *shard,
 			    &shard->hpa_shard.psset.slab_stats[i]);
 		}
 		malloc_mutex_unlock(tsdn, &shard->hpa_shard.mtx);
+		sec_stats_merge(tsdn, &shard->hpa_sec, sec_stats_out);
 	}
 }
 
@@ -182,5 +193,7 @@ pa_shard_mtx_stats_read(tsdn_t *tsdn, pa_shard_t *shard,
 		pa_shard_mtx_stats_read_single(tsdn, mutex_prof_data,
 		    &shard->hpa_shard.grow_mtx,
 		    arena_prof_mutex_hpa_shard_grow);
+		sec_mutex_stats_read(tsdn, &shard->hpa_sec,
+		    &mutex_prof_data[arena_prof_mutex_hpa_sec]);
 	}
 }
