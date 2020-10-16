@@ -49,7 +49,8 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
 
 bool
 pa_shard_enable_hpa(pa_shard_t *shard, hpa_t *hpa, size_t ps_goal,
-    size_t ps_alloc_max, size_t small_max, size_t large_min) {
+    size_t ps_alloc_max, size_t small_max, size_t large_min,
+    size_t sec_nshards, size_t sec_alloc_max, size_t sec_bytes_max) {
 	ps_goal &= ~PAGE_MASK;
 	ps_alloc_max &= ~PAGE_MASK;
 
@@ -60,6 +61,10 @@ pa_shard_enable_hpa(pa_shard_t *shard, hpa_t *hpa, size_t ps_goal,
 	    shard->ind, ps_goal, ps_alloc_max, small_max, large_min)) {
 		return true;
 	}
+	if (sec_init(&shard->hpa_sec, &shard->hpa_shard.pai, sec_nshards,
+	    sec_alloc_max, sec_bytes_max)) {
+		return true;
+	}
 	shard->ever_used_hpa = true;
 	atomic_store_b(&shard->use_hpa, true, ATOMIC_RELAXED);
 
@@ -67,24 +72,27 @@ pa_shard_enable_hpa(pa_shard_t *shard, hpa_t *hpa, size_t ps_goal,
 }
 
 void
-pa_shard_disable_hpa(pa_shard_t *shard) {
+pa_shard_disable_hpa(tsdn_t *tsdn, pa_shard_t *shard) {
 	atomic_store_b(&shard->use_hpa, false, ATOMIC_RELAXED);
+	sec_disable(tsdn, &shard->hpa_sec);
 }
 
 void
-pa_shard_reset(pa_shard_t *shard) {
+pa_shard_reset(tsdn_t *tsdn, pa_shard_t *shard) {
 	atomic_store_zu(&shard->nactive, 0, ATOMIC_RELAXED);
+	sec_flush(tsdn, &shard->hpa_sec);
 }
 
 void
 pa_shard_destroy(tsdn_t *tsdn, pa_shard_t *shard) {
+	sec_flush(tsdn, &shard->hpa_sec);
 	pac_destroy(tsdn, &shard->pac);
 }
 
 static pai_t *
 pa_get_pai(pa_shard_t *shard, edata_t *edata) {
 	return (edata_pai_get(edata) == EXTENT_PAI_PAC
-	    ? &shard->pac.pai : &shard->hpa_shard.pai);
+	    ? &shard->pac.pai : &shard->hpa_sec.pai);
 }
 
 edata_t *
@@ -95,7 +103,7 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 
 	edata_t *edata = NULL;
 	if (atomic_load_b(&shard->use_hpa, ATOMIC_RELAXED)) {
-		edata = pai_alloc(tsdn, &shard->hpa_shard.pai, size, alignment,
+		edata = pai_alloc(tsdn, &shard->hpa_sec.pai, size, alignment,
 		    zero);
 	}
 	/*
@@ -173,6 +181,7 @@ pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
 		emap_deregister_interior(tsdn, shard->emap, edata);
 		edata_slab_set(edata, false);
 	}
+	edata_addr_set(edata, edata_base_get(edata));
 	edata_szind_set(edata, SC_NSIZES);
 	pa_nactive_sub(shard, edata_size_get(edata) >> LG_PAGE);
 	pai_t *pai = pa_get_pai(shard, edata);

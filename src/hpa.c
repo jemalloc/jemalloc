@@ -411,12 +411,12 @@ hpa_shard_destroy(tsdn_t *tsdn, hpa_shard_t *shard) {
 }
 
 void
-hpa_shard_prefork2(tsdn_t *tsdn, hpa_shard_t *shard) {
+hpa_shard_prefork3(tsdn_t *tsdn, hpa_shard_t *shard) {
 	malloc_mutex_prefork(tsdn, &shard->grow_mtx);
 }
 
 void
-hpa_shard_prefork3(tsdn_t *tsdn, hpa_shard_t *shard) {
+hpa_shard_prefork4(tsdn_t *tsdn, hpa_shard_t *shard) {
 	malloc_mutex_prefork(tsdn, &shard->mtx);
 }
 
@@ -433,7 +433,7 @@ hpa_shard_postfork_child(tsdn_t *tsdn, hpa_shard_t *shard) {
 }
 
 void
-hpa_prefork3(tsdn_t *tsdn, hpa_t *hpa) {
+hpa_prefork4(tsdn_t *tsdn, hpa_t *hpa) {
 	malloc_mutex_prefork(tsdn, &hpa->grow_mtx);
 	malloc_mutex_prefork(tsdn, &hpa->mtx);
 }

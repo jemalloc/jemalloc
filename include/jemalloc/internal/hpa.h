@@ -90,10 +90,10 @@ void hpa_shard_destroy(tsdn_t *tsdn, hpa_shard_t *shard);
 
 /*
  * We share the fork ordering with the PA and arena prefork handling; that's why
- * these are 2 and 3 rather than 0 or 1.
+ * these are 3 and 4 rather than 0 and 1.
  */
-void hpa_shard_prefork2(tsdn_t *tsdn, hpa_shard_t *shard);
 void hpa_shard_prefork3(tsdn_t *tsdn, hpa_shard_t *shard);
+void hpa_shard_prefork4(tsdn_t *tsdn, hpa_shard_t *shard);
 void hpa_shard_postfork_parent(tsdn_t *tsdn, hpa_shard_t *shard);
 void hpa_shard_postfork_child(tsdn_t *tsdn, hpa_shard_t *shard);
 
@@ -103,7 +103,7 @@ void hpa_shard_postfork_child(tsdn_t *tsdn, hpa_shard_t *shard);
  * so it needs to be lower in the witness ordering, but it's also logically
  * global and not tied to any particular arena.
  */
-void hpa_prefork3(tsdn_t *tsdn, hpa_t *hpa);
+void hpa_prefork4(tsdn_t *tsdn, hpa_t *hpa);
 void hpa_postfork_parent(tsdn_t *tsdn, hpa_t *hpa);
 void hpa_postfork_child(tsdn_t *tsdn, hpa_t *hpa);
 

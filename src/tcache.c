@@ -719,9 +719,11 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache, bool tsd_tcache) {
 	if (arena_nthreads_get(arena, false) == 0 &&
 	    !background_thread_enabled()) {
 		/* Force purging when no threads assigned to the arena anymore. */
-		arena_decay(tsd_tsdn(tsd), arena, false, true);
+		arena_decay(tsd_tsdn(tsd), arena,
+		    /* is_background_thread */ false, /* all */ true);
 	} else {
-		arena_decay(tsd_tsdn(tsd), arena, false, false);
+		arena_decay(tsd_tsdn(tsd), arena,
+		    /* is_background_thread */ false, /* all */ false);
 	}
 }
 

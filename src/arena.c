@@ -81,7 +81,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     const char **dss, ssize_t *dirty_decay_ms, ssize_t *muzzy_decay_ms,
     size_t *nactive, size_t *ndirty, size_t *nmuzzy, arena_stats_t *astats,
     bin_stats_data_t *bstats, arena_stats_large_t *lstats,
-    pac_estats_t *estats, hpa_shard_stats_t *hpastats) {
+    pac_estats_t *estats, hpa_shard_stats_t *hpastats, sec_stats_t *secstats) {
 	cassert(config_stats);
 
 	arena_basic_stats_merge(tsdn, arena, nthreads, dss, dirty_decay_ms,
@@ -139,7 +139,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	}
 
 	pa_shard_stats_merge(tsdn, &arena->pa_shard, &astats->pa_shard_stats,
-	    estats, hpastats, &astats->resident);
+	    estats, hpastats, secstats, &astats->resident);
 
 	LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 
@@ -483,6 +483,14 @@ arena_decay_muzzy(tsdn_t *tsdn, arena_t *arena, bool is_background_thread,
 
 void
 arena_decay(tsdn_t *tsdn, arena_t *arena, bool is_background_thread, bool all) {
+	if (all) {
+		/*
+		 * We should take a purge of "all" to mean "save as much memory
+		 * as possible", including flushing any caches (for situations
+		 * like thread death, or manual purge calls).
+		 */
+		sec_flush(tsdn, &arena->pa_shard.hpa_sec);
+	}
 	if (arena_decay_dirty(tsdn, arena, is_background_thread, all)) {
 		return;
 	}
@@ -631,7 +639,7 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 			    &arena->bins[i].bin_shards[j]);
 		}
 	}
-	pa_shard_reset(&arena->pa_shard);
+	pa_shard_reset(tsd_tsdn(tsd), &arena->pa_shard);
 }
 
 void
@@ -1362,7 +1370,7 @@ arena_set_extent_hooks(tsd_t *tsd, arena_t *arena,
 		malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
 	}
 	/* No using the HPA now that we have the custom hooks. */
-	pa_shard_disable_hpa(&arena->pa_shard);
+	pa_shard_disable_hpa(tsd_tsdn(tsd), &arena->pa_shard);
 	extent_hooks_t *ret = base_extent_hooks_set(arena->base, extent_hooks);
 	if (have_background_thread) {
 		malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
@@ -1529,7 +1537,8 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	if (opt_hpa && ehooks_are_default(base_ehooks_get(base)) && ind != 0) {
 		if (pa_shard_enable_hpa(&arena->pa_shard, &arena_hpa_global,
 		    opt_hpa_slab_goal, opt_hpa_slab_max_alloc,
-		    opt_hpa_small_max, opt_hpa_large_min)) {
+		    opt_hpa_small_max, opt_hpa_large_min, opt_hpa_sec_nshards,
+		    opt_hpa_sec_max_alloc, opt_hpa_sec_max_bytes)) {
 			goto label_error;
 		}
 	}
@@ -1658,16 +1667,21 @@ arena_prefork4(tsdn_t *tsdn, arena_t *arena) {
 
 void
 arena_prefork5(tsdn_t *tsdn, arena_t *arena) {
-	base_prefork(tsdn, arena->base);
+	pa_shard_prefork5(tsdn, &arena->pa_shard);
 }
 
 void
 arena_prefork6(tsdn_t *tsdn, arena_t *arena) {
-	malloc_mutex_prefork(tsdn, &arena->large_mtx);
+	base_prefork(tsdn, arena->base);
 }
 
 void
 arena_prefork7(tsdn_t *tsdn, arena_t *arena) {
+	malloc_mutex_prefork(tsdn, &arena->large_mtx);
+}
+
+void
+arena_prefork8(tsdn_t *tsdn, arena_t *arena) {
 	for (unsigned i = 0; i < SC_NBINS; i++) {
 		for (unsigned j = 0; j < bin_infos[i].n_shards; j++) {
 			bin_prefork(tsdn, &arena->bins[i].bin_shards[j]);

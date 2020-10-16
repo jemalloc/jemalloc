@@ -168,6 +168,9 @@ TEST_BEGIN(test_mallctl_opt) {
 	TEST_MALLCTL_OPT(size_t, hpa_slab_max_alloc, always);
 	TEST_MALLCTL_OPT(size_t, hpa_small_max, always);
 	TEST_MALLCTL_OPT(size_t, hpa_large_min, always);
+	TEST_MALLCTL_OPT(size_t, hpa_sec_max_alloc, always);
+	TEST_MALLCTL_OPT(size_t, hpa_sec_max_bytes, always);
+	TEST_MALLCTL_OPT(size_t, hpa_sec_nshards, always);
 	TEST_MALLCTL_OPT(unsigned, narenas, always);
 	TEST_MALLCTL_OPT(const char *, percpu_arena, always);
 	TEST_MALLCTL_OPT(size_t, oversize_threshold, always);

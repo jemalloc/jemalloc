@@ -678,6 +678,11 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i) {
 	CTL_M2_GET("stats.arenas.0.hpa_shard.full_slabs.ninactive",
 	    i, &ninactive, size_t);
 
+	size_t sec_bytes;
+	CTL_M2_GET("stats.arenas.0.hpa_sec_bytes", i, &sec_bytes, size_t);
+	emitter_kv(emitter, "sec_bytes", "Bytes in small extent cache",
+	    emitter_type_size, &sec_bytes);
+
 	emitter_table_printf(emitter,
 	    "HPA shard stats:\n"
 	    "  In full slabs:\n"
@@ -1194,6 +1199,9 @@ stats_general_print(emitter_t *emitter) {
 	OPT_WRITE_SIZE_T("hpa_slab_max_alloc")
 	OPT_WRITE_SIZE_T("hpa_small_max")
 	OPT_WRITE_SIZE_T("hpa_large_min")
+	OPT_WRITE_SIZE_T("hpa_sec_max_alloc")
+	OPT_WRITE_SIZE_T("hpa_sec_max_bytes")
+	OPT_WRITE_SIZE_T("hpa_sec_nshards")
 	OPT_WRITE_CHAR_P("metadata_thp")
 	OPT_WRITE_BOOL_MUTABLE("background_thread", "background_thread")
 	OPT_WRITE_SSIZE_T_MUTABLE("dirty_decay_ms", "arenas.dirty_decay_ms")
