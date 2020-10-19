@@ -11,6 +11,7 @@ TEST_END
 
 int
 main(void) {
+	assert((1 << LG_SIZEOF_PTR) == sizeof(void *));
 	return test_no_malloc_init(
 	    test_a0);
 }
