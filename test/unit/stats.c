@@ -393,7 +393,7 @@ test_tcache_bytes_for_usize(size_t usize) {
 TEST_BEGIN(test_stats_tcache_bytes_small) {
 	test_skip_if(!config_stats);
 	test_skip_if(!opt_tcache);
-	test_skip_if((ZU(1) << opt_lg_tcache_max) < SC_SMALL_MAXCLASS);
+	test_skip_if(opt_tcache_max < SC_SMALL_MAXCLASS);
 
 	test_tcache_bytes_for_usize(SC_SMALL_MAXCLASS);
 }
@@ -402,7 +402,7 @@ TEST_END
 TEST_BEGIN(test_stats_tcache_bytes_large) {
 	test_skip_if(!config_stats);
 	test_skip_if(!opt_tcache);
-	test_skip_if((ZU(1) << opt_lg_tcache_max) < SC_LARGE_MINCLASS);
+	test_skip_if(opt_tcache_max < SC_LARGE_MINCLASS);
 
 	test_tcache_bytes_for_usize(SC_LARGE_MINCLASS);
 }
