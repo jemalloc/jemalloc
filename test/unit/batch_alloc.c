@@ -35,20 +35,28 @@ verify_stats(bin_stats_t *before, bin_stats_t *after, size_t batch,
 }
 
 static void
-verify_batch(tsd_t *tsd, void **ptrs, size_t batch, size_t usize, bool zero,
+verify_batch_basic(tsd_t *tsd, void **ptrs, size_t batch, size_t usize,
+    bool zero) {
+	for (size_t i = 0; i < batch; ++i) {
+		void *p = ptrs[i];
+		expect_zu_eq(isalloc(tsd_tsdn(tsd), p), usize, "");
+		if (zero) {
+			for (size_t k = 0; k < usize; ++k) {
+				expect_true(*((unsigned char *)p + k) == 0, "");
+			}
+		}
+	}
+}
+
+static void
+verify_batch_locality(tsd_t *tsd, void **ptrs, size_t batch, size_t usize,
     arena_t *arena, unsigned nregs) {
 	for (size_t i = 0, j = 0; i < batch; ++i, ++j) {
 		if (j == nregs) {
 			j = 0;
 		}
 		void *p = ptrs[i];
-		expect_zu_eq(isalloc(tsd_tsdn(tsd), p), usize, "");
 		expect_ptr_eq(iaalloc(tsd_tsdn(tsd), p), arena, "");
-		if (zero) {
-			for (size_t k = 0; k < usize; ++k) {
-				expect_true(*((unsigned char *)p + k) == 0, "");
-			}
-		}
 		if (j == 0) {
 			expect_true(PAGE_ALIGNED(p), "");
 			continue;
@@ -154,7 +162,8 @@ test_wrapper(size_t size, size_t alignment, bool zero, unsigned arena_flag) {
 			assert_zu_eq(filled, batch, "");
 			memcpy(&stats_after, &bin->stats, sizeof(bin_stats_t));
 			verify_stats(&stats_before, &stats_after, batch, nregs);
-			verify_batch(tsd, ptrs, batch, usize, zero, arena,
+			verify_batch_basic(tsd, ptrs, batch, usize, zero);
+			verify_batch_locality(tsd, ptrs, batch, usize, arena,
 			    nregs);
 			release_batch(ptrs, batch, usize);
 		}
