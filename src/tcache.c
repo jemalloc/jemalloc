@@ -11,11 +11,8 @@
 
 bool opt_tcache = true;
 
-/*
- * (1U << opt_lg_tcache_max) is used to compute tcache_maxclass.  This choice
- * (32kb by default) works well as a default in practice.
- */
-ssize_t opt_lg_tcache_max = 15;
+/* tcache_maxclass is set to 32KB by default.  */
+size_t opt_tcache_max = ((size_t)1) << 15;
 
 /* Reasonable defaults for min and max values. */
 unsigned opt_tcache_nslots_small_min = 20;
@@ -935,14 +932,11 @@ tcache_ncached_max_compute(szind_t szind) {
 
 bool
 tcache_boot(tsdn_t *tsdn, base_t *base) {
-	/* If necessary, clamp opt_lg_tcache_max. */
-	tcache_maxclass = opt_lg_tcache_max < 0 ? 0 :
-	    ZU(1) << opt_lg_tcache_max;
+	tcache_maxclass = sz_s2u(opt_tcache_max);
 	if (tcache_maxclass < SC_SMALL_MAXCLASS) {
 		tcache_maxclass = SC_SMALL_MAXCLASS;
-	} else if (tcache_maxclass > TCACHE_MAXCLASS_LIMIT) {
-		tcache_maxclass = TCACHE_MAXCLASS_LIMIT;
 	}
+	assert(tcache_maxclass <= TCACHE_MAXCLASS_LIMIT);
 	nhbins = sz_size2index(tcache_maxclass) + 1;
 
 	if (malloc_mutex_init(&tcaches_mtx, "tcaches", WITNESS_RANK_TCACHES,

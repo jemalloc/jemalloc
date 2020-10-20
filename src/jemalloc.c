@@ -1170,15 +1170,18 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 #define CONF_DONT_CHECK_MAX(um, max)	false
 #define CONF_CHECK_MAX(um, max)	((um) > (max))
 
+#define CONF_VALUE_READ(max_t, result)					\
+	      char *end;						\
+	      set_errno(0);						\
+	      result = (max_t)malloc_strtoumax(v, &end, 0);
+#define CONF_VALUE_READ_FAIL()						\
+	      (get_errno() != 0 || (uintptr_t)end - (uintptr_t)v != vlen)
+
 #define CONF_HANDLE_T(t, max_t, o, n, min, max, check_min, check_max, clip) \
 			if (CONF_MATCH(n)) {				\
 				max_t mv;				\
-				char *end;				\
-									\
-				set_errno(0);				\
-				mv = (max_t)malloc_strtoumax(v, &end, 0); \
-				if (get_errno() != 0 || (uintptr_t)end -\
-				    (uintptr_t)v != vlen) {		\
+				CONF_VALUE_READ(max_t, mv)		\
+				if (CONF_VALUE_READ_FAIL()) {		\
 					CONF_ERROR("Invalid conf value",\
 					    k, klen, v, vlen);		\
 				} else if (clip) {			\
@@ -1379,8 +1382,24 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				CONF_HANDLE_BOOL(opt_xmalloc, "xmalloc")
 			}
 			CONF_HANDLE_BOOL(opt_tcache, "tcache")
-			CONF_HANDLE_SSIZE_T(opt_lg_tcache_max, "lg_tcache_max",
-			    -1, (sizeof(size_t) << 3) - 1)
+			CONF_HANDLE_SIZE_T(opt_tcache_max, "tcache_max",
+			    0, TCACHE_MAXCLASS_LIMIT, CONF_DONT_CHECK_MIN,
+			    CONF_CHECK_MAX, /* clip */ true)
+			if (CONF_MATCH("lg_tcache_max")) {
+				size_t m;
+				CONF_VALUE_READ(size_t, m)
+				if (CONF_VALUE_READ_FAIL()) {
+					CONF_ERROR("Invalid conf value",
+					    k, klen, v, vlen);
+				} else {
+					/* clip if necessary */
+					if (m > TCACHE_LG_MAXCLASS_LIMIT) {
+						m = TCACHE_LG_MAXCLASS_LIMIT;
+					}
+					opt_tcache_max = (size_t)1 << m;
+				}
+				CONF_CONTINUE;
+			}
 			/*
 			 * Anyone trying to set a value outside -16 to 16 is
 			 * deeply confused.

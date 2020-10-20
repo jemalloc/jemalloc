@@ -1301,21 +1301,23 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         a certain size.  Thread-specific caching allows many allocations to be
         satisfied without performing any thread synchronization, at the cost of
         increased memory use.  See the <link
-        linkend="opt.lg_tcache_max"><mallctl>opt.lg_tcache_max</mallctl></link>
+        linkend="opt.tcache_max"><mallctl>opt.tcache_max</mallctl></link>
         option for related tuning information.  This option is enabled by
         default.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="opt.lg_tcache_max">
+      <varlistentry id="opt.tcache_max">
         <term>
-          <mallctl>opt.lg_tcache_max</mallctl>
+          <mallctl>opt.tcache_max</mallctl>
           (<type>size_t</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>Maximum size class (log base 2) to cache in the
-        thread-specific cache (tcache).  At a minimum, all small size classes
-        are cached; and at a maximum, size classes up to 8 MiB can be cached.
-        The default maximum is 32 KiB (2^15).</para></listitem>
+        <listitem><para>Maximum size class to cache in the thread-specific cache
+        (tcache).  At a minimum, all small size classes are cached; and at a
+        maximum, size classes up to 8 MiB can be cached.  The default maximum is
+        32 KiB (2^15).  As a convenience, this may also be set by specifying
+        lg_tcache_max, which will be taken to be the base-2 logarithm of the
+        setting of tcache_max</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.thp">

@@ -2,7 +2,7 @@
 #define JEMALLOC_INTERNAL_TCACHE_EXTERNS_H
 
 extern bool opt_tcache;
-extern ssize_t opt_lg_tcache_max;
+extern size_t opt_tcache_max;
 extern ssize_t	opt_lg_tcache_nslots_mul;
 extern unsigned opt_tcache_nslots_small_min;
 extern unsigned opt_tcache_nslots_small_max;
