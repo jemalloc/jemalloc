@@ -264,6 +264,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/spin.c \
 	$(srcroot)test/unit/stats.c \
 	$(srcroot)test/unit/stats_print.c \
+	$(srcroot)test/unit/tcache_max.c \
 	$(srcroot)test/unit/test_hooks.c \
 	$(srcroot)test/unit/thread_event.c \
 	$(srcroot)test/unit/ticker.c \

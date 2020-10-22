@@ -62,7 +62,9 @@ cache_bin_info_t	*tcache_bin_info;
 static size_t tcache_bin_alloc_size;
 static size_t tcache_bin_alloc_alignment;
 
+/* Number of cache bins enabled, including both large and small. */
 unsigned		nhbins;
+/* Max size class to be cached (can be small or large). */
 size_t			tcache_maxclass;
 
 tcaches_t		*tcaches;
@@ -567,7 +569,14 @@ tcache_init(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	tcache_slow->arena = NULL;
 	tcache_slow->dyn_alloc = mem;
 
-	memset(tcache->bins, 0, sizeof(cache_bin_t) * nhbins);
+	/*
+	 * We reserve cache bins for all small size classes, even if some may
+	 * not get used (i.e. bins higher than nhbins).  This allows the fast
+	 * and common paths to access cache bin metadata safely w/o worrying
+	 * about which ones are disabled.
+	 */
+	unsigned n_reserved_bins = nhbins < SC_NBINS ? SC_NBINS : nhbins;
+	memset(tcache->bins, 0, sizeof(cache_bin_t) * n_reserved_bins);
 
 	size_t cur_offset = 0;
 	cache_bin_preincrement(tcache_bin_info, nhbins, mem,
@@ -576,19 +585,34 @@ tcache_init(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 		if (i < SC_NBINS) {
 			tcache_slow->lg_fill_div[i] = 1;
 			tcache_slow->bin_refilled[i] = false;
+			tcache_slow->bin_flush_delay_items[i]
+			    = tcache_gc_item_delay_compute(i);
 		}
 		cache_bin_t *cache_bin = &tcache->bins[i];
 		cache_bin_init(cache_bin, &tcache_bin_info[i], mem,
 		    &cur_offset);
 	}
+	/*
+	 * For small size classes beyond tcache_maxclass (i.e. nhbins < NBINS),
+	 * their cache bins are initialized to a state to safely and efficiently
+	 * fail all fastpath alloc / free, so that no additional check around
+	 * nhbins is needed on fastpath.
+	 */
+	for (unsigned i = nhbins; i < SC_NBINS; i++) {
+		/* Disabled small bins. */
+		cache_bin_t *cache_bin = &tcache->bins[i];
+		void *fake_stack = mem;
+		size_t fake_offset = 0;
+
+		cache_bin_init(cache_bin, &tcache_bin_info[i], fake_stack,
+		    &fake_offset);
+		assert(tcache_small_bin_disabled(i, cache_bin));
+	}
+
 	cache_bin_postincrement(tcache_bin_info, nhbins, mem,
 	    &cur_offset);
 	/* Sanity check that the whole stack is used. */
 	assert(cur_offset == tcache_bin_alloc_size);
-	for (unsigned i = 0; i < SC_NBINS; i++) {
-		tcache_slow->bin_flush_delay_items[i]
-		    = tcache_gc_item_delay_compute(i);
-	}
 }
 
 /* Initialize auto tcache (embedded in TSD). */
@@ -935,9 +959,6 @@ tcache_ncached_max_compute(szind_t szind) {
 bool
 tcache_boot(tsdn_t *tsdn, base_t *base) {
 	tcache_maxclass = sz_s2u(opt_tcache_max);
-	if (tcache_maxclass < SC_SMALL_MAXCLASS) {
-		tcache_maxclass = SC_SMALL_MAXCLASS;
-	}
 	assert(tcache_maxclass <= TCACHE_MAXCLASS_LIMIT);
 	nhbins = sz_size2index(tcache_maxclass) + 1;
 
@@ -946,16 +967,25 @@ tcache_boot(tsdn_t *tsdn, base_t *base) {
 		return true;
 	}
 
-	/* Initialize tcache_bin_info. */
-	tcache_bin_info = (cache_bin_info_t *)base_alloc(tsdn, base,
-	    nhbins * sizeof(cache_bin_info_t), CACHELINE);
+	/* Initialize tcache_bin_info.  See comments in tcache_init(). */
+	unsigned n_reserved_bins = nhbins < SC_NBINS ? SC_NBINS : nhbins;
+	size_t size = n_reserved_bins * sizeof(cache_bin_info_t);
+	tcache_bin_info = (cache_bin_info_t *)base_alloc(tsdn, base, size,
+	    CACHELINE);
 	if (tcache_bin_info == NULL) {
 		return true;
 	}
+
 	for (szind_t i = 0; i < nhbins; i++) {
 		unsigned ncached_max = tcache_ncached_max_compute(i);
 		cache_bin_info_init(&tcache_bin_info[i], ncached_max);
 	}
+	for (szind_t i = nhbins; i < SC_NBINS; i++) {
+		/* Disabled small bins. */
+		cache_bin_info_init(&tcache_bin_info[i], 0);
+		assert(tcache_small_bin_disabled(i, NULL));
+	}
+
 	cache_bin_info_compute_alloc(tcache_bin_info, nhbins,
 	    &tcache_bin_alloc_size, &tcache_bin_alloc_alignment);
 

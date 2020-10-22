@@ -24,6 +24,7 @@ cache_bin_info_compute_alloc(cache_bin_info_t *infos, szind_t ninfos,
 	 */
 	*size = sizeof(void *) * 2;
 	for (szind_t i = 0; i < ninfos; i++) {
+		assert(infos[i].ncached_max > 0);
 		*size += infos[i].ncached_max * sizeof(void *);
 	}
 
@@ -46,25 +47,19 @@ cache_bin_preincrement(cache_bin_info_t *infos, szind_t ninfos, void *alloc,
 		    &computed_alignment);
 		assert(((uintptr_t)alloc & (computed_alignment - 1)) == 0);
 	}
-	/*
-	 * Leave a noticeable mark pattern on the boundaries, in case a bug
-	 * starts leaking those.  Make it look like the junk pattern but be
-	 * distinct from it.
-	 */
-	uintptr_t preceding_ptr_junk = (uintptr_t)0x7a7a7a7a7a7a7a7aULL;
-	*(uintptr_t *)((uintptr_t)alloc + *cur_offset) = preceding_ptr_junk;
+
+	*(uintptr_t *)((uintptr_t)alloc + *cur_offset) =
+	    cache_bin_preceding_junk;
 	*cur_offset += sizeof(void *);
 }
 
 void
 cache_bin_postincrement(cache_bin_info_t *infos, szind_t ninfos, void *alloc,
     size_t *cur_offset) {
-	/* Note: a7 vs. 7a above -- this tells you which pointer leaked. */
-	uintptr_t trailing_ptr_junk = (uintptr_t)0xa7a7a7a7a7a7a7a7ULL;
-	*(uintptr_t *)((uintptr_t)alloc + *cur_offset) = trailing_ptr_junk;
+	*(uintptr_t *)((uintptr_t)alloc + *cur_offset) =
+	    cache_bin_trailing_junk;
 	*cur_offset += sizeof(void *);
 }
-
 
 void
 cache_bin_init(cache_bin_t *bin, cache_bin_info_t *info, void *alloc,
@@ -90,6 +85,8 @@ cache_bin_init(cache_bin_t *bin, cache_bin_info_t *info, void *alloc,
 	    (uint16_t)(uintptr_t) bin->stack_head) == bin_stack_size);
 	assert(cache_bin_ncached_get(bin, info) == 0);
 	assert(cache_bin_empty_position_get(bin, info) == empty_position);
+
+	assert(bin_stack_size > 0 || empty_position == full_position);
 }
 
 bool

@@ -26,6 +26,20 @@ tcache_enabled_set(tsd_t *tsd, bool enabled) {
 	tsd_slow_update(tsd);
 }
 
+JEMALLOC_ALWAYS_INLINE bool
+tcache_small_bin_disabled(szind_t ind, cache_bin_t *bin) {
+	assert(ind < SC_NBINS);
+	bool ret = (cache_bin_info_ncached_max(&tcache_bin_info[ind]) == 0);
+	if (ret && bin != NULL) {
+		/* small size class but cache bin disabled. */
+		assert(ind >= nhbins);
+		assert((uintptr_t)(*bin->stack_head) ==
+		    cache_bin_preceding_junk);
+	}
+
+	return ret;
+}
+
 JEMALLOC_ALWAYS_INLINE void *
 tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
     size_t size, szind_t binind, bool zero, bool slow_path) {
@@ -41,6 +55,11 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
 		arena = arena_choose(tsd, arena);
 		if (unlikely(arena == NULL)) {
 			return NULL;
+		}
+		if (unlikely(tcache_small_bin_disabled(binind, bin))) {
+			/* stats and zero are handled directly by the arena. */
+			return arena_malloc_hard(tsd_tsdn(tsd), arena, size,
+			    binind, zero);
 		}
 
 		ret = tcache_alloc_small_hard(tsd_tsdn(tsd), arena, tcache,
@@ -104,13 +123,17 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 JEMALLOC_ALWAYS_INLINE void
 tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
     bool slow_path) {
-	assert(tcache_salloc(tsd_tsdn(tsd), ptr)
-	    <= SC_SMALL_MAXCLASS);
+	assert(tcache_salloc(tsd_tsdn(tsd), ptr) <= SC_SMALL_MAXCLASS);
 
 	cache_bin_t *bin = &tcache->bins[binind];
 	if (unlikely(!cache_bin_dalloc_easy(bin, ptr))) {
-		unsigned remain = cache_bin_info_ncached_max(
-		    &tcache_bin_info[binind]) >> opt_lg_tcache_flush_small_div;
+		if (unlikely(tcache_small_bin_disabled(binind, bin))) {
+			arena_dalloc_small(tsd_tsdn(tsd), ptr);
+			return;
+		}
+		cache_bin_sz_t max = cache_bin_info_ncached_max(
+		    &tcache_bin_info[binind]);
+		unsigned remain = max >> opt_lg_tcache_flush_small_div;
 		tcache_bin_flush_small(tsd, tcache, bin, binind, remain);
 		bool ret = cache_bin_dalloc_easy(bin, ptr);
 		assert(ret);

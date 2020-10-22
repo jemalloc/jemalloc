@@ -21,6 +21,17 @@
 typedef uint16_t cache_bin_sz_t;
 
 /*
+ * Leave a noticeable mark pattern on the cache bin stack boundaries, in case a
+ * bug starts leaking those.  Make it look like the junk pattern but be distinct
+ * from it.
+ */
+static const uintptr_t cache_bin_preceding_junk =
+    (uintptr_t)0x7a7a7a7a7a7a7a7aULL;
+/* Note: a7 vs. 7a above -- this tells you which pointer leaked. */
+static const uintptr_t cache_bin_trailing_junk =
+    (uintptr_t)0xa7a7a7a7a7a7a7a7ULL;
+
+/*
  * That implies the following value, for the maximum number of items in any
  * individual bin.  The cache bins track their bounds looking just at the low
  * bits of a pointer, compared against a cache_bin_sz_t.  So that's

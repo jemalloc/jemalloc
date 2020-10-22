@@ -432,7 +432,6 @@ TEST_BEGIN(test_decay_ticker) {
 	unsigned arena_ind = do_arena_create(ddt, mdt);
 	int flags = (MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE);
 	void *ps[NPS];
-	size_t large;
 
 	/*
 	 * Allocate a bunch of large objects, pause the clock, deallocate every
@@ -440,12 +439,10 @@ TEST_BEGIN(test_decay_ticker) {
 	 * [md]allocx() in a tight loop while advancing time rapidly to verify
 	 * the ticker triggers purging.
 	 */
-
-	size_t tcache_max;
+	size_t large;
 	size_t sz = sizeof(size_t);
-	expect_d_eq(mallctl("arenas.tcache_max", (void *)&tcache_max, &sz, NULL,
+	expect_d_eq(mallctl("arenas.lextent.0.size", (void *)&large, &sz, NULL,
 	    0), 0, "Unexpected mallctl failure");
-	large = nallocx(tcache_max + 1, flags);
 
 	do_purge(arena_ind);
 	uint64_t dirty_npurge0 = get_arena_dirty_npurge(arena_ind);
