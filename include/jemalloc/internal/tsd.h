@@ -77,6 +77,7 @@ typedef ql_elm(tsd_t) tsd_link_t;
     O(iarena,			arena_t *,		arena_t *)	\
     O(arena,			arena_t *,		arena_t *)	\
     O(arenas_tdata,		arena_tdata_t *,	arena_tdata_t *)\
+    O(sec_shard,		uint8_t,		uint8_t)	\
     O(binshards,		tsd_binshards_t,	tsd_binshards_t)\
     O(tsd_link,			tsd_link_t,		tsd_link_t)	\
     O(in_hook,			bool,			bool)		\
@@ -106,6 +107,7 @@ typedef ql_elm(tsd_t) tsd_link_t;
     /* iarena */		NULL,					\
     /* arena */			NULL,					\
     /* arenas_tdata */		NULL,					\
+    /* sec_shard */		(uint8_t)-1,				\
     /* binshards */		TSD_BINSHARDS_ZERO_INITIALIZER,		\
     /* tsd_link */		{NULL},					\
     /* in_hook */		false,					\

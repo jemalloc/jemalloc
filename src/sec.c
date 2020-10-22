@@ -61,14 +61,20 @@ sec_shard_pick(tsdn_t *tsdn, sec_t *sec) {
 		return &sec->shards[0];
 	}
 	tsd_t *tsd = tsdn_tsd(tsdn);
-	/*
-	 * Use the trick from Daniel Lemire's "A fast alternative to the modulo
-	 * reduction.  Use a 64 bit number to store 32 bits, since we'll
-	 * deliberately overflow when we multiply by the number of shards.
-	 */
-	uint64_t rand32 = prng_lg_range_u64(tsd_prng_statep_get(tsd), 32);
-	uint32_t idx = (uint32_t)((rand32 * (uint64_t)sec->nshards) >> 32);
-	return &sec->shards[idx];
+	uint8_t *idxp = tsd_sec_shardp_get(tsd);
+	if (*idxp == (uint8_t)-1) {
+		/*
+		 * First use; initialize using the trick from Daniel Lemire's
+		 * "A fast alternative to the modulo reduction.  Use a 64 bit
+		 * number to store 32 bits, since we'll deliberately overflow
+		 * when we multiply by the number of shards.
+		 */
+		uint64_t rand32 = prng_lg_range_u64(tsd_prng_statep_get(tsd), 32);
+		uint32_t idx = (uint32_t)((rand32 * (uint64_t)sec->nshards) >> 32);
+		assert(idx < (uint32_t)sec->nshards);
+		*idxp = (uint8_t)idx;
+	}
+	return &sec->shards[*idxp];
 }
 
 static edata_t *
