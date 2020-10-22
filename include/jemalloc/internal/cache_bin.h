@@ -317,6 +317,18 @@ cache_bin_alloc(cache_bin_t *bin, bool *success) {
 	return cache_bin_alloc_impl(bin, success, true);
 }
 
+JEMALLOC_ALWAYS_INLINE cache_bin_sz_t
+cache_bin_alloc_batch(cache_bin_t *bin, size_t num, void **out) {
+	size_t n = cache_bin_ncached_get_internal(bin);
+	if (n > num) {
+		n = num;
+	}
+	memcpy(out, bin->stack_head, n * sizeof(void *));
+	bin->stack_head += n;
+	cache_bin_low_water_adjust(bin);
+	return n;
+}
+
 /*
  * Free an object into the given bin.  Fails only if the bin is full.
  */
