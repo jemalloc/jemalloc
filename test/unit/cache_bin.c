@@ -186,7 +186,7 @@ TEST_BEGIN(test_cache_bin) {
 	    ncached_max / 2);
 	/* Try to fill some, succeed partially. */
 	do_fill_test(&bin, &info, ptrs, ncached_max, ncached_max / 2,
-	    ncached_max / 2);
+	    ncached_max / 4);
 	/* Try to fill some, fail completely. */
 	do_fill_test(&bin, &info, ptrs, ncached_max, ncached_max / 2, 0);
 
@@ -196,6 +196,8 @@ TEST_BEGIN(test_cache_bin) {
 	do_flush_test(&bin, &info, ptrs, ncached_max / 2, ncached_max / 2);
 	do_flush_test(&bin, &info, ptrs, ncached_max / 2, ncached_max / 4);
 	do_flush_test(&bin, &info, ptrs, ncached_max / 2, 0);
+
+	free(ptrs);
 }
 TEST_END
 
