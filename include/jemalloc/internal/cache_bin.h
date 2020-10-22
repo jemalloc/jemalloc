@@ -167,16 +167,21 @@ cache_bin_diff(cache_bin_t *bin, uint16_t earlier, uint16_t later) {
 	return later - earlier;
 }
 
-/* Number of items currently cached in the bin. */
+/* Number of items currently cached in the bin, without checking ncached_max. */
 static inline cache_bin_sz_t
-cache_bin_ncached_get(cache_bin_t *bin, cache_bin_info_t *info) {
+cache_bin_ncached_get_internal(cache_bin_t *bin) {
 	cache_bin_sz_t diff = cache_bin_diff(bin,
 	    (uint16_t)(uintptr_t)bin->stack_head, bin->low_bits_empty);
 	cache_bin_sz_t n = diff / sizeof(void *);
-
-	assert(n <= cache_bin_info_ncached_max(info));
 	assert(n == 0 || *(bin->stack_head) != NULL);
+	return n;
+}
 
+/* Number of items currently cached in the bin, with checking ncached_max. */
+static inline cache_bin_sz_t
+cache_bin_ncached_get(cache_bin_t *bin, cache_bin_info_t *info) {
+	cache_bin_sz_t n = cache_bin_ncached_get_internal(bin);
+	assert(n <= cache_bin_info_ncached_max(info));
 	return n;
 }
 
@@ -186,7 +191,7 @@ cache_bin_ncached_get(cache_bin_t *bin, cache_bin_info_t *info) {
  * A pointer to the position one past the end of the backing array.
  */
 static inline void **
-cache_bin_empty_position_get(cache_bin_t *bin, cache_bin_info_t *info) {
+cache_bin_empty_position_get(cache_bin_t *bin) {
 	cache_bin_sz_t diff = cache_bin_diff(bin,
 	    (uint16_t)(uintptr_t)bin->stack_head, bin->low_bits_empty);
 	uintptr_t empty_bits = (uintptr_t)bin->stack_head + diff;
@@ -204,7 +209,7 @@ cache_bin_empty_position_get(cache_bin_t *bin, cache_bin_info_t *info) {
 static inline void
 cache_bin_assert_empty(cache_bin_t *bin, cache_bin_info_t *info) {
 	assert(cache_bin_ncached_get(bin, info) == 0);
-	assert(cache_bin_empty_position_get(bin, info) == bin->stack_head);
+	assert(cache_bin_empty_position_get(bin) == bin->stack_head);
 }
 
 /*
@@ -213,7 +218,7 @@ cache_bin_assert_empty(cache_bin_t *bin, cache_bin_info_t *info) {
  * ncached >= low_water during flush).
  */
 static inline cache_bin_sz_t
-cache_bin_low_water_get_internal(cache_bin_t *bin, cache_bin_info_t *info) {
+cache_bin_low_water_get_internal(cache_bin_t *bin) {
 	return cache_bin_diff(bin, bin->low_bits_low_water,
 	    bin->low_bits_empty) / sizeof(void *);
 }
@@ -221,7 +226,7 @@ cache_bin_low_water_get_internal(cache_bin_t *bin, cache_bin_info_t *info) {
 /* Returns the numeric value of low water in [0, ncached]. */
 static inline cache_bin_sz_t
 cache_bin_low_water_get(cache_bin_t *bin, cache_bin_info_t *info) {
-	cache_bin_sz_t low_water = cache_bin_low_water_get_internal(bin, info);
+	cache_bin_sz_t low_water = cache_bin_low_water_get_internal(bin);
 	assert(low_water <= cache_bin_info_ncached_max(info));
 	assert(low_water <= cache_bin_ncached_get(bin, info));
 
@@ -238,6 +243,14 @@ cache_bin_low_water_get(cache_bin_t *bin, cache_bin_info_t *info) {
 static inline void
 cache_bin_low_water_set(cache_bin_t *bin) {
 	bin->low_bits_low_water = (uint16_t)(uintptr_t)bin->stack_head;
+}
+
+static inline void
+cache_bin_low_water_adjust(cache_bin_t *bin) {
+	if (cache_bin_ncached_get_internal(bin)
+	    < cache_bin_low_water_get_internal(bin)) {
+		cache_bin_low_water_set(bin);
+	}
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -365,8 +378,8 @@ struct cache_bin_ptr_array_s {
 static inline void
 cache_bin_init_ptr_array_for_fill(cache_bin_t *bin, cache_bin_info_t *info,
     cache_bin_ptr_array_t *arr, cache_bin_sz_t nfill) {
-	assert(cache_bin_ncached_get(bin, info) == 0);
-	arr->ptr = cache_bin_empty_position_get(bin, info) - nfill;
+	cache_bin_assert_empty(bin, info);
+	arr->ptr = cache_bin_empty_position_get(bin) - nfill;
 }
 
 /*
@@ -377,8 +390,8 @@ cache_bin_init_ptr_array_for_fill(cache_bin_t *bin, cache_bin_info_t *info,
 static inline void
 cache_bin_finish_fill(cache_bin_t *bin, cache_bin_info_t *info,
     cache_bin_ptr_array_t *arr, cache_bin_sz_t nfilled) {
-	assert(cache_bin_ncached_get(bin, info) == 0);
-	void **empty_position = cache_bin_empty_position_get(bin, info);
+	cache_bin_assert_empty(bin, info);
+	void **empty_position = cache_bin_empty_position_get(bin);
 	if (nfilled < arr->n) {
 		memmove(empty_position - nfilled, empty_position - arr->n,
 		    nfilled * sizeof(void *));
@@ -390,7 +403,7 @@ cache_bin_finish_fill(cache_bin_t *bin, cache_bin_info_t *info,
 static inline void
 cache_bin_init_ptr_array_for_flush(cache_bin_t *bin, cache_bin_info_t *info,
     cache_bin_ptr_array_t *arr, cache_bin_sz_t nflush) {
-	arr->ptr = cache_bin_empty_position_get(bin, info) - 1;
+	arr->ptr = cache_bin_empty_position_get(bin) - 1;
 	assert(cache_bin_ncached_get(bin, info) == 0
 	    || *arr->ptr != NULL);
 }
@@ -416,10 +429,7 @@ cache_bin_finish_flush(cache_bin_t *bin, cache_bin_info_t *info,
 	memmove(bin->stack_head + nflushed, bin->stack_head,
 	    rem * sizeof(void *));
 	bin->stack_head = bin->stack_head + nflushed;
-	if (cache_bin_ncached_get(bin, info)
-	    < cache_bin_low_water_get_internal(bin, info)) {
-		bin->low_bits_low_water = (uint16_t)(uintptr_t)bin->stack_head;
-	}
+	cache_bin_low_water_adjust(bin);
 }
 
 /*
