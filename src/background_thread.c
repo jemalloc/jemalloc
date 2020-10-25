@@ -82,13 +82,33 @@ static inline bool
 set_current_thread_affinity(int cpu) {
 #if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
 	cpu_set_t cpuset;
+#else
+#  ifndef __NetBSD__
+	cpuset_t cpuset;
+#  else
+	cpuset_t *cpuset;
+#  endif
+#endif
+
+#ifndef __NetBSD__
 	CPU_ZERO(&cpuset);
 	CPU_SET(cpu, &cpuset);
-	int ret = sched_setaffinity(0, sizeof(cpu_set_t), &cpuset);
-
-	return (ret != 0);
 #else
-	return false;
+	cpuset = cpuset_create();
+#endif
+
+#if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
+	return (sched_setaffinity(0, sizeof(cpu_set_t), &cpuset) != 0);
+#else
+#  ifndef __NetBSD__
+	int ret = pthread_setaffinity_np(pthread_self(), sizeof(cpuset_t),
+	    &cpuset);
+#  else
+	int ret = pthread_setaffinity_np(pthread_self(), cpuset_size(cpuset),
+	    cpuset);
+	cpuset_destroy(cpuset);
+#  endif
+	return ret != 0;
 #endif
 }
 
