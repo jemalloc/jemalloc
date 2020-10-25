@@ -436,7 +436,7 @@ prof_dump_open_maps_impl() {
 	int mfd;
 
 	cassert(config_prof);
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__DragonFly__)
 	mfd = prof_open_maps_internal("/proc/curproc/map");
 #elif defined(_WIN32)
 	mfd = -1; // Not implemented

@@ -815,7 +815,7 @@ malloc_ncpus(void) {
 	 * is available, to avoid using more arenas than necessary.
 	 */
 	{
-#  if defined(__FreeBSD__)
+#  if defined(__FreeBSD__) || defined(__DragonFly__)
 		cpuset_t set;
 #  else
 		cpu_set_t set;
