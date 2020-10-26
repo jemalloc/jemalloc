@@ -97,7 +97,7 @@ set_current_thread_affinity(int cpu) {
 #endif
 
 #if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
-	int ret = sched_setaffinity(0, sizeof(cpu_set_t), &cpuset);
+	return (sched_setaffinity(0, sizeof(cpu_set_t), &cpuset) != 0);
 #else
 #ifndef __NetBSD__
 	int ret = pthread_setaffinity_np(pthread_self(), sizeof(cpuset_t), &cpuset);
