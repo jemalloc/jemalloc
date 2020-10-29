@@ -27,8 +27,7 @@ edata_cache_get(tsdn_t *tsdn, edata_cache_t *edata_cache) {
 		return base_alloc_edata(tsdn, edata_cache->base);
 	}
 	edata_avail_remove(&edata_cache->avail, edata);
-	size_t count = atomic_load_zu(&edata_cache->count, ATOMIC_RELAXED);
-	atomic_store_zu(&edata_cache->count, count - 1, ATOMIC_RELAXED);
+	atomic_load_sub_store_zu(&edata_cache->count, 1);
 	malloc_mutex_unlock(tsdn, &edata_cache->mtx);
 	return edata;
 }
@@ -37,8 +36,7 @@ void
 edata_cache_put(tsdn_t *tsdn, edata_cache_t *edata_cache, edata_t *edata) {
 	malloc_mutex_lock(tsdn, &edata_cache->mtx);
 	edata_avail_insert(&edata_cache->avail, edata);
-	size_t count = atomic_load_zu(&edata_cache->count, ATOMIC_RELAXED);
-	atomic_store_zu(&edata_cache->count, count + 1, ATOMIC_RELAXED);
+	atomic_load_add_store_zu(&edata_cache->count, 1);
 	malloc_mutex_unlock(tsdn, &edata_cache->mtx);
 }
 
@@ -62,48 +60,110 @@ edata_cache_small_init(edata_cache_small_t *ecs, edata_cache_t *fallback) {
 	edata_list_inactive_init(&ecs->list);
 	ecs->count = 0;
 	ecs->fallback = fallback;
+	ecs->disabled = false;
+}
+
+static void
+edata_cache_small_try_fill_from_fallback(tsdn_t *tsdn,
+    edata_cache_small_t *ecs) {
+	assert(ecs->count == 0);
+	edata_t *edata;
+	malloc_mutex_lock(tsdn, &ecs->fallback->mtx);
+	while (ecs->count < EDATA_CACHE_SMALL_FILL) {
+		edata = edata_avail_first(&ecs->fallback->avail);
+		if (edata == NULL) {
+			break;
+		}
+		edata_avail_remove(&ecs->fallback->avail, edata);
+		edata_list_inactive_append(&ecs->list, edata);
+		ecs->count++;
+		atomic_load_sub_store_zu(&ecs->fallback->count, 1);
+	}
+	malloc_mutex_unlock(tsdn, &ecs->fallback->mtx);
 }
 
 edata_t *
-edata_cache_small_get(edata_cache_small_t *ecs) {
-	assert(ecs->count > 0);
+edata_cache_small_get(tsdn_t *tsdn, edata_cache_small_t *ecs) {
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_EDATA_CACHE, 0);
+
+	if (ecs->disabled) {
+		assert(ecs->count == 0);
+		assert(edata_list_inactive_first(&ecs->list) == NULL);
+		return edata_cache_get(tsdn, ecs->fallback);
+	}
+
 	edata_t *edata = edata_list_inactive_first(&ecs->list);
-	assert(edata != NULL);
-	edata_list_inactive_remove(&ecs->list, edata);
-	ecs->count--;
+	if (edata != NULL) {
+		edata_list_inactive_remove(&ecs->list, edata);
+		ecs->count--;
+		return edata;
+	}
+	/* Slow path; requires synchronization. */
+	edata_cache_small_try_fill_from_fallback(tsdn, ecs);
+	edata = edata_list_inactive_first(&ecs->list);
+	if (edata != NULL) {
+		edata_list_inactive_remove(&ecs->list, edata);
+		ecs->count--;
+	} else {
+		/*
+		 * Slowest path (fallback was also empty); allocate something
+		 * new.
+		 */
+		edata = base_alloc_edata(tsdn, ecs->fallback->base);
+	}
 	return edata;
 }
 
+static void
+edata_cache_small_flush_all(tsdn_t *tsdn, edata_cache_small_t *ecs) {
+	/*
+	 * You could imagine smarter cache management policies (like
+	 * only flushing down to some threshold in anticipation of
+	 * future get requests).  But just flushing everything provides
+	 * a good opportunity to defrag too, and lets us share code between the
+	 * flush and disable pathways.
+	 */
+	edata_t *edata;
+	size_t nflushed = 0;
+	malloc_mutex_lock(tsdn, &ecs->fallback->mtx);
+	while ((edata = edata_list_inactive_first(&ecs->list)) != NULL) {
+		edata_list_inactive_remove(&ecs->list, edata);
+		edata_avail_insert(&ecs->fallback->avail, edata);
+		nflushed++;
+	}
+	atomic_load_add_store_zu(&ecs->fallback->count, ecs->count);
+	malloc_mutex_unlock(tsdn, &ecs->fallback->mtx);
+	assert(nflushed == ecs->count);
+	ecs->count = 0;
+}
+
 void
-edata_cache_small_put(edata_cache_small_t *ecs, edata_t *edata) {
-	assert(edata != NULL);
-	edata_list_inactive_append(&ecs->list, edata);
-	ecs->count++;
-}
+edata_cache_small_put(tsdn_t *tsdn, edata_cache_small_t *ecs, edata_t *edata) {
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_EDATA_CACHE, 0);
 
-bool edata_cache_small_prepare(tsdn_t *tsdn, edata_cache_small_t *ecs,
-    size_t num) {
-	while (ecs->count < num) {
-		/*
-		 * Obviously, we can be smarter here and batch the locking that
-		 * happens inside of edata_cache_get.  But for now, something
-		 * quick-and-dirty is fine.
-		 */
-		edata_t *edata = edata_cache_get(tsdn, ecs->fallback);
-		if (edata == NULL) {
-			return true;
-		}
-		ql_elm_new(edata, ql_link_inactive);
-		edata_cache_small_put(ecs, edata);
-	}
-	return false;
-}
-
-void edata_cache_small_finish(tsdn_t *tsdn, edata_cache_small_t *ecs,
-    size_t num) {
-	while (ecs->count > num) {
-		/* Same deal here -- we should be batching. */
-		edata_t *edata = edata_cache_small_get(ecs);
+	if (ecs->disabled) {
+		assert(ecs->count == 0);
+		assert(edata_list_inactive_first(&ecs->list) == NULL);
 		edata_cache_put(tsdn, ecs->fallback, edata);
+		return;
 	}
+
+	/*
+	 * Prepend rather than append, to do LIFO ordering in the hopes of some
+	 * cache locality.
+	 */
+	edata_list_inactive_prepend(&ecs->list, edata);
+	ecs->count++;
+	if (ecs->count > EDATA_CACHE_SMALL_MAX) {
+		assert(ecs->count == EDATA_CACHE_SMALL_MAX + 1);
+		edata_cache_small_flush_all(tsdn, ecs);
+	}
+}
+
+void
+edata_cache_small_disable(tsdn_t *tsdn, edata_cache_small_t *ecs) {
+	edata_cache_small_flush_all(tsdn, ecs);
+	ecs->disabled = true;
 }
