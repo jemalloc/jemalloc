@@ -768,6 +768,7 @@ case "${host}" in
   *-*-nto-qnx)
 	abi="elf"
   force_tls="0"
+  AC_DEFINE([JEMALLOC_HAS_ALLOCA_H])
 	;;
   *)
 	AC_MSG_RESULT([Unsupported operating system: ${host}])
