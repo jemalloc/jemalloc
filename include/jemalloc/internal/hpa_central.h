@@ -9,7 +9,7 @@ struct hpa_central_s {
 	/* The emap we use for metadata operations. */
 	emap_t *emap;
 
-	edata_cache_t *edata_cache;
+	edata_cache_small_t ecs;
 	eset_t eset;
 
 	size_t sn_next;

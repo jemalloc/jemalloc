@@ -64,7 +64,8 @@ hpa_shard_init(hpa_shard_t *shard, hpa_t *hpa, edata_cache_t *edata_cache,
 		return true;
 	}
 
-	shard->edata_cache = edata_cache;
+	assert(edata_cache != NULL);
+	edata_cache_small_init(&shard->ecs, edata_cache);
 	shard->hpa = hpa;
 	psset_init(&shard->psset);
 	shard->ps_goal = ps_goal;
@@ -201,13 +202,14 @@ hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
 	assert(size <= shard->ps_alloc_max);
 
 	bool err;
-	edata_t *edata = edata_cache_get(tsdn, shard->edata_cache);
+	malloc_mutex_lock(tsdn, &shard->mtx);
+	edata_t *edata = edata_cache_small_get(tsdn, &shard->ecs);
 	if (edata == NULL) {
+		malloc_mutex_unlock(tsdn, &shard->mtx);
 		return NULL;
 	}
 	edata_arena_ind_set(edata, shard->ind);
 
-	malloc_mutex_lock(tsdn, &shard->mtx);
 	err = psset_alloc_reuse(&shard->psset, edata, size);
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 	if (!err) {
@@ -229,7 +231,11 @@ hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
 	    shard->ps_goal);
 	if (grow_edata == NULL) {
 		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
-		edata_cache_put(tsdn, shard->edata_cache, edata);
+
+		malloc_mutex_lock(tsdn, &shard->mtx);
+		edata_cache_small_put(tsdn, &shard->ecs, edata);
+		malloc_mutex_unlock(tsdn, &shard->mtx);
+
 		return NULL;
 	}
 	edata_arena_ind_set(grow_edata, shard->ind);
@@ -351,9 +357,9 @@ hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 
 		malloc_mutex_lock(tsdn, &shard->mtx);
 		edata_t *evicted_ps = psset_dalloc(&shard->psset, edata);
+		edata_cache_small_put(tsdn, &shard->ecs, edata);
 		malloc_mutex_unlock(tsdn, &shard->mtx);
 
-		edata_cache_put(tsdn, shard->edata_cache, edata);
 
 		if (evicted_ps != NULL) {
 			/*
@@ -385,6 +391,13 @@ hpa_shard_assert_stats_empty(psset_bin_stats_t *bin_stats) {
 	assert(bin_stats->npageslabs == 0);
 	assert(bin_stats->nactive == 0);
 	assert(bin_stats->ninactive == 0);
+}
+
+void
+hpa_shard_disable(tsdn_t *tsdn, hpa_shard_t *shard) {
+	malloc_mutex_lock(tsdn, &shard->mtx);
+	edata_cache_small_disable(tsdn, &shard->ecs);
+	malloc_mutex_unlock(tsdn, &shard->mtx);
 }
 
 void
