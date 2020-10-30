@@ -74,19 +74,26 @@ pa_shard_enable_hpa(pa_shard_t *shard, hpa_t *hpa, size_t ps_goal,
 void
 pa_shard_disable_hpa(tsdn_t *tsdn, pa_shard_t *shard) {
 	atomic_store_b(&shard->use_hpa, false, ATOMIC_RELAXED);
-	sec_disable(tsdn, &shard->hpa_sec);
+	if (shard->ever_used_hpa) {
+		sec_disable(tsdn, &shard->hpa_sec);
+	}
 }
 
 void
 pa_shard_reset(tsdn_t *tsdn, pa_shard_t *shard) {
 	atomic_store_zu(&shard->nactive, 0, ATOMIC_RELAXED);
-	sec_flush(tsdn, &shard->hpa_sec);
+	if (shard->ever_used_hpa) {
+		sec_flush(tsdn, &shard->hpa_sec);
+	}
 }
 
 void
 pa_shard_destroy(tsdn_t *tsdn, pa_shard_t *shard) {
 	sec_flush(tsdn, &shard->hpa_sec);
 	pac_destroy(tsdn, &shard->pac);
+	if (shard->ever_used_hpa) {
+		sec_flush(tsdn, &shard->hpa_sec);
+	}
 }
 
 static pai_t *
