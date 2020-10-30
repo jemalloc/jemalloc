@@ -24,6 +24,9 @@ struct hpa_s {
 	/*
 	 * This edata cache is the global one that we use for new allocations in
 	 * growing; practically, it comes from a0.
+	 *
+	 * We don't use an edata_cache_small in front of this, since we expect a
+	 * small finite number of allocations from it.
 	 */
 	edata_cache_t *edata_cache;
 	geom_grow_t geom_grow;
@@ -50,7 +53,7 @@ struct hpa_shard_s {
 	 * from a pageslab.  The pageslab itself comes from the centralized
 	 * allocator, and so will use its edata_cache.
 	 */
-	edata_cache_t *edata_cache;
+	edata_cache_small_t ecs;
 	hpa_t *hpa;
 	psset_t psset;
 
@@ -86,6 +89,12 @@ bool hpa_init(hpa_t *hpa, base_t *base, emap_t *emap,
 bool hpa_shard_init(hpa_shard_t *shard, hpa_t *hpa,
     edata_cache_t *edata_cache, unsigned ind, size_t ps_goal,
     size_t ps_alloc_max, size_t small_max, size_t large_min);
+/*
+ * Notify the shard that we won't use it for allocations much longer.  Due to
+ * the possibility of races, we don't actually prevent allocations; just flush
+ * and disable the embedded edata_cache_small.
+ */
+void hpa_shard_disable(tsdn_t *tsdn, hpa_shard_t *shard);
 void hpa_shard_destroy(tsdn_t *tsdn, hpa_shard_t *shard);
 
 /*

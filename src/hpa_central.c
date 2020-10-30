@@ -7,7 +7,7 @@ void
 hpa_central_init(hpa_central_t *central, edata_cache_t *edata_cache,
     emap_t *emap) {
 	central->emap = emap;
-	central->edata_cache = edata_cache;
+	edata_cache_small_init(&central->ecs, edata_cache);
 	eset_init(&central->eset, extent_state_dirty);
 	central->sn_next = 0;
 }
@@ -19,7 +19,7 @@ hpa_central_init(hpa_central_t *central, edata_cache_t *edata_cache,
 static edata_t *
 hpa_central_split(tsdn_t *tsdn, hpa_central_t *central, edata_t *edata,
     size_t size) {
-	edata_t *trail = edata_cache_get(tsdn, central->edata_cache);
+	edata_t *trail = edata_cache_small_get(tsdn, &central->ecs);
 	if (trail == NULL) {
 		return NULL;
 	}
@@ -34,7 +34,7 @@ hpa_central_split(tsdn_t *tsdn, hpa_central_t *central, edata_t *edata,
 	bool err = emap_split_prepare(tsdn, central->emap, &prepare, edata,
 	    size, trail, cursize - size);
 	if (err) {
-		edata_cache_put(tsdn, central->edata_cache, trail);
+		edata_cache_small_put(tsdn, &central->ecs, trail);
 		return NULL;
 	}
 	emap_lock_edata2(tsdn, central->emap, edata, trail);
@@ -102,7 +102,7 @@ hpa_central_alloc_grow(tsdn_t *tsdn, hpa_central_t *central,
 	assert(edata_base_get(edata) == edata_addr_get(edata));
 	assert(edata_size_get(edata) >= size);
 	assert(edata_arena_ind_get(edata)
-	    == base_ind_get(central->edata_cache->base));
+	    == base_ind_get(central->ecs.fallback->base));
 	assert(edata_is_head_get(edata));
 	assert(edata_state_get(edata) == extent_state_active);
 	assert(edata_pai_get(edata) == EXTENT_PAI_HPA);
@@ -173,7 +173,7 @@ hpa_central_dalloc_merge(tsdn_t *tsdn, hpa_central_t *central, edata_t *a,
 	edata_size_set(a, edata_size_get(a) + edata_size_get(b));
 	emap_merge_commit(tsdn, central->emap, &prepare, a, b);
 	emap_unlock_edata2(tsdn, central->emap, a, b);
-	edata_cache_put(tsdn, central->edata_cache, b);
+	edata_cache_small_put(tsdn, &central->ecs, b);
 }
 
 void
