@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_TSD_H
 #define JEMALLOC_INTERNAL_TSD_H
 
+#include "jemalloc/internal/activity_callback.h"
 #include "jemalloc/internal/arena_types.h"
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/bin_types.h"
@@ -82,6 +83,8 @@ typedef ql_elm(tsd_t) tsd_link_t;
     O(tsd_link,			tsd_link_t,		tsd_link_t)	\
     O(in_hook,			bool,			bool)		\
     O(peak,			peak_t,			peak_t)		\
+    O(activity_callback_thunk,	activity_callback_thunk_t,		\
+	activity_callback_thunk_t)					\
     O(tcache_slow,		tcache_slow_t,		tcache_slow_t)	\
     O(rtree_ctx,		rtree_ctx_t,		rtree_ctx_t)
 
@@ -112,6 +115,8 @@ typedef ql_elm(tsd_t) tsd_link_t;
     /* tsd_link */		{NULL},					\
     /* in_hook */		false,					\
     /* peak */			PEAK_INITIALIZER,			\
+    /* activity_callback_thunk */					\
+	ACTIVITY_CALLBACK_THUNK_INITIALIZER,				\
     /* tcache_slow */		TCACHE_SLOW_ZERO_INITIALIZER,		\
     /* rtree_ctx */		RTREE_CTX_ZERO_INITIALIZER,
 
