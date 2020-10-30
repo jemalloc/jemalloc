@@ -1,8 +1,10 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
-#include "jemalloc/internal/peak.h"
 #include "jemalloc/internal/peak_event.h"
+
+#include "jemalloc/internal/activity_callback.h"
+#include "jemalloc/internal/peak.h"
 
 /*
  * Update every 64K by default.  We're not exposing this as a configuration
@@ -19,6 +21,17 @@ peak_event_update(tsd_t *tsd) {
 	uint64_t dalloc = tsd_thread_deallocated_get(tsd);
 	peak_t *peak = tsd_peakp_get(tsd);
 	peak_update(peak, alloc, dalloc);
+}
+
+static void
+peak_event_activity_callback(tsd_t *tsd) {
+	activity_callback_thunk_t *thunk = tsd_activity_callback_thunkp_get(
+	    tsd);
+	uint64_t alloc = tsd_thread_allocated_get(tsd);
+	uint64_t dalloc = tsd_thread_deallocated_get(tsd);
+	if (thunk->callback != NULL) {
+		thunk->callback(thunk->uctx, alloc, dalloc);
+	}
 }
 
 /* Set current state to zero. */
@@ -49,6 +62,7 @@ peak_alloc_postponed_event_wait(tsd_t *tsd) {
 void
 peak_alloc_event_handler(tsd_t *tsd, uint64_t elapsed) {
 	peak_event_update(tsd);
+	peak_event_activity_callback(tsd);
 }
 
 uint64_t
@@ -64,4 +78,5 @@ peak_dalloc_postponed_event_wait(tsd_t *tsd) {
 void
 peak_dalloc_event_handler(tsd_t *tsd, uint64_t elapsed) {
 	peak_event_update(tsd);
+	peak_event_activity_callback(tsd);
 }

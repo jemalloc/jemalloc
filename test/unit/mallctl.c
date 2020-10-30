@@ -1030,6 +1030,77 @@ TEST_BEGIN(test_thread_peak) {
 }
 TEST_END
 
+typedef struct activity_test_data_s activity_test_data_t;
+struct activity_test_data_s {
+	uint64_t obtained_alloc;
+	uint64_t obtained_dalloc;
+};
+
+static void
+activity_test_callback(void *uctx, uint64_t alloc, uint64_t dalloc) {
+	activity_test_data_t *test_data = (activity_test_data_t *)uctx;
+	test_data->obtained_alloc = alloc;
+	test_data->obtained_dalloc = dalloc;
+}
+
+TEST_BEGIN(test_thread_activity_callback) {
+	test_skip_if(!config_stats);
+
+	const size_t big_size = 10 * 1024 * 1024;
+	void *ptr;
+	int err;
+	size_t sz;
+
+	uint64_t *allocatedp;
+	uint64_t *deallocatedp;
+	sz = sizeof(allocatedp);
+	err = mallctl("thread.allocatedp", &allocatedp, &sz, NULL, 0);
+	assert_d_eq(0, err, "");
+	err = mallctl("thread.deallocatedp", &deallocatedp, &sz, NULL, 0);
+	assert_d_eq(0, err, "");
+
+	activity_callback_thunk_t old_thunk = {(activity_callback_t)111,
+		(void *)222};
+
+	activity_test_data_t test_data = {333, 444};
+	activity_callback_thunk_t new_thunk =
+	    {&activity_test_callback, &test_data};
+
+	sz = sizeof(old_thunk);
+	err = mallctl("experimental.thread.activity_callback", &old_thunk, &sz,
+	    &new_thunk, sizeof(new_thunk));
+	assert_d_eq(0, err, "");
+
+	expect_true(old_thunk.callback == NULL, "Callback already installed");
+	expect_true(old_thunk.uctx == NULL, "Callback data already installed");
+
+	ptr = mallocx(big_size, 0);
+	expect_u64_eq(test_data.obtained_alloc, *allocatedp, "");
+	expect_u64_eq(test_data.obtained_dalloc, *deallocatedp, "");
+
+	free(ptr);
+	expect_u64_eq(test_data.obtained_alloc, *allocatedp, "");
+	expect_u64_eq(test_data.obtained_dalloc, *deallocatedp, "");
+
+	sz = sizeof(old_thunk);
+	new_thunk = (activity_callback_thunk_t){ NULL, NULL };
+	err = mallctl("experimental.thread.activity_callback", &old_thunk, &sz,
+	    &new_thunk, sizeof(new_thunk));
+	assert_d_eq(0, err, "");
+
+	expect_true(old_thunk.callback == &activity_test_callback, "");
+	expect_true(old_thunk.uctx == &test_data, "");
+
+	/* Inserting NULL should have turned off tracking. */
+	test_data.obtained_alloc = 333;
+	test_data.obtained_dalloc = 444;
+	ptr = mallocx(big_size, 0);
+	free(ptr);
+	expect_u64_eq(333, test_data.obtained_alloc, "");
+	expect_u64_eq(444, test_data.obtained_dalloc, "");
+}
+TEST_END
+
 int
 main(void) {
 	return test(
@@ -1063,5 +1134,6 @@ main(void) {
 	    test_hooks,
 	    test_hooks_exhaustion,
 	    test_thread_idle,
-	    test_thread_peak);
+	    test_thread_peak,
+	    test_thread_activity_callback);
 }
