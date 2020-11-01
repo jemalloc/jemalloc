@@ -2132,6 +2132,16 @@ if test "x${je_cv_madvise}" = "xyes" ; then
 	madvise((void *)0, 0, MADV_HUGEPAGE);
 	madvise((void *)0, 0, MADV_NOHUGEPAGE);
 ], [je_cv_thp])
+  dnl Check for madvise(..., MADV_[NO]CORE).
+  JE_COMPILABLE([madvise(..., MADV_[[NO]]CORE)], [
+#include <sys/mman.h>
+], [
+	madvise((void *)0, 0, MADV_NOCORE);
+	madvise((void *)0, 0, MADV_CORE);
+], [je_cv_madv_nocore])
+  if test "x${je_cv_madv_nocore}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_MADVISE_NOCORE], [ ])
+  fi
 case "${host_cpu}" in
   arm*)
     ;;

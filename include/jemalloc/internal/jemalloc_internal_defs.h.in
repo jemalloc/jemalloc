@@ -299,6 +299,11 @@
 #undef JEMALLOC_MADVISE_DONTDUMP
 
 /*
+ * Defined if MADV_[NO]CORE is supported as an argument to madvise.
+ */
+#undef JEMALLOC_MADVISE_NOCORE
+
+/*
  * Defined if transparent huge pages (THPs) are supported via the
  * MADV_[NO]HUGEPAGE arguments to madvise(2), and THP support is enabled.
  */
