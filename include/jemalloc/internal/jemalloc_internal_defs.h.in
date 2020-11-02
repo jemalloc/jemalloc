@@ -85,6 +85,12 @@
 /* Defined if pthread_setname_np(3) is available. */
 #undef JEMALLOC_HAVE_PTHREAD_SETNAME_NP
 
+/* Defined if pthread_getname_np(3) is available. */
+#undef JEMALLOC_HAVE_PTHREAD_GETNAME_NP
+
+/* Defined if pthread_get_name_np(3) is available. */
+#undef JEMALLOC_HAVE_PTHREAD_GET_NAME_NP
+
 /*
  * Defined if clock_gettime(CLOCK_MONOTONIC_COARSE, ...) is available.
  */

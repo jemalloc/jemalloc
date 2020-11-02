@@ -1745,6 +1745,37 @@ dnl Check if we have dlsym support.
   if test "x${je_cv_pthread_setname_np}" = "xyes" ; then
     AC_DEFINE([JEMALLOC_HAVE_PTHREAD_SETNAME_NP], [ ])
   fi
+  dnl Check if pthread_getname_np is not necessarily present despite
+  dnl the pthread_setname_np counterpart
+  JE_COMPILABLE([pthread_getname_np(3)], [
+#include <pthread.h>
+#include <stdlib.h>
+], [
+  {
+  	char *name = malloc(16);
+  	pthread_getname_np(pthread_self(), name, 16);
+	free(name);
+  }
+], [je_cv_pthread_getname_np])
+  if test "x${je_cv_pthread_getname_np}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_HAVE_PTHREAD_GETNAME_NP], [ ])
+  fi
+  dnl Check if pthread_get_name_np is not necessarily present despite
+  dnl the pthread_set_name_np counterpart
+  JE_COMPILABLE([pthread_get_name_np(3)], [
+#include <pthread.h>
+#include <pthread_np.h>
+#include <stdlib.h>
+], [
+  {
+  	char *name = malloc(16);
+  	pthread_get_name_np(pthread_self(), name, 16);
+	free(name);
+  }
+], [je_cv_pthread_get_name_np])
+  if test "x${je_cv_pthread_get_name_np}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_HAVE_PTHREAD_GET_NAME_NP], [ ])
+  fi
 fi
 
 JE_APPEND_VS(CPPFLAGS, -D_REENTRANT)
