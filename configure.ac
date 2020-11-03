@@ -765,6 +765,10 @@ case "${host}" in
 	  default_retain="1"
 	fi
 	;;
+  *-*-nto-qnx)
+	abi="elf"
+  force_tls="0"
+	;;
   *)
 	AC_MSG_RESULT([Unsupported operating system: ${host}])
 	abi="elf"
