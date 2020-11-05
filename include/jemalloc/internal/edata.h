@@ -69,7 +69,7 @@ struct edata_map_info_s {
 
 /* Extent (span of pages).  Use accessor functions for e_* fields. */
 typedef struct edata_s edata_t;
-typedef ph(edata_t) edata_tree_t;
+typedef ph(edata_t) edata_avail_t;
 typedef ph(edata_t) edata_heap_t;
 typedef ph(edata_t) edata_age_heap_t;
 struct edata_s {
@@ -723,7 +723,7 @@ edata_age_comp(const edata_t *a, const edata_t *b) {
 	return edata_snad_comp(a, b);
 }
 
-ph_proto(, edata_avail_, edata_tree_t, edata_t)
+ph_proto(, edata_avail_, edata_avail_t, edata_t)
 ph_proto(, edata_heap_, edata_heap_t, edata_t)
 ph_proto(, edata_age_heap_, edata_age_heap_t, edata_t);
 

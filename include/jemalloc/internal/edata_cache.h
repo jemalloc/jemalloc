@@ -21,7 +21,7 @@
 
 typedef struct edata_cache_s edata_cache_t;
 struct edata_cache_s {
-	edata_tree_t avail;
+	edata_avail_t avail;
 	atomic_zu_t count;
 	malloc_mutex_t mtx;
 	base_t *base;
