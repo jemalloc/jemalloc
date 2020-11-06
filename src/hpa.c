@@ -43,7 +43,7 @@ hpa_init(hpa_t *hpa, base_t *base, emap_t *emap, edata_cache_t *edata_cache) {
 	hpa->ind = base_ind_get(base);
 	hpa->edata_cache = edata_cache;
 
-	geom_grow_init(&hpa->geom_grow);
+	exp_grow_init(&hpa->exp_grow);
 
 	return false;
 }
@@ -132,7 +132,7 @@ hpa_alloc_central(tsdn_t *tsdn, hpa_shard_t *shard, size_t size_min,
 
 	size_t hugepage_goal_min = HUGEPAGE_CEILING(size_goal);
 
-	err = geom_grow_size_prepare(&hpa->geom_grow, hugepage_goal_min,
+	err = exp_grow_size_prepare(&hpa->exp_grow, hugepage_goal_min,
 	    &alloc_size, &skip);
 	if (err) {
 		malloc_mutex_unlock(tsdn, &hpa->grow_mtx);
@@ -183,7 +183,7 @@ hpa_alloc_central(tsdn_t *tsdn, hpa_shard_t *shard, size_t size_min,
 	malloc_mutex_unlock(tsdn, &hpa->mtx);
 
 	if (!err) {
-		geom_grow_size_commit(&hpa->geom_grow, skip);
+		exp_grow_size_commit(&hpa->exp_grow, skip);
 	}
 	malloc_mutex_unlock(tsdn, &hpa->grow_mtx);
 	edata_arena_ind_set(edata, shard->ind);

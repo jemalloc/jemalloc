@@ -68,7 +68,7 @@ pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
 	    ind, /* delay_coalesce */ false)) {
 		return true;
 	}
-	geom_grow_init(&pac->geom_grow);
+	exp_grow_init(&pac->exp_grow);
 	if (malloc_mutex_init(&pac->grow_mtx, "extent_grow",
 	    WITNESS_RANK_EXTENT_GROW, malloc_mutex_rank_exclusive)) {
 		return true;
@@ -207,10 +207,10 @@ pac_retain_grow_limit_get_set(tsdn_t *tsdn, pac_t *pac, size_t *old_limit,
 
 	malloc_mutex_lock(tsdn, &pac->grow_mtx);
 	if (old_limit != NULL) {
-		*old_limit = sz_pind2sz(pac->geom_grow.limit);
+		*old_limit = sz_pind2sz(pac->exp_grow.limit);
 	}
 	if (new_limit != NULL) {
-		pac->geom_grow.limit = new_ind;
+		pac->exp_grow.limit = new_ind;
 	}
 	malloc_mutex_unlock(tsdn, &pac->grow_mtx);
 
