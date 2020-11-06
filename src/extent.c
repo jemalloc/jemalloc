@@ -1641,8 +1641,11 @@ extent_try_coalesce_impl(tsdn_t *tsdn, arena_t *arena,
 		}
 
 		/* Try to coalesce backward. */
-		extent_t *prev = extent_lock_from_addr(tsdn, rtree_ctx,
-		    extent_before_get(extent), inactive_only);
+		extent_t *prev = NULL;
+		if (extent_before_get(extent) != NULL) {
+			prev = extent_lock_from_addr(tsdn, rtree_ctx,
+			    extent_before_get(extent), inactive_only);
+		}
 		if (prev != NULL) {
 			bool can_coalesce = extent_can_coalesce(arena, extents,
 			    extent, prev);
