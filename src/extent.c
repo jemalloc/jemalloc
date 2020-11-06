@@ -626,9 +626,9 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	 * satisfy this request.
 	 */
 	size_t alloc_size;
-	pszind_t geom_grow_skip;
-	bool err = geom_grow_size_prepare(&pac->geom_grow, alloc_size_min,
-	    &alloc_size, &geom_grow_skip);
+	pszind_t exp_grow_skip;
+	bool err = exp_grow_size_prepare(&pac->exp_grow, alloc_size_min,
+	    &alloc_size, &exp_grow_skip);
 	if (err) {
 		goto label_err;
 	}
@@ -724,7 +724,7 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	 * range.
 	 */
 	/* All opportunities for failure are past. */
-	geom_grow_size_commit(&pac->geom_grow, geom_grow_skip);
+	exp_grow_size_commit(&pac->exp_grow, exp_grow_skip);
 	malloc_mutex_unlock(tsdn, &pac->grow_mtx);
 
 	if (config_prof) {

@@ -1,7 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_HPA_H
 #define JEMALLOC_INTERNAL_HPA_H
 
-#include "jemalloc/internal/geom_grow.h"
+#include "jemalloc/internal/exp_grow.h"
 #include "jemalloc/internal/hpa_central.h"
 #include "jemalloc/internal/pai.h"
 #include "jemalloc/internal/psset.h"
@@ -29,7 +29,7 @@ struct hpa_s {
 	 * small finite number of allocations from it.
 	 */
 	edata_cache_t *edata_cache;
-	geom_grow_t geom_grow;
+	exp_grow_t exp_grow;
 };
 
 /* Used only by CTL; not actually stored here (i.e., all derived). */

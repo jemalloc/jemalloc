@@ -54,6 +54,7 @@
     <ClCompile Include="..\..\..\..\src\ehooks.c" />
     <ClCompile Include="..\..\..\..\src\emap.c" />
     <ClCompile Include="..\..\..\..\src\eset.c" />
+    <ClCompile Include="..\..\..\..\src\exp_grow.c" />
     <ClCompile Include="..\..\..\..\src\extent.c" />
     <ClCompile Include="..\..\..\..\src\extent_dss.c" />
     <ClCompile Include="..\..\..\..\src\extent_mmap.c" />

@@ -114,10 +114,10 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/ehooks.c \
 	$(srcroot)src/emap.c \
 	$(srcroot)src/eset.c \
+	$(srcroot)src/exp_grow.c \
 	$(srcroot)src/extent.c \
 	$(srcroot)src/extent_dss.c \
 	$(srcroot)src/extent_mmap.c \
-	$(srcroot)src/geom_grow.c \
 	$(srcroot)src/hook.c \
 	$(srcroot)src/hpa.c \
 	$(srcroot)src/hpa_central.c \

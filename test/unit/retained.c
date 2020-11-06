@@ -143,7 +143,7 @@ TEST_BEGIN(test_retained) {
 		size_t usable = 0;
 		size_t fragmented = 0;
 		for (pszind_t pind = sz_psz2ind(HUGEPAGE); pind <
-		    arena->pa_shard.pac.geom_grow.next; pind++) {
+		    arena->pa_shard.pac.exp_grow.next; pind++) {
 			size_t psz = sz_pind2sz(pind);
 			size_t psz_fragmented = psz % esz;
 			size_t psz_usable = psz - psz_fragmented;

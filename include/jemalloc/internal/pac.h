@@ -1,7 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_PAC_H
 #define JEMALLOC_INTERNAL_PAC_H
 
-#include "jemalloc/internal/geom_grow.h"
+#include "jemalloc/internal/exp_grow.h"
 #include "jemalloc/internal/pai.h"
 
 
@@ -95,7 +95,7 @@ struct pac_s {
 	edata_cache_t *edata_cache;
 
 	/* The grow info for the retained ecache. */
-	geom_grow_t geom_grow;
+	exp_grow_t exp_grow;
 	malloc_mutex_t grow_mtx;
 
 	/*
