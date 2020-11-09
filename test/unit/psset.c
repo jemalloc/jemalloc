@@ -2,7 +2,7 @@
 
 #include "jemalloc/internal/psset.h"
 
-#define PAGESLAB_PAGES 64
+#define PAGESLAB_PAGES (HUGEPAGE / PAGE)
 #define PAGESLAB_SIZE (PAGESLAB_PAGES << LG_PAGE)
 #define PAGESLAB_SN 123
 #define PAGESLAB_ADDR ((void *)(1234 << LG_PAGE))
@@ -296,22 +296,23 @@ TEST_END
 
 static void
 stats_expect_empty(psset_bin_stats_t *stats) {
-	assert_zu_eq(0, stats->npageslabs,
+	assert_zu_eq(0, stats->npageslabs_nonhuge,
 	    "Supposedly empty bin had positive npageslabs");
-	expect_zu_eq(0, stats->nactive, "Unexpected nonempty bin"
+	expect_zu_eq(0, stats->nactive_nonhuge, "Unexpected nonempty bin"
 	    "Supposedly empty bin had positive nactive");
-	expect_zu_eq(0, stats->ninactive, "Unexpected nonempty bin"
+	expect_zu_eq(0, stats->ninactive_nonhuge, "Unexpected nonempty bin"
 	    "Supposedly empty bin had positive ninactive");
 }
 
 static void
 stats_expect(psset_t *psset, size_t nactive) {
 	if (nactive == PAGESLAB_PAGES) {
-		expect_zu_eq(1, psset->stats.full_slabs.npageslabs,
+		expect_zu_eq(1, psset->stats.full_slabs.npageslabs_nonhuge,
 		    "Expected a full slab");
-		expect_zu_eq(PAGESLAB_PAGES, psset->stats.full_slabs.nactive,
+		expect_zu_eq(PAGESLAB_PAGES,
+		    psset->stats.full_slabs.nactive_nonhuge,
 		    "Should have exactly filled the bin");
-		expect_zu_eq(0, psset->stats.full_slabs.ninactive,
+		expect_zu_eq(0, psset->stats.full_slabs.ninactive_nonhuge,
 		    "Should never have inactive pages in a full slab");
 	} else {
 		stats_expect_empty(&psset->stats.full_slabs);
@@ -325,13 +326,13 @@ stats_expect(psset_t *psset, size_t nactive) {
 	for (pszind_t i = 0; i < PSSET_NPSIZES; i++) {
 		if (i == nonempty_pind) {
 			assert_zu_eq(1,
-			    psset->stats.nonfull_slabs[i].npageslabs,
+			    psset->stats.nonfull_slabs[i].npageslabs_nonhuge,
 			    "Should have found a slab");
 			expect_zu_eq(nactive,
-			    psset->stats.nonfull_slabs[i].nactive,
+			    psset->stats.nonfull_slabs[i].nactive_nonhuge,
 			    "Mismatch in active pages");
 			expect_zu_eq(ninactive,
-			    psset->stats.nonfull_slabs[i].ninactive,
+			    psset->stats.nonfull_slabs[i].ninactive_nonhuge,
 			    "Mismatch in inactive pages");
 		} else {
 			stats_expect_empty(&psset->stats.nonfull_slabs[i]);

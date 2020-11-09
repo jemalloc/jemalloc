@@ -6,32 +6,6 @@
 #include "jemalloc/internal/pai.h"
 #include "jemalloc/internal/psset.h"
 
-typedef struct hpa_s hpa_t;
-struct hpa_s {
-	/*
-	 * We have two mutexes for the central allocator; mtx protects its
-	 * state, while grow_mtx protects controls the ability to grow the
-	 * backing store.  This prevents race conditions in which the central
-	 * allocator has exhausted its memory while mutiple threads are trying
-	 * to allocate.  If they all reserved more address space from the OS
-	 * without synchronization, we'd end consuming much more than necessary.
-	 */
-	malloc_mutex_t grow_mtx;
-	malloc_mutex_t mtx;
-	hpa_central_t central;
-	/* The arena ind we're associated with. */
-	unsigned ind;
-	/*
-	 * This edata cache is the global one that we use for new allocations in
-	 * growing; practically, it comes from a0.
-	 *
-	 * We don't use an edata_cache_small in front of this, since we expect a
-	 * small finite number of allocations from it.
-	 */
-	edata_cache_t *edata_cache;
-	exp_grow_t exp_grow;
-};
-
 /* Used only by CTL; not actually stored here (i.e., all derived). */
 typedef struct hpa_shard_stats_s hpa_shard_stats_t;
 struct hpa_shard_stats_s {
@@ -53,44 +27,53 @@ struct hpa_shard_s {
 	 * allocator, and so will use its edata_cache.
 	 */
 	edata_cache_small_t ecs;
-	hpa_t *hpa;
+
 	psset_t psset;
 
 	/*
-	 * When we're grabbing a new ps from the central allocator, how big
-	 * would we like it to be?  This is mostly about the level of batching
-	 * we use in our requests to the centralized allocator.
+	 * The largest size we'll allocate out of the shard.  For those
+	 * allocations refused, the caller (in practice, the PA module) will
+	 * fall back to the more general (for now) PAC, which can always handle
+	 * any allocation request.
 	 */
-	size_t ps_goal;
+	size_t alloc_max;
+
 	/*
-	 * What's the maximum size we'll try to allocate out of the psset?  We
-	 * don't want this to be too large relative to ps_goal, as a
-	 * fragmentation avoidance measure.
+	 * Slabs currently purged away.  They are hugepage-sized and
+	 * hugepage-aligned, but have had pages_nohuge and pages_purge_forced
+	 * called on them.
+	 *
+	 * Guarded by grow_mtx.
 	 */
-	size_t ps_alloc_max;
+	edata_list_inactive_t unused_slabs;
+
 	/*
-	 * What's the maximum size we'll try to allocate out of the shard at
-	 * all?
+	 * Either NULL (if empty), or some integer multiple of a
+	 * hugepage-aligned number of hugepages.  We carve them off one at a
+	 * time to satisfy new pageslab requests.
+	 *
+	 * Guarded by grow_mtx.
 	 */
-	size_t small_max;
-	/*
-	 * What's the minimum size for which we'll go straight to the global
-	 * arena?
-	 */
-	size_t large_min;
+	edata_t *eden;
 
 	/* The arena ind we're associated with. */
 	unsigned ind;
+	emap_t *emap;
 };
 
-bool hpa_init(hpa_t *hpa, base_t *base, emap_t *emap,
-    edata_cache_t *edata_cache);
-bool hpa_shard_init(hpa_shard_t *shard, hpa_t *hpa,
-    edata_cache_t *edata_cache, unsigned ind, size_t ps_goal,
-    size_t ps_alloc_max, size_t small_max, size_t large_min);
+/*
+ * Whether or not the HPA can be used given the current configuration.  This is
+ * is not necessarily a guarantee that it backs its allocations by hugepages,
+ * just that it can function properly given the system it's running on.
+ */
+bool hpa_supported();
+bool hpa_shard_init(hpa_shard_t *shard, emap_t *emap,
+    edata_cache_t *edata_cache, unsigned ind, size_t alloc_max);
 
-void hpa_stats_accum(hpa_shard_stats_t *dst, hpa_shard_stats_t *src);
-void hpa_stats_merge(tsdn_t *tsdn, hpa_shard_t *shard, hpa_shard_stats_t *dst);
+void hpa_shard_stats_accum(hpa_shard_stats_t *dst, hpa_shard_stats_t *src);
+void hpa_shard_stats_merge(tsdn_t *tsdn, hpa_shard_t *shard,
+    hpa_shard_stats_t *dst);
+
 /*
  * Notify the shard that we won't use it for allocations much longer.  Due to
  * the possibility of races, we don't actually prevent allocations; just flush
@@ -107,15 +90,5 @@ void hpa_shard_prefork3(tsdn_t *tsdn, hpa_shard_t *shard);
 void hpa_shard_prefork4(tsdn_t *tsdn, hpa_shard_t *shard);
 void hpa_shard_postfork_parent(tsdn_t *tsdn, hpa_shard_t *shard);
 void hpa_shard_postfork_child(tsdn_t *tsdn, hpa_shard_t *shard);
-
-/*
- * These should be acquired after all the shard locks in phase 4, but before any
- * locks in phase 4.  The central HPA may acquire an edata cache mutex (of a0),
- * so it needs to be lower in the witness ordering, but it's also logically
- * global and not tied to any particular arena.
- */
-void hpa_prefork4(tsdn_t *tsdn, hpa_t *hpa);
-void hpa_postfork_parent(tsdn_t *tsdn, hpa_t *hpa);
-void hpa_postfork_child(tsdn_t *tsdn, hpa_t *hpa);
 
 #endif /* JEMALLOC_INTERNAL_HPA_H */

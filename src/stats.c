@@ -667,16 +667,27 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i) {
 	emitter_row_t row;
 	emitter_row_init(&row);
 
-	size_t npageslabs;
-	size_t nactive;
-	size_t ninactive;
+	size_t npageslabs_huge;
+	size_t nactive_huge;
+	size_t ninactive_huge;
 
-	CTL_M2_GET("stats.arenas.0.hpa_shard.full_slabs.npageslabs",
-	    i, &npageslabs, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_shard.full_slabs.nactive",
-	    i, &nactive, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_shard.full_slabs.ninactive",
-	    i, &ninactive, size_t);
+	size_t npageslabs_nonhuge;
+	size_t nactive_nonhuge;
+	size_t ninactive_nonhuge;
+
+	CTL_M2_GET("stats.arenas.0.hpa_shard.full_slabs.npageslabs_huge",
+	    i, &npageslabs_huge, size_t);
+	CTL_M2_GET("stats.arenas.0.hpa_shard.full_slabs.nactive_huge",
+	    i, &nactive_huge, size_t);
+	CTL_M2_GET("stats.arenas.0.hpa_shard.full_slabs.ninactive_huge",
+	    i, &ninactive_huge, size_t);
+
+	CTL_M2_GET("stats.arenas.0.hpa_shard.full_slabs.npageslabs_nonhuge",
+	    i, &npageslabs_nonhuge, size_t);
+	CTL_M2_GET("stats.arenas.0.hpa_shard.full_slabs.nactive_nonhuge",
+	    i, &nactive_nonhuge, size_t);
+	CTL_M2_GET("stats.arenas.0.hpa_shard.full_slabs.ninactive_nonhuge",
+	    i, &ninactive_nonhuge, size_t);
 
 	size_t sec_bytes;
 	CTL_M2_GET("stats.arenas.0.hpa_sec_bytes", i, &sec_bytes, size_t);
@@ -686,39 +697,62 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i) {
 	emitter_table_printf(emitter,
 	    "HPA shard stats:\n"
 	    "  In full slabs:\n"
-	    "      npageslabs: %zu\n"
-	    "      nactive: %zu\n"
-	    "      ninactive: %zu\n",
-	    npageslabs, nactive, ninactive);
+	    "      npageslabs: %zu huge, %zu nonhuge\n"
+	    "      nactive: %zu huge, %zu nonhuge \n"
+	    "      ninactive: %zu huge, %zu nonhuge \n",
+	    npageslabs_huge, npageslabs_nonhuge, nactive_huge, nactive_nonhuge,
+	    ninactive_huge, ninactive_nonhuge);
 	emitter_json_object_kv_begin(emitter, "hpa_shard");
 	emitter_json_object_kv_begin(emitter, "full_slabs");
-	emitter_json_kv(emitter, "npageslabs", emitter_type_size, &npageslabs);
-	emitter_json_kv(emitter, "nactive", emitter_type_size, &nactive);
-	emitter_json_kv(emitter, "ninactive", emitter_type_size, &ninactive);
+	emitter_json_kv(emitter, "npageslabs_huge", emitter_type_size,
+	    &npageslabs_huge);
+	emitter_json_kv(emitter, "npageslabs_nonhuge", emitter_type_size,
+	    &npageslabs_nonhuge);
+	emitter_json_kv(emitter, "nactive_huge", emitter_type_size,
+	    &nactive_huge);
+	emitter_json_kv(emitter, "nactive_nonhuge", emitter_type_size,
+	    &nactive_nonhuge);
+	emitter_json_kv(emitter, "ninactive_huge", emitter_type_size,
+	    &ninactive_huge);
+	emitter_json_kv(emitter, "ninactive_nonhuge", emitter_type_size,
+	    &ninactive_nonhuge);
 	emitter_json_object_end(emitter); /* End "full_slabs" */
 
 	COL_HDR(row, size, NULL, right, 20, size)
 	COL_HDR(row, ind, NULL, right, 4, unsigned)
-	COL_HDR(row, npageslabs, NULL, right, 13, size)
-	COL_HDR(row, nactive, NULL, right, 13, size)
-	COL_HDR(row, ninactive, NULL, right, 13, size)
+	COL_HDR(row, npageslabs_huge, NULL, right, 16, size)
+	COL_HDR(row, nactive_huge, NULL, right, 16, size)
+	COL_HDR(row, ninactive_huge, NULL, right, 16, size)
+	COL_HDR(row, npageslabs_nonhuge, NULL, right, 20, size)
+	COL_HDR(row, nactive_nonhuge, NULL, right, 20, size)
+	COL_HDR(row, ninactive_nonhuge, NULL, right, 20, size)
 
 	emitter_table_row(emitter, &header_row);
 	emitter_json_array_kv_begin(emitter, "nonfull_slabs");
 	bool in_gap = false;
 	for (pszind_t j = 0; j < PSSET_NPSIZES; j++) {
 		CTL_M2_M5_GET(
-		    "stats.arenas.0.hpa_shard.nonfull_slabs.0.npageslabs",
-		    i, j, &npageslabs, size_t);
+		    "stats.arenas.0.hpa_shard.nonfull_slabs.0.npageslabs_huge",
+		    i, j, &npageslabs_huge, size_t);
 		CTL_M2_M5_GET(
-		    "stats.arenas.0.hpa_shard.nonfull_slabs.0.nactive",
-		    i, j, &nactive, size_t);
+		    "stats.arenas.0.hpa_shard.nonfull_slabs.0.nactive_huge",
+		    i, j, &nactive_huge, size_t);
 		CTL_M2_M5_GET(
-		    "stats.arenas.0.hpa_shard.nonfull_slabs.0.ninactive",
-		    i, j, &ninactive, size_t);
+		    "stats.arenas.0.hpa_shard.nonfull_slabs.0.ninactive_huge",
+		    i, j, &ninactive_huge, size_t);
+
+		CTL_M2_M5_GET(
+		    "stats.arenas.0.hpa_shard.nonfull_slabs.0.npageslabs_nonhuge",
+		    i, j, &npageslabs_nonhuge, size_t);
+		CTL_M2_M5_GET(
+		    "stats.arenas.0.hpa_shard.nonfull_slabs.0.nactive_nonhuge",
+		    i, j, &nactive_nonhuge, size_t);
+		CTL_M2_M5_GET(
+		    "stats.arenas.0.hpa_shard.nonfull_slabs.0.ninactive_nonhuge",
+		    i, j, &ninactive_nonhuge, size_t);
 
 		bool in_gap_prev = in_gap;
-		in_gap = (npageslabs == 0);
+		in_gap = (npageslabs_huge == 0 && npageslabs_nonhuge == 0);
 		if (in_gap_prev && !in_gap) {
 			emitter_table_printf(emitter,
 			    "                     ---\n");
@@ -726,20 +760,29 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i) {
 
 		col_size.size_val = sz_pind2sz(j);
 		col_ind.size_val = j;
-		col_npageslabs.size_val = npageslabs;
-		col_nactive.size_val = nactive;
-		col_ninactive.size_val = ninactive;
+		col_npageslabs_huge.size_val = npageslabs_huge;
+		col_nactive_huge.size_val = nactive_huge;
+		col_ninactive_huge.size_val = ninactive_huge;
+		col_npageslabs_nonhuge.size_val = npageslabs_nonhuge;
+		col_nactive_nonhuge.size_val = nactive_nonhuge;
+		col_ninactive_nonhuge.size_val = ninactive_nonhuge;
 		if (!in_gap) {
 			emitter_table_row(emitter, &row);
 		}
 
 		emitter_json_object_begin(emitter);
-		emitter_json_kv(emitter, "npageslabs", emitter_type_size,
-		    &npageslabs);
-		emitter_json_kv(emitter, "nactive", emitter_type_size,
-		    &nactive);
-		emitter_json_kv(emitter, "ninactive", emitter_type_size,
-		    &ninactive);
+		emitter_json_kv(emitter, "npageslabs_huge", emitter_type_size,
+		    &npageslabs_huge);
+		emitter_json_kv(emitter, "nactive_huge", emitter_type_size,
+		    &nactive_huge);
+		emitter_json_kv(emitter, "ninactive_huge", emitter_type_size,
+		    &ninactive_huge);
+		emitter_json_kv(emitter, "npageslabs_nonhuge", emitter_type_size,
+		    &npageslabs_nonhuge);
+		emitter_json_kv(emitter, "nactive_nonhuge", emitter_type_size,
+		    &nactive_nonhuge);
+		emitter_json_kv(emitter, "ninactive_nonhuge", emitter_type_size,
+		    &ninactive_huge);
 		emitter_json_object_end(emitter);
 	}
 	emitter_json_array_end(emitter); /* End "nonfull_slabs" */

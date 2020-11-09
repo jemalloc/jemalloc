@@ -150,7 +150,7 @@ pa_shard_stats_merge(tsdn_t *tsdn, pa_shard_t *shard,
 	}
 
 	if (shard->ever_used_hpa) {
-		hpa_stats_merge(tsdn, &shard->hpa_shard, hpa_stats_out);
+		hpa_shard_stats_merge(tsdn, &shard->hpa_shard, hpa_stats_out);
 		sec_stats_merge(tsdn, &shard->hpa_sec, sec_stats_out);
 	}
 }

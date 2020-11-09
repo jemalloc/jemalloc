@@ -220,13 +220,19 @@ CTL_PROTO(stats_arenas_i_extents_j_dirty_bytes)
 CTL_PROTO(stats_arenas_i_extents_j_muzzy_bytes)
 CTL_PROTO(stats_arenas_i_extents_j_retained_bytes)
 INDEX_PROTO(stats_arenas_i_extents_j)
-CTL_PROTO(stats_arenas_i_hpa_shard_nonfull_slabs_j_npageslabs)
-CTL_PROTO(stats_arenas_i_hpa_shard_nonfull_slabs_j_nactive)
-CTL_PROTO(stats_arenas_i_hpa_shard_nonfull_slabs_j_ninactive)
+CTL_PROTO(stats_arenas_i_hpa_shard_full_slabs_npageslabs_huge)
+CTL_PROTO(stats_arenas_i_hpa_shard_full_slabs_nactive_huge)
+CTL_PROTO(stats_arenas_i_hpa_shard_full_slabs_ninactive_huge)
+CTL_PROTO(stats_arenas_i_hpa_shard_full_slabs_npageslabs_nonhuge)
+CTL_PROTO(stats_arenas_i_hpa_shard_full_slabs_nactive_nonhuge)
+CTL_PROTO(stats_arenas_i_hpa_shard_full_slabs_ninactive_nonhuge)
+CTL_PROTO(stats_arenas_i_hpa_shard_nonfull_slabs_j_npageslabs_huge)
+CTL_PROTO(stats_arenas_i_hpa_shard_nonfull_slabs_j_npageslabs_nonhuge)
+CTL_PROTO(stats_arenas_i_hpa_shard_nonfull_slabs_j_nactive_huge)
+CTL_PROTO(stats_arenas_i_hpa_shard_nonfull_slabs_j_nactive_nonhuge)
+CTL_PROTO(stats_arenas_i_hpa_shard_nonfull_slabs_j_ninactive_huge)
+CTL_PROTO(stats_arenas_i_hpa_shard_nonfull_slabs_j_ninactive_nonhuge)
 INDEX_PROTO(stats_arenas_i_hpa_shard_nonfull_slabs_j)
-CTL_PROTO(stats_arenas_i_hpa_shard_full_slabs_npageslabs)
-CTL_PROTO(stats_arenas_i_hpa_shard_full_slabs_nactive)
-CTL_PROTO(stats_arenas_i_hpa_shard_full_slabs_ninactive)
 CTL_PROTO(stats_arenas_i_nthreads)
 CTL_PROTO(stats_arenas_i_uptime)
 CTL_PROTO(stats_arenas_i_dss)
@@ -606,21 +612,33 @@ MUTEX_PROF_ARENA_MUTEXES
 };
 
 static const ctl_named_node_t stats_arenas_i_hpa_shard_full_slabs_node[] = {
-	{NAME("npageslabs"),
-		CTL(stats_arenas_i_hpa_shard_full_slabs_npageslabs)},
-	{NAME("nactive"),
-		CTL(stats_arenas_i_hpa_shard_full_slabs_nactive)},
-	{NAME("ninactive"),
-		CTL(stats_arenas_i_hpa_shard_full_slabs_ninactive)}
+	{NAME("npageslabs_huge"),
+		CTL(stats_arenas_i_hpa_shard_full_slabs_npageslabs_huge)},
+	{NAME("nactive_huge"),
+		CTL(stats_arenas_i_hpa_shard_full_slabs_nactive_huge)},
+	{NAME("ninactive_huge"),
+		CTL(stats_arenas_i_hpa_shard_full_slabs_ninactive_huge)},
+	{NAME("npageslabs_nonhuge"),
+		CTL(stats_arenas_i_hpa_shard_full_slabs_npageslabs_nonhuge)},
+	{NAME("nactive_nonhuge"),
+		CTL(stats_arenas_i_hpa_shard_full_slabs_nactive_nonhuge)},
+	{NAME("ninactive_nonhuge"),
+		CTL(stats_arenas_i_hpa_shard_full_slabs_ninactive_nonhuge)},
 };
 
 static const ctl_named_node_t stats_arenas_i_hpa_shard_nonfull_slabs_j_node[] = {
-	{NAME("npageslabs"),
-		CTL(stats_arenas_i_hpa_shard_nonfull_slabs_j_npageslabs)},
-	{NAME("nactive"),
-		CTL(stats_arenas_i_hpa_shard_nonfull_slabs_j_nactive)},
-	{NAME("ninactive"),
-		CTL(stats_arenas_i_hpa_shard_nonfull_slabs_j_ninactive)}
+	{NAME("npageslabs_huge"),
+		CTL(stats_arenas_i_hpa_shard_nonfull_slabs_j_npageslabs_huge)},
+	{NAME("nactive_huge"),
+		CTL(stats_arenas_i_hpa_shard_nonfull_slabs_j_nactive_huge)},
+	{NAME("ninactive_huge"),
+		CTL(stats_arenas_i_hpa_shard_nonfull_slabs_j_ninactive_huge)},
+	{NAME("npageslabs_nonhuge"),
+		CTL(stats_arenas_i_hpa_shard_nonfull_slabs_j_npageslabs_nonhuge)},
+	{NAME("nactive_nonhuge"),
+		CTL(stats_arenas_i_hpa_shard_nonfull_slabs_j_nactive_nonhuge)},
+	{NAME("ninactive_nonhuge"),
+		CTL(stats_arenas_i_hpa_shard_nonfull_slabs_j_ninactive_nonhuge)}
 };
 
 static const ctl_named_node_t super_stats_arenas_i_hpa_shard_nonfull_slabs_j_node[] = {
@@ -1104,7 +1122,7 @@ MUTEX_PROF_ARENA_MUTEXES
 		}
 
 		/* Merge HPA stats. */
-		hpa_stats_accum(&sdstats->hpastats, &astats->hpastats);
+		hpa_shard_stats_accum(&sdstats->hpastats, &astats->hpastats);
 		sec_stats_accum(&sdstats->secstats, &astats->secstats);
 	}
 }
@@ -1218,14 +1236,6 @@ ctl_refresh(tsdn_t *tsdn) {
 			    global_prof_mutex_prof_thds_data, tdatas_mtx);
 			READ_GLOBAL_MUTEX_PROF_DATA(
 			    global_prof_mutex_prof_dump, prof_dump_mtx);
-		}
-		if (opt_hpa) {
-			READ_GLOBAL_MUTEX_PROF_DATA(
-			    global_prof_mutex_hpa_central,
-			    arena_hpa_global.mtx);
-			READ_GLOBAL_MUTEX_PROF_DATA(
-			    global_prof_mutex_hpa_central_grow,
-			    arena_hpa_global.grow_mtx);
 		}
 		if (have_background_thread) {
 			READ_GLOBAL_MUTEX_PROF_DATA(
@@ -3259,11 +3269,6 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib,
 		MUTEX_PROF_RESET(tdatas_mtx);
 		MUTEX_PROF_RESET(prof_dump_mtx);
 	}
-	if (opt_hpa) {
-		MUTEX_PROF_RESET(arena_hpa_global.mtx);
-		MUTEX_PROF_RESET(arena_hpa_global.grow_mtx);
-	}
-
 
 	/* Per arena mutexes. */
 	unsigned n = narenas_total_get();
@@ -3367,22 +3372,44 @@ stats_arenas_i_extents_j_index(tsdn_t *tsdn, const size_t *mib,
 	return super_stats_arenas_i_extents_j_node;
 }
 
-CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_npageslabs,
-    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs.npageslabs,
+/* Full, huge */
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_npageslabs_huge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs.npageslabs_huge,
     size_t);
-CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_nactive,
-    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs.nactive, size_t);
-CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_ninactive,
-    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs.ninactive, size_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_nactive_huge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs.nactive_huge, size_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_ninactive_huge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs.ninactive_huge, size_t);
 
-CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_npageslabs,
-    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]].npageslabs,
+/* Full, nonhuge */
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_npageslabs_nonhuge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs.npageslabs_nonhuge,
     size_t);
-CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_nactive,
-    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]].nactive,
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_nactive_nonhuge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs.nactive_nonhuge, size_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_ninactive_nonhuge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs.ninactive_nonhuge, size_t);
+
+/* Nonfull, huge */
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_npageslabs_huge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]].npageslabs_huge,
     size_t);
-CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_ninactive,
-    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]].ninactive,
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_nactive_huge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]].nactive_huge,
+    size_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_ninactive_huge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]].ninactive_huge,
+    size_t);
+
+/* Nonfull, nonhuge */
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_npageslabs_nonhuge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]].npageslabs_nonhuge,
+    size_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_nactive_nonhuge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]].nactive_nonhuge,
+    size_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_ninactive_nonhuge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]].ninactive_nonhuge,
     size_t);
 
 static const ctl_named_node_t *

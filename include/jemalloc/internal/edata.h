@@ -208,9 +208,9 @@ struct edata_s {
 		 */
 
 		/*
-		 * If this edata is from an HPA, it may be part of some larger
-		 * pageslab.  Track it if so.  Otherwise (either because it's
-		 * not part of a pageslab, or not from the HPA at all), NULL.
+		 * If this edata is a user allocation from an HPA, it comes out
+		 * of some pageslab (we don't yet support huegpage allocations
+		 * that don't fit into pageslabs).  This tracks it.
 		 */
 		edata_t *ps;
 		/*
@@ -225,6 +225,8 @@ struct edata_s {
 			 * between heaps.
 			 */
 			uint32_t longest_free_range;
+			/* Whether or not the slab is backed by a hugepage. */
+			bool hugeified;
 		};
 	};
 
@@ -326,6 +328,11 @@ static inline extent_pai_t
 edata_pai_get(const edata_t *edata) {
 	return (extent_pai_t)((edata->e_bits & EDATA_BITS_PAI_MASK) >>
 	    EDATA_BITS_PAI_SHIFT);
+}
+
+static inline bool
+edata_hugeified_get(const edata_t *edata) {
+	return edata->hugeified;
 }
 
 static inline bool
@@ -557,6 +564,11 @@ static inline void
 edata_pai_set(edata_t *edata, extent_pai_t pai) {
 	edata->e_bits = (edata->e_bits & ~EDATA_BITS_PAI_MASK) |
 	    ((uint64_t)pai << EDATA_BITS_PAI_SHIFT);
+}
+
+static inline void
+edata_hugeified_set(edata_t *edata, bool hugeified) {
+	edata->hugeified = hugeified;
 }
 
 static inline void
