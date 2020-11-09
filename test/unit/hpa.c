@@ -2,14 +2,9 @@
 
 #include "jemalloc/internal/hpa.h"
 
-#define HPA_IND 111
-#define SHARD_IND 222
+#define SHARD_IND 111
 
-#define PS_GOAL (128 * PAGE)
-#define PS_ALLOC_MAX (64 * PAGE)
-
-#define HPA_SMALL_MAX (200 * PAGE)
-#define HPA_LARGE_MIN (300 * PAGE)
+#define ALLOC_MAX (HUGEPAGE / 4)
 
 typedef struct test_data_s test_data_t;
 struct test_data_s {
@@ -18,12 +13,8 @@ struct test_data_s {
 	 * test_data_t and the hpa_shard_t;
 	 */
 	hpa_shard_t shard;
-	base_t *shard_base;
+	base_t *base;
 	edata_cache_t shard_edata_cache;
-
-	hpa_t hpa;
-	base_t *hpa_base;
-	edata_cache_t hpa_edata_cache;
 
 	emap_t emap;
 };
@@ -31,37 +22,23 @@ struct test_data_s {
 static hpa_shard_t *
 create_test_data() {
 	bool err;
-	base_t *shard_base = base_new(TSDN_NULL, /* ind */ SHARD_IND,
+	base_t *base = base_new(TSDN_NULL, /* ind */ SHARD_IND,
 	    &ehooks_default_extent_hooks);
-	assert_ptr_not_null(shard_base, "");
-
-	base_t *hpa_base = base_new(TSDN_NULL, /* ind */ HPA_IND,
-	    &ehooks_default_extent_hooks);
-	assert_ptr_not_null(hpa_base, "");
+	assert_ptr_not_null(base, "");
 
 	test_data_t *test_data = malloc(sizeof(test_data_t));
 	assert_ptr_not_null(test_data, "");
 
-	test_data->shard_base = shard_base;
-	test_data->hpa_base = hpa_base;
+	test_data->base = base;
 
-	err = edata_cache_init(&test_data->shard_edata_cache, shard_base);
+	err = edata_cache_init(&test_data->shard_edata_cache, base);
 	assert_false(err, "");
 
-	err = edata_cache_init(&test_data->hpa_edata_cache, hpa_base);
+	err = emap_init(&test_data->emap, test_data->base, /* zeroed */ false);
 	assert_false(err, "");
 
-	err = emap_init(&test_data->emap, test_data->hpa_base,
-	    /* zeroed */ false);
-	assert_false(err, "");
-
-	err = hpa_init(&test_data->hpa, hpa_base, &test_data->emap,
-	    &test_data->hpa_edata_cache);
-	assert_false(err, "");
-
-	err = hpa_shard_init(&test_data->shard, &test_data->hpa,
-	    &test_data->shard_edata_cache, SHARD_IND, PS_GOAL, PS_ALLOC_MAX,
-	    HPA_SMALL_MAX, HPA_LARGE_MIN);
+	err = hpa_shard_init(&test_data->shard, &test_data->emap,
+	    &test_data->shard_edata_cache, SHARD_IND, ALLOC_MAX);
 	assert_false(err, "");
 
 	return (hpa_shard_t *)test_data;
@@ -70,12 +47,11 @@ create_test_data() {
 static void
 destroy_test_data(hpa_shard_t *shard) {
 	test_data_t *test_data = (test_data_t *)shard;
-	base_delete(TSDN_NULL, test_data->shard_base);
-	base_delete(TSDN_NULL, test_data->hpa_base);
+	base_delete(TSDN_NULL, test_data->base);
 	free(test_data);
 }
 
-TEST_BEGIN(test_small_max_large_min) {
+TEST_BEGIN(test_alloc_max) {
 	test_skip_if(LG_SIZEOF_PTR != 3);
 
 	hpa_shard_t *shard = create_test_data();
@@ -84,17 +60,10 @@ TEST_BEGIN(test_small_max_large_min) {
 	edata_t *edata;
 
 	/* Small max */
-	edata = pai_alloc(tsdn, &shard->pai, HPA_SMALL_MAX, PAGE, false);
+	edata = pai_alloc(tsdn, &shard->pai, ALLOC_MAX, PAGE, false);
 	expect_ptr_not_null(edata, "Allocation of small max failed");
-	edata = pai_alloc(tsdn, &shard->pai, HPA_SMALL_MAX + PAGE, PAGE, false);
+	edata = pai_alloc(tsdn, &shard->pai, ALLOC_MAX + PAGE, PAGE, false);
 	expect_ptr_null(edata, "Allocation of larger than small max succeeded");
-
-	/* Large min */
-	edata = pai_alloc(tsdn, &shard->pai, HPA_LARGE_MIN, PAGE, false);
-	expect_ptr_not_null(edata, "Allocation of large min failed");
-	edata = pai_alloc(tsdn, &shard->pai, HPA_LARGE_MIN - PAGE, PAGE, false);
-	expect_ptr_null(edata,
-	    "Allocation of smaller than large min succeeded");
 
 	destroy_test_data(shard);
 }
@@ -178,26 +147,19 @@ TEST_BEGIN(test_stress) {
 	mem_tree_new(&tree);
 
 	for (size_t i = 0; i < 100 * 1000; i++) {
-		size_t operation = prng_range_zu(&prng_state, 4);
-		if (operation < 2) {
+		size_t operation = prng_range_zu(&prng_state, 2);
+		if (operation == 0) {
 			/* Alloc */
 			if (nlive_edatas == nlive_edatas_max) {
 				continue;
 			}
 
-			size_t npages_min;
-			size_t npages_max;
 			/*
 			 * We make sure to get an even balance of small and
 			 * large allocations.
 			 */
-			if (operation == 0) {
-				npages_min = 1;
-				npages_max = HPA_SMALL_MAX / PAGE;
-			} else {
-				npages_min = HPA_LARGE_MIN / PAGE;
-				npages_max = HPA_LARGE_MIN / PAGE + 20;
-			}
+			size_t npages_min = 1;
+			size_t npages_max = ALLOC_MAX / PAGE;
 			size_t npages = npages_min + prng_range_zu(&prng_state,
 			    npages_max - npages_min);
 			edata_t *edata = pai_alloc(tsdn, &shard->pai,
@@ -260,6 +222,6 @@ main(void) {
 	(void)mem_tree_reverse_iter;
 	(void)mem_tree_destroy;
 	return test_no_reentrancy(
-	    test_small_max_large_min,
+	    test_alloc_max,
 	    test_stress);
 }

@@ -20,9 +20,13 @@ psset_init(psset_t *psset) {
 
 static void
 psset_bin_stats_accum(psset_bin_stats_t *dst, psset_bin_stats_t *src) {
-	dst->npageslabs += src->npageslabs;
-	dst->nactive += src->nactive;
-	dst->ninactive += src->ninactive;
+	dst->npageslabs_huge += src->npageslabs_huge;
+	dst->nactive_huge += src->nactive_huge;
+	dst->ninactive_huge += src->ninactive_huge;
+
+	dst->npageslabs_nonhuge += src->npageslabs_nonhuge;
+	dst->nactive_nonhuge += src->nactive_nonhuge;
+	dst->ninactive_nonhuge += src->ninactive_nonhuge;
 }
 
 void
@@ -45,29 +49,62 @@ psset_stats_accum(psset_stats_t *dst, psset_stats_t *src) {
  * ensure we don't miss any heap modification operations.
  */
 JEMALLOC_ALWAYS_INLINE void
-psset_bin_stats_adjust(psset_bin_stats_t *binstats, edata_t *ps, bool inc) {
-	size_t mul = inc ? (size_t)1 : (size_t)-1;
+psset_bin_stats_insert_remove(psset_bin_stats_t *binstats, edata_t *ps,
+    bool insert) {
+	size_t *npageslabs_dst = edata_hugeified_get(ps)
+	    ? &binstats->npageslabs_huge : &binstats->npageslabs_nonhuge;
+	size_t *nactive_dst = edata_hugeified_get(ps)
+	    ? &binstats->nactive_huge : &binstats->nactive_nonhuge;
+	size_t *ninactive_dst = edata_hugeified_get(ps)
+	    ? &binstats->ninactive_huge : &binstats->ninactive_nonhuge;
 
 	size_t npages = edata_size_get(ps) >> LG_PAGE;
 	size_t ninactive = edata_nfree_get(ps);
 	size_t nactive = npages - ninactive;
-	binstats->npageslabs += mul * 1;
-	binstats->nactive += mul * nactive;
-	binstats->ninactive += mul * ninactive;
+
+	size_t mul = insert ? (size_t)1 : (size_t)-1;
+	*npageslabs_dst += mul * 1;
+	*nactive_dst += mul * nactive;
+	*ninactive_dst += mul * ninactive;
+}
+
+static void
+psset_bin_stats_insert(psset_bin_stats_t *binstats, edata_t *ps) {
+	psset_bin_stats_insert_remove(binstats, ps, /* insert */ true);
+}
+
+static void
+psset_bin_stats_remove(psset_bin_stats_t *binstats, edata_t *ps) {
+	psset_bin_stats_insert_remove(binstats, ps, /* insert */ false);
+}
+
+/*
+ * We don't currently need an "activate" equivalent to this, since down the
+ * allocation pathways we don't do the optimization in which we change a slab
+ * without first removing it from a bin.
+ */
+static void
+psset_bin_stats_deactivate(psset_bin_stats_t *binstats, bool huge, size_t num) {
+	size_t *nactive_dst = huge
+	    ? &binstats->nactive_huge : &binstats->nactive_nonhuge;
+	size_t *ninactive_dst = huge
+	    ? &binstats->ninactive_huge : &binstats->ninactive_nonhuge;
+
+	assert(*nactive_dst >= num);
+	*nactive_dst -= num;
+	*ninactive_dst += num;
 }
 
 static void
 psset_edata_heap_remove(psset_t *psset, pszind_t pind, edata_t *ps) {
 	edata_age_heap_remove(&psset->pageslabs[pind], ps);
-	psset_bin_stats_adjust(&psset->stats.nonfull_slabs[pind], ps,
-	    /* inc */ false);
+	psset_bin_stats_remove(&psset->stats.nonfull_slabs[pind], ps);
 }
 
 static void
 psset_edata_heap_insert(psset_t *psset, pszind_t pind, edata_t *ps) {
 	edata_age_heap_insert(&psset->pageslabs[pind], ps);
-	psset_bin_stats_adjust(&psset->stats.nonfull_slabs[pind], ps,
-	    /* inc */ true);
+	psset_bin_stats_insert(&psset->stats.nonfull_slabs[pind], ps);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -86,8 +123,7 @@ psset_insert(psset_t *psset, edata_t *ps) {
 		 * We don't ned to track full slabs; just pretend to for stats
 		 * purposes.  See the comment at psset_bin_stats_adjust.
 		 */
-		psset_bin_stats_adjust(&psset->stats.full_slabs, ps,
-		    /* inc */ true);
+		psset_bin_stats_insert(&psset->stats.full_slabs, ps);
 		return;
 	}
 
@@ -107,8 +143,7 @@ psset_remove(psset_t *psset, edata_t *ps) {
 	size_t longest_free_range = edata_longest_free_range_get(ps);
 
 	if (longest_free_range == 0) {
-		psset_bin_stats_adjust(&psset->stats.full_slabs, ps,
-		    /* inc */ true);
+		psset_bin_stats_remove(&psset->stats.full_slabs, ps);
 		return;
 	}
 
@@ -119,6 +154,26 @@ psset_remove(psset_t *psset, edata_t *ps) {
 	if (edata_age_heap_empty(&psset->pageslabs[pind])) {
 		bitmap_set(psset->bitmap, &psset_bitmap_info, (size_t)pind);
 	}
+}
+
+void
+psset_hugify(psset_t *psset, edata_t *ps) {
+	assert(!edata_hugeified_get(ps));
+	psset_assert_ps_consistent(ps);
+
+	size_t longest_free_range = edata_longest_free_range_get(ps);
+	psset_bin_stats_t *bin_stats;
+	if (longest_free_range == 0) {
+		bin_stats = &psset->stats.full_slabs;
+	} else {
+		pszind_t pind = sz_psz2ind(sz_psz_quantize_floor(
+		    longest_free_range << LG_PAGE));
+		assert(pind < PSSET_NPSIZES);
+		bin_stats = &psset->stats.nonfull_slabs[pind];
+	}
+	psset_bin_stats_remove(bin_stats, ps);
+	edata_hugeified_set(ps, true);
+	psset_bin_stats_insert(bin_stats, ps);
 }
 
 /*
@@ -225,8 +280,7 @@ psset_ps_alloc_insert(psset_t *psset, edata_t *ps, edata_t *r_edata,
 	}
 	edata_longest_free_range_set(ps, (uint32_t)largest_unchosen_range);
 	if (largest_unchosen_range == 0) {
-		psset_bin_stats_adjust(&psset->stats.full_slabs, ps,
-		    /* inc */ true);
+		psset_bin_stats_insert(&psset->stats.full_slabs, ps);
 	} else {
 		psset_insert(psset, ps);
 	}
@@ -258,8 +312,8 @@ edata_t *
 psset_dalloc(psset_t *psset, edata_t *edata) {
 	assert(edata_pai_get(edata) == EXTENT_PAI_HPA);
 	assert(edata_ps_get(edata) != NULL);
-
 	edata_t *ps = edata_ps_get(edata);
+
 	fb_group_t *ps_fb = edata_slab_data_get(ps)->bitmap;
 	size_t ps_old_longest_free_range = edata_longest_free_range_get(ps);
 	pszind_t old_pind = SC_NPSIZES;
@@ -274,22 +328,12 @@ psset_dalloc(psset_t *psset, edata_t *edata) {
 	    >> LG_PAGE;
 	size_t len = edata_size_get(edata) >> LG_PAGE;
 	fb_unset_range(ps_fb, ps_npages, begin, len);
-	if (ps_old_longest_free_range == 0) {
-		/* We were in the (imaginary) full bin; update stats for it. */
-		psset_bin_stats_adjust(&psset->stats.full_slabs, ps,
-		    /* inc */ false);
-	} else {
-		/*
-		 * The edata is still in the bin, need to update its
-		 * contribution.
-		 */
-		psset->stats.nonfull_slabs[old_pind].nactive -= len;
-		psset->stats.nonfull_slabs[old_pind].ninactive += len;
-	}
-	/*
-	 * Note that we want to do this after the stats updates, since if it was
-	 * full it psset_bin_stats_adjust would have looked at the old version.
-	 */
+
+	/* The pageslab is still in the bin; adjust its stats first. */
+	psset_bin_stats_t *bin_stats = (ps_old_longest_free_range == 0
+	    ? &psset->stats.full_slabs : &psset->stats.nonfull_slabs[old_pind]);
+	psset_bin_stats_deactivate(bin_stats, edata_hugeified_get(ps), len);
+
 	edata_nfree_set(ps, (uint32_t)(edata_nfree_get(ps) + len));
 
 	/* We might have just created a new, larger range. */
@@ -327,6 +371,12 @@ psset_dalloc(psset_t *psset, edata_t *edata) {
 			bitmap_set(psset->bitmap, &psset_bitmap_info,
 			    (size_t)old_pind);
 		}
+	} else {
+		/*
+		 * Otherwise, the bin was full, and we need to adjust the full
+		 * bin stats.
+		 */
+		psset_bin_stats_remove(&psset->stats.full_slabs, ps);
 	}
 	/* If the pageslab is empty, it gets evicted from the set. */
 	if (new_range_len == ps_npages) {

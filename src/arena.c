@@ -37,7 +37,6 @@ static atomic_zd_t dirty_decay_ms_default;
 static atomic_zd_t muzzy_decay_ms_default;
 
 emap_t arena_emap_global;
-hpa_t arena_hpa_global;
 
 const uint64_t h_steps[SMOOTHSTEP_NSTEPS] = {
 #define STEP(step, h, x, y)			\
@@ -1535,9 +1534,8 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	 *   so arena_hpa_global is not yet initialized.
 	 */
 	if (opt_hpa && ehooks_are_default(base_ehooks_get(base)) && ind != 0) {
-		if (pa_shard_enable_hpa(&arena->pa_shard, &arena_hpa_global,
-		    opt_hpa_slab_goal, opt_hpa_slab_max_alloc,
-		    opt_hpa_small_max, opt_hpa_large_min, opt_hpa_sec_nshards,
+		if (pa_shard_enable_hpa(&arena->pa_shard,
+		    opt_hpa_slab_max_alloc, opt_hpa_sec_nshards,
 		    opt_hpa_sec_max_alloc, opt_hpa_sec_max_bytes)) {
 			goto label_error;
 		}

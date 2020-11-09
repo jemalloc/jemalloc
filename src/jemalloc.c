@@ -1802,31 +1802,19 @@ malloc_init_hard_a0_locked() {
 	}
 	a0 = arena_get(TSDN_NULL, 0, false);
 
-	if (opt_hpa && LG_SIZEOF_PTR == 2) {
+	if (opt_hpa && !hpa_supported()) {
+		malloc_printf("<jemalloc>: HPA not supported in the current "
+		    "configuration; %s.",
+		    opt_abort_conf ? "aborting" : "disabling");
 		if (opt_abort_conf) {
-			malloc_printf("<jemalloc>: Hugepages not currently "
-			    "supported on 32-bit architectures; aborting.");
+			malloc_abort_invalid_conf();
 		} else {
-			malloc_printf("<jemalloc>: Hugepages not currently "
-			    "supported on 32-bit architectures; disabling.");
 			opt_hpa = false;
 		}
 	} else if (opt_hpa) {
-		/*
-		 * The global HPA uses the edata cache from a0, and so needs to
-		 * be initialized specially, after a0 is.  The arena init code
-		 * handles this case specially, and does not turn on the HPA for
-		 * a0 when opt_hpa is true.  This lets us do global HPA
-		 * initialization against a valid a0.
-		 */
-		if (hpa_init(&arena_hpa_global, b0get(), &arena_emap_global,
-		    &a0->pa_shard.edata_cache)) {
-			return true;
-		}
-		if (pa_shard_enable_hpa(&a0->pa_shard, &arena_hpa_global,
-		    opt_hpa_slab_goal, opt_hpa_slab_max_alloc,
-		    opt_hpa_small_max, opt_hpa_large_min, opt_hpa_sec_nshards,
-		    opt_hpa_sec_max_alloc, opt_hpa_sec_max_bytes)) {
+		if (pa_shard_enable_hpa(&a0->pa_shard, opt_hpa_slab_max_alloc,
+		    opt_hpa_sec_nshards, opt_hpa_sec_max_alloc,
+		    opt_hpa_sec_max_bytes)) {
 			return true;
 		}
 	}
@@ -4346,9 +4334,6 @@ _malloc_prefork(void)
 				}
 			}
 		}
-		if (i == 4 && opt_hpa) {
-			hpa_prefork4(tsd_tsdn(tsd), &arena_hpa_global);
-		}
 
 	}
 	prof_prefork1(tsd_tsdn(tsd));
@@ -4388,9 +4373,6 @@ _malloc_postfork(void)
 			arena_postfork_parent(tsd_tsdn(tsd), arena);
 		}
 	}
-	if (opt_hpa) {
-		hpa_postfork_parent(tsd_tsdn(tsd), &arena_hpa_global);
-	}
 	prof_postfork_parent(tsd_tsdn(tsd));
 	if (have_background_thread) {
 		background_thread_postfork_parent(tsd_tsdn(tsd));
@@ -4420,9 +4402,6 @@ jemalloc_postfork_child(void) {
 		if ((arena = arena_get(tsd_tsdn(tsd), i, false)) != NULL) {
 			arena_postfork_child(tsd_tsdn(tsd), arena);
 		}
-	}
-	if (opt_hpa) {
-		hpa_postfork_child(tsd_tsdn(tsd), &arena_hpa_global);
 	}
 	prof_postfork_child(tsd_tsdn(tsd));
 	if (have_background_thread) {

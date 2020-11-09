@@ -24,11 +24,14 @@
 typedef struct psset_bin_stats_s psset_bin_stats_t;
 struct psset_bin_stats_s {
 	/* How many pageslabs are in this bin? */
-	size_t npageslabs;
+	size_t npageslabs_huge;
+	size_t npageslabs_nonhuge;
 	/* Of them, how many pages are active? */
-	size_t nactive;
+	size_t nactive_huge;
+	size_t nactive_nonhuge;
 	/* How many are inactive? */
-	size_t ninactive;
+	size_t ninactive_huge;
+	size_t ninactive_nonhuge;
 };
 
 /* Used only by CTL; not actually stored here (i.e., all derived). */
@@ -61,6 +64,8 @@ void psset_stats_accum(psset_stats_t *dst, psset_stats_t *src);
 
 void psset_insert(psset_t *psset, edata_t *ps);
 void psset_remove(psset_t *psset, edata_t *ps);
+
+void psset_hugify(psset_t *psset, edata_t *ps);
 
 /*
  * Tries to obtain a chunk from an existing pageslab already in the set.
