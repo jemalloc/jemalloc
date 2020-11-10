@@ -59,6 +59,9 @@ struct psset_s {
 
 void psset_init(psset_t *psset);
 
+void psset_insert(psset_t *psset, edata_t *ps);
+void psset_remove(psset_t *psset, edata_t *ps);
+
 /*
  * Tries to obtain a chunk from an existing pageslab already in the set.
  * Returns true on failure.

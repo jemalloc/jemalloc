@@ -65,6 +65,51 @@ psset_assert_ps_consistent(edata_t *ps) {
 	    edata_size_get(ps) >> LG_PAGE) == edata_longest_free_range_get(ps));
 }
 
+void
+psset_insert(psset_t *psset, edata_t *ps) {
+	psset_assert_ps_consistent(ps);
+	size_t longest_free_range = edata_longest_free_range_get(ps);
+
+	if (longest_free_range == 0) {
+		/*
+		 * We don't ned to track full slabs; just pretend to for stats
+		 * purposes.  See the comment at psset_bin_stats_adjust.
+		 */
+		psset_bin_stats_adjust(&psset->full_slab_stats, ps,
+		    /* inc */ true);
+		return;
+	}
+
+	pszind_t pind = sz_psz2ind(sz_psz_quantize_floor(
+	    longest_free_range << LG_PAGE));
+
+	assert(pind < PSSET_NPSIZES);
+	if (edata_age_heap_empty(&psset->pageslabs[pind])) {
+		bitmap_unset(psset->bitmap, &psset_bitmap_info, (size_t)pind);
+	}
+	psset_edata_heap_insert(psset, pind, ps);
+}
+
+void
+psset_remove(psset_t *psset, edata_t *ps) {
+	psset_assert_ps_consistent(ps);
+	size_t longest_free_range = edata_longest_free_range_get(ps);
+
+	if (longest_free_range == 0) {
+		psset_bin_stats_adjust(&psset->full_slab_stats, ps,
+		    /* inc */ true);
+		return;
+	}
+
+	pszind_t pind = sz_psz2ind(sz_psz_quantize_floor(
+	    longest_free_range << LG_PAGE));
+	assert(pind < PSSET_NPSIZES);
+	psset_edata_heap_remove(psset, pind, ps);
+	if (edata_age_heap_empty(&psset->pageslabs[pind])) {
+		bitmap_set(psset->bitmap, &psset_bitmap_info, (size_t)pind);
+	}
+}
+
 /*
  * Similar to PAC's extent_recycle_extract.  Out of all the pageslabs in the
  * set, picks one that can satisfy the allocation and remove it from the set.
@@ -89,21 +134,6 @@ psset_recycle_extract(psset_t *psset, size_t size) {
 
 	psset_assert_ps_consistent(ps);
 	return ps;
-}
-
-static void
-psset_insert(psset_t *psset, edata_t *ps, size_t largest_range) {
-	psset_assert_ps_consistent(ps);
-
-	pszind_t pind = sz_psz2ind(sz_psz_quantize_floor(
-	    largest_range << LG_PAGE));
-
-	assert(pind < PSSET_NPSIZES);
-
-	if (edata_age_heap_empty(&psset->pageslabs[pind])) {
-		bitmap_unset(psset->bitmap, &psset_bitmap_info, (size_t)pind);
-	}
-	psset_edata_heap_insert(psset, pind, ps);
 }
 
 /*
@@ -187,7 +217,7 @@ psset_ps_alloc_insert(psset_t *psset, edata_t *ps, edata_t *r_edata,
 		psset_bin_stats_adjust(&psset->full_slab_stats, ps,
 		    /* inc */ true);
 	} else {
-		psset_insert(psset, ps, largest_unchosen_range);
+		psset_insert(psset, ps);
 	}
 }
 
