@@ -229,6 +229,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/mq.c \
 	$(srcroot)test/unit/mtx.c \
 	$(srcroot)test/unit/nstime.c \
+	$(srcroot)test/unit/oversize_threshold.c \
 	$(srcroot)test/unit/pa.c \
 	$(srcroot)test/unit/pack.c \
 	$(srcroot)test/unit/pages.c \

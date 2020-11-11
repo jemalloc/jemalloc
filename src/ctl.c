@@ -151,6 +151,7 @@ CTL_PROTO(arena_i_purge)
 CTL_PROTO(arena_i_reset)
 CTL_PROTO(arena_i_destroy)
 CTL_PROTO(arena_i_dss)
+CTL_PROTO(arena_i_oversize_threshold)
 CTL_PROTO(arena_i_dirty_decay_ms)
 CTL_PROTO(arena_i_muzzy_decay_ms)
 CTL_PROTO(arena_i_extent_hooks)
@@ -431,6 +432,11 @@ static const ctl_named_node_t arena_i_node[] = {
 	{NAME("reset"),		CTL(arena_i_reset)},
 	{NAME("destroy"),	CTL(arena_i_destroy)},
 	{NAME("dss"),		CTL(arena_i_dss)},
+	/*
+	 * Undocumented for now, since we anticipate an arena API in flux after
+	 * we cut the last 5-series release.
+	 */
+	{NAME("oversize_threshold"), CTL(arena_i_oversize_threshold)},
 	{NAME("dirty_decay_ms"), CTL(arena_i_dirty_decay_ms)},
 	{NAME("muzzy_decay_ms"), CTL(arena_i_muzzy_decay_ms)},
 	{NAME("extent_hooks"),	CTL(arena_i_extent_hooks)},
@@ -2527,6 +2533,38 @@ arena_i_dss_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	ret = 0;
 label_return:
 	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
+	return ret;
+}
+
+static int
+arena_i_oversize_threshold_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+
+	unsigned arena_ind;
+	MIB_UNSIGNED(arena_ind, 1);
+
+	arena_t *arena = arena_get(tsd_tsdn(tsd), arena_ind, false);
+	if (arena == NULL) {
+		ret = EFAULT;
+		goto label_return;
+	}
+
+	if (oldp != NULL && oldlenp != NULL) {
+		size_t oldval = atomic_load_zu(
+		    &arena->pa_shard.pac.oversize_threshold, ATOMIC_RELAXED);
+		READ(oldval, size_t);
+	}
+	if (newp != NULL) {
+		if (newlen != sizeof(size_t)) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		atomic_store_zu(&arena->pa_shard.pac.oversize_threshold,
+		    *(size_t *)newp, ATOMIC_RELAXED);
+	}
+	ret = 0;
+label_return:
 	return ret;
 }
 

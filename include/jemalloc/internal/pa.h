@@ -123,7 +123,8 @@ pa_shard_ehooks_get(pa_shard_t *shard) {
 /* Returns true on error. */
 bool pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
     unsigned ind, pa_shard_stats_t *stats, malloc_mutex_t *stats_mtx,
-    nstime_t *cur_time, ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms);
+    nstime_t *cur_time, size_t oversize_threshold, ssize_t dirty_decay_ms,
+    ssize_t muzzy_decay_ms);
 
 /*
  * This isn't exposed to users; we allow late enablement of the HPA shard so

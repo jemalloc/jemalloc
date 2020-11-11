@@ -1500,7 +1500,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	nstime_init_update(&cur_time);
 	if (pa_shard_init(tsdn, &arena->pa_shard, &arena_emap_global, base, ind,
 	    &arena->stats.pa_shard_stats, LOCKEDINT_MTX(arena->stats.mtx),
-	    &cur_time, arena_dirty_decay_ms_default_get(),
+	    &cur_time, oversize_threshold, arena_dirty_decay_ms_default_get(),
 	    arena_muzzy_decay_ms_default_get())) {
 		goto label_error;
 	}
