@@ -307,14 +307,14 @@ stats_expect_empty(psset_bin_stats_t *stats) {
 static void
 stats_expect(psset_t *psset, size_t nactive) {
 	if (nactive == PAGESLAB_PAGES) {
-		expect_zu_eq(1, psset->full_slab_stats.npageslabs,
+		expect_zu_eq(1, psset->stats.full_slabs.npageslabs,
 		    "Expected a full slab");
-		expect_zu_eq(PAGESLAB_PAGES, psset->full_slab_stats.nactive,
+		expect_zu_eq(PAGESLAB_PAGES, psset->stats.full_slabs.nactive,
 		    "Should have exactly filled the bin");
-		expect_zu_eq(0, psset->full_slab_stats.ninactive,
+		expect_zu_eq(0, psset->stats.full_slabs.ninactive,
 		    "Should never have inactive pages in a full slab");
 	} else {
-		stats_expect_empty(&psset->full_slab_stats);
+		stats_expect_empty(&psset->stats.full_slabs);
 	}
 	size_t ninactive = PAGESLAB_PAGES - nactive;
 	pszind_t nonempty_pind = PSSET_NPSIZES;
@@ -324,14 +324,17 @@ stats_expect(psset_t *psset, size_t nactive) {
 	}
 	for (pszind_t i = 0; i < PSSET_NPSIZES; i++) {
 		if (i == nonempty_pind) {
-			assert_zu_eq(1, psset->slab_stats[i].npageslabs,
+			assert_zu_eq(1,
+			    psset->stats.nonfull_slabs[i].npageslabs,
 			    "Should have found a slab");
-			expect_zu_eq(nactive, psset->slab_stats[i].nactive,
+			expect_zu_eq(nactive,
+			    psset->stats.nonfull_slabs[i].nactive,
 			    "Mismatch in active pages");
-			expect_zu_eq(ninactive, psset->slab_stats[i].ninactive,
+			expect_zu_eq(ninactive,
+			    psset->stats.nonfull_slabs[i].ninactive,
 			    "Mismatch in inactive pages");
 		} else {
-			stats_expect_empty(&psset->slab_stats[i]);
+			stats_expect_empty(&psset->stats.nonfull_slabs[i]);
 		}
 	}
 }

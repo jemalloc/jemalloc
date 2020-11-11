@@ -35,8 +35,7 @@ struct hpa_s {
 /* Used only by CTL; not actually stored here (i.e., all derived). */
 typedef struct hpa_shard_stats_s hpa_shard_stats_t;
 struct hpa_shard_stats_s {
-	psset_bin_stats_t psset_full_slab_stats;
-	psset_bin_stats_t psset_slab_stats[PSSET_NPSIZES];
+	psset_stats_t psset_stats;
 };
 
 typedef struct hpa_shard_s hpa_shard_t;
@@ -89,6 +88,9 @@ bool hpa_init(hpa_t *hpa, base_t *base, emap_t *emap,
 bool hpa_shard_init(hpa_shard_t *shard, hpa_t *hpa,
     edata_cache_t *edata_cache, unsigned ind, size_t ps_goal,
     size_t ps_alloc_max, size_t small_max, size_t large_min);
+
+void hpa_stats_accum(hpa_shard_stats_t *dst, hpa_shard_stats_t *src);
+void hpa_stats_merge(tsdn_t *tsdn, hpa_shard_t *shard, hpa_shard_stats_t *dst);
 /*
  * Notify the shard that we won't use it for allocations much longer.  Due to
  * the possibility of races, we don't actually prevent allocations; just flush
