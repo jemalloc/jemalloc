@@ -98,6 +98,9 @@ struct pac_s {
 	exp_grow_t exp_grow;
 	malloc_mutex_t grow_mtx;
 
+	/* How large extents should be before getting auto-purged. */
+	atomic_zu_t oversize_threshold;
+
 	/*
 	 * Decay-based purging state, responsible for scheduling extent state
 	 * transitions.
@@ -115,8 +118,9 @@ struct pac_s {
 };
 
 bool pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
-    edata_cache_t *edata_cache, nstime_t *cur_time, ssize_t dirty_decay_ms,
-    ssize_t muzzy_decay_ms, pac_stats_t *pac_stats, malloc_mutex_t *stats_mtx);
+    edata_cache_t *edata_cache, nstime_t *cur_time, size_t oversize_threshold,
+    ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms, pac_stats_t *pac_stats,
+    malloc_mutex_t *stats_mtx);
 bool pac_retain_grow_limit_get_set(tsdn_t *tsdn, pac_t *pac, size_t *old_limit,
     size_t *new_limit);
 void pac_stats_merge(tsdn_t *tsdn, pac_t *pac, pac_stats_t *pac_stats_out,

@@ -983,8 +983,9 @@ extent_record(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 			edata = extent_try_coalesce_large(tsdn, pac, ehooks,
 			    ecache, edata, &coalesced, growing_retained);
 		} while (coalesced);
-		if (edata_size_get(edata) >= oversize_threshold &&
-		    extent_may_force_decay(pac)) {
+		if (edata_size_get(edata) >=
+		    atomic_load_zu(&pac->oversize_threshold, ATOMIC_RELAXED)
+		    && extent_may_force_decay(pac)) {
 			/* Shortcut to purge the oversize extent eagerly. */
 			malloc_mutex_unlock(tsdn, &ecache->mtx);
 			extent_maximally_purge(tsdn, pac, ehooks, edata);

@@ -17,7 +17,8 @@ pa_nactive_sub(pa_shard_t *shard, size_t sub_pages) {
 bool
 pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
     unsigned ind, pa_shard_stats_t *stats, malloc_mutex_t *stats_mtx,
-    nstime_t *cur_time, ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms) {
+    nstime_t *cur_time, size_t oversize_threshold, ssize_t dirty_decay_ms,
+    ssize_t muzzy_decay_ms) {
 	/* This will change eventually, but for now it should hold. */
 	assert(base_ind_get(base) == ind);
 	if (edata_cache_init(&shard->edata_cache, base)) {
@@ -25,8 +26,8 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
 	}
 
 	if (pac_init(tsdn, &shard->pac, base, emap, &shard->edata_cache,
-	    cur_time, dirty_decay_ms, muzzy_decay_ms, &stats->pac_stats,
-	    stats_mtx)) {
+	    cur_time, oversize_threshold, dirty_decay_ms, muzzy_decay_ms,
+	    &stats->pac_stats, stats_mtx)) {
 		return true;
 	}
 
