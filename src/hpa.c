@@ -89,6 +89,24 @@ hpa_shard_init(hpa_shard_t *shard, hpa_t *hpa, edata_cache_t *edata_cache,
 	return false;
 }
 
+/*
+ * Note that the stats functions here follow the usual stats naming conventions;
+ * "merge" obtains the stats from some live object of instance, while "accum"
+ * only combines the stats from one stats objet to another.  Hence the lack of
+ * locking here.
+ */
+void
+hpa_stats_accum(hpa_shard_stats_t *dst, hpa_shard_stats_t *src) {
+	psset_stats_accum(&dst->psset_stats, &src->psset_stats);
+}
+
+void
+hpa_stats_merge(tsdn_t *tsdn, hpa_shard_t *shard, hpa_shard_stats_t *dst) {
+	malloc_mutex_lock(tsdn, &shard->mtx);
+	psset_stats_accum(&dst->psset_stats, &shard->psset.stats);
+	malloc_mutex_unlock(tsdn, &shard->mtx);
+}
+
 static edata_t *
 hpa_alloc_central(tsdn_t *tsdn, hpa_shard_t *shard, size_t size_min,
     size_t size_goal) {
@@ -415,10 +433,10 @@ hpa_shard_destroy(tsdn_t *tsdn, hpa_shard_t *shard) {
 		    PAGE);
 		malloc_mutex_unlock(tsdn, &shard->mtx);
 		assert(psset_empty);
-		hpa_shard_assert_stats_empty(&shard->psset.full_slab_stats);
+		hpa_shard_assert_stats_empty(&shard->psset.stats.full_slabs);
 		for (pszind_t i = 0; i < PSSET_NPSIZES; i++) {
 			hpa_shard_assert_stats_empty(
-			    &shard->psset.slab_stats[i]);
+			    &shard->psset.stats.nonfull_slabs[i]);
 		}
 	}
 }

@@ -1104,14 +1104,7 @@ MUTEX_PROF_ARENA_MUTEXES
 		}
 
 		/* Merge HPA stats. */
-		psset_bin_stats_accum(&sdstats->hpastats.psset_full_slab_stats,
-		    &astats->hpastats.psset_full_slab_stats);
-		for (pszind_t i = 0; i < PSSET_NPSIZES; i++) {
-			psset_bin_stats_accum(
-			    &sdstats->hpastats.psset_slab_stats[i],
-			    &astats->hpastats.psset_slab_stats[i]);
-		}
-
+		hpa_stats_accum(&sdstats->hpastats, &astats->hpastats);
 		sec_stats_accum(&sdstats->secstats, &astats->secstats);
 	}
 }
@@ -3375,21 +3368,21 @@ stats_arenas_i_extents_j_index(tsdn_t *tsdn, const size_t *mib,
 }
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_npageslabs,
-    arenas_i(mib[2])->astats->hpastats.psset_full_slab_stats.npageslabs,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs.npageslabs,
     size_t);
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_nactive,
-    arenas_i(mib[2])->astats->hpastats.psset_full_slab_stats.nactive, size_t);
+    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs.nactive, size_t);
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_ninactive,
-    arenas_i(mib[2])->astats->hpastats.psset_full_slab_stats.ninactive, size_t);
+    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs.ninactive, size_t);
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_npageslabs,
-    arenas_i(mib[2])->astats->hpastats.psset_slab_stats[mib[5]].npageslabs,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]].npageslabs,
     size_t);
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_nactive,
-    arenas_i(mib[2])->astats->hpastats.psset_slab_stats[mib[5]].nactive,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]].nactive,
     size_t);
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_ninactive,
-    arenas_i(mib[2])->astats->hpastats.psset_slab_stats[mib[5]].ninactive,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]].ninactive,
     size_t);
 
 static const ctl_named_node_t *

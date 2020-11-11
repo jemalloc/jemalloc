@@ -14,15 +14,24 @@ psset_init(psset_t *psset) {
 		edata_age_heap_new(&psset->pageslabs[i]);
 	}
 	bitmap_init(psset->bitmap, &psset_bitmap_info, /* fill */ true);
-	psset->full_slab_stats.npageslabs = 0;
-	psset->full_slab_stats.nactive = 0;
-	psset->full_slab_stats.ninactive = 0;
-	for (unsigned i = 0; i < PSSET_NPSIZES; i++) {
-		psset->slab_stats[i].npageslabs = 0;
-		psset->slab_stats[i].nactive = 0;
-		psset->slab_stats[i].ninactive = 0;
-	}
+	memset(&psset->stats, 0, sizeof(psset->stats));
 	psset->age_counter = 0;
+}
+
+static void
+psset_bin_stats_accum(psset_bin_stats_t *dst, psset_bin_stats_t *src) {
+	dst->npageslabs += src->npageslabs;
+	dst->nactive += src->nactive;
+	dst->ninactive += src->ninactive;
+}
+
+void
+psset_stats_accum(psset_stats_t *dst, psset_stats_t *src) {
+	psset_bin_stats_accum(&dst->full_slabs, &src->full_slabs);
+	for (pszind_t i = 0; i < PSSET_NPSIZES; i++) {
+		psset_bin_stats_accum(&dst->nonfull_slabs[i],
+		    &src->nonfull_slabs[i]);
+	}
 }
 
 /*
@@ -50,13 +59,15 @@ psset_bin_stats_adjust(psset_bin_stats_t *binstats, edata_t *ps, bool inc) {
 static void
 psset_edata_heap_remove(psset_t *psset, pszind_t pind, edata_t *ps) {
 	edata_age_heap_remove(&psset->pageslabs[pind], ps);
-	psset_bin_stats_adjust(&psset->slab_stats[pind], ps, /* inc */ false);
+	psset_bin_stats_adjust(&psset->stats.nonfull_slabs[pind], ps,
+	    /* inc */ false);
 }
 
 static void
 psset_edata_heap_insert(psset_t *psset, pszind_t pind, edata_t *ps) {
 	edata_age_heap_insert(&psset->pageslabs[pind], ps);
-	psset_bin_stats_adjust(&psset->slab_stats[pind], ps, /* inc */ true);
+	psset_bin_stats_adjust(&psset->stats.nonfull_slabs[pind], ps,
+	    /* inc */ true);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -75,7 +86,7 @@ psset_insert(psset_t *psset, edata_t *ps) {
 		 * We don't ned to track full slabs; just pretend to for stats
 		 * purposes.  See the comment at psset_bin_stats_adjust.
 		 */
-		psset_bin_stats_adjust(&psset->full_slab_stats, ps,
+		psset_bin_stats_adjust(&psset->stats.full_slabs, ps,
 		    /* inc */ true);
 		return;
 	}
@@ -96,7 +107,7 @@ psset_remove(psset_t *psset, edata_t *ps) {
 	size_t longest_free_range = edata_longest_free_range_get(ps);
 
 	if (longest_free_range == 0) {
-		psset_bin_stats_adjust(&psset->full_slab_stats, ps,
+		psset_bin_stats_adjust(&psset->stats.full_slabs, ps,
 		    /* inc */ true);
 		return;
 	}
@@ -214,7 +225,7 @@ psset_ps_alloc_insert(psset_t *psset, edata_t *ps, edata_t *r_edata,
 	}
 	edata_longest_free_range_set(ps, (uint32_t)largest_unchosen_range);
 	if (largest_unchosen_range == 0) {
-		psset_bin_stats_adjust(&psset->full_slab_stats, ps,
+		psset_bin_stats_adjust(&psset->stats.full_slabs, ps,
 		    /* inc */ true);
 	} else {
 		psset_insert(psset, ps);
@@ -265,15 +276,15 @@ psset_dalloc(psset_t *psset, edata_t *edata) {
 	fb_unset_range(ps_fb, ps_npages, begin, len);
 	if (ps_old_longest_free_range == 0) {
 		/* We were in the (imaginary) full bin; update stats for it. */
-		psset_bin_stats_adjust(&psset->full_slab_stats, ps,
+		psset_bin_stats_adjust(&psset->stats.full_slabs, ps,
 		    /* inc */ false);
 	} else {
 		/*
 		 * The edata is still in the bin, need to update its
 		 * contribution.
 		 */
-		psset->slab_stats[old_pind].nactive -= len;
-		psset->slab_stats[old_pind].ninactive += len;
+		psset->stats.nonfull_slabs[old_pind].nactive -= len;
+		psset->stats.nonfull_slabs[old_pind].ninactive += len;
 	}
 	/*
 	 * Note that we want to do this after the stats updates, since if it was

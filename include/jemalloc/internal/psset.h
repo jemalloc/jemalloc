@@ -31,12 +31,16 @@ struct psset_bin_stats_s {
 	size_t ninactive;
 };
 
-static inline void
-psset_bin_stats_accum(psset_bin_stats_t *dst, psset_bin_stats_t *src) {
-	dst->npageslabs += src->npageslabs;
-	dst->nactive += src->nactive;
-	dst->ninactive += src->ninactive;
-}
+/* Used only by CTL; not actually stored here (i.e., all derived). */
+typedef struct psset_stats_s psset_stats_t;
+struct psset_stats_s {
+	/*
+	 * Full slabs don't live in any edata heap.  But we still track their
+	 * stats.
+	 */
+	psset_bin_stats_t full_slabs;
+	psset_bin_stats_t nonfull_slabs[PSSET_NPSIZES];
+};
 
 typedef struct psset_s psset_t;
 struct psset_s {
@@ -46,18 +50,14 @@ struct psset_s {
 	 */
 	edata_age_heap_t pageslabs[PSSET_NPSIZES];
 	bitmap_t bitmap[BITMAP_GROUPS(PSSET_NPSIZES)];
-	/*
-	 * Full slabs don't live in any edata heap.  But we still track their
-	 * stats.
-	 */
-	psset_bin_stats_t full_slab_stats;
-	psset_bin_stats_t slab_stats[PSSET_NPSIZES];
+	psset_stats_t stats;
 
 	/* How many alloc_new calls have happened? */
 	uint64_t age_counter;
 };
 
 void psset_init(psset_t *psset);
+void psset_stats_accum(psset_stats_t *dst, psset_stats_t *src);
 
 void psset_insert(psset_t *psset, edata_t *ps);
 void psset_remove(psset_t *psset, edata_t *ps);

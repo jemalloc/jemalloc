@@ -150,15 +150,7 @@ pa_shard_stats_merge(tsdn_t *tsdn, pa_shard_t *shard,
 	}
 
 	if (shard->ever_used_hpa) {
-		malloc_mutex_lock(tsdn, &shard->hpa_shard.mtx);
-		psset_bin_stats_accum(&hpa_stats_out->psset_full_slab_stats,
-		    &shard->hpa_shard.psset.full_slab_stats);
-		for (pszind_t i = 0; i < PSSET_NPSIZES; i++) {
-			psset_bin_stats_accum(
-			    &hpa_stats_out->psset_slab_stats[i],
-			    &shard->hpa_shard.psset.slab_stats[i]);
-		}
-		malloc_mutex_unlock(tsdn, &shard->hpa_shard.mtx);
+		hpa_stats_merge(tsdn, &shard->hpa_shard, hpa_stats_out);
 		sec_stats_merge(tsdn, &shard->hpa_sec, sec_stats_out);
 	}
 }
