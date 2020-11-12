@@ -438,18 +438,19 @@ prof_log_start(tsdn_t *tsdn, const char *filename) {
 	}
 
 	if (!ret) {
-		if (!prof_logging_final_hook_registerred) {
-			if (atexit(prof_log_stop_final) != 0) {
-				malloc_write("<jemalloc>: Error in atexit() "
-					     "for logging\n");
-				if (opt_abort) {
-					abort();
-				}
-				return true;
+		nstime_prof_init_update(&log_start_timestamp);
+	}
+
+	if (!prof_logging_final_hook_registerred) {
+		if (atexit(prof_log_stop_final) != 0) {
+			malloc_write("<jemalloc>: Error in atexit() "
+				     "for logging\n");
+			if (opt_abort) {
+				abort();
 			}
+		} else {
 			prof_logging_final_hook_registerred = true;
 		}
-		nstime_prof_init_update(&log_start_timestamp);
 	}
 
 	malloc_mutex_unlock(tsdn, &log_mtx);
@@ -693,7 +694,6 @@ bool prof_log_init(tsd_t *tsd) {
 	if (opt_prof_log) {
 		prof_log_start(tsd_tsdn(tsd), NULL);
 	}
-
 
 	return false;
 }
