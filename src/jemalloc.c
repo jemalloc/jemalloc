@@ -4088,32 +4088,15 @@ batch_alloc(void **ptrs, size_t num, size_t size, int flags) {
 	if (aligned_usize_get(size, alignment, &usize, NULL, false)) {
 		goto label_done;
 	}
-
 	szind_t ind = sz_size2index(usize);
-	if (unlikely(ind >= SC_NBINS)) {
-		/* No optimization for large sizes. */
-		void *p;
-		while (filled < num && (p = je_mallocx(size, flags)) != NULL) {
-			ptrs[filled++] = p;
-		}
-		goto label_done;
-	}
-
 	bool zero = zero_get(MALLOCX_ZERO_GET(flags), /* slow */ true);
 
-	unsigned arena_ind = mallocx_arena_get(flags);
-	arena_t *arena;
-	if (arena_get_from_ind(tsd, arena_ind, &arena)) {
-		goto label_done;
-	}
-	if (arena == NULL) {
-		arena = arena_choose(tsd, NULL);
-	} else {
-		/* When a manual arena is specified, bypass the tcache. */
-		flags |= MALLOCX_TCACHE_NONE;
-	}
-	if (unlikely(arena == NULL)) {
-		goto label_done;
+	cache_bin_t *bin = NULL;
+	arena_t *arena = NULL;
+	size_t nregs = 0;
+	if (likely(ind < SC_NBINS)) {
+		nregs = bin_infos[ind].nregs;
+		assert(nregs > 0);
 	}
 
 	while (filled < num) {
@@ -4132,9 +4115,63 @@ batch_alloc(void **ptrs, size_t num, size_t size, int flags) {
 			batch_alloc_prof_sample_assert(tsd, batch, usize);
 		}
 
-		size_t n = arena_fill_small_fresh(tsd_tsdn(tsd), arena,
-		    ind, ptrs + filled, batch, zero);
-		filled += n;
+		size_t progress = 0;
+
+		if (likely(ind < SC_NBINS) && batch >= nregs) {
+			if (arena == NULL) {
+				unsigned arena_ind = mallocx_arena_get(flags);
+				if (arena_get_from_ind(tsd, arena_ind,
+				    &arena)) {
+					goto label_done;
+				}
+				if (arena == NULL) {
+					arena = arena_choose(tsd, NULL);
+				}
+				if (unlikely(arena == NULL)) {
+					goto label_done;
+				}
+			}
+			size_t arena_batch = batch - batch % nregs;
+			size_t n = arena_fill_small_fresh(tsd_tsdn(tsd), arena,
+			    ind, ptrs + filled, arena_batch, zero);
+			progress += n;
+			filled += n;
+		}
+
+		if (likely(ind < nhbins) && progress < batch) {
+			if (bin == NULL) {
+				unsigned tcache_ind = mallocx_tcache_get(flags);
+				tcache_t *tcache = tcache_get_from_ind(tsd,
+				    tcache_ind, /* slow */ true,
+				    /* is_alloc */ true);
+				if (tcache != NULL) {
+					bin = &tcache->bins[ind];
+				}
+			}
+			if (bin != NULL) {
+				size_t bin_batch = batch - progress;
+				size_t n = cache_bin_alloc_batch(bin, bin_batch,
+				    ptrs + filled);
+				if (config_stats) {
+					bin->tstats.nrequests += n;
+				}
+				if (zero) {
+					for (size_t i = 0; i < n; ++i) {
+						memset(ptrs[filled + i], 0,
+						    usize);
+					}
+				}
+				if (config_prof && opt_prof
+				    && unlikely(ind >= SC_NBINS)) {
+					for (size_t i = 0; i < n; ++i) {
+						prof_tctx_reset_sampled(tsd,
+						    ptrs[filled + i]);
+					}
+				}
+				progress += n;
+				filled += n;
+			}
+		}
 
 		/*
 		 * For thread events other than prof sampling, trigger them as
@@ -4146,23 +4183,16 @@ batch_alloc(void **ptrs, size_t num, size_t size, int flags) {
 		 *     were handled individually, but it would do no harm (or
 		 *     even be beneficial) to coalesce the triggerings.
 		 */
-		thread_alloc_event(tsd, n * usize);
+		thread_alloc_event(tsd, progress * usize);
 
-		if (n < batch) { /* OOM */
-			break;
-		}
-
-		if (prof_sample_event) {
-			/*
-			 * The next allocation will be prof sampled.  The
-			 * thread event logic is handled within the mallocx()
-			 * call.
-			 */
+		if (progress < batch || prof_sample_event) {
 			void *p = je_mallocx(size, flags);
 			if (p == NULL) { /* OOM */
 				break;
 			}
-			assert(prof_sampled(tsd, p));
+			if (progress == batch) {
+				assert(prof_sampled(tsd, p));
+			}
 			ptrs[filled++] = p;
 		}
 	}

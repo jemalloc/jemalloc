@@ -6,35 +6,6 @@ static void *ptrs[BATCH_MAX];
 #define PAGE_ALIGNED(ptr) (((uintptr_t)ptr & PAGE_MASK) == 0)
 
 static void
-verify_stats(bin_stats_t *before, bin_stats_t *after, size_t batch,
-    unsigned nregs) {
-	if (!config_stats) {
-		return;
-	}
-	if (config_prof && opt_prof) {
-		/*
-		 * Checking the stats when prof is on is feasible but
-		 * complicated, while checking the non-prof case suffices for
-		 * unit-test purpose.
-		 */
-		return;
-	}
-	expect_u64_eq(before->nmalloc + batch, after->nmalloc, "");
-	expect_u64_eq(before->nrequests + batch, after->nrequests, "");
-	expect_zu_eq(before->curregs + batch, after->curregs, "");
-	size_t nslab = batch / nregs;
-	size_t n_nonfull = 0;
-	if (batch % nregs != 0) {
-		++nslab;
-		++n_nonfull;
-	}
-	expect_u64_eq(before->nslabs + nslab, after->nslabs, "");
-	expect_zu_eq(before->curslabs + nslab, after->curslabs, "");
-	expect_zu_eq(before->nonfull_slabs + n_nonfull, after->nonfull_slabs,
-	    "");
-}
-
-static void
 verify_batch_basic(tsd_t *tsd, void **ptrs, size_t batch, size_t usize,
     bool zero) {
 	for (size_t i = 0; i < batch; ++i) {
@@ -51,9 +22,20 @@ verify_batch_basic(tsd_t *tsd, void **ptrs, size_t batch, size_t usize,
 static void
 verify_batch_locality(tsd_t *tsd, void **ptrs, size_t batch, size_t usize,
     arena_t *arena, unsigned nregs) {
+	if (config_prof && opt_prof) {
+		/*
+		 * Checking batch locality when prof is on is feasible but
+		 * complicated, while checking the non-prof case suffices for
+		 * unit-test purpose.
+		 */
+		return;
+	}
 	for (size_t i = 0, j = 0; i < batch; ++i, ++j) {
 		if (j == nregs) {
 			j = 0;
+		}
+		if (j == 0 && batch - i < nregs) {
+			break;
 		}
 		void *p = ptrs[i];
 		expect_ptr_eq(iaalloc(tsd_tsdn(tsd), p), arena, "");
@@ -63,21 +45,8 @@ verify_batch_locality(tsd_t *tsd, void **ptrs, size_t batch, size_t usize,
 		}
 		assert(i > 0);
 		void *q = ptrs[i - 1];
-		bool adjacent = (uintptr_t)p > (uintptr_t)q
-		    && (size_t)((uintptr_t)p - (uintptr_t)q) == usize;
-		if (config_prof && opt_prof) {
-			if (adjacent) {
-				expect_false(prof_sampled(tsd, p)
-				    || prof_sampled(tsd, q), "");
-			} else {
-				expect_true(prof_sampled(tsd, p)
-				    || prof_sampled(tsd, q), "");
-				expect_true(PAGE_ALIGNED(p), "");
-				j = 0;
-			}
-		} else {
-			expect_true(adjacent, "");
-		}
+		expect_true((uintptr_t)p > (uintptr_t)q
+		    && (size_t)((uintptr_t)p - (uintptr_t)q) == usize, "");
 	}
 }
 
@@ -124,8 +93,6 @@ test_wrapper(size_t size, size_t alignment, bool zero, unsigned arena_flag) {
 		arena = arena_choose(tsd, NULL);
 	}
 	assert(arena != NULL);
-	bin_t *bin = arena_bin_choose(tsd_tsdn(tsd), arena, ind, NULL);
-	assert(bin != NULL);
 	int flags = arena_flag;
 	if (alignment != 0) {
 		flags |= MALLOCX_ALIGN(alignment);
@@ -155,13 +122,9 @@ test_wrapper(size_t size, size_t alignment, bool zero, unsigned arena_flag) {
 			}
 			size_t batch = base + (size_t)j;
 			assert(batch < BATCH_MAX);
-			bin_stats_t stats_before, stats_after;
-			memcpy(&stats_before, &bin->stats, sizeof(bin_stats_t));
 			size_t filled = batch_alloc_wrapper(ptrs, batch, size,
 			    flags);
 			assert_zu_eq(filled, batch, "");
-			memcpy(&stats_after, &bin->stats, sizeof(bin_stats_t));
-			verify_stats(&stats_before, &stats_after, batch, nregs);
 			verify_batch_basic(tsd, ptrs, batch, usize, zero);
 			verify_batch_locality(tsd, ptrs, batch, usize, arena,
 			    nregs);
@@ -196,8 +159,15 @@ TEST_BEGIN(test_batch_alloc_manual_arena) {
 }
 TEST_END
 
-TEST_BEGIN(test_batch_alloc_fallback) {
-	const size_t size = SC_LARGE_MINCLASS;
+TEST_BEGIN(test_batch_alloc_large) {
+	size_t size = SC_LARGE_MINCLASS;
+	for (size_t batch = 0; batch < 4; ++batch) {
+		assert(batch < BATCH_MAX);
+		size_t filled = batch_alloc(ptrs, batch, size, 0);
+		assert_zu_eq(filled, batch, "");
+		release_batch(ptrs, batch, size);
+	}
+	size = tcache_maxclass + 1;
 	for (size_t batch = 0; batch < 4; ++batch) {
 		assert(batch < BATCH_MAX);
 		size_t filled = batch_alloc(ptrs, batch, size, 0);
@@ -214,5 +184,5 @@ main(void) {
 	    test_batch_alloc_zero,
 	    test_batch_alloc_aligned,
 	    test_batch_alloc_manual_arena,
-	    test_batch_alloc_fallback);
+	    test_batch_alloc_large);
 }
