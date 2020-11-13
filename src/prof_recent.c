@@ -540,6 +540,9 @@ prof_recent_alloc_dump(tsd_t *tsd, write_cb_t *write_cb, void *cbopaque) {
 	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 
 	emitter_begin(&emitter);
+	uint64_t sample_interval = (uint64_t)1U << lg_prof_sample;
+	emitter_json_kv(&emitter, "sample_interval", emitter_type_uint64,
+	    &sample_interval);
 	emitter_json_kv(&emitter, "recent_alloc_max", emitter_type_ssize,
 	    &dump_max);
 	emitter_json_array_kv_begin(&emitter, "recent_alloc");
