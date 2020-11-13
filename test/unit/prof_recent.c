@@ -370,16 +370,16 @@ typedef struct {
 #define DUMP_ERROR "Dump output is wrong"
 
 static void
-confirm_record(const char *template,
-    const confirm_record_t *records, const size_t n_records) {
+confirm_record(const char *template, const confirm_record_t *records,
+    const size_t n_records) {
 	static const char *types[2] = {"alloc", "dalloc"};
 	static char buf[64];
 
 	/*
 	 * The template string would be in the form of:
-	 * "{\"recent_alloc_max\":XYZ,\"recent_alloc\":[]}",
+	 * "{...,\"recent_alloc\":[]}",
 	 * and dump_out would be in the form of:
-	 * "{\"recent_alloc_max\":XYZ,\"recent_alloc\":[...]}".
+	 * "{...,\"recent_alloc\":[...]}".
 	 * Using "- 2" serves to cut right before the ending "]}".
 	 */
 	assert_d_eq(memcmp(dump_out, template, strlen(template) - 2), 0,
@@ -489,18 +489,22 @@ TEST_BEGIN(test_prof_recent_alloc_dump) {
 	void *p, *q;
 	confirm_record_t records[2];
 
+	assert_zu_eq(lg_prof_sample, (size_t)0,
+	    "lg_prof_sample not set correctly");
+
 	future = 0;
 	assert_d_eq(mallctl("experimental.prof_recent.alloc_max",
 	    NULL, NULL, &future, sizeof(ssize_t)), 0, "Write error");
 	call_dump();
-	expect_str_eq(dump_out, "{\"recent_alloc_max\":0,\"recent_alloc\":[]}",
-	    DUMP_ERROR);
+	expect_str_eq(dump_out, "{\"sample_interval\":1,"
+	    "\"recent_alloc_max\":0,\"recent_alloc\":[]}", DUMP_ERROR);
 
 	future = 2;
 	assert_d_eq(mallctl("experimental.prof_recent.alloc_max",
 	    NULL, NULL, &future, sizeof(ssize_t)), 0, "Write error");
 	call_dump();
-	const char *template = "{\"recent_alloc_max\":2,\"recent_alloc\":[]}";
+	const char *template = "{\"sample_interval\":1,"
+	    "\"recent_alloc_max\":2,\"recent_alloc\":[]}";
 	expect_str_eq(dump_out, template, DUMP_ERROR);
 
 	p = malloc(7);
