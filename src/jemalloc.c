@@ -4091,8 +4091,13 @@ batch_alloc(void **ptrs, size_t num, size_t size, int flags) {
 	szind_t ind = sz_size2index(usize);
 	bool zero = zero_get(MALLOCX_ZERO_GET(flags), /* slow */ true);
 
+	/*
+	 * The cache bin and arena will be lazily initialized; it's hard to
+	 * know in advance whether each of them needs to be initialized.
+	 */
 	cache_bin_t *bin = NULL;
 	arena_t *arena = NULL;
+
 	size_t nregs = 0;
 	if (likely(ind < SC_NBINS)) {
 		nregs = bin_infos[ind].nregs;
@@ -4148,8 +4153,33 @@ batch_alloc(void **ptrs, size_t num, size_t size, int flags) {
 					bin = &tcache->bins[ind];
 				}
 			}
+			/*
+			 * If we don't have a tcache bin, we don't want to
+			 * immediately give up, because there's the possibility
+			 * that the user explicitly requested to bypass the
+			 * tcache, or that the user explicitly turned off the
+			 * tcache; in such cases, we go through the slow path,
+			 * i.e. the mallocx() call at the end of the while loop.
+			 */
 			if (bin != NULL) {
 				size_t bin_batch = batch - progress;
+				/*
+				 * n can be less than bin_batch, meaning that
+				 * the cache bin does not have enough memory.
+				 * In such cases, we rely on the slow path,
+				 * i.e. the mallocx() call at the end of the
+				 * while loop, to fill in the cache, and in the
+				 * next iteration of the while loop, the tcache
+				 * will contain a lot of memory, and we can
+				 * harvest them here.  Compared to the
+				 * alternative approach where we directly go to
+				 * the arena bins here, the overhead of our
+				 * current approach should usually be minimal,
+				 * since we never try to fetch more memory than
+				 * what a slab contains via the tcache.  An
+				 * additional benefit is that the tcache will
+				 * not be empty for the next allocation request.
+				 */
 				size_t n = cache_bin_alloc_batch(bin, bin_batch,
 				    ptrs + filled);
 				if (config_stats) {
