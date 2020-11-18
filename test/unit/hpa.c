@@ -38,7 +38,8 @@ create_test_data() {
 	assert_false(err, "");
 
 	err = hpa_shard_init(&test_data->shard, &test_data->emap,
-	    &test_data->shard_edata_cache, SHARD_IND, ALLOC_MAX);
+	    test_data->base, &test_data->shard_edata_cache, SHARD_IND,
+	    ALLOC_MAX);
 	assert_false(err, "");
 
 	return (hpa_shard_t *)test_data;

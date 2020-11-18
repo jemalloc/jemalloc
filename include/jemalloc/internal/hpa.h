@@ -21,6 +21,8 @@ struct hpa_shard_s {
 	pai_t pai;
 	malloc_mutex_t grow_mtx;
 	malloc_mutex_t mtx;
+	/* The base metadata allocator. */
+	base_t *base;
 	/*
 	 * This edata cache is the one we use when allocating a small extent
 	 * from a pageslab.  The pageslab itself comes from the centralized
@@ -45,7 +47,14 @@ struct hpa_shard_s {
 	 *
 	 * Guarded by grow_mtx.
 	 */
-	edata_list_inactive_t unused_slabs;
+	hpdata_list_t unused_slabs;
+
+	/*
+	 * How many grow operations have occurred.
+	 *
+	 * Guarded by grow_mtx.
+	 */
+	uint64_t age_counter;
 
 	/*
 	 * Either NULL (if empty), or some integer multiple of a
@@ -54,7 +63,8 @@ struct hpa_shard_s {
 	 *
 	 * Guarded by grow_mtx.
 	 */
-	edata_t *eden;
+	void *eden;
+	size_t eden_len;
 
 	/* The arena ind we're associated with. */
 	unsigned ind;
@@ -67,7 +77,7 @@ struct hpa_shard_s {
  * just that it can function properly given the system it's running on.
  */
 bool hpa_supported();
-bool hpa_shard_init(hpa_shard_t *shard, emap_t *emap,
+bool hpa_shard_init(hpa_shard_t *shard, emap_t *emap, base_t *base,
     edata_cache_t *edata_cache, unsigned ind, size_t alloc_max);
 
 void hpa_shard_stats_accum(hpa_shard_stats_t *dst, hpa_shard_stats_t *src);

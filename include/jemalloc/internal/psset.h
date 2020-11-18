@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_PSSET_H
 #define JEMALLOC_INTERNAL_PSSET_H
 
+#include "jemalloc/internal/hpdata.h"
+
 /*
  * A page-slab set.  What the eset is to PAC, the psset is to HPA.  It maintains
  * a collection of page-slabs (the intent being that they are backed by
@@ -51,21 +53,18 @@ struct psset_s {
 	 * The pageslabs, quantized by the size class of the largest contiguous
 	 * free run of pages in a pageslab.
 	 */
-	edata_age_heap_t pageslabs[PSSET_NPSIZES];
+	hpdata_age_heap_t pageslabs[PSSET_NPSIZES];
 	bitmap_t bitmap[BITMAP_GROUPS(PSSET_NPSIZES)];
 	psset_stats_t stats;
-
-	/* How many alloc_new calls have happened? */
-	uint64_t age_counter;
 };
 
 void psset_init(psset_t *psset);
 void psset_stats_accum(psset_stats_t *dst, psset_stats_t *src);
 
-void psset_insert(psset_t *psset, edata_t *ps);
-void psset_remove(psset_t *psset, edata_t *ps);
+void psset_insert(psset_t *psset, hpdata_t *ps);
+void psset_remove(psset_t *psset, hpdata_t *ps);
 
-void psset_hugify(psset_t *psset, edata_t *ps);
+void psset_hugify(psset_t *psset, hpdata_t *ps);
 
 /*
  * Tries to obtain a chunk from an existing pageslab already in the set.
@@ -78,7 +77,7 @@ bool psset_alloc_reuse(psset_t *psset, edata_t *r_edata, size_t size);
  * to the psset and allocate an extent from within it.  The passed-in pageslab
  * must be at least as big as size.
  */
-void psset_alloc_new(psset_t *psset, edata_t *ps,
+void psset_alloc_new(psset_t *psset, hpdata_t *ps,
     edata_t *r_edata, size_t size);
 
 /*
@@ -89,6 +88,6 @@ void psset_alloc_new(psset_t *psset, edata_t *ps,
  * result must be checked and deallocated to the central HPA.  Otherwise returns
  * NULL.
  */
-edata_t *psset_dalloc(psset_t *psset, edata_t *edata);
+hpdata_t *psset_dalloc(psset_t *psset, edata_t *edata);
 
 #endif /* JEMALLOC_INTERNAL_PSSET_H */

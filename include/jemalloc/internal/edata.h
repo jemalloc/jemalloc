@@ -4,6 +4,7 @@
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bin_info.h"
 #include "jemalloc/internal/bit_util.h"
+#include "jemalloc/internal/hpdata.h"
 #include "jemalloc/internal/nstime.h"
 #include "jemalloc/internal/ph.h"
 #include "jemalloc/internal/ql.h"
@@ -71,7 +72,6 @@ struct edata_map_info_s {
 typedef struct edata_s edata_t;
 typedef ph(edata_t) edata_avail_t;
 typedef ph(edata_t) edata_heap_t;
-typedef ph(edata_t) edata_age_heap_t;
 struct edata_s {
 	/*
 	 * Bitfield containing several fields:
@@ -194,41 +194,13 @@ struct edata_s {
 	};
 
 	/*
-	 * In some context-specific sense, the age of an active extent.  Each
-	 * context can pick a specific meaning, and share the definition of the
-	 * edata_age_heap_t below.
+	 * If this edata is a user allocation from an HPA, it comes out of some
+	 * pageslab (we don't yet support huegpage allocations that don't fit
+	 * into pageslabs).  This tracks it.
 	 */
-	uint64_t age;
-	union {
-		/*
-		 * We could steal a low bit from these fields to indicate what
-		 * sort of "thing" this is (a page slab, an object within a page
-		 * slab, or a non-pageslab range).  We don't do this yet, but it
-		 * would enable some extra asserts.
-		 */
-
-		/*
-		 * If this edata is a user allocation from an HPA, it comes out
-		 * of some pageslab (we don't yet support huegpage allocations
-		 * that don't fit into pageslabs).  This tracks it.
-		 */
-		edata_t *ps;
-		/*
-		 * If this edata *is* a pageslab, then we cache some useful
-		 * information about its associated bitmap.
-		 */
-		struct {
-			/*
-			 * The longest free range a pageslab contains determines
-			 * the heap it lives in.  If we know that it didn't
-			 * change after an operation, we can avoid moving it
-			 * between heaps.
-			 */
-			uint32_t longest_free_range;
-			/* Whether or not the slab is backed by a hugepage. */
-			bool hugeified;
-		};
-	};
+	hpdata_t *e_ps;
+	/* Extra field reserved for HPA. */
+	void *e_reserved;
 
 	union {
 		/*
@@ -331,11 +303,6 @@ edata_pai_get(const edata_t *edata) {
 }
 
 static inline bool
-edata_hugeified_get(const edata_t *edata) {
-	return edata->hugeified;
-}
-
-static inline bool
 edata_slab_get(const edata_t *edata) {
 	return (bool)((edata->e_bits & EDATA_BITS_SLAB_MASK) >>
 	    EDATA_BITS_SLAB_SHIFT);
@@ -377,21 +344,10 @@ edata_bsize_get(const edata_t *edata) {
 	return edata->e_bsize;
 }
 
-static inline uint64_t
-edata_age_get(const edata_t *edata) {
-	return edata->age;
-}
-
-static inline edata_t *
+static inline hpdata_t *
 edata_ps_get(const edata_t *edata) {
 	assert(edata_pai_get(edata) == EXTENT_PAI_HPA);
-	return edata->ps;
-}
-
-static inline uint32_t
-edata_longest_free_range_get(const edata_t *edata) {
-	assert(edata_pai_get(edata) == EXTENT_PAI_HPA);
-	return edata->longest_free_range;
+	return edata->e_ps;
 }
 
 static inline void *
@@ -477,21 +433,9 @@ edata_bsize_set(edata_t *edata, size_t bsize) {
 }
 
 static inline void
-edata_age_set(edata_t *edata, uint64_t age) {
-	edata->age = age;
-}
-
-static inline void
-edata_ps_set(edata_t *edata, edata_t *ps) {
-	assert(edata_pai_get(edata) == EXTENT_PAI_HPA || ps == NULL);
-	edata->ps = ps;
-}
-
-static inline void
-edata_longest_free_range_set(edata_t *edata, uint32_t longest_free_range) {
-	assert(edata_pai_get(edata) == EXTENT_PAI_HPA
-	    || longest_free_range == 0);
-	edata->longest_free_range = longest_free_range;
+edata_ps_set(edata_t *edata, hpdata_t *ps) {
+	assert(edata_pai_get(edata) == EXTENT_PAI_HPA);
+	edata->e_ps = ps;
 }
 
 static inline void
@@ -567,11 +511,6 @@ edata_pai_set(edata_t *edata, extent_pai_t pai) {
 }
 
 static inline void
-edata_hugeified_set(edata_t *edata, bool hugeified) {
-	edata->hugeified = hugeified;
-}
-
-static inline void
 edata_slab_set(edata_t *edata, bool slab) {
 	edata->e_bits = (edata->e_bits & ~EDATA_BITS_SLAB_MASK) |
 	    ((uint64_t)slab << EDATA_BITS_SLAB_SHIFT);
@@ -633,9 +572,6 @@ edata_init(edata_t *edata, unsigned arena_ind, void *addr, size_t size,
 	if (config_prof) {
 		edata_prof_tctx_set(edata, NULL);
 	}
-	edata_age_set(edata, 0);
-	edata_ps_set(edata, NULL);
-	edata_longest_free_range_set(edata, 0);
 }
 
 static inline void
@@ -649,15 +585,12 @@ edata_binit(edata_t *edata, void *addr, size_t bsize, size_t sn) {
 	edata_state_set(edata, extent_state_active);
 	edata_zeroed_set(edata, true);
 	edata_committed_set(edata, true);
-	edata_age_set(edata, 0);
 	/*
 	 * This isn't strictly true, but base allocated extents never get
 	 * deallocated and can't be looked up in the emap, but no sense in
 	 * wasting a state bit to encode this fact.
 	 */
 	edata_pai_set(edata, EXTENT_PAI_PAC);
-	edata_ps_set(edata, NULL);
-	edata_longest_free_range_set(edata, 0);
 }
 
 static inline int
@@ -718,25 +651,7 @@ edata_esnead_comp(const edata_t *a, const edata_t *b) {
 	return ret;
 }
 
-static inline int
-edata_age_comp(const edata_t *a, const edata_t *b) {
-	uint64_t a_age = edata_age_get(a);
-	uint64_t b_age = edata_age_get(b);
-
-	/*
-	 * Equal ages are possible in certain race conditions, like two distinct
-	 * threads simultaneously allocating a new fresh slab without holding a
-	 * bin lock.
-	 */
-	int ret = (a_age > b_age) - (a_age < b_age);
-	if (ret != 0) {
-		return ret;
-	}
-	return edata_snad_comp(a, b);
-}
-
 ph_proto(, edata_avail_, edata_avail_t, edata_t)
 ph_proto(, edata_heap_, edata_heap_t, edata_t)
-ph_proto(, edata_age_heap_, edata_age_heap_t, edata_t);
 
 #endif /* JEMALLOC_INTERNAL_EDATA_H */
