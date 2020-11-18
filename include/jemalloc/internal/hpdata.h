@@ -107,18 +107,28 @@ hpdata_longest_free_range_set(hpdata_t *hpdata, size_t longest_free_range) {
 }
 
 static inline void
-hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age) {
-	hpdata_addr_set(hpdata, addr);
-	hpdata_age_set(hpdata, age);
-	hpdata_huge_set(hpdata, false);
-	hpdata_nfree_set(hpdata, HUGEPAGE_PAGES);
-	hpdata_longest_free_range_set(hpdata, HUGEPAGE_PAGES);
-	fb_init(hpdata->active_pages, HUGEPAGE_PAGES);
+hpdata_assert_empty(hpdata_t *hpdata) {
+	assert(fb_empty(hpdata->active_pages, HUGEPAGE_PAGES));
+	assert(hpdata_nfree_get(hpdata) == HUGEPAGE_PAGES);
+}
+
+static inline void
+hpdata_assert_consistent(hpdata_t *hpdata) {
+	assert(fb_urange_longest(hpdata->active_pages, HUGEPAGE_PAGES)
+	    == hpdata_longest_free_range_get(hpdata));
 }
 
 TYPED_LIST(hpdata_list, hpdata_t, ql_link)
 
 typedef ph(hpdata_t) hpdata_age_heap_t;
 ph_proto(, hpdata_age_heap_, hpdata_age_heap_t, hpdata_t);
+
+void hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age);
+/*
+ * Given an hpdata which can serve an allocation request, pick and reserve an
+ * offset within that allocation.
+ */
+size_t hpdata_reserve_alloc(hpdata_t *hpdata, size_t npages);
+void hpdata_unreserve(hpdata_t *hpdata, size_t start, size_t npages);
 
 #endif /* JEMALLOC_INTERNAL_HPDATA_H */
