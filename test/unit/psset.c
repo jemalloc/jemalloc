@@ -2,10 +2,8 @@
 
 #include "jemalloc/internal/psset.h"
 
-#define PAGESLAB_PAGES (HUGEPAGE / PAGE)
-#define PAGESLAB_SIZE (PAGESLAB_PAGES << LG_PAGE)
-#define PAGESLAB_SN 123
-#define PAGESLAB_ADDR ((void *)(1234 << LG_PAGE))
+#define PAGESLAB_ADDR ((void *)(1234 * HUGEPAGE))
+#define PAGESLAB_AGE 5678
 
 #define ALLOC_ARENA_IND 111
 #define ALLOC_ESN 222
@@ -42,14 +40,10 @@ edata_expect(edata_t *edata, size_t page_offset, size_t page_cnt) {
 
 TEST_BEGIN(test_empty) {
 	bool err;
-	edata_t pageslab;
-	memset(&pageslab, 0, sizeof(pageslab));
-	edata_t alloc;
+	hpdata_t pageslab;
+	hpdata_init(&pageslab, PAGESLAB_ADDR, PAGESLAB_AGE);
 
-	edata_init(&pageslab, /* arena_ind */ 0, PAGESLAB_ADDR, PAGESLAB_SIZE,
-	    /* slab */ true, SC_NSIZES, PAGESLAB_SN, extent_state_active,
-	    /* zeroed */ false, /* comitted */ true, EXTENT_PAI_HPA,
-	    EXTENT_IS_HEAD);
+	edata_t alloc;
 	edata_init_test(&alloc);
 
 	psset_t psset;
@@ -63,27 +57,24 @@ TEST_END
 
 TEST_BEGIN(test_fill) {
 	bool err;
-	edata_t pageslab;
-	memset(&pageslab, 0, sizeof(pageslab));
-	edata_t alloc[PAGESLAB_PAGES];
 
-	edata_init(&pageslab, /* arena_ind */ 0, PAGESLAB_ADDR, PAGESLAB_SIZE,
-	    /* slab */ true, SC_NSIZES, PAGESLAB_SN, extent_state_active,
-	    /* zeroed */ false, /* comitted */ true, EXTENT_PAI_HPA,
-	    EXTENT_IS_HEAD);
+	hpdata_t pageslab;
+	hpdata_init(&pageslab, PAGESLAB_ADDR, PAGESLAB_AGE);
+
+	edata_t alloc[HUGEPAGE_PAGES];
 
 	psset_t psset;
 	psset_init(&psset);
 
 	edata_init_test(&alloc[0]);
 	psset_alloc_new(&psset, &pageslab, &alloc[0], PAGE);
-	for (size_t i = 1; i < PAGESLAB_PAGES; i++) {
+	for (size_t i = 1; i < HUGEPAGE_PAGES; i++) {
 		edata_init_test(&alloc[i]);
 		err = psset_alloc_reuse(&psset, &alloc[i], PAGE);
 		expect_false(err, "Nonempty psset failed page allocation.");
 	}
 
-	for (size_t i = 0; i < PAGESLAB_PAGES; i++) {
+	for (size_t i = 0; i < HUGEPAGE_PAGES; i++) {
 		edata_t *edata = &alloc[i];
 		edata_expect(edata, i, 1);
 	}
@@ -98,30 +89,26 @@ TEST_END
 
 TEST_BEGIN(test_reuse) {
 	bool err;
-	edata_t *ps;
+	hpdata_t *ps;
 
-	edata_t pageslab;
-	memset(&pageslab, 0, sizeof(pageslab));
-	edata_t alloc[PAGESLAB_PAGES];
+	hpdata_t pageslab;
+	hpdata_init(&pageslab, PAGESLAB_ADDR, PAGESLAB_AGE);
 
-	edata_init(&pageslab, /* arena_ind */ 0, PAGESLAB_ADDR, PAGESLAB_SIZE,
-	    /* slab */ true, SC_NSIZES, PAGESLAB_SN, extent_state_active,
-	    /* zeroed */ false, /* comitted */ true, EXTENT_PAI_HPA,
-	    EXTENT_IS_HEAD);
+	edata_t alloc[HUGEPAGE_PAGES];
 
 	psset_t psset;
 	psset_init(&psset);
 
 	edata_init_test(&alloc[0]);
 	psset_alloc_new(&psset, &pageslab, &alloc[0], PAGE);
-	for (size_t i = 1; i < PAGESLAB_PAGES; i++) {
+	for (size_t i = 1; i < HUGEPAGE_PAGES; i++) {
 		edata_init_test(&alloc[i]);
 		err = psset_alloc_reuse(&psset, &alloc[i], PAGE);
 		expect_false(err, "Nonempty psset failed page allocation.");
 	}
 
 	/* Free odd indices. */
-	for (size_t i = 0; i < PAGESLAB_PAGES; i ++) {
+	for (size_t i = 0; i < HUGEPAGE_PAGES; i ++) {
 		if (i % 2 == 0) {
 			continue;
 		}
@@ -129,7 +116,7 @@ TEST_BEGIN(test_reuse) {
 		expect_ptr_null(ps, "Nonempty pageslab evicted");
 	}
 	/* Realloc into them. */
-	for (size_t i = 0; i < PAGESLAB_PAGES; i++) {
+	for (size_t i = 0; i < HUGEPAGE_PAGES; i++) {
 		if (i % 2 == 0) {
 			continue;
 		}
@@ -138,7 +125,7 @@ TEST_BEGIN(test_reuse) {
 		edata_expect(&alloc[i], i, 1);
 	}
 	/* Now, free the pages at indices 0 or 1 mod 2. */
-	for (size_t i = 0; i < PAGESLAB_PAGES; i++) {
+	for (size_t i = 0; i < HUGEPAGE_PAGES; i++) {
 		if (i % 4 > 1) {
 			continue;
 		}
@@ -146,7 +133,7 @@ TEST_BEGIN(test_reuse) {
 		expect_ptr_null(ps, "Nonempty pageslab evicted");
 	}
 	/* And realloc 2-page allocations into them. */
-	for (size_t i = 0; i < PAGESLAB_PAGES; i++) {
+	for (size_t i = 0; i < HUGEPAGE_PAGES; i++) {
 		if (i % 4 != 0) {
 			continue;
 		}
@@ -155,7 +142,7 @@ TEST_BEGIN(test_reuse) {
 		edata_expect(&alloc[i], i, 2);
 	}
 	/* Free all the 2-page allocations. */
-	for (size_t i = 0; i < PAGESLAB_PAGES; i++) {
+	for (size_t i = 0; i < HUGEPAGE_PAGES; i++) {
 		if (i % 4 != 0) {
 			continue;
 		}
@@ -175,13 +162,13 @@ TEST_BEGIN(test_reuse) {
 	edata_expect(&alloc[index_of_3], index_of_3, 3);
 
 	/* Free up a 4-page hole at the end. */
-	ps = psset_dalloc(&psset, &alloc[PAGESLAB_PAGES - 1]);
+	ps = psset_dalloc(&psset, &alloc[HUGEPAGE_PAGES - 1]);
 	expect_ptr_null(ps, "Nonempty pageslab evicted");
-	ps = psset_dalloc(&psset, &alloc[PAGESLAB_PAGES - 2]);
+	ps = psset_dalloc(&psset, &alloc[HUGEPAGE_PAGES - 2]);
 	expect_ptr_null(ps, "Nonempty pageslab evicted");
 
 	/* Make sure we can satisfy an allocation at the very end of a slab. */
-	size_t index_of_4 = PAGESLAB_PAGES - 4;
+	size_t index_of_4 = HUGEPAGE_PAGES - 4;
 	ps = psset_dalloc(&psset, &alloc[index_of_4]);
 	expect_ptr_null(ps, "Nonempty pageslab evicted");
 	err = psset_alloc_reuse(&psset, &alloc[index_of_4], 4 * PAGE);
@@ -192,33 +179,31 @@ TEST_END
 
 TEST_BEGIN(test_evict) {
 	bool err;
-	edata_t *ps;
-	edata_t pageslab;
-	memset(&pageslab, 0, sizeof(pageslab));
-	edata_t alloc[PAGESLAB_PAGES];
+	hpdata_t *ps;
 
-	edata_init(&pageslab, /* arena_ind */ 0, PAGESLAB_ADDR, PAGESLAB_SIZE,
-	    /* slab */ true, SC_NSIZES, PAGESLAB_SN, extent_state_active,
-	    /* zeroed */ false, /* comitted */ true, EXTENT_PAI_HPA,
-	    EXTENT_IS_HEAD);
+	hpdata_t pageslab;
+	hpdata_init(&pageslab, PAGESLAB_ADDR, PAGESLAB_AGE);
+
+	edata_t alloc[HUGEPAGE_PAGES];
+
 	psset_t psset;
 	psset_init(&psset);
 
 	/* Alloc the whole slab. */
 	edata_init_test(&alloc[0]);
 	psset_alloc_new(&psset, &pageslab, &alloc[0], PAGE);
-	for (size_t i = 1; i < PAGESLAB_PAGES; i++) {
+	for (size_t i = 1; i < HUGEPAGE_PAGES; i++) {
 		edata_init_test(&alloc[i]);
 		err = psset_alloc_reuse(&psset, &alloc[i], PAGE);
 		expect_false(err, "Unxpected allocation failure");
 	}
 
 	/* Dealloc the whole slab, going forwards. */
-	for (size_t i = 0; i < PAGESLAB_PAGES - 1; i++) {
+	for (size_t i = 0; i < HUGEPAGE_PAGES - 1; i++) {
 		ps = psset_dalloc(&psset, &alloc[i]);
 		expect_ptr_null(ps, "Nonempty pageslab evicted");
 	}
-	ps = psset_dalloc(&psset, &alloc[PAGESLAB_PAGES - 1]);
+	ps = psset_dalloc(&psset, &alloc[HUGEPAGE_PAGES - 1]);
 	expect_ptr_eq(&pageslab, ps, "Empty pageslab not evicted.");
 
 	err = psset_alloc_reuse(&psset, &alloc[0], PAGE);
@@ -228,20 +213,15 @@ TEST_END
 
 TEST_BEGIN(test_multi_pageslab) {
 	bool err;
-	edata_t *ps;
-	edata_t pageslab[2];
-	memset(&pageslab, 0, sizeof(pageslab));
-	edata_t alloc[2][PAGESLAB_PAGES];
+	hpdata_t *ps;
 
-	edata_init(&pageslab[0], /* arena_ind */ 0, PAGESLAB_ADDR, PAGESLAB_SIZE,
-	    /* slab */ true, SC_NSIZES, PAGESLAB_SN, extent_state_active,
-	    /* zeroed */ false, /* comitted */ true, EXTENT_PAI_HPA,
-	    EXTENT_IS_HEAD);
-	edata_init(&pageslab[1], /* arena_ind */ 0,
-	    (void *)((uintptr_t)PAGESLAB_ADDR + PAGESLAB_SIZE), PAGESLAB_SIZE,
-	    /* slab */ true, SC_NSIZES, PAGESLAB_SN, extent_state_active,
-	    /* zeroed */ false, /* comitted */ true, EXTENT_PAI_HPA,
-	    EXTENT_IS_HEAD);
+	hpdata_t pageslab[2];
+	hpdata_init(&pageslab[0], PAGESLAB_ADDR, PAGESLAB_AGE);
+	hpdata_init(&pageslab[1],
+	    (void *)((uintptr_t)PAGESLAB_ADDR + HUGEPAGE),
+	    PAGESLAB_AGE + 1);
+
+	edata_t alloc[2][HUGEPAGE_PAGES];
 
 	psset_t psset;
 	psset_init(&psset);
@@ -254,7 +234,7 @@ TEST_BEGIN(test_multi_pageslab) {
 
 	/* Fill them both up; make sure we do so in first-fit order. */
 	for (size_t i = 0; i < 2; i++) {
-		for (size_t j = 1; j < PAGESLAB_PAGES; j++) {
+		for (size_t j = 1; j < HUGEPAGE_PAGES; j++) {
 			edata_init_test(&alloc[i][j]);
 			err = psset_alloc_reuse(&psset, &alloc[i][j], PAGE);
 			expect_false(err,
@@ -306,10 +286,10 @@ stats_expect_empty(psset_bin_stats_t *stats) {
 
 static void
 stats_expect(psset_t *psset, size_t nactive) {
-	if (nactive == PAGESLAB_PAGES) {
+	if (nactive == HUGEPAGE_PAGES) {
 		expect_zu_eq(1, psset->stats.full_slabs.npageslabs_nonhuge,
 		    "Expected a full slab");
-		expect_zu_eq(PAGESLAB_PAGES,
+		expect_zu_eq(HUGEPAGE_PAGES,
 		    psset->stats.full_slabs.nactive_nonhuge,
 		    "Should have exactly filled the bin");
 		expect_zu_eq(0, psset->stats.full_slabs.ninactive_nonhuge,
@@ -317,9 +297,9 @@ stats_expect(psset_t *psset, size_t nactive) {
 	} else {
 		stats_expect_empty(&psset->stats.full_slabs);
 	}
-	size_t ninactive = PAGESLAB_PAGES - nactive;
+	size_t ninactive = HUGEPAGE_PAGES - nactive;
 	pszind_t nonempty_pind = PSSET_NPSIZES;
-	if (ninactive != 0 && ninactive < PAGESLAB_PAGES) {
+	if (ninactive != 0 && ninactive < HUGEPAGE_PAGES) {
 		nonempty_pind = sz_psz2ind(sz_psz_quantize_floor(
 		    ninactive << LG_PAGE));
 	}
@@ -342,14 +322,11 @@ stats_expect(psset_t *psset, size_t nactive) {
 
 TEST_BEGIN(test_stats) {
 	bool err;
-	edata_t pageslab;
-	memset(&pageslab, 0, sizeof(pageslab));
-	edata_t alloc[PAGESLAB_PAGES];
 
-	edata_init(&pageslab, /* arena_ind */ 0, PAGESLAB_ADDR, PAGESLAB_SIZE,
-	    /* slab */ true, SC_NSIZES, PAGESLAB_SN, extent_state_active,
-	    /* zeroed */ false, /* comitted */ true, EXTENT_PAI_HPA,
-	    EXTENT_IS_HEAD);
+	hpdata_t pageslab;
+	hpdata_init(&pageslab, PAGESLAB_ADDR, PAGESLAB_AGE);
+
+	edata_t alloc[HUGEPAGE_PAGES];
 
 	psset_t psset;
 	psset_init(&psset);
@@ -357,15 +334,15 @@ TEST_BEGIN(test_stats) {
 
 	edata_init_test(&alloc[0]);
 	psset_alloc_new(&psset, &pageslab, &alloc[0], PAGE);
-	for (size_t i = 1; i < PAGESLAB_PAGES; i++) {
+	for (size_t i = 1; i < HUGEPAGE_PAGES; i++) {
 		stats_expect(&psset, i);
 		edata_init_test(&alloc[i]);
 		err = psset_alloc_reuse(&psset, &alloc[i], PAGE);
 		expect_false(err, "Nonempty psset failed page allocation.");
 	}
-	stats_expect(&psset, PAGESLAB_PAGES);
-	edata_t *ps;
-	for (ssize_t i = PAGESLAB_PAGES - 1; i >= 0; i--) {
+	stats_expect(&psset, HUGEPAGE_PAGES);
+	hpdata_t *ps;
+	for (ssize_t i = HUGEPAGE_PAGES - 1; i >= 0; i--) {
 		ps = psset_dalloc(&psset, &alloc[i]);
 		expect_true((ps == NULL) == (i != 0),
 		    "psset_dalloc should only evict a slab on the last free");
@@ -384,37 +361,28 @@ TEST_END
 /*
  * Fills in and inserts two pageslabs, with the first better than the second,
  * and each fully allocated (into the allocations in allocs and worse_allocs,
- * each of which should be PAGESLAB_PAGES long).
+ * each of which should be HUGEPAGE_PAGES long).
  *
  * (There's nothing magic about these numbers; it's just useful to share the
  * setup between the oldest fit and the insert/remove test).
  */
 static void
-init_test_pageslabs(psset_t *psset, edata_t *pageslab, edata_t *worse_pageslab,
-    edata_t *alloc, edata_t *worse_alloc) {
+init_test_pageslabs(psset_t *psset, hpdata_t *pageslab,
+    hpdata_t *worse_pageslab, edata_t *alloc, edata_t *worse_alloc) {
 	bool err;
-	memset(pageslab, 0, sizeof(*pageslab));
-	edata_init(pageslab, /* arena_ind */ 0, (void *)(10 * PAGESLAB_SIZE),
-	    PAGESLAB_SIZE, /* slab */ true, SC_NSIZES, PAGESLAB_SN + 1,
-	    extent_state_active, /* zeroed */ false, /* comitted */ true,
-	    EXTENT_PAI_HPA, EXTENT_IS_HEAD);
 
+	hpdata_init(pageslab, (void *)(10 * HUGEPAGE), PAGESLAB_AGE);
 	/*
-	 * This pageslab is better from an edata_comp_snad POV, but will be
-	 * added to the set after the previous one, and so should be less
-	 * preferred for allocations.
+	 * This pageslab would be better from an address-first-fit POV, but
+	 * better from an age POV.
 	 */
-	memset(worse_pageslab, 0, sizeof(*worse_pageslab));
-	edata_init(worse_pageslab, /* arena_ind */ 0,
-	    (void *)(9 * PAGESLAB_SIZE), PAGESLAB_SIZE, /* slab */ true,
-	    SC_NSIZES, PAGESLAB_SN - 1, extent_state_active, /* zeroed */ false,
-	    /* comitted */ true, EXTENT_PAI_HPA, EXTENT_IS_HEAD);
+	hpdata_init(worse_pageslab, (void *)(9 * HUGEPAGE), PAGESLAB_AGE + 1);
 
 	psset_init(psset);
 
 	edata_init_test(&alloc[0]);
 	psset_alloc_new(psset, pageslab, &alloc[0], PAGE);
-	for (size_t i = 1; i < PAGESLAB_PAGES; i++) {
+	for (size_t i = 1; i < HUGEPAGE_PAGES; i++) {
 		edata_init_test(&alloc[i]);
 		err = psset_alloc_reuse(psset, &alloc[i], PAGE);
 		expect_false(err, "Nonempty psset failed page allocation.");
@@ -430,7 +398,7 @@ init_test_pageslabs(psset_t *psset, edata_t *pageslab, edata_t *worse_pageslab,
 	 * Make the two pssets otherwise indistinguishable; all full except for
 	 * a single page.
 	 */
-	for (size_t i = 1; i < PAGESLAB_PAGES - 1; i++) {
+	for (size_t i = 1; i < HUGEPAGE_PAGES - 1; i++) {
 		edata_init_test(&worse_alloc[i]);
 		err = psset_alloc_reuse(psset, &alloc[i], PAGE);
 		expect_false(err, "Nonempty psset failed page allocation.");
@@ -439,17 +407,17 @@ init_test_pageslabs(psset_t *psset, edata_t *pageslab, edata_t *worse_pageslab,
 	}
 
 	/* Deallocate the last page from the older pageslab. */
-	edata_t *evicted = psset_dalloc(psset, &alloc[PAGESLAB_PAGES - 1]);
+	hpdata_t *evicted = psset_dalloc(psset, &alloc[HUGEPAGE_PAGES - 1]);
 	expect_ptr_null(evicted, "Unexpected eviction");
 }
 
 TEST_BEGIN(test_oldest_fit) {
 	bool err;
-	edata_t alloc[PAGESLAB_PAGES];
-	edata_t worse_alloc[PAGESLAB_PAGES];
+	edata_t alloc[HUGEPAGE_PAGES];
+	edata_t worse_alloc[HUGEPAGE_PAGES];
 
-	edata_t pageslab;
-	edata_t worse_pageslab;
+	hpdata_t pageslab;
+	hpdata_t worse_pageslab;
 
 	psset_t psset;
 
@@ -468,12 +436,12 @@ TEST_END
 
 TEST_BEGIN(test_insert_remove) {
 	bool err;
-	edata_t *ps;
-	edata_t alloc[PAGESLAB_PAGES];
-	edata_t worse_alloc[PAGESLAB_PAGES];
+	hpdata_t *ps;
+	edata_t alloc[HUGEPAGE_PAGES];
+	edata_t worse_alloc[HUGEPAGE_PAGES];
 
-	edata_t pageslab;
-	edata_t worse_pageslab;
+	hpdata_t pageslab;
+	hpdata_t worse_pageslab;
 
 	psset_t psset;
 
@@ -482,31 +450,31 @@ TEST_BEGIN(test_insert_remove) {
 
 	/* Remove better; should still be able to alloc from worse. */
 	psset_remove(&psset, &pageslab);
-	err = psset_alloc_reuse(&psset, &worse_alloc[PAGESLAB_PAGES - 1], PAGE);
+	err = psset_alloc_reuse(&psset, &worse_alloc[HUGEPAGE_PAGES - 1], PAGE);
 	expect_false(err, "Removal should still leave an empty page");
 	expect_ptr_eq(&worse_pageslab,
-	    edata_ps_get(&worse_alloc[PAGESLAB_PAGES - 1]),
+	    edata_ps_get(&worse_alloc[HUGEPAGE_PAGES - 1]),
 	    "Allocated out of wrong ps");
 
 	/*
 	 * After deallocating the previous alloc and reinserting better, it
 	 * should be preferred for future allocations.
 	 */
-	ps = psset_dalloc(&psset, &worse_alloc[PAGESLAB_PAGES - 1]);
+	ps = psset_dalloc(&psset, &worse_alloc[HUGEPAGE_PAGES - 1]);
 	expect_ptr_null(ps, "Incorrect eviction of nonempty pageslab");
 	psset_insert(&psset, &pageslab);
-	err = psset_alloc_reuse(&psset, &alloc[PAGESLAB_PAGES - 1], PAGE);
+	err = psset_alloc_reuse(&psset, &alloc[HUGEPAGE_PAGES - 1], PAGE);
 	expect_false(err, "psset should be nonempty");
-	expect_ptr_eq(&pageslab, edata_ps_get(&alloc[PAGESLAB_PAGES - 1]),
+	expect_ptr_eq(&pageslab, edata_ps_get(&alloc[HUGEPAGE_PAGES - 1]),
 	    "Removal/reinsertion shouldn't change ordering");
 	/*
 	 * After deallocating and removing both, allocations should fail.
 	 */
-	ps = psset_dalloc(&psset, &alloc[PAGESLAB_PAGES - 1]);
+	ps = psset_dalloc(&psset, &alloc[HUGEPAGE_PAGES - 1]);
 	expect_ptr_null(ps, "Incorrect eviction");
 	psset_remove(&psset, &pageslab);
 	psset_remove(&psset, &worse_pageslab);
-	err = psset_alloc_reuse(&psset, &alloc[PAGESLAB_PAGES - 1], PAGE);
+	err = psset_alloc_reuse(&psset, &alloc[HUGEPAGE_PAGES - 1], PAGE);
 	expect_true(err, "psset should be empty, but an alloc succeeded");
 }
 TEST_END

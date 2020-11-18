@@ -33,22 +33,22 @@ hpa_supported() {
 	 * We fundamentally rely on a address-space-hungry growth strategy for
 	 * hugepages.
 	 */
-	if (LG_SIZEOF_PTR == 2) {
+	if (LG_SIZEOF_PTR != 3) {
 		return false;
 	}
 	/*
-	 * We use the edata bitmap; it needs to have at least as many bits as a
-	 * hugepage has pages.
+	 * If we couldn't detect the value of HUGEPAGE, HUGEPAGE_PAGES becomes
+	 * this sentinel value -- see the comment in pages.h.
 	 */
-	if (HUGEPAGE / PAGE > BITMAP_GROUPS_MAX * sizeof(bitmap_t) * 8) {
+	if (HUGEPAGE_PAGES == 1) {
 		return false;
 	}
 	return true;
 }
 
 bool
-hpa_shard_init(hpa_shard_t *shard, emap_t *emap, edata_cache_t *edata_cache,
-    unsigned ind, size_t alloc_max) {
+hpa_shard_init(hpa_shard_t *shard, emap_t *emap, base_t *base,
+    edata_cache_t *edata_cache, unsigned ind, size_t alloc_max) {
 	/* malloc_conf processing should have filtered out these cases. */
 	assert(hpa_supported());
 	bool err;
@@ -64,11 +64,14 @@ hpa_shard_init(hpa_shard_t *shard, emap_t *emap, edata_cache_t *edata_cache,
 	}
 
 	assert(edata_cache != NULL);
+	shard->base = base;
 	edata_cache_small_init(&shard->ecs, edata_cache);
 	psset_init(&shard->psset);
 	shard->alloc_max = alloc_max;
-	edata_list_inactive_init(&shard->unused_slabs);
+	hpdata_list_init(&shard->unused_slabs);
+	shard->age_counter = 0;
 	shard->eden = NULL;
+	shard->eden_len = 0;
 	shard->ind = ind;
 	shard->emap = emap;
 
@@ -104,22 +107,27 @@ hpa_shard_stats_merge(tsdn_t *tsdn, hpa_shard_t *shard,
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 }
 
+static hpdata_t *
+hpa_alloc_ps(tsdn_t *tsdn, hpa_shard_t *shard) {
+	return (hpdata_t *)base_alloc(tsdn, shard->base, sizeof(hpdata_t),
+	    CACHELINE);
+}
+
 static bool
-hpa_should_hugify(hpa_shard_t *shard, edata_t *ps) {
+hpa_should_hugify(hpa_shard_t *shard, hpdata_t *ps) {
 	/*
 	 * For now, just use a static check; hugify a page if it's <= 5%
 	 * inactive.  Eventually, this should be a malloc conf option.
 	 */
-	return !edata_hugeified_get(ps)
-	    && edata_nfree_get(ps) < (HUGEPAGE / PAGE) * 5 / 100;
+	return !hpdata_huge_get(ps)
+	    && hpdata_nfree_get(ps) < (HUGEPAGE / PAGE) * 5 / 100;
 }
 
 /* Returns true on error. */
 static void
-hpa_hugify(edata_t *ps) {
-	assert(edata_size_get(ps) == HUGEPAGE);
-	assert(edata_hugeified_get(ps));
-	bool err = pages_huge(edata_base_get(ps), HUGEPAGE);
+hpa_hugify(hpdata_t *ps) {
+	assert(hpdata_huge_get(ps));
+	bool err = pages_huge(hpdata_addr_get(ps), HUGEPAGE);
 	/*
 	 * Eat the error; even if the hugeification failed, it's still safe to
 	 * pretend it didn't (and would require extraordinary measures to
@@ -129,30 +137,36 @@ hpa_hugify(edata_t *ps) {
 }
 
 static void
-hpa_dehugify(edata_t *ps) {
+hpa_dehugify(hpdata_t *ps) {
 	/* Purge, then dehugify while unbacked. */
-	pages_purge_forced(edata_addr_get(ps), HUGEPAGE);
-	pages_nohuge(edata_addr_get(ps), HUGEPAGE);
-	edata_hugeified_set(ps, false);
+	pages_purge_forced(hpdata_addr_get(ps), HUGEPAGE);
+	pages_nohuge(hpdata_addr_get(ps), HUGEPAGE);
+	hpdata_huge_set(ps, false);
 }
 
-static edata_t *
+static hpdata_t *
 hpa_grow(tsdn_t *tsdn, hpa_shard_t *shard) {
 	malloc_mutex_assert_owner(tsdn, &shard->grow_mtx);
-	edata_t *ps = NULL;
+	hpdata_t *ps = NULL;
 
 	/* Is there address space waiting for reuse? */
 	malloc_mutex_assert_owner(tsdn, &shard->grow_mtx);
-	ps = edata_list_inactive_first(&shard->unused_slabs);
+	ps = hpdata_list_first(&shard->unused_slabs);
 	if (ps != NULL) {
-		edata_list_inactive_remove(&shard->unused_slabs, ps);
+		hpdata_list_remove(&shard->unused_slabs, ps);
+		hpdata_age_set(ps, shard->age_counter++);
 		return ps;
 	}
 
 	/* Is eden a perfect fit? */
-	if (shard->eden != NULL && edata_size_get(shard->eden) == HUGEPAGE) {
-		ps = shard->eden;
+	if (shard->eden != NULL && shard->eden_len == HUGEPAGE) {
+		ps = hpa_alloc_ps(tsdn, shard);
+		if (ps == NULL) {
+			return NULL;
+		}
+		hpdata_init(ps, shard->eden, shard->age_counter++);
 		shard->eden = NULL;
+		shard->eden_len = 0;
 		return ps;
 	}
 
@@ -173,78 +187,32 @@ hpa_grow(tsdn_t *tsdn, hpa_shard_t *shard) {
 		if (new_eden == NULL) {
 			return NULL;
 		}
-		malloc_mutex_lock(tsdn, &shard->mtx);
-		/* Allocate ps edata, bailing if we fail. */
-		ps = edata_cache_small_get(tsdn, &shard->ecs);
+		ps = hpa_alloc_ps(tsdn, shard);
 		if (ps == NULL) {
-			malloc_mutex_unlock(tsdn, &shard->mtx);
 			pages_unmap(new_eden, HPA_EDEN_SIZE);
 			return NULL;
 		}
-		/* Allocate eden edata, bailing if we fail. */
-		shard->eden = edata_cache_small_get(tsdn, &shard->ecs);
-		if (shard->eden == NULL) {
-			edata_cache_small_put(tsdn, &shard->ecs, ps);
-			malloc_mutex_unlock(tsdn, &shard->mtx);
-			pages_unmap(new_eden, HPA_EDEN_SIZE);
-			return NULL;
-		}
-		/* Success. */
-		malloc_mutex_unlock(tsdn, &shard->mtx);
-
-		/*
-		 * Note that the values here don't really make sense (e.g. eden
-		 * is actually zeroed).  But we don't use the slab metadata in
-		 * determining subsequent allocation metadata (e.g. zero
-		 * tracking should be done at the per-page level, not at the
-		 * level of the hugepage).  It's just a convenient data
-		 * structure that contains much of the helpers we need (defined
-		 * lists, a bitmap, an address field, etc.).  Eventually, we'll
-		 * have a "real" representation of a hugepage that's unconnected
-		 * to the edata_ts it will serve allocations into.
-		 */
-		edata_init(shard->eden, shard->ind, new_eden, HPA_EDEN_SIZE,
-		    /* slab */ false, SC_NSIZES, /* sn */ 0, extent_state_dirty,
-		    /* zeroed */ false, /* comitted */ true, EXTENT_PAI_HPA,
-		    /* is_head */ true);
-		edata_hugeified_set(shard->eden, false);
+		shard->eden = new_eden;
+		shard->eden_len = HPA_EDEN_SIZE;
 	} else {
 		/* Eden is already nonempty; only need an edata for ps. */
-		malloc_mutex_lock(tsdn, &shard->mtx);
-		ps = edata_cache_small_get(tsdn, &shard->ecs);
-		malloc_mutex_unlock(tsdn, &shard->mtx);
+		ps = hpa_alloc_ps(tsdn, shard);
 		if (ps == NULL) {
 			return NULL;
 		}
 	}
-	/*
-	 * We should have dropped mtx since we're not touching ecs any more, but
-	 * we should continue to hold the grow mutex, since we're about to touch
-	 * eden.
-	 */
-	malloc_mutex_assert_not_owner(tsdn, &shard->mtx);
-	malloc_mutex_assert_owner(tsdn, &shard->grow_mtx);
-
+	assert(ps != NULL);
 	assert(shard->eden != NULL);
-	assert(edata_size_get(shard->eden) > HUGEPAGE);
-	assert(edata_size_get(shard->eden) % HUGEPAGE == 0);
-	assert(edata_addr_get(shard->eden)
-	    == HUGEPAGE_ADDR2BASE(edata_addr_get(shard->eden)));
-	malloc_mutex_lock(tsdn, &shard->mtx);
-	ps = edata_cache_small_get(tsdn, &shard->ecs);
-	malloc_mutex_unlock(tsdn, &shard->mtx);
-	if (ps == NULL) {
-		return NULL;
-	}
-	edata_init(ps, edata_arena_ind_get(shard->eden),
-	    edata_addr_get(shard->eden), HUGEPAGE, /* slab */ false,
-	    /* szind */ SC_NSIZES, /* sn */ 0, extent_state_dirty,
-	    /* zeroed */ false, /* comitted */ true, EXTENT_PAI_HPA,
-	    /* is_head */ true);
-	edata_hugeified_set(ps, false);
-	edata_addr_set(shard->eden, edata_past_get(ps));
-	edata_size_set(shard->eden,
-	    edata_size_get(shard->eden) - HUGEPAGE);
+	assert(shard->eden_len > HUGEPAGE);
+	assert(shard->eden_len % HUGEPAGE == 0);
+	assert(HUGEPAGE_ADDR2BASE(shard->eden) == shard->eden);
+
+	hpdata_init(ps, shard->eden, shard->age_counter++);
+
+	char *eden_char = (char *)shard->eden;
+	eden_char += HUGEPAGE;
+	shard->eden = (void *)eden_char;
+	shard->eden_len -= HUGEPAGE;
 
 	return ps;
 }
@@ -255,16 +223,13 @@ hpa_grow(tsdn_t *tsdn, hpa_shard_t *shard) {
  * their address space in a list outside the psset.
  */
 static void
-hpa_handle_ps_eviction(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *ps) {
+hpa_handle_ps_eviction(tsdn_t *tsdn, hpa_shard_t *shard, hpdata_t *ps) {
 	/*
 	 * We do relatively expensive system calls.  The ps was evicted, so no
 	 * one should touch it while we're also touching it.
 	 */
 	malloc_mutex_assert_not_owner(tsdn, &shard->mtx);
 	malloc_mutex_assert_not_owner(tsdn, &shard->grow_mtx);
-
-	assert(edata_size_get(ps) == HUGEPAGE);
-	assert(HUGEPAGE_ADDR2BASE(edata_addr_get(ps)) == edata_addr_get(ps));
 
 	/*
 	 * We do this unconditionally, even for pages which were not originally
@@ -273,7 +238,7 @@ hpa_handle_ps_eviction(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *ps) {
 	hpa_dehugify(ps);
 
 	malloc_mutex_lock(tsdn, &shard->grow_mtx);
-	edata_list_inactive_prepend(&shard->unused_slabs, ps);
+	hpdata_list_prepend(&shard->unused_slabs, ps);
 	malloc_mutex_unlock(tsdn, &shard->grow_mtx);
 }
 
@@ -307,7 +272,7 @@ hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) 
 	err = emap_register_boundary(tsdn, shard->emap, edata,
 	    SC_NSIZES, /* slab */ false);
 	if (err) {
-		edata_t *ps = psset_dalloc(&shard->psset, edata);
+		hpdata_t *ps = psset_dalloc(&shard->psset, edata);
 		/*
 		 * The pageslab was nonempty before we started; it
 		 * should still be nonempty now, and so shouldn't get
@@ -320,7 +285,7 @@ hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) 
 		return NULL;
 	}
 
-	edata_t *ps = edata_ps_get(edata);
+	hpdata_t *ps = edata_ps_get(edata);
 	assert(ps != NULL);
 	bool hugify = hpa_should_hugify(shard, ps);
 	if (hugify) {
@@ -378,16 +343,11 @@ hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
 	 * deallocations (and allocations of smaller sizes) may still succeed
 	 * while we're doing this potentially expensive system call.
 	 */
-	edata_t *grow_edata = hpa_grow(tsdn, shard);
-	if (grow_edata == NULL) {
+	hpdata_t *grow_ps = hpa_grow(tsdn, shard);
+	if (grow_ps == NULL) {
 		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
 		return NULL;
 	}
-	assert(edata_arena_ind_get(grow_edata) == shard->ind);
-
-	edata_slab_set(grow_edata, true);
-	fb_group_t *fb = edata_slab_data_get(grow_edata)->bitmap;
-	fb_init(fb, HUGEPAGE / PAGE);
 
 	/* We got the new edata; allocate from it. */
 	malloc_mutex_lock(tsdn, &shard->mtx);
@@ -395,18 +355,19 @@ hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
 	if (edata == NULL) {
 		malloc_mutex_unlock(tsdn, &shard->mtx);
 		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
+		hpa_handle_ps_eviction(tsdn, shard, grow_ps);
 		return NULL;
 	}
-	psset_alloc_new(&shard->psset, grow_edata, edata, size);
+	psset_alloc_new(&shard->psset, grow_ps, edata, size);
 	err = emap_register_boundary(tsdn, shard->emap, edata,
 	    SC_NSIZES, /* slab */ false);
 	if (err) {
-		edata_t *ps = psset_dalloc(&shard->psset, edata);
+		hpdata_t *ps = psset_dalloc(&shard->psset, edata);
 		/*
 		 * The pageslab was empty except for the new allocation; it
 		 * should get evicted.
 		 */
-		assert(ps == grow_edata);
+		assert(ps == grow_ps);
 		edata_cache_small_put(tsdn, &shard->ecs, edata);
 		/*
 		 * Technically the same as fallthrough at the time of this
@@ -496,7 +457,7 @@ hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 	assert(edata_committed_get(edata));
 	assert(edata_base_get(edata) != NULL);
 
-	edata_t *ps = edata_ps_get(edata);
+	hpdata_t *ps = edata_ps_get(edata);
 	/* Currently, all edatas come from pageslabs. */
 	assert(ps != NULL);
 	emap_deregister_boundary(tsdn, shard->emap, edata);
@@ -506,7 +467,7 @@ hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 	 * Page slabs can move between pssets (and have their hugeified status
 	 * change) in racy ways.
 	 */
-	edata_t *evicted_ps = psset_dalloc(&shard->psset, edata);
+	hpdata_t *evicted_ps = psset_dalloc(&shard->psset, edata);
 	/*
 	 * If a pageslab became empty because of the dalloc, it better have been
 	 * the one we expected.
@@ -562,11 +523,10 @@ hpa_shard_destroy(tsdn_t *tsdn, hpa_shard_t *shard) {
 		hpa_assert_empty(tsdn, shard, &shard->psset);
 		malloc_mutex_unlock(tsdn, &shard->mtx);
 	}
-	edata_t *ps;
-	while ((ps = edata_list_inactive_first(&shard->unused_slabs)) != NULL) {
-		assert(edata_size_get(ps) == HUGEPAGE);
-		edata_list_inactive_remove(&shard->unused_slabs, ps);
-		pages_unmap(edata_base_get(ps), HUGEPAGE);
+	hpdata_t *ps;
+	while ((ps = hpdata_list_first(&shard->unused_slabs)) != NULL) {
+		hpdata_list_remove(&shard->unused_slabs, ps);
+		pages_unmap(hpdata_addr_get(ps), HUGEPAGE);
 	}
 }
 
