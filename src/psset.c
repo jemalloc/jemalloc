@@ -105,15 +105,9 @@ psset_hpdata_heap_insert(psset_t *psset, pszind_t pind, hpdata_t *ps) {
 	psset_bin_stats_insert(&psset->stats.nonfull_slabs[pind], ps);
 }
 
-JEMALLOC_ALWAYS_INLINE void
-psset_assert_ps_consistent(hpdata_t *ps) {
-	assert(fb_urange_longest(ps->active_pages, HUGEPAGE_PAGES)
-	    == hpdata_longest_free_range_get(ps));
-}
-
 void
 psset_insert(psset_t *psset, hpdata_t *ps) {
-	psset_assert_ps_consistent(ps);
+	hpdata_assert_consistent(ps);
 	size_t longest_free_range = hpdata_longest_free_range_get(ps);
 
 	if (longest_free_range == 0) {
@@ -137,7 +131,7 @@ psset_insert(psset_t *psset, hpdata_t *ps) {
 
 void
 psset_remove(psset_t *psset, hpdata_t *ps) {
-	psset_assert_ps_consistent(ps);
+	hpdata_assert_consistent(ps);
 	size_t longest_free_range = hpdata_longest_free_range_get(ps);
 
 	if (longest_free_range == 0) {
@@ -157,7 +151,7 @@ psset_remove(psset_t *psset, hpdata_t *ps) {
 void
 psset_hugify(psset_t *psset, hpdata_t *ps) {
 	assert(!hpdata_huge_get(ps));
-	psset_assert_ps_consistent(ps);
+	hpdata_assert_consistent(ps);
 
 	size_t longest_free_range = hpdata_longest_free_range_get(ps);
 	psset_bin_stats_t *bin_stats;
@@ -196,7 +190,7 @@ psset_recycle_extract(psset_t *psset, size_t size) {
 		bitmap_set(psset->bitmap, &psset_bitmap_info, pind);
 	}
 
-	psset_assert_ps_consistent(ps);
+	hpdata_assert_consistent(ps);
 	return ps;
 }
 
@@ -207,76 +201,18 @@ psset_recycle_extract(psset_t *psset, size_t size) {
 static void
 psset_ps_alloc_insert(psset_t *psset, hpdata_t *ps, edata_t *r_edata,
     size_t size) {
-	size_t start = 0;
-	/*
-	 * These are dead stores, but the compiler will issue warnings on them
-	 * since it can't tell statically that found is always true below.
-	 */
-	size_t begin = 0;
-	size_t len = 0;
-
-	fb_group_t *ps_fb = ps->active_pages;
-
-	size_t npages = size >> LG_PAGE;
-
-	size_t largest_unchosen_range = 0;
-	while (true) {
-		bool found = fb_urange_iter(ps_fb, HUGEPAGE_PAGES, start,
-		    &begin, &len);
-		/*
-		 * A precondition to this function is that ps must be able to
-		 * serve the allocation.
-		 */
-		assert(found);
-		if (len >= npages) {
-			/*
-			 * We use first-fit within the page slabs; this gives
-			 * bounded worst-case fragmentation within a slab.  It's
-			 * not necessarily right; we could experiment with
-			 * various other options.
-			 */
-			break;
-		}
-		if (len > largest_unchosen_range) {
-			largest_unchosen_range = len;
-		}
-		start = begin + len;
-	}
+	size_t npages = size / PAGE;
+	size_t begin = hpdata_reserve_alloc(ps, npages);
 	uintptr_t addr = (uintptr_t)hpdata_addr_get(ps) + begin * PAGE;
 	edata_init(r_edata, edata_arena_ind_get(r_edata), (void *)addr, size,
 	    /* slab */ false, SC_NSIZES, /* sn */ 0, extent_state_active,
 	    /* zeroed */ false, /* committed */ true, EXTENT_PAI_HPA,
 	    EXTENT_NOT_HEAD);
 	edata_ps_set(r_edata, ps);
-	fb_set_range(ps_fb, HUGEPAGE_PAGES, begin, npages);
-	hpdata_nfree_set(ps, (uint32_t)(hpdata_nfree_get(ps) - npages));
 	/* The pageslab isn't in a bin, so no bin stats need to change. */
 
-	/*
-	 * OK, we've got to put the pageslab back.  First we have to figure out
-	 * where, though; we've only checked run sizes before the pageslab we
-	 * picked.  We also need to look for ones after the one we picked.  Note
-	 * that we want begin + npages as the start position, not begin + len;
-	 * we might not have used the whole range.
-	 *
-	 * TODO: With a little bit more care, we can guarantee that the longest
-	 * free range field in the edata is accurate upon entry, and avoid doing
-	 * this check in the case where we're allocating from some smaller run.
-	 */
-	start = begin + npages;
-	while (start < HUGEPAGE_PAGES) {
-		bool found = fb_urange_iter(ps_fb, HUGEPAGE_PAGES, start, &begin,
-		    &len);
-		if (!found) {
-			break;
-		}
-		if (len > largest_unchosen_range) {
-			largest_unchosen_range = len;
-		}
-		start = begin + len;
-	}
-	hpdata_longest_free_range_set(ps, (uint32_t)largest_unchosen_range);
-	if (largest_unchosen_range == 0) {
+	size_t longest_free_range = hpdata_longest_free_range_get(ps);
+	if (longest_free_range == 0) {
 		psset_bin_stats_insert(&psset->stats.full_slabs, ps);
 	} else {
 		psset_insert(psset, ps);
@@ -295,9 +231,7 @@ psset_alloc_reuse(psset_t *psset, edata_t *r_edata, size_t size) {
 
 void
 psset_alloc_new(psset_t *psset, hpdata_t *ps, edata_t *r_edata, size_t size) {
-	fb_group_t *ps_fb = ps->active_pages;
-	assert(fb_empty(ps_fb, HUGEPAGE_PAGES));
-	assert(hpdata_nfree_get(ps) == HUGEPAGE_PAGES);
+	hpdata_assert_empty(ps);
 	psset_ps_alloc_insert(psset, ps, r_edata, size);
 }
 
@@ -307,7 +241,6 @@ psset_dalloc(psset_t *psset, edata_t *edata) {
 	assert(edata_ps_get(edata) != NULL);
 	hpdata_t *ps = edata_ps_get(edata);
 
-	fb_group_t *ps_fb = ps->active_pages;
 	size_t ps_old_longest_free_range = hpdata_longest_free_range_get(ps);
 	pszind_t old_pind = SC_NPSIZES;
 	if (ps_old_longest_free_range != 0) {
@@ -319,32 +252,23 @@ psset_dalloc(psset_t *psset, edata_t *edata) {
 	    ((uintptr_t)edata_base_get(edata) - (uintptr_t)hpdata_addr_get(ps))
 	    >> LG_PAGE;
 	size_t len = edata_size_get(edata) >> LG_PAGE;
-	fb_unset_range(ps_fb, HUGEPAGE_PAGES, begin, len);
 
 	/* The pageslab is still in the bin; adjust its stats first. */
 	psset_bin_stats_t *bin_stats = (ps_old_longest_free_range == 0
 	    ? &psset->stats.full_slabs : &psset->stats.nonfull_slabs[old_pind]);
 	psset_bin_stats_deactivate(bin_stats, hpdata_huge_get(ps), len);
 
-	hpdata_nfree_set(ps, (uint32_t)(hpdata_nfree_get(ps) + len));
+	hpdata_unreserve(ps, begin, len);
+	size_t ps_new_longest_free_range = hpdata_longest_free_range_get(ps);
 
-	/* We might have just created a new, larger range. */
-	size_t new_begin = (size_t)(fb_fls(ps_fb, HUGEPAGE_PAGES, begin) + 1);
-	size_t new_end = fb_ffs(ps_fb, HUGEPAGE_PAGES, begin + len - 1);
-	size_t new_range_len = new_end - new_begin;
 	/*
 	 * If the new free range is no longer than the previous longest one,
 	 * then the pageslab is non-empty and doesn't need to change bins.
 	 * We're done, and don't need to return a pageslab to evict.
 	 */
-	if (new_range_len <= ps_old_longest_free_range) {
+	if (ps_new_longest_free_range <= ps_old_longest_free_range) {
 		return NULL;
 	}
-	/*
-	 * Otherwise, it might need to get evicted from the set, or change its
-	 * bin.
-	 */
-	hpdata_longest_free_range_set(ps, (uint32_t)new_range_len);
 	/*
 	 * If it was previously non-full, then it's in some (possibly now
 	 * incorrect) bin already; remove it.
@@ -371,12 +295,12 @@ psset_dalloc(psset_t *psset, edata_t *edata) {
 		psset_bin_stats_remove(&psset->stats.full_slabs, ps);
 	}
 	/* If the pageslab is empty, it gets evicted from the set. */
-	if (new_range_len == HUGEPAGE_PAGES) {
+	if (ps_new_longest_free_range == HUGEPAGE_PAGES) {
 		return ps;
 	}
 	/* Otherwise, it gets reinserted. */
 	pszind_t new_pind = sz_psz2ind(sz_psz_quantize_floor(
-	    new_range_len << LG_PAGE));
+	    ps_new_longest_free_range << LG_PAGE));
 	if (hpdata_age_heap_empty(&psset->pageslabs[new_pind])) {
 		bitmap_unset(psset->bitmap, &psset_bitmap_info,
 		    (size_t)new_pind);
