@@ -4,8 +4,14 @@
 #include "jemalloc_internal_defs.h"
 #include "jemalloc/internal/jemalloc_internal_decls.h"
 
-#ifdef JEMALLOC_UTRACE
+#if defined(JEMALLOC_UTRACE) || defined(JEMALLOC_UTRACE_LABEL)
 #include <sys/ktrace.h>
+#  if defined(JEMALLOC_UTRACE)
+#    define UTRACE_CALL(p, l) utrace(p, l)
+#  else
+#    define UTRACE_CALL(p, l) utrace("jemalloc_process", p, l)
+#    define JEMALLOC_UTRACE
+#  endif
 #endif
 
 #define JEMALLOC_NO_DEMANGLE
