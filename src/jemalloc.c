@@ -250,7 +250,7 @@ typedef struct {
 		ut.p = (a);						\
 		ut.s = (b);						\
 		ut.r = (c);						\
-		utrace(&ut, sizeof(ut));				\
+		UTRACE_CALL(&ut, sizeof(ut));				\
 		errno = utrace_serrno;					\
 	}								\
 } while (0)

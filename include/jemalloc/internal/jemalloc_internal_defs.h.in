@@ -173,6 +173,9 @@
 /* Support utrace(2)-based tracing. */
 #undef JEMALLOC_UTRACE
 
+/* Support utrace(2)-based tracing (label based signature). */
+#undef JEMALLOC_UTRACE_LABEL
+
 /* Support optional abort() on OOM. */
 #undef JEMALLOC_XMALLOC
 

@@ -1405,10 +1405,25 @@ JE_COMPILABLE([utrace(2)], [
 	utrace((void *)0, 0);
 ], [je_cv_utrace])
 if test "x${je_cv_utrace}" = "xno" ; then
-  enable_utrace="0"
-fi
-if test "x$enable_utrace" = "x1" ; then
-  AC_DEFINE([JEMALLOC_UTRACE], [ ])
+  JE_COMPILABLE([utrace(2) with label], [
+  #include <sys/types.h>
+  #include <sys/param.h>
+  #include <sys/time.h>
+  #include <sys/uio.h>
+  #include <sys/ktrace.h>
+  ], [
+	  utrace((void *)0, (void *)0, 0);
+  ], [je_cv_utrace_label])
+  if test "x${je_cv_utrace_label}" = "xno"; then
+    enable_utrace="0"
+  fi
+  if test "x$enable_utrace" = "x1" ; then
+    AC_DEFINE([JEMALLOC_UTRACE_LABEL], [ ])
+  fi
+else
+  if test "x$enable_utrace" = "x1" ; then
+    AC_DEFINE([JEMALLOC_UTRACE], [ ])
+  fi
 fi
 AC_SUBST([enable_utrace])
 
