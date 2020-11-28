@@ -73,7 +73,7 @@ struct rtree_level_s {
 	 * Cumulative number of key bits distinguished by traversing to
 	 * corresponding tree level.
 	 */
-	unsigned		cumbits;
+	unsigned		cumulative_bits;
 };
 
 typedef struct rtree_s rtree_t;
@@ -131,9 +131,9 @@ rtree_leaf_elm_t *rtree_leaf_elm_lookup_hard(tsdn_t *tsdn, rtree_t *rtree,
 JEMALLOC_ALWAYS_INLINE uintptr_t
 rtree_leafkey(uintptr_t key) {
 	unsigned ptrbits = ZU(1) << (LG_SIZEOF_PTR+3);
-	unsigned cumbits = (rtree_levels[RTREE_HEIGHT-1].cumbits -
+	unsigned cumulative_bits = (rtree_levels[RTREE_HEIGHT-1].cumulative_bits -
 	    rtree_levels[RTREE_HEIGHT-1].bits);
-	unsigned maskbits = ptrbits - cumbits;
+	unsigned maskbits = ptrbits - cumulative_bits;
 	uintptr_t mask = ~((ZU(1) << maskbits) - 1);
 	return (key & mask);
 }
@@ -141,17 +141,17 @@ rtree_leafkey(uintptr_t key) {
 JEMALLOC_ALWAYS_INLINE size_t
 rtree_cache_direct_map(uintptr_t key) {
 	unsigned ptrbits = ZU(1) << (LG_SIZEOF_PTR+3);
-	unsigned cumbits = (rtree_levels[RTREE_HEIGHT-1].cumbits -
+	unsigned cumulative_bits = (rtree_levels[RTREE_HEIGHT-1].cumulative_bits -
 	    rtree_levels[RTREE_HEIGHT-1].bits);
-	unsigned maskbits = ptrbits - cumbits;
+	unsigned maskbits = ptrbits - cumulative_bits;
 	return (size_t)((key >> maskbits) & (RTREE_CTX_NCACHE - 1));
 }
 
 JEMALLOC_ALWAYS_INLINE uintptr_t
 rtree_subkey(uintptr_t key, unsigned level) {
 	unsigned ptrbits = ZU(1) << (LG_SIZEOF_PTR+3);
-	unsigned cumbits = rtree_levels[level].cumbits;
-	unsigned shiftbits = ptrbits - cumbits;
+	unsigned cumulative_bits = rtree_levels[level].cumulative_bits;
+	unsigned shiftbits = ptrbits - cumulative_bits;
 	unsigned maskbits = rtree_levels[level].bits;
 	uintptr_t mask = (ZU(1) << maskbits) - 1;
 	return ((key >> shiftbits) & mask);
