@@ -31,7 +31,7 @@ atomic_fence(atomic_memory_order_t mo) {
 	asm volatile("lwsync");
 #  elif defined(__ppc__)
 	asm volatile("sync");
-#  elif defined(__sparc__) && defined(__arch64__)
+#  elif defined(__sparc__)
 	if (mo == atomic_memory_order_acquire) {
 		asm volatile("membar #LoadLoad | #LoadStore");
 	} else if (mo == atomic_memory_order_release) {
@@ -39,6 +39,8 @@ atomic_fence(atomic_memory_order_t mo) {
 	} else {
 		asm volatile("membar #LoadLoad | #LoadStore | #StoreStore");
 	}
+#  elif defined(__arm__) || defined(__arch64__)
+    asm volatile("dmb");
 #  else
 	__sync_synchronize();
 #  endif
