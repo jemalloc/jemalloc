@@ -28,8 +28,10 @@ hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age) {
 	fb_init(hpdata->active_pages, HUGEPAGE_PAGES);
 }
 
-size_t
-hpdata_reserve_alloc(hpdata_t *hpdata, size_t npages) {
+void *
+hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz) {
+	assert((sz & PAGE_MASK) == 0);
+	size_t npages = sz >> LG_PAGE;
 	assert(npages <= hpdata_longest_free_range_get(hpdata));
 
 	size_t result;
@@ -91,11 +93,17 @@ hpdata_reserve_alloc(hpdata_t *hpdata, size_t npages) {
 	}
 	hpdata_longest_free_range_set(hpdata, largest_unchosen_range);
 
-	return result;
+	return (void *)(
+	    (uintptr_t)hpdata_addr_get(hpdata) + (result << LG_PAGE));
 }
 
 void
-hpdata_unreserve(hpdata_t *hpdata, size_t begin, size_t npages) {
+hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz) {
+	assert((sz & PAGE_MASK) == 0);
+	size_t begin = ((uintptr_t)addr - (uintptr_t)hpdata_addr_get(hpdata))
+	    >> LG_PAGE;
+	assert(begin < HUGEPAGE_PAGES);
+	size_t npages = sz >> LG_PAGE;
 	size_t old_longest_range = hpdata_longest_free_range_get(hpdata);
 
 	fb_unset_range(hpdata->active_pages, HUGEPAGE_PAGES, begin, npages);
