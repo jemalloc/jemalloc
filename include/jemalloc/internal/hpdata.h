@@ -133,7 +133,7 @@ void hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age);
  * Given an hpdata which can serve an allocation request, pick and reserve an
  * offset within that allocation.
  */
-size_t hpdata_reserve_alloc(hpdata_t *hpdata, size_t npages);
-void hpdata_unreserve(hpdata_t *hpdata, size_t start, size_t npages);
+void *hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz);
+void hpdata_unreserve(hpdata_t *hpdata, void *begin, size_t sz);
 
 #endif /* JEMALLOC_INTERNAL_HPDATA_H */

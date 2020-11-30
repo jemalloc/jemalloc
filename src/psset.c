@@ -152,10 +152,8 @@ psset_fit(psset_t *psset, size_t size) {
 void
 psset_alloc_new(psset_t *psset, hpdata_t *ps, edata_t *r_edata, size_t size) {
 	hpdata_assert_empty(ps);
-	size_t npages = size / PAGE;
-	size_t begin = hpdata_reserve_alloc(ps, npages);
-	uintptr_t addr = (uintptr_t)hpdata_addr_get(ps) + begin * PAGE;
-	edata_init(r_edata, edata_arena_ind_get(r_edata), (void *)addr, size,
+	void *addr = hpdata_reserve_alloc(ps, size);
+	edata_init(r_edata, edata_arena_ind_get(r_edata), addr, size,
 	    /* slab */ false, SC_NSIZES, /* sn */ 0, extent_state_active,
 	    /* zeroed */ false, /* committed */ true, EXTENT_PAI_HPA,
 	    EXTENT_NOT_HEAD);
@@ -171,10 +169,9 @@ psset_alloc_reuse(psset_t *psset, edata_t *r_edata, size_t size) {
        }
        psset_remove(psset, ps);
 
-       size_t npages = size / PAGE;
-       size_t begin = hpdata_reserve_alloc(ps, npages);
-       uintptr_t addr = (uintptr_t)hpdata_addr_get(ps) + begin * PAGE;
-       edata_init(r_edata, edata_arena_ind_get(r_edata), (void *)addr, size,
+
+       void *addr = hpdata_reserve_alloc(ps, size);
+       edata_init(r_edata, edata_arena_ind_get(r_edata), addr, size,
 	   /* slab */ false, SC_NSIZES, /* sn */ 0, extent_state_active,
 	   /* zeroed */ false, /* committed */ true, EXTENT_PAI_HPA,
 	   EXTENT_NOT_HEAD);
@@ -190,13 +187,8 @@ psset_dalloc(psset_t *psset, edata_t *edata) {
 	assert(edata_ps_get(edata) != NULL);
 	hpdata_t *ps = edata_ps_get(edata);
 
-	size_t begin =
-	    ((uintptr_t)edata_base_get(edata) - (uintptr_t)hpdata_addr_get(ps))
-	    >> LG_PAGE;
-	size_t len = edata_size_get(edata) >> LG_PAGE;
-
 	psset_remove(psset, ps);
-	hpdata_unreserve(ps, begin, len);
+	hpdata_unreserve(ps, edata_base_get(edata), edata_size_get(edata));
 	if (hpdata_empty(ps)) {
 		return ps;
 	} else {
