@@ -255,12 +255,20 @@ hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) 
 	}
 	assert(edata_arena_ind_get(edata) == shard->ind);
 
-	err = psset_alloc_reuse(&shard->psset, edata, size);
-	if (err) {
+	hpdata_t *ps = psset_fit(&shard->psset, size);
+	if (ps == NULL) {
 		edata_cache_small_put(tsdn, &shard->ecs, edata);
 		malloc_mutex_unlock(tsdn, &shard->mtx);
 		return NULL;
 	}
+
+	psset_remove(&shard->psset, ps);
+	void *addr = hpdata_reserve_alloc(ps, size);
+	edata_init(edata, shard->ind, addr, size, /* slab */ false,
+	    SC_NSIZES, /* sn */ 0, extent_state_active, /* zeroed */ false,
+	    /* committed */ true, EXTENT_PAI_HPA, EXTENT_NOT_HEAD);
+	edata_ps_set(edata, ps);
+
 	/*
 	 * This could theoretically be moved outside of the critical section,
 	 * but that introduces the potential for a race.  Without the lock, the
@@ -272,31 +280,21 @@ hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) 
 	err = emap_register_boundary(tsdn, shard->emap, edata,
 	    SC_NSIZES, /* slab */ false);
 	if (err) {
-		hpdata_t *ps = psset_dalloc(&shard->psset, edata);
-		/*
-		 * The pageslab was nonempty before we started; it
-		 * should still be nonempty now, and so shouldn't get
-		 * evicted.
-		 */
-		assert(ps == NULL);
+		hpdata_unreserve(ps, edata_addr_get(edata),
+		    edata_size_get(edata));
+		psset_insert(&shard->psset, ps);
 		edata_cache_small_put(tsdn, &shard->ecs, edata);
 		malloc_mutex_unlock(tsdn, &shard->mtx);
 		*oom = true;
 		return NULL;
 	}
 
-	hpdata_t *ps = edata_ps_get(edata);
-	assert(ps != NULL);
 	bool hugify = hpa_should_hugify(shard, ps);
 	if (hugify) {
-		/*
-		 * Do the metadata modification while holding the lock; we'll
-		 * actually change state with the lock dropped.
-		 */
-		psset_remove(&shard->psset, ps);
 		hpdata_huge_set(ps, true);
-		psset_insert(&shard->psset, ps);
 	}
+	psset_insert(&shard->psset, ps);
+
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 	if (hugify) {
 		/*
@@ -345,8 +343,8 @@ hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
 	 * deallocations (and allocations of smaller sizes) may still succeed
 	 * while we're doing this potentially expensive system call.
 	 */
-	hpdata_t *grow_ps = hpa_grow(tsdn, shard);
-	if (grow_ps == NULL) {
+	hpdata_t *ps = hpa_grow(tsdn, shard);
+	if (ps == NULL) {
 		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
 		return NULL;
 	}
@@ -357,19 +355,21 @@ hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
 	if (edata == NULL) {
 		malloc_mutex_unlock(tsdn, &shard->mtx);
 		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
-		hpa_handle_ps_eviction(tsdn, shard, grow_ps);
+		hpa_handle_ps_eviction(tsdn, shard, ps);
 		return NULL;
 	}
-	psset_alloc_new(&shard->psset, grow_ps, edata, size);
+
+	void *addr = hpdata_reserve_alloc(ps, size);
+	edata_init(edata, shard->ind, addr, size, /* slab */ false,
+	    SC_NSIZES, /* sn */ 0, extent_state_active, /* zeroed */ false,
+	    /* committed */ true, EXTENT_PAI_HPA, EXTENT_NOT_HEAD);
+	edata_ps_set(edata, ps);
+
 	err = emap_register_boundary(tsdn, shard->emap, edata,
 	    SC_NSIZES, /* slab */ false);
 	if (err) {
-		hpdata_t *ps = psset_dalloc(&shard->psset, edata);
-		/*
-		 * The pageslab was empty except for the new allocation; it
-		 * should get evicted.
-		 */
-		assert(ps == grow_ps);
+		hpdata_unreserve(ps, edata_addr_get(edata),
+		    edata_size_get(edata));
 		edata_cache_small_put(tsdn, &shard->ecs, edata);
 		/*
 		 * Technically the same as fallthrough at the time of this
@@ -381,6 +381,8 @@ hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
 		hpa_handle_ps_eviction(tsdn, shard, ps);
 		return NULL;
 	}
+	psset_insert(&shard->psset, ps);
+
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 	malloc_mutex_unlock(tsdn, &shard->grow_mtx);
 	return edata;
@@ -464,21 +466,18 @@ hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 	assert(ps != NULL);
 	emap_deregister_boundary(tsdn, shard->emap, edata);
 	malloc_mutex_lock(tsdn, &shard->mtx);
-	/*
-	 * Note that the shard mutex protects the edata hugified field, too.
-	 * Page slabs can move between pssets (and have their hugified status
-	 * change) in racy ways.
-	 */
-	hpdata_t *evicted_ps = psset_dalloc(&shard->psset, edata);
-	/*
-	 * If a pageslab became empty because of the dalloc, it better have been
-	 * the one we expected.
-	 */
-	assert(evicted_ps == NULL || evicted_ps == ps);
+
+	/* Note that the shard mutex protects ps's metadata too. */
+	psset_remove(&shard->psset, ps);
+	hpdata_unreserve(ps, edata_addr_get(edata), edata_size_get(edata));
+
 	edata_cache_small_put(tsdn, &shard->ecs, edata);
-	malloc_mutex_unlock(tsdn, &shard->mtx);
-	if (evicted_ps != NULL) {
-		hpa_handle_ps_eviction(tsdn, shard, evicted_ps);
+	if (hpdata_empty(ps)) {
+		malloc_mutex_unlock(tsdn, &shard->mtx);
+		hpa_handle_ps_eviction(tsdn, shard, ps);
+	} else {
+		psset_insert(&shard->psset, ps);
+		malloc_mutex_unlock(tsdn, &shard->mtx);
 	}
 }
 
@@ -501,10 +500,9 @@ hpa_shard_assert_stats_empty(psset_bin_stats_t *bin_stats) {
 
 static void
 hpa_assert_empty(tsdn_t *tsdn, hpa_shard_t *shard, psset_t *psset) {
-	edata_t edata = {0};
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
-	bool psset_empty = psset_alloc_reuse(psset, &edata, PAGE);
-	assert(psset_empty);
+	hpdata_t *ps = psset_fit(psset, PAGE);
+	assert(ps == NULL);
 	hpa_shard_assert_stats_empty(&psset->stats.full_slabs);
 	for (pszind_t i = 0; i < PSSET_NPSIZES; i++) {
 		hpa_shard_assert_stats_empty(
