@@ -129,7 +129,7 @@ hpa_hugify(hpdata_t *ps) {
 	assert(hpdata_huge_get(ps));
 	bool err = pages_huge(hpdata_addr_get(ps), HUGEPAGE);
 	/*
-	 * Eat the error; even if the hugeification failed, it's still safe to
+	 * Eat the error; even if the hugification failed, it's still safe to
 	 * pretend it didn't (and would require extraordinary measures to
 	 * unhugify).
 	 */
@@ -233,7 +233,7 @@ hpa_handle_ps_eviction(tsdn_t *tsdn, hpa_shard_t *shard, hpdata_t *ps) {
 
 	/*
 	 * We do this unconditionally, even for pages which were not originally
-	 * hugeified; it has the same effect.
+	 * hugified; it has the same effect.
 	 */
 	hpa_dehugify(ps);
 
@@ -293,7 +293,9 @@ hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) 
 		 * Do the metadata modification while holding the lock; we'll
 		 * actually change state with the lock dropped.
 		 */
-		psset_hugify(&shard->psset, ps);
+		psset_remove(&shard->psset, ps);
+		hpdata_huge_set(ps, true);
+		psset_insert(&shard->psset, ps);
 	}
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 	if (hugify) {
@@ -463,8 +465,8 @@ hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 	emap_deregister_boundary(tsdn, shard->emap, edata);
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	/*
-	 * Note that the shard mutex protects the edata hugeified field, too.
-	 * Page slabs can move between pssets (and have their hugeified status
+	 * Note that the shard mutex protects the edata hugified field, too.
+	 * Page slabs can move between pssets (and have their hugified status
 	 * change) in racy ways.
 	 */
 	hpdata_t *evicted_ps = psset_dalloc(&shard->psset, edata);

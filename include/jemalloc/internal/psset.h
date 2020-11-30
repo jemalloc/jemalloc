@@ -64,13 +64,8 @@ void psset_stats_accum(psset_stats_t *dst, psset_stats_t *src);
 void psset_insert(psset_t *psset, hpdata_t *ps);
 void psset_remove(psset_t *psset, hpdata_t *ps);
 
-void psset_hugify(psset_t *psset, hpdata_t *ps);
-
-/*
- * Tries to obtain a chunk from an existing pageslab already in the set.
- * Returns true on failure.
- */
-bool psset_alloc_reuse(psset_t *psset, edata_t *r_edata, size_t size);
+/* Analogous to the eset_fit; pick a hpdata to serve the request. */
+hpdata_t *psset_fit(psset_t *psset, size_t size);
 
 /*
  * Given a newly created pageslab ps (not currently in the set), pass ownership
@@ -79,6 +74,7 @@ bool psset_alloc_reuse(psset_t *psset, edata_t *r_edata, size_t size);
  */
 void psset_alloc_new(psset_t *psset, hpdata_t *ps,
     edata_t *r_edata, size_t size);
+bool psset_alloc_reuse(psset_t *psset, edata_t *r_edata, size_t size);
 
 /*
  * Given an extent that comes from a pageslab in this pageslab set, returns it
