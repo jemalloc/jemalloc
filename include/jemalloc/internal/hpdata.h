@@ -123,6 +123,11 @@ TYPED_LIST(hpdata_list, hpdata_t, ql_link)
 typedef ph(hpdata_t) hpdata_age_heap_t;
 ph_proto(, hpdata_age_heap_, hpdata_age_heap_t, hpdata_t);
 
+static inline bool
+hpdata_empty(hpdata_t *hpdata) {
+	return hpdata_nfree_get(hpdata) == HUGEPAGE_PAGES;
+}
+
 void hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age);
 /*
  * Given an hpdata which can serve an allocation request, pick and reserve an
