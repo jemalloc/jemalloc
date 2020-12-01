@@ -58,6 +58,9 @@
     <ClCompile Include="..\..\..\..\src\extent_mmap.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\src\fxp.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\src\hook.c">
       <Filter>Source Files</Filter>
     </ClCompile>
