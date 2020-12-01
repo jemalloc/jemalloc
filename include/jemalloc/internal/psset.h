@@ -67,23 +67,4 @@ void psset_remove(psset_t *psset, hpdata_t *ps);
 /* Analogous to the eset_fit; pick a hpdata to serve the request. */
 hpdata_t *psset_fit(psset_t *psset, size_t size);
 
-/*
- * Given a newly created pageslab ps (not currently in the set), pass ownership
- * to the psset and allocate an extent from within it.  The passed-in pageslab
- * must be at least as big as size.
- */
-void psset_alloc_new(psset_t *psset, hpdata_t *ps,
-    edata_t *r_edata, size_t size);
-bool psset_alloc_reuse(psset_t *psset, edata_t *r_edata, size_t size);
-
-/*
- * Given an extent that comes from a pageslab in this pageslab set, returns it
- * to its slab.  Does not take ownership of the underlying edata_t.
- *
- * If some slab becomes empty as a result of the dalloc, it is retuend -- the
- * result must be checked and deallocated to the central HPA.  Otherwise returns
- * NULL.
- */
-hpdata_t *psset_dalloc(psset_t *psset, edata_t *edata);
-
 #endif /* JEMALLOC_INTERNAL_PSSET_H */
