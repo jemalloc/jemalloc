@@ -136,8 +136,8 @@ malloc_mutex_t arenas_lock;
 
 /* The global hpa, and whether it's on. */
 bool opt_hpa = false;
-size_t opt_hpa_slab_goal = 128 * 1024;
 size_t opt_hpa_slab_max_alloc = 256 * 1024;
+size_t opt_hpa_slab_goal = 128 * 1024;
 size_t opt_hpa_small_max = 32 * 1024;
 size_t opt_hpa_large_min = 4 * 1024 * 1024;
 
@@ -1490,20 +1490,9 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 					   CONF_CHECK_MIN, CONF_CHECK_MAX,
 					   true);
 			CONF_HANDLE_BOOL(opt_hpa, "hpa")
-			/*
-			 * If someone violates these mins and maxes, they're
-			 * confused.
-			 */
-			CONF_HANDLE_SIZE_T(opt_hpa_slab_goal, "hpa_slab_goal",
-			    PAGE, 512 * PAGE, CONF_CHECK_MIN, CONF_CHECK_MAX,
-			    true)
 			CONF_HANDLE_SIZE_T(opt_hpa_slab_max_alloc,
 			    "hpa_slab_max_alloc", PAGE, 512 * PAGE,
 			    CONF_CHECK_MIN, CONF_CHECK_MAX, true);
-			CONF_HANDLE_SIZE_T(opt_hpa_small_max, "hpa_small_max",
-			    PAGE, 0, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
-			CONF_HANDLE_SIZE_T(opt_hpa_large_min, "hpa_large_min",
-			    PAGE, 0, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
 
 			CONF_HANDLE_SIZE_T(opt_hpa_sec_max_alloc, "hpa_sec_max_alloc",
 			    PAGE, 0, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
@@ -1511,6 +1500,21 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			    PAGE, 0, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
 			CONF_HANDLE_SIZE_T(opt_hpa_sec_nshards, "hpa_sec_nshards",
 			    0, 0, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
+
+			/*
+			 * These no longer have any effect, but various
+			 * non-public test configs set them as we iterate on HPA
+			 * development.  We parse and report them for now, but
+			 * they don't affect behavior.  Eventually they'll be
+			 * removed.
+			 */
+			CONF_HANDLE_SIZE_T(opt_hpa_slab_goal, "hpa_slab_goal",
+			    PAGE, 512 * PAGE, CONF_CHECK_MIN, CONF_CHECK_MAX,
+			    true)
+			CONF_HANDLE_SIZE_T(opt_hpa_small_max, "hpa_small_max",
+			    PAGE, 0, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
+			CONF_HANDLE_SIZE_T(opt_hpa_large_min, "hpa_large_min",
+			    PAGE, 0, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
 
 			if (CONF_MATCH("slab_sizes")) {
 				if (CONF_MATCH_VALUE("default")) {
