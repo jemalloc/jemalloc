@@ -9,6 +9,7 @@
 #include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
+#include "jemalloc/internal/fxp.h"
 #include "jemalloc/internal/hook.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/log.h"
@@ -127,7 +128,7 @@ bool	opt_utrace = false;
 bool	opt_xmalloc = false;
 bool	opt_zero = false;
 unsigned	opt_narenas = 0;
-unsigned	opt_narenas_ratio = 4;
+fxp_t		opt_narenas_ratio = FXP_INIT_INT(4);
 
 unsigned	ncpus;
 
@@ -1312,10 +1313,14 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				}
 			}
 			if (CONF_MATCH("narenas_ratio")) {
-				CONF_HANDLE_UNSIGNED(opt_narenas_ratio,
-				    "narenas_ratio", 1, UINT_MAX,
-				    CONF_CHECK_MIN, CONF_DONT_CHECK_MAX,
-				    /* clip */ false)
+				char *end;
+				bool err = fxp_parse(&opt_narenas_ratio, v,
+				    &end);
+				if (err || (size_t)(end - v) != vlen) {
+					CONF_ERROR("Invalid conf value",
+					    k, klen, v, vlen);
+				}
+				CONF_CONTINUE;
 			}
 			if (CONF_MATCH("bin_shards")) {
 				const char *bin_shards_segment_cur = v;
@@ -1877,7 +1882,13 @@ malloc_narenas_default(void) {
 	 * default.
 	 */
 	if (ncpus > 1) {
-		return ncpus * opt_narenas_ratio;
+		fxp_t fxp_ncpus = FXP_INIT_INT(ncpus);
+		fxp_t goal = fxp_mul(fxp_ncpus, opt_narenas_ratio);
+		uint32_t int_goal = fxp_round_nearest(goal);
+		if (int_goal == 0) {
+			return 1;
+		}
+		return int_goal;
 	} else {
 		return 1;
 	}
