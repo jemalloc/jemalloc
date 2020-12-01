@@ -6,10 +6,12 @@
 #include "jemalloc/internal/pai.h"
 #include "jemalloc/internal/psset.h"
 
-/* Used only by CTL; not actually stored here (i.e., all derived). */
+/* Completely derived; only used by CTL. */
 typedef struct hpa_shard_stats_s hpa_shard_stats_t;
 struct hpa_shard_stats_s {
 	psset_stats_t psset_stats;
+	/* The stat version of the nevictions counter. */
+	uint64_t nevictions;
 };
 
 typedef struct hpa_shard_s hpa_shard_t;
@@ -69,6 +71,14 @@ struct hpa_shard_s {
 	/* The arena ind we're associated with. */
 	unsigned ind;
 	emap_t *emap;
+
+	/*
+	 * The number of times we've purged a hugepage.  Each eviction purges a
+	 * single hugepage.
+	 *
+	 * Guarded by the grow mutex.
+	 */
+	uint64_t nevictions;
 };
 
 /*

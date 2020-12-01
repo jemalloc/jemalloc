@@ -661,11 +661,13 @@ stats_arena_extents_print(emitter_t *emitter, unsigned i) {
 }
 
 static void
-stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i) {
+stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	emitter_row_t header_row;
 	emitter_row_init(&header_row);
 	emitter_row_t row;
 	emitter_row_init(&row);
+
+	uint64_t nevictions;
 
 	size_t npageslabs_huge;
 	size_t nactive_huge;
@@ -674,6 +676,9 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i) {
 	size_t npageslabs_nonhuge;
 	size_t nactive_nonhuge;
 	size_t ninactive_nonhuge;
+
+	CTL_M2_GET("stats.arenas.0.hpa_shard.nevictions",
+	    i, &nevictions, uint64_t);
 
 	CTL_M2_GET("stats.arenas.0.hpa_shard.full_slabs.npageslabs_huge",
 	    i, &npageslabs_huge, size_t);
@@ -696,13 +701,18 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i) {
 
 	emitter_table_printf(emitter,
 	    "HPA shard stats:\n"
+	    "  Evictions: %" FMTu64 " (%" FMTu64 " / sec)\n"
 	    "  In full slabs:\n"
 	    "      npageslabs: %zu huge, %zu nonhuge\n"
 	    "      nactive: %zu huge, %zu nonhuge \n"
 	    "      ninactive: %zu huge, %zu nonhuge \n",
-	    npageslabs_huge, npageslabs_nonhuge, nactive_huge, nactive_nonhuge,
+	    nevictions, rate_per_second(nevictions, uptime),
+	    npageslabs_huge, npageslabs_nonhuge,
+	    nactive_huge, nactive_nonhuge,
 	    ninactive_huge, ninactive_nonhuge);
 	emitter_json_object_kv_begin(emitter, "hpa_shard");
+	emitter_json_kv(emitter, "nevictions", emitter_type_uint64,
+	    &nevictions);
 	emitter_json_object_kv_begin(emitter, "full_slabs");
 	emitter_json_kv(emitter, "npageslabs_huge", emitter_type_size,
 	    &npageslabs_huge);
@@ -1137,7 +1147,7 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 		stats_arena_extents_print(emitter, i);
 	}
 	if (hpa) {
-		stats_arena_hpa_shard_print(emitter, i);
+		stats_arena_hpa_shard_print(emitter, i, uptime);
 	}
 }
 

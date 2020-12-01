@@ -74,6 +74,7 @@ hpa_shard_init(hpa_shard_t *shard, emap_t *emap, base_t *base,
 	shard->eden_len = 0;
 	shard->ind = ind;
 	shard->emap = emap;
+	shard->nevictions = 0;
 
 	/*
 	 * Fill these in last, so that if an hpa_shard gets used despite
@@ -97,14 +98,18 @@ hpa_shard_init(hpa_shard_t *shard, emap_t *emap, base_t *base,
 void
 hpa_shard_stats_accum(hpa_shard_stats_t *dst, hpa_shard_stats_t *src) {
 	psset_stats_accum(&dst->psset_stats, &src->psset_stats);
+	dst->nevictions += src->nevictions;
 }
 
 void
 hpa_shard_stats_merge(tsdn_t *tsdn, hpa_shard_t *shard,
     hpa_shard_stats_t *dst) {
+	malloc_mutex_lock(tsdn, &shard->grow_mtx);
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	psset_stats_accum(&dst->psset_stats, &shard->psset.stats);
+	dst->nevictions += shard->nevictions;
 	malloc_mutex_unlock(tsdn, &shard->mtx);
+	malloc_mutex_unlock(tsdn, &shard->grow_mtx);
 }
 
 static hpdata_t *
@@ -238,6 +243,7 @@ hpa_handle_ps_eviction(tsdn_t *tsdn, hpa_shard_t *shard, hpdata_t *ps) {
 	hpa_dehugify(ps);
 
 	malloc_mutex_lock(tsdn, &shard->grow_mtx);
+	shard->nevictions++;
 	hpdata_list_prepend(&shard->unused_slabs, ps);
 	malloc_mutex_unlock(tsdn, &shard->grow_mtx);
 }
@@ -353,6 +359,7 @@ hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	edata = edata_cache_small_get(tsdn, &shard->ecs);
 	if (edata == NULL) {
+		shard->nevictions++;
 		malloc_mutex_unlock(tsdn, &shard->mtx);
 		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
 		hpa_handle_ps_eviction(tsdn, shard, ps);
@@ -371,11 +378,8 @@ hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
 		hpdata_unreserve(ps, edata_addr_get(edata),
 		    edata_size_get(edata));
 		edata_cache_small_put(tsdn, &shard->ecs, edata);
-		/*
-		 * Technically the same as fallthrough at the time of this
-		 * writing, but consistent with the error handling in the rest
-		 * of the function.
-		 */
+
+		shard->nevictions++;
 		malloc_mutex_unlock(tsdn, &shard->mtx);
 		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
 		hpa_handle_ps_eviction(tsdn, shard, ps);
