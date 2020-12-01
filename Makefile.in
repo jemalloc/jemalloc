@@ -118,6 +118,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/extent.c \
 	$(srcroot)src/extent_dss.c \
 	$(srcroot)src/extent_mmap.c \
+	$(srcroot)src/fxp.c \
 	$(srcroot)src/hook.c \
 	$(srcroot)src/hpa.c \
 	$(srcroot)src/hpa_central.c \
@@ -212,6 +213,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/extent_quantize.c \
 	${srcroot}test/unit/flat_bitmap.c \
 	$(srcroot)test/unit/fork.c \
+	${srcroot}test/unit/fxp.c \
 	$(srcroot)test/unit/hash.c \
 	$(srcroot)test/unit/hook.c \
 	$(srcroot)test/unit/hpa.c \
