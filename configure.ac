@@ -1594,6 +1594,7 @@ JE_COMPILABLE([a program using __builtin_popcountl], [
 if test "x${je_cv_gcc_builtin_popcountl}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_INTERNAL_POPCOUNT], [__builtin_popcount])
   AC_DEFINE([JEMALLOC_INTERNAL_POPCOUNTL], [__builtin_popcountl])
+  AC_DEFINE([JEMALLOC_INTERNAL_POPCOUNTLL], [__builtin_popcountll])
 fi
 
 AC_ARG_WITH([lg_quantum],
