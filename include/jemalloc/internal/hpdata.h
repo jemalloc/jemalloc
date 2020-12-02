@@ -114,8 +114,15 @@ hpdata_assert_empty(hpdata_t *hpdata) {
 
 static inline bool
 hpdata_consistent(hpdata_t *hpdata) {
-	return fb_urange_longest(hpdata->active_pages, HUGEPAGE_PAGES)
-	    == hpdata_longest_free_range_get(hpdata);
+	if(fb_urange_longest(hpdata->active_pages, HUGEPAGE_PAGES)
+	    != hpdata_longest_free_range_get(hpdata)) {
+		return false;
+	}
+	if (fb_ucount(hpdata->active_pages, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES)
+	    != hpdata_nfree_get(hpdata)) {
+		return false;
+	}
+	return true;
 }
 
 static inline void
