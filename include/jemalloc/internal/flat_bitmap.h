@@ -71,21 +71,16 @@ fb_unset(fb_group_t *fb, size_t nbits, size_t bit) {
 	fb[group_ind] &= ~((fb_group_t)1 << bit_ind);
 }
 
-JEMALLOC_ALWAYS_INLINE void
-fb_assign_group_impl(fb_group_t *fb, size_t start, size_t cnt, bool val) {
-	assert(cnt > 0);
-	assert(start + cnt - 1 < FB_GROUP_BITS);
-	fb_group_t bits = ((~(fb_group_t)0) >> (FB_GROUP_BITS - cnt)) << start;
-	if (val) {
-		*fb |= bits;
-	} else {
-		*fb &= ~bits;
-	}
-}
 
+/*
+ * Some implementation details.  This visitation function lets us apply a group
+ * visitor to each group in the bitmap (potentially modifying it).  The mask
+ * indicates which bits are logically part of the visitation.
+ */
+typedef void (*fb_group_visitor_t)(void *ctx, fb_group_t *fb, fb_group_t mask);
 JEMALLOC_ALWAYS_INLINE void
-fb_assign_impl(fb_group_t *fb, size_t nbits, size_t start, size_t cnt,
-    bool val) {
+fb_visit_impl(fb_group_t *fb, size_t nbits, fb_group_visitor_t visit, void *ctx,
+    size_t start, size_t cnt) {
 	assert(start + cnt - 1 < nbits);
 	size_t group_ind = start / FB_GROUP_BITS;
 	size_t start_bit_ind = start % FB_GROUP_BITS;
@@ -93,10 +88,8 @@ fb_assign_impl(fb_group_t *fb, size_t nbits, size_t start, size_t cnt,
 	 * The first group is special; it's the only one we don't start writing
 	 * to from bit 0.
 	 */
-	size_t first_group_cnt =
-	    (start_bit_ind + cnt > FB_GROUP_BITS
-		? FB_GROUP_BITS - start_bit_ind
-		: cnt);
+	size_t first_group_cnt = (start_bit_ind + cnt > FB_GROUP_BITS
+		? FB_GROUP_BITS - start_bit_ind : cnt);
 	/*
 	 * We can basically split affected words into:
 	 *   - The first group, where we touch only the high bits
@@ -106,32 +99,48 @@ fb_assign_impl(fb_group_t *fb, size_t nbits, size_t start, size_t cnt,
 	 * this can lead to bad codegen for those middle words.
 	 */
 	/* First group */
-	fb_assign_group_impl(&fb[group_ind], start_bit_ind, first_group_cnt,
-	    val);
+	fb_group_t mask = ((~(fb_group_t)0)
+	    >> (FB_GROUP_BITS - first_group_cnt))
+	    << start_bit_ind;
+	visit(ctx, &fb[group_ind], mask);
+
 	cnt -= first_group_cnt;
 	group_ind++;
 	/* Middle groups */
 	while (cnt > FB_GROUP_BITS) {
-		fb_assign_group_impl(&fb[group_ind], 0, FB_GROUP_BITS, val);
+		visit(ctx, &fb[group_ind], ~(fb_group_t)0);
 		cnt -= FB_GROUP_BITS;
 		group_ind++;
 	}
 	/* Last group */
 	if (cnt != 0) {
-		fb_assign_group_impl(&fb[group_ind], 0, cnt, val);
+		mask = (~(fb_group_t)0) >> (FB_GROUP_BITS - cnt);
+		visit(ctx, &fb[group_ind], mask);
+	}
+}
+
+JEMALLOC_ALWAYS_INLINE void
+fb_assign_visitor(void *ctx, fb_group_t *fb, fb_group_t mask) {
+	bool val = *(bool *)ctx;
+	if (val) {
+		*fb |= mask;
+	} else {
+		*fb &= ~mask;
 	}
 }
 
 /* Sets the cnt bits starting at position start.  Must not have a 0 count. */
 static inline void
 fb_set_range(fb_group_t *fb, size_t nbits, size_t start, size_t cnt) {
-	fb_assign_impl(fb, nbits, start, cnt, true);
+	bool val = true;
+	fb_visit_impl(fb, nbits, &fb_assign_visitor, &val, start, cnt);
 }
 
 /* Unsets the cnt bits starting at position start.  Must not have a 0 count. */
 static inline void
 fb_unset_range(fb_group_t *fb, size_t nbits, size_t start, size_t cnt) {
-	fb_assign_impl(fb, nbits, start, cnt, false);
+	bool val = false;
+	fb_visit_impl(fb, nbits, &fb_assign_visitor, &val, start, cnt);
 }
 
 /*
