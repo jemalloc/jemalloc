@@ -204,7 +204,11 @@ TEST_BEGIN(test_reuse) {
 	expect_false(err, "Should have been able to find alloc.");
 	edata_expect(&alloc[index_of_3], index_of_3, 3);
 
-	/* Free up a 4-page hole at the end. */
+	/*
+	 * Free up a 4-page hole at the end.  Recall that the pages at offsets 0
+	 * and 1 mod 4 were freed above, so we just have to free the last
+	 * allocations.
+	 */
 	ps = test_psset_dalloc(&psset, &alloc[HUGEPAGE_PAGES - 1]);
 	expect_ptr_null(ps, "Nonempty pageslab evicted");
 	ps = test_psset_dalloc(&psset, &alloc[HUGEPAGE_PAGES - 2]);
@@ -212,8 +216,6 @@ TEST_BEGIN(test_reuse) {
 
 	/* Make sure we can satisfy an allocation at the very end of a slab. */
 	size_t index_of_4 = HUGEPAGE_PAGES - 4;
-	ps = test_psset_dalloc(&psset, &alloc[index_of_4]);
-	expect_ptr_null(ps, "Nonempty pageslab evicted");
 	err = test_psset_alloc_reuse(&psset, &alloc[index_of_4], 4 * PAGE);
 	expect_false(err, "Should have been able to find alloc.");
 	edata_expect(&alloc[index_of_4], index_of_4, 4);
@@ -405,7 +407,8 @@ TEST_END
 /*
  * Fills in and inserts two pageslabs, with the first better than the second,
  * and each fully allocated (into the allocations in allocs and worse_allocs,
- * each of which should be HUGEPAGE_PAGES long).
+ * each of which should be HUGEPAGE_PAGES long), except for a single free page
+ * at the end.
  *
  * (There's nothing magic about these numbers; it's just useful to share the
  * setup between the oldest fit and the insert/remove test).
@@ -418,7 +421,7 @@ init_test_pageslabs(psset_t *psset, hpdata_t *pageslab,
 	hpdata_init(pageslab, (void *)(10 * HUGEPAGE), PAGESLAB_AGE);
 	/*
 	 * This pageslab would be better from an address-first-fit POV, but
-	 * better from an age POV.
+	 * worse from an age POV.
 	 */
 	hpdata_init(worse_pageslab, (void *)(9 * HUGEPAGE), PAGESLAB_AGE + 1);
 
