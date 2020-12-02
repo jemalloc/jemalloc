@@ -576,6 +576,237 @@ TEST_BEGIN(test_iter_range_exhaustive) {
 }
 TEST_END
 
+/*
+ * If all set bits in the bitmap are contiguous, in [set_start, set_end),
+ * returns the number of set bits in [scount_start, scount_end).
+ */
+static size_t
+scount_contiguous(size_t set_start, size_t set_end, size_t scount_start,
+    size_t scount_end) {
+	/* No overlap. */
+	if (set_end <= scount_start || scount_end <= set_start) {
+		return 0;
+	}
+	/* set range contains scount range */
+	if (set_start <= scount_start && set_end >= scount_end) {
+		return scount_end - scount_start;
+	}
+	/* scount range contains set range. */
+	if (scount_start <= set_start && scount_end >= set_end) {
+		return set_end - set_start;
+	}
+	/* Partial overlap, with set range starting first. */
+	if (set_start < scount_start && set_end < scount_end) {
+		return set_end - scount_start;
+	}
+	/* Partial overlap, with scount range starting first. */
+	if (scount_start < set_start && scount_end < set_end) {
+		return scount_end - set_start;
+	}
+	/*
+	 * Trigger an assert failure; the above list should have been
+	 * exhaustive.
+	 */
+	unreachable();
+}
+
+static size_t
+ucount_contiguous(size_t set_start, size_t set_end, size_t ucount_start,
+    size_t ucount_end) {
+	/* No overlap. */
+	if (set_end <= ucount_start || ucount_end <= set_start) {
+		return ucount_end - ucount_start;
+	}
+	/* set range contains ucount range */
+	if (set_start <= ucount_start && set_end >= ucount_end) {
+		return 0;
+	}
+	/* ucount range contains set range. */
+	if (ucount_start <= set_start && ucount_end >= set_end) {
+		return (ucount_end - ucount_start) - (set_end - set_start);
+	}
+	/* Partial overlap, with set range starting first. */
+	if (set_start < ucount_start && set_end < ucount_end) {
+		return ucount_end - set_end;
+	}
+	/* Partial overlap, with ucount range starting first. */
+	if (ucount_start < set_start && ucount_end < set_end) {
+		return set_start - ucount_start;
+	}
+	/*
+	 * Trigger an assert failure; the above list should have been
+	 * exhaustive.
+	 */
+	unreachable();
+}
+
+static void
+expect_count_match_contiguous(fb_group_t *fb, size_t nbits, size_t set_start,
+    size_t set_end) {
+	for (size_t i = 0; i < nbits; i++) {
+		for (size_t j = i + 1; j <= nbits; j++) {
+			size_t cnt = j - i;
+			size_t scount_expected = scount_contiguous(set_start,
+			    set_end, i, j);
+			size_t scount_computed = fb_scount(fb, nbits, i, cnt);
+			expect_zu_eq(scount_expected, scount_computed,
+			    "fb_scount error with nbits=%zu, start=%zu, "
+			    "cnt=%zu, with bits set in [%zu, %zu)",
+			    nbits, i, cnt, set_start, set_end);
+
+			size_t ucount_expected = ucount_contiguous(set_start,
+			    set_end, i, j);
+			size_t ucount_computed = fb_ucount(fb, nbits, i, cnt);
+			assert_zu_eq(ucount_expected, ucount_computed,
+			    "fb_ucount error with nbits=%zu, start=%zu, "
+			    "cnt=%zu, with bits set in [%zu, %zu)",
+			    nbits, i, cnt, set_start, set_end);
+
+		}
+	}
+}
+
+static void
+do_test_count_contiguous(size_t nbits) {
+	size_t sz = FB_NGROUPS(nbits) * sizeof(fb_group_t);
+	fb_group_t *fb = malloc(sz);
+
+	fb_init(fb, nbits);
+
+	expect_count_match_contiguous(fb, nbits, 0, 0);
+	for (size_t i = 0; i < nbits; i++) {
+		fb_set(fb, nbits, i);
+		expect_count_match_contiguous(fb, nbits, 0, i + 1);
+	}
+
+	for (size_t i = 0; i < nbits; i++) {
+		fb_unset(fb, nbits, i);
+		expect_count_match_contiguous(fb, nbits, i + 1, nbits);
+	}
+
+	free(fb);
+}
+
+TEST_BEGIN(test_count_contiguous_simple) {
+	enum {nbits = 300};
+	fb_group_t fb[FB_NGROUPS(nbits)];
+	fb_init(fb, nbits);
+	/* Just an arbitrary number. */
+	size_t start = 23;
+
+	fb_set_range(fb, nbits, start, 30 - start);
+	expect_count_match_contiguous(fb, nbits, start, 30);
+
+	fb_set_range(fb, nbits, start, 40 - start);
+	expect_count_match_contiguous(fb, nbits, start, 40);
+
+	fb_set_range(fb, nbits, start, 70 - start);
+	expect_count_match_contiguous(fb, nbits, start, 70);
+
+	fb_set_range(fb, nbits, start, 120 - start);
+	expect_count_match_contiguous(fb, nbits, start, 120);
+
+	fb_set_range(fb, nbits, start, 150 - start);
+	expect_count_match_contiguous(fb, nbits, start, 150);
+
+	fb_set_range(fb, nbits, start, 200 - start);
+	expect_count_match_contiguous(fb, nbits, start, 200);
+
+	fb_set_range(fb, nbits, start, 290 - start);
+	expect_count_match_contiguous(fb, nbits, start, 290);
+}
+TEST_END
+
+TEST_BEGIN(test_count_contiguous) {
+#define NB(nbits) \
+	/* This test is *particularly* slow in debug builds. */ \
+	if ((!config_debug && nbits < 300) || nbits < 150) { \
+		do_test_count_contiguous(nbits); \
+	}
+	NBITS_TAB
+#undef NB
+}
+TEST_END
+
+static void
+expect_count_match_alternating(fb_group_t *fb_even, fb_group_t *fb_odd,
+    size_t nbits) {
+	for (size_t i = 0; i < nbits; i++) {
+		for (size_t j = i + 1; j <= nbits; j++) {
+			size_t cnt = j - i;
+			size_t odd_scount = cnt / 2
+			    + (size_t)(cnt % 2 == 1 && i % 2 == 1);
+			size_t odd_scount_computed = fb_scount(fb_odd, nbits,
+			    i, j - i);
+			assert_zu_eq(odd_scount, odd_scount_computed,
+			    "fb_scount error with nbits=%zu, start=%zu, "
+			    "cnt=%zu, with alternating bits set.",
+			    nbits, i, j - i);
+
+			size_t odd_ucount = cnt / 2
+			    + (size_t)(cnt % 2 == 1 && i % 2 == 0);
+			size_t odd_ucount_computed = fb_ucount(fb_odd, nbits,
+			    i, j - i);
+			assert_zu_eq(odd_ucount, odd_ucount_computed,
+			    "fb_ucount error with nbits=%zu, start=%zu, "
+			    "cnt=%zu, with alternating bits set.",
+			    nbits, i, j - i);
+
+			size_t even_scount = cnt / 2
+			    + (size_t)(cnt % 2 == 1 && i % 2 == 0);
+			size_t even_scount_computed = fb_scount(fb_even, nbits,
+			    i, j - i);
+			assert_zu_eq(even_scount, even_scount_computed,
+			    "fb_scount error with nbits=%zu, start=%zu, "
+			    "cnt=%zu, with alternating bits set.",
+			    nbits, i, j - i);
+
+			size_t even_ucount = cnt / 2
+			    + (size_t)(cnt % 2 == 1 && i % 2 == 1);
+			size_t even_ucount_computed = fb_ucount(fb_even, nbits,
+			    i, j - i);
+			assert_zu_eq(even_ucount, even_ucount_computed,
+			    "fb_ucount error with nbits=%zu, start=%zu, "
+			    "cnt=%zu, with alternating bits set.",
+			    nbits, i, j - i);
+		}
+	}
+}
+
+static void
+do_test_count_alternating(size_t nbits) {
+	if (nbits > 1000) {
+		return;
+	}
+	size_t sz = FB_NGROUPS(nbits) * sizeof(fb_group_t);
+	fb_group_t *fb_even = malloc(sz);
+	fb_group_t *fb_odd = malloc(sz);
+
+	fb_init(fb_even, nbits);
+	fb_init(fb_odd, nbits);
+
+	for (size_t i = 0; i < nbits; i++) {
+		if (i % 2 == 0) {
+			fb_set(fb_even, nbits, i);
+		} else {
+			fb_set(fb_odd, nbits, i);
+		}
+	}
+
+	expect_count_match_alternating(fb_even, fb_odd, nbits);
+
+	free(fb_even);
+	free(fb_odd);
+}
+
+TEST_BEGIN(test_count_alternating) {
+#define NB(nbits) \
+	do_test_count_alternating(nbits);
+	NBITS_TAB
+#undef NB
+}
+TEST_END
+
 int
 main(void) {
 	return test_no_reentrancy(
@@ -586,5 +817,8 @@ main(void) {
 	    test_range_simple,
 	    test_empty_full,
 	    test_iter_range_simple,
-	    test_iter_range_exhaustive);
+	    test_iter_range_exhaustive,
+	    test_count_contiguous_simple,
+	    test_count_contiguous,
+	    test_count_alternating);
 }

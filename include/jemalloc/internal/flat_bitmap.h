@@ -81,7 +81,8 @@ typedef void (*fb_group_visitor_t)(void *ctx, fb_group_t *fb, fb_group_t mask);
 JEMALLOC_ALWAYS_INLINE void
 fb_visit_impl(fb_group_t *fb, size_t nbits, fb_group_visitor_t visit, void *ctx,
     size_t start, size_t cnt) {
-	assert(start + cnt - 1 < nbits);
+	assert(cnt > 0);
+	assert(start + cnt <= nbits);
 	size_t group_ind = start / FB_GROUP_BITS;
 	size_t start_bit_ind = start % FB_GROUP_BITS;
 	/*
@@ -141,6 +142,27 @@ static inline void
 fb_unset_range(fb_group_t *fb, size_t nbits, size_t start, size_t cnt) {
 	bool val = false;
 	fb_visit_impl(fb, nbits, &fb_assign_visitor, &val, start, cnt);
+}
+
+JEMALLOC_ALWAYS_INLINE void
+fb_scount_visitor(void *ctx, fb_group_t *fb, fb_group_t mask) {
+	size_t *scount = (size_t *)ctx;
+	*scount += popcount_lu(*fb & mask);
+}
+
+/* Finds the number of set bit in the of length cnt starting at start. */
+JEMALLOC_ALWAYS_INLINE size_t
+fb_scount(fb_group_t *fb, size_t nbits, size_t start, size_t cnt) {
+	size_t scount = 0;
+	fb_visit_impl(fb, nbits, &fb_scount_visitor, &scount, start, cnt);
+	return scount;
+}
+
+/* Finds the number of unset bit in the of length cnt starting at start. */
+JEMALLOC_ALWAYS_INLINE size_t
+fb_ucount(fb_group_t *fb, size_t nbits, size_t start, size_t cnt) {
+	size_t scount = fb_scount(fb, nbits, start, cnt);
+	return cnt - scount;
 }
 
 /*
