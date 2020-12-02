@@ -52,7 +52,7 @@ destroy_test_data(hpa_shard_t *shard) {
 }
 
 TEST_BEGIN(test_alloc_max) {
-	test_skip_if(LG_SIZEOF_PTR != 3);
+	test_skip_if(!hpa_supported());
 
 	hpa_shard_t *shard = create_test_data();
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
@@ -128,7 +128,7 @@ node_remove(mem_tree_t *tree, edata_t *edata) {
 }
 
 TEST_BEGIN(test_stress) {
-	test_skip_if(LG_SIZEOF_PTR != 3);
+	test_skip_if(!hpa_supported());
 
 	hpa_shard_t *shard = create_test_data();
 
