@@ -17,7 +17,6 @@ hpdata_age_comp(const hpdata_t *a, const hpdata_t *b) {
 
 ph_gen(, hpdata_age_heap_, hpdata_age_heap_t, hpdata_t, ph_link, hpdata_age_comp)
 
-
 void
 hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age) {
 	hpdata_addr_set(hpdata, addr);
@@ -26,10 +25,13 @@ hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age) {
 	hpdata_nfree_set(hpdata, HUGEPAGE_PAGES);
 	hpdata_longest_free_range_set(hpdata, HUGEPAGE_PAGES);
 	fb_init(hpdata->active_pages, HUGEPAGE_PAGES);
+
+	hpdata_assert_consistent(hpdata);
 }
 
 void *
 hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz) {
+	hpdata_assert_consistent(hpdata);
 	assert((sz & PAGE_MASK) == 0);
 	size_t npages = sz >> LG_PAGE;
 	assert(npages <= hpdata_longest_free_range_get(hpdata));
@@ -93,12 +95,15 @@ hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz) {
 	}
 	hpdata_longest_free_range_set(hpdata, largest_unchosen_range);
 
+	hpdata_assert_consistent(hpdata);
 	return (void *)(
 	    (uintptr_t)hpdata_addr_get(hpdata) + (result << LG_PAGE));
 }
 
 void
 hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz) {
+	hpdata_assert_consistent(hpdata);
+	assert(((uintptr_t)addr & PAGE_MASK) == 0);
 	assert((sz & PAGE_MASK) == 0);
 	size_t begin = ((uintptr_t)addr - (uintptr_t)hpdata_addr_get(hpdata))
 	    >> LG_PAGE;
@@ -119,4 +124,6 @@ hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz) {
 	}
 
 	hpdata_nfree_set(hpdata, hpdata_nfree_get(hpdata) + npages);
+
+	hpdata_assert_consistent(hpdata);
 }
