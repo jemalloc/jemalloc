@@ -112,10 +112,15 @@ hpdata_assert_empty(hpdata_t *hpdata) {
 	assert(hpdata_nfree_get(hpdata) == HUGEPAGE_PAGES);
 }
 
+static inline bool
+hpdata_consistent(hpdata_t *hpdata) {
+	return fb_urange_longest(hpdata->active_pages, HUGEPAGE_PAGES)
+	    == hpdata_longest_free_range_get(hpdata);
+}
+
 static inline void
 hpdata_assert_consistent(hpdata_t *hpdata) {
-	assert(fb_urange_longest(hpdata->active_pages, HUGEPAGE_PAGES)
-	    == hpdata_longest_free_range_get(hpdata));
+	assert(hpdata_consistent(hpdata));
 }
 
 TYPED_LIST(hpdata_list, hpdata_t, ql_link)
