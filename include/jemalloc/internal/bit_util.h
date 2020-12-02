@@ -179,12 +179,97 @@ fls_u(unsigned x) {
 }
 #endif
 
-#ifdef JEMALLOC_INTERNAL_POPCOUNTL
+#if LG_SIZEOF_LONG_LONG > 3
+#  error "Haven't implemented popcount for 16-byte ints."
+#endif
+
+#define DO_POPCOUNT(x, type) do {					\
+	/*								\
+	 * Algorithm from an old AMD optimization reference manual.	\
+	 * We're putting a little bit more work than you might expect	\
+	 * into the no-instrinsic case, since we only support the	\
+	 * GCC intrinsics spelling of popcount (for now).  Detecting	\
+	 * whether or not the popcount builtin is actually useable in	\
+	 * MSVC is nontrivial.						\
+	 */								\
+									\
+	type bmul = (type)0x0101010101010101ULL;			\
+									\
+	/*								\
+	 * Replace each 2 bits with the sideways sum of the original	\
+	 * values.  0x5 = 0b0101.					\
+	 *								\
+	 * You might expect this to be:					\
+	 *   x = (x & 0x55...) + ((x >> 1) & 0x55...).			\
+	 * That costs an extra mask relative to this, though.		\
+	 */								\
+	x = x - ((x >> 1) & (0x55U * bmul));				\
+	/* Replace each 4 bits with their sideays sum.  0x3 = 0b0011. */\
+	x = (x & (bmul * 0x33U)) + ((x >> 2) & (bmul * 0x33U));		\
+	/*								\
+	 * Replace each 8 bits with their sideways sum.  Note that we	\
+	 * can't overflow within each 4-bit sum here, so we can skip	\
+	 * the initial mask.						\
+	 */								\
+	x = (x + (x >> 4)) & (bmul * 0x0FU);				\
+	/*								\
+	 * None of the partial sums in this multiplication (viewed in	\
+	 * base-256) can overflow into the next digit.  So the least	\
+	 * significant byte of the product will be the least		\
+	 * significant byte of the original value, the second least	\
+	 * significant byte will be the sum of the two least		\
+	 * significant bytes of the original value, and so on.		\
+	 * Importantly, the high byte will be the byte-wise sum of all	\
+	 * the bytes of the original value.				\
+	 */								\
+	x = x * bmul;							\
+	x >>= ((sizeof(x) - 1) * 8);					\
+	return (unsigned)x;						\
+} while(0)
+
+static inline unsigned
+popcount_u_slow(unsigned bitmap) {
+	DO_POPCOUNT(bitmap, unsigned);
+}
+
+static inline unsigned
+popcount_lu_slow(unsigned long bitmap) {
+	DO_POPCOUNT(bitmap, unsigned long);
+}
+
+static inline unsigned
+popcount_llu_slow(unsigned long long bitmap) {
+	DO_POPCOUNT(bitmap, unsigned long long);
+}
+
+#undef DO_POPCOUNT
+
+static inline unsigned
+popcount_u(unsigned bitmap) {
+#ifdef JEMALLOC_INTERNAL_POPCOUNT
+	return JEMALLOC_INTERNAL_POPCOUNT(bitmap);
+#else
+	return popcount_u_slow(bitmap);
+#endif
+}
+
 static inline unsigned
 popcount_lu(unsigned long bitmap) {
-  return JEMALLOC_INTERNAL_POPCOUNTL(bitmap);
-}
+#ifdef JEMALLOC_INTERNAL_POPCOUNTL
+	return JEMALLOC_INTERNAL_POPCOUNTL(bitmap);
+#else
+	return popcount_lu_slow(bitmap);
 #endif
+}
+
+static inline unsigned
+popcount_llu(unsigned long long bitmap) {
+#ifdef JEMALLOC_INTERNAL_POPCOUNTLL
+	return JEMALLOC_INTERNAL_POPCOUNTLL(bitmap);
+#else
+	return popcount_llu_slow(bitmap);
+#endif
+}
 
 /*
  * Clears first unset bit in bitmap, and returns

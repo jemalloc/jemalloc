@@ -204,6 +204,77 @@ TEST_BEGIN(test_fls_llu_slow) {
 }
 TEST_END
 
+static unsigned
+popcount_byte(unsigned byte) {
+	int count = 0;
+	for (int i = 0; i < 8; i++) {
+		if ((byte & (1 << i)) != 0) {
+			count++;
+		}
+	}
+	return count;
+}
+
+static uint64_t
+expand_byte_to_mask(unsigned byte) {
+	uint64_t result = 0;
+	for (int i = 0; i < 8; i++) {
+		if ((byte & (1 << i)) != 0) {
+			result |= ((uint64_t)0xFF << (i * 8));
+		}
+	}
+	return result;
+}
+
+#define TEST_POPCOUNT(t, suf, pri_hex) do {				\
+	t bmul = (t)0x0101010101010101ULL;				\
+	for (unsigned i = 0; i < (1 << sizeof(t)); i++) {		\
+		for (unsigned j = 0; j < 256; j++) {			\
+			/*						\
+			 * Replicate the byte j into various		\
+			 * bytes of the integer (as indicated by the	\
+			 * mask in i), and ensure that the popcount of	\
+			 * the result is popcount(i) * popcount(j)	\
+			 */						\
+			t mask = (t)expand_byte_to_mask(i);		\
+			t x = (bmul * j) & mask;			\
+			expect_u_eq(					\
+			    popcount_byte(i) * popcount_byte(j),	\
+			    popcount_##suf(x),				\
+			    "Unexpected result, x=0x%"pri_hex, x);	\
+		}							\
+	}								\
+} while (0)
+
+TEST_BEGIN(test_popcount_u) {
+	TEST_POPCOUNT(unsigned, u, "x");
+}
+TEST_END
+
+TEST_BEGIN(test_popcount_u_slow) {
+	TEST_POPCOUNT(unsigned, u_slow, "x");
+}
+TEST_END
+
+TEST_BEGIN(test_popcount_lu) {
+	TEST_POPCOUNT(unsigned long, lu, "lx");
+}
+TEST_END
+
+TEST_BEGIN(test_popcount_lu_slow) {
+	TEST_POPCOUNT(unsigned long, lu_slow, "lx");
+}
+TEST_END
+
+TEST_BEGIN(test_popcount_llu) {
+	TEST_POPCOUNT(unsigned long long, llu, "llx");
+}
+TEST_END
+
+TEST_BEGIN(test_popcount_llu_slow) {
+	TEST_POPCOUNT(unsigned long long, llu_slow, "llx");
+}
+TEST_END
 
 int
 main(void) {
@@ -226,5 +297,11 @@ main(void) {
 	    test_fls_zu,
 	    test_fls_u_slow,
 	    test_fls_lu_slow,
-	    test_fls_llu_slow);
+	    test_fls_llu_slow,
+	    test_popcount_u,
+	    test_popcount_u_slow,
+	    test_popcount_lu,
+	    test_popcount_lu_slow,
+	    test_popcount_llu,
+	    test_popcount_llu_slow);
 }
