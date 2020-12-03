@@ -52,6 +52,16 @@ struct hpdata_s {
 
 	/* A bitmap with bits set in the active pages. */
 	fb_group_t active_pages[FB_NGROUPS(HUGEPAGE_PAGES)];
+
+	/*
+	 * Number of dirty pages, and a bitmap tracking them.  This really means
+	 * "dirty" from the OS's point of view; it includes both active and
+	 * inactive pages that have been touched by the user.
+	 */
+	size_t h_ndirty;
+
+	/* The dirty pages (using the same definition as above). */
+	fb_group_t dirty_pages[FB_NGROUPS(HUGEPAGE_PAGES)];
 };
 
 static inline void *
@@ -78,11 +88,6 @@ hpdata_age_set(hpdata_t *hpdata, uint64_t age) {
 static inline bool
 hpdata_huge_get(const hpdata_t *hpdata) {
 	return hpdata->h_huge;
-}
-
-static inline void
-hpdata_huge_set(hpdata_t *hpdata, bool huge) {
-	hpdata->h_huge = huge;
 }
 
 static inline size_t
@@ -122,6 +127,16 @@ hpdata_consistent(hpdata_t *hpdata) {
 	    != hpdata->h_nactive) {
 		return false;
 	}
+	if (fb_scount(hpdata->dirty_pages, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES)
+	    != hpdata->h_ndirty) {
+		return false;
+	}
+	if (hpdata->h_ndirty < hpdata->h_nactive) {
+		return false;
+	}
+	if (hpdata->h_huge && hpdata->h_ndirty != HUGEPAGE_PAGES) {
+		return false;
+	}
 	return true;
 }
 
@@ -141,11 +156,28 @@ hpdata_empty(hpdata_t *hpdata) {
 }
 
 void hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age);
+
 /*
  * Given an hpdata which can serve an allocation request, pick and reserve an
  * offset within that allocation.
  */
 void *hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz);
 void hpdata_unreserve(hpdata_t *hpdata, void *begin, size_t sz);
+
+/*
+ * Tell the hpdata that it's now a hugepage (which, correspondingly, means that
+ * all its pages become dirty.
+ */
+void hpdata_hugify(hpdata_t *hpdata);
+/*
+ * Tell the hpdata that it's no longer a hugepage (all its pages are still
+ * counted as dirty, though; an explicit purge call is required to change that).
+ */
+void hpdata_dehugify(hpdata_t *hpdata);
+/*
+ * Tell the hpdata (which should be empty) that all dirty pages in it have been
+ * purged.
+ */
+void hpdata_purge(hpdata_t *hpdata);
 
 #endif /* JEMALLOC_INTERNAL_HPDATA_H */

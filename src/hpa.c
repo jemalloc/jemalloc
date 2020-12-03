@@ -146,7 +146,10 @@ hpa_dehugify(hpdata_t *ps) {
 	/* Purge, then dehugify while unbacked. */
 	pages_purge_forced(hpdata_addr_get(ps), HUGEPAGE);
 	pages_nohuge(hpdata_addr_get(ps), HUGEPAGE);
-	hpdata_huge_set(ps, false);
+
+	/* Update metadata. */
+	hpdata_dehugify(ps);
+	hpdata_purge(ps);
 }
 
 static hpdata_t *
@@ -297,7 +300,7 @@ hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) 
 
 	bool hugify = hpa_should_hugify(shard, ps);
 	if (hugify) {
-		hpdata_huge_set(ps, true);
+		hpdata_hugify(ps);
 	}
 	psset_insert(&shard->psset, ps);
 
