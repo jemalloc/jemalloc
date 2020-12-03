@@ -807,6 +807,133 @@ TEST_BEGIN(test_count_alternating) {
 }
 TEST_END
 
+static void
+do_test_bit_op(size_t nbits, bool (*op)(bool a, bool b),
+    void (*fb_op)(fb_group_t *dst, fb_group_t *src1, fb_group_t *src2, size_t nbits)) {
+	size_t sz = FB_NGROUPS(nbits) * sizeof(fb_group_t);
+	fb_group_t *fb1 = malloc(sz);
+	fb_group_t *fb2 = malloc(sz);
+	fb_group_t *fb_result = malloc(sz);
+	fb_init(fb1, nbits);
+	fb_init(fb2, nbits);
+	fb_init(fb_result, nbits);
+
+	/* Just two random numbers. */
+	const uint64_t prng_init1 = (uint64_t)0X4E9A9DE6A35691CDULL;
+	const uint64_t prng_init2 = (uint64_t)0X7856E396B063C36EULL;
+
+	uint64_t prng1 = prng_init1;
+	uint64_t prng2 = prng_init2;
+
+	for (size_t i = 0; i < nbits; i++) {
+		bool bit1 = ((prng1 & (1ULL << (i % 64))) != 0);
+		bool bit2 = ((prng2 & (1ULL << (i % 64))) != 0);
+
+		if (bit1) {
+			fb_set(fb1, nbits, i);
+		}
+		if (bit2) {
+			fb_set(fb2, nbits, i);
+		}
+
+		if (i % 64 == 0) {
+			prng1 = prng_state_next_u64(prng1);
+			prng2 = prng_state_next_u64(prng2);
+		}
+	}
+
+	fb_op(fb_result, fb1, fb2, nbits);
+
+	/* Reset the prngs to replay them. */
+	prng1 = prng_init1;
+	prng2 = prng_init2;
+
+	for (size_t i = 0; i < nbits; i++) {
+		bool bit1 = ((prng1 & (1ULL << (i % 64))) != 0);
+		bool bit2 = ((prng2 & (1ULL << (i % 64))) != 0);
+
+		/* Original bitmaps shouldn't change. */
+		expect_b_eq(bit1, fb_get(fb1, nbits, i), "difference at bit %zu", i);
+		expect_b_eq(bit2, fb_get(fb2, nbits, i), "difference at bit %zu", i);
+
+		/* New one should be bitwise and. */
+		expect_b_eq(op(bit1, bit2), fb_get(fb_result, nbits, i),
+		    "difference at bit %zu", i);
+
+		/* Update the same way we did last time. */
+		if (i % 64 == 0) {
+			prng1 = prng_state_next_u64(prng1);
+			prng2 = prng_state_next_u64(prng2);
+		}
+	}
+
+	free(fb1);
+	free(fb2);
+	free(fb_result);
+}
+
+static bool
+binary_and(bool a, bool b) {
+	return a & b;
+}
+
+static void
+do_test_bit_and(size_t nbits) {
+	do_test_bit_op(nbits, &binary_and, &fb_bit_and);
+}
+
+TEST_BEGIN(test_bit_and) {
+#define NB(nbits) \
+	do_test_bit_and(nbits);
+	NBITS_TAB
+#undef NB
+}
+TEST_END
+
+static bool
+binary_or(bool a, bool b) {
+	return a | b;
+}
+
+static void
+do_test_bit_or(size_t nbits) {
+	do_test_bit_op(nbits, &binary_or, &fb_bit_or);
+}
+
+TEST_BEGIN(test_bit_or) {
+#define NB(nbits) \
+	do_test_bit_or(nbits);
+	NBITS_TAB
+#undef NB
+}
+TEST_END
+
+static bool
+binary_not(bool a, bool b) {
+	(void)b;
+	return !a;
+}
+
+static void
+fb_bit_not_shim(fb_group_t *dst, fb_group_t *src1, fb_group_t *src2,
+    size_t nbits) {
+	(void)src2;
+	fb_bit_not(dst, src1, nbits);
+}
+
+static void
+do_test_bit_not(size_t nbits) {
+	do_test_bit_op(nbits, &binary_not, &fb_bit_not_shim);
+}
+
+TEST_BEGIN(test_bit_not) {
+#define NB(nbits) \
+	do_test_bit_not(nbits);
+	NBITS_TAB
+#undef NB
+}
+TEST_END
+
 int
 main(void) {
 	return test_no_reentrancy(
@@ -820,5 +947,8 @@ main(void) {
 	    test_iter_range_exhaustive,
 	    test_count_contiguous_simple,
 	    test_count_contiguous,
-	    test_count_alternating);
+	    test_count_alternating,
+	    test_bit_and,
+	    test_bit_or,
+	    test_bit_not);
 }

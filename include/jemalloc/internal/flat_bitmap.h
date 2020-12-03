@@ -340,4 +340,34 @@ fb_urange_longest(fb_group_t *fb, size_t nbits) {
 	return fb_range_longest_impl(fb, nbits, /* val */ false);
 }
 
+/*
+ * Initializes each bit of dst with the bitwise-AND of the corresponding bits of
+ * src1 and src2.  All bitmaps must be the same size.
+ */
+static inline void
+fb_bit_and(fb_group_t *dst, fb_group_t *src1, fb_group_t *src2, size_t nbits) {
+	size_t ngroups = FB_NGROUPS(nbits);
+	for (size_t i = 0; i < ngroups; i++) {
+		dst[i] = src1[i] & src2[i];
+	}
+}
+
+/* Like fb_bit_and, but with bitwise-OR. */
+static inline void
+fb_bit_or(fb_group_t *dst, fb_group_t *src1, fb_group_t *src2, size_t nbits) {
+	size_t ngroups = FB_NGROUPS(nbits);
+	for (size_t i = 0; i < ngroups; i++) {
+		dst[i] = src1[i] | src2[i];
+	}
+}
+
+/* Initializes dst bit i to the negation of source bit i. */
+static inline void
+fb_bit_not(fb_group_t *dst, fb_group_t *src, size_t nbits) {
+	size_t ngroups = FB_NGROUPS(nbits);
+	for (size_t i = 0; i < ngroups; i++) {
+		dst[i] = ~src[i];
+	}
+}
+
 #endif /* JEMALLOC_INTERNAL_FB_H */
