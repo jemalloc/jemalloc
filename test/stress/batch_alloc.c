@@ -1,6 +1,10 @@
 #include "test/jemalloc_test.h"
 #include "test/bench.h"
 
+#define MIBLEN 8
+static size_t mib[MIBLEN];
+static size_t miblen = MIBLEN;
+
 #define TINY_BATCH 10
 #define TINY_BATCH_ITER (10 * 1000 * 1000)
 #define HUGE_BATCH (1000 * 1000)
@@ -27,7 +31,7 @@ batch_alloc_wrapper(size_t batch) {
 	    {batch_ptrs + batch_ptrs_next, batch, SIZE, 0};
 	size_t filled;
 	size_t len = sizeof(size_t);
-	assert_d_eq(mallctl("experimental.batch_alloc", &filled, &len,
+	assert_d_eq(mallctlbymib(mib, miblen, &filled, &len,
 	    &batch_alloc_packet, sizeof(batch_alloc_packet)), 0, "");
 	assert_zu_eq(filled, batch, "");
 }
@@ -184,6 +188,8 @@ TEST_BEGIN(test_huge_batch_with_free) {
 TEST_END
 
 int main(void) {
+	assert_d_eq(mallctlnametomib("experimental.batch_alloc", mib, &miblen),
+	    0, "");
 	return test_no_reentrancy(
 	    test_tiny_batch_without_free,
 	    test_tiny_batch_with_free,
