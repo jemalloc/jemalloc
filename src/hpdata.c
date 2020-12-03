@@ -22,7 +22,7 @@ hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age) {
 	hpdata_addr_set(hpdata, addr);
 	hpdata_age_set(hpdata, age);
 	hpdata_huge_set(hpdata, false);
-	hpdata_nfree_set(hpdata, HUGEPAGE_PAGES);
+	hpdata->h_nactive = 0;
 	hpdata_longest_free_range_set(hpdata, HUGEPAGE_PAGES);
 	fb_init(hpdata->active_pages, HUGEPAGE_PAGES);
 
@@ -72,7 +72,7 @@ hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz) {
 	/* We found a range; remember it. */
 	result = begin;
 	fb_set_range(hpdata->active_pages, HUGEPAGE_PAGES, begin, npages);
-	hpdata_nfree_set(hpdata, hpdata_nfree_get(hpdata) - npages);
+	hpdata->h_nactive += npages;
 
 	/*
 	 * We might have shrunk the longest free range.  We have to keep
@@ -123,7 +123,7 @@ hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz) {
 		hpdata_longest_free_range_set(hpdata, new_range_len);
 	}
 
-	hpdata_nfree_set(hpdata, hpdata_nfree_get(hpdata) + npages);
+	hpdata->h_nactive -= npages;
 
 	hpdata_assert_consistent(hpdata);
 }

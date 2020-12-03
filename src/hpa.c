@@ -125,7 +125,7 @@ hpa_should_hugify(hpa_shard_t *shard, hpdata_t *ps) {
 	 * inactive.  Eventually, this should be a malloc conf option.
 	 */
 	return !hpdata_huge_get(ps)
-	    && hpdata_nfree_get(ps) < (HUGEPAGE / PAGE) * 5 / 100;
+	    && hpdata_nactive_get(ps) >= (HUGEPAGE_PAGES) * 95 / 100;
 }
 
 /* Returns true on error. */

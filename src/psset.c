@@ -57,8 +57,8 @@ psset_bin_stats_insert_remove(psset_bin_stats_t *binstats, hpdata_t *ps,
 	size_t *ninactive_dst = hpdata_huge_get(ps)
 	    ? &binstats->ninactive_huge : &binstats->ninactive_nonhuge;
 
-	size_t ninactive = hpdata_nfree_get(ps);
-	size_t nactive = HUGEPAGE_PAGES - ninactive;
+	size_t nactive = hpdata_nactive_get(ps);
+	size_t ninactive = HUGEPAGE_PAGES - nactive;
 
 	size_t mul = insert ? (size_t)1 : (size_t)-1;
 	*npageslabs_dst += mul * 1;
