@@ -44,10 +44,11 @@ struct hpdata_s {
 		ql_elm(hpdata_t) ql_link;
 	};
 
-	/* Number of currently free pages (regardless of contiguity). */
-	size_t h_nfree;
 	/* The length of the largest contiguous sequence of inactive pages. */
 	size_t h_longest_free_range;
+
+	/* Number of active pages. */
+	size_t h_nactive;
 
 	/* A bitmap with bits set in the active pages. */
 	fb_group_t active_pages[FB_NGROUPS(HUGEPAGE_PAGES)];
@@ -85,17 +86,6 @@ hpdata_huge_set(hpdata_t *hpdata, bool huge) {
 }
 
 static inline size_t
-hpdata_nfree_get(const hpdata_t *hpdata) {
-	return hpdata->h_nfree;
-}
-
-static inline void
-hpdata_nfree_set(hpdata_t *hpdata, size_t nfree) {
-	assert(nfree <= HUGEPAGE_PAGES);
-	hpdata->h_nfree = nfree;
-}
-
-static inline size_t
 hpdata_longest_free_range_get(const hpdata_t *hpdata) {
 	return hpdata->h_longest_free_range;
 }
@@ -106,10 +96,15 @@ hpdata_longest_free_range_set(hpdata_t *hpdata, size_t longest_free_range) {
 	hpdata->h_longest_free_range = longest_free_range;
 }
 
+static inline size_t
+hpdata_nactive_get(hpdata_t *hpdata) {
+	return hpdata->h_nactive;
+}
+
 static inline void
 hpdata_assert_empty(hpdata_t *hpdata) {
 	assert(fb_empty(hpdata->active_pages, HUGEPAGE_PAGES));
-	assert(hpdata_nfree_get(hpdata) == HUGEPAGE_PAGES);
+	assert(hpdata->h_nactive == 0);
 }
 
 /*
@@ -123,8 +118,8 @@ hpdata_consistent(hpdata_t *hpdata) {
 	    != hpdata_longest_free_range_get(hpdata)) {
 		return false;
 	}
-	if (fb_ucount(hpdata->active_pages, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES)
-	    != hpdata_nfree_get(hpdata)) {
+	if (fb_scount(hpdata->active_pages, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES)
+	    != hpdata->h_nactive) {
 		return false;
 	}
 	return true;
@@ -142,7 +137,7 @@ ph_proto(, hpdata_age_heap_, hpdata_age_heap_t, hpdata_t);
 
 static inline bool
 hpdata_empty(hpdata_t *hpdata) {
-	return hpdata_nfree_get(hpdata) == HUGEPAGE_PAGES;
+	return hpdata->h_nactive == 0;
 }
 
 void hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age);
