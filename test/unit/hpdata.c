@@ -169,6 +169,7 @@ TEST_BEGIN(test_hugify) {
 	expect_false(hpdata_changing_state_get(&hpdata), "");
 	hpdata_hugify_begin(&hpdata);
 	expect_true(hpdata_changing_state_get(&hpdata), "");
+
 	hpdata_hugify_end(&hpdata);
 	expect_false(hpdata_changing_state_get(&hpdata), "");
 

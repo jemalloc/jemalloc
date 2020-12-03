@@ -92,6 +92,8 @@ void
 psset_insert(psset_t *psset, hpdata_t *ps) {
 	assert(!hpdata_empty(ps));
 	hpdata_assert_consistent(ps);
+	assert(!hpdata_in_psset_get(ps));
+	hpdata_in_psset_set(ps, true);
 	size_t longest_free_range = hpdata_longest_free_range_get(ps);
 
 	if (longest_free_range == 0) {
@@ -116,6 +118,9 @@ psset_insert(psset_t *psset, hpdata_t *ps) {
 void
 psset_remove(psset_t *psset, hpdata_t *ps) {
 	hpdata_assert_consistent(ps);
+	assert(hpdata_in_psset_get(ps));
+	hpdata_in_psset_set(ps, false);
+
 	size_t longest_free_range = hpdata_longest_free_range_get(ps);
 
 	if (longest_free_range == 0) {

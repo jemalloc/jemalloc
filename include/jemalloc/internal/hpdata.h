@@ -44,6 +44,9 @@ struct hpdata_s {
 	bool h_mid_purge;
 	bool h_mid_hugify;
 
+	/* Whether or not the hpdata is a the psset. */
+	bool h_in_psset;
+
 	union {
 		/* When nonempty, used by the psset bins. */
 		phn(hpdata_t) ph_link;
@@ -115,6 +118,15 @@ hpdata_mid_hugify_get(const hpdata_t *hpdata) {
 	return hpdata->h_mid_hugify;
 }
 
+static inline bool
+hpdata_in_psset_get(const hpdata_t *hpdata) {
+	return hpdata->h_in_psset;
+}
+
+static inline void
+hpdata_in_psset_set(hpdata_t *hpdata, bool in_psset) {
+	hpdata->h_in_psset = in_psset;
+}
 
 static inline size_t
 hpdata_longest_free_range_get(const hpdata_t *hpdata) {
@@ -196,12 +208,6 @@ void *hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz);
 void hpdata_unreserve(hpdata_t *hpdata, void *begin, size_t sz);
 
 /*
- * Tell the hpdata (which should be empty) that all dirty pages in it have been
- * purged.
- */
-void hpdata_purge(hpdata_t *hpdata);
-
-/*
  * The hpdata_purge_prepare_t allows grabbing the metadata required to purge
  * subranges of a hugepage while holding a lock, drop the lock during the actual
  * purging of them, and reacquire it to update the metadata again.
@@ -247,6 +253,11 @@ void hpdata_purge_end(hpdata_t *hpdata, hpdata_purge_state_t *purge_state);
  * Similarly, when hugifying , callers can do the metadata modifications while
  * holding a lock (thereby setting the change_state field), but actually do the
  * operation without blocking other threads.
+ *
+ * Unlike most metadata operations, hugification ending should happen while an
+ * hpdata is in the psset (or upcoming hugepage collections).  This is because
+ * while purge/use races are unsafe, purge/hugepageify races are perfectly
+ * reasonable.
  */
 void hpdata_hugify_begin(hpdata_t *hpdata);
 void hpdata_hugify_end(hpdata_t *hpdata);
