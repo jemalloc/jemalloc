@@ -55,7 +55,132 @@ TEST_BEGIN(test_reserve_alloc) {
 }
 TEST_END
 
+TEST_BEGIN(test_purge_simple) {
+	hpdata_t hpdata;
+	hpdata_init(&hpdata, HPDATA_ADDR, HPDATA_AGE);
+
+	void *alloc = hpdata_reserve_alloc(&hpdata, HUGEPAGE_PAGES / 2 * PAGE);
+	expect_ptr_eq(alloc, HPDATA_ADDR, "");
+
+	/* Create HUGEPAGE_PAGES / 4 dirty inactive pages at the beginning. */
+	hpdata_unreserve(&hpdata, alloc, HUGEPAGE_PAGES / 4 * PAGE);
+
+	expect_zu_eq(hpdata_ndirty_get(&hpdata), HUGEPAGE_PAGES / 2, "");
+
+	expect_false(hpdata_changing_state_get(&hpdata), "");
+
+	hpdata_purge_state_t purge_state;
+	hpdata_purge_begin(&hpdata, &purge_state);
+
+	expect_true(hpdata_changing_state_get(&hpdata), "");
+
+	void *purge_addr;
+	size_t purge_size;
+	bool got_result = hpdata_purge_next(&hpdata, &purge_state, &purge_addr,
+	    &purge_size);
+	expect_true(got_result, "");
+	expect_ptr_eq(HPDATA_ADDR, purge_addr, "");
+	expect_zu_eq(HUGEPAGE_PAGES / 4 * PAGE, purge_size, "");
+
+	expect_true(hpdata_changing_state_get(&hpdata), "");
+
+	got_result = hpdata_purge_next(&hpdata, &purge_state, &purge_addr,
+	    &purge_size);
+	expect_false(got_result, "Unexpected additional purge range: "
+	    "extent at %p of size %zu", purge_addr, purge_size);
+
+	expect_true(hpdata_changing_state_get(&hpdata), "");
+
+	hpdata_purge_end(&hpdata, &purge_state);
+	expect_false(hpdata_changing_state_get(&hpdata), "");
+	expect_zu_eq(hpdata_ndirty_get(&hpdata), HUGEPAGE_PAGES / 4, "");
+}
+TEST_END
+
+/*
+ * We only test intervening dalloc's not intervening allocs; we don't need
+ * intervening allocs, and foreseeable optimizations will make them not just
+ * unnecessary but incorrect.  In particular, if there are two dirty extents
+ * separated only by a retained extent, we can just purge the entire range,
+ * saving a purge call.
+ */
+TEST_BEGIN(test_purge_intervening_dalloc) {
+	hpdata_t hpdata;
+	hpdata_init(&hpdata, HPDATA_ADDR, HPDATA_AGE);
+
+	/* Allocate the first 3/4 of the pages. */
+	void *alloc = hpdata_reserve_alloc(&hpdata, 3 * HUGEPAGE_PAGES / 4  * PAGE);
+	expect_ptr_eq(alloc, HPDATA_ADDR, "");
+
+	/* Free the first 1/4 and the third 1/4 of the pages. */
+	hpdata_unreserve(&hpdata, alloc, HUGEPAGE_PAGES / 4 * PAGE);
+	hpdata_unreserve(&hpdata,
+	    (void *)((uintptr_t)alloc + 2 * HUGEPAGE_PAGES / 4 * PAGE),
+	    HUGEPAGE_PAGES / 4 * PAGE);
+
+	expect_zu_eq(hpdata_ndirty_get(&hpdata), 3 * HUGEPAGE_PAGES / 4, "");
+
+	hpdata_purge_state_t purge_state;
+	hpdata_purge_begin(&hpdata, &purge_state);
+
+	void *purge_addr;
+	size_t purge_size;
+	/* First purge. */
+	bool got_result = hpdata_purge_next(&hpdata, &purge_state, &purge_addr,
+	    &purge_size);
+	expect_true(got_result, "");
+	expect_ptr_eq(HPDATA_ADDR, purge_addr, "");
+	expect_zu_eq(HUGEPAGE_PAGES / 4 * PAGE, purge_size, "");
+
+	/* Deallocate the second 1/4 before the second purge occurs. */
+	hpdata_unreserve(&hpdata,
+	    (void *)((uintptr_t)alloc + 1 * HUGEPAGE_PAGES / 4 * PAGE),
+	    HUGEPAGE_PAGES / 4 * PAGE);
+
+	/* Now continue purging. */
+	got_result = hpdata_purge_next(&hpdata, &purge_state, &purge_addr,
+	    &purge_size);
+	expect_true(got_result, "");
+	expect_ptr_eq(
+	    (void *)((uintptr_t)alloc + 2 * HUGEPAGE_PAGES / 4 * PAGE),
+	    purge_addr, "");
+	expect_zu_eq(HUGEPAGE_PAGES / 4 * PAGE, purge_size, "");
+
+	got_result = hpdata_purge_next(&hpdata, &purge_state, &purge_addr,
+	    &purge_size);
+	expect_false(got_result, "Unexpected additional purge range: "
+	    "extent at %p of size %zu", purge_addr, purge_size);
+
+	hpdata_purge_end(&hpdata, &purge_state);
+
+	expect_zu_eq(hpdata_ndirty_get(&hpdata), HUGEPAGE_PAGES / 4, "");
+}
+TEST_END
+
+TEST_BEGIN(test_hugify) {
+	hpdata_t hpdata;
+	hpdata_init(&hpdata, HPDATA_ADDR, HPDATA_AGE);
+
+	void *alloc = hpdata_reserve_alloc(&hpdata, HUGEPAGE / 2);
+	expect_ptr_eq(alloc, HPDATA_ADDR, "");
+
+	expect_zu_eq(HUGEPAGE_PAGES / 2, hpdata_ndirty_get(&hpdata), "");
+
+	expect_false(hpdata_changing_state_get(&hpdata), "");
+	hpdata_hugify_begin(&hpdata);
+	expect_true(hpdata_changing_state_get(&hpdata), "");
+	hpdata_hugify_end(&hpdata);
+	expect_false(hpdata_changing_state_get(&hpdata), "");
+
+	/* Hugeifying should have increased the dirty page count. */
+	expect_zu_eq(HUGEPAGE_PAGES, hpdata_ndirty_get(&hpdata), "");
+}
+TEST_END
+
 int main(void) {
 	return test_no_reentrancy(
-	    test_reserve_alloc);
+	    test_reserve_alloc,
+	    test_purge_simple,
+	    test_purge_intervening_dalloc,
+	    test_hugify);
 }
