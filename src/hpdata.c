@@ -22,6 +22,8 @@ hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age) {
 	hpdata_addr_set(hpdata, addr);
 	hpdata_age_set(hpdata, age);
 	hpdata->h_huge = false;
+	hpdata->h_mid_purge = false;
+	hpdata->h_mid_hugify = false;
 	hpdata_longest_free_range_set(hpdata, HUGEPAGE_PAGES);
 	hpdata->h_nactive = 0;
 	fb_init(hpdata->active_pages, HUGEPAGE_PAGES);
@@ -140,8 +142,97 @@ hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz) {
 }
 
 void
-hpdata_hugify(hpdata_t *hpdata) {
+hpdata_purge_begin(hpdata_t *hpdata, hpdata_purge_state_t *purge_state) {
 	hpdata_assert_consistent(hpdata);
+	assert(!hpdata->h_mid_purge);
+	assert(!hpdata->h_mid_hugify);
+	hpdata->h_mid_purge = true;
+
+	purge_state->npurged = 0;
+	purge_state->next_purge_search_begin = 0;
+
+	/*
+	 * Initialize to_purge with everything that's not active but that is
+	 * dirty.
+	 *
+	 * As an optimization, we could note that in practice we never allocate
+	 * out of a hugepage while purging within it, and so could try to
+	 * combine dirty extents separated by a non-dirty but non-active extent
+	 * to avoid purge calls.  This does nontrivially complicate metadata
+	 * tracking though, so let's hold off for now.
+	 */
+	fb_bit_not(purge_state->to_purge, hpdata->active_pages, HUGEPAGE_PAGES);
+	fb_bit_and(purge_state->to_purge, purge_state->to_purge,
+	    hpdata->dirty_pages, HUGEPAGE_PAGES);
+
+	/* We purge everything we can. */
+	assert(hpdata->h_ndirty - hpdata->h_nactive == fb_scount(
+	    purge_state->to_purge, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES));
+
+	hpdata_assert_consistent(hpdata);
+}
+
+bool
+hpdata_purge_next(hpdata_t *hpdata, hpdata_purge_state_t *purge_state,
+    void **r_purge_addr, size_t *r_purge_size) {
+	/*
+	 * Note that we don't have a consistency check here; we're accessing
+	 * hpdata without synchronization, and therefore have no right to expect
+	 * a consistent state.
+	 */
+	assert(hpdata->h_mid_purge);
+	/* Should have dehugified already (if necessary). */
+	assert(!hpdata->h_huge);
+	assert(!hpdata->h_mid_hugify);
+
+	if (purge_state->next_purge_search_begin == HUGEPAGE_PAGES) {
+		return false;
+	}
+	size_t purge_begin;
+	size_t purge_len;
+	bool found_range = fb_srange_iter(purge_state->to_purge, HUGEPAGE_PAGES,
+	    purge_state->next_purge_search_begin, &purge_begin, &purge_len);
+	if (!found_range) {
+		return false;
+	}
+
+	*r_purge_addr = (void *)(
+	    (uintptr_t)hpdata_addr_get(hpdata) + purge_begin * PAGE);
+	*r_purge_size = purge_len * PAGE;
+
+	purge_state->next_purge_search_begin = purge_begin + purge_len;
+	purge_state->npurged += purge_len;
+	assert(purge_state->npurged <= HUGEPAGE_PAGES);
+
+	return true;
+}
+
+void
+hpdata_purge_end(hpdata_t *hpdata, hpdata_purge_state_t *purge_state) {
+	hpdata_assert_consistent(hpdata);
+	assert(hpdata->h_mid_purge);
+	assert(!hpdata->h_mid_hugify);
+	hpdata->h_mid_purge = false;
+
+	assert(purge_state->npurged == fb_scount(purge_state->to_purge,
+	    HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES));
+
+	fb_bit_not(purge_state->to_purge, purge_state->to_purge,
+	    HUGEPAGE_PAGES);
+	fb_bit_and(hpdata->dirty_pages, hpdata->dirty_pages,
+	    purge_state->to_purge, HUGEPAGE_PAGES);
+	assert(hpdata->h_ndirty >= purge_state->npurged);
+	hpdata->h_ndirty -= purge_state->npurged;
+
+	hpdata_assert_consistent(hpdata);
+}
+
+void
+hpdata_hugify_begin(hpdata_t *hpdata) {
+	hpdata_assert_consistent(hpdata);
+	assert(!hpdata->h_mid_purge);
+	assert(!hpdata->h_mid_hugify);
+	hpdata->h_mid_hugify = true;
 	hpdata->h_huge = true;
 	fb_set_range(hpdata->dirty_pages, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES);
 	hpdata->h_ndirty = HUGEPAGE_PAGES;
@@ -149,8 +240,27 @@ hpdata_hugify(hpdata_t *hpdata) {
 }
 
 void
+hpdata_hugify_end(hpdata_t *hpdata) {
+	hpdata_assert_consistent(hpdata);
+	assert(!hpdata->h_mid_purge);
+	assert(hpdata->h_mid_hugify);
+	hpdata->h_mid_hugify = false;
+	hpdata_assert_consistent(hpdata);
+}
+
+void
 hpdata_dehugify(hpdata_t *hpdata) {
 	hpdata_assert_consistent(hpdata);
+	/*
+	 * These asserts are morally right; for now, though, we have the "purge a
+	 * hugepage only in its entirety, when it becomes empty", path sharing
+	 * hpdata_dehugify with the new purge pathway coming in the next
+	 * commit.
+	 */
+	/*
+	assert(hpdata->h_mid_purge);
+	assert(!hpdata->h_mid_hugify);
+	*/
 	hpdata->h_huge = false;
 	hpdata_assert_consistent(hpdata);
 }

@@ -34,6 +34,16 @@ struct hpdata_s {
 	uint64_t h_age;
 	/* Whether or not we think the hugepage is mapped that way by the OS. */
 	bool h_huge;
+
+	/*
+	 * Whether or not some thread is purging this hpdata (i.e. has called
+	 * hpdata_purge_begin but not yet called hpdata_purge_end), or
+	 * hugifying it.  Only one thread at a time is allowed to change a
+	 * hugepage's state.
+	 */
+	bool h_mid_purge;
+	bool h_mid_hugify;
+
 	union {
 		/* When nonempty, used by the psset bins. */
 		phn(hpdata_t) ph_link;
@@ -90,6 +100,22 @@ hpdata_huge_get(const hpdata_t *hpdata) {
 	return hpdata->h_huge;
 }
 
+static inline bool
+hpdata_changing_state_get(const hpdata_t *hpdata) {
+	return hpdata->h_mid_purge || hpdata->h_mid_hugify;
+}
+
+static inline bool
+hpdata_mid_purge_get(const hpdata_t *hpdata) {
+	return hpdata->h_mid_purge;
+}
+
+static inline bool
+hpdata_mid_hugify_get(const hpdata_t *hpdata) {
+	return hpdata->h_mid_hugify;
+}
+
+
 static inline size_t
 hpdata_longest_free_range_get(const hpdata_t *hpdata) {
 	return hpdata->h_longest_free_range;
@@ -104,6 +130,11 @@ hpdata_longest_free_range_set(hpdata_t *hpdata, size_t longest_free_range) {
 static inline size_t
 hpdata_nactive_get(hpdata_t *hpdata) {
 	return hpdata->h_nactive;
+}
+
+static inline size_t
+hpdata_ndirty_get(hpdata_t *hpdata) {
+	return hpdata->h_ndirty;
 }
 
 static inline void
@@ -165,19 +196,68 @@ void *hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz);
 void hpdata_unreserve(hpdata_t *hpdata, void *begin, size_t sz);
 
 /*
- * Tell the hpdata that it's now a hugepage (which, correspondingly, means that
- * all its pages become dirty.
- */
-void hpdata_hugify(hpdata_t *hpdata);
-/*
- * Tell the hpdata that it's no longer a hugepage (all its pages are still
- * counted as dirty, though; an explicit purge call is required to change that).
- */
-void hpdata_dehugify(hpdata_t *hpdata);
-/*
  * Tell the hpdata (which should be empty) that all dirty pages in it have been
  * purged.
  */
 void hpdata_purge(hpdata_t *hpdata);
+
+/*
+ * The hpdata_purge_prepare_t allows grabbing the metadata required to purge
+ * subranges of a hugepage while holding a lock, drop the lock during the actual
+ * purging of them, and reacquire it to update the metadata again.
+ */
+typedef struct hpdata_purge_state_s hpdata_purge_state_t;
+struct hpdata_purge_state_s {
+	size_t npurged;
+	fb_group_t to_purge[FB_NGROUPS(HUGEPAGE_PAGES)];
+	size_t next_purge_search_begin;
+};
+
+/*
+ * Initializes purge state.  The access to hpdata must be externally
+ * synchronized with other hpdata_* calls.
+ *
+ * You can tell whether or not a thread is purging or hugifying a given hpdata
+ * via hpdata_changing_state_get(hpdata).  Racing hugification or purging
+ * operations aren't allowed.
+ *
+ * Once you begin purging, you have to follow through and call hpdata_purge_next
+ * until you're done, and then end.  Allocating out of an hpdata undergoing
+ * purging is not allowed.
+ */
+void hpdata_purge_begin(hpdata_t *hpdata, hpdata_purge_state_t *purge_state);
+/*
+ * If there are more extents to purge, sets *r_purge_addr and *r_purge_size to
+ * true, and returns true.  Otherwise, returns false to indicate that we're
+ * done.
+ *
+ * This requires exclusive access to the purge state, but *not* to the hpdata.
+ * In particular, unreserve calls are allowed while purging (i.e. you can dalloc
+ * into one part of the hpdata while purging a different part).
+ */
+bool hpdata_purge_next(hpdata_t *hpdata, hpdata_purge_state_t *purge_state,
+    void **r_purge_addr, size_t *r_purge_size);
+/*
+ * Updates the hpdata metadata after all purging is done.  Needs external
+ * synchronization.
+ */
+void hpdata_purge_end(hpdata_t *hpdata, hpdata_purge_state_t *purge_state);
+
+/*
+ * Similarly, when hugifying , callers can do the metadata modifications while
+ * holding a lock (thereby setting the change_state field), but actually do the
+ * operation without blocking other threads.
+ */
+void hpdata_hugify_begin(hpdata_t *hpdata);
+void hpdata_hugify_end(hpdata_t *hpdata);
+
+/*
+ * Tell the hpdata that it's no longer a hugepage (all its pages are still
+ * counted as dirty, though; an explicit purge call is required to change that).
+ *
+ * This should only be done after starting to purge, and before actually purging
+ * any contents.
+ */
+void hpdata_dehugify(hpdata_t *hpdata);
 
 #endif /* JEMALLOC_INTERNAL_HPDATA_H */

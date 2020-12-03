@@ -300,7 +300,7 @@ hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) 
 
 	bool hugify = hpa_should_hugify(shard, ps);
 	if (hugify) {
-		hpdata_hugify(ps);
+		hpdata_hugify_begin(ps);
 	}
 	psset_insert(&shard->psset, ps);
 
@@ -319,6 +319,9 @@ hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) 
 		 * operations in this hpa shard.
 		 */
 		hpa_hugify(ps);
+		malloc_mutex_lock(tsdn, &shard->mtx);
+		hpdata_hugify_end(ps);
+		malloc_mutex_unlock(tsdn, &shard->mtx);
 	}
 	return edata;
 }
