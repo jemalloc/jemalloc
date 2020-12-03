@@ -21,10 +21,12 @@ void
 hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age) {
 	hpdata_addr_set(hpdata, addr);
 	hpdata_age_set(hpdata, age);
-	hpdata_huge_set(hpdata, false);
-	hpdata->h_nactive = 0;
+	hpdata->h_huge = false;
 	hpdata_longest_free_range_set(hpdata, HUGEPAGE_PAGES);
+	hpdata->h_nactive = 0;
 	fb_init(hpdata->active_pages, HUGEPAGE_PAGES);
+	hpdata->h_ndirty = 0;
+	fb_init(hpdata->dirty_pages, HUGEPAGE_PAGES);
 
 	hpdata_assert_consistent(hpdata);
 }
@@ -73,6 +75,15 @@ hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz) {
 	result = begin;
 	fb_set_range(hpdata->active_pages, HUGEPAGE_PAGES, begin, npages);
 	hpdata->h_nactive += npages;
+
+	/*
+	 * We might be about to dirty some memory for the first time; update our
+	 * count if so.
+	 */
+	size_t new_dirty = fb_ucount(hpdata->dirty_pages,  HUGEPAGE_PAGES,
+	    result, npages);
+	fb_set_range(hpdata->dirty_pages, HUGEPAGE_PAGES, result, npages);
+	hpdata->h_ndirty += new_dirty;
 
 	/*
 	 * We might have shrunk the longest free range.  We have to keep
@@ -125,5 +136,35 @@ hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz) {
 
 	hpdata->h_nactive -= npages;
 
+	hpdata_assert_consistent(hpdata);
+}
+
+void
+hpdata_hugify(hpdata_t *hpdata) {
+	hpdata_assert_consistent(hpdata);
+	hpdata->h_huge = true;
+	fb_set_range(hpdata->dirty_pages, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES);
+	hpdata->h_ndirty = HUGEPAGE_PAGES;
+	hpdata_assert_consistent(hpdata);
+}
+
+void
+hpdata_dehugify(hpdata_t *hpdata) {
+	hpdata_assert_consistent(hpdata);
+	hpdata->h_huge = false;
+	hpdata_assert_consistent(hpdata);
+}
+
+void
+hpdata_purge(hpdata_t *hpdata) {
+	hpdata_assert_consistent(hpdata);
+	/*
+	 * The hpdata must be empty; we don't (yet) support partial purges of
+	 * hugepages.
+	 */
+	assert(hpdata->h_nactive == 0);
+	fb_unset_range(hpdata->dirty_pages, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES);
+	fb_init(hpdata->dirty_pages, HUGEPAGE_PAGES);
+	hpdata->h_ndirty = 0;
 	hpdata_assert_consistent(hpdata);
 }
