@@ -3506,7 +3506,7 @@ stats_arenas_i_extents_j_index(tsdn_t *tsdn, const size_t *mib,
 }
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nevictions,
-    arenas_i(mib[2])->astats->hpastats.nevictions, uint64_t);
+    arenas_i(mib[2])->astats->hpastats.nonderived_stats.nevictions, uint64_t);
 
 /* Full, huge */
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_npageslabs_huge,

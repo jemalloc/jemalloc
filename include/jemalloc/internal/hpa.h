@@ -6,12 +6,22 @@
 #include "jemalloc/internal/pai.h"
 #include "jemalloc/internal/psset.h"
 
+typedef struct hpa_shard_nonderived_stats_s hpa_shard_nonderived_stats_t;
+struct hpa_shard_nonderived_stats_s {
+	/*
+	 * The number of times we've purged a hugepage.  Each eviction purges a
+	 * single hugepage.
+	 *
+	 * Guarded by the grow mutex.
+	 */
+	uint64_t nevictions;
+};
+
 /* Completely derived; only used by CTL. */
 typedef struct hpa_shard_stats_s hpa_shard_stats_t;
 struct hpa_shard_stats_s {
 	psset_stats_t psset_stats;
-	/* The stat version of the nevictions counter. */
-	uint64_t nevictions;
+	hpa_shard_nonderived_stats_t nonderived_stats;
 };
 
 typedef struct hpa_shard_s hpa_shard_t;
@@ -73,12 +83,10 @@ struct hpa_shard_s {
 	emap_t *emap;
 
 	/*
-	 * The number of times we've purged a hugepage.  Each eviction purges a
-	 * single hugepage.
-	 *
-	 * Guarded by the grow mutex.
+	 * Those stats which are copied directly into the CTL-centric hpa shard
+	 * stats.
 	 */
-	uint64_t nevictions;
+	hpa_shard_nonderived_stats_t stats;
 };
 
 /*

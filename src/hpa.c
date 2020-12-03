@@ -74,7 +74,7 @@ hpa_shard_init(hpa_shard_t *shard, emap_t *emap, base_t *base,
 	shard->eden_len = 0;
 	shard->ind = ind;
 	shard->emap = emap;
-	shard->nevictions = 0;
+	shard->stats.nevictions = 0;
 
 	/*
 	 * Fill these in last, so that if an hpa_shard gets used despite
@@ -95,10 +95,17 @@ hpa_shard_init(hpa_shard_t *shard, emap_t *emap, base_t *base,
  * only combines the stats from one stats objet to another.  Hence the lack of
  * locking here.
  */
+static void
+hpa_shard_nonderived_stats_accum(hpa_shard_nonderived_stats_t *dst,
+    hpa_shard_nonderived_stats_t *src) {
+	dst->nevictions += src->nevictions;
+}
+
 void
 hpa_shard_stats_accum(hpa_shard_stats_t *dst, hpa_shard_stats_t *src) {
 	psset_stats_accum(&dst->psset_stats, &src->psset_stats);
-	dst->nevictions += src->nevictions;
+	hpa_shard_nonderived_stats_accum(&dst->nonderived_stats,
+	    &src->nonderived_stats);
 }
 
 void
@@ -107,7 +114,7 @@ hpa_shard_stats_merge(tsdn_t *tsdn, hpa_shard_t *shard,
 	malloc_mutex_lock(tsdn, &shard->grow_mtx);
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	psset_stats_accum(&dst->psset_stats, &shard->psset.stats);
-	dst->nevictions += shard->nevictions;
+	hpa_shard_nonderived_stats_accum(&dst->nonderived_stats, &shard->stats);
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 	malloc_mutex_unlock(tsdn, &shard->grow_mtx);
 }
@@ -290,7 +297,7 @@ hpa_handle_ps_eviction(tsdn_t *tsdn, hpa_shard_t *shard, hpdata_t *ps) {
 	malloc_mutex_assert_not_owner(tsdn, &shard->grow_mtx);
 
 	malloc_mutex_lock(tsdn, &shard->grow_mtx);
-	shard->nevictions++;
+	shard->stats.nevictions++;
 	hpdata_list_prepend(&shard->unused_slabs, ps);
 	malloc_mutex_unlock(tsdn, &shard->grow_mtx);
 }
@@ -431,7 +438,7 @@ hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	edata = edata_cache_small_get(tsdn, &shard->ecs);
 	if (edata == NULL) {
-		shard->nevictions++;
+		shard->stats.nevictions++;
 		malloc_mutex_unlock(tsdn, &shard->mtx);
 		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
 		hpa_handle_ps_eviction(tsdn, shard, ps);
@@ -452,7 +459,7 @@ hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
 
 		edata_cache_small_put(tsdn, &shard->ecs, edata);
 
-		shard->nevictions++;
+		shard->stats.nevictions++;
 		malloc_mutex_unlock(tsdn, &shard->mtx);
 		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
 
