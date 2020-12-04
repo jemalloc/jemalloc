@@ -161,7 +161,7 @@ hpa_should_purge(hpa_shard_t *shard, hpdata_t *ps) {
 	if (hpdata_changing_state_get(ps)) {
 		return false;
 	}
-	size_t purgeable = hpdata_ndirty_get(ps) - hpdata_nactive_get(ps);
+	size_t purgeable = hpdata_ndirty_get(ps);
 	return purgeable > HUGEPAGE_PAGES * 25 / 100
 	    || (purgeable > 0 && hpdata_empty(ps));
 }

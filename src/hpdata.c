@@ -28,8 +28,8 @@ hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age) {
 	hpdata_longest_free_range_set(hpdata, HUGEPAGE_PAGES);
 	hpdata->h_nactive = 0;
 	fb_init(hpdata->active_pages, HUGEPAGE_PAGES);
-	hpdata->h_ndirty = 0;
-	fb_init(hpdata->dirty_pages, HUGEPAGE_PAGES);
+	hpdata->h_ntouched = 0;
+	fb_init(hpdata->touched_pages, HUGEPAGE_PAGES);
 
 	hpdata_assert_consistent(hpdata);
 }
@@ -84,10 +84,10 @@ hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz) {
 	 * We might be about to dirty some memory for the first time; update our
 	 * count if so.
 	 */
-	size_t new_dirty = fb_ucount(hpdata->dirty_pages,  HUGEPAGE_PAGES,
+	size_t new_dirty = fb_ucount(hpdata->touched_pages,  HUGEPAGE_PAGES,
 	    result, npages);
-	fb_set_range(hpdata->dirty_pages, HUGEPAGE_PAGES, result, npages);
-	hpdata->h_ndirty += new_dirty;
+	fb_set_range(hpdata->touched_pages, HUGEPAGE_PAGES, result, npages);
+	hpdata->h_ntouched += new_dirty;
 
 	/*
 	 * We might have shrunk the longest free range.  We have to keep
@@ -167,10 +167,10 @@ hpdata_purge_begin(hpdata_t *hpdata, hpdata_purge_state_t *purge_state) {
 	 */
 	fb_bit_not(purge_state->to_purge, hpdata->active_pages, HUGEPAGE_PAGES);
 	fb_bit_and(purge_state->to_purge, purge_state->to_purge,
-	    hpdata->dirty_pages, HUGEPAGE_PAGES);
+	    hpdata->touched_pages, HUGEPAGE_PAGES);
 
 	/* We purge everything we can. */
-	assert(hpdata->h_ndirty - hpdata->h_nactive == fb_scount(
+	assert(hpdata->h_ntouched - hpdata->h_nactive == fb_scount(
 	    purge_state->to_purge, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES));
 
 	hpdata_assert_consistent(hpdata);
@@ -225,10 +225,10 @@ hpdata_purge_end(hpdata_t *hpdata, hpdata_purge_state_t *purge_state) {
 
 	fb_bit_not(purge_state->to_purge, purge_state->to_purge,
 	    HUGEPAGE_PAGES);
-	fb_bit_and(hpdata->dirty_pages, hpdata->dirty_pages,
+	fb_bit_and(hpdata->touched_pages, hpdata->touched_pages,
 	    purge_state->to_purge, HUGEPAGE_PAGES);
-	assert(hpdata->h_ndirty >= purge_state->npurged);
-	hpdata->h_ndirty -= purge_state->npurged;
+	assert(hpdata->h_ntouched >= purge_state->npurged);
+	hpdata->h_ntouched -= purge_state->npurged;
 
 	hpdata_assert_consistent(hpdata);
 }
@@ -241,8 +241,8 @@ hpdata_hugify_begin(hpdata_t *hpdata) {
 	assert(!hpdata->h_mid_hugify);
 	hpdata->h_mid_hugify = true;
 	hpdata->h_huge = true;
-	fb_set_range(hpdata->dirty_pages, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES);
-	hpdata->h_ndirty = HUGEPAGE_PAGES;
+	fb_set_range(hpdata->touched_pages, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES);
+	hpdata->h_ntouched = HUGEPAGE_PAGES;
 	hpdata_assert_consistent(hpdata);
 }
 
