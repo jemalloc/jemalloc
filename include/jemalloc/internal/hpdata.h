@@ -77,6 +77,10 @@ struct hpdata_s {
 	fb_group_t dirty_pages[FB_NGROUPS(HUGEPAGE_PAGES)];
 };
 
+TYPED_LIST(hpdata_list, hpdata_t, ql_link)
+typedef ph(hpdata_t) hpdata_age_heap_t;
+ph_proto(, hpdata_age_heap_, hpdata_age_heap_t, hpdata_t);
+
 static inline void *
 hpdata_addr_get(const hpdata_t *hpdata) {
 	return hpdata->h_address;
@@ -187,11 +191,6 @@ static inline void
 hpdata_assert_consistent(hpdata_t *hpdata) {
 	assert(hpdata_consistent(hpdata));
 }
-
-TYPED_LIST(hpdata_list, hpdata_t, ql_link)
-
-typedef ph(hpdata_t) hpdata_age_heap_t;
-ph_proto(, hpdata_age_heap_, hpdata_age_heap_t, hpdata_t);
 
 static inline bool
 hpdata_empty(hpdata_t *hpdata) {

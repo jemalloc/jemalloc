@@ -135,16 +135,20 @@ hpa_alloc_ps(tsdn_t *tsdn, hpa_shard_t *shard) {
 }
 
 static bool
-hpa_should_hugify(hpa_shard_t *shard, hpdata_t *ps) {
+hpa_good_hugification_candidate(hpa_shard_t *shard, hpdata_t *ps) {
 	/*
 	 * For now, just use a static check; hugify a page if it's <= 5%
 	 * inactive.  Eventually, this should be a malloc conf option.
 	 */
-	if (hpdata_changing_state_get(ps)) {
+	return hpdata_nactive_get(ps) >= (HUGEPAGE_PAGES) * 95 / 100;
+}
+
+static bool
+hpa_should_hugify(hpa_shard_t *shard, hpdata_t *ps) {
+	if (hpdata_changing_state_get(ps) || hpdata_huge_get(ps)) {
 		return false;
 	}
-	return !hpdata_huge_get(ps)
-	    && hpdata_nactive_get(ps) >= (HUGEPAGE_PAGES) * 95 / 100;
+	return hpa_good_hugification_candidate(shard, ps);
 }
 
 /*
