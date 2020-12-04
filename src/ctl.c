@@ -227,6 +227,10 @@ CTL_PROTO(stats_arenas_i_extents_j_muzzy_bytes)
 CTL_PROTO(stats_arenas_i_extents_j_retained_bytes)
 INDEX_PROTO(stats_arenas_i_extents_j)
 CTL_PROTO(stats_arenas_i_hpa_shard_nevictions)
+CTL_PROTO(stats_arenas_i_hpa_shard_npurge_passes)
+CTL_PROTO(stats_arenas_i_hpa_shard_npurges)
+CTL_PROTO(stats_arenas_i_hpa_shard_nhugifies)
+CTL_PROTO(stats_arenas_i_hpa_shard_ndehugifies)
 CTL_PROTO(stats_arenas_i_hpa_shard_full_slabs_npageslabs_huge)
 CTL_PROTO(stats_arenas_i_hpa_shard_full_slabs_nactive_huge)
 CTL_PROTO(stats_arenas_i_hpa_shard_full_slabs_ninactive_huge)
@@ -695,7 +699,12 @@ static const ctl_named_node_t stats_arenas_i_hpa_shard_node[] = {
 	    stats_arenas_i_hpa_shard_full_slabs)},
 	{NAME("nonfull_slabs"),	CHILD(indexed,
 	    stats_arenas_i_hpa_shard_nonfull_slabs)},
-	{NAME("nevictions"),	CTL(stats_arenas_i_hpa_shard_nevictions)}
+
+	{NAME("nevictions"),	CTL(stats_arenas_i_hpa_shard_nevictions)},
+	{NAME("npurge_passes"),	CTL(stats_arenas_i_hpa_shard_npurge_passes)},
+	{NAME("npurges"),	CTL(stats_arenas_i_hpa_shard_npurges)},
+	{NAME("nhugifies"),	CTL(stats_arenas_i_hpa_shard_nhugifies)},
+	{NAME("ndehugifies"),	CTL(stats_arenas_i_hpa_shard_ndehugifies)}
 };
 
 static const ctl_named_node_t stats_arenas_i_node[] = {
@@ -3507,6 +3516,14 @@ stats_arenas_i_extents_j_index(tsdn_t *tsdn, const size_t *mib,
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nevictions,
     arenas_i(mib[2])->astats->hpastats.nonderived_stats.nevictions, uint64_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_npurge_passes,
+    arenas_i(mib[2])->astats->hpastats.nonderived_stats.npurge_passes, uint64_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_npurges,
+    arenas_i(mib[2])->astats->hpastats.nonderived_stats.npurges, uint64_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nhugifies,
+    arenas_i(mib[2])->astats->hpastats.nonderived_stats.nhugifies, uint64_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_ndehugifies,
+    arenas_i(mib[2])->astats->hpastats.nonderived_stats.ndehugifies, uint64_t);
 
 /* Full, huge */
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_npageslabs_huge,
