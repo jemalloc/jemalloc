@@ -21,7 +21,6 @@ static void
 psset_bin_stats_accum(psset_bin_stats_t *dst, psset_bin_stats_t *src) {
 	dst->npageslabs += src->npageslabs;
 	dst->nactive += src->nactive;
-	dst->ninactive += src->ninactive;
 }
 
 void
@@ -54,7 +53,6 @@ psset_bin_stats_insert_remove(psset_bin_stats_t *binstats, hpdata_t *ps,
 	binstats[huge_idx].npageslabs += mul * 1;
 	size_t nactive = hpdata_nactive_get(ps);
 	binstats[huge_idx].nactive += mul * nactive;
-	binstats[huge_idx].ninactive += mul * (HUGEPAGE_PAGES - nactive);
 }
 
 static void
