@@ -74,7 +74,12 @@ hpa_shard_init(hpa_shard_t *shard, emap_t *emap, base_t *base,
 	shard->eden_len = 0;
 	shard->ind = ind;
 	shard->emap = emap;
+
 	shard->stats.nevictions = 0;
+	shard->stats.npurge_passes = 0;
+	shard->stats.npurges = 0;
+	shard->stats.nhugifies = 0;
+	shard->stats.ndehugifies = 0;
 
 	/*
 	 * Fill these in last, so that if an hpa_shard gets used despite
@@ -99,6 +104,10 @@ static void
 hpa_shard_nonderived_stats_accum(hpa_shard_nonderived_stats_t *dst,
     hpa_shard_nonderived_stats_t *src) {
 	dst->nevictions += src->nevictions;
+	dst->npurge_passes += src->npurge_passes;
+	dst->npurges += src->npurges;
+	dst->nhugifies += src->nhugifies;
+	dst->ndehugifies += src->ndehugifies;
 }
 
 void
@@ -237,6 +246,7 @@ hpa_purge(tsdn_t *tsdn, hpa_shard_t *shard, hpdata_t *ps) {
 		/* Do the metadata update bit while holding the lock. */
 		hpdata_purge_state_t purge_state;
 		hpdata_purge_begin(ps, &purge_state);
+		shard->stats.npurge_passes++;
 
 		/*
 		 * Dehugifying can only happen on the first loop iteration,
@@ -247,6 +257,7 @@ hpa_purge(tsdn_t *tsdn, hpa_shard_t *shard, hpdata_t *ps) {
 		bool needs_dehugify = false;
 		if (hpdata_huge_get(ps)) {
 			needs_dehugify = true;
+			shard->stats.ndehugifies++;
 			hpdata_dehugify(ps);
 		}
 
@@ -258,16 +269,19 @@ hpa_purge(tsdn_t *tsdn, hpa_shard_t *shard, hpdata_t *ps) {
 		}
 
 		size_t total_purged = 0;
+		uint64_t purges_this_pass = 0;
 		void *purge_addr;
 		size_t purge_size;
 		while (hpdata_purge_next(ps, &purge_state, &purge_addr,
 		    &purge_size)) {
+			purges_this_pass++;
 			pages_purge_forced(purge_addr, purge_size);
 			total_purged += purge_size;
 		}
 
 		/* Reacquire to finish our metadata update. */
 		malloc_mutex_lock(tsdn, &shard->mtx);
+		shard->stats.npurges += purges_this_pass;
 		hpdata_purge_end(ps, &purge_state);
 
 		assert(total_purged <= HUGEPAGE);
@@ -357,6 +371,7 @@ hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) 
 	bool hugify = hpa_should_hugify(shard, ps);
 	if (hugify) {
 		hpdata_hugify_begin(ps);
+		shard->stats.nhugifies++;
 	}
 	psset_insert(&shard->psset, ps);
 

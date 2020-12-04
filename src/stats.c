@@ -791,6 +791,21 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	emitter_row_init(&row);
 
 	uint64_t nevictions;
+	uint64_t npurge_passes;
+	uint64_t npurges;
+	uint64_t nhugifies;
+	uint64_t ndehugifies;
+
+	CTL_M2_GET("stats.arenas.0.hpa_shard.nevictions",
+	    i, &nevictions, uint64_t);
+	CTL_M2_GET("stats.arenas.0.hpa_shard.npurge_passes",
+	    i, &npurge_passes, uint64_t);
+	CTL_M2_GET("stats.arenas.0.hpa_shard.npurges",
+	    i, &npurges, uint64_t);
+	CTL_M2_GET("stats.arenas.0.hpa_shard.nhugifies",
+	    i, &nhugifies, uint64_t);
+	CTL_M2_GET("stats.arenas.0.hpa_shard.ndehugifies",
+	    i, &ndehugifies, uint64_t);
 
 	size_t npageslabs_huge;
 	size_t nactive_huge;
@@ -799,9 +814,6 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	size_t npageslabs_nonhuge;
 	size_t nactive_nonhuge;
 	size_t ninactive_nonhuge;
-
-	CTL_M2_GET("stats.arenas.0.hpa_shard.nevictions",
-	    i, &nevictions, uint64_t);
 
 	CTL_M2_GET("stats.arenas.0.hpa_shard.full_slabs.npageslabs_huge",
 	    i, &npageslabs_huge, size_t);
@@ -825,17 +837,35 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	emitter_table_printf(emitter,
 	    "HPA shard stats:\n"
 	    "  Evictions: %" FMTu64 " (%" FMTu64 " / sec)\n"
+	    "  Purge passes: %" FMTu64 " (%" FMTu64 " / sec)\n"
+	    "  Purges: %" FMTu64 " (%" FMTu64 " / sec)\n"
+	    "  Hugeifies: %" FMTu64 " (%" FMTu64 " / sec)\n"
+	    "  Dehugifies: %" FMTu64 " (%" FMTu64 " / sec)\n"
+	    "\n"
 	    "  In full slabs:\n"
 	    "      npageslabs: %zu huge, %zu nonhuge\n"
 	    "      nactive: %zu huge, %zu nonhuge \n"
 	    "      ninactive: %zu huge, %zu nonhuge \n",
 	    nevictions, rate_per_second(nevictions, uptime),
+	    npurge_passes, rate_per_second(npurge_passes, uptime),
+	    npurges, rate_per_second(npurges, uptime),
+	    nhugifies, rate_per_second(nhugifies, uptime),
+	    ndehugifies, rate_per_second(ndehugifies, uptime),
 	    npageslabs_huge, npageslabs_nonhuge,
 	    nactive_huge, nactive_nonhuge,
 	    ninactive_huge, ninactive_nonhuge);
 	emitter_json_object_kv_begin(emitter, "hpa_shard");
 	emitter_json_kv(emitter, "nevictions", emitter_type_uint64,
 	    &nevictions);
+	emitter_json_kv(emitter, "npurge_passes", emitter_type_uint64,
+	    &npurge_passes);
+	emitter_json_kv(emitter, "npurges", emitter_type_uint64,
+	    &npurges);
+	emitter_json_kv(emitter, "nhugifies", emitter_type_uint64,
+	    &nhugifies);
+	emitter_json_kv(emitter, "ndehugifies", emitter_type_uint64,
+	    &ndehugifies);
+
 	emitter_json_object_kv_begin(emitter, "full_slabs");
 	emitter_json_kv(emitter, "npageslabs_huge", emitter_type_size,
 	    &npageslabs_huge);

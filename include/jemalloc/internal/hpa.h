@@ -9,12 +9,40 @@
 typedef struct hpa_shard_nonderived_stats_s hpa_shard_nonderived_stats_t;
 struct hpa_shard_nonderived_stats_s {
 	/*
-	 * The number of times we've purged a hugepage.  Each eviction purges a
-	 * single hugepage.
+	 * The number of times we've fully purged a hugepage and evicted it from
+	 * the psset.
 	 *
-	 * Guarded by the grow mutex.
+	 * Guarded by grow_mtx.
 	 */
 	uint64_t nevictions;
+
+	/*
+	 * The number of times we've purged within a hugepage.
+	 *
+	 * Guarded by mtx.
+	 */
+	uint64_t npurge_passes;
+	/*
+	 * The number of individual purge calls we perform (which should always
+	 * be bigger than npurge_passes, since each pass purges at least one
+	 * extent within a hugepage.
+	 *
+	 * Guarded by mtx.
+	 */
+	uint64_t npurges;
+
+	/*
+	 * The number of times we've hugified a pageslab.
+	 *
+	 * Guarded by mtx.
+	 */
+	uint64_t nhugifies;
+	/*
+	 * The number of times we've dehugified a pageslab.
+	 *
+	 * Guarded by mtx.
+	 */
+	uint64_t ndehugifies;
 };
 
 /* Completely derived; only used by CTL. */
