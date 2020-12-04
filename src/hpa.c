@@ -664,7 +664,6 @@ static void
 hpa_shard_assert_stats_empty(psset_bin_stats_t *bin_stats) {
 	assert(bin_stats->npageslabs == 0);
 	assert(bin_stats->nactive == 0);
-	assert(bin_stats->ninactive == 0);
 }
 
 static void

@@ -325,8 +325,6 @@ stats_expect_empty(psset_bin_stats_t *stats) {
 	    "Supposedly empty bin had positive npageslabs");
 	expect_zu_eq(0, stats->nactive, "Unexpected nonempty bin"
 	    "Supposedly empty bin had positive nactive");
-	expect_zu_eq(0, stats->ninactive, "Unexpected nonempty bin"
-	    "Supposedly empty bin had positive ninactive");
 }
 
 static void
@@ -337,8 +335,6 @@ stats_expect(psset_t *psset, size_t nactive) {
 		expect_zu_eq(HUGEPAGE_PAGES,
 		    psset->stats.full_slabs[0].nactive,
 		    "Should have exactly filled the bin");
-		expect_zu_eq(0, psset->stats.full_slabs[0].ninactive,
-		    "Should never have inactive pages in a full slab");
 	} else {
 		stats_expect_empty(&psset->stats.full_slabs[0]);
 	}
@@ -356,9 +352,6 @@ stats_expect(psset_t *psset, size_t nactive) {
 			expect_zu_eq(nactive,
 			    psset->stats.nonfull_slabs[i][0].nactive,
 			    "Mismatch in active pages");
-			expect_zu_eq(ninactive,
-			    psset->stats.nonfull_slabs[i][0].ninactive,
-			    "Mismatch in inactive pages");
 		} else {
 			stats_expect_empty(&psset->stats.nonfull_slabs[i][0]);
 		}

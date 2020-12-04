@@ -29,8 +29,6 @@ struct psset_bin_stats_s {
 	size_t npageslabs;
 	/* Of them, how many pages are active? */
 	size_t nactive;
-	/* How many are inactive? */
-	size_t ninactive;
 };
 
 typedef struct psset_stats_s psset_stats_t;
