@@ -65,7 +65,7 @@ TEST_BEGIN(test_purge_simple) {
 	/* Create HUGEPAGE_PAGES / 4 dirty inactive pages at the beginning. */
 	hpdata_unreserve(&hpdata, alloc, HUGEPAGE_PAGES / 4 * PAGE);
 
-	expect_zu_eq(hpdata_ndirty_get(&hpdata), HUGEPAGE_PAGES / 2, "");
+	expect_zu_eq(hpdata_ntouched_get(&hpdata), HUGEPAGE_PAGES / 2, "");
 
 	expect_false(hpdata_changing_state_get(&hpdata), "");
 
@@ -93,7 +93,7 @@ TEST_BEGIN(test_purge_simple) {
 
 	hpdata_purge_end(&hpdata, &purge_state);
 	expect_false(hpdata_changing_state_get(&hpdata), "");
-	expect_zu_eq(hpdata_ndirty_get(&hpdata), HUGEPAGE_PAGES / 4, "");
+	expect_zu_eq(hpdata_ntouched_get(&hpdata), HUGEPAGE_PAGES / 4, "");
 }
 TEST_END
 
@@ -118,7 +118,7 @@ TEST_BEGIN(test_purge_intervening_dalloc) {
 	    (void *)((uintptr_t)alloc + 2 * HUGEPAGE_PAGES / 4 * PAGE),
 	    HUGEPAGE_PAGES / 4 * PAGE);
 
-	expect_zu_eq(hpdata_ndirty_get(&hpdata), 3 * HUGEPAGE_PAGES / 4, "");
+	expect_zu_eq(hpdata_ntouched_get(&hpdata), 3 * HUGEPAGE_PAGES / 4, "");
 
 	hpdata_purge_state_t purge_state;
 	hpdata_purge_begin(&hpdata, &purge_state);
@@ -153,7 +153,7 @@ TEST_BEGIN(test_purge_intervening_dalloc) {
 
 	hpdata_purge_end(&hpdata, &purge_state);
 
-	expect_zu_eq(hpdata_ndirty_get(&hpdata), HUGEPAGE_PAGES / 4, "");
+	expect_zu_eq(hpdata_ntouched_get(&hpdata), HUGEPAGE_PAGES / 4, "");
 }
 TEST_END
 
@@ -164,7 +164,7 @@ TEST_BEGIN(test_hugify) {
 	void *alloc = hpdata_reserve_alloc(&hpdata, HUGEPAGE / 2);
 	expect_ptr_eq(alloc, HPDATA_ADDR, "");
 
-	expect_zu_eq(HUGEPAGE_PAGES / 2, hpdata_ndirty_get(&hpdata), "");
+	expect_zu_eq(HUGEPAGE_PAGES / 2, hpdata_ntouched_get(&hpdata), "");
 
 	expect_false(hpdata_changing_state_get(&hpdata), "");
 	hpdata_hugify_begin(&hpdata);
@@ -174,7 +174,7 @@ TEST_BEGIN(test_hugify) {
 	expect_false(hpdata_changing_state_get(&hpdata), "");
 
 	/* Hugeifying should have increased the dirty page count. */
-	expect_zu_eq(HUGEPAGE_PAGES, hpdata_ndirty_get(&hpdata), "");
+	expect_zu_eq(HUGEPAGE_PAGES, hpdata_ntouched_get(&hpdata), "");
 }
 TEST_END
 
