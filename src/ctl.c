@@ -3525,45 +3525,46 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nhugifies,
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_ndehugifies,
     arenas_i(mib[2])->astats->hpastats.nonderived_stats.ndehugifies, uint64_t);
 
-/* Full, huge */
-CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_npageslabs_huge,
-    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs.npageslabs_huge,
-    size_t);
-CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_nactive_huge,
-    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs.nactive_huge, size_t);
-CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_ninactive_huge,
-    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs.ninactive_huge, size_t);
-
 /* Full, nonhuge */
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_npageslabs_nonhuge,
-    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs.npageslabs_nonhuge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs[0].npageslabs,
     size_t);
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_nactive_nonhuge,
-    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs.nactive_nonhuge, size_t);
+    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs[0].nactive, size_t);
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_ninactive_nonhuge,
-    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs.ninactive_nonhuge, size_t);
+    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs[0].ninactive, size_t);
 
-/* Nonfull, huge */
-CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_npageslabs_huge,
-    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]].npageslabs_huge,
+/* Full, huge */
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_npageslabs_huge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs[1].npageslabs,
     size_t);
-CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_nactive_huge,
-    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]].nactive_huge,
-    size_t);
-CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_ninactive_huge,
-    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]].ninactive_huge,
-    size_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_nactive_huge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs[1].nactive, size_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_full_slabs_ninactive_huge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.full_slabs[1].ninactive, size_t);
 
 /* Nonfull, nonhuge */
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_npageslabs_nonhuge,
-    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]].npageslabs_nonhuge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]][0].npageslabs,
     size_t);
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_nactive_nonhuge,
-    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]].nactive_nonhuge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]][0].nactive,
     size_t);
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_ninactive_nonhuge,
-    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]].ninactive_nonhuge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]][0].ninactive,
     size_t);
+
+/* Nonfull, huge */
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_npageslabs_huge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]][1].npageslabs,
+    size_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_nactive_huge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]][1].nactive,
+    size_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nonfull_slabs_j_ninactive_huge,
+    arenas_i(mib[2])->astats->hpastats.psset_stats.nonfull_slabs[mib[5]][1].ninactive,
+    size_t);
+
 
 static const ctl_named_node_t *
 stats_arenas_i_hpa_shard_nonfull_slabs_j_index(tsdn_t *tsdn, const size_t *mib,

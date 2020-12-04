@@ -662,12 +662,9 @@ hpa_shard_disable(tsdn_t *tsdn, hpa_shard_t *shard) {
 
 static void
 hpa_shard_assert_stats_empty(psset_bin_stats_t *bin_stats) {
-	assert(bin_stats->npageslabs_huge == 0);
-	assert(bin_stats->nactive_huge == 0);
-	assert(bin_stats->ninactive_huge == 0);
-	assert(bin_stats->npageslabs_nonhuge == 0);
-	assert(bin_stats->nactive_nonhuge == 0);
-	assert(bin_stats->ninactive_nonhuge == 0);
+	assert(bin_stats->npageslabs == 0);
+	assert(bin_stats->nactive == 0);
+	assert(bin_stats->ninactive == 0);
 }
 
 static void
@@ -675,10 +672,12 @@ hpa_assert_empty(tsdn_t *tsdn, hpa_shard_t *shard, psset_t *psset) {
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
 	hpdata_t *ps = psset_fit(psset, PAGE);
 	assert(ps == NULL);
-	hpa_shard_assert_stats_empty(&psset->stats.full_slabs);
-	for (pszind_t i = 0; i < PSSET_NPSIZES; i++) {
-		hpa_shard_assert_stats_empty(
-		    &psset->stats.nonfull_slabs[i]);
+	for (int huge = 0; huge <= 1; huge++) {
+		hpa_shard_assert_stats_empty(&psset->stats.full_slabs[huge]);
+		for (pszind_t i = 0; i < PSSET_NPSIZES; i++) {
+			hpa_shard_assert_stats_empty(
+			    &psset->stats.nonfull_slabs[i][huge]);
+		}
 	}
 }
 

@@ -26,25 +26,28 @@
 typedef struct psset_bin_stats_s psset_bin_stats_t;
 struct psset_bin_stats_s {
 	/* How many pageslabs are in this bin? */
-	size_t npageslabs_huge;
-	size_t npageslabs_nonhuge;
+	size_t npageslabs;
 	/* Of them, how many pages are active? */
-	size_t nactive_huge;
-	size_t nactive_nonhuge;
+	size_t nactive;
 	/* How many are inactive? */
-	size_t ninactive_huge;
-	size_t ninactive_nonhuge;
+	size_t ninactive;
 };
 
-/* Used only by CTL; not actually stored here (i.e., all derived). */
 typedef struct psset_stats_s psset_stats_t;
 struct psset_stats_s {
+
+	/*
+	 * The second index is huge stats; nonfull_slabs[pszind][0] contains
+	 * stats for the non-huge slabs in bucket pszind, while
+	 * nonfull_slabs[pszind][1] contains stats for the huge slabs.
+	 */
+	psset_bin_stats_t nonfull_slabs[PSSET_NPSIZES][2];
+
 	/*
 	 * Full slabs don't live in any edata heap.  But we still track their
 	 * stats.
 	 */
-	psset_bin_stats_t full_slabs;
-	psset_bin_stats_t nonfull_slabs[PSSET_NPSIZES];
+	psset_bin_stats_t full_slabs[2];
 };
 
 typedef struct psset_s psset_t;

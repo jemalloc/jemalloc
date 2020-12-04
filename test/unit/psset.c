@@ -321,26 +321,26 @@ TEST_END
 
 static void
 stats_expect_empty(psset_bin_stats_t *stats) {
-	assert_zu_eq(0, stats->npageslabs_nonhuge,
+	assert_zu_eq(0, stats->npageslabs,
 	    "Supposedly empty bin had positive npageslabs");
-	expect_zu_eq(0, stats->nactive_nonhuge, "Unexpected nonempty bin"
+	expect_zu_eq(0, stats->nactive, "Unexpected nonempty bin"
 	    "Supposedly empty bin had positive nactive");
-	expect_zu_eq(0, stats->ninactive_nonhuge, "Unexpected nonempty bin"
+	expect_zu_eq(0, stats->ninactive, "Unexpected nonempty bin"
 	    "Supposedly empty bin had positive ninactive");
 }
 
 static void
 stats_expect(psset_t *psset, size_t nactive) {
 	if (nactive == HUGEPAGE_PAGES) {
-		expect_zu_eq(1, psset->stats.full_slabs.npageslabs_nonhuge,
+		expect_zu_eq(1, psset->stats.full_slabs[0].npageslabs,
 		    "Expected a full slab");
 		expect_zu_eq(HUGEPAGE_PAGES,
-		    psset->stats.full_slabs.nactive_nonhuge,
+		    psset->stats.full_slabs[0].nactive,
 		    "Should have exactly filled the bin");
-		expect_zu_eq(0, psset->stats.full_slabs.ninactive_nonhuge,
+		expect_zu_eq(0, psset->stats.full_slabs[0].ninactive,
 		    "Should never have inactive pages in a full slab");
 	} else {
-		stats_expect_empty(&psset->stats.full_slabs);
+		stats_expect_empty(&psset->stats.full_slabs[0]);
 	}
 	size_t ninactive = HUGEPAGE_PAGES - nactive;
 	pszind_t nonempty_pind = PSSET_NPSIZES;
@@ -351,16 +351,16 @@ stats_expect(psset_t *psset, size_t nactive) {
 	for (pszind_t i = 0; i < PSSET_NPSIZES; i++) {
 		if (i == nonempty_pind) {
 			assert_zu_eq(1,
-			    psset->stats.nonfull_slabs[i].npageslabs_nonhuge,
+			    psset->stats.nonfull_slabs[i][0].npageslabs,
 			    "Should have found a slab");
 			expect_zu_eq(nactive,
-			    psset->stats.nonfull_slabs[i].nactive_nonhuge,
+			    psset->stats.nonfull_slabs[i][0].nactive,
 			    "Mismatch in active pages");
 			expect_zu_eq(ninactive,
-			    psset->stats.nonfull_slabs[i].ninactive_nonhuge,
+			    psset->stats.nonfull_slabs[i][0].ninactive,
 			    "Mismatch in inactive pages");
 		} else {
-			stats_expect_empty(&psset->stats.nonfull_slabs[i]);
+			stats_expect_empty(&psset->stats.nonfull_slabs[i][0]);
 		}
 	}
 }
