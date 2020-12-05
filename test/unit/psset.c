@@ -19,41 +19,50 @@ static void
 test_psset_alloc_new(psset_t *psset, hpdata_t *ps, edata_t *r_edata,
     size_t size) {
 	hpdata_assert_empty(ps);
+
+	/*
+	 * As in hpa.c; pretend that the ps is already in the psset and just
+	 * being updated, until we implement true insert/removal support.
+	 */
+	if (!hpdata_updating_get(ps)) {
+		hpdata_updating_set(ps, true);
+	}
+
         void *addr = hpdata_reserve_alloc(ps, size);
         edata_init(r_edata, edata_arena_ind_get(r_edata), addr, size,
 	    /* slab */ false, SC_NSIZES, /* sn */ 0, extent_state_active,
             /* zeroed */ false, /* committed */ true, EXTENT_PAI_HPA,
             EXTENT_NOT_HEAD);
         edata_ps_set(r_edata, ps);
-	psset_insert(psset, ps);
+	psset_update_end(psset, ps);
 }
 
 static bool
 test_psset_alloc_reuse(psset_t *psset, edata_t *r_edata, size_t size) {
-	hpdata_t *ps = psset_fit(psset, size);
+	hpdata_t *ps = psset_pick_alloc(psset, size);
 	if (ps == NULL) {
 		return true;
 	}
-	psset_remove(psset, ps);
+	psset_update_begin(psset, ps);
 	void *addr = hpdata_reserve_alloc(ps, size);
 	edata_init(r_edata, edata_arena_ind_get(r_edata), addr, size,
 	    /* slab */ false, SC_NSIZES, /* sn */ 0, extent_state_active,
 	    /* zeroed */ false, /* committed */ true, EXTENT_PAI_HPA,
 	    EXTENT_NOT_HEAD);
 	edata_ps_set(r_edata, ps);
-	psset_insert(psset, ps);
+	psset_update_end(psset, ps);
 	return false;
 }
 
 static hpdata_t *
 test_psset_dalloc(psset_t *psset, edata_t *edata) {
 	hpdata_t *ps = edata_ps_get(edata);
-	psset_remove(psset, ps);
+	psset_update_begin(psset, ps);
 	hpdata_unreserve(ps, edata_addr_get(edata), edata_size_get(edata));
 	if (hpdata_empty(ps)) {
 		return ps;
 	} else {
-		psset_insert(psset, ps);
+		psset_update_end(psset, ps);
 		return NULL;
 	}
 }
@@ -390,9 +399,9 @@ TEST_BEGIN(test_stats) {
 
 	test_psset_alloc_new(&psset, &pageslab, &alloc[0], PAGE);
 	stats_expect(&psset, 1);
-	psset_remove(&psset, &pageslab);
+	psset_update_begin(&psset, &pageslab);
 	stats_expect(&psset, 0);
-	psset_insert(&psset, &pageslab);
+	psset_update_end(&psset, &pageslab);
 	stats_expect(&psset, 1);
 }
 TEST_END
@@ -490,7 +499,7 @@ TEST_BEGIN(test_insert_remove) {
 	    worse_alloc);
 
 	/* Remove better; should still be able to alloc from worse. */
-	psset_remove(&psset, &pageslab);
+	psset_update_begin(&psset, &pageslab);
 	err = test_psset_alloc_reuse(&psset, &worse_alloc[HUGEPAGE_PAGES - 1],
 	    PAGE);
 	expect_false(err, "Removal should still leave an empty page");
@@ -504,7 +513,7 @@ TEST_BEGIN(test_insert_remove) {
 	 */
 	ps = test_psset_dalloc(&psset, &worse_alloc[HUGEPAGE_PAGES - 1]);
 	expect_ptr_null(ps, "Incorrect eviction of nonempty pageslab");
-	psset_insert(&psset, &pageslab);
+	psset_update_end(&psset, &pageslab);
 	err = test_psset_alloc_reuse(&psset, &alloc[HUGEPAGE_PAGES - 1], PAGE);
 	expect_false(err, "psset should be nonempty");
 	expect_ptr_eq(&pageslab, edata_ps_get(&alloc[HUGEPAGE_PAGES - 1]),
@@ -514,8 +523,8 @@ TEST_BEGIN(test_insert_remove) {
 	 */
 	ps = test_psset_dalloc(&psset, &alloc[HUGEPAGE_PAGES - 1]);
 	expect_ptr_null(ps, "Incorrect eviction");
-	psset_remove(&psset, &pageslab);
-	psset_remove(&psset, &worse_pageslab);
+	psset_update_begin(&psset, &pageslab);
+	psset_update_begin(&psset, &worse_pageslab);
 	err = test_psset_alloc_reuse(&psset, &alloc[HUGEPAGE_PAGES - 1], PAGE);
 	expect_true(err, "psset should be empty, but an alloc succeeded");
 }

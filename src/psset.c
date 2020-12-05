@@ -79,11 +79,33 @@ psset_hpdata_heap_insert(psset_t *psset, pszind_t pind, hpdata_t *ps) {
 }
 
 void
-psset_insert(psset_t *psset, hpdata_t *ps) {
+psset_update_begin(psset_t *psset, hpdata_t *ps) {
+	hpdata_assert_consistent(ps);
+	assert(!hpdata_updating_get(ps));
+	hpdata_updating_set(ps, true);
+
+	size_t longest_free_range = hpdata_longest_free_range_get(ps);
+
+	if (longest_free_range == 0) {
+		psset_bin_stats_remove(psset->stats.full_slabs, ps);
+		return;
+	}
+
+	pszind_t pind = sz_psz2ind(sz_psz_quantize_floor(
+	    longest_free_range << LG_PAGE));
+	assert(pind < PSSET_NPSIZES);
+	psset_hpdata_heap_remove(psset, pind, ps);
+	if (hpdata_age_heap_empty(&psset->pageslabs[pind])) {
+		bitmap_set(psset->bitmap, &psset_bitmap_info, (size_t)pind);
+	}
+}
+
+void
+psset_update_end(psset_t *psset, hpdata_t *ps) {
 	assert(!hpdata_empty(ps));
 	hpdata_assert_consistent(ps);
-	assert(!hpdata_in_psset_get(ps));
-	hpdata_in_psset_set(ps, true);
+	assert(hpdata_updating_get(ps));
+	hpdata_updating_set(ps, false);
 	size_t longest_free_range = hpdata_longest_free_range_get(ps);
 
 	if (longest_free_range == 0) {
@@ -105,30 +127,8 @@ psset_insert(psset_t *psset, hpdata_t *ps) {
 	psset_hpdata_heap_insert(psset, pind, ps);
 }
 
-void
-psset_remove(psset_t *psset, hpdata_t *ps) {
-	hpdata_assert_consistent(ps);
-	assert(hpdata_in_psset_get(ps));
-	hpdata_in_psset_set(ps, false);
-
-	size_t longest_free_range = hpdata_longest_free_range_get(ps);
-
-	if (longest_free_range == 0) {
-		psset_bin_stats_remove(psset->stats.full_slabs, ps);
-		return;
-	}
-
-	pszind_t pind = sz_psz2ind(sz_psz_quantize_floor(
-	    longest_free_range << LG_PAGE));
-	assert(pind < PSSET_NPSIZES);
-	psset_hpdata_heap_remove(psset, pind, ps);
-	if (hpdata_age_heap_empty(&psset->pageslabs[pind])) {
-		bitmap_set(psset->bitmap, &psset_bitmap_info, (size_t)pind);
-	}
-}
-
 hpdata_t *
-psset_fit(psset_t *psset, size_t size) {
+psset_pick_alloc(psset_t *psset, size_t size) {
 	pszind_t min_pind = sz_psz2ind(sz_psz_quantize_ceil(size));
 	pszind_t pind = (pszind_t)bitmap_ffu(psset->bitmap, &psset_bitmap_info,
 	    (size_t)min_pind);

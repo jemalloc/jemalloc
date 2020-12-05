@@ -333,14 +333,14 @@ hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) 
 	}
 	assert(edata_arena_ind_get(edata) == shard->ind);
 
-	hpdata_t *ps = psset_fit(&shard->psset, size);
+	hpdata_t *ps = psset_pick_alloc(&shard->psset, size);
 	if (ps == NULL) {
 		edata_cache_small_put(tsdn, &shard->ecs, edata);
 		malloc_mutex_unlock(tsdn, &shard->mtx);
 		return NULL;
 	}
 
-	psset_remove(&shard->psset, ps);
+	psset_update_begin(&shard->psset, ps);
 	void *addr = hpdata_reserve_alloc(ps, size);
 	edata_init(edata, shard->ind, addr, size, /* slab */ false,
 	    SC_NSIZES, /* sn */ 0, extent_state_active, /* zeroed */ false,
@@ -365,7 +365,7 @@ hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) 
 		 * require some sort of prepare + commit functionality that's a
 		 * little much to deal with for now.
 		 */
-		psset_insert(&shard->psset, ps);
+		psset_update_end(&shard->psset, ps);
 		edata_cache_small_put(tsdn, &shard->ecs, edata);
 		malloc_mutex_unlock(tsdn, &shard->mtx);
 		*oom = true;
@@ -377,7 +377,7 @@ hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) 
 		hpdata_hugify_begin(ps);
 		shard->stats.nhugifies++;
 	}
-	psset_insert(&shard->psset, ps);
+	psset_update_end(&shard->psset, ps);
 
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 	if (hugify) {
@@ -409,9 +409,9 @@ hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) 
 			 * hugified.  Undo our operation, taking care to meet
 			 * the precondition that the ps isn't in the psset.
 			 */
-			psset_remove(&shard->psset, ps);
+			psset_update_begin(&shard->psset, ps);
 			hpa_purge(tsdn, shard, ps);
-			psset_insert(&shard->psset, ps);
+			psset_update_end(&shard->psset, ps);
 		}
 		malloc_mutex_unlock(tsdn, &shard->mtx);
 	}
@@ -455,6 +455,15 @@ hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
 
 	/* We got the new edata; allocate from it. */
 	malloc_mutex_lock(tsdn, &shard->mtx);
+	/*
+	 * This will go away soon.  The psset doesn't draw a distinction between
+	 * pageslab removal and updating.  If this is a new pageslab, we pretend
+	 * that it's an old one that's been getting updated.
+	 */
+	if (!hpdata_updating_get(ps)) {
+		hpdata_updating_set(ps, true);
+	}
+
 	edata = edata_cache_small_get(tsdn, &shard->ecs);
 	if (edata == NULL) {
 		shard->stats.nevictions++;
@@ -500,7 +509,7 @@ hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
 		hpa_handle_ps_eviction(tsdn, shard, ps);
 		return NULL;
 	}
-	psset_insert(&shard->psset, ps);
+	psset_update_end(&shard->psset, ps);
 
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 	malloc_mutex_unlock(tsdn, &shard->grow_mtx);
@@ -615,7 +624,7 @@ hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 		 * psset and we can do our metadata update.  The other thread is
 		 * in charge of reinserting the ps, so we're done.
 		 */
-		assert(!hpdata_in_psset_get(ps));
+		assert(hpdata_updating_get(ps));
 		hpdata_unreserve(ps, unreserve_addr, unreserve_size);
 		malloc_mutex_unlock(tsdn, &shard->mtx);
 		return;
@@ -624,15 +633,15 @@ hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 	 * No other thread is purging, and the ps is non-empty, so it should be
 	 * in the psset.
 	 */
-	assert(hpdata_in_psset_get(ps));
-	psset_remove(&shard->psset, ps);
+	assert(!hpdata_updating_get(ps));
+	psset_update_begin(&shard->psset, ps);
 	hpdata_unreserve(ps, unreserve_addr, unreserve_size);
 	if (!hpa_should_purge(shard, ps)) {
 		/*
 		 * This should be the common case; no other thread is purging,
 		 * and we won't purge either.
 		 */
-		psset_insert(&shard->psset, ps);
+		psset_update_end(&shard->psset, ps);
 		malloc_mutex_unlock(tsdn, &shard->mtx);
 		return;
 	}
@@ -648,7 +657,7 @@ hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 		malloc_mutex_unlock(tsdn, &shard->mtx);
 		hpa_handle_ps_eviction(tsdn, shard, ps);
 	} else {
-		psset_insert(&shard->psset, ps);
+		psset_update_end(&shard->psset, ps);
 		malloc_mutex_unlock(tsdn, &shard->mtx);
 	}
 }
@@ -669,7 +678,7 @@ hpa_shard_assert_stats_empty(psset_bin_stats_t *bin_stats) {
 static void
 hpa_assert_empty(tsdn_t *tsdn, hpa_shard_t *shard, psset_t *psset) {
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
-	hpdata_t *ps = psset_fit(psset, PAGE);
+	hpdata_t *ps = psset_pick_alloc(psset, PAGE);
 	assert(ps == NULL);
 	for (int huge = 0; huge <= 1; huge++) {
 		hpa_shard_assert_stats_empty(&psset->stats.full_slabs[huge]);
