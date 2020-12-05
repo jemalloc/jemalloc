@@ -58,6 +58,18 @@ static const bool pages_can_purge_forced =
 #endif
     ;
 
+#if defined(JEMALLOC_HAVE_MADVISE_HUGE) || defined(JEMALLOC_HAVE_MEMCNTL)
+#  define PAGES_CAN_HUGIFY
+#endif
+
+static const bool pages_can_hugify =
+#ifdef PAGES_CAN_HUGIFY
+    true
+#else
+    false
+#endif
+    ;
+
 typedef enum {
 	thp_mode_default       = 0, /* Do not change hugepage settings. */
 	thp_mode_always        = 1, /* Always set MADV_HUGEPAGE. */
