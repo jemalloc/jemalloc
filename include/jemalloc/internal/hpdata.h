@@ -44,8 +44,13 @@ struct hpdata_s {
 	bool h_mid_purge;
 	bool h_mid_hugify;
 
-	/* Whether or not the hpdata is a the psset. */
-	bool h_in_psset;
+	/*
+	 * Whether or not the hpdata is being updated in the psset (i.e. if
+	 * there has been a psset_update_begin call issued without a matching
+	 * psset_update_end call).  Eventually this will expand to other types
+	 * of updates.
+	 */
+	bool h_updating;
 
 	union {
 		/* When nonempty, used by the psset bins. */
@@ -123,13 +128,14 @@ hpdata_mid_hugify_get(const hpdata_t *hpdata) {
 }
 
 static inline bool
-hpdata_in_psset_get(const hpdata_t *hpdata) {
-	return hpdata->h_in_psset;
+hpdata_updating_get(const hpdata_t *hpdata) {
+	return hpdata->h_updating;
 }
 
 static inline void
-hpdata_in_psset_set(hpdata_t *hpdata, bool in_psset) {
-	hpdata->h_in_psset = in_psset;
+hpdata_updating_set(hpdata_t *hpdata, bool updating) {
+	assert(updating != hpdata->h_updating);
+	hpdata->h_updating = updating;
 }
 
 static inline size_t

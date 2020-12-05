@@ -64,10 +64,14 @@ struct psset_s {
 void psset_init(psset_t *psset);
 void psset_stats_accum(psset_stats_t *dst, psset_stats_t *src);
 
-void psset_insert(psset_t *psset, hpdata_t *ps);
-void psset_remove(psset_t *psset, hpdata_t *ps);
+/*
+ * Begin or end updating the given pageslab's metadata.  While the pageslab is
+ * being updated, it won't be returned from psset_fit calls.
+ */
+void psset_update_begin(psset_t *psset, hpdata_t *ps);
+void psset_update_end(psset_t *psset, hpdata_t *ps);
 
 /* Analogous to the eset_fit; pick a hpdata to serve the request. */
-hpdata_t *psset_fit(psset_t *psset, size_t size);
+hpdata_t *psset_pick_alloc(psset_t *psset, size_t size);
 
 #endif /* JEMALLOC_INTERNAL_PSSET_H */
