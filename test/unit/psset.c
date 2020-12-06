@@ -374,6 +374,7 @@ stats_expect(psset_t *psset, size_t nactive) {
 			stats_expect_empty(&psset->stats.nonfull_slabs[i][0]);
 		}
 	}
+	expect_zu_eq(nactive, psset_nactive(psset), "");
 }
 
 TEST_BEGIN(test_stats) {
