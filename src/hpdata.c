@@ -22,6 +22,12 @@ hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age) {
 	hpdata_addr_set(hpdata, addr);
 	hpdata_age_set(hpdata, age);
 	hpdata->h_huge = false;
+	hpdata->h_alloc_allowed = true;
+	hpdata->h_in_psset_alloc_container = false;
+	hpdata->h_purge_allowed = false;
+	hpdata->h_in_psset_purge_container = false;
+	hpdata->h_hugify_allowed = false;
+	hpdata->h_in_psset_hugify_container = false;
 	hpdata->h_mid_purge = false;
 	hpdata->h_mid_hugify = false;
 	hpdata->h_updating = false;
@@ -44,6 +50,7 @@ hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz) {
 	 * mid-update.
 	 */
 	assert(!hpdata->h_in_psset || hpdata->h_updating);
+	assert(hpdata->h_alloc_allowed);
 	assert((sz & PAGE_MASK) == 0);
 	size_t npages = sz >> LG_PAGE;
 	assert(npages <= hpdata_longest_free_range_get(hpdata));
@@ -155,10 +162,6 @@ void
 hpdata_purge_begin(hpdata_t *hpdata, hpdata_purge_state_t *purge_state) {
 	hpdata_assert_consistent(hpdata);
 	/* See the comment in reserve. */
-	assert(!hpdata->h_in_psset || hpdata->h_updating);
-	assert(!hpdata->h_mid_purge);
-	assert(!hpdata->h_mid_hugify);
-	hpdata->h_mid_purge = true;
 
 	purge_state->npurged = 0;
 	purge_state->next_purge_search_begin = 0;
@@ -192,12 +195,6 @@ hpdata_purge_next(hpdata_t *hpdata, hpdata_purge_state_t *purge_state,
 	 * hpdata without synchronization, and therefore have no right to expect
 	 * a consistent state.
 	 */
-	assert(hpdata->h_mid_purge);
-	/* See the comment in reserve. */
-	assert(!hpdata->h_in_psset || hpdata->h_updating);
-	/* Should have dehugified already (if necessary). */
-	assert(!hpdata->h_huge);
-	assert(!hpdata->h_mid_hugify);
 
 	if (purge_state->next_purge_search_begin == HUGEPAGE_PAGES) {
 		return false;
@@ -226,9 +223,6 @@ hpdata_purge_end(hpdata_t *hpdata, hpdata_purge_state_t *purge_state) {
 	hpdata_assert_consistent(hpdata);
 	/* See the comment in reserve. */
 	assert(!hpdata->h_in_psset || hpdata->h_updating);
-	assert(hpdata->h_mid_purge);
-	assert(!hpdata->h_mid_hugify);
-	hpdata->h_mid_purge = false;
 
 	assert(purge_state->npurged == fb_scount(purge_state->to_purge,
 	    HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES));
@@ -244,13 +238,8 @@ hpdata_purge_end(hpdata_t *hpdata, hpdata_purge_state_t *purge_state) {
 }
 
 void
-hpdata_hugify_begin(hpdata_t *hpdata) {
+hpdata_hugify(hpdata_t *hpdata) {
 	hpdata_assert_consistent(hpdata);
-	/* See the comment in reserve. */
-	assert(!hpdata->h_in_psset || hpdata->h_updating);
-	assert(!hpdata->h_mid_purge);
-	assert(!hpdata->h_mid_hugify);
-	hpdata->h_mid_hugify = true;
 	hpdata->h_huge = true;
 	fb_set_range(hpdata->touched_pages, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES);
 	hpdata->h_ntouched = HUGEPAGE_PAGES;
@@ -258,26 +247,8 @@ hpdata_hugify_begin(hpdata_t *hpdata) {
 }
 
 void
-hpdata_hugify_end(hpdata_t *hpdata) {
-	hpdata_assert_consistent(hpdata);
-	/*
-	 * This is the exception to the "no-metadata updates without informing
-	 * the psset first" rule; this assert would be incorrect.
-	 */
-	/* assert(!hpdata->h_in_psset || hpdata->h_updating); */
-	assert(!hpdata->h_mid_purge);
-	assert(hpdata->h_mid_hugify);
-	hpdata->h_mid_hugify = false;
-	hpdata_assert_consistent(hpdata);
-}
-
-void
 hpdata_dehugify(hpdata_t *hpdata) {
 	hpdata_assert_consistent(hpdata);
-	assert(hpdata->h_updating);
-	assert(hpdata->h_updating);
-	assert(hpdata->h_mid_purge);
-	assert(!hpdata->h_mid_hugify);
 	hpdata->h_huge = false;
 	hpdata_assert_consistent(hpdata);
 }

@@ -36,11 +36,30 @@ struct hpdata_s {
 	bool h_huge;
 
 	/*
-	 * Whether or not some thread is purging this hpdata (i.e. has called
-	 * hpdata_purge_begin but not yet called hpdata_purge_end), or
-	 * hugifying it.  Only one thread at a time is allowed to change a
-	 * hugepage's state.
+	 * For some properties, we keep parallel sets of bools; h_foo_allowed
+	 * and h_in_psset_foo_container.  This is a decoupling mechanism to
+	 * avoid bothering the hpa (which manages policies) from the psset
+	 * (which is the mechanism used to enforce those policies).  This allows
+	 * all the container management logic to live in one place, without the
+	 * HPA needing to know or care how that happens.
 	 */
+
+	/*
+	 * Whether or not the hpdata is allowed to be used to serve allocations,
+	 * and whether or not the psset is currently tracking it as such.
+	 */
+	bool h_alloc_allowed;
+	bool h_in_psset_alloc_container;
+
+	/* The same, but with purging. */
+	bool h_purge_allowed;
+	bool h_in_psset_purge_container;
+
+	/* And with hugifying. */
+	bool h_hugify_allowed;
+	bool h_in_psset_hugify_container;
+
+	/* Whether or not a purge or hugify is currently happening. */
 	bool h_mid_purge;
 	bool h_mid_hugify;
 
@@ -65,6 +84,12 @@ struct hpdata_s {
 		ql_elm(hpdata_t) ql_link_empty;
 	};
 
+	/*
+	 * Linkage for the psset to track candidates for purging and hugifying.
+	 */
+	ql_elm(hpdata_t) ql_link_purge;
+	ql_elm(hpdata_t) ql_link_hugify;
+
 	/* The length of the largest contiguous sequence of inactive pages. */
 	size_t h_longest_free_range;
 
@@ -86,6 +111,9 @@ struct hpdata_s {
 };
 
 TYPED_LIST(hpdata_empty_list, hpdata_t, ql_link_empty)
+TYPED_LIST(hpdata_purge_list, hpdata_t, ql_link_purge)
+TYPED_LIST(hpdata_hugify_list, hpdata_t, ql_link_hugify)
+
 typedef ph(hpdata_t) hpdata_age_heap_t;
 ph_proto(, hpdata_age_heap_, hpdata_age_heap_t, hpdata_t);
 
@@ -116,8 +144,66 @@ hpdata_huge_get(const hpdata_t *hpdata) {
 }
 
 static inline bool
-hpdata_changing_state_get(const hpdata_t *hpdata) {
-	return hpdata->h_mid_purge || hpdata->h_mid_hugify;
+hpdata_alloc_allowed_get(const hpdata_t *hpdata) {
+	return hpdata->h_alloc_allowed;
+}
+
+static inline void
+hpdata_alloc_allowed_set(hpdata_t *hpdata, bool alloc_allowed) {
+	hpdata->h_alloc_allowed = alloc_allowed;
+}
+
+static inline bool
+hpdata_in_psset_alloc_container_get(const hpdata_t *hpdata) {
+	return hpdata->h_in_psset_alloc_container;
+}
+
+static inline void
+hpdata_in_psset_alloc_container_set(hpdata_t *hpdata, bool in_container) {
+	assert(in_container != hpdata->h_in_psset_alloc_container);
+	hpdata->h_in_psset_alloc_container = in_container;
+}
+
+static inline bool
+hpdata_purge_allowed_get(const hpdata_t *hpdata) {
+	return hpdata->h_purge_allowed;
+}
+
+static inline void
+hpdata_purge_allowed_set(hpdata_t *hpdata, bool purge_allowed) {
+	hpdata->h_purge_allowed = purge_allowed;
+}
+
+static inline bool
+hpdata_in_psset_purge_container_get(const hpdata_t *hpdata) {
+	return hpdata->h_in_psset_purge_container;
+}
+
+static inline void
+hpdata_in_psset_purge_container_set(hpdata_t *hpdata, bool in_container) {
+	assert(in_container != hpdata->h_in_psset_purge_container);
+	hpdata->h_in_psset_purge_container = in_container;
+}
+
+static inline bool
+hpdata_hugify_allowed_get(const hpdata_t *hpdata) {
+	return hpdata->h_hugify_allowed;
+}
+
+static inline void
+hpdata_hugify_allowed_set(hpdata_t *hpdata, bool hugify_allowed) {
+	hpdata->h_hugify_allowed = hugify_allowed;
+}
+
+static inline bool
+hpdata_in_psset_hugify_container_get(const hpdata_t *hpdata) {
+	return hpdata->h_in_psset_hugify_container;
+}
+
+static inline void
+hpdata_in_psset_hugify_container_set(hpdata_t *hpdata, bool in_container) {
+	assert(in_container != hpdata->h_in_psset_hugify_container);
+	hpdata->h_in_psset_hugify_container = in_container;
 }
 
 static inline bool
@@ -125,10 +211,28 @@ hpdata_mid_purge_get(const hpdata_t *hpdata) {
 	return hpdata->h_mid_purge;
 }
 
+static inline void
+hpdata_mid_purge_set(hpdata_t *hpdata, bool mid_purge) {
+	assert(mid_purge != hpdata->h_mid_purge);
+	hpdata->h_mid_purge = mid_purge;
+}
+
 static inline bool
 hpdata_mid_hugify_get(const hpdata_t *hpdata) {
 	return hpdata->h_mid_hugify;
 }
+
+static inline void
+hpdata_mid_hugify_set(hpdata_t *hpdata, bool mid_hugify) {
+	assert(mid_hugify != hpdata->h_mid_hugify);
+	hpdata->h_mid_hugify = mid_hugify;
+}
+
+static inline bool
+hpdata_changing_state_get(const hpdata_t *hpdata) {
+	return hpdata->h_mid_purge || hpdata->h_mid_hugify;
+}
+
 
 static inline bool
 hpdata_updating_get(const hpdata_t *hpdata) {
@@ -278,26 +382,7 @@ bool hpdata_purge_next(hpdata_t *hpdata, hpdata_purge_state_t *purge_state,
  */
 void hpdata_purge_end(hpdata_t *hpdata, hpdata_purge_state_t *purge_state);
 
-/*
- * Similarly, when hugifying , callers can do the metadata modifications while
- * holding a lock (thereby setting the change_state field), but actually do the
- * operation without blocking other threads.
- *
- * Unlike most metadata operations, hugification ending should happen while an
- * hpdata is in the psset (or upcoming hugepage collections).  This is because
- * while purge/use races are unsafe, purge/hugepageify races are perfectly
- * reasonable.
- */
-void hpdata_hugify_begin(hpdata_t *hpdata);
-void hpdata_hugify_end(hpdata_t *hpdata);
-
-/*
- * Tell the hpdata that it's no longer a hugepage (all its pages are still
- * counted as dirty, though; an explicit purge call is required to change that).
- *
- * This should only be done after starting to purge, and before actually purging
- * any contents.
- */
+void hpdata_hugify(hpdata_t *hpdata);
 void hpdata_dehugify(hpdata_t *hpdata);
 
 #endif /* JEMALLOC_INTERNAL_HPDATA_H */
