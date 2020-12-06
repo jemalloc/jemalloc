@@ -813,6 +813,35 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	size_t ndirty_nonhuge;
 	size_t nretained_nonhuge;
 
+	size_t sec_bytes;
+	CTL_M2_GET("stats.arenas.0.hpa_sec_bytes", i, &sec_bytes, size_t);
+	emitter_kv(emitter, "sec_bytes", "Bytes in small extent cache",
+	    emitter_type_size, &sec_bytes);
+
+	/* First, global stats. */
+	emitter_table_printf(emitter,
+	    "HPA shard stats:\n"
+	    "  Purge passes: %" FMTu64 " (%" FMTu64 " / sec)\n"
+	    "  Purges: %" FMTu64 " (%" FMTu64 " / sec)\n"
+	    "  Hugeifies: %" FMTu64 " (%" FMTu64 " / sec)\n"
+	    "  Dehugifies: %" FMTu64 " (%" FMTu64 " / sec)\n"
+	    "\n",
+	    npurge_passes, rate_per_second(npurge_passes, uptime),
+	    npurges, rate_per_second(npurges, uptime),
+	    nhugifies, rate_per_second(nhugifies, uptime),
+	    ndehugifies, rate_per_second(ndehugifies, uptime));
+
+	emitter_json_object_kv_begin(emitter, "hpa_shard");
+	emitter_json_kv(emitter, "npurge_passes", emitter_type_uint64,
+	    &npurge_passes);
+	emitter_json_kv(emitter, "npurges", emitter_type_uint64,
+	    &npurges);
+	emitter_json_kv(emitter, "nhugifies", emitter_type_uint64,
+	    &nhugifies);
+	emitter_json_kv(emitter, "ndehugifies", emitter_type_uint64,
+	    &ndehugifies);
+
+	/* Next, full slab stats. */
 	CTL_M2_GET("stats.arenas.0.hpa_shard.full_slabs.npageslabs_huge",
 	    i, &npageslabs_huge, size_t);
 	CTL_M2_GET("stats.arenas.0.hpa_shard.full_slabs.nactive_huge",
@@ -829,41 +858,16 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	nretained_nonhuge = npageslabs_nonhuge * HUGEPAGE_PAGES
 	    - nactive_nonhuge - ndirty_nonhuge;
 
-	size_t sec_bytes;
-	CTL_M2_GET("stats.arenas.0.hpa_sec_bytes", i, &sec_bytes, size_t);
-	emitter_kv(emitter, "sec_bytes", "Bytes in small extent cache",
-	    emitter_type_size, &sec_bytes);
-
 	emitter_table_printf(emitter,
-	    "HPA shard stats:\n"
-	    "  Purge passes: %" FMTu64 " (%" FMTu64 " / sec)\n"
-	    "  Purges: %" FMTu64 " (%" FMTu64 " / sec)\n"
-	    "  Hugeifies: %" FMTu64 " (%" FMTu64 " / sec)\n"
-	    "  Dehugifies: %" FMTu64 " (%" FMTu64 " / sec)\n"
-	    "\n"
 	    "  In full slabs:\n"
 	    "      npageslabs: %zu huge, %zu nonhuge\n"
 	    "      nactive: %zu huge, %zu nonhuge \n"
 	    "      ndirty: %zu huge, %zu nonhuge \n"
 	    "      nretained: 0 huge, %zu nonhuge \n",
-	    npurge_passes, rate_per_second(npurge_passes, uptime),
-	    npurges, rate_per_second(npurges, uptime),
-	    nhugifies, rate_per_second(nhugifies, uptime),
-	    ndehugifies, rate_per_second(ndehugifies, uptime),
 	    npageslabs_huge, npageslabs_nonhuge,
 	    nactive_huge, nactive_nonhuge,
 	    ndirty_huge, ndirty_nonhuge,
 	    nretained_nonhuge);
-
-	emitter_json_object_kv_begin(emitter, "hpa_shard");
-	emitter_json_kv(emitter, "npurge_passes", emitter_type_uint64,
-	    &npurge_passes);
-	emitter_json_kv(emitter, "npurges", emitter_type_uint64,
-	    &npurges);
-	emitter_json_kv(emitter, "nhugifies", emitter_type_uint64,
-	    &nhugifies);
-	emitter_json_kv(emitter, "ndehugifies", emitter_type_uint64,
-	    &ndehugifies);
 
 	emitter_json_object_kv_begin(emitter, "full_slabs");
 	emitter_json_kv(emitter, "npageslabs_huge", emitter_type_size,
@@ -879,6 +883,50 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	emitter_json_kv(emitter, "ndirty_nonhuge", emitter_type_size,
 	    &ndirty_nonhuge);
 	emitter_json_object_end(emitter); /* End "full_slabs" */
+
+	/* Next, empty slab stats. */
+	CTL_M2_GET("stats.arenas.0.hpa_shard.empty_slabs.npageslabs_huge",
+	    i, &npageslabs_huge, size_t);
+	CTL_M2_GET("stats.arenas.0.hpa_shard.empty_slabs.nactive_huge",
+	    i, &nactive_huge, size_t);
+	CTL_M2_GET("stats.arenas.0.hpa_shard.empty_slabs.ndirty_huge",
+	    i, &ndirty_huge, size_t);
+
+	CTL_M2_GET("stats.arenas.0.hpa_shard.empty_slabs.npageslabs_nonhuge",
+	    i, &npageslabs_nonhuge, size_t);
+	CTL_M2_GET("stats.arenas.0.hpa_shard.empty_slabs.nactive_nonhuge",
+	    i, &nactive_nonhuge, size_t);
+	CTL_M2_GET("stats.arenas.0.hpa_shard.empty_slabs.ndirty_nonhuge",
+	    i, &ndirty_nonhuge, size_t);
+	nretained_nonhuge = npageslabs_nonhuge * HUGEPAGE_PAGES
+	    - nactive_nonhuge - ndirty_nonhuge;
+
+	emitter_table_printf(emitter,
+	    "  In empty slabs:\n"
+	    "      npageslabs: %zu huge, %zu nonhuge\n"
+	    "      nactive: %zu huge, %zu nonhuge \n"
+	    "      ndirty: %zu huge, %zu nonhuge \n"
+	    "      nretained: 0 huge, %zu nonhuge \n"
+	    "\n",
+	    npageslabs_huge, npageslabs_nonhuge,
+	    nactive_huge, nactive_nonhuge,
+	    ndirty_huge, ndirty_nonhuge,
+	    nretained_nonhuge);
+
+	emitter_json_object_kv_begin(emitter, "empty_slabs");
+	emitter_json_kv(emitter, "npageslabs_huge", emitter_type_size,
+	    &npageslabs_huge);
+	emitter_json_kv(emitter, "nactive_huge", emitter_type_size,
+	    &nactive_huge);
+	emitter_json_kv(emitter, "nactive_huge", emitter_type_size,
+	    &nactive_huge);
+	emitter_json_kv(emitter, "npageslabs_nonhuge", emitter_type_size,
+	    &npageslabs_nonhuge);
+	emitter_json_kv(emitter, "nactive_nonhuge", emitter_type_size,
+	    &nactive_nonhuge);
+	emitter_json_kv(emitter, "ndirty_nonhuge", emitter_type_size,
+	    &ndirty_nonhuge);
+	emitter_json_object_end(emitter); /* End "empty_slabs" */
 
 	COL_HDR(row, size, NULL, right, 20, size)
 	COL_HDR(row, ind, NULL, right, 4, unsigned)
