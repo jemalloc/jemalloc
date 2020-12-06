@@ -67,12 +67,8 @@ TEST_BEGIN(test_purge_simple) {
 
 	expect_zu_eq(hpdata_ntouched_get(&hpdata), HUGEPAGE_PAGES / 2, "");
 
-	expect_false(hpdata_changing_state_get(&hpdata), "");
-
 	hpdata_purge_state_t purge_state;
 	hpdata_purge_begin(&hpdata, &purge_state);
-
-	expect_true(hpdata_changing_state_get(&hpdata), "");
 
 	void *purge_addr;
 	size_t purge_size;
@@ -82,17 +78,12 @@ TEST_BEGIN(test_purge_simple) {
 	expect_ptr_eq(HPDATA_ADDR, purge_addr, "");
 	expect_zu_eq(HUGEPAGE_PAGES / 4 * PAGE, purge_size, "");
 
-	expect_true(hpdata_changing_state_get(&hpdata), "");
-
 	got_result = hpdata_purge_next(&hpdata, &purge_state, &purge_addr,
 	    &purge_size);
 	expect_false(got_result, "Unexpected additional purge range: "
 	    "extent at %p of size %zu", purge_addr, purge_size);
 
-	expect_true(hpdata_changing_state_get(&hpdata), "");
-
 	hpdata_purge_end(&hpdata, &purge_state);
-	expect_false(hpdata_changing_state_get(&hpdata), "");
 	expect_zu_eq(hpdata_ntouched_get(&hpdata), HUGEPAGE_PAGES / 4, "");
 }
 TEST_END
@@ -166,12 +157,7 @@ TEST_BEGIN(test_hugify) {
 
 	expect_zu_eq(HUGEPAGE_PAGES / 2, hpdata_ntouched_get(&hpdata), "");
 
-	expect_false(hpdata_changing_state_get(&hpdata), "");
-	hpdata_hugify_begin(&hpdata);
-	expect_true(hpdata_changing_state_get(&hpdata), "");
-
-	hpdata_hugify_end(&hpdata);
-	expect_false(hpdata_changing_state_get(&hpdata), "");
+	hpdata_hugify(&hpdata);
 
 	/* Hugeifying should have increased the dirty page count. */
 	expect_zu_eq(HUGEPAGE_PAGES, hpdata_ntouched_get(&hpdata), "");

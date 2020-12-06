@@ -227,65 +227,150 @@ hpa_grow(tsdn_t *tsdn, hpa_shard_t *shard) {
 	return ps;
 }
 
-/*
- * As a precondition, ps should not be in the psset (we can handle deallocation
- * races, but not allocation ones), and we should hold the shard mutex.
- */
-static void
-hpa_purge(tsdn_t *tsdn, hpa_shard_t *shard, hpdata_t *ps) {
+/* Returns whether or not we purged anything. */
+static bool
+hpa_try_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
-	while (hpa_should_purge(shard, ps)) {
-		/* Do the metadata update bit while holding the lock. */
-		hpdata_purge_state_t purge_state;
-		hpdata_purge_begin(ps, &purge_state);
-		shard->stats.npurge_passes++;
 
-		/*
-		 * Dehugifying can only happen on the first loop iteration,
-		 * since no other threads can allocate out of this ps while
-		 * we're purging (and thus, can't hugify it), but there's not a
-		 * natural way to express that in the control flow.
-		 */
-		bool needs_dehugify = false;
-		if (hpdata_huge_get(ps)) {
-			needs_dehugify = true;
-			shard->stats.ndehugifies++;
-			hpdata_dehugify(ps);
-		}
-
-		/* Drop the lock to do the OS calls. */
-		malloc_mutex_unlock(tsdn, &shard->mtx);
-
-		if (needs_dehugify) {
-			pages_nohuge(hpdata_addr_get(ps), HUGEPAGE);
-		}
-
-		size_t total_purged = 0;
-		uint64_t purges_this_pass = 0;
-		void *purge_addr;
-		size_t purge_size;
-		while (hpdata_purge_next(ps, &purge_state, &purge_addr,
-		    &purge_size)) {
-			purges_this_pass++;
-			pages_purge_forced(purge_addr, purge_size);
-			total_purged += purge_size;
-		}
-
-		/* Reacquire to finish our metadata update. */
-		malloc_mutex_lock(tsdn, &shard->mtx);
-		shard->stats.npurges += purges_this_pass;
-		hpdata_purge_end(ps, &purge_state);
-
-		assert(total_purged <= HUGEPAGE);
-
-		/*
-		 * We're not done here; other threads can't allocate out of ps
-		 * while purging, but they can still deallocate.  Those
-		 * deallocations could have meant more purging than what we
-		 * planned ought to happen.  We have to re-check now that we've
-		 * reacquired the mutex again.
-		 */
+	hpdata_t *to_purge = psset_pick_purge(&shard->psset);
+	if (to_purge == NULL) {
+		return false;
 	}
+	assert(hpdata_purge_allowed_get(to_purge));
+	assert(!hpdata_changing_state_get(to_purge));
+
+	/*
+	 * Don't let anyone else purge or hugify this page while
+	 * we're purging it (allocations and deallocations are
+	 * OK).
+	 */
+	psset_update_begin(&shard->psset, to_purge);
+	assert(hpdata_alloc_allowed_get(to_purge));
+	hpdata_mid_purge_set(to_purge, true);
+	hpdata_purge_allowed_set(to_purge, false);
+	hpdata_hugify_allowed_set(to_purge, false);
+	/*
+	 * Unlike with hugification (where concurrent
+	 * allocations are allowed), concurrent allocation out
+	 * of a hugepage being purged is unsafe; we might hand
+	 * out an extent for an allocation and then purge it
+	 * (clearing out user data).
+	 */
+	hpdata_alloc_allowed_set(to_purge, false);
+	psset_update_end(&shard->psset, to_purge);
+
+	/* Gather all the metadata we'll need during the purge. */
+	bool dehugify = hpdata_huge_get(to_purge);
+	hpdata_purge_state_t purge_state;
+	hpdata_purge_begin(to_purge, &purge_state);
+
+	malloc_mutex_unlock(tsdn, &shard->mtx);
+
+	/* Actually do the purging, now that the lock is dropped. */
+	if (dehugify) {
+		pages_nohuge(hpdata_addr_get(to_purge), HUGEPAGE);
+	}
+	size_t total_purged = 0;
+	uint64_t purges_this_pass = 0;
+	void *purge_addr;
+	size_t purge_size;
+	while (hpdata_purge_next(to_purge, &purge_state, &purge_addr,
+	    &purge_size)) {
+		total_purged += purge_size;
+		assert(total_purged <= HUGEPAGE);
+		purges_this_pass++;
+		pages_purge_forced(purge_addr, purge_size);
+	}
+
+	malloc_mutex_lock(tsdn, &shard->mtx);
+	/* The shard updates */
+	shard->stats.npurge_passes++;
+	shard->stats.npurges += purges_this_pass;
+	if (dehugify) {
+		shard->stats.ndehugifies++;
+	}
+
+	/* The hpdata updates. */
+	psset_update_begin(&shard->psset, to_purge);
+	if (dehugify) {
+		hpdata_dehugify(to_purge);
+	}
+	hpdata_purge_end(to_purge, &purge_state);
+	hpdata_mid_purge_set(to_purge, false);
+
+	hpdata_alloc_allowed_set(to_purge, true);
+	hpdata_purge_allowed_set(to_purge, hpa_should_purge(shard, to_purge));
+	hpdata_hugify_allowed_set(to_purge, hpa_should_hugify(shard, to_purge));
+
+	psset_update_end(&shard->psset, to_purge);
+
+	return true;
+}
+
+/* Returns whether or not we hugified anything. */
+static bool
+hpa_try_hugify(tsdn_t *tsdn, hpa_shard_t *shard) {
+	malloc_mutex_assert_owner(tsdn, &shard->mtx);
+
+	hpdata_t *to_hugify = psset_pick_hugify(&shard->psset);
+	if (to_hugify == NULL) {
+		return false;
+	}
+	assert(hpdata_hugify_allowed_get(to_hugify));
+	assert(!hpdata_changing_state_get(to_hugify));
+
+	/*
+	 * Don't let anyone else purge or hugify this page while
+	 * we're hugifying it (allocations and deallocations are
+	 * OK).
+	 */
+	psset_update_begin(&shard->psset, to_hugify);
+	hpdata_mid_hugify_set(to_hugify, true);
+	hpdata_purge_allowed_set(to_hugify, false);
+	hpdata_hugify_allowed_set(to_hugify, false);
+	assert(hpdata_alloc_allowed_get(to_hugify));
+	psset_update_end(&shard->psset, to_hugify);
+
+	malloc_mutex_unlock(tsdn, &shard->mtx);
+
+	bool err = pages_huge(hpdata_addr_get(to_hugify),
+	    HUGEPAGE);
+	/*
+	 * It's not clear what we could do in case of error; we
+	 * might get into situations where we loop trying to
+	 * hugify some page and failing over and over again.
+	 * Just eat the error and pretend we were successful.
+	 */
+	(void)err;
+
+	malloc_mutex_lock(tsdn, &shard->mtx);
+	shard->stats.nhugifies++;
+
+	psset_update_begin(&shard->psset, to_hugify);
+	hpdata_hugify(to_hugify);
+	hpdata_mid_hugify_set(to_hugify, false);
+	hpdata_purge_allowed_set(to_hugify,
+	    hpa_should_purge(shard, to_hugify));
+	hpdata_hugify_allowed_set(to_hugify, false);
+	psset_update_end(&shard->psset, to_hugify);
+
+	return true;
+}
+
+
+static void
+hpa_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard) {
+	bool hugified;
+	bool purged;
+	size_t nloop = 0;
+	/* Just *some* bound, to impose a worst-case latency bound. */
+	size_t maxloops = 100;;
+	do {
+		malloc_mutex_assert_owner(tsdn, &shard->mtx);
+		hugified = hpa_try_hugify(tsdn, shard);
+		purged = hpa_try_purge(tsdn, shard);
+		malloc_mutex_assert_owner(tsdn, &shard->mtx);
+	} while ((hugified || purged) && nloop++ < maxloops);
 }
 
 static edata_t *
@@ -344,6 +429,10 @@ hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) 
 		 * We should arguably reset dirty state here, but this would
 		 * require some sort of prepare + commit functionality that's a
 		 * little much to deal with for now.
+		 *
+		 * We don't have a do_deferred_work down this pathway, on the
+		 * principle that we didn't *really* affect shard state (we
+		 * tweaked the stats, but our tweaks weren't really accurate).
 		 */
 		psset_update_end(&shard->psset, ps);
 		edata_cache_small_put(tsdn, &shard->ecs, edata);
@@ -352,49 +441,14 @@ hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) 
 		return NULL;
 	}
 
-	bool hugify = hpa_should_hugify(shard, ps);
-	if (hugify) {
-		hpdata_hugify_begin(ps);
-		shard->stats.nhugifies++;
+	if (hpa_should_hugify(shard, ps)) {
+		hpdata_hugify_allowed_set(ps, true);
 	}
 	psset_update_end(&shard->psset, ps);
 
+	hpa_do_deferred_work(tsdn, shard);
 	malloc_mutex_unlock(tsdn, &shard->mtx);
-	if (hugify) {
-		/*
-		 * Hugifying with the lock dropped is safe, even with
-		 * concurrent modifications to the ps.  This relies on
-		 * the fact that the current implementation will never
-		 * dehugify a non-empty pageslab, and ps will never
-		 * become empty before we return edata to the user to be
-		 * freed.
-		 *
-		 * Note that holding the lock would prevent not just operations
-		 * on this page slab, but also operations any other alloc/dalloc
-		 * operations in this hpa shard.
-		 */
-		bool err = pages_huge(hpdata_addr_get(ps), HUGEPAGE);
-		/*
-		 * Pretending we succeed when we actually failed is safe; trying
-		 * to rolllback would be tricky, though.  Eat the error.
-		 */
-		(void)err;
 
-		malloc_mutex_lock(tsdn, &shard->mtx);
-		hpdata_hugify_end(ps);
-		if (hpa_should_purge(shard, ps)) {
-			/*
-			 * There was a race in which the ps went from being
-			 * almost full to having lots of free space while we
-			 * hugified.  Undo our operation, taking care to meet
-			 * the precondition that the ps isn't in the psset.
-			 */
-			psset_update_begin(&shard->psset, ps);
-			hpa_purge(tsdn, shard, ps);
-			psset_update_end(&shard->psset, ps);
-		}
-		malloc_mutex_unlock(tsdn, &shard->mtx);
-	}
 	return edata;
 }
 
@@ -445,6 +499,14 @@ hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
 		return NULL;
 	}
 
+	/*
+	 * TODO: the tail of this function is quite similar to the tail of
+	 * hpa_try_alloc_no_grow (both, broadly, do the metadata management of
+	 * initializing an edata_t from an hpdata_t once both have been
+	 * allocated).  The only differences are in error case handling and lock
+	 * management (we hold grow_mtx, but should drop it before doing any
+	 * deferred work).  With a little refactoring, we could unify the paths.
+	 */
 	psset_update_begin(&shard->psset, ps);
 
 	void *addr = hpdata_reserve_alloc(ps, size);
@@ -481,10 +543,20 @@ hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
 		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
 		return NULL;
 	}
+	if (hpa_should_hugify(shard, ps)) {
+		hpdata_hugify_allowed_set(ps, true);
+	}
 	psset_update_end(&shard->psset, ps);
 
-	malloc_mutex_unlock(tsdn, &shard->mtx);
+	/*
+	 * Drop grow_mtx before doing deferred work; other threads blocked on it
+	 * should be allowed to proceed while we're working.
+	 */
 	malloc_mutex_unlock(tsdn, &shard->grow_mtx);
+
+	hpa_do_deferred_work(tsdn, shard);
+
+	malloc_mutex_unlock(tsdn, &shard->mtx);
 	return edata;
 }
 
@@ -579,47 +651,14 @@ hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 	size_t unreserve_size = edata_size_get(edata);
 	edata_cache_small_put(tsdn, &shard->ecs, edata);
 
-	/*
-	 * We have three rules interacting here:
-	 * - You can't update ps metadata while it's still in the psset.  We
-	 *   enforce this because it's necessary for stats tracking and metadata
-	 *   management.
-	 * - The ps must not be in the psset while purging.  This is because we
-	 *   can't handle purge/alloc races.
-	 * - Whoever removes the ps from the psset is the one to reinsert it.
-	 */
-	if (hpdata_mid_purge_get(ps)) {
-		/*
-		 * Another thread started purging, and so the ps is not in the
-		 * psset and we can do our metadata update.  The other thread is
-		 * in charge of reinserting the ps, so we're done.
-		 */
-		assert(hpdata_updating_get(ps));
-		hpdata_unreserve(ps, unreserve_addr, unreserve_size);
-		malloc_mutex_unlock(tsdn, &shard->mtx);
-		return;
-	}
-	/*
-	 * No other thread is purging, and the ps is non-empty, so it should be
-	 * in the psset.
-	 */
-	assert(!hpdata_updating_get(ps));
 	psset_update_begin(&shard->psset, ps);
 	hpdata_unreserve(ps, unreserve_addr, unreserve_size);
-	if (!hpa_should_purge(shard, ps)) {
-		/*
-		 * This should be the common case; no other thread is purging,
-		 * and we won't purge either.
-		 */
-		psset_update_end(&shard->psset, ps);
-		malloc_mutex_unlock(tsdn, &shard->mtx);
-		return;
+	if (hpa_should_purge(shard, ps)) {
+		hpdata_purge_allowed_set(ps, true);
 	}
-
-	/* It's our job to purge. */
-	hpa_purge(tsdn, shard, ps);
-
 	psset_update_end(&shard->psset, ps);
+
+	hpa_do_deferred_work(tsdn, shard);
 
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 }

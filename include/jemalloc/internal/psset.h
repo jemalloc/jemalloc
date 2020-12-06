@@ -61,8 +61,15 @@ struct psset_s {
 	hpdata_age_heap_t pageslabs[PSSET_NPSIZES];
 	bitmap_t bitmap[BITMAP_GROUPS(PSSET_NPSIZES)];
 	psset_stats_t stats;
-	/* Slabs with no active allocations. */
-	hpdata_empty_list_t empty_slabs;
+	/*
+	 * Slabs with no active allocations, but which are allowed to serve new
+	 * allocations.
+	 */
+	hpdata_empty_list_t empty;
+	/* Slabs which are available to be purged. */
+	hpdata_purge_list_t to_purge;
+	/* Slabs which are available to be hugified. */
+	hpdata_hugify_list_t to_hugify;
 };
 
 void psset_init(psset_t *psset);
@@ -77,6 +84,10 @@ void psset_update_end(psset_t *psset, hpdata_t *ps);
 
 /* Analogous to the eset_fit; pick a hpdata to serve the request. */
 hpdata_t *psset_pick_alloc(psset_t *psset, size_t size);
+/* Pick one to purge. */
+hpdata_t *psset_pick_purge(psset_t *psset);
+/* Pick one to hugify. */
+hpdata_t *psset_pick_hugify(psset_t *psset);
 
 void psset_insert(psset_t *psset, hpdata_t *ps);
 void psset_remove(psset_t *psset, hpdata_t *ps);
