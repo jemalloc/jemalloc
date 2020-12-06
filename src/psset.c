@@ -225,7 +225,6 @@ psset_update_begin(psset_t *psset, hpdata_t *ps) {
 
 void
 psset_update_end(psset_t *psset, hpdata_t *ps) {
-	hpdata_assert_consistent(ps);
 	assert(hpdata_in_psset_get(ps));
 	hpdata_updating_set(ps, false);
 	psset_stats_insert(psset, ps);
@@ -258,6 +257,7 @@ psset_update_end(psset_t *psset, hpdata_t *ps) {
 		hpdata_in_psset_hugify_container_set(ps, false);
 		hpdata_hugify_list_remove(&psset->to_hugify, ps);
 	}
+	hpdata_assert_consistent(ps);
 }
 
 hpdata_t *

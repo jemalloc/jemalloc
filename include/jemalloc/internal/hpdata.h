@@ -171,6 +171,7 @@ hpdata_purge_allowed_get(const hpdata_t *hpdata) {
 
 static inline void
 hpdata_purge_allowed_set(hpdata_t *hpdata, bool purge_allowed) {
+	assert(purge_allowed == false || !hpdata->h_mid_purge);
 	hpdata->h_purge_allowed = purge_allowed;
 }
 
@@ -192,6 +193,7 @@ hpdata_hugify_allowed_get(const hpdata_t *hpdata) {
 
 static inline void
 hpdata_hugify_allowed_set(hpdata_t *hpdata, bool hugify_allowed) {
+	assert(hugify_allowed == false || !hpdata->h_mid_hugify);
 	hpdata->h_hugify_allowed = hugify_allowed;
 }
 
@@ -311,6 +313,18 @@ hpdata_consistent(hpdata_t *hpdata) {
 		return false;
 	}
 	if (hpdata->h_huge && hpdata->h_ntouched != HUGEPAGE_PAGES) {
+		return false;
+	}
+	if (hpdata_changing_state_get(hpdata)
+	    && (hpdata->h_purge_allowed || hpdata->h_hugify_allowed)) {
+		return false;
+	}
+	if (hpdata_purge_allowed_get(hpdata)
+	    != hpdata_in_psset_purge_container_get(hpdata)) {
+		return false;
+	}
+	if (hpdata_hugify_allowed_get(hpdata)
+	    != hpdata_in_psset_hugify_container_get(hpdata)) {
 		return false;
 	}
 	return true;
