@@ -35,7 +35,6 @@ struct psset_bin_stats_s {
 
 typedef struct psset_stats_s psset_stats_t;
 struct psset_stats_s {
-
 	/*
 	 * The second index is huge stats; nonfull_slabs[pszind][0] contains
 	 * stats for the non-huge slabs in bucket pszind, while
@@ -44,10 +43,13 @@ struct psset_stats_s {
 	psset_bin_stats_t nonfull_slabs[PSSET_NPSIZES][2];
 
 	/*
-	 * Full slabs don't live in any edata heap.  But we still track their
+	 * Full slabs don't live in any edata heap, but we still track their
 	 * stats.
 	 */
 	psset_bin_stats_t full_slabs[2];
+
+	/* Empty slabs are similar. */
+	psset_bin_stats_t empty_slabs[2];
 };
 
 typedef struct psset_s psset_t;
@@ -59,6 +61,8 @@ struct psset_s {
 	hpdata_age_heap_t pageslabs[PSSET_NPSIZES];
 	bitmap_t bitmap[BITMAP_GROUPS(PSSET_NPSIZES)];
 	psset_stats_t stats;
+	/* Slabs with no active allocations. */
+	hpdata_empty_list_t empty_slabs;
 };
 
 void psset_init(psset_t *psset);
@@ -73,5 +77,8 @@ void psset_update_end(psset_t *psset, hpdata_t *ps);
 
 /* Analogous to the eset_fit; pick a hpdata to serve the request. */
 hpdata_t *psset_pick_alloc(psset_t *psset, size_t size);
+
+void psset_insert(psset_t *psset, hpdata_t *ps);
+void psset_remove(psset_t *psset, hpdata_t *ps);
 
 #endif /* JEMALLOC_INTERNAL_PSSET_H */

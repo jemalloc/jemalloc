@@ -226,7 +226,6 @@ CTL_PROTO(stats_arenas_i_extents_j_dirty_bytes)
 CTL_PROTO(stats_arenas_i_extents_j_muzzy_bytes)
 CTL_PROTO(stats_arenas_i_extents_j_retained_bytes)
 INDEX_PROTO(stats_arenas_i_extents_j)
-CTL_PROTO(stats_arenas_i_hpa_shard_nevictions)
 CTL_PROTO(stats_arenas_i_hpa_shard_npurge_passes)
 CTL_PROTO(stats_arenas_i_hpa_shard_npurges)
 CTL_PROTO(stats_arenas_i_hpa_shard_nhugifies)
@@ -700,7 +699,6 @@ static const ctl_named_node_t stats_arenas_i_hpa_shard_node[] = {
 	{NAME("nonfull_slabs"),	CHILD(indexed,
 	    stats_arenas_i_hpa_shard_nonfull_slabs)},
 
-	{NAME("nevictions"),	CTL(stats_arenas_i_hpa_shard_nevictions)},
 	{NAME("npurge_passes"),	CTL(stats_arenas_i_hpa_shard_npurge_passes)},
 	{NAME("npurges"),	CTL(stats_arenas_i_hpa_shard_npurges)},
 	{NAME("nhugifies"),	CTL(stats_arenas_i_hpa_shard_nhugifies)},
@@ -3514,8 +3512,6 @@ stats_arenas_i_extents_j_index(tsdn_t *tsdn, const size_t *mib,
 	return super_stats_arenas_i_extents_j_node;
 }
 
-CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nevictions,
-    arenas_i(mib[2])->astats->hpastats.nonderived_stats.nevictions, uint64_t);
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_npurge_passes,
     arenas_i(mib[2])->astats->hpastats.nonderived_stats.npurge_passes, uint64_t);
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_npurges,

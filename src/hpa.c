@@ -68,14 +68,12 @@ hpa_shard_init(hpa_shard_t *shard, emap_t *emap, base_t *base,
 	edata_cache_small_init(&shard->ecs, edata_cache);
 	psset_init(&shard->psset);
 	shard->alloc_max = alloc_max;
-	hpdata_list_init(&shard->unused_slabs);
 	shard->age_counter = 0;
 	shard->eden = NULL;
 	shard->eden_len = 0;
 	shard->ind = ind;
 	shard->emap = emap;
 
-	shard->stats.nevictions = 0;
 	shard->stats.npurge_passes = 0;
 	shard->stats.npurges = 0;
 	shard->stats.nhugifies = 0;
@@ -103,7 +101,6 @@ hpa_shard_init(hpa_shard_t *shard, emap_t *emap, base_t *base,
 static void
 hpa_shard_nonderived_stats_accum(hpa_shard_nonderived_stats_t *dst,
     hpa_shard_nonderived_stats_t *src) {
-	dst->nevictions += src->nevictions;
 	dst->npurge_passes += src->npurge_passes;
 	dst->npurges += src->npurges;
 	dst->nhugifies += src->nhugifies;
@@ -170,15 +167,6 @@ static hpdata_t *
 hpa_grow(tsdn_t *tsdn, hpa_shard_t *shard) {
 	malloc_mutex_assert_owner(tsdn, &shard->grow_mtx);
 	hpdata_t *ps = NULL;
-
-	/* Is there address space waiting for reuse? */
-	malloc_mutex_assert_owner(tsdn, &shard->grow_mtx);
-	ps = hpdata_list_first(&shard->unused_slabs);
-	if (ps != NULL) {
-		hpdata_list_remove(&shard->unused_slabs, ps);
-		hpdata_age_set(ps, shard->age_counter++);
-		return ps;
-	}
 
 	/* Is eden a perfect fit? */
 	if (shard->eden != NULL && shard->eden_len == HUGEPAGE) {
@@ -300,26 +288,6 @@ hpa_purge(tsdn_t *tsdn, hpa_shard_t *shard, hpdata_t *ps) {
 	}
 }
 
-/*
- * Does the metadata tracking associated with a page slab becoming empty.  The
- * psset doesn't hold empty pageslabs, but we do want address space reuse, so we
- * track these pages outside the psset.
- */
-static void
-hpa_handle_ps_eviction(tsdn_t *tsdn, hpa_shard_t *shard, hpdata_t *ps) {
-	/*
-	 * We do relatively expensive system calls.  The ps was evicted, so no
-	 * one should touch it while we're also touching it.
-	 */
-	malloc_mutex_assert_not_owner(tsdn, &shard->mtx);
-	malloc_mutex_assert_not_owner(tsdn, &shard->grow_mtx);
-
-	malloc_mutex_lock(tsdn, &shard->grow_mtx);
-	shard->stats.nevictions++;
-	hpdata_list_prepend(&shard->unused_slabs, ps);
-	malloc_mutex_unlock(tsdn, &shard->grow_mtx);
-}
-
 static edata_t *
 hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) {
 	bool err;
@@ -341,6 +309,18 @@ hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) 
 	}
 
 	psset_update_begin(&shard->psset, ps);
+
+	if (hpdata_empty(ps)) {
+		/*
+		 * If the pageslab used to be empty, treat it as though it's
+		 * brand new for fragmentation-avoidance purposes; what we're
+		 * trying to approximate is the age of the allocations *in* that
+		 * pageslab, and the allocations in the new pageslab are
+		 * definitionally the youngest in this hpa shard.
+		 */
+		hpdata_age_set(ps, shard->age_counter++);
+	}
+
 	void *addr = hpdata_reserve_alloc(ps, size);
 	edata_init(edata, shard->ind, addr, size, /* slab */ false,
 	    SC_NSIZES, /* sn */ 0, extent_state_active, /* zeroed */ false,
@@ -453,25 +433,19 @@ hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
 		return NULL;
 	}
 
-	/* We got the new edata; allocate from it. */
+	/* We got the pageslab; allocate from it. */
 	malloc_mutex_lock(tsdn, &shard->mtx);
-	/*
-	 * This will go away soon.  The psset doesn't draw a distinction between
-	 * pageslab removal and updating.  If this is a new pageslab, we pretend
-	 * that it's an old one that's been getting updated.
-	 */
-	if (!hpdata_updating_get(ps)) {
-		hpdata_updating_set(ps, true);
-	}
+
+	psset_insert(&shard->psset, ps);
 
 	edata = edata_cache_small_get(tsdn, &shard->ecs);
 	if (edata == NULL) {
-		shard->stats.nevictions++;
 		malloc_mutex_unlock(tsdn, &shard->mtx);
 		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
-		hpa_handle_ps_eviction(tsdn, shard, ps);
 		return NULL;
 	}
+
+	psset_update_begin(&shard->psset, ps);
 
 	void *addr = hpdata_reserve_alloc(ps, size);
 	edata_init(edata, shard->ind, addr, size, /* slab */ false,
@@ -486,10 +460,6 @@ hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
 		    edata_size_get(edata));
 
 		edata_cache_small_put(tsdn, &shard->ecs, edata);
-
-		shard->stats.nevictions++;
-		malloc_mutex_unlock(tsdn, &shard->mtx);
-		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
 
 		/* We'll do a fake purge; the pages weren't really touched. */
 		hpdata_purge_state_t purge_state;
@@ -506,7 +476,9 @@ hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
 		assert(!found_extent);
 		hpdata_purge_end(ps, &purge_state);
 
-		hpa_handle_ps_eviction(tsdn, shard, ps);
+		psset_update_end(&shard->psset, ps);
+		malloc_mutex_unlock(tsdn, &shard->mtx);
+		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
 		return NULL;
 	}
 	psset_update_end(&shard->psset, ps);
@@ -614,9 +586,7 @@ hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 	 *   management.
 	 * - The ps must not be in the psset while purging.  This is because we
 	 *   can't handle purge/alloc races.
-	 * - Whoever removes the ps from the psset is the one to reinsert it (or
-	 *   to pass it to hpa_handle_ps_eviction upon emptying).  This keeps
-	 *   responsibility tracking simple.
+	 * - Whoever removes the ps from the psset is the one to reinsert it.
 	 */
 	if (hpdata_mid_purge_get(ps)) {
 		/*
@@ -649,17 +619,9 @@ hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 	/* It's our job to purge. */
 	hpa_purge(tsdn, shard, ps);
 
-	/*
-	 * OK, the hpdata is as purged as we want it to be, and it's going back
-	 * into the psset (if nonempty) or getting evicted (if empty).
-	 */
-	if (hpdata_empty(ps)) {
-		malloc_mutex_unlock(tsdn, &shard->mtx);
-		hpa_handle_ps_eviction(tsdn, shard, ps);
-	} else {
-		psset_update_end(&shard->psset, ps);
-		malloc_mutex_unlock(tsdn, &shard->mtx);
-	}
+	psset_update_end(&shard->psset, ps);
+
+	malloc_mutex_unlock(tsdn, &shard->mtx);
 }
 
 void
@@ -678,8 +640,6 @@ hpa_shard_assert_stats_empty(psset_bin_stats_t *bin_stats) {
 static void
 hpa_assert_empty(tsdn_t *tsdn, hpa_shard_t *shard, psset_t *psset) {
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
-	hpdata_t *ps = psset_pick_alloc(psset, PAGE);
-	assert(ps == NULL);
 	for (int huge = 0; huge <= 1; huge++) {
 		hpa_shard_assert_stats_empty(&psset->stats.full_slabs[huge]);
 		for (pszind_t i = 0; i < PSSET_NPSIZES; i++) {
@@ -703,8 +663,10 @@ hpa_shard_destroy(tsdn_t *tsdn, hpa_shard_t *shard) {
 		malloc_mutex_unlock(tsdn, &shard->mtx);
 	}
 	hpdata_t *ps;
-	while ((ps = hpdata_list_first(&shard->unused_slabs)) != NULL) {
-		hpdata_list_remove(&shard->unused_slabs, ps);
+	while ((ps = psset_pick_alloc(&shard->psset, PAGE)) != NULL) {
+		/* There should be no allocations anywhere. */
+		assert(hpdata_empty(ps));
+		psset_remove(&shard->psset, ps);
 		pages_unmap(hpdata_addr_get(ps), HUGEPAGE);
 	}
 }

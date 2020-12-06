@@ -25,6 +25,7 @@ hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age) {
 	hpdata->h_mid_purge = false;
 	hpdata->h_mid_hugify = false;
 	hpdata->h_updating = false;
+	hpdata->h_in_psset = false;
 	hpdata_longest_free_range_set(hpdata, HUGEPAGE_PAGES);
 	hpdata->h_nactive = 0;
 	fb_init(hpdata->active_pages, HUGEPAGE_PAGES);
@@ -37,7 +38,12 @@ hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age) {
 void *
 hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz) {
 	hpdata_assert_consistent(hpdata);
-	assert(hpdata->h_updating);
+	/*
+	 * This is a metadata change; the hpdata should therefore either not be
+	 * in the psset, or should have explicitly marked itself as being
+	 * mid-update.
+	 */
+	assert(!hpdata->h_in_psset || hpdata->h_updating);
 	assert((sz & PAGE_MASK) == 0);
 	size_t npages = sz >> LG_PAGE;
 	assert(npages <= hpdata_longest_free_range_get(hpdata));
@@ -118,7 +124,8 @@ hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz) {
 void
 hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz) {
 	hpdata_assert_consistent(hpdata);
-	assert(hpdata->h_updating);
+	/* See the comment in reserve. */
+	assert(!hpdata->h_in_psset || hpdata->h_updating);
 	assert(((uintptr_t)addr & PAGE_MASK) == 0);
 	assert((sz & PAGE_MASK) == 0);
 	size_t begin = ((uintptr_t)addr - (uintptr_t)hpdata_addr_get(hpdata))
@@ -147,7 +154,8 @@ hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz) {
 void
 hpdata_purge_begin(hpdata_t *hpdata, hpdata_purge_state_t *purge_state) {
 	hpdata_assert_consistent(hpdata);
-	assert(hpdata->h_updating);
+	/* See the comment in reserve. */
+	assert(!hpdata->h_in_psset || hpdata->h_updating);
 	assert(!hpdata->h_mid_purge);
 	assert(!hpdata->h_mid_hugify);
 	hpdata->h_mid_purge = true;
@@ -185,7 +193,8 @@ hpdata_purge_next(hpdata_t *hpdata, hpdata_purge_state_t *purge_state,
 	 * a consistent state.
 	 */
 	assert(hpdata->h_mid_purge);
-	assert(hpdata->h_updating);
+	/* See the comment in reserve. */
+	assert(!hpdata->h_in_psset || hpdata->h_updating);
 	/* Should have dehugified already (if necessary). */
 	assert(!hpdata->h_huge);
 	assert(!hpdata->h_mid_hugify);
@@ -215,7 +224,8 @@ hpdata_purge_next(hpdata_t *hpdata, hpdata_purge_state_t *purge_state,
 void
 hpdata_purge_end(hpdata_t *hpdata, hpdata_purge_state_t *purge_state) {
 	hpdata_assert_consistent(hpdata);
-	assert(hpdata->h_updating);
+	/* See the comment in reserve. */
+	assert(!hpdata->h_in_psset || hpdata->h_updating);
 	assert(hpdata->h_mid_purge);
 	assert(!hpdata->h_mid_hugify);
 	hpdata->h_mid_purge = false;
@@ -236,7 +246,8 @@ hpdata_purge_end(hpdata_t *hpdata, hpdata_purge_state_t *purge_state) {
 void
 hpdata_hugify_begin(hpdata_t *hpdata) {
 	hpdata_assert_consistent(hpdata);
-	assert(hpdata->h_updating);
+	/* See the comment in reserve. */
+	assert(!hpdata->h_in_psset || hpdata->h_updating);
 	assert(!hpdata->h_mid_purge);
 	assert(!hpdata->h_mid_hugify);
 	hpdata->h_mid_hugify = true;
@@ -253,7 +264,7 @@ hpdata_hugify_end(hpdata_t *hpdata) {
 	 * This is the exception to the "no-metadata updates without informing
 	 * the psset first" rule; this assert would be incorrect.
 	 */
-	/* assert(hpdata->h_updating); */
+	/* assert(!hpdata->h_in_psset || hpdata->h_updating); */
 	assert(!hpdata->h_mid_purge);
 	assert(hpdata->h_mid_hugify);
 	hpdata->h_mid_hugify = false;

@@ -9,14 +9,6 @@
 typedef struct hpa_shard_nonderived_stats_s hpa_shard_nonderived_stats_t;
 struct hpa_shard_nonderived_stats_s {
 	/*
-	 * The number of times we've fully purged a hugepage and evicted it from
-	 * the psset.
-	 *
-	 * Guarded by grow_mtx.
-	 */
-	uint64_t nevictions;
-
-	/*
 	 * The number of times we've purged within a hugepage.
 	 *
 	 * Guarded by mtx.
@@ -79,15 +71,6 @@ struct hpa_shard_s {
 	 * any allocation request.
 	 */
 	size_t alloc_max;
-
-	/*
-	 * Slabs currently purged away.  They are hugepage-sized and
-	 * hugepage-aligned, but have had pages_nohuge and pages_purge_forced
-	 * called on them.
-	 *
-	 * Guarded by grow_mtx.
-	 */
-	hpdata_list_t unused_slabs;
 
 	/*
 	 * How many grow operations have occurred.
