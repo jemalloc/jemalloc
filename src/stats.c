@@ -790,14 +790,11 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	emitter_row_t row;
 	emitter_row_init(&row);
 
-	uint64_t nevictions;
 	uint64_t npurge_passes;
 	uint64_t npurges;
 	uint64_t nhugifies;
 	uint64_t ndehugifies;
 
-	CTL_M2_GET("stats.arenas.0.hpa_shard.nevictions",
-	    i, &nevictions, uint64_t);
 	CTL_M2_GET("stats.arenas.0.hpa_shard.npurge_passes",
 	    i, &npurge_passes, uint64_t);
 	CTL_M2_GET("stats.arenas.0.hpa_shard.npurges",
@@ -839,7 +836,6 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 
 	emitter_table_printf(emitter,
 	    "HPA shard stats:\n"
-	    "  Evictions: %" FMTu64 " (%" FMTu64 " / sec)\n"
 	    "  Purge passes: %" FMTu64 " (%" FMTu64 " / sec)\n"
 	    "  Purges: %" FMTu64 " (%" FMTu64 " / sec)\n"
 	    "  Hugeifies: %" FMTu64 " (%" FMTu64 " / sec)\n"
@@ -850,7 +846,6 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	    "      nactive: %zu huge, %zu nonhuge \n"
 	    "      ndirty: %zu huge, %zu nonhuge \n"
 	    "      nretained: 0 huge, %zu nonhuge \n",
-	    nevictions, rate_per_second(nevictions, uptime),
 	    npurge_passes, rate_per_second(npurge_passes, uptime),
 	    npurges, rate_per_second(npurges, uptime),
 	    nhugifies, rate_per_second(nhugifies, uptime),
@@ -861,8 +856,6 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	    nretained_nonhuge);
 
 	emitter_json_object_kv_begin(emitter, "hpa_shard");
-	emitter_json_kv(emitter, "nevictions", emitter_type_uint64,
-	    &nevictions);
 	emitter_json_kv(emitter, "npurge_passes", emitter_type_uint64,
 	    &npurge_passes);
 	emitter_json_kv(emitter, "npurges", emitter_type_uint64,

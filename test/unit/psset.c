@@ -16,17 +16,25 @@ edata_init_test(edata_t *edata) {
 }
 
 static void
+test_psset_fake_purge(hpdata_t *ps) {
+	hpdata_purge_state_t purge_state;
+	hpdata_purge_begin(ps, &purge_state);
+	void *addr;
+	size_t size;
+	while (hpdata_purge_next(ps, &purge_state, &addr, &size)) {
+	}
+	hpdata_purge_end(ps, &purge_state);
+}
+
+static void
 test_psset_alloc_new(psset_t *psset, hpdata_t *ps, edata_t *r_edata,
     size_t size) {
 	hpdata_assert_empty(ps);
 
-	/*
-	 * As in hpa.c; pretend that the ps is already in the psset and just
-	 * being updated, until we implement true insert/removal support.
-	 */
-	if (!hpdata_updating_get(ps)) {
-		hpdata_updating_set(ps, true);
-	}
+	test_psset_fake_purge(ps);
+
+	psset_insert(psset, ps);
+	psset_update_begin(psset, ps);
 
         void *addr = hpdata_reserve_alloc(ps, size);
         edata_init(r_edata, edata_arena_ind_get(r_edata), addr, size,
@@ -59,10 +67,11 @@ test_psset_dalloc(psset_t *psset, edata_t *edata) {
 	hpdata_t *ps = edata_ps_get(edata);
 	psset_update_begin(psset, ps);
 	hpdata_unreserve(ps, edata_addr_get(edata), edata_size_get(edata));
+	psset_update_end(psset, ps);
 	if (hpdata_empty(ps)) {
+		psset_remove(psset, ps);
 		return ps;
 	} else {
-		psset_update_end(psset, ps);
 		return NULL;
 	}
 }

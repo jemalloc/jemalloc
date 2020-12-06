@@ -52,14 +52,17 @@ struct hpdata_s {
 	 */
 	bool h_updating;
 
+	/* Whether or not the hpdata is in a psset. */
+	bool h_in_psset;
+
 	union {
-		/* When nonempty, used by the psset bins. */
+		/* When nonempty (and also nonfull), used by the psset bins. */
 		phn(hpdata_t) ph_link;
 		/*
 		 * When empty (or not corresponding to any hugepage), list
 		 * linkage.
 		 */
-		ql_elm(hpdata_t) ql_link;
+		ql_elm(hpdata_t) ql_link_empty;
 	};
 
 	/* The length of the largest contiguous sequence of inactive pages. */
@@ -82,7 +85,7 @@ struct hpdata_s {
 	fb_group_t touched_pages[FB_NGROUPS(HUGEPAGE_PAGES)];
 };
 
-TYPED_LIST(hpdata_list, hpdata_t, ql_link)
+TYPED_LIST(hpdata_empty_list, hpdata_t, ql_link_empty)
 typedef ph(hpdata_t) hpdata_age_heap_t;
 ph_proto(, hpdata_age_heap_, hpdata_age_heap_t, hpdata_t);
 
@@ -136,6 +139,17 @@ static inline void
 hpdata_updating_set(hpdata_t *hpdata, bool updating) {
 	assert(updating != hpdata->h_updating);
 	hpdata->h_updating = updating;
+}
+
+static inline bool
+hpdata_in_psset_get(const hpdata_t *hpdata) {
+	return hpdata->h_in_psset;
+}
+
+static inline void
+hpdata_in_psset_set(hpdata_t *hpdata, bool in_psset) {
+	assert(in_psset != hpdata->h_in_psset);
+	hpdata->h_in_psset = in_psset;
 }
 
 static inline size_t
@@ -206,6 +220,11 @@ hpdata_assert_consistent(hpdata_t *hpdata) {
 static inline bool
 hpdata_empty(hpdata_t *hpdata) {
 	return hpdata->h_nactive == 0;
+}
+
+static inline bool
+hpdata_full(hpdata_t *hpdata) {
+	return hpdata->h_nactive == HUGEPAGE_PAGES;
 }
 
 void hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age);
