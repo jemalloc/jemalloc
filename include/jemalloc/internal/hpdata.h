@@ -363,8 +363,11 @@ struct hpdata_purge_state_s {
  * Once you begin purging, you have to follow through and call hpdata_purge_next
  * until you're done, and then end.  Allocating out of an hpdata undergoing
  * purging is not allowed.
+ *
+ * Returns the number of pages that will be purged.
  */
-void hpdata_purge_begin(hpdata_t *hpdata, hpdata_purge_state_t *purge_state);
+size_t hpdata_purge_begin(hpdata_t *hpdata, hpdata_purge_state_t *purge_state);
+
 /*
  * If there are more extents to purge, sets *r_purge_addr and *r_purge_size to
  * true, and returns true.  Otherwise, returns false to indicate that we're

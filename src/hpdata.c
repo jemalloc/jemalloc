@@ -158,7 +158,7 @@ hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz) {
 	hpdata_assert_consistent(hpdata);
 }
 
-void
+size_t
 hpdata_purge_begin(hpdata_t *hpdata, hpdata_purge_state_t *purge_state) {
 	hpdata_assert_consistent(hpdata);
 	/* See the comment in reserve. */
@@ -181,10 +181,13 @@ hpdata_purge_begin(hpdata_t *hpdata, hpdata_purge_state_t *purge_state) {
 	    hpdata->touched_pages, HUGEPAGE_PAGES);
 
 	/* We purge everything we can. */
-	assert(hpdata->h_ntouched - hpdata->h_nactive == fb_scount(
+	size_t to_purge = hpdata->h_ntouched - hpdata->h_nactive;
+	assert(to_purge == fb_scount(
 	    purge_state->to_purge, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES));
 
 	hpdata_assert_consistent(hpdata);
+
+	return to_purge;
 }
 
 bool

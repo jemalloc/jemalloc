@@ -68,7 +68,8 @@ TEST_BEGIN(test_purge_simple) {
 	expect_zu_eq(hpdata_ntouched_get(&hpdata), HUGEPAGE_PAGES / 2, "");
 
 	hpdata_purge_state_t purge_state;
-	hpdata_purge_begin(&hpdata, &purge_state);
+	size_t to_purge = hpdata_purge_begin(&hpdata, &purge_state);
+	expect_zu_eq(HUGEPAGE_PAGES / 4, to_purge, "");
 
 	void *purge_addr;
 	size_t purge_size;
@@ -112,7 +113,8 @@ TEST_BEGIN(test_purge_intervening_dalloc) {
 	expect_zu_eq(hpdata_ntouched_get(&hpdata), 3 * HUGEPAGE_PAGES / 4, "");
 
 	hpdata_purge_state_t purge_state;
-	hpdata_purge_begin(&hpdata, &purge_state);
+	size_t to_purge = hpdata_purge_begin(&hpdata, &purge_state);
+	expect_zu_eq(HUGEPAGE_PAGES / 2, to_purge, "");
 
 	void *purge_addr;
 	size_t purge_size;
