@@ -14,6 +14,7 @@ psset_init(psset_t *psset) {
 		hpdata_age_heap_new(&psset->pageslabs[i]);
 	}
 	bitmap_init(psset->bitmap, &psset_bitmap_info, /* fill */ true);
+	memset(&psset->merged_stats, 0, sizeof(psset->merged_stats));
 	memset(&psset->stats, 0, sizeof(psset->stats));
 	hpdata_empty_list_init(&psset->empty);
 	hpdata_purge_list_init(&psset->to_purge);
@@ -52,23 +53,48 @@ psset_stats_accum(psset_stats_t *dst, psset_stats_t *src) {
  * ensure we don't miss any heap modification operations.
  */
 JEMALLOC_ALWAYS_INLINE void
-psset_bin_stats_insert_remove(psset_bin_stats_t *binstats, hpdata_t *ps,
-    bool insert) {
+psset_bin_stats_insert_remove(psset_t *psset, psset_bin_stats_t *binstats,
+    hpdata_t *ps, bool insert) {
 	size_t mul = insert ? (size_t)1 : (size_t)-1;
 	size_t huge_idx = (size_t)hpdata_huge_get(ps);
+
 	binstats[huge_idx].npageslabs += mul * 1;
 	binstats[huge_idx].nactive += mul * hpdata_nactive_get(ps);
 	binstats[huge_idx].ndirty += mul * hpdata_ndirty_get(ps);
+
+	psset->merged_stats.npageslabs += mul * 1;
+	psset->merged_stats.nactive += mul * hpdata_nactive_get(ps);
+	psset->merged_stats.ndirty += mul * hpdata_ndirty_get(ps);
+
+	if (config_debug) {
+		psset_bin_stats_t check_stats = {0};
+		for (size_t huge = 0; huge <= 1; huge++) {
+			psset_bin_stats_accum(&check_stats,
+			    &psset->stats.full_slabs[huge]);
+			psset_bin_stats_accum(&check_stats,
+			    &psset->stats.empty_slabs[huge]);
+			for (pszind_t pind = 0; pind < PSSET_NPSIZES; pind++) {
+				psset_bin_stats_accum(&check_stats,
+				    &psset->stats.nonfull_slabs[pind][huge]);
+			}
+		}
+		assert(psset->merged_stats.npageslabs
+		    == check_stats.npageslabs);
+		assert(psset->merged_stats.nactive == check_stats.nactive);
+		assert(psset->merged_stats.ndirty == check_stats.ndirty);
+	}
 }
 
 static void
-psset_bin_stats_insert(psset_bin_stats_t *binstats, hpdata_t *ps) {
-	psset_bin_stats_insert_remove(binstats, ps, true);
+psset_bin_stats_insert(psset_t *psset, psset_bin_stats_t *binstats,
+    hpdata_t *ps) {
+	psset_bin_stats_insert_remove(psset, binstats, ps, true);
 }
 
 static void
-psset_bin_stats_remove(psset_bin_stats_t *binstats, hpdata_t *ps) {
-	psset_bin_stats_insert_remove(binstats, ps, false);
+psset_bin_stats_remove(psset_t *psset, psset_bin_stats_t *binstats,
+    hpdata_t *ps) {
+	psset_bin_stats_insert_remove(psset, binstats, ps, false);
 }
 
 static void
@@ -90,9 +116,9 @@ psset_hpdata_heap_insert(psset_t *psset, pszind_t pind, hpdata_t *ps) {
 static void
 psset_stats_insert(psset_t* psset, hpdata_t *ps) {
 	if (hpdata_empty(ps)) {
-		psset_bin_stats_insert(psset->stats.empty_slabs, ps);
+		psset_bin_stats_insert(psset, psset->stats.empty_slabs, ps);
 	} else if (hpdata_full(ps)) {
-		psset_bin_stats_insert(psset->stats.full_slabs, ps);
+		psset_bin_stats_insert(psset, psset->stats.full_slabs, ps);
 	} else {
 		size_t longest_free_range = hpdata_longest_free_range_get(ps);
 
@@ -100,16 +126,17 @@ psset_stats_insert(psset_t* psset, hpdata_t *ps) {
 		    longest_free_range << LG_PAGE));
 		assert(pind < PSSET_NPSIZES);
 
-		psset_bin_stats_insert(psset->stats.nonfull_slabs[pind], ps);
+		psset_bin_stats_insert(psset, psset->stats.nonfull_slabs[pind],
+		    ps);
 	}
 }
 
 static void
 psset_stats_remove(psset_t *psset, hpdata_t *ps) {
 	if (hpdata_empty(ps)) {
-		psset_bin_stats_remove(psset->stats.empty_slabs, ps);
+		psset_bin_stats_remove(psset, psset->stats.empty_slabs, ps);
 	} else if (hpdata_full(ps)) {
-		psset_bin_stats_remove(psset->stats.full_slabs, ps);
+		psset_bin_stats_remove(psset, psset->stats.full_slabs, ps);
 	} else {
 		size_t longest_free_range = hpdata_longest_free_range_get(ps);
 
@@ -117,7 +144,8 @@ psset_stats_remove(psset_t *psset, hpdata_t *ps) {
 		    longest_free_range << LG_PAGE));
 		assert(pind < PSSET_NPSIZES);
 
-		psset_bin_stats_remove(psset->stats.nonfull_slabs[pind], ps);
+		psset_bin_stats_remove(psset, psset->stats.nonfull_slabs[pind],
+		    ps);
 	}
 }
 

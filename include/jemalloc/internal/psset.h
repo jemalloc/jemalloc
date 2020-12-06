@@ -8,9 +8,6 @@
  * a collection of page-slabs (the intent being that they are backed by
  * hugepages, or at least could be), and handles allocation and deallocation
  * requests.
- *
- * It has the same synchronization guarantees as the eset; stats queries don't
- * need any external synchronization, everything else does.
  */
 
 /*
@@ -60,6 +57,12 @@ struct psset_s {
 	 */
 	hpdata_age_heap_t pageslabs[PSSET_NPSIZES];
 	bitmap_t bitmap[BITMAP_GROUPS(PSSET_NPSIZES)];
+	/*
+	 * The sum of all bin stats in stats.  This lets us quickly answer
+	 * queries for the number of dirty, active, and retained pages in the
+	 * entire set.
+	 */
+	psset_bin_stats_t merged_stats;
 	psset_stats_t stats;
 	/*
 	 * Slabs with no active allocations, but which are allowed to serve new
@@ -91,5 +94,20 @@ hpdata_t *psset_pick_hugify(psset_t *psset);
 
 void psset_insert(psset_t *psset, hpdata_t *ps);
 void psset_remove(psset_t *psset, hpdata_t *ps);
+
+static inline size_t
+psset_npageslabs(psset_t *psset) {
+	return psset->merged_stats.npageslabs;
+}
+
+static inline size_t
+psset_nactive(psset_t *psset) {
+	return psset->merged_stats.nactive;
+}
+
+static inline size_t
+psset_ndirty(psset_t *psset) {
+	return psset->merged_stats.ndirty;
+}
 
 #endif /* JEMALLOC_INTERNAL_PSSET_H */
