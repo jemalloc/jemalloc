@@ -74,6 +74,8 @@ hpa_shard_init(hpa_shard_t *shard, emap_t *emap, base_t *base,
 	shard->ind = ind;
 	shard->emap = emap;
 
+	shard->npending_purge = 0;
+
 	shard->stats.npurge_passes = 0;
 	shard->stats.npurges = 0;
 	shard->stats.nhugifies = 0;
@@ -141,26 +143,58 @@ hpa_good_hugification_candidate(hpa_shard_t *shard, hpdata_t *ps) {
 }
 
 static bool
-hpa_should_hugify(hpa_shard_t *shard, hpdata_t *ps) {
-	if (hpdata_changing_state_get(ps) || hpdata_huge_get(ps)) {
-		return false;
-	}
-	return hpa_good_hugification_candidate(shard, ps);
+hpa_should_purge(hpa_shard_t *shard) {
+	size_t adjusted_ndirty = psset_ndirty(&shard->psset)
+	    - shard->npending_purge;
+	/*
+	 * Another simple static check; purge whenever dirty exceeds 25% of
+	 * active.
+	 */
+	return adjusted_ndirty > psset_nactive(&shard->psset) / 4;
 }
 
-/*
- * Whether or not the given pageslab meets the criteria for being purged (and,
- * if necessary, dehugified).
- */
-static bool
-hpa_should_purge(hpa_shard_t *shard, hpdata_t *ps) {
-	/* Ditto. */
+static void
+hpa_update_purge_hugify_eligibility(hpa_shard_t *shard, hpdata_t *ps) {
 	if (hpdata_changing_state_get(ps)) {
-		return false;
+		hpdata_purge_allowed_set(ps, false);
+		hpdata_hugify_allowed_set(ps, false);
+		return;
 	}
-	size_t purgeable = hpdata_ndirty_get(ps);
-	return purgeable > HUGEPAGE_PAGES * 25 / 100
-	    || (purgeable > 0 && hpdata_empty(ps));
+	/*
+	 * Hugepages are distinctly costly to purge, so do it only if they're
+	 * *particularly* full of dirty pages.  Eventually, we should use a
+	 * smarter / more dynamic heuristic for situations where we have to
+	 * manually hugify.
+	 *
+	 * In situations where we don't manually hugify, this problem is
+	 * reduced.  The "bad" situation we're trying to avoid is one's that's
+	 * common in some Linux configurations (where both enabled and defrag
+	 * are set to madvise) that can lead to long latency spikes on the first
+	 * access after a hugification.  The ideal policy in such configurations
+	 * is probably time-based for both purging and hugifying; only hugify a
+	 * hugepage if it's met the criteria for some extended period of time,
+	 * and only dehugify it if it's failed to meet the criteria for an
+	 * extended period of time.  When background threads are on, we should
+	 * try to take this hit on one of them, as well.
+	 *
+	 * I think the ideal setting is THP always enabled, and defrag set to
+	 * deferred; in that case we don't need any explicit calls on the
+	 * allocator's end at all; we just try to pack allocations in a
+	 * hugepage-friendly manner and let the OS hugify in the background.
+	 *
+	 * Anyways, our strategy to delay dehugification is to only consider
+	 * purging a hugified hugepage if it's individually dirtier than the
+	 * overall max dirty pages setting.  That setting is 1 dirty page per 4
+	 * active pages; i.e. 4/5s of hugepage pages must be active.
+	 */
+	if ((!hpdata_huge_get(ps) && hpdata_ndirty_get(ps) > 0)
+	    || hpdata_ndirty_get(ps) > HUGEPAGE_PAGES / 5) {
+		hpdata_purge_allowed_set(ps, true);
+	}
+	if (hpa_good_hugification_candidate(shard, ps)
+	    && !hpdata_huge_get(ps)) {
+		hpdata_hugify_allowed_set(ps, true);
+	}
 }
 
 static hpdata_t *
@@ -262,7 +296,9 @@ hpa_try_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
 	/* Gather all the metadata we'll need during the purge. */
 	bool dehugify = hpdata_huge_get(to_purge);
 	hpdata_purge_state_t purge_state;
-	hpdata_purge_begin(to_purge, &purge_state);
+	size_t num_to_purge = hpdata_purge_begin(to_purge, &purge_state);
+
+	shard->npending_purge += num_to_purge;
 
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 
@@ -284,6 +320,7 @@ hpa_try_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
 
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	/* The shard updates */
+	shard->npending_purge -= num_to_purge;
 	shard->stats.npurge_passes++;
 	shard->stats.npurges += purges_this_pass;
 	if (dehugify) {
@@ -299,8 +336,7 @@ hpa_try_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
 	hpdata_mid_purge_set(to_purge, false);
 
 	hpdata_alloc_allowed_set(to_purge, true);
-	hpdata_purge_allowed_set(to_purge, hpa_should_purge(shard, to_purge));
-	hpdata_hugify_allowed_set(to_purge, hpa_should_hugify(shard, to_purge));
+	hpa_update_purge_hugify_eligibility(shard, to_purge);
 
 	psset_update_end(&shard->psset, to_purge);
 
@@ -349,14 +385,11 @@ hpa_try_hugify(tsdn_t *tsdn, hpa_shard_t *shard) {
 	psset_update_begin(&shard->psset, to_hugify);
 	hpdata_hugify(to_hugify);
 	hpdata_mid_hugify_set(to_hugify, false);
-	hpdata_purge_allowed_set(to_hugify,
-	    hpa_should_purge(shard, to_hugify));
-	hpdata_hugify_allowed_set(to_hugify, false);
+	hpa_update_purge_hugify_eligibility(shard, to_hugify);
 	psset_update_end(&shard->psset, to_hugify);
 
 	return true;
 }
-
 
 static void
 hpa_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard) {
@@ -368,7 +401,11 @@ hpa_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard) {
 	do {
 		malloc_mutex_assert_owner(tsdn, &shard->mtx);
 		hugified = hpa_try_hugify(tsdn, shard);
-		purged = hpa_try_purge(tsdn, shard);
+
+		purged = false;
+		if (hpa_should_purge(shard)) {
+			purged = hpa_try_purge(tsdn, shard);
+		}
 		malloc_mutex_assert_owner(tsdn, &shard->mtx);
 	} while ((hugified || purged) && nloop++ < maxloops);
 }
@@ -441,9 +478,7 @@ hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) 
 		return NULL;
 	}
 
-	if (hpa_should_hugify(shard, ps)) {
-		hpdata_hugify_allowed_set(ps, true);
-	}
+	hpa_update_purge_hugify_eligibility(shard, ps);
 	psset_update_end(&shard->psset, ps);
 
 	hpa_do_deferred_work(tsdn, shard);
@@ -543,9 +578,7 @@ hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
 		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
 		return NULL;
 	}
-	if (hpa_should_hugify(shard, ps)) {
-		hpdata_hugify_allowed_set(ps, true);
-	}
+	hpa_update_purge_hugify_eligibility(shard, ps);
 	psset_update_end(&shard->psset, ps);
 
 	/*
@@ -653,9 +686,8 @@ hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 
 	psset_update_begin(&shard->psset, ps);
 	hpdata_unreserve(ps, unreserve_addr, unreserve_size);
-	if (hpa_should_purge(shard, ps)) {
-		hpdata_purge_allowed_set(ps, true);
-	}
+
+	hpa_update_purge_hugify_eligibility(shard, ps);
 	psset_update_end(&shard->psset, ps);
 
 	hpa_do_deferred_work(tsdn, shard);

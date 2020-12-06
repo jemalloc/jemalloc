@@ -94,6 +94,12 @@ struct hpa_shard_s {
 	emap_t *emap;
 
 	/*
+	 * How many pages have we started but not yet finished purging in this
+	 * hpa shard.
+	 */
+	size_t npending_purge;
+
+	/*
 	 * Those stats which are copied directly into the CTL-centric hpa shard
 	 * stats.
 	 */
