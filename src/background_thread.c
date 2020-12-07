@@ -185,7 +185,8 @@ arena_decay_compute_purge_interval_impl(tsdn_t *tsdn, decay_t *decay,
 			lb = target;
 			npurge_lb = npurge;
 		}
-		assert(n_search++ < lg_floor(SMOOTHSTEP_NSTEPS) + 1);
+		assert(n_search < lg_floor(SMOOTHSTEP_NSTEPS) + 1);
+		++n_search;
 	}
 	interval = decay_interval_ns * (ub + lb) / 2;
 label_done:
