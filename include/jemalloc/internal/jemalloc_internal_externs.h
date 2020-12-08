@@ -13,10 +13,7 @@ extern bool opt_abort;
 extern bool opt_abort_conf;
 extern bool opt_confirm_conf;
 extern bool opt_hpa;
-extern size_t opt_hpa_slab_goal;
 extern size_t opt_hpa_slab_max_alloc;
-extern size_t opt_hpa_small_max;
-extern size_t opt_hpa_large_min;
 
 extern size_t opt_hpa_sec_max_alloc;
 extern size_t opt_hpa_sec_max_bytes;
