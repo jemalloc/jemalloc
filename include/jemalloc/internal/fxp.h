@@ -91,6 +91,31 @@ fxp_round_nearest(fxp_t a) {
 }
 
 /*
+ * Approximately computes x * frac, without the size limitations that would be
+ * imposed by converting u to an fxp_t.
+ */
+static inline size_t
+fxp_mul_frac(size_t x_orig, fxp_t frac) {
+	assert(frac <= (1U << 16));
+	/*
+	 * Work around an over-enthusiastic warning about type limits below (on
+	 * 32-bit platforms, a size_t is always less than 1ULL << 48).
+	 */
+	uint64_t x = (uint64_t)x_orig;
+	/*
+	 * If we can guarantee no overflow, multiply first before shifting, to
+	 * preserve some precision.  Otherwise, shift first and then multiply.
+	 * In the latter case, we only lose the low 16 bits of a 48-bit number,
+	 * so we're still accurate to within 1/2**32.
+	 */
+	if (x < (1ULL << 48)) {
+		return (size_t)((x * frac) >> 16);
+	} else {
+		return (size_t)((x >> 16) * (uint64_t)frac);
+	}
+}
+
+/*
  * Returns true on error.  Otherwise, returns false and updates *ptr to point to
  * the first character not parsed (because it wasn't a digit).
  */

@@ -223,6 +223,30 @@ TEST_BEGIN(test_round_simple) {
 TEST_END
 
 static void
+expect_mul_frac(size_t a, const char *fracstr, size_t expected) {
+	fxp_t frac = xparse_fxp(fracstr);
+	size_t result = fxp_mul_frac(a, frac);
+	expect_true(double_close(expected, result),
+	    "Expected %zu * %s == %zu (fracmul); got %zu", a, fracstr,
+	    expected, result);
+}
+
+TEST_BEGIN(test_mul_frac_simple) {
+	expect_mul_frac(SIZE_MAX, "1.0", SIZE_MAX);
+	expect_mul_frac(SIZE_MAX, ".75", SIZE_MAX / 4 * 3);
+	expect_mul_frac(SIZE_MAX, ".5", SIZE_MAX / 2);
+	expect_mul_frac(SIZE_MAX, ".25", SIZE_MAX / 4);
+	expect_mul_frac(1U << 16, "1.0", 1U << 16);
+	expect_mul_frac(1U << 30, "0.5", 1U << 29);
+	expect_mul_frac(1U << 30, "0.25", 1U << 28);
+	expect_mul_frac(1U << 30, "0.125", 1U << 27);
+	expect_mul_frac((1U << 30) + 1, "0.125", 1U << 27);
+	expect_mul_frac(100, "0.25", 25);
+	expect_mul_frac(1000 * 1000, "0.001", 1000);
+}
+TEST_END
+
+static void
 expect_print(const char *str) {
 	fxp_t fxp = xparse_fxp(str);
 	char buf[FXP_BUF_SIZE];
@@ -339,6 +363,7 @@ main(void) {
 	    test_mul_simple,
 	    test_div_simple,
 	    test_round_simple,
+	    test_mul_frac_simple,
 	    test_print_simple,
 	    test_stress);
 }
