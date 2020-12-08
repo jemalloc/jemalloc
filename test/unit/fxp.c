@@ -96,7 +96,8 @@ TEST_BEGIN(test_parse_valid) {
 }
 TEST_END
 
-static void expect_parse_failure(const char *str) {
+static void
+expect_parse_failure(const char *str) {
 	fxp_t result = FXP_INIT_INT(333);
 	char *end = (void *)0x123;
 	bool err = fxp_parse(&result, str, &end);
@@ -117,6 +118,29 @@ TEST_BEGIN(test_parse_invalid) {
 	expect_parse_failure("123456789");
 	expect_parse_failure("0000000123456789");
 	expect_parse_failure("1000000");
+}
+TEST_END
+
+static void
+expect_init_percent(unsigned percent, const char *str) {
+	fxp_t result_init = FXP_INIT_PERCENT(percent);
+	fxp_t result_parse = xparse_fxp(str);
+	expect_u32_eq(result_init, result_parse,
+	    "Expect representations of FXP_INIT_PERCENT(%u) and "
+	    "fxp_parse(\"%s\") to be equal; got %x and %x",
+	    percent, str, result_init, result_parse);
+
+}
+
+/*
+ * Every other test uses either parsing or FXP_INIT_INT; it gets tested in those
+ * ways.  We need a one-off for the percent-based initialization, though.
+ */
+TEST_BEGIN(test_init_percent) {
+	expect_init_percent(100, "1");
+	expect_init_percent(75, ".75");
+	expect_init_percent(1, ".01");
+	expect_init_percent(50, ".5");
 }
 TEST_END
 
@@ -358,6 +382,7 @@ main(void) {
 	return test_no_reentrancy(
 	    test_parse_valid,
 	    test_parse_invalid,
+	    test_init_percent,
 	    test_add_simple,
 	    test_sub_simple,
 	    test_mul_simple,
