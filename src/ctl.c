@@ -91,10 +91,7 @@ CTL_PROTO(opt_abort)
 CTL_PROTO(opt_abort_conf)
 CTL_PROTO(opt_confirm_conf)
 CTL_PROTO(opt_hpa)
-CTL_PROTO(opt_hpa_slab_goal)
 CTL_PROTO(opt_hpa_slab_max_alloc)
-CTL_PROTO(opt_hpa_small_max)
-CTL_PROTO(opt_hpa_large_min)
 CTL_PROTO(opt_hpa_sec_max_alloc)
 CTL_PROTO(opt_hpa_sec_max_bytes)
 CTL_PROTO(opt_hpa_sec_nshards)
@@ -369,10 +366,7 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("abort_conf"),	CTL(opt_abort_conf)},
 	{NAME("confirm_conf"),	CTL(opt_confirm_conf)},
 	{NAME("hpa"),		CTL(opt_hpa)},
-	{NAME("hpa_slab_goal"),	CTL(opt_hpa_slab_goal)},
 	{NAME("hpa_slab_max_alloc"),	CTL(opt_hpa_slab_max_alloc)},
-	{NAME("hpa_small_max"),	CTL(opt_hpa_small_max)},
-	{NAME("hpa_large_min"),	CTL(opt_hpa_large_min)},
 	{NAME("hpa_sec_max_alloc"),	CTL(opt_hpa_sec_max_alloc)},
 	{NAME("hpa_sec_max_bytes"),	CTL(opt_hpa_sec_max_bytes)},
 	{NAME("hpa_sec_nshards"),	CTL(opt_hpa_sec_nshards)},
@@ -1920,10 +1914,7 @@ CTL_RO_NL_GEN(opt_abort, opt_abort, bool)
 CTL_RO_NL_GEN(opt_abort_conf, opt_abort_conf, bool)
 CTL_RO_NL_GEN(opt_confirm_conf, opt_confirm_conf, bool)
 CTL_RO_NL_GEN(opt_hpa, opt_hpa, bool)
-CTL_RO_NL_GEN(opt_hpa_slab_goal, opt_hpa_slab_goal, size_t)
 CTL_RO_NL_GEN(opt_hpa_slab_max_alloc, opt_hpa_slab_max_alloc, size_t)
-CTL_RO_NL_GEN(opt_hpa_small_max, opt_hpa_small_max, size_t)
-CTL_RO_NL_GEN(opt_hpa_large_min, opt_hpa_large_min, size_t)
 CTL_RO_NL_GEN(opt_hpa_sec_max_alloc, opt_hpa_sec_max_alloc, size_t)
 CTL_RO_NL_GEN(opt_hpa_sec_max_bytes, opt_hpa_sec_max_bytes, size_t)
 CTL_RO_NL_GEN(opt_hpa_sec_nshards, opt_hpa_sec_nshards, size_t)
