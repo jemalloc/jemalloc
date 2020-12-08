@@ -22,6 +22,7 @@
  */
 typedef uint32_t fxp_t;
 #define FXP_INIT_INT(x) ((x) << 16)
+#define FXP_INIT_PERCENT(pct) (((pct) << 16) / 100)
 
 /*
  * Amount of precision used in parsing and printing numbers.  The integer bound
