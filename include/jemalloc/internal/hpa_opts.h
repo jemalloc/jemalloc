@@ -20,6 +20,11 @@ struct hpa_shard_opts_s {
 	 * hugification_threshold, we force hugify it.
 	 */
 	size_t hugification_threshold;
+	/*
+	 * When the number of dirty bytes in a hugepage is >=
+	 * dehugification_threshold, we force dehugify it.
+	 */
+	size_t dehugification_threshold;
 };
 
 #define HPA_SHARD_OPTS_DEFAULT {					\
@@ -27,6 +32,8 @@ struct hpa_shard_opts_s {
 	64 * 1024,							\
 	/* hugification_threshold */					\
 	HUGEPAGE * 95 / 100,						\
+	/* dehugification_threshold */					\
+	HUGEPAGE * 20 / 100						\
 }
 
 #endif /* JEMALLOC_INTERNAL_HPA_OPTS_H */

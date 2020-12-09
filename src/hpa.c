@@ -191,7 +191,9 @@ hpa_update_purge_hugify_eligibility(hpa_shard_t *shard, hpdata_t *ps) {
 	 * active pages; i.e. 4/5s of hugepage pages must be active.
 	 */
 	if ((!hpdata_huge_get(ps) && hpdata_ndirty_get(ps) > 0)
-	    || hpdata_ndirty_get(ps) > HUGEPAGE_PAGES / 5) {
+	    || (hpdata_ndirty_get(ps) != 0
+	    && hpdata_ndirty_get(ps) * PAGE
+	    >= shard->opts.dehugification_threshold)) {
 		hpdata_purge_allowed_set(ps, true);
 	}
 	if (hpa_good_hugification_candidate(shard, ps)
