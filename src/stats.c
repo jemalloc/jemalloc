@@ -1464,6 +1464,7 @@ stats_general_print(emitter_t *emitter) {
 	OPT_WRITE_SIZE_T("oversize_threshold")
 	OPT_WRITE_BOOL("hpa")
 	OPT_WRITE_SIZE_T("hpa_slab_max_alloc")
+	OPT_WRITE_SIZE_T("hpa_hugification_threshold")
 	OPT_WRITE_SIZE_T("hpa_sec_max_alloc")
 	OPT_WRITE_SIZE_T("hpa_sec_max_bytes")
 	OPT_WRITE_SIZE_T("hpa_sec_nshards")

@@ -1414,6 +1414,29 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			    "hpa_slab_max_alloc", PAGE, HUGEPAGE,
 			    CONF_CHECK_MIN, CONF_CHECK_MAX, true);
 
+			/*
+			 * Accept either a ratio-based or an exact hugification
+			 * threshold.
+			 */
+			CONF_HANDLE_SIZE_T(opt_hpa_opts.hugification_threshold,
+			    "hpa_hugification_threshold", PAGE, HUGEPAGE,
+			    CONF_CHECK_MIN, CONF_CHECK_MAX, true);
+			if (CONF_MATCH("hpa_hugification_threshold_ratio")) {
+				fxp_t ratio;
+				char *end;
+				bool err = fxp_parse(&ratio, v,
+				    &end);
+				if (err || (size_t)(end - v) != vlen
+				    || ratio > FXP_INIT_INT(1)) {
+					CONF_ERROR("Invalid conf value",
+					    k, klen, v, vlen);
+				} else {
+					opt_hpa_opts.hugification_threshold =
+					    fxp_mul_frac(HUGEPAGE, ratio);
+				}
+				CONF_CONTINUE;
+			}
+
 			CONF_HANDLE_SIZE_T(opt_hpa_sec_max_alloc, "hpa_sec_max_alloc",
 			    PAGE, 0, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
 			CONF_HANDLE_SIZE_T(opt_hpa_sec_max_bytes, "hpa_sec_max_bytes",
