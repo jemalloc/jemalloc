@@ -48,7 +48,7 @@ hpa_supported() {
 
 bool
 hpa_shard_init(hpa_shard_t *shard, emap_t *emap, base_t *base,
-    edata_cache_t *edata_cache, unsigned ind, size_t alloc_max) {
+    edata_cache_t *edata_cache, unsigned ind, const hpa_shard_opts_t *opts) {
 	/* malloc_conf processing should have filtered out these cases. */
 	assert(hpa_supported());
 	bool err;
@@ -67,12 +67,13 @@ hpa_shard_init(hpa_shard_t *shard, emap_t *emap, base_t *base,
 	shard->base = base;
 	edata_cache_small_init(&shard->ecs, edata_cache);
 	psset_init(&shard->psset);
-	shard->alloc_max = alloc_max;
 	shard->age_counter = 0;
 	shard->eden = NULL;
 	shard->eden_len = 0;
 	shard->ind = ind;
 	shard->emap = emap;
+
+	shard->opts = *opts;
 
 	shard->npending_purge = 0;
 
@@ -489,7 +490,7 @@ hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) 
 
 static edata_t *
 hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
-	assert(size <= shard->alloc_max);
+	assert(size <= shard->opts.slab_max_alloc);
 	bool err;
 	bool oom;
 	edata_t *edata;
@@ -614,7 +615,7 @@ hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
 	if (alignment > PAGE || zero) {
 		return NULL;
 	}
-	if (size > shard->alloc_max) {
+	if (size > shard->opts.slab_max_alloc) {
 		return NULL;
 	}
 

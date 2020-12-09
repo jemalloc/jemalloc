@@ -49,10 +49,10 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
 }
 
 bool
-pa_shard_enable_hpa(pa_shard_t *shard, size_t alloc_max, size_t sec_nshards,
-    size_t sec_alloc_max, size_t sec_bytes_max) {
+pa_shard_enable_hpa(pa_shard_t *shard, const hpa_shard_opts_t *hpa_opts,
+    size_t sec_nshards, size_t sec_alloc_max, size_t sec_bytes_max) {
 	if (hpa_shard_init(&shard->hpa_shard, shard->emap, shard->base,
-	    &shard->edata_cache, shard->ind, alloc_max)) {
+	    &shard->edata_cache, shard->ind, hpa_opts)) {
 		return true;
 	}
 	if (sec_init(&shard->hpa_sec, &shard->hpa_shard.pai, sec_nshards,

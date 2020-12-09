@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_EXTERNS_H
 
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/hpa_opts.h"
 #include "jemalloc/internal/tsd_types.h"
 #include "jemalloc/internal/nstime.h"
 
@@ -14,8 +15,7 @@ extern bool opt_abort_conf;
 extern bool opt_trust_madvise;
 extern bool opt_confirm_conf;
 extern bool opt_hpa;
-extern size_t opt_hpa_slab_max_alloc;
-
+extern hpa_shard_opts_t opt_hpa_opts;
 extern size_t opt_hpa_sec_max_alloc;
 extern size_t opt_hpa_sec_max_bytes;
 extern size_t opt_hpa_sec_nshards;

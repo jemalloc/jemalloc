@@ -2,7 +2,7 @@
 #define JEMALLOC_INTERNAL_HPA_H
 
 #include "jemalloc/internal/exp_grow.h"
-#include "jemalloc/internal/hpa_central.h"
+#include "jemalloc/internal/hpa_opts.h"
 #include "jemalloc/internal/pai.h"
 #include "jemalloc/internal/psset.h"
 
@@ -65,14 +65,6 @@ struct hpa_shard_s {
 	psset_t psset;
 
 	/*
-	 * The largest size we'll allocate out of the shard.  For those
-	 * allocations refused, the caller (in practice, the PA module) will
-	 * fall back to the more general (for now) PAC, which can always handle
-	 * any allocation request.
-	 */
-	size_t alloc_max;
-
-	/*
 	 * How many grow operations have occurred.
 	 *
 	 * Guarded by grow_mtx.
@@ -92,6 +84,9 @@ struct hpa_shard_s {
 	/* The arena ind we're associated with. */
 	unsigned ind;
 	emap_t *emap;
+
+	/* The configuration choices for this hpa shard. */
+	hpa_shard_opts_t opts;
 
 	/*
 	 * How many pages have we started but not yet finished purging in this
@@ -113,7 +108,7 @@ struct hpa_shard_s {
  */
 bool hpa_supported();
 bool hpa_shard_init(hpa_shard_t *shard, emap_t *emap, base_t *base,
-    edata_cache_t *edata_cache, unsigned ind, size_t alloc_max);
+    edata_cache_t *edata_cache, unsigned ind, const hpa_shard_opts_t *opts);
 
 void hpa_shard_stats_accum(hpa_shard_stats_t *dst, hpa_shard_stats_t *src);
 void hpa_shard_stats_merge(tsdn_t *tsdn, hpa_shard_t *shard,
