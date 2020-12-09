@@ -96,6 +96,7 @@ CTL_PROTO(opt_hpa)
 CTL_PROTO(opt_hpa_slab_max_alloc)
 CTL_PROTO(opt_hpa_hugification_threshold)
 CTL_PROTO(opt_hpa_dehugification_threshold)
+CTL_PROTO(opt_hpa_dirty_mult)
 CTL_PROTO(opt_hpa_sec_max_alloc)
 CTL_PROTO(opt_hpa_sec_max_bytes)
 CTL_PROTO(opt_hpa_sec_nshards)
@@ -402,6 +403,7 @@ static const ctl_named_node_t opt_node[] = {
 		CTL(opt_hpa_hugification_threshold)},
 	{NAME("hpa_dehugification_threshold"),
 		CTL(opt_hpa_dehugification_threshold)},
+	{NAME("hpa_dirty_mult"), CTL(opt_hpa_dirty_mult)},
 	{NAME("hpa_sec_max_alloc"),	CTL(opt_hpa_sec_max_alloc)},
 	{NAME("hpa_sec_max_bytes"),	CTL(opt_hpa_sec_max_bytes)},
 	{NAME("hpa_sec_nshards"),	CTL(opt_hpa_sec_nshards)},
@@ -2101,6 +2103,11 @@ CTL_RO_NL_GEN(opt_hpa_hugification_threshold,
     opt_hpa_opts.hugification_threshold, size_t)
 CTL_RO_NL_GEN(opt_hpa_dehugification_threshold,
     opt_hpa_opts.dehugification_threshold, size_t)
+/*
+ * This will have to change before we publicly document this option; fxp_t and
+ * its representation are internal implementation details.
+ */
+CTL_RO_NL_GEN(opt_hpa_dirty_mult, opt_hpa_opts.dirty_mult, fxp_t)
 CTL_RO_NL_GEN(opt_hpa_sec_max_alloc, opt_hpa_sec_max_alloc, size_t)
 CTL_RO_NL_GEN(opt_hpa_sec_max_bytes, opt_hpa_sec_max_bytes, size_t)
 CTL_RO_NL_GEN(opt_hpa_sec_nshards, opt_hpa_sec_nshards, size_t)

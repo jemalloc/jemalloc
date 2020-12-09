@@ -1458,6 +1458,24 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				CONF_CONTINUE;
 			}
 
+			if (CONF_MATCH("hpa_dirty_mult")) {
+				if (CONF_MATCH_VALUE("-1")) {
+					opt_hpa_opts.dirty_mult = (fxp_t)-1;
+					CONF_CONTINUE;
+				}
+				fxp_t ratio;
+				char *end;
+				bool err = fxp_parse(&ratio, v,
+				    &end);
+				if (err || (size_t)(end - v) != vlen) {
+					CONF_ERROR("Invalid conf value",
+					    k, klen, v, vlen);
+				} else {
+					opt_hpa_opts.dirty_mult = ratio;
+				}
+				CONF_CONTINUE;
+			}
+
 			CONF_HANDLE_SIZE_T(opt_hpa_sec_max_alloc, "hpa_sec_max_alloc",
 			    PAGE, 0, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
 			CONF_HANDLE_SIZE_T(opt_hpa_sec_max_bytes, "hpa_sec_max_bytes",
