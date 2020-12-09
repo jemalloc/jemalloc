@@ -4,6 +4,7 @@
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/emitter.h"
+#include "jemalloc/internal/fxp.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/mutex_prof.h"
 #include "jemalloc/internal/prof_stats.h"
@@ -1375,13 +1376,14 @@ stats_general_print(emitter_t *emitter) {
 	uint64_t u64v;
 	int64_t i64v;
 	ssize_t ssv, ssv2;
-	size_t sv, bsz, usz, i64sz, ssz, sssz, cpsz;
+	size_t sv, bsz, usz, u32sz, i64sz, ssz, sssz, cpsz;
 
 	bsz = sizeof(bool);
 	usz = sizeof(unsigned);
 	ssz = sizeof(size_t);
 	sssz = sizeof(ssize_t);
 	cpsz = sizeof(const char *);
+	u32sz = sizeof(uint32_t);
 	i64sz = sizeof(int64_t);
 
 	CTL_GET("version", &cpv, const char *);
@@ -1466,6 +1468,23 @@ stats_general_print(emitter_t *emitter) {
 	OPT_WRITE_SIZE_T("hpa_slab_max_alloc")
 	OPT_WRITE_SIZE_T("hpa_hugification_threshold")
 	OPT_WRITE_SIZE_T("hpa_dehugification_threshold")
+	if (je_mallctl("opt.hpa_dirty_mult", (void *)&u32v, &u32sz, NULL, 0)
+	    == 0) {
+		/*
+		 * We cheat a little and "know" the secret meaning of this
+		 * representation.
+		 */
+		if (u32v == (uint32_t)-1) {
+			emitter_kv(emitter, "hpa_dirty_mult",
+			    "opt.hpa_dirty_mult", emitter_type_string, "-1");
+		} else {
+			char buf[FXP_BUF_SIZE];
+			fxp_print(u32v, buf);
+			const char *bufp = buf;
+			emitter_kv(emitter, "hpa_dirty_mult",
+			    "opt.hpa_dirty_mult", emitter_type_string, &bufp);
+		}
+	}
 	OPT_WRITE_SIZE_T("hpa_sec_max_alloc")
 	OPT_WRITE_SIZE_T("hpa_sec_max_bytes")
 	OPT_WRITE_SIZE_T("hpa_sec_nshards")

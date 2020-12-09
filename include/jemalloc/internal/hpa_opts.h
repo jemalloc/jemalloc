@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_HPA_OPTS_H
 #define JEMALLOC_INTERNAL_HPA_OPTS_H
 
+#include "jemalloc/internal/fxp.h"
+
 /*
  * This file is morally part of hpa.h, but is split out for header-ordering
  * reasons.
@@ -25,6 +27,11 @@ struct hpa_shard_opts_s {
 	 * dehugification_threshold, we force dehugify it.
 	 */
 	size_t dehugification_threshold;
+	/*
+	 * The HPA purges whenever the number of pages exceeds dirty_mult *
+	 * active_pages.  This may be set to (fxp_t)-1 to disable purging.
+	 */
+	fxp_t dirty_mult;
 };
 
 #define HPA_SHARD_OPTS_DEFAULT {					\
@@ -33,7 +40,9 @@ struct hpa_shard_opts_s {
 	/* hugification_threshold */					\
 	HUGEPAGE * 95 / 100,						\
 	/* dehugification_threshold */					\
-	HUGEPAGE * 20 / 100						\
+	HUGEPAGE * 20 / 100,						\
+	/* dirty_mult */						\
+	FXP_INIT_PERCENT(25)						\
 }
 
 #endif /* JEMALLOC_INTERNAL_HPA_OPTS_H */

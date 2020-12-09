@@ -147,13 +147,18 @@ hpa_good_hugification_candidate(hpa_shard_t *shard, hpdata_t *ps) {
 
 static bool
 hpa_should_purge(hpa_shard_t *shard) {
+	if (shard->opts.dirty_mult == (fxp_t)-1) {
+		return false;
+	}
 	size_t adjusted_ndirty = psset_ndirty(&shard->psset)
 	    - shard->npending_purge;
 	/*
 	 * Another simple static check; purge whenever dirty exceeds 25% of
 	 * active.
 	 */
-	return adjusted_ndirty > psset_nactive(&shard->psset) / 4;
+	size_t max_ndirty = fxp_mul_frac(psset_nactive(&shard->psset),
+	    shard->opts.dirty_mult);
+	return adjusted_ndirty > max_ndirty;
 }
 
 static void
