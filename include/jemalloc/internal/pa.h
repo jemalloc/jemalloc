@@ -130,7 +130,7 @@ bool pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
  * This isn't exposed to users; we allow late enablement of the HPA shard so
  * that we can boot without worrying about the HPA, then turn it on in a0.
  */
-bool pa_shard_enable_hpa(pa_shard_t *shard, size_t alloc_max,
+bool pa_shard_enable_hpa(pa_shard_t *shard, const hpa_shard_opts_t *hpa_opts,
     size_t sec_nshards, size_t sec_alloc_max, size_t sec_bytes_max);
 /*
  * We stop using the HPA when custom extent hooks are installed, but still

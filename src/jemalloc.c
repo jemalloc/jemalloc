@@ -144,7 +144,7 @@ malloc_mutex_t arenas_lock;
 
 /* The global hpa, and whether it's on. */
 bool opt_hpa = false;
-size_t opt_hpa_slab_max_alloc = 256 * 1024;
+hpa_shard_opts_t opt_hpa_opts = HPA_SHARD_OPTS_DEFAULT;
 
 size_t opt_hpa_sec_max_alloc = 32 * 1024;
 /* These settings correspond to a maximum of 1MB cached per arena. */
@@ -1410,8 +1410,8 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 					   CONF_CHECK_MIN, CONF_CHECK_MAX,
 					   true);
 			CONF_HANDLE_BOOL(opt_hpa, "hpa")
-			CONF_HANDLE_SIZE_T(opt_hpa_slab_max_alloc,
-			    "hpa_slab_max_alloc", PAGE, 512 * PAGE,
+			CONF_HANDLE_SIZE_T(opt_hpa_opts.slab_max_alloc,
+			    "hpa_slab_max_alloc", PAGE, HUGEPAGE,
 			    CONF_CHECK_MIN, CONF_CHECK_MAX, true);
 
 			CONF_HANDLE_SIZE_T(opt_hpa_sec_max_alloc, "hpa_sec_max_alloc",
@@ -1717,7 +1717,7 @@ malloc_init_hard_a0_locked() {
 			opt_hpa = false;
 		}
 	} else if (opt_hpa) {
-		if (pa_shard_enable_hpa(&a0->pa_shard, opt_hpa_slab_max_alloc,
+		if (pa_shard_enable_hpa(&a0->pa_shard, &opt_hpa_opts,
 		    opt_hpa_sec_nshards, opt_hpa_sec_max_alloc,
 		    opt_hpa_sec_max_bytes)) {
 			return true;
