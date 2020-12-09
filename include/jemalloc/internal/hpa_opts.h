@@ -15,11 +15,18 @@ struct hpa_shard_opts_s {
 	 * any allocation request.
 	 */
 	size_t slab_max_alloc;
+	/*
+	 * When the number of active bytes in a hugepage is >=
+	 * hugification_threshold, we force hugify it.
+	 */
+	size_t hugification_threshold;
 };
 
 #define HPA_SHARD_OPTS_DEFAULT {					\
 	/* slab_max_alloc */						\
-	64 * 1024							\
+	64 * 1024,							\
+	/* hugification_threshold */					\
+	HUGEPAGE * 95 / 100,						\
 }
 
 #endif /* JEMALLOC_INTERNAL_HPA_OPTS_H */
