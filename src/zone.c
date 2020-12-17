@@ -433,9 +433,74 @@ zone_promote(void) {
 	} while (zone != &jemalloc_zone);
 }
 
+static boolean_t
+should_use_jemalloc_on_ios(void) {
+	static char buf[PATH_MAX + 1] = {0};
+
+	/*
+	 * Sample locations on the device may look like the ones below. Using
+	 * `getenv()` this is the only known way to retrieve the location without
+	 * using any Objective-C API-s.
+	 *
+	 *  /private/var/mobile/Containers/Data/Application/2D9218E4-61C9-4BD5-87B8-9414CA53EB11/Library/Application Support
+	 *  /var/mobile/Containers/Data/Application/2D9218E4-61C9-4BD5-87B8-9414CA53EB11/Library/Application Support
+	 */
+	char *home = getenv("HOME");
+
+	/*
+	 * Something has gone horribly wrong, clearly we can't determine that
+	 * `jemalloc` should be used.
+	 */
+	if (!home) {
+		return false;
+	}
+
+	/*
+	 * The file name "use_jemalloc" MUST match exactly what the App is creating.
+	 * If the file is present then that's App telling us that during next execution
+	 * we should use `jemalloc` as the allocator.
+	 */
+	strlcpy(buf, home, sizeof(buf));
+	strlcat(buf, "/Library/Application Support/use_jemalloc", sizeof(buf));
+
+	/*
+	 * Upon successful completion, the value 0 is returned. `F_OK` signifies
+	 * the existence test.
+	 */
+	int result = access(buf, F_OK);
+
+	/*
+	 * Here's the case we're trying to prevent: some population of users will
+	 * have `jemalloc` enabled, it will cause a crash during the startup,
+	 * application won't reach the point where the file can be deleted, and
+	 * the endless "crash on startup" loop will occur. Therefore once we've
+	 * made the decision to use `jemalloc` then immediately delete the file.
+	 * Therefore `jemalloc` will be only enabled again when App specifies so.
+	*/
+	if (result == 0) {
+		(void)unlink(buf);
+		return true;
+	}
+
+	char *use_jemalloc_env = getenv("USE_JEMALLOC");
+	if (use_jemalloc_env) {
+		return true;
+	}
+
+  return false;
+}
+
 JEMALLOC_ATTR(constructor)
 void
 zone_register(void) {
+	/*
+	 * If we aren't explicitly told to use `jemalloc` on iOS then don't
+	 * register any intercept functions for any of the zones and exit early.
+	 */
+	if (!should_use_jemalloc_on_ios()) {
+		return;
+	}
+
 	/*
 	 * If something else replaced the system default zone allocator, don't
 	 * register jemalloc's.

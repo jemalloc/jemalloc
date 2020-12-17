@@ -77,7 +77,7 @@ handleOOM(std::size_t size, bool nothrow) {
 			break;
 		}
 
-		ptr = je_malloc(size);
+		ptr = malloc(size);
 	}
 
 	if (ptr == nullptr && !nothrow)
@@ -89,7 +89,7 @@ template <bool IsNoExcept>
 JEMALLOC_ALWAYS_INLINE
 void *
 newImpl(std::size_t size) noexcept(IsNoExcept) {
-	void *ptr = je_malloc(size);
+	void *ptr = malloc(size);
 	if (likely(ptr != nullptr)) {
 		return ptr;
 	}
@@ -155,21 +155,21 @@ operator new[](std::size_t size, std::align_val_t alignment, const std::nothrow_
 
 void
 operator delete(void *ptr) noexcept {
-	je_free(ptr);
+	free(ptr);
 }
 
 void
 operator delete[](void *ptr) noexcept {
-	je_free(ptr);
+	free(ptr);
 }
 
 void
 operator delete(void *ptr, const std::nothrow_t &) noexcept {
-	je_free(ptr);
+	free(ptr);
 }
 
 void operator delete[](void *ptr, const std::nothrow_t &) noexcept {
-	je_free(ptr);
+	free(ptr);
 }
 
 #if __cpp_sized_deallocation >= 201309

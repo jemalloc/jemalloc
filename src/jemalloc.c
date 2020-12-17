@@ -1660,10 +1660,65 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 }
 
 static void
+pre_populate_config_settings_on_ios(void) {
+	static char fname[PATH_MAX + 1] = {0};
+
+	/*
+	 * See `should_use_jemalloc_on_ios()` in `zone.c` for a detailed
+	 * explanation about file paths and how they're used.
+	 */
+	char *home = getenv("HOME");
+
+	if (!home) {
+		return;
+	}
+
+	/*
+	 * The name may come from the ios App as follows:
+	 *
+	 * static NSString *kJemallocConfigFileName = @"jemalloc_conf";
+	 *
+	 */
+	strlcpy(fname, home, sizeof(fname));
+	strlcat(fname, "/Library/Application Support/jemalloc_conf", sizeof(fname));
+
+	int fd = open(fname, O_RDONLY);
+
+	if (fd == -1) {
+		return;
+	}
+
+	static char conf[256] = {0};
+	const ssize_t nread = malloc_read_fd(fd, &conf, sizeof(conf));
+
+	if (nread > 0) {
+		const char *envname =
+#ifdef JEMALLOC_PREFIX
+		    JEMALLOC_CPREFIX"MALLOC_CONF"
+#else
+		    "MALLOC_CONF"
+#endif
+		    ;
+
+		/*
+		 * This is the trickery right here. By setting the environment variable
+		 * to whatever settings the app wants, we can let `jemalloc` initialization
+		 * pick it up for free.
+		 */
+		(void)setenv(envname, conf, /* overwrite */ 1);
+	}
+
+	(void)close(fd);
+}
+
+
+static void
 malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 	const char *opts_cache[MALLOC_CONF_NSOURCES] = {NULL, NULL, NULL, NULL,
 		NULL};
 	char buf[PATH_MAX + 1];
+
+	pre_populate_config_settings_on_ios();
 
 	/* The first call only set the confirm_conf option and opts_cache */
 	malloc_conf_init_helper(NULL, NULL, true, opts_cache, buf);
