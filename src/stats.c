@@ -24,32 +24,28 @@ const char *arena_mutex_names[mutex_prof_num_arena_mutexes] = {
 	xmallctl(n, (void *)v, &sz, NULL, 0);				\
 } while (0)
 
+#define CTL_LEAF_PREPARE(mib, miblen, name) do {			\
+	assert(miblen < CTL_MAX_DEPTH);					\
+	size_t miblen_new = CTL_MAX_DEPTH;				\
+	xmallctlmibnametomib(mib, miblen, name, &miblen_new);		\
+	assert(miblen_new > miblen);					\
+} while (0)
+
+#define CTL_LEAF(mib, miblen, leaf, v, t) do {			\
+	assert(miblen < CTL_MAX_DEPTH);					\
+	size_t miblen_new = CTL_MAX_DEPTH;				\
+	size_t sz = sizeof(t);						\
+	xmallctlbymibname(mib, miblen, leaf, &miblen_new, (void *)v,	\
+	    &sz, NULL, 0);						\
+	assert(miblen_new == miblen + 1);				\
+} while (0)
+
 #define CTL_M2_GET(n, i, v, t) do {					\
 	size_t mib[CTL_MAX_DEPTH];					\
 	size_t miblen = sizeof(mib) / sizeof(size_t);			\
 	size_t sz = sizeof(t);						\
 	xmallctlnametomib(n, mib, &miblen);				\
 	mib[2] = (i);							\
-	xmallctlbymib(mib, miblen, (void *)v, &sz, NULL, 0);		\
-} while (0)
-
-#define CTL_M2_M4_GET(n, i, j, v, t) do {				\
-	size_t mib[CTL_MAX_DEPTH];					\
-	size_t miblen = sizeof(mib) / sizeof(size_t);			\
-	size_t sz = sizeof(t);						\
-	xmallctlnametomib(n, mib, &miblen);				\
-	mib[2] = (i);							\
-	mib[4] = (j);							\
-	xmallctlbymib(mib, miblen, (void *)v, &sz, NULL, 0);		\
-} while (0)
-
-#define CTL_M2_M5_GET(n, i, j, v, t) do {				\
-	size_t mib[CTL_MAX_DEPTH];					\
-	size_t miblen = sizeof(mib) / sizeof(size_t);			\
-	size_t sz = sizeof(t);						\
-	xmallctlnametomib(n, mib, &miblen);				\
-	mib[2] = (i);							\
-	mib[5] = (j);							\
 	xmallctlbymib(mib, miblen, (void *)v, &sz, NULL, 0);		\
 } while (0)
 
@@ -107,13 +103,6 @@ get_rate_str(uint64_t dividend, uint64_t divisor, char str[6]) {
 	return false;
 }
 
-#define MUTEX_CTL_STR_MAX_LENGTH 128
-static void
-gen_mutex_ctl_str(char *str, size_t buf_len, const char *prefix,
-    const char *mutex, const char *counter) {
-	malloc_snprintf(str, buf_len, "stats.%s.%s.%s", prefix, mutex, counter);
-}
-
 static void
 mutex_stats_init_cols(emitter_row_t *row, const char *table_name,
     emitter_col_t *name,
@@ -150,11 +139,13 @@ mutex_stats_init_cols(emitter_row_t *row, const char *table_name,
 }
 
 static void
-mutex_stats_read_global(const char *name, emitter_col_t *col_name,
+mutex_stats_read_global(size_t mib[], size_t miblen, const char *name,
+    emitter_col_t *col_name,
     emitter_col_t col_uint64_t[mutex_prof_num_uint64_t_counters],
     emitter_col_t col_uint32_t[mutex_prof_num_uint32_t_counters],
     uint64_t uptime) {
-	char cmd[MUTEX_CTL_STR_MAX_LENGTH];
+	CTL_LEAF_PREPARE(mib, miblen, name);
+	size_t miblen_name = miblen + 1;
 
 	col_name->str_val = name;
 
@@ -165,44 +156,7 @@ mutex_stats_read_global(const char *name, emitter_col_t *col_name,
 	dst = &col_##counter_type[mutex_counter_##counter];		\
 	dst->type = EMITTER_TYPE_##counter_type;			\
 	if (!derived) {							\
-		gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,	\
-		    "mutexes", name, #counter);				\
-		CTL_GET(cmd, (counter_type *)&dst->bool_val,		\
-		    counter_type);					\
-	} else {							\
-		emitter_col_t *base =					\
-		    &col_##counter_type[mutex_counter_##base_counter];	\
-		dst->counter_type##_val =				\
-		    (counter_type)rate_per_second(			\
-		    base->counter_type##_val, uptime);			\
-	}
-	MUTEX_PROF_COUNTERS
-#undef OP
-#undef EMITTER_TYPE_uint32_t
-#undef EMITTER_TYPE_uint64_t
-}
-
-static void
-mutex_stats_read_arena(unsigned arena_ind, mutex_prof_arena_ind_t mutex_ind,
-    const char *name, emitter_col_t *col_name,
-    emitter_col_t col_uint64_t[mutex_prof_num_uint64_t_counters],
-    emitter_col_t col_uint32_t[mutex_prof_num_uint32_t_counters],
-    uint64_t uptime) {
-	char cmd[MUTEX_CTL_STR_MAX_LENGTH];
-
-	col_name->str_val = name;
-
-	emitter_col_t *dst;
-#define EMITTER_TYPE_uint32_t emitter_type_uint32
-#define EMITTER_TYPE_uint64_t emitter_type_uint64
-#define OP(counter, counter_type, human, derived, base_counter)		\
-	dst = &col_##counter_type[mutex_counter_##counter];		\
-	dst->type = EMITTER_TYPE_##counter_type;			\
-	if (!derived) {							\
-		gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,        \
-		    "arenas.0.mutexes", arena_mutex_names[mutex_ind],	\
-		    #counter);						\
-		CTL_M2_GET(cmd, arena_ind,				\
+		CTL_LEAF(mib, miblen_name, #counter,			\
 		    (counter_type *)&dst->bool_val, counter_type);	\
 	} else {							\
 		emitter_col_t *base =					\
@@ -218,11 +172,46 @@ mutex_stats_read_arena(unsigned arena_ind, mutex_prof_arena_ind_t mutex_ind,
 }
 
 static void
-mutex_stats_read_arena_bin(unsigned arena_ind, unsigned bin_ind,
+mutex_stats_read_arena(size_t mib[], size_t miblen, const char *name,
+    emitter_col_t *col_name,
     emitter_col_t col_uint64_t[mutex_prof_num_uint64_t_counters],
     emitter_col_t col_uint32_t[mutex_prof_num_uint32_t_counters],
     uint64_t uptime) {
-	char cmd[MUTEX_CTL_STR_MAX_LENGTH];
+	CTL_LEAF_PREPARE(mib, miblen, name);
+	size_t miblen_name = miblen + 1;
+
+	col_name->str_val = name;
+
+	emitter_col_t *dst;
+#define EMITTER_TYPE_uint32_t emitter_type_uint32
+#define EMITTER_TYPE_uint64_t emitter_type_uint64
+#define OP(counter, counter_type, human, derived, base_counter)		\
+	dst = &col_##counter_type[mutex_counter_##counter];		\
+	dst->type = EMITTER_TYPE_##counter_type;			\
+	if (!derived) {							\
+		CTL_LEAF(mib, miblen_name, #counter,			\
+		    (counter_type *)&dst->bool_val, counter_type);	\
+	} else {							\
+		emitter_col_t *base =					\
+		    &col_##counter_type[mutex_counter_##base_counter];	\
+		dst->counter_type##_val =				\
+		    (counter_type)rate_per_second(			\
+		    base->counter_type##_val, uptime);			\
+	}
+	MUTEX_PROF_COUNTERS
+#undef OP
+#undef EMITTER_TYPE_uint32_t
+#undef EMITTER_TYPE_uint64_t
+}
+
+static void
+mutex_stats_read_arena_bin(size_t mib[], size_t miblen,
+    emitter_col_t col_uint64_t[mutex_prof_num_uint64_t_counters],
+    emitter_col_t col_uint32_t[mutex_prof_num_uint32_t_counters],
+    uint64_t uptime) {
+	CTL_LEAF_PREPARE(mib, miblen, "mutex");
+	size_t miblen_mutex = miblen + 1;
+
 	emitter_col_t *dst;
 
 #define EMITTER_TYPE_uint32_t emitter_type_uint32
@@ -231,9 +220,7 @@ mutex_stats_read_arena_bin(unsigned arena_ind, unsigned bin_ind,
 	dst = &col_##counter_type[mutex_counter_##counter];		\
 	dst->type = EMITTER_TYPE_##counter_type;			\
 	if (!derived) {							\
-		gen_mutex_ctl_str(cmd, MUTEX_CTL_STR_MAX_LENGTH,	\
-		    "arenas.0.bins.0","mutex", #counter);		\
-		CTL_M2_M4_GET(cmd, arena_ind, bin_ind,			\
+		CTL_LEAF(mib, miblen_mutex, #counter,			\
 		    (counter_type *)&dst->bool_val, counter_type);	\
 	} else {							\
 		emitter_col_t *base =					\
@@ -362,6 +349,14 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 	emitter_table_row(emitter, &header_row);
 	emitter_json_array_kv_begin(emitter, "bins");
 
+	size_t stats_arenas_mib[CTL_MAX_DEPTH];
+	CTL_LEAF_PREPARE(stats_arenas_mib, 0, "stats.arenas");
+	stats_arenas_mib[2] = i;
+	CTL_LEAF_PREPARE(stats_arenas_mib, 3, "bins");
+
+	size_t arenas_bin_mib[CTL_MAX_DEPTH];
+	CTL_LEAF_PREPARE(arenas_bin_mib, 0, "arenas.bin");
+
 	for (j = 0, in_gap = false; j < nbins; j++) {
 		uint64_t nslabs;
 		size_t reg_size, slab_size, curregs;
@@ -371,8 +366,11 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 		uint64_t nmalloc, ndalloc, nrequests, nfills, nflushes;
 		uint64_t nreslabs;
 
-		CTL_M2_M4_GET("stats.arenas.0.bins.0.nslabs", i, j, &nslabs,
-		    uint64_t);
+		stats_arenas_mib[4] = j;
+		arenas_bin_mib[2] = j;
+
+		CTL_LEAF(stats_arenas_mib, 5, "nslabs", &nslabs, uint64_t);
+
 		in_gap_prev = in_gap;
 		in_gap = (nslabs == 0);
 
@@ -381,33 +379,25 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 			    "                     ---\n");
 		}
 
-		CTL_M2_GET("arenas.bin.0.size", j, &reg_size, size_t);
-		CTL_M2_GET("arenas.bin.0.nregs", j, &nregs, uint32_t);
-		CTL_M2_GET("arenas.bin.0.slab_size", j, &slab_size, size_t);
-		CTL_M2_GET("arenas.bin.0.nshards", j, &nshards, uint32_t);
-
-		CTL_M2_M4_GET("stats.arenas.0.bins.0.nmalloc", i, j, &nmalloc,
+		CTL_LEAF(arenas_bin_mib, 3, "size", &reg_size, size_t);
+		CTL_LEAF(arenas_bin_mib, 3, "nregs", &nregs, uint32_t);
+		CTL_LEAF(arenas_bin_mib, 3, "slab_size", &slab_size, size_t);
+		CTL_LEAF(arenas_bin_mib, 3, "nshards", &nshards, uint32_t);
+		CTL_LEAF(stats_arenas_mib, 5, "nmalloc", &nmalloc, uint64_t);
+		CTL_LEAF(stats_arenas_mib, 5, "ndalloc", &ndalloc, uint64_t);
+		CTL_LEAF(stats_arenas_mib, 5, "curregs", &curregs, size_t);
+		CTL_LEAF(stats_arenas_mib, 5, "nrequests", &nrequests,
 		    uint64_t);
-		CTL_M2_M4_GET("stats.arenas.0.bins.0.ndalloc", i, j, &ndalloc,
-		    uint64_t);
-		CTL_M2_M4_GET("stats.arenas.0.bins.0.curregs", i, j, &curregs,
-		    size_t);
-		CTL_M2_M4_GET("stats.arenas.0.bins.0.nrequests", i, j,
-		    &nrequests, uint64_t);
-		CTL_M2_M4_GET("stats.arenas.0.bins.0.nfills", i, j, &nfills,
-		    uint64_t);
-		CTL_M2_M4_GET("stats.arenas.0.bins.0.nflushes", i, j, &nflushes,
-		    uint64_t);
-		CTL_M2_M4_GET("stats.arenas.0.bins.0.nreslabs", i, j, &nreslabs,
-		    uint64_t);
-		CTL_M2_M4_GET("stats.arenas.0.bins.0.curslabs", i, j, &curslabs,
-		    size_t);
-		CTL_M2_M4_GET("stats.arenas.0.bins.0.nonfull_slabs", i, j, &nonfull_slabs,
+		CTL_LEAF(stats_arenas_mib, 5, "nfills", &nfills, uint64_t);
+		CTL_LEAF(stats_arenas_mib, 5, "nflushes", &nflushes, uint64_t);
+		CTL_LEAF(stats_arenas_mib, 5, "nreslabs", &nreslabs, uint64_t);
+		CTL_LEAF(stats_arenas_mib, 5, "curslabs", &curslabs, size_t);
+		CTL_LEAF(stats_arenas_mib, 5, "nonfull_slabs", &nonfull_slabs,
 		    size_t);
 
 		if (mutex) {
-			mutex_stats_read_arena_bin(i, j, col_mutex64,
-			    col_mutex32, uptime);
+			mutex_stats_read_arena_bin(stats_arenas_mib, 5,
+			    col_mutex64, col_mutex32, uptime);
 		}
 
 		emitter_json_object_begin(emitter);
@@ -524,16 +514,26 @@ stats_arena_lextents_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	emitter_table_row(emitter, &header_row);
 	emitter_json_array_kv_begin(emitter, "lextents");
 
+	size_t stats_arenas_mib[CTL_MAX_DEPTH];
+	CTL_LEAF_PREPARE(stats_arenas_mib, 0, "stats.arenas");
+	stats_arenas_mib[2] = i;
+	CTL_LEAF_PREPARE(stats_arenas_mib, 3, "lextents");
+
+	size_t arenas_lextent_mib[CTL_MAX_DEPTH];
+	CTL_LEAF_PREPARE(arenas_lextent_mib, 0, "arenas.lextent");
+
 	for (j = 0, in_gap = false; j < nlextents; j++) {
 		uint64_t nmalloc, ndalloc, nrequests;
 		size_t lextent_size, curlextents;
 
-		CTL_M2_M4_GET("stats.arenas.0.lextents.0.nmalloc", i, j,
-		    &nmalloc, uint64_t);
-		CTL_M2_M4_GET("stats.arenas.0.lextents.0.ndalloc", i, j,
-		    &ndalloc, uint64_t);
-		CTL_M2_M4_GET("stats.arenas.0.lextents.0.nrequests", i, j,
-		    &nrequests, uint64_t);
+		stats_arenas_mib[4] = j;
+		arenas_lextent_mib[2] = j;
+
+		CTL_LEAF(stats_arenas_mib, 5, "nmalloc", &nmalloc, uint64_t);
+		CTL_LEAF(stats_arenas_mib, 5, "ndalloc", &ndalloc, uint64_t);
+		CTL_LEAF(stats_arenas_mib, 5, "nrequests", &nrequests,
+		    uint64_t);
+
 		in_gap_prev = in_gap;
 		in_gap = (nrequests == 0);
 
@@ -542,9 +542,9 @@ stats_arena_lextents_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 			    "                     ---\n");
 		}
 
-		CTL_M2_GET("arenas.lextent.0.size", j, &lextent_size, size_t);
-		CTL_M2_M4_GET("stats.arenas.0.lextents.0.curlextents", i, j,
-		    &curlextents, size_t);
+		CTL_LEAF(arenas_lextent_mib, 3, "size", &lextent_size, size_t);
+		CTL_LEAF(stats_arenas_mib, 5, "curlextents", &curlextents,
+		    size_t);
 
 		emitter_json_object_begin(emitter);
 		emitter_json_kv(emitter, "curlextents", emitter_type_size,
@@ -598,22 +598,27 @@ stats_arena_extents_print(emitter_t *emitter, unsigned i) {
 	emitter_table_row(emitter, &header_row);
 	emitter_json_array_kv_begin(emitter, "extents");
 
+	size_t stats_arenas_mib[CTL_MAX_DEPTH];
+	CTL_LEAF_PREPARE(stats_arenas_mib, 0, "stats.arenas");
+	stats_arenas_mib[2] = i;
+	CTL_LEAF_PREPARE(stats_arenas_mib, 3, "extents");
+
 	in_gap = false;
 	for (j = 0; j < SC_NPSIZES; j++) {
 		size_t ndirty, nmuzzy, nretained, total, dirty_bytes,
 		    muzzy_bytes, retained_bytes, total_bytes;
-		CTL_M2_M4_GET("stats.arenas.0.extents.0.ndirty", i, j,
-		    &ndirty, size_t);
-		CTL_M2_M4_GET("stats.arenas.0.extents.0.nmuzzy", i, j,
-		    &nmuzzy, size_t);
-		CTL_M2_M4_GET("stats.arenas.0.extents.0.nretained", i, j,
-		    &nretained, size_t);
-		CTL_M2_M4_GET("stats.arenas.0.extents.0.dirty_bytes", i, j,
-		    &dirty_bytes, size_t);
-		CTL_M2_M4_GET("stats.arenas.0.extents.0.muzzy_bytes", i, j,
-		    &muzzy_bytes, size_t);
-		CTL_M2_M4_GET("stats.arenas.0.extents.0.retained_bytes", i, j,
+		stats_arenas_mib[4] = j;
+
+		CTL_LEAF(stats_arenas_mib, 5, "ndirty", &ndirty, size_t);
+		CTL_LEAF(stats_arenas_mib, 5, "nmuzzy", &nmuzzy, size_t);
+		CTL_LEAF(stats_arenas_mib, 5, "nretained", &nretained, size_t);
+		CTL_LEAF(stats_arenas_mib, 5, "dirty_bytes", &dirty_bytes,
+		    size_t);
+		CTL_LEAF(stats_arenas_mib, 5, "muzzy_bytes", &muzzy_bytes,
+		    size_t);
+		CTL_LEAF(stats_arenas_mib, 5, "retained_bytes",
 		    &retained_bytes, size_t);
+
 		total = ndirty + nmuzzy + nretained;
 		total_bytes = dirty_bytes + muzzy_bytes + retained_bytes;
 
@@ -737,29 +742,29 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	COL_HDR(row, nactive_nonhuge, NULL, right, 20, size)
 	COL_HDR(row, ninactive_nonhuge, NULL, right, 20, size)
 
+	size_t stats_arenas_mib[CTL_MAX_DEPTH];
+	CTL_LEAF_PREPARE(stats_arenas_mib, 0, "stats.arenas");
+	stats_arenas_mib[2] = i;
+	CTL_LEAF_PREPARE(stats_arenas_mib, 3, "hpa_shard.nonfull_slabs");
+
 	emitter_table_row(emitter, &header_row);
 	emitter_json_array_kv_begin(emitter, "nonfull_slabs");
 	bool in_gap = false;
 	for (pszind_t j = 0; j < PSSET_NPSIZES; j++) {
-		CTL_M2_M5_GET(
-		    "stats.arenas.0.hpa_shard.nonfull_slabs.0.npageslabs_huge",
-		    i, j, &npageslabs_huge, size_t);
-		CTL_M2_M5_GET(
-		    "stats.arenas.0.hpa_shard.nonfull_slabs.0.nactive_huge",
-		    i, j, &nactive_huge, size_t);
-		CTL_M2_M5_GET(
-		    "stats.arenas.0.hpa_shard.nonfull_slabs.0.ninactive_huge",
-		    i, j, &ninactive_huge, size_t);
+		stats_arenas_mib[5] = j;
 
-		CTL_M2_M5_GET(
-		    "stats.arenas.0.hpa_shard.nonfull_slabs.0.npageslabs_nonhuge",
-		    i, j, &npageslabs_nonhuge, size_t);
-		CTL_M2_M5_GET(
-		    "stats.arenas.0.hpa_shard.nonfull_slabs.0.nactive_nonhuge",
-		    i, j, &nactive_nonhuge, size_t);
-		CTL_M2_M5_GET(
-		    "stats.arenas.0.hpa_shard.nonfull_slabs.0.ninactive_nonhuge",
-		    i, j, &ninactive_nonhuge, size_t);
+		CTL_LEAF(stats_arenas_mib, 6, "npageslabs_huge",
+		    &npageslabs_huge, size_t);
+		CTL_LEAF(stats_arenas_mib, 6, "nactive_huge",
+		    &nactive_huge, size_t);
+		CTL_LEAF(stats_arenas_mib, 6, "ninactive_huge",
+		    &ninactive_huge, size_t);
+		CTL_LEAF(stats_arenas_mib, 6, "npageslabs_nonhuge",
+		    &npageslabs_nonhuge, size_t);
+		CTL_LEAF(stats_arenas_mib, 6, "nactive_nonhuge",
+		    &nactive_nonhuge, size_t);
+		CTL_LEAF(stats_arenas_mib, 6, "ninactive_nonhuge",
+		    &ninactive_nonhuge, size_t);
 
 		bool in_gap_prev = in_gap;
 		in_gap = (npageslabs_huge == 0 && npageslabs_nonhuge == 0);
@@ -812,12 +817,17 @@ stats_arena_mutexes_print(emitter_t *emitter, unsigned arena_ind, uint64_t uptim
 	emitter_json_object_kv_begin(emitter, "mutexes");
 	emitter_table_row(emitter, &row);
 
+	size_t stats_arenas_mib[CTL_MAX_DEPTH];
+	CTL_LEAF_PREPARE(stats_arenas_mib, 0, "stats.arenas");
+	stats_arenas_mib[2] = arena_ind;
+	CTL_LEAF_PREPARE(stats_arenas_mib, 3, "mutexes");
+
 	for (mutex_prof_arena_ind_t i = 0; i < mutex_prof_num_arena_mutexes;
 	    i++) {
 		const char *name = arena_mutex_names[i];
 		emitter_json_object_kv_begin(emitter, name);
-		mutex_stats_read_arena(arena_ind, i, name, &col_name, col64,
-		    col32, uptime);
+		mutex_stats_read_arena(stats_arenas_mib, 4, name, &col_name,
+		    col64, col32, uptime);
 		mutex_stats_emit(emitter, &row, col64, col32);
 		emitter_json_object_end(emitter); /* Close the mutex dict. */
 	}
@@ -1376,22 +1386,25 @@ stats_general_print(emitter_t *emitter) {
 	 */
 	if (emitter_outputs_json(emitter)) {
 		emitter_json_array_kv_begin(emitter, "bin");
+		size_t arenas_bin_mib[CTL_MAX_DEPTH];
+		CTL_LEAF_PREPARE(arenas_bin_mib, 0, "arenas.bin");
 		for (unsigned i = 0; i < nbins; i++) {
+			arenas_bin_mib[2] = i;
 			emitter_json_object_begin(emitter);
 
-			CTL_M2_GET("arenas.bin.0.size", i, &sv, size_t);
+			CTL_LEAF(arenas_bin_mib, 3, "size", &sv, size_t);
 			emitter_json_kv(emitter, "size", emitter_type_size,
 			    &sv);
 
-			CTL_M2_GET("arenas.bin.0.nregs", i, &u32v, uint32_t);
+			CTL_LEAF(arenas_bin_mib, 3, "nregs", &u32v, uint32_t);
 			emitter_json_kv(emitter, "nregs", emitter_type_uint32,
 			    &u32v);
 
-			CTL_M2_GET("arenas.bin.0.slab_size", i, &sv, size_t);
+			CTL_LEAF(arenas_bin_mib, 3, "slab_size", &sv, size_t);
 			emitter_json_kv(emitter, "slab_size", emitter_type_size,
 			    &sv);
 
-			CTL_M2_GET("arenas.bin.0.nshards", i, &u32v, uint32_t);
+			CTL_LEAF(arenas_bin_mib, 3, "nshards", &u32v, uint32_t);
 			emitter_json_kv(emitter, "nshards", emitter_type_uint32,
 			    &u32v);
 
@@ -1407,10 +1420,13 @@ stats_general_print(emitter_t *emitter) {
 
 	if (emitter_outputs_json(emitter)) {
 		emitter_json_array_kv_begin(emitter, "lextent");
+		size_t arenas_lextent_mib[CTL_MAX_DEPTH];
+		CTL_LEAF_PREPARE(arenas_lextent_mib, 0, "arenas.lextent");
 		for (unsigned i = 0; i < nlextents; i++) {
+			arenas_lextent_mib[2] = i;
 			emitter_json_object_begin(emitter);
 
-			CTL_M2_GET("arenas.lextent.0.size", i, &sv, size_t);
+			CTL_LEAF(arenas_lextent_mib, 3, "size", &sv, size_t);
 			emitter_json_kv(emitter, "size", emitter_type_size,
 			    &sv);
 
@@ -1510,9 +1526,11 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 
 		CTL_M2_GET("stats.arenas.0.uptime", 0, &uptime, uint64_t);
 
+		size_t stats_mutexes_mib[CTL_MAX_DEPTH];
+		CTL_LEAF_PREPARE(stats_mutexes_mib, 0, "stats.mutexes");
 		for (int i = 0; i < mutex_prof_num_global_mutexes; i++) {
-			mutex_stats_read_global(global_mutex_names[i], &name,
-			    col64, col32, uptime);
+			mutex_stats_read_global(stats_mutexes_mib, 2,
+			    global_mutex_names[i], &name, col64, col32, uptime);
 			emitter_json_object_kv_begin(emitter, global_mutex_names[i]);
 			mutex_stats_emit(emitter, &row, col64, col32);
 			emitter_json_object_end(emitter);
