@@ -137,4 +137,23 @@ void ctl_mtx_assert_held(tsdn_t *tsdn);
 	}								\
 } while (0)
 
+#define xmallctlmibnametomib(mib, miblen, name, miblenp) do {		\
+	if (ctl_mibnametomib(tsd_fetch(), mib, miblen, name, miblenp)	\
+	    != 0) {							\
+		malloc_write(						\
+		    "<jemalloc>: Failure in ctl_mibnametomib()\n");	\
+		abort();						\
+	}								\
+} while (0)
+
+#define xmallctlbymibname(mib, miblen, name, miblenp, oldp, oldlenp,	\
+    newp, newlen) do {							\
+	if (ctl_bymibname(tsd_fetch(), mib, miblen, name, miblenp,	\
+	    oldp, oldlenp, newp, newlen) != 0) {			\
+		malloc_write(						\
+		    "<jemalloc>: Failure in ctl_bymibname()\n");	\
+		abort();						\
+	}								\
+} while (0)
+
 #endif /* JEMALLOC_INTERNAL_CTL_H */
