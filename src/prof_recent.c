@@ -63,6 +63,7 @@ increment_recent_count(tsd_t *tsd, prof_tctx_t *tctx) {
 
 bool
 prof_recent_alloc_prepare(tsd_t *tsd, prof_tctx_t *tctx) {
+	cassert(config_prof);
 	assert(opt_prof && prof_booted);
 	malloc_mutex_assert_owner(tsd_tsdn(tsd), tctx->tdata->lock);
 	malloc_mutex_assert_not_owner(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
@@ -106,6 +107,7 @@ prof_recent_alloc_edata_get_no_lock(const prof_recent_t *n) {
 
 edata_t *
 prof_recent_alloc_edata_get_no_lock_test(const prof_recent_t *n) {
+	cassert(config_prof);
 	return prof_recent_alloc_edata_get_no_lock(n);
 }
 
@@ -123,16 +125,19 @@ prof_recent_alloc_edata_set(tsd_t *tsd, prof_recent_t *n, edata_t *edata) {
 
 void
 edata_prof_recent_alloc_init(edata_t *edata) {
+	cassert(config_prof);
 	edata_prof_recent_alloc_set_dont_call_directly(edata, NULL);
 }
 
 static inline prof_recent_t *
 edata_prof_recent_alloc_get_no_lock(const edata_t *edata) {
+	cassert(config_prof);
 	return edata_prof_recent_alloc_get_dont_call_directly(edata);
 }
 
 prof_recent_t *
 edata_prof_recent_alloc_get_no_lock_test(const edata_t *edata) {
+	cassert(config_prof);
 	return edata_prof_recent_alloc_get_no_lock(edata);
 }
 
@@ -189,6 +194,7 @@ edata_prof_recent_alloc_reset(tsd_t *tsd, edata_t *edata,
  */
 void
 prof_recent_alloc_reset(tsd_t *tsd, edata_t *edata) {
+	cassert(config_prof);
 	/*
 	 * Check whether the recent allocation record still exists without
 	 * trying to acquire the lock.
@@ -271,6 +277,7 @@ prof_recent_alloc_assert_count(tsd_t *tsd) {
 
 void
 prof_recent_alloc(tsd_t *tsd, edata_t *edata, size_t size, size_t usize) {
+	cassert(config_prof);
 	assert(edata != NULL);
 	prof_tctx_t *tctx = edata_prof_tctx_get(edata);
 
@@ -397,6 +404,7 @@ label_rollback:
 
 ssize_t
 prof_recent_alloc_max_ctl_read() {
+	cassert(config_prof);
 	/* Don't bother to acquire the lock. */
 	return prof_recent_alloc_max_get_no_lock();
 }
@@ -450,6 +458,7 @@ prof_recent_alloc_async_cleanup(tsd_t *tsd, prof_recent_list_t *to_delete) {
 
 ssize_t
 prof_recent_alloc_max_ctl_write(tsd_t *tsd, ssize_t max) {
+	cassert(config_prof);
 	assert(max >= -1);
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_recent_alloc_mtx);
 	prof_recent_alloc_assert_count(tsd);
@@ -521,6 +530,7 @@ prof_recent_alloc_dump_node(emitter_t *emitter, prof_recent_t *node) {
 #define PROF_RECENT_PRINT_BUFSIZE 65536
 void
 prof_recent_alloc_dump(tsd_t *tsd, write_cb_t *write_cb, void *cbopaque) {
+	cassert(config_prof);
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_recent_dump_mtx);
 	buf_writer_t buf_writer;
 	buf_writer_init(tsd_tsdn(tsd), &buf_writer, write_cb, cbopaque, NULL,
@@ -570,6 +580,7 @@ prof_recent_alloc_dump(tsd_t *tsd, write_cb_t *write_cb, void *cbopaque) {
 
 bool
 prof_recent_init() {
+	cassert(config_prof);
 	prof_recent_alloc_max_init();
 
 	if (malloc_mutex_init(&prof_recent_alloc_mtx, "prof_recent_alloc",
