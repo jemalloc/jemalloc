@@ -914,6 +914,18 @@ if test "x${je_cv_fallthrough}" = "xyes" ; then
   JE_CXXFLAGS_ADD([-Wimplicit-fallthrough])
 fi
 
+dnl Check for cold attribute support.
+JE_CFLAGS_SAVE()
+JE_CFLAGS_ADD([-Werror])
+JE_CFLAGS_ADD([-herror_on_warning])
+JE_COMPILABLE([cold attribute], [],
+              [__attribute__((__cold__)) void foo();],
+              [je_cv_cold])
+JE_CFLAGS_RESTORE()
+if test "x${je_cv_cold}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_ATTR_COLD], [ ])
+fi
+
 dnl Support optional additions to rpath.
 AC_ARG_WITH([rpath],
   [AS_HELP_STRING([--with-rpath=<rpath>], [Colon-separated rpath (ELF systems only)])],

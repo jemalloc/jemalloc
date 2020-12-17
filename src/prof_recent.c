@@ -528,6 +528,7 @@ prof_recent_alloc_dump_node(emitter_t *emitter, prof_recent_t *node) {
 }
 
 #define PROF_RECENT_PRINT_BUFSIZE 65536
+JEMALLOC_COLD
 void
 prof_recent_alloc_dump(tsd_t *tsd, write_cb_t *write_cb, void *cbopaque) {
 	cassert(config_prof);

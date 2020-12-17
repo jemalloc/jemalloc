@@ -281,6 +281,7 @@ mutex_stats_emit(emitter_t *emitter, emitter_row_t *row,
 	header_##column_name.str_val = human ? human : #column_name;
 
 
+JEMALLOC_COLD
 static void
 stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t uptime) {
 	size_t page;
@@ -488,6 +489,7 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i, uint64_t upti
 	}
 }
 
+JEMALLOC_COLD
 static void
 stats_arena_lextents_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	unsigned nbins, nlextents, j;
@@ -576,6 +578,7 @@ stats_arena_lextents_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	}
 }
 
+JEMALLOC_COLD
 static void
 stats_arena_extents_print(emitter_t *emitter, unsigned i) {
 	unsigned j;
@@ -841,6 +844,7 @@ stats_arena_mutexes_print(emitter_t *emitter, unsigned arena_ind, uint64_t uptim
 	emitter_json_object_end(emitter); /* End "mutexes". */
 }
 
+JEMALLOC_COLD
 static void
 stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
     bool mutex, bool extents, bool hpa) {
@@ -1168,6 +1172,7 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	}
 }
 
+JEMALLOC_COLD
 static void
 stats_general_print(emitter_t *emitter) {
 	const char *cpv;
@@ -1445,6 +1450,7 @@ stats_general_print(emitter_t *emitter) {
 	emitter_json_object_end(emitter); /* Close "arenas" */
 }
 
+JEMALLOC_COLD
 static void
 stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
     bool unmerged, bool bins, bool large, bool mutex, bool extents, bool hpa) {
