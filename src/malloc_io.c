@@ -321,6 +321,7 @@ x2s(uintmax_t x, bool alt_form, bool uppercase, char *s, size_t *slen_p) {
 	return s;
 }
 
+JEMALLOC_COLD
 size_t
 malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap) {
 	size_t i;

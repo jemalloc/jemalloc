@@ -200,6 +200,7 @@ prof_log_thr_index(tsd_t *tsd, uint64_t thr_uid, const char *name) {
 	}
 }
 
+JEMALLOC_COLD
 void
 prof_try_log(tsd_t *tsd, size_t usize, prof_info_t *prof_info) {
 	cassert(config_prof);
@@ -411,6 +412,7 @@ prof_log_dummy_set(bool new_value) {
 	prof_log_dummy = new_value;
 }
 
+JEMALLOC_COLD
 bool
 prof_log_start(tsdn_t *tsdn, const char *filename) {
 	cassert(config_prof);
@@ -593,6 +595,7 @@ prof_log_emit_metadata(emitter_t *emitter) {
 }
 
 #define PROF_LOG_STOP_BUFSIZE PROF_DUMP_BUFSIZE
+JEMALLOC_COLD
 bool
 prof_log_stop(tsdn_t *tsdn) {
 	cassert(config_prof);
@@ -681,7 +684,9 @@ prof_log_stop(tsdn_t *tsdn) {
 }
 #undef PROF_LOG_STOP_BUFSIZE
 
-bool prof_log_init(tsd_t *tsd) {
+JEMALLOC_COLD
+bool
+prof_log_init(tsd_t *tsd) {
 	cassert(config_prof);
 	if (malloc_mutex_init(&log_mtx, "prof_log",
 	    WITNESS_RANK_PROF_LOG, malloc_mutex_rank_exclusive)) {
