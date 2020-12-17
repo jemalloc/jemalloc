@@ -141,7 +141,9 @@ TEST_END
 
 int
 main(void) {
-	prof_log_dummy_set(true);
+	if (config_prof) {
+		prof_log_dummy_set(true);
+	}
 	return test_no_reentrancy(
 	    test_prof_log_many_logs,
 	    test_prof_log_many_traces,

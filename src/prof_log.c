@@ -202,6 +202,7 @@ prof_log_thr_index(tsd_t *tsd, uint64_t thr_uid, const char *name) {
 
 void
 prof_try_log(tsd_t *tsd, size_t usize, prof_info_t *prof_info) {
+	cassert(config_prof);
 	prof_tctx_t *tctx = prof_info->alloc_tctx;
 	malloc_mutex_assert_owner(tsd_tsdn(tsd), tctx->tdata->lock);
 
@@ -307,6 +308,7 @@ prof_thr_node_keycomp(const void *k1, const void *k2) {
 /* Used in unit tests. */
 size_t
 prof_log_bt_count(void) {
+	cassert(config_prof);
 	size_t cnt = 0;
 	prof_bt_node_t *node = log_bt_first;
 	while (node != NULL) {
@@ -319,6 +321,7 @@ prof_log_bt_count(void) {
 /* Used in unit tests. */
 size_t
 prof_log_alloc_count(void) {
+	cassert(config_prof);
 	size_t cnt = 0;
 	prof_alloc_node_t *node = log_alloc_first;
 	while (node != NULL) {
@@ -331,6 +334,7 @@ prof_log_alloc_count(void) {
 /* Used in unit tests. */
 size_t
 prof_log_thr_count(void) {
+	cassert(config_prof);
 	size_t cnt = 0;
 	prof_thr_node_t *node = log_thr_first;
 	while (node != NULL) {
@@ -343,12 +347,14 @@ prof_log_thr_count(void) {
 /* Used in unit tests. */
 bool
 prof_log_is_logging(void) {
+	cassert(config_prof);
 	return prof_logging_state == prof_logging_state_started;
 }
 
 /* Used in unit tests. */
 bool
 prof_log_rep_check(void) {
+	cassert(config_prof);
 	if (prof_logging_state == prof_logging_state_stopped
 	    && log_tables_initialized) {
 		return true;
@@ -401,11 +407,14 @@ prof_log_rep_check(void) {
 /* Used in unit tests. */
 void
 prof_log_dummy_set(bool new_value) {
+	cassert(config_prof);
 	prof_log_dummy = new_value;
 }
 
 bool
 prof_log_start(tsdn_t *tsdn, const char *filename) {
+	cassert(config_prof);
+
 	if (!opt_prof) {
 		return true;
 	}
@@ -586,6 +595,7 @@ prof_log_emit_metadata(emitter_t *emitter) {
 #define PROF_LOG_STOP_BUFSIZE PROF_DUMP_BUFSIZE
 bool
 prof_log_stop(tsdn_t *tsdn) {
+	cassert(config_prof);
 	if (!opt_prof || !prof_booted) {
 		return true;
 	}
@@ -672,6 +682,7 @@ prof_log_stop(tsdn_t *tsdn) {
 #undef PROF_LOG_STOP_BUFSIZE
 
 bool prof_log_init(tsd_t *tsd) {
+	cassert(config_prof);
 	if (malloc_mutex_init(&log_mtx, "prof_log",
 	    WITNESS_RANK_PROF_LOG, malloc_mutex_rank_exclusive)) {
 		return true;
