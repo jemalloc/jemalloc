@@ -3432,7 +3432,7 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 	return p;
 }
 
-JEMALLOC_ALWAYS_INLINE void *
+static void *
 do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 	void *p;
 	tsd_t *tsd;
