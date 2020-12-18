@@ -893,8 +893,22 @@ extent_try_coalesce_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		}
 
 		/* Try to coalesce backward. */
-		edata_t *prev = emap_lock_edata_from_addr(tsdn, pac->emap,
-		    edata_before_get(edata), inactive_only);
+		edata_t *prev = NULL;
+		if (edata_before_get(edata) != NULL) {
+			/*
+			 * This is subtle; the rtree code asserts that its input
+			 * pointer is non-NULL, and this is a useful thing to
+			 * check.  But it's possible that edata corresponds to
+			 * an address of (void *)PAGE (in practice, this has
+			 * only been observed on FreeBSD when address-space
+			 * randomization is on, but it could in principle happen
+			 * anywhere).  In this case, edata_before_get(edata) is
+			 * NULL, triggering the assert.
+			 */
+			prev = emap_lock_edata_from_addr(tsdn, pac->emap,
+			    edata_before_get(edata), inactive_only);
+
+		}
 		if (prev != NULL) {
 			bool can_coalesce = extent_can_coalesce(ecache, edata,
 			    prev);
