@@ -950,6 +950,18 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         is <quote>disabled</quote>.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="opt.trust_madvise">
+        <term>
+          <mallctl>opt.trust_madvise</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Do not perform runtime check for MADV_DONTNEED, to
+        check that it actually zeros pages.  The default is
+        <quote>disabled</quote> on linux and <quote>enabled</quote> elsewhere.
+        </para></listitem>
+      </varlistentry>
+
       <varlistentry id="opt.retain">
         <term>
           <mallctl>opt.retain</mallctl>

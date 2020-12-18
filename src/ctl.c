@@ -90,6 +90,7 @@ CTL_PROTO(config_utrace)
 CTL_PROTO(config_xmalloc)
 CTL_PROTO(opt_abort)
 CTL_PROTO(opt_abort_conf)
+CTL_PROTO(opt_trust_madvise)
 CTL_PROTO(opt_confirm_conf)
 CTL_PROTO(opt_hpa)
 CTL_PROTO(opt_hpa_slab_max_alloc)
@@ -372,6 +373,7 @@ static const ctl_named_node_t	config_node[] = {
 static const ctl_named_node_t opt_node[] = {
 	{NAME("abort"),		CTL(opt_abort)},
 	{NAME("abort_conf"),	CTL(opt_abort_conf)},
+	{NAME("trust_madvise"),	CTL(opt_trust_madvise)},
 	{NAME("confirm_conf"),	CTL(opt_confirm_conf)},
 	{NAME("hpa"),		CTL(opt_hpa)},
 	{NAME("hpa_slab_max_alloc"),	CTL(opt_hpa_slab_max_alloc)},
@@ -2045,6 +2047,7 @@ CTL_RO_CONFIG_GEN(config_xmalloc, bool)
 
 CTL_RO_NL_GEN(opt_abort, opt_abort, bool)
 CTL_RO_NL_GEN(opt_abort_conf, opt_abort_conf, bool)
+CTL_RO_NL_GEN(opt_trust_madvise, opt_trust_madvise, bool)
 CTL_RO_NL_GEN(opt_confirm_conf, opt_confirm_conf, bool)
 CTL_RO_NL_GEN(opt_hpa, opt_hpa, bool)
 CTL_RO_NL_GEN(opt_hpa_slab_max_alloc, opt_hpa_slab_max_alloc, size_t)
