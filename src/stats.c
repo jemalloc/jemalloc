@@ -806,6 +806,9 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	}
 	emitter_json_array_end(emitter); /* End "nonfull_slabs" */
 	emitter_json_object_end(emitter); /* End "hpa_shard" */
+	if (in_gap) {
+		emitter_table_printf(emitter, "                     ---\n");
+	}
 }
 
 static void
