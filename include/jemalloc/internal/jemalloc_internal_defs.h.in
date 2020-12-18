@@ -318,6 +318,17 @@
  */
 #undef JEMALLOC_THP
 
+/* Defined if posix_madvise is available. */
+#undef JEMALLOC_HAVE_POSIX_MADVISE
+
+/*
+ * Method for purging unused pages using posix_madvise.
+ *
+ *   posix_madvise(..., POSIX_MADV_DONTNEED)
+ */
+#undef JEMALLOC_PURGE_POSIX_MADVISE_DONTNEED
+#undef JEMALLOC_PURGE_POSIX_MADVISE_DONTNEED_ZEROS
+
 /*
  * Defined if memcntl page admin call is supported
  */

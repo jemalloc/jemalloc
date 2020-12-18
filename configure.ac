@@ -765,6 +765,11 @@ case "${host}" in
 	  default_retain="1"
 	fi
 	;;
+  *-*-nto-qnx)
+	abi="elf"
+  force_tls="0"
+  AC_DEFINE([JEMALLOC_HAS_ALLOCA_H])
+	;;
   *)
 	AC_MSG_RESULT([Unsupported operating system: ${host}])
 	abi="elf"
@@ -2200,6 +2205,26 @@ case "${host_cpu}" in
   fi
   ;;
 esac
+else
+  dnl Check for posix_madvise.
+  JE_COMPILABLE([posix_madvise], [
+  #include <sys/mman.h>
+  ], [
+    posix_madvise((void *)0, 0, 0);
+  ], [je_cv_posix_madvise])
+  if test "x${je_cv_posix_madvise}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_HAVE_POSIX_MADVISE], [ ])
+
+    dnl Check for posix_madvise(..., POSIX_MADV_DONTNEED).
+    JE_COMPILABLE([posix_madvise(..., POSIX_MADV_DONTNEED)], [
+  #include <sys/mman.h>
+  ], [
+    posix_madvise((void *)0, 0, POSIX_MADV_DONTNEED);
+  ], [je_cv_posix_madv_dontneed])
+    if test "x${je_cv_posix_madv_dontneed}" = "xyes" ; then
+      AC_DEFINE([JEMALLOC_PURGE_POSIX_MADVISE_DONTNEED], [ ])
+    fi
+  fi
 fi
 
 dnl ============================================================================
