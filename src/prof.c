@@ -8,6 +8,7 @@
 #include "jemalloc/internal/prof_data.h"
 #include "jemalloc/internal/prof_log.h"
 #include "jemalloc/internal/prof_recent.h"
+#include "jemalloc/internal/prof_stats.h"
 #include "jemalloc/internal/prof_sys.h"
 #include "jemalloc/internal/thread_event.h"
 
@@ -131,6 +132,10 @@ prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t size,
 		assert(tctx == edata_prof_tctx_get(edata));
 		prof_recent_alloc(tsd, edata, size, usize);
 	}
+
+	if (opt_prof_stats) {
+		prof_stats_inc(tsd, szind, size);
+	}
 }
 
 void
@@ -160,6 +165,10 @@ prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_info_t *prof_info) {
 	prof_try_log(tsd, usize, prof_info);
 
 	prof_tctx_try_destroy(tsd, tctx);
+
+	if (opt_prof_stats) {
+		prof_stats_dec(tsd, szind, prof_info->alloc_size);
+	}
 }
 
 prof_tctx_t *
@@ -587,7 +596,13 @@ prof_boot2(tsd_t *tsd, base_t *base) {
 
 		next_thr_uid = 0;
 		if (malloc_mutex_init(&next_thr_uid_mtx, "prof_next_thr_uid",
-		    WITNESS_RANK_PROF_NEXT_THR_UID, malloc_mutex_rank_exclusive)) {
+		    WITNESS_RANK_PROF_NEXT_THR_UID,
+		    malloc_mutex_rank_exclusive)) {
+			return true;
+		}
+
+		if (malloc_mutex_init(&prof_stats_mtx, "prof_stats",
+		    WITNESS_RANK_PROF_STATS, malloc_mutex_rank_exclusive)) {
 			return true;
 		}
 
@@ -595,8 +610,9 @@ prof_boot2(tsd_t *tsd, base_t *base) {
 			return true;
 		}
 
-		if (malloc_mutex_init(&prof_dump_filename_mtx, "prof_dump_filename",
-		    WITNESS_RANK_PROF_DUMP_FILENAME, malloc_mutex_rank_exclusive)) {
+		if (malloc_mutex_init(&prof_dump_filename_mtx,
+		    "prof_dump_filename", WITNESS_RANK_PROF_DUMP_FILENAME,
+		    malloc_mutex_rank_exclusive)) {
 			return true;
 		}
 		if (malloc_mutex_init(&prof_dump_mtx, "prof_dump",
@@ -681,9 +697,10 @@ prof_prefork1(tsdn_t *tsdn) {
 		malloc_mutex_prefork(tsdn, &prof_active_mtx);
 		malloc_mutex_prefork(tsdn, &prof_dump_filename_mtx);
 		malloc_mutex_prefork(tsdn, &prof_gdump_mtx);
+		malloc_mutex_prefork(tsdn, &prof_recent_alloc_mtx);
+		malloc_mutex_prefork(tsdn, &prof_stats_mtx);
 		malloc_mutex_prefork(tsdn, &next_thr_uid_mtx);
 		malloc_mutex_prefork(tsdn, &prof_thread_active_init_mtx);
-		malloc_mutex_prefork(tsdn, &prof_recent_alloc_mtx);
 	}
 }
 
@@ -692,10 +709,11 @@ prof_postfork_parent(tsdn_t *tsdn) {
 	if (config_prof && opt_prof) {
 		unsigned i;
 
-		malloc_mutex_postfork_parent(tsdn, &prof_recent_alloc_mtx);
 		malloc_mutex_postfork_parent(tsdn,
 		    &prof_thread_active_init_mtx);
 		malloc_mutex_postfork_parent(tsdn, &next_thr_uid_mtx);
+		malloc_mutex_postfork_parent(tsdn, &prof_stats_mtx);
+		malloc_mutex_postfork_parent(tsdn, &prof_recent_alloc_mtx);
 		malloc_mutex_postfork_parent(tsdn, &prof_gdump_mtx);
 		malloc_mutex_postfork_parent(tsdn, &prof_dump_filename_mtx);
 		malloc_mutex_postfork_parent(tsdn, &prof_active_mtx);
@@ -719,9 +737,10 @@ prof_postfork_child(tsdn_t *tsdn) {
 	if (config_prof && opt_prof) {
 		unsigned i;
 
-		malloc_mutex_postfork_child(tsdn, &prof_recent_alloc_mtx);
 		malloc_mutex_postfork_child(tsdn, &prof_thread_active_init_mtx);
 		malloc_mutex_postfork_child(tsdn, &next_thr_uid_mtx);
+		malloc_mutex_postfork_child(tsdn, &prof_stats_mtx);
+		malloc_mutex_postfork_child(tsdn, &prof_recent_alloc_mtx);
 		malloc_mutex_postfork_child(tsdn, &prof_gdump_mtx);
 		malloc_mutex_postfork_child(tsdn, &prof_dump_filename_mtx);
 		malloc_mutex_postfork_child(tsdn, &prof_active_mtx);

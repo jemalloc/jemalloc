@@ -27,6 +27,9 @@ extern ssize_t opt_prof_recent_alloc_max;
 /* Whether to use thread name provided by the system or by mallctl. */
 extern bool opt_prof_sys_thread_name;
 
+/* Whether to record per size class counts and request size totals. */
+extern bool opt_prof_stats;
+
 /* Accessed via prof_active_[gs]et{_unlocked,}(). */
 extern bool prof_active;
 
