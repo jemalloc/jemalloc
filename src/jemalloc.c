@@ -1552,6 +1552,7 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				CONF_HANDLE_BOOL(opt_prof_log, "prof_log")
 				CONF_HANDLE_SSIZE_T(opt_prof_recent_alloc_max,
 				    "prof_recent_alloc_max", -1, SSIZE_MAX)
+				CONF_HANDLE_BOOL(opt_prof_stats, "prof_stats")
 				CONF_HANDLE_BOOL(opt_prof_sys_thread_name,
 				    "prof_sys_thread_name")
 				if (CONF_MATCH("prof_time_resolution")) {
