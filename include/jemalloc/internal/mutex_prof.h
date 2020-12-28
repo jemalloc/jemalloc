@@ -11,7 +11,9 @@
     OP(ctl)								\
     OP(prof)								\
     OP(prof_thds_data)							\
-    OP(prof_dump)
+    OP(prof_dump)							\
+    OP(prof_recent_alloc)						\
+    OP(prof_recent_dump)
 
 typedef enum {
 #define OP(mtx) global_prof_mutex_##mtx,
