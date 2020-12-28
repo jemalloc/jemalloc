@@ -1232,6 +1232,12 @@ ctl_refresh(tsdn_t *tsdn) {
 			    global_prof_mutex_prof_thds_data, tdatas_mtx);
 			READ_GLOBAL_MUTEX_PROF_DATA(
 			    global_prof_mutex_prof_dump, prof_dump_mtx);
+			READ_GLOBAL_MUTEX_PROF_DATA(
+			    global_prof_mutex_prof_recent_alloc,
+			    prof_recent_alloc_mtx);
+			READ_GLOBAL_MUTEX_PROF_DATA(
+			    global_prof_mutex_prof_recent_dump,
+			    prof_recent_dump_mtx);
 		}
 		if (have_background_thread) {
 			READ_GLOBAL_MUTEX_PROF_DATA(
@@ -3344,6 +3350,8 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib,
 		MUTEX_PROF_RESET(bt2gctx_mtx);
 		MUTEX_PROF_RESET(tdatas_mtx);
 		MUTEX_PROF_RESET(prof_dump_mtx);
+		MUTEX_PROF_RESET(prof_recent_alloc_mtx);
+		MUTEX_PROF_RESET(prof_recent_dump_mtx);
 	}
 
 	/* Per arena mutexes. */
