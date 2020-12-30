@@ -131,6 +131,25 @@ static void default_junk_free(void *ptr, size_t usize) {
 void (*junk_alloc_callback)(void *ptr, size_t size) = &default_junk_alloc;
 void (*junk_free_callback)(void *ptr, size_t size) = &default_junk_free;
 
+size_t opt_prof_select_usize = 0;
+size_t opt_prof_select_waste = 0;
+
+static inline bool
+prof_select(size_t size, size_t usize) {
+	cassert(config_prof);
+	assert(opt_prof);
+	assert(opt_prof_select_waste <= opt_prof_select_usize);
+	assert(size <= usize);
+
+	if (likely(opt_prof_select_usize == 0)) {
+		return true;
+	}
+	if (likely(usize != opt_prof_select_usize)) {
+		return false;
+	}
+	return usize - size >= opt_prof_select_waste;
+}
+
 bool	opt_utrace = false;
 bool	opt_xmalloc = false;
 bool	opt_zero = false;
@@ -1561,6 +1580,12 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				CONF_HANDLE_SSIZE_T(opt_prof_recent_alloc_max,
 				    "prof_recent_alloc_max", -1, SSIZE_MAX)
 				CONF_HANDLE_BOOL(opt_prof_stats, "prof_stats")
+				CONF_HANDLE_SIZE_T(opt_prof_select_usize,
+				    "prof_select_usize", 0, SC_LARGE_MAXCLASS,
+				    CONF_DONT_CHECK_MIN, CONF_CHECK_MAX, false)
+				CONF_HANDLE_SIZE_T(opt_prof_select_waste,
+				    "prof_select_waste", 0, SC_LARGE_MAXCLASS,
+				    CONF_DONT_CHECK_MIN, CONF_CHECK_MAX, false)
 				CONF_HANDLE_BOOL(opt_prof_sys_thread_name,
 				    "prof_sys_thread_name")
 				if (CONF_MATCH("prof_time_resolution")) {
@@ -2433,6 +2458,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	if (config_prof && opt_prof) {
 		bool prof_active = prof_active_get_unlocked();
 		bool sample_event = te_prof_sample_event_lookahead(tsd, usize);
+		sample_event = sample_event && prof_select(size, usize);
 		prof_tctx_t *tctx = prof_alloc_prep(tsd, prof_active,
 		    sample_event);
 
@@ -3407,6 +3433,7 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 	prof_info_get_and_reset_recent(tsd, old_ptr, alloc_ctx, &old_prof_info);
 	bool prof_active = prof_active_get_unlocked();
 	bool sample_event = te_prof_sample_event_lookahead(tsd, usize);
+	sample_event = sample_event && prof_select(size, usize);
 	prof_tctx_t *tctx = prof_alloc_prep(tsd, prof_active, sample_event);
 	void *p;
 	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
@@ -3679,6 +3706,7 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 		prof_info_get_and_reset_recent(tsd, ptr, alloc_ctx, &prof_info);
 		assert(usize <= usize_max);
 		sample_event = te_prof_sample_event_lookahead(tsd, usize);
+		sample_event = sample_event && prof_select(size, usize);
 		prof_realloc(tsd, ptr, size, usize, tctx, prof_active, ptr,
 		    old_usize, &prof_info, sample_event);
 	}
@@ -4084,10 +4112,13 @@ batch_alloc(void **ptrs, size_t num, size_t size, int flags) {
 		assert(nregs > 0);
 	}
 
+	bool prof_selected = config_prof && opt_prof
+	    && prof_select(size, usize);
+
 	while (filled < num) {
 		size_t batch = num - filled;
 		size_t surplus = SIZE_MAX; /* Dead store. */
-		bool prof_sample_event = config_prof && opt_prof
+		bool prof_sample_event = prof_selected
 		    && te_prof_sample_event_lookahead_surplus(tsd,
 		    batch * usize, &surplus);
 

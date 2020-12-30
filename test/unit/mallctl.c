@@ -318,6 +318,8 @@ TEST_BEGIN(test_mallctl_opt) {
 	TEST_MALLCTL_OPT(bool, prof_final, prof);
 	TEST_MALLCTL_OPT(bool, prof_leak, prof);
 	TEST_MALLCTL_OPT(ssize_t, prof_recent_alloc_max, prof);
+	TEST_MALLCTL_OPT(size_t, prof_select_usize, prof);
+	TEST_MALLCTL_OPT(size_t, prof_select_waste, prof);
 	TEST_MALLCTL_OPT(bool, prof_stats, prof);
 	TEST_MALLCTL_OPT(bool, prof_sys_thread_name, prof);
 
