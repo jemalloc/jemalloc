@@ -27,6 +27,8 @@ enum prof_logging_state_e {
  */
 prof_logging_state_t prof_logging_state = prof_logging_state_stopped;
 
+bool prof_logging_final_hook_registerred = false;
+
 /* Used in unit tests. */
 static bool prof_log_dummy = false;
 
@@ -404,6 +406,13 @@ prof_log_dummy_set(bool new_value) {
 	prof_log_dummy = new_value;
 }
 
+/* Used as an atexit function to stop logging on exit. */
+static void
+prof_log_stop_final(void) {
+	tsd_t *tsd = tsd_fetch();
+	prof_log_stop(tsd_tsdn(tsd));
+}
+
 bool
 prof_log_start(tsdn_t *tsdn, const char *filename) {
 	if (!opt_prof) {
@@ -432,16 +441,21 @@ prof_log_start(tsdn_t *tsdn, const char *filename) {
 		nstime_prof_init_update(&log_start_timestamp);
 	}
 
+	if (!prof_logging_final_hook_registerred) {
+		if (atexit(prof_log_stop_final) != 0) {
+			malloc_write("<jemalloc>: Error in atexit() "
+				     "for logging\n");
+			if (opt_abort) {
+				abort();
+			}
+		} else {
+			prof_logging_final_hook_registerred = true;
+		}
+	}
+
 	malloc_mutex_unlock(tsdn, &log_mtx);
 
 	return ret;
-}
-
-/* Used as an atexit function to stop logging on exit. */
-static void
-prof_log_stop_final(void) {
-	tsd_t *tsd = tsd_fetch();
-	prof_log_stop(tsd_tsdn(tsd));
 }
 
 struct prof_emitter_cb_arg_s {
@@ -679,15 +693,6 @@ bool prof_log_init(tsd_t *tsd) {
 
 	if (opt_prof_log) {
 		prof_log_start(tsd_tsdn(tsd), NULL);
-	}
-
-	if (atexit(prof_log_stop_final) != 0) {
-		malloc_write("<jemalloc>: Error in atexit() "
-			     "for logging\n");
-		if (opt_abort) {
-			abort();
-		}
-		return true;
 	}
 
 	return false;
