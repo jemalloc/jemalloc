@@ -15,6 +15,8 @@ static bool hpa_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata,
 static bool hpa_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata,
     size_t old_size, size_t new_size);
 static void hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata);
+static void hpa_dalloc_batch(tsdn_t *tsdn, pai_t *self,
+    edata_list_active_t *list);
 
 bool
 hpa_supported() {
@@ -91,7 +93,7 @@ hpa_shard_init(hpa_shard_t *shard, emap_t *emap, base_t *base,
 	shard->pai.expand = &hpa_expand;
 	shard->pai.shrink = &hpa_shrink;
 	shard->pai.dalloc = &hpa_dalloc;
-	shard->pai.dalloc_batch = &pai_dalloc_batch_default;
+	shard->pai.dalloc_batch = &hpa_dalloc_batch;
 
 	return false;
 }
@@ -663,11 +665,8 @@ hpa_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata,
 }
 
 static void
-hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
-	hpa_shard_t *shard = hpa_from_pai(self);
-
-	edata_addr_set(edata, edata_base_get(edata));
-	edata_zeroed_set(edata, false);
+hpa_dalloc_prepare_unlocked(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata) {
+	malloc_mutex_assert_not_owner(tsdn, &shard->mtx);
 
 	assert(edata_pai_get(edata) == EXTENT_PAI_HPA);
 	assert(edata_state_get(edata) == extent_state_active);
@@ -677,32 +676,62 @@ hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 	assert(edata_committed_get(edata));
 	assert(edata_base_get(edata) != NULL);
 
-	hpdata_t *ps = edata_ps_get(edata);
-	/* Currently, all edatas come from pageslabs. */
-	assert(ps != NULL);
+	edata_addr_set(edata, edata_base_get(edata));
+	edata_zeroed_set(edata, false);
 	emap_deregister_boundary(tsdn, shard->emap, edata);
-	/*
-	 * Note that the shard mutex protects ps's metadata too; it wouldn't be
-	 * correct to try to read most information out of it without the lock.
-	 */
-	malloc_mutex_lock(tsdn, &shard->mtx);
+}
+
+static void
+hpa_dalloc_locked(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata) {
+	malloc_mutex_assert_owner(tsdn, &shard->mtx);
 
 	/*
 	 * Release the metadata early, to avoid having to remember to do it
-	 * while we're also doing tricky purging logic.
+	 * while we're also doing tricky purging logic.  First, we need to grab
+	 * a few bits of metadata from it.
+	 *
+	 * Note that the shard mutex protects ps's metadata too; it wouldn't be
+	 * correct to try to read most information out of it without the lock.
 	 */
+	hpdata_t *ps = edata_ps_get(edata);
+	/* Currently, all edatas come from pageslabs. */
+	assert(ps != NULL);
 	void *unreserve_addr = edata_addr_get(edata);
 	size_t unreserve_size = edata_size_get(edata);
 	edata_cache_small_put(tsdn, &shard->ecs, edata);
 
 	psset_update_begin(&shard->psset, ps);
 	hpdata_unreserve(ps, unreserve_addr, unreserve_size);
-
 	hpa_update_purge_hugify_eligibility(shard, ps);
 	psset_update_end(&shard->psset, ps);
-
 	hpa_do_deferred_work(tsdn, shard);
+}
 
+static void
+hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
+	hpa_shard_t *shard = hpa_from_pai(self);
+
+	hpa_dalloc_prepare_unlocked(tsdn, shard, edata);
+	malloc_mutex_lock(tsdn, &shard->mtx);
+	hpa_dalloc_locked(tsdn, shard, edata);
+	malloc_mutex_unlock(tsdn, &shard->mtx);
+}
+
+static void
+hpa_dalloc_batch(tsdn_t *tsdn, pai_t *self, edata_list_active_t *list) {
+	hpa_shard_t *shard = hpa_from_pai(self);
+
+	edata_t *edata;
+	ql_foreach(edata, &list->head, ql_link_active) {
+		hpa_dalloc_prepare_unlocked(tsdn, shard, edata);
+	}
+
+	malloc_mutex_lock(tsdn, &shard->mtx);
+	/* Now, remove from the list. */
+	while ((edata = edata_list_active_first(list)) != NULL) {
+		edata_list_active_remove(list, edata);
+		hpa_dalloc_locked(tsdn, shard, edata);
+	}
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 }
 

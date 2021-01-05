@@ -144,13 +144,6 @@ sec_do_flush_locked(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard) {
 		edata_list_active_concat(&to_flush, &shard->freelist[i]);
 	}
 
-	/*
-	 * A better way to do this would be to add a batch dalloc function to
-	 * the pai_t.  Practically, the current method turns into O(n) locks and
-	 * unlocks at the fallback allocator.  But some implementations (e.g.
-	 * HPA) can straightforwardly do many deallocations in a single lock /
-	 * unlock pair.
-	 */
 	pai_dalloc_batch(tsdn, sec->fallback, &to_flush);
 }
 
