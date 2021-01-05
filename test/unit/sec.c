@@ -8,6 +8,7 @@ struct pai_test_allocator_s {
 	bool alloc_fail;
 	size_t alloc_count;
 	size_t dalloc_count;
+	size_t dalloc_batch_count;
 	/*
 	 * We use a simple bump allocator as the implementation.  This isn't
 	 * *really* correct, since we may allow expansion into a subsequent
@@ -64,11 +65,25 @@ pai_test_allocator_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 	free(edata);
 }
 
+static void
+pai_test_allocator_dalloc_batch(tsdn_t *tsdn, pai_t *self,
+    edata_list_active_t *list) {
+	pai_test_allocator_t *ta = (pai_test_allocator_t *)self;
+
+	edata_t *edata;
+	while ((edata = edata_list_active_first(list)) != NULL) {
+		edata_list_active_remove(list, edata);
+		ta->dalloc_batch_count++;
+		free(edata);
+	}
+}
+
 static inline void
 pai_test_allocator_init(pai_test_allocator_t *ta) {
 	ta->alloc_fail = false;
 	ta->alloc_count = 0;
 	ta->dalloc_count = 0;
+	ta->dalloc_batch_count = 0;
 	/* Just don't start the edata at 0. */
 	ta->next_ptr = 10 * PAGE;
 	ta->expand_count = 0;
@@ -79,6 +94,7 @@ pai_test_allocator_init(pai_test_allocator_t *ta) {
 	ta->pai.expand = &pai_test_allocator_expand;
 	ta->pai.shrink = &pai_test_allocator_shrink;
 	ta->pai.dalloc = &pai_test_allocator_dalloc;
+	ta->pai.dalloc_batch = &pai_test_allocator_dalloc_batch;
 }
 
 TEST_BEGIN(test_reuse) {
@@ -190,8 +206,10 @@ TEST_BEGIN(test_auto_flush) {
 	pai_dalloc(tsdn, &sec.pai, extra_alloc);
 	expect_zu_eq(NALLOCS + 1, ta.alloc_count,
 	    "Incorrect number of allocations");
-	expect_zu_eq(NALLOCS + 1, ta.dalloc_count,
-	    "Incorrect number of deallocations");
+	expect_zu_eq(0, ta.dalloc_count,
+	    "Incorrect number of (non-batch) deallocations");
+	expect_zu_eq(NALLOCS + 1, ta.dalloc_batch_count,
+	    "Incorrect number of batch deallocations");
 }
 TEST_END
 
@@ -233,8 +251,10 @@ do_disable_flush_test(bool is_disable) {
 
 	expect_zu_eq(NALLOCS, ta.alloc_count,
 	    "Incorrect number of allocations");
-	expect_zu_eq(NALLOCS - 1, ta.dalloc_count,
-	    "Incorrect number of deallocations");
+	expect_zu_eq(0, ta.dalloc_count,
+	    "Incorrect number of (non-batch) deallocations");
+	expect_zu_eq(NALLOCS - 1, ta.dalloc_batch_count,
+	    "Incorrect number of batch deallocations");
 
 	/*
 	 * If we free into a disabled SEC, it should forward to the fallback.
@@ -244,8 +264,10 @@ do_disable_flush_test(bool is_disable) {
 
 	expect_zu_eq(NALLOCS, ta.alloc_count,
 	    "Incorrect number of allocations");
-	expect_zu_eq(is_disable ? NALLOCS : NALLOCS - 1, ta.dalloc_count,
-	    "Incorrect number of deallocations");
+	expect_zu_eq(is_disable ? 1 : 0, ta.dalloc_count,
+	    "Incorrect number of (non-batch) deallocations");
+	expect_zu_eq(NALLOCS - 1, ta.dalloc_batch_count,
+	    "Incorrect number of batch deallocations");
 }
 
 TEST_BEGIN(test_disable) {

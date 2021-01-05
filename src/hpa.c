@@ -91,6 +91,7 @@ hpa_shard_init(hpa_shard_t *shard, emap_t *emap, base_t *base,
 	shard->pai.expand = &hpa_expand;
 	shard->pai.shrink = &hpa_shrink;
 	shard->pai.dalloc = &hpa_dalloc;
+	shard->pai.dalloc_batch = &pai_dalloc_batch_default;
 
 	return false;
 }
