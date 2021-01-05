@@ -80,7 +80,7 @@ struct sec_s {
 	size_t alloc_max;
 	/*
 	 * Exceeding this amount of cached extents in a shard causes *all* of
-	 * the shards in that bin to be flushed.
+	 * the bins in that shard to be flushed.
 	 */
 	size_t bytes_max;
 
