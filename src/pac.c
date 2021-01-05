@@ -94,6 +94,7 @@ pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
 	pac->pai.expand = &pac_expand_impl;
 	pac->pai.shrink = &pac_shrink_impl;
 	pac->pai.dalloc = &pac_dalloc_impl;
+	pac->pai.dalloc_batch = &pai_dalloc_batch_default;
 
 	return false;
 }

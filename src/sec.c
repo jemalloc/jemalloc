@@ -46,6 +46,7 @@ bool sec_init(sec_t *sec, pai_t *fallback, size_t nshards, size_t alloc_max,
 	sec->pai.expand = &sec_expand;
 	sec->pai.shrink = &sec_shrink;
 	sec->pai.dalloc = &sec_dalloc;
+	sec->pai.dalloc_batch = &pai_dalloc_batch_default;
 
 	return false;
 }
@@ -142,6 +143,7 @@ sec_do_flush_locked(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard) {
 	for (pszind_t i = 0; i < SEC_NPSIZES; i++) {
 		edata_list_active_concat(&to_flush, &shard->freelist[i]);
 	}
+
 	/*
 	 * A better way to do this would be to add a batch dalloc function to
 	 * the pai_t.  Practically, the current method turns into O(n) locks and
@@ -149,11 +151,7 @@ sec_do_flush_locked(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard) {
 	 * HPA) can straightforwardly do many deallocations in a single lock /
 	 * unlock pair.
 	 */
-	while (!edata_list_active_empty(&to_flush)) {
-		edata_t *e = edata_list_active_first(&to_flush);
-		edata_list_active_remove(&to_flush, e);
-		pai_dalloc(tsdn, sec->fallback, e);
-	}
+	pai_dalloc_batch(tsdn, sec->fallback, &to_flush);
 }
 
 static void

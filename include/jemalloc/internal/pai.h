@@ -13,6 +13,8 @@ struct pai_s {
 	bool (*shrink)(tsdn_t *tsdn, pai_t *self, edata_t *edata,
 	    size_t old_size, size_t new_size);
 	void (*dalloc)(tsdn_t *tsdn, pai_t *self, edata_t *edata);
+	void (*dalloc_batch)(tsdn_t *tsdn, pai_t *self,
+	    edata_list_active_t *list);
 };
 
 /*
@@ -41,5 +43,17 @@ static inline void
 pai_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 	self->dalloc(tsdn, self, edata);
 }
+
+static inline void
+pai_dalloc_batch(tsdn_t *tsdn, pai_t *self, edata_list_active_t *list) {
+	return self->dalloc_batch(tsdn, self, list);
+}
+
+/*
+ * An implementation of batch deallocation that simply calls dalloc once for
+ * each item in the list.
+ */
+void pai_dalloc_batch_default(tsdn_t *tsdn, pai_t *self,
+    edata_list_active_t *list);
 
 #endif /* JEMALLOC_INTERNAL_PAI_H */
