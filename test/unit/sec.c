@@ -200,8 +200,11 @@ TEST_BEGIN(test_auto_flush) {
 	expect_zu_eq(0, ta.dalloc_count,
 	    "Incorrect number of allocations");
 	/*
-	 * Free the extra allocation; this should trigger a flush of all
-	 * extents in the cache.
+	 * Free the extra allocation; this should trigger a flush.  The internal
+	 * flushing logic is allowed to get complicated; for now, we rely on our
+	 * whitebox knowledge of the fact that the SEC flushes bins in their
+	 * entirety when it decides to do so, and it has only one bin active
+	 * right now.
 	 */
 	pai_dalloc(tsdn, &sec.pai, extra_alloc);
 	expect_zu_eq(NALLOCS + 1, ta.alloc_count,
