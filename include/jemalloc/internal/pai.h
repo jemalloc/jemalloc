@@ -13,6 +13,7 @@ struct pai_s {
 	bool (*shrink)(tsdn_t *tsdn, pai_t *self, edata_t *edata,
 	    size_t old_size, size_t new_size);
 	void (*dalloc)(tsdn_t *tsdn, pai_t *self, edata_t *edata);
+	/* This function empties out list as a side-effect of being called. */
 	void (*dalloc_batch)(tsdn_t *tsdn, pai_t *self,
 	    edata_list_active_t *list);
 };
