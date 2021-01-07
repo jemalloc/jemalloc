@@ -150,7 +150,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 		for (szind_t i = 0; i < nhbins; i++) {
 			cache_bin_t *cache_bin = &descriptor->bins[i];
 			astats->tcache_bytes +=
-			    cache_bin_ncached_get(cache_bin,
+			    cache_bin_ncached_get_remote(cache_bin,
 			    &tcache_bin_info[i]) * sz_index2size(i);
 		}
 	}
@@ -767,7 +767,7 @@ void
 arena_cache_bin_fill_small(tsdn_t *tsdn, arena_t *arena,
     cache_bin_t *cache_bin, cache_bin_info_t *cache_bin_info, szind_t binind,
     const unsigned nfill) {
-	assert(cache_bin_ncached_get(cache_bin, cache_bin_info) == 0);
+	assert(cache_bin_ncached_get_local(cache_bin, cache_bin_info) == 0);
 
 	const bin_info_t *bin_info = &bin_infos[binind];
 
