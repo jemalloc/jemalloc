@@ -91,6 +91,7 @@ pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
 	atomic_store_zu(&pac->extent_sn_next, 0, ATOMIC_RELAXED);
 
 	pac->pai.alloc = &pac_alloc_impl;
+	pac->pai.alloc_batch = &pai_alloc_batch_default;
 	pac->pai.expand = &pac_expand_impl;
 	pac->pai.shrink = &pac_shrink_impl;
 	pac->pai.dalloc = &pac_dalloc_impl;

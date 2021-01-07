@@ -7,6 +7,7 @@ struct pai_test_allocator_s {
 	pai_t pai;
 	bool alloc_fail;
 	size_t alloc_count;
+	size_t alloc_batch_count;
 	size_t dalloc_count;
 	size_t dalloc_batch_count;
 	/*
@@ -40,6 +41,28 @@ pai_test_allocator_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
 	ta->next_ptr += size;
 	ta->alloc_count++;
 	return edata;
+}
+
+static inline size_t
+pai_test_allocator_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size,
+    size_t nallocs, edata_list_active_t *results) {
+	pai_test_allocator_t *ta = (pai_test_allocator_t *)self;
+	if (ta->alloc_fail) {
+		return 0;
+	}
+	for (size_t i = 0; i < nallocs; i++) {
+		edata_t *edata = malloc(sizeof(edata_t));
+		assert_ptr_not_null(edata, "");
+		edata_init(edata, /* arena_ind */ 0,
+		    (void *)ta->next_ptr, size,
+		    /* slab */ false, /* szind */ 0, /* sn */ 1,
+		    extent_state_active, /* zero */ false, /* comitted */ true,
+		    /* ranged */ false, EXTENT_NOT_HEAD);
+		ta->next_ptr += size;
+		ta->alloc_batch_count++;
+		edata_list_active_append(results, edata);
+	}
+	return nallocs;
 }
 
 static bool
@@ -82,6 +105,7 @@ static inline void
 pai_test_allocator_init(pai_test_allocator_t *ta) {
 	ta->alloc_fail = false;
 	ta->alloc_count = 0;
+	ta->alloc_batch_count = 0;
 	ta->dalloc_count = 0;
 	ta->dalloc_batch_count = 0;
 	/* Just don't start the edata at 0. */
@@ -91,6 +115,7 @@ pai_test_allocator_init(pai_test_allocator_t *ta) {
 	ta->shrink_count = 0;
 	ta->shrink_return_value = false;
 	ta->pai.alloc = &pai_test_allocator_alloc;
+	ta->pai.alloc_batch = &pai_test_allocator_alloc_batch;
 	ta->pai.expand = &pai_test_allocator_expand;
 	ta->pai.shrink = &pai_test_allocator_shrink;
 	ta->pai.dalloc = &pai_test_allocator_dalloc;

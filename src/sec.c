@@ -52,6 +52,7 @@ sec_init(sec_t *sec, pai_t *fallback, size_t nshards, size_t alloc_max,
 	 * initialization failed will segfault in an easy-to-spot way.
 	 */
 	sec->pai.alloc = &sec_alloc;
+	sec->pai.alloc_batch = &pai_alloc_batch_default;
 	sec->pai.expand = &sec_expand;
 	sec->pai.shrink = &sec_shrink;
 	sec->pai.dalloc = &sec_dalloc;
