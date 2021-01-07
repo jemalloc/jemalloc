@@ -90,6 +90,7 @@ hpa_shard_init(hpa_shard_t *shard, emap_t *emap, base_t *base,
 	 * operating on corrupted data.
 	 */
 	shard->pai.alloc = &hpa_alloc;
+	shard->pai.alloc_batch = &pai_alloc_batch_default;
 	shard->pai.expand = &hpa_expand;
 	shard->pai.shrink = &hpa_shrink;
 	shard->pai.dalloc = &hpa_dalloc;
