@@ -125,7 +125,7 @@ tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	assert(szind < SC_NBINS);
 
 	cache_bin_t *cache_bin = &tcache->bins[szind];
-	cache_bin_sz_t ncached = cache_bin_ncached_get(cache_bin,
+	cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin,
 	    &tcache_bin_info[szind]);
 	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin,
 	    &tcache_bin_info[szind]);
@@ -159,7 +159,7 @@ tcache_gc_large(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	/* Like the small GC; flush 3/4 of untouched items. */
 	assert(szind >= SC_NBINS);
 	cache_bin_t *cache_bin = &tcache->bins[szind];
-	cache_bin_sz_t ncached = cache_bin_ncached_get(cache_bin,
+	cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin,
 	    &tcache_bin_info[szind]);
 	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin,
 	    &tcache_bin_info[szind]);
@@ -289,7 +289,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 	} else {
 		assert(binind < nhbins);
 	}
-	cache_bin_sz_t ncached = cache_bin_ncached_get(cache_bin,
+	cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin,
 	    &tcache_bin_info[binind]);
 	assert((cache_bin_sz_t)rem <= ncached);
 	arena_t *tcache_arena = tcache_slow->arena;

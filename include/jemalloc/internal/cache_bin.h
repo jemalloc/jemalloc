@@ -167,20 +167,50 @@ cache_bin_diff(cache_bin_t *bin, uint16_t earlier, uint16_t later) {
 	return later - earlier;
 }
 
-/* Number of items currently cached in the bin, without checking ncached_max. */
+/*
+ * Number of items currently cached in the bin, without checking ncached_max.
+ * We require specifying whether or not the request is racy or not (i.e. whether
+ * or not concurrent modifications are possible).
+ */
 static inline cache_bin_sz_t
-cache_bin_ncached_get_internal(cache_bin_t *bin) {
+cache_bin_ncached_get_internal(cache_bin_t *bin, bool racy) {
 	cache_bin_sz_t diff = cache_bin_diff(bin,
 	    (uint16_t)(uintptr_t)bin->stack_head, bin->low_bits_empty);
 	cache_bin_sz_t n = diff / sizeof(void *);
-	assert(n == 0 || *(bin->stack_head) != NULL);
+	/*
+	 * We have undefined behavior here; if this function is called from the
+	 * arena stats updating code, then stack_head could change from the
+	 * first line to the next one.  Morally, these loads should be atomic,
+	 * but compilers won't currently generate comparisons with in-memory
+	 * operands against atomics, and these variables get accessed on the
+	 * fast paths.  This should still be "safe" in the sense of generating
+	 * the correct assembly for the foreseeable future, though.
+	 */
+	assert(n == 0 || *(bin->stack_head) != NULL || racy);
 	return n;
 }
 
-/* Number of items currently cached in the bin, with checking ncached_max. */
+/*
+ * Number of items currently cached in the bin, with checking ncached_max.  The
+ * caller must know that no concurrent modification of the cache_bin is
+ * possible.
+ */
 static inline cache_bin_sz_t
-cache_bin_ncached_get(cache_bin_t *bin, cache_bin_info_t *info) {
-	cache_bin_sz_t n = cache_bin_ncached_get_internal(bin);
+cache_bin_ncached_get_local(cache_bin_t *bin, cache_bin_info_t *info) {
+	cache_bin_sz_t n = cache_bin_ncached_get_internal(bin,
+	    /* racy */ false);
+	assert(n <= cache_bin_info_ncached_max(info));
+	return n;
+}
+
+/*
+ * Obtain a racy view of the number of items currently in the cache bin, in the
+ * presence of possible concurrent modifications.
+ */
+static inline cache_bin_sz_t
+cache_bin_ncached_get_remote(cache_bin_t *bin, cache_bin_info_t *info) {
+	cache_bin_sz_t n = cache_bin_ncached_get_internal(bin,
+	    /* racy */ true);
 	assert(n <= cache_bin_info_ncached_max(info));
 	return n;
 }
@@ -208,7 +238,7 @@ cache_bin_empty_position_get(cache_bin_t *bin) {
  */
 static inline void
 cache_bin_assert_empty(cache_bin_t *bin, cache_bin_info_t *info) {
-	assert(cache_bin_ncached_get(bin, info) == 0);
+	assert(cache_bin_ncached_get_local(bin, info) == 0);
 	assert(cache_bin_empty_position_get(bin) == bin->stack_head);
 }
 
@@ -228,7 +258,7 @@ static inline cache_bin_sz_t
 cache_bin_low_water_get(cache_bin_t *bin, cache_bin_info_t *info) {
 	cache_bin_sz_t low_water = cache_bin_low_water_get_internal(bin);
 	assert(low_water <= cache_bin_info_ncached_max(info));
-	assert(low_water <= cache_bin_ncached_get(bin, info));
+	assert(low_water <= cache_bin_ncached_get_local(bin, info));
 
 	cache_bin_assert_earlier(bin, (uint16_t)(uintptr_t)bin->stack_head,
 	    bin->low_bits_low_water);
@@ -247,7 +277,7 @@ cache_bin_low_water_set(cache_bin_t *bin) {
 
 static inline void
 cache_bin_low_water_adjust(cache_bin_t *bin) {
-	if (cache_bin_ncached_get_internal(bin)
+	if (cache_bin_ncached_get_internal(bin, /* racy */ false)
 	    < cache_bin_low_water_get_internal(bin)) {
 		cache_bin_low_water_set(bin);
 	}
@@ -319,7 +349,7 @@ cache_bin_alloc(cache_bin_t *bin, bool *success) {
 
 JEMALLOC_ALWAYS_INLINE cache_bin_sz_t
 cache_bin_alloc_batch(cache_bin_t *bin, size_t num, void **out) {
-	size_t n = cache_bin_ncached_get_internal(bin);
+	size_t n = cache_bin_ncached_get_internal(bin, /* racy */ false);
 	if (n > num) {
 		n = num;
 	}
@@ -416,7 +446,7 @@ static inline void
 cache_bin_init_ptr_array_for_flush(cache_bin_t *bin, cache_bin_info_t *info,
     cache_bin_ptr_array_t *arr, cache_bin_sz_t nflush) {
 	arr->ptr = cache_bin_empty_position_get(bin) - 1;
-	assert(cache_bin_ncached_get(bin, info) == 0
+	assert(cache_bin_ncached_get_local(bin, info) == 0
 	    || *arr->ptr != NULL);
 }
 
@@ -437,7 +467,7 @@ cache_bin_ptr_array_set(cache_bin_ptr_array_t *arr, cache_bin_sz_t n, void *p) {
 static inline void
 cache_bin_finish_flush(cache_bin_t *bin, cache_bin_info_t *info,
     cache_bin_ptr_array_t *arr, cache_bin_sz_t nflushed) {
-	unsigned rem = cache_bin_ncached_get(bin, info) - nflushed;
+	unsigned rem = cache_bin_ncached_get_local(bin, info) - nflushed;
 	memmove(bin->stack_head + nflushed, bin->stack_head,
 	    rem * sizeof(void *));
 	bin->stack_head = bin->stack_head + nflushed;
