@@ -46,6 +46,24 @@ sec_stats_accum(sec_stats_t *dst, sec_stats_t *src) {
 typedef struct sec_bin_s sec_bin_t;
 struct sec_bin_s {
 	/*
+	 * When we fail to fulfill an allocation, we do a batch-alloc on the
+	 * underlying allocator to fill extra items, as well.  We drop the SEC
+	 * lock while doing so, to allow operations on other bins to succeed.
+	 * That introduces the possibility of other threads also trying to
+	 * allocate out of this bin, failing, and also going to the backing
+	 * allocator.  To avoid a thundering herd problem in which lots of
+	 * threads do batch allocs and overfill this bin as a result, we only
+	 * allow one batch allocation at a time for a bin.  This bool tracks
+	 * whether or not some thread is already batch allocating.
+	 *
+	 * Eventually, the right answer may be a smarter sharding policy for the
+	 * bins (e.g. a mutex per bin, which would also be more scalable
+	 * generally; the batch-allocating thread could hold it while
+	 * batch-allocating).
+	 */
+	bool being_batch_filled;
+
+	/*
 	 * Number of bytes in this particular bin (as opposed to the
 	 * sec_shard_t's bytes_cur.  This isn't user visible or reported in
 	 * stats; rather, it allows us to quickly determine the change in the
@@ -107,6 +125,16 @@ struct sec_s {
 	 * configurable.
 	 */
 	size_t bytes_after_flush;
+
+	/*
+	 * When we can't satisfy an allocation out of the SEC because there are
+	 * no available ones cached, we allocate multiple of that size out of
+	 * the fallback allocator.  Eventually we might want to do something
+	 * cleverer, but for now we just grab a fixed number.
+	 *
+	 * For now, just the constant 4.  Eventually, it should be configurable.
+	 */
+	size_t batch_fill_extra;
 
 	/*
 	 * We don't necessarily always use all the shards; requests are

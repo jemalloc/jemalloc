@@ -134,14 +134,17 @@ TEST_BEGIN(test_reuse) {
 	 */
 	tsdn_t *tsdn = TSDN_NULL;
 	/*
-	 * 10-allocs apiece of 1-PAGE and 2-PAGE objects means that we should be
-	 * able to get to 30 pages in the cache before triggering a flush.
+	 * 11 allocs apiece of 1-PAGE and 2-PAGE objects means that we should be
+	 * able to get to 33 pages in the cache before triggering a flush.  We
+	 * set the flush liimt to twice this amount, to avoid accidentally
+	 * triggering a flush caused by the batch-allocation down the cache fill
+	 * pathway disrupting ordering.
 	 */
-	enum { NALLOCS = 10 };
+	enum { NALLOCS = 11 };
 	edata_t *one_page[NALLOCS];
 	edata_t *two_page[NALLOCS];
 	sec_init(&sec, &ta.pai, /* nshards */ 1, /* alloc_max */ 2 * PAGE,
-	    /* bytes_max */ NALLOCS * PAGE + NALLOCS * 2 * PAGE);
+	    /* bytes_max */ 2 * (NALLOCS * PAGE + NALLOCS * 2 * PAGE));
 	for (int i = 0; i < NALLOCS; i++) {
 		one_page[i] = pai_alloc(tsdn, &sec.pai, PAGE, PAGE,
 		    /* zero */ false);
@@ -150,7 +153,9 @@ TEST_BEGIN(test_reuse) {
 		    /* zero */ false);
 		expect_ptr_not_null(one_page[i], "Unexpected alloc failure");
 	}
-	expect_zu_eq(2 * NALLOCS, ta.alloc_count,
+	expect_zu_eq(0, ta.alloc_count, "Should be using batch allocs");
+	size_t max_allocs = ta.alloc_count + ta.alloc_batch_count;
+	expect_zu_le(2 * NALLOCS, max_allocs,
 	    "Incorrect number of allocations");
 	expect_zu_eq(0, ta.dalloc_count,
 	    "Incorrect number of allocations");
@@ -164,7 +169,7 @@ TEST_BEGIN(test_reuse) {
 	for (int i = NALLOCS - 1; i >= 0; i--) {
 		pai_dalloc(tsdn, &sec.pai, two_page[i]);
 	}
-	expect_zu_eq(2 * NALLOCS, ta.alloc_count,
+	expect_zu_eq(max_allocs, ta.alloc_count + ta.alloc_batch_count,
 	    "Incorrect number of allocations");
 	expect_zu_eq(0, ta.dalloc_count,
 	    "Incorrect number of allocations");
@@ -182,7 +187,7 @@ TEST_BEGIN(test_reuse) {
 		expect_ptr_eq(two_page[i], alloc2,
 		    "Got unexpected allocation");
 	}
-	expect_zu_eq(2 * NALLOCS, ta.alloc_count,
+	expect_zu_eq(max_allocs, ta.alloc_count + ta.alloc_batch_count,
 	    "Incorrect number of allocations");
 	expect_zu_eq(0, ta.dalloc_count,
 	    "Incorrect number of allocations");
@@ -198,7 +203,12 @@ TEST_BEGIN(test_auto_flush) {
 	tsdn_t *tsdn = TSDN_NULL;
 	/*
 	 * 10-allocs apiece of 1-PAGE and 2-PAGE objects means that we should be
-	 * able to get to 30 pages in the cache before triggering a flush.
+	 * able to get to 30 pages in the cache before triggering a flush.  The
+	 * choice of NALLOCS here is chosen to match the batch allocation
+	 * default (4 extra + 1 == 5; so 10 allocations leaves the cache exactly
+	 * empty, even in the presence of batch allocation on fill).
+	 * Eventually, once our allocation batching strategies become smarter,
+	 * this should change.
 	 */
 	enum { NALLOCS = 10 };
 	edata_t *extra_alloc;
@@ -212,7 +222,8 @@ TEST_BEGIN(test_auto_flush) {
 	}
 	extra_alloc = pai_alloc(tsdn, &sec.pai, PAGE, PAGE, /* zero */ false);
 	expect_ptr_not_null(extra_alloc, "Unexpected alloc failure");
-	expect_zu_eq(NALLOCS + 1, ta.alloc_count,
+	size_t max_allocs = ta.alloc_count + ta.alloc_batch_count;
+	expect_zu_le(NALLOCS + 1, max_allocs,
 	    "Incorrect number of allocations");
 	expect_zu_eq(0, ta.dalloc_count,
 	    "Incorrect number of allocations");
@@ -220,7 +231,7 @@ TEST_BEGIN(test_auto_flush) {
 	for (int i = 0; i < NALLOCS; i++) {
 		pai_dalloc(tsdn, &sec.pai, allocs[i]);
 	}
-	expect_zu_eq(NALLOCS + 1, ta.alloc_count,
+	expect_zu_le(NALLOCS + 1, max_allocs,
 	    "Incorrect number of allocations");
 	expect_zu_eq(0, ta.dalloc_count,
 	    "Incorrect number of allocations");
@@ -232,7 +243,7 @@ TEST_BEGIN(test_auto_flush) {
 	 * right now.
 	 */
 	pai_dalloc(tsdn, &sec.pai, extra_alloc);
-	expect_zu_eq(NALLOCS + 1, ta.alloc_count,
+	expect_zu_eq(max_allocs, ta.alloc_count + ta.alloc_batch_count,
 	    "Incorrect number of allocations");
 	expect_zu_eq(0, ta.dalloc_count,
 	    "Incorrect number of (non-batch) deallocations");
@@ -253,7 +264,7 @@ do_disable_flush_test(bool is_disable) {
 	/* See the note above -- we can't use the real tsd. */
 	tsdn_t *tsdn = TSDN_NULL;
 
-	enum { NALLOCS = 10 };
+	enum { NALLOCS = 11 };
 	edata_t *allocs[NALLOCS];
 	sec_init(&sec, &ta.pai, /* nshards */ 1, /* alloc_max */ PAGE,
 	    /* bytes_max */ NALLOCS * PAGE);
@@ -266,8 +277,9 @@ do_disable_flush_test(bool is_disable) {
 	for (int i = 0; i < NALLOCS - 1; i++) {
 		pai_dalloc(tsdn, &sec.pai, allocs[i]);
 	}
-	expect_zu_eq(NALLOCS, ta.alloc_count,
-	    "Incorrect number of allocations");
+	size_t max_allocs = ta.alloc_count + ta.alloc_batch_count;
+
+	expect_zu_le(NALLOCS, max_allocs, "Incorrect number of allocations");
 	expect_zu_eq(0, ta.dalloc_count,
 	    "Incorrect number of allocations");
 
@@ -277,12 +289,13 @@ do_disable_flush_test(bool is_disable) {
 		sec_flush(tsdn, &sec);
 	}
 
-	expect_zu_eq(NALLOCS, ta.alloc_count,
+	expect_zu_eq(max_allocs, ta.alloc_count + ta.alloc_batch_count,
 	    "Incorrect number of allocations");
 	expect_zu_eq(0, ta.dalloc_count,
 	    "Incorrect number of (non-batch) deallocations");
-	expect_zu_eq(NALLOCS - 1, ta.dalloc_batch_count,
+	expect_zu_le(NALLOCS - 1, ta.dalloc_batch_count,
 	    "Incorrect number of batch deallocations");
+	size_t old_dalloc_batch_count = ta.dalloc_batch_count;
 
 	/*
 	 * If we free into a disabled SEC, it should forward to the fallback.
@@ -290,11 +303,11 @@ do_disable_flush_test(bool is_disable) {
 	 */
 	pai_dalloc(tsdn, &sec.pai, allocs[NALLOCS - 1]);
 
-	expect_zu_eq(NALLOCS, ta.alloc_count,
+	expect_zu_eq(max_allocs, ta.alloc_count + ta.alloc_batch_count,
 	    "Incorrect number of allocations");
 	expect_zu_eq(is_disable ? 1 : 0, ta.dalloc_count,
 	    "Incorrect number of (non-batch) deallocations");
-	expect_zu_eq(NALLOCS - 1, ta.dalloc_batch_count,
+	expect_zu_eq(old_dalloc_batch_count, ta.dalloc_batch_count,
 	    "Incorrect number of batch deallocations");
 }
 
@@ -404,7 +417,7 @@ expect_stats_pages(tsdn_t *tsdn, sec_t *sec, size_t npages) {
 	 */
 	stats.bytes = 123;
 	sec_stats_merge(tsdn, sec, &stats);
-	assert_zu_eq(npages * PAGE + 123, stats.bytes, "");
+	assert_zu_le(npages * PAGE + 123, stats.bytes, "");
 }
 
 TEST_BEGIN(test_stats_simple) {
@@ -417,7 +430,7 @@ TEST_BEGIN(test_stats_simple) {
 
 	enum {
 		NITERS = 100,
-		FLUSH_PAGES = 10,
+		FLUSH_PAGES = 20,
 	};
 
 	sec_init(&sec, &ta.pai, /* nshards */ 1, /* alloc_max */ PAGE,
@@ -470,26 +483,22 @@ TEST_BEGIN(test_stats_auto_flush) {
 	for (size_t i = 0; i < 2 * FLUSH_PAGES; i++) {
 		allocs[i] = pai_alloc(tsdn, &sec.pai, PAGE, PAGE,
 		    /* zero */ false);
-		expect_stats_pages(tsdn, &sec, 0);
 	}
 
 	for (size_t i = 0; i < FLUSH_PAGES; i++) {
 		pai_dalloc(tsdn, &sec.pai, allocs[i]);
-		expect_stats_pages(tsdn, &sec, i + 1);
 	}
 	pai_dalloc(tsdn, &sec.pai, extra_alloc0);
-	/* The last dalloc should have triggered a flush. */
-	expect_stats_pages(tsdn, &sec, 0);
 
 	/* Flush the remaining pages; stats should still work. */
 	for (size_t i = 0; i < FLUSH_PAGES; i++) {
 		pai_dalloc(tsdn, &sec.pai, allocs[FLUSH_PAGES + i]);
-		expect_stats_pages(tsdn, &sec, i + 1);
 	}
 
 	pai_dalloc(tsdn, &sec.pai, extra_alloc1);
-	/* The last dalloc should have triggered a flush, again. */
-	expect_stats_pages(tsdn, &sec, 0);
+
+	expect_stats_pages(tsdn, &sec, ta.alloc_count + ta.alloc_batch_count
+	    - ta.dalloc_count - ta.dalloc_batch_count);
 }
 TEST_END
 
