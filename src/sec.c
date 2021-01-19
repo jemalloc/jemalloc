@@ -13,6 +13,7 @@ static void sec_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata);
 
 static void
 sec_bin_init(sec_bin_t *bin) {
+	bin->being_batch_filled = false;
 	bin->bytes_cur = 0;
 	edata_list_active_init(&bin->freelist);
 }
@@ -45,6 +46,7 @@ sec_init(sec_t *sec, pai_t *fallback, size_t nshards, size_t alloc_max,
 
 	sec->bytes_max = bytes_max;
 	sec->bytes_after_flush = bytes_max / 2;
+	sec->batch_fill_extra = 4;
 	sec->nshards = nshards;
 
 	/*
@@ -88,14 +90,52 @@ sec_shard_pick(tsdn_t *tsdn, sec_t *sec) {
 	return &sec->shards[*idxp];
 }
 
+/*
+ * Perhaps surprisingly, this can be called on the alloc pathways; if we hit an
+ * empty cache, we'll try to fill it, which can push the shard over it's limit.
+ */
+static void
+sec_flush_some_and_unlock(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard) {
+	malloc_mutex_assert_owner(tsdn, &shard->mtx);
+	edata_list_active_t to_flush;
+	edata_list_active_init(&to_flush);
+	while (shard->bytes_cur > sec->bytes_after_flush) {
+		/* Pick a victim. */
+		sec_bin_t *bin = &shard->bins[shard->to_flush_next];
+
+		/* Update our victim-picking state. */
+		shard->to_flush_next++;
+		if (shard->to_flush_next == SEC_NPSIZES) {
+			shard->to_flush_next = 0;
+		}
+
+		assert(shard->bytes_cur >= bin->bytes_cur);
+		if (bin->bytes_cur != 0) {
+			shard->bytes_cur -= bin->bytes_cur;
+			bin->bytes_cur = 0;
+			edata_list_active_concat(&to_flush, &bin->freelist);
+		}
+		/*
+		 * Either bin->bytes_cur was 0, in which case we didn't touch
+		 * the bin list but it should be empty anyways (or else we
+		 * missed a bytes_cur update on a list modification), or it
+		 * *was* 0 and we emptied it ourselves.  Either way, it should
+		 * be empty now.
+		 */
+		assert(edata_list_active_empty(&bin->freelist));
+	}
+
+	malloc_mutex_unlock(tsdn, &shard->mtx);
+	pai_dalloc_batch(tsdn, sec->fallback, &to_flush);
+}
+
 static edata_t *
 sec_shard_alloc_locked(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard,
-    pszind_t pszind) {
+    sec_bin_t *bin) {
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
 	if (!shard->enabled) {
 		return NULL;
 	}
-	sec_bin_t *bin = &shard->bins[pszind];
 	edata_t *edata = edata_list_active_first(&bin->freelist);
 	if (edata != NULL) {
 		edata_list_active_remove(&bin->freelist, edata);
@@ -105,6 +145,50 @@ sec_shard_alloc_locked(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard,
 		shard->bytes_cur -= edata_size_get(edata);
 	}
 	return edata;
+}
+
+static edata_t *
+sec_batch_fill_and_alloc(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard,
+    sec_bin_t *bin, size_t size) {
+	malloc_mutex_assert_not_owner(tsdn, &shard->mtx);
+
+	edata_list_active_t result;
+	edata_list_active_init(&result);
+	size_t nalloc = pai_alloc_batch(tsdn, sec->fallback, size,
+	    1 + sec->batch_fill_extra, &result);
+
+	edata_t *ret = edata_list_active_first(&result);
+	if (ret != NULL) {
+		edata_list_active_remove(&result, ret);
+	}
+
+	malloc_mutex_lock(tsdn, &shard->mtx);
+	bin->being_batch_filled = false;
+	/*
+	 * Handle the easy case first: nothing to cache.  Note that this can
+	 * only happen in case of OOM, since sec_alloc checks the expected
+	 * number of allocs, and doesn't bother going down the batch_fill
+	 * pathway if there won't be anything left to cache.  So to be in this
+	 * code path, we must have asked for > 1 alloc, but only gotten 1 back.
+	 */
+	if (nalloc <= 1) {
+		malloc_mutex_unlock(tsdn, &shard->mtx);
+		return ret;
+	}
+
+	size_t new_cached_bytes = (nalloc - 1) * size;
+
+	edata_list_active_concat(&bin->freelist, &result);
+	bin->bytes_cur += new_cached_bytes;
+	shard->bytes_cur += new_cached_bytes;
+
+	if (shard->bytes_cur > sec->bytes_max) {
+		sec_flush_some_and_unlock(tsdn, sec, shard);
+	} else {
+		malloc_mutex_unlock(tsdn, &shard->mtx);
+	}
+
+	return ret;
 }
 
 static edata_t *
@@ -119,16 +203,26 @@ sec_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero) {
 	}
 	pszind_t pszind = sz_psz2ind(size);
 	sec_shard_t *shard = sec_shard_pick(tsdn, sec);
+	sec_bin_t *bin = &shard->bins[pszind];
+	bool do_batch_fill = false;
+
 	malloc_mutex_lock(tsdn, &shard->mtx);
-	edata_t *edata = sec_shard_alloc_locked(tsdn, sec, shard, pszind);
+	edata_t *edata = sec_shard_alloc_locked(tsdn, sec, shard, bin);
+	if (edata == NULL) {
+		if (!bin->being_batch_filled && sec->batch_fill_extra > 0) {
+			bin->being_batch_filled = true;
+			do_batch_fill = true;
+		}
+	}
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 	if (edata == NULL) {
-		/*
-		 * See the note in dalloc, below; really, we should add a
-		 * batch_alloc method to the PAI and get more than one extent at
-		 * a time.
-		 */
-		edata = pai_alloc(tsdn, sec->fallback, size, alignment, zero);
+		if (do_batch_fill) {
+			edata = sec_batch_fill_and_alloc(tsdn, sec, shard, bin,
+			    size);
+		} else {
+			edata = pai_alloc(tsdn, sec->fallback, size, alignment,
+			    zero);
+		}
 	}
 	return edata;
 }
@@ -165,41 +259,6 @@ sec_flush_all_locked(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard) {
 	 * we're disabling the HPA or resetting the arena, both of which are
 	 * rare pathways.
 	 */
-	pai_dalloc_batch(tsdn, sec->fallback, &to_flush);
-}
-
-static void
-sec_flush_some_and_unlock(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard) {
-	malloc_mutex_assert_owner(tsdn, &shard->mtx);
-	edata_list_active_t to_flush;
-	edata_list_active_init(&to_flush);
-	while (shard->bytes_cur > sec->bytes_after_flush) {
-		/* Pick a victim. */
-		sec_bin_t *bin = &shard->bins[shard->to_flush_next];
-
-		/* Update our victim-picking state. */
-		shard->to_flush_next++;
-		if (shard->to_flush_next == SEC_NPSIZES) {
-			shard->to_flush_next = 0;
-		}
-
-		assert(shard->bytes_cur >= bin->bytes_cur);
-		if (bin->bytes_cur != 0) {
-			shard->bytes_cur -= bin->bytes_cur;
-			bin->bytes_cur = 0;
-			edata_list_active_concat(&to_flush, &bin->freelist);
-		}
-		/*
-		 * Either bin->bytes_cur was 0, in which case we didn't touch
-		 * the bin list but it should be empty anyways (or else we
-		 * missed a bytes_cur update on a list modification), or it
-		 * *was* 0 and we emptied it ourselves.  Either way, it should
-		 * be empty now.
-		 */
-		assert(edata_list_active_empty(&bin->freelist));
-	}
-
-	malloc_mutex_unlock(tsdn, &shard->mtx);
 	pai_dalloc_batch(tsdn, sec->fallback, &to_flush);
 }
 
