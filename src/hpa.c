@@ -10,6 +10,8 @@
 
 static edata_t *hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
     size_t alignment, bool zero);
+static size_t hpa_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size,
+    size_t nallocs, edata_list_active_t *results);
 static bool hpa_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata,
     size_t old_size, size_t new_size, bool zero);
 static bool hpa_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata,
@@ -425,13 +427,11 @@ hpa_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard) {
 }
 
 static edata_t *
-hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) {
+hpa_try_alloc_one_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
+    bool *oom) {
 	bool err;
-	malloc_mutex_lock(tsdn, &shard->mtx);
 	edata_t *edata = edata_cache_small_get(tsdn, &shard->ecs);
-	*oom = false;
 	if (edata == NULL) {
-		malloc_mutex_unlock(tsdn, &shard->mtx);
 		*oom = true;
 		return NULL;
 	}
@@ -440,7 +440,6 @@ hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) 
 	hpdata_t *ps = psset_pick_alloc(&shard->psset, size);
 	if (ps == NULL) {
 		edata_cache_small_put(tsdn, &shard->ecs, edata);
-		malloc_mutex_unlock(tsdn, &shard->mtx);
 		return NULL;
 	}
 
@@ -487,42 +486,61 @@ hpa_try_alloc_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) 
 		 */
 		psset_update_end(&shard->psset, ps);
 		edata_cache_small_put(tsdn, &shard->ecs, edata);
-		malloc_mutex_unlock(tsdn, &shard->mtx);
 		*oom = true;
 		return NULL;
 	}
 
 	hpa_update_purge_hugify_eligibility(shard, ps);
 	psset_update_end(&shard->psset, ps);
-
-	hpa_do_deferred_work(tsdn, shard);
-	malloc_mutex_unlock(tsdn, &shard->mtx);
-
 	return edata;
 }
 
-static edata_t *
-hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
-	assert(size <= shard->opts.slab_max_alloc);
-	bool err;
-	bool oom;
-	edata_t *edata;
-
-	edata = hpa_try_alloc_no_grow(tsdn, shard, size, &oom);
-	if (edata != NULL) {
-		return edata;
+static size_t
+hpa_try_alloc_batch_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
+    bool *oom, size_t nallocs, edata_list_active_t *results) {
+	malloc_mutex_lock(tsdn, &shard->mtx);
+	size_t nsuccess = 0;
+	for (; nsuccess < nallocs; nsuccess++) {
+		edata_t *edata = hpa_try_alloc_one_no_grow(tsdn, shard, size,
+		    oom);
+		if (edata == NULL) {
+			break;
+		}
+		edata_list_active_append(results, edata);
 	}
 
-	/* Nothing in the psset works; we have to grow it. */
+	hpa_do_deferred_work(tsdn, shard);
+	malloc_mutex_unlock(tsdn, &shard->mtx);
+	return nsuccess;
+}
+
+static size_t
+hpa_alloc_batch_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
+    size_t nallocs, edata_list_active_t *results) {
+	assert(size <= shard->opts.slab_max_alloc);
+	bool oom = false;
+
+	size_t nsuccess = hpa_try_alloc_batch_no_grow(tsdn, shard, size, &oom,
+	    nallocs, results);
+
+	if (nsuccess == nallocs || oom) {
+		return nsuccess;
+	}
+
+	/*
+	 * We didn't OOM, but weren't able to fill everything requested of us;
+	 * try to grow.
+	 */
 	malloc_mutex_lock(tsdn, &shard->grow_mtx);
 	/*
 	 * Check for grow races; maybe some earlier thread expanded the psset
 	 * in between when we dropped the main mutex and grabbed the grow mutex.
 	 */
-	edata = hpa_try_alloc_no_grow(tsdn, shard, size, &oom);
-	if (edata != NULL || oom) {
+	nsuccess += hpa_try_alloc_batch_no_grow(tsdn, shard, size, &oom,
+	    nallocs - nsuccess, results);
+	if (nsuccess == nallocs || oom) {
 		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
-		return edata;
+		return nsuccess;
 	}
 
 	/*
@@ -533,78 +551,28 @@ hpa_alloc_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
 	hpdata_t *ps = hpa_grow(tsdn, shard);
 	if (ps == NULL) {
 		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
-		return NULL;
-	}
-
-	/* We got the pageslab; allocate from it. */
-	malloc_mutex_lock(tsdn, &shard->mtx);
-
-	psset_insert(&shard->psset, ps);
-
-	edata = edata_cache_small_get(tsdn, &shard->ecs);
-	if (edata == NULL) {
-		malloc_mutex_unlock(tsdn, &shard->mtx);
-		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
-		return NULL;
+		return nsuccess;
 	}
 
 	/*
-	 * TODO: the tail of this function is quite similar to the tail of
-	 * hpa_try_alloc_no_grow (both, broadly, do the metadata management of
-	 * initializing an edata_t from an hpdata_t once both have been
-	 * allocated).  The only differences are in error case handling and lock
-	 * management (we hold grow_mtx, but should drop it before doing any
-	 * deferred work).  With a little refactoring, we could unify the paths.
+	 * We got the pageslab; allocate from it.  This does an unlock followed
+	 * by a lock on the same mutex, and holds the grow mutex while doing
+	 * deferred work, but this is an uncommon path; the simplicity is worth
+	 * it.
 	 */
-	psset_update_begin(&shard->psset, ps);
+	malloc_mutex_lock(tsdn, &shard->mtx);
+	psset_insert(&shard->psset, ps);
+	malloc_mutex_unlock(tsdn, &shard->mtx);
 
-	void *addr = hpdata_reserve_alloc(ps, size);
-	edata_init(edata, shard->ind, addr, size, /* slab */ false,
-	    SC_NSIZES, /* sn */ 0, extent_state_active, /* zeroed */ false,
-	    /* committed */ true, EXTENT_PAI_HPA, EXTENT_NOT_HEAD);
-	edata_ps_set(edata, ps);
-
-	err = emap_register_boundary(tsdn, shard->emap, edata,
-	    SC_NSIZES, /* slab */ false);
-	if (err) {
-		hpdata_unreserve(ps, edata_addr_get(edata),
-		    edata_size_get(edata));
-
-		edata_cache_small_put(tsdn, &shard->ecs, edata);
-
-		/* We'll do a fake purge; the pages weren't really touched. */
-		hpdata_purge_state_t purge_state;
-		void *purge_addr;
-		size_t purge_size;
-		hpdata_purge_begin(ps, &purge_state);
-		bool found_extent = hpdata_purge_next(ps, &purge_state,
-		    &purge_addr, &purge_size);
-		assert(found_extent);
-		assert(purge_addr == addr);
-		assert(purge_size == size);
-		found_extent = hpdata_purge_next(ps, &purge_state,
-		    &purge_addr, &purge_size);
-		assert(!found_extent);
-		hpdata_purge_end(ps, &purge_state);
-
-		psset_update_end(&shard->psset, ps);
-		malloc_mutex_unlock(tsdn, &shard->mtx);
-		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
-		return NULL;
-	}
-	hpa_update_purge_hugify_eligibility(shard, ps);
-	psset_update_end(&shard->psset, ps);
-
+	nsuccess += hpa_try_alloc_batch_no_grow(tsdn, shard, size, &oom,
+	    nallocs - nsuccess, results);
 	/*
 	 * Drop grow_mtx before doing deferred work; other threads blocked on it
 	 * should be allowed to proceed while we're working.
 	 */
 	malloc_mutex_unlock(tsdn, &shard->grow_mtx);
 
-	hpa_do_deferred_work(tsdn, shard);
-
-	malloc_mutex_unlock(tsdn, &shard->mtx);
-	return edata;
+	return nsuccess;
 }
 
 static hpa_shard_t *
@@ -616,28 +584,27 @@ hpa_from_pai(pai_t *self) {
 	return (hpa_shard_t *)self;
 }
 
-static edata_t *
-hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
-    size_t alignment, bool zero) {
+static size_t
+hpa_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size, size_t nallocs,
+    edata_list_active_t *results) {
+	assert(nallocs > 0);
 	assert((size & PAGE_MASK) == 0);
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
-
 	hpa_shard_t *shard = hpa_from_pai(self);
-	/* We don't handle alignment or zeroing for now. */
-	if (alignment > PAGE || zero) {
-		return NULL;
-	}
+
 	if (size > shard->opts.slab_max_alloc) {
-		return NULL;
+		return 0;
 	}
 
-	edata_t *edata = hpa_alloc_psset(tsdn, shard, size);
+	size_t nsuccess = hpa_alloc_batch_psset(tsdn, shard, size, nallocs,
+	    results);
 
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	if (edata != NULL) {
+	edata_t *edata;
+	ql_foreach(edata, &results->head, ql_link_active) {
 		emap_assert_mapped(tsdn, shard->emap, edata);
 		assert(edata_pai_get(edata) == EXTENT_PAI_HPA);
 		assert(edata_state_get(edata) == extent_state_active);
@@ -648,6 +615,29 @@ hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
 		assert(edata_base_get(edata) == edata_addr_get(edata));
 		assert(edata_base_get(edata) != NULL);
 	}
+	return nsuccess;
+}
+
+static edata_t *
+hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero) {
+	assert((size & PAGE_MASK) == 0);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
+
+	/* We don't handle alignment or zeroing for now. */
+	if (alignment > PAGE || zero) {
+		return NULL;
+	}
+	/*
+	 * An alloc with alignment == PAGE and zero == false is equivalent to a
+	 * batch alloc of 1.  Just do that, so we can share code.
+	 */
+	edata_list_active_t results;
+	edata_list_active_init(&results);
+	size_t nallocs = hpa_alloc_batch(tsdn, self, size, /* nallocs */ 1,
+	    &results);
+	assert(nallocs == 0 || nallocs == 1);
+	edata_t *edata = edata_list_active_first(&results);
 	return edata;
 }
 
@@ -677,6 +667,15 @@ hpa_dalloc_prepare_unlocked(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata) {
 	assert(edata_committed_get(edata));
 	assert(edata_base_get(edata) != NULL);
 
+	/*
+	 * Another thread shouldn't be trying to touch the metadata of an
+	 * allocation being freed.  The one exception is a merge attempt from a
+	 * lower-addressed PAC extent; in this case we have a nominal race on
+	 * the edata metadata bits, but in practice the fact that the PAI bits
+	 * are different will prevent any further access.  The race is bad, but
+	 * benign in practice, and the long term plan is to track enough state
+	 * in the rtree to prevent these merge attempts in the first place.
+	 */
 	edata_addr_set(edata, edata_base_get(edata));
 	edata_zeroed_set(edata, false);
 	emap_deregister_boundary(tsdn, shard->emap, edata);
