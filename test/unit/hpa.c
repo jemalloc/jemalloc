@@ -211,6 +211,77 @@ TEST_BEGIN(test_stress) {
 }
 TEST_END
 
+static void
+expect_contiguous(edata_t **edatas, size_t nedatas) {
+	for (size_t i = 0; i < nedatas; i++) {
+		size_t expected = (size_t)edata_base_get(edatas[0])
+		    + i * PAGE;
+		expect_zu_eq(expected, (size_t)edata_base_get(edatas[i]),
+		    "Mismatch at index %zu", i);
+	}
+}
+
+TEST_BEGIN(test_alloc_dalloc_batch) {
+	test_skip_if(!hpa_supported());
+
+	hpa_shard_t *shard = create_test_data();
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+
+	enum {NALLOCS = 8};
+
+	edata_t *allocs[NALLOCS];
+	/*
+	 * Allocate a mix of ways; first half from regular alloc, second half
+	 * from alloc_batch.
+	 */
+	for (size_t i = 0; i < NALLOCS / 2; i++) {
+		allocs[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE,
+		    /* zero */ false);
+		expect_ptr_not_null(allocs[i], "Unexpected alloc failure");
+	}
+	edata_list_active_t allocs_list;
+	edata_list_active_init(&allocs_list);
+	size_t nsuccess = pai_alloc_batch(tsdn, &shard->pai, PAGE, NALLOCS / 2,
+	    &allocs_list);
+	expect_zu_eq(NALLOCS / 2, nsuccess, "Unexpected oom");
+	for (size_t i = NALLOCS / 2; i < NALLOCS; i++) {
+		allocs[i] = edata_list_active_first(&allocs_list);
+		edata_list_active_remove(&allocs_list, allocs[i]);
+	}
+
+	/*
+	 * Should have allocated them contiguously, despite the differing
+	 * methods used.
+	 */
+	void *orig_base = edata_base_get(allocs[0]);
+	expect_contiguous(allocs, NALLOCS);
+
+	/*
+	 * Batch dalloc the first half, individually deallocate the second half.
+	 */
+	for (size_t i = 0; i < NALLOCS / 2; i++) {
+		edata_list_active_append(&allocs_list, allocs[i]);
+	}
+	pai_dalloc_batch(tsdn, &shard->pai, &allocs_list);
+	for (size_t i = NALLOCS / 2; i < NALLOCS; i++) {
+		pai_dalloc(tsdn, &shard->pai, allocs[i]);
+	}
+
+	/* Reallocate (individually), and ensure reuse and contiguity. */
+	for (size_t i = 0; i < NALLOCS; i++) {
+		allocs[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE,
+		    /* zero */ false);
+		expect_ptr_not_null(allocs[i], "Unexpected alloc failure.");
+	}
+	void *new_base = edata_base_get(allocs[0]);
+	expect_ptr_eq(orig_base, new_base,
+	    "Failed to reuse the allocated memory.");
+	expect_contiguous(allocs, NALLOCS);
+
+	destroy_test_data(shard);
+}
+TEST_END
+
 int
 main(void) {
 	/*
@@ -227,5 +298,6 @@ main(void) {
 	(void)mem_tree_destroy;
 	return test_no_reentrancy(
 	    test_alloc_max,
-	    test_stress);
+	    test_stress,
+	    test_alloc_dalloc_batch);
 }
