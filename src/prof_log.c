@@ -573,7 +573,7 @@ prof_log_emit_metadata(emitter_t *emitter) {
 
 	nstime_t now;
 
-	nstime_init_update(&now);
+	nstime_prof_init_update(&now);
 	uint64_t ns = nstime_ns(&now) - nstime_ns(&log_start_timestamp);
 	emitter_json_kv(emitter, "duration", emitter_type_uint64, &ns);
 
