@@ -926,6 +926,18 @@ if test "x${je_cv_cold}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_HAVE_ATTR_COLD], [ ])
 fi
 
+dnl Check for VM_MAKE_TAG for mmap support.
+JE_COMPILABLE([vm_make_tag],
+	      [#include <sys/mman.h>
+	       #include <mach/vm_statistics.h>],
+	      [void *p;
+	       p = mmap(0, 16, PROT_READ, MAP_ANON|MAP_PRIVATE, VM_MAKE_TAG(1), 0);
+	       munmap(p, 16);],
+	      [je_cv_vm_make_tag])
+if test "x${je_cv_vm_make_tag}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_VM_MAKE_TAG], [ ])
+fi
+
 dnl Support optional additions to rpath.
 AC_ARG_WITH([rpath],
   [AS_HELP_STRING([--with-rpath=<rpath>], [Colon-separated rpath (ELF systems only)])],

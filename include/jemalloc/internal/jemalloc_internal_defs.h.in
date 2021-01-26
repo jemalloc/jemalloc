@@ -404,4 +404,7 @@
 /* Performs additional size checks when defined. */
 #undef JEMALLOC_OPT_SIZE_CHECKS
 
+/* Darwin VM_MAKE_TAG support */
+#undef JEMALLOC_HAVE_VM_MAKE_TAG
+
 #endif /* JEMALLOC_INTERNAL_DEFS_H_ */
