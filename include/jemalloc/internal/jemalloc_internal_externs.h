@@ -3,6 +3,7 @@
 
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/hpa_opts.h"
+#include "jemalloc/internal/sec_opts.h"
 #include "jemalloc/internal/tsd_types.h"
 #include "jemalloc/internal/nstime.h"
 
@@ -16,9 +17,7 @@ extern bool opt_trust_madvise;
 extern bool opt_confirm_conf;
 extern bool opt_hpa;
 extern hpa_shard_opts_t opt_hpa_opts;
-extern size_t opt_hpa_sec_max_alloc;
-extern size_t opt_hpa_sec_max_bytes;
-extern size_t opt_hpa_sec_nshards;
+extern sec_opts_t opt_hpa_sec_opts;
 
 extern const char *opt_junk;
 extern bool opt_junk_alloc;
