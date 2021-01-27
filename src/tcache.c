@@ -236,18 +236,16 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena,
 	return ret;
 }
 
-/* Enabled with --enable-extra-size-check. */
 static void
-tbin_edatas_lookup_size_check(tsd_t *tsd, cache_bin_ptr_array_t *arr,
+tcache_bin_flush_edatas_lookup(tsd_t *tsd, cache_bin_ptr_array_t *arr,
     szind_t binind, size_t nflush, edata_t **edatas) {
 	/* Avoids null-checking tsdn in the loop below. */
 	util_assume(tsd != NULL);
 
 	/*
-	 * Verify that the items in the tcache all have the correct size; this
-	 * is useful for catching sized deallocation bugs, also to fail early
-	 * instead of corrupting metadata.  Since this can be turned on for opt
-	 * builds, avoid the branch in the loop.
+	 * This gets compiled away when config_opt_safety_checks is false.
+	 * Checks for sized deallocation bugs, failing early rather than
+	 * corrupting metadata.
 	 */
 	size_t szind_sum = binind * nflush;
 	for (unsigned i = 0; i < nflush; i++) {
@@ -258,9 +256,10 @@ tbin_edatas_lookup_size_check(tsd_t *tsd, cache_bin_ptr_array_t *arr,
 		szind_sum -= full_alloc_ctx.szind;
 	}
 
-	if (szind_sum != 0) {
+	if (config_opt_safety_checks && szind_sum != 0) {
 		safety_check_fail_sized_dealloc(false);
 	}
+
 }
 
 JEMALLOC_ALWAYS_INLINE bool
@@ -306,17 +305,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 	cache_bin_init_ptr_array_for_flush(cache_bin, &tcache_bin_info[binind],
 	    &ptrs, nflush);
 
-	/* Look up edata once per item. */
-	if (config_opt_safety_checks) {
-		tbin_edatas_lookup_size_check(tsd, &ptrs, binind, nflush,
-		    item_edata);
-	} else {
-		for (unsigned i = 0 ; i < nflush; i++) {
-			item_edata[i] = emap_edata_lookup(tsd_tsdn(tsd),
-			    &arena_emap_global,
-			    cache_bin_ptr_array_get(&ptrs, i));
-		}
-	}
+	tcache_bin_flush_edatas_lookup(tsd, &ptrs, binind, nflush, item_edata);
 
 	/*
 	 * The slabs where we freed the last remaining object in the slab (and
