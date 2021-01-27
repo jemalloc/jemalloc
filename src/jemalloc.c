@@ -145,11 +145,7 @@ malloc_mutex_t arenas_lock;
 /* The global hpa, and whether it's on. */
 bool opt_hpa = false;
 hpa_shard_opts_t opt_hpa_opts = HPA_SHARD_OPTS_DEFAULT;
-
-size_t opt_hpa_sec_max_alloc = 32 * 1024;
-/* These settings correspond to a maximum of 1MB cached per arena. */
-size_t opt_hpa_sec_max_bytes = 256 * 1024;
-size_t opt_hpa_sec_nshards = 4;
+sec_opts_t opt_hpa_sec_opts = SEC_OPTS_DEFAULT;
 
 /*
  * Arenas that are used to service external requests.  Not all elements of the
@@ -1465,12 +1461,21 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				CONF_CONTINUE;
 			}
 
-			CONF_HANDLE_SIZE_T(opt_hpa_sec_max_alloc, "hpa_sec_max_alloc",
-			    PAGE, 0, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
-			CONF_HANDLE_SIZE_T(opt_hpa_sec_max_bytes, "hpa_sec_max_bytes",
-			    PAGE, 0, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
-			CONF_HANDLE_SIZE_T(opt_hpa_sec_nshards, "hpa_sec_nshards",
-			    0, 0, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
+			CONF_HANDLE_SIZE_T(opt_hpa_sec_opts.nshards,
+			    "hpa_sec_nshards", 0, 0, CONF_CHECK_MIN,
+			    CONF_DONT_CHECK_MAX, true);
+			CONF_HANDLE_SIZE_T(opt_hpa_sec_opts.max_alloc,
+			    "hpa_sec_max_alloc", PAGE, 0, CONF_CHECK_MIN,
+			    CONF_DONT_CHECK_MAX, true);
+			CONF_HANDLE_SIZE_T(opt_hpa_sec_opts.max_bytes,
+			    "hpa_sec_max_bytes", PAGE, 0, CONF_CHECK_MIN,
+			    CONF_DONT_CHECK_MAX, true);
+			CONF_HANDLE_SIZE_T(opt_hpa_sec_opts.bytes_after_flush,
+			    "hpa_sec_bytes_after_flush", PAGE, 0,
+			    CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
+			CONF_HANDLE_SIZE_T(opt_hpa_sec_opts.batch_fill_extra,
+			    "hpa_sec_batch_fill_extra", PAGE, 0, CONF_CHECK_MIN,
+			    CONF_DONT_CHECK_MAX, true);
 
 			if (CONF_MATCH("slab_sizes")) {
 				if (CONF_MATCH_VALUE("default")) {
@@ -1769,8 +1774,7 @@ malloc_init_hard_a0_locked() {
 		}
 	} else if (opt_hpa) {
 		if (pa_shard_enable_hpa(&a0->pa_shard, &opt_hpa_opts,
-		    opt_hpa_sec_nshards, opt_hpa_sec_max_alloc,
-		    opt_hpa_sec_max_bytes)) {
+		    &opt_hpa_sec_opts)) {
 			return true;
 		}
 	}
