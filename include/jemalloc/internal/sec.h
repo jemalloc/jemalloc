@@ -103,49 +103,11 @@ struct sec_s {
 	pai_t pai;
 	pai_t *fallback;
 
-	/*
-	 * We'll automatically refuse to cache any objects in this sec if
-	 * they're larger than alloc_max bytes.
-	 */
-	size_t alloc_max;
-	/*
-	 * Exceeding this amount of cached extents in a shard causes *all* of
-	 * the bins in that shard to be flushed.
-	 */
-	size_t bytes_max;
-	/*
-	 * The number of bytes (in all bins) we flush down to when we exceed
-	 * bytes_cur.  We want this to be less than bytes_cur, because
-	 * otherwise we could get into situations where a shard undergoing
-	 * net-deallocation keeps bytes_cur very near to bytes_max, so that
-	 * most deallocations get immediately forwarded to the underlying PAI
-	 * implementation, defeating the point of the SEC.
-	 *
-	 * Currently this is just set to bytes_max / 2, but eventually can be
-	 * configurable.
-	 */
-	size_t bytes_after_flush;
-
-	/*
-	 * When we can't satisfy an allocation out of the SEC because there are
-	 * no available ones cached, we allocate multiple of that size out of
-	 * the fallback allocator.  Eventually we might want to do something
-	 * cleverer, but for now we just grab a fixed number.
-	 *
-	 * For now, just the constant 4.  Eventually, it should be configurable.
-	 */
-	size_t batch_fill_extra;
-
-	/*
-	 * We don't necessarily always use all the shards; requests are
-	 * distributed across shards [0, nshards - 1).
-	 */
-	size_t nshards;
+	sec_opts_t opts;
 	sec_shard_t shards[SEC_NSHARDS_MAX];
 };
 
-bool sec_init(sec_t *sec, pai_t *fallback, size_t nshards, size_t alloc_max,
-    size_t bytes_max);
+bool sec_init(sec_t *sec, pai_t *fallback, const sec_opts_t *opts);
 void sec_flush(tsdn_t *tsdn, sec_t *sec);
 void sec_disable(tsdn_t *tsdn, sec_t *sec);
 

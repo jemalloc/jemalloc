@@ -23,6 +23,24 @@ struct pai_test_allocator_s {
 	bool shrink_return_value;
 };
 
+static void
+test_sec_init(sec_t *sec, pai_t *fallback, size_t nshards, size_t max_alloc,
+    size_t max_bytes) {
+	sec_opts_t opts;
+	opts.nshards = 1;
+	opts.max_alloc = max_alloc;
+	opts.max_bytes = max_bytes;
+	/*
+	 * Just choose reasonable defaults for these; most tests don't care so
+	 * long as they're something reasonable.
+	 */
+	opts.bytes_after_flush = max_bytes / 2;
+	opts.batch_fill_extra = 4;
+
+	bool err = sec_init(sec, fallback, &opts);
+	assert_false(err, "Unexpected initialization failure");
+}
+
 static inline edata_t *
 pai_test_allocator_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
     size_t alignment, bool zero) {
@@ -143,8 +161,8 @@ TEST_BEGIN(test_reuse) {
 	enum { NALLOCS = 11 };
 	edata_t *one_page[NALLOCS];
 	edata_t *two_page[NALLOCS];
-	sec_init(&sec, &ta.pai, /* nshards */ 1, /* alloc_max */ 2 * PAGE,
-	    /* bytes_max */ 2 * (NALLOCS * PAGE + NALLOCS * 2 * PAGE));
+	test_sec_init(&sec, &ta.pai, /* nshards */ 1, /* max_alloc */ 2 * PAGE,
+	    /* max_bytes */ 2 * (NALLOCS * PAGE + NALLOCS * 2 * PAGE));
 	for (int i = 0; i < NALLOCS; i++) {
 		one_page[i] = pai_alloc(tsdn, &sec.pai, PAGE, PAGE,
 		    /* zero */ false);
@@ -213,8 +231,8 @@ TEST_BEGIN(test_auto_flush) {
 	enum { NALLOCS = 10 };
 	edata_t *extra_alloc;
 	edata_t *allocs[NALLOCS];
-	sec_init(&sec, &ta.pai, /* nshards */ 1, /* alloc_max */ PAGE,
-	    /* bytes_max */ NALLOCS * PAGE);
+	test_sec_init(&sec, &ta.pai, /* nshards */ 1, /* max_alloc */ PAGE,
+	    /* max_bytes */ NALLOCS * PAGE);
 	for (int i = 0; i < NALLOCS; i++) {
 		allocs[i] = pai_alloc(tsdn, &sec.pai, PAGE, PAGE,
 		    /* zero */ false);
@@ -266,8 +284,8 @@ do_disable_flush_test(bool is_disable) {
 
 	enum { NALLOCS = 11 };
 	edata_t *allocs[NALLOCS];
-	sec_init(&sec, &ta.pai, /* nshards */ 1, /* alloc_max */ PAGE,
-	    /* bytes_max */ NALLOCS * PAGE);
+	test_sec_init(&sec, &ta.pai, /* nshards */ 1, /* max_alloc */ PAGE,
+	    /* max_bytes */ NALLOCS * PAGE);
 	for (int i = 0; i < NALLOCS; i++) {
 		allocs[i] = pai_alloc(tsdn, &sec.pai, PAGE, PAGE,
 		    /* zero */ false);
@@ -321,18 +339,18 @@ TEST_BEGIN(test_flush) {
 }
 TEST_END
 
-TEST_BEGIN(test_alloc_max_respected) {
+TEST_BEGIN(test_max_alloc_respected) {
 	pai_test_allocator_t ta;
 	pai_test_allocator_init(&ta);
 	sec_t sec;
 	/* See the note above -- we can't use the real tsd. */
 	tsdn_t *tsdn = TSDN_NULL;
 
-	size_t alloc_max = 2 * PAGE;
+	size_t max_alloc = 2 * PAGE;
 	size_t attempted_alloc = 3 * PAGE;
 
-	sec_init(&sec, &ta.pai, /* nshards */ 1, alloc_max,
-	    /* bytes_max */ 1000 * PAGE);
+	test_sec_init(&sec, &ta.pai, /* nshards */ 1, max_alloc,
+	    /* max_bytes */ 1000 * PAGE);
 
 	for (size_t i = 0; i < 100; i++) {
 		expect_zu_eq(i, ta.alloc_count,
@@ -362,8 +380,8 @@ TEST_BEGIN(test_expand_shrink_delegate) {
 	/* See the note above -- we can't use the real tsd. */
 	tsdn_t *tsdn = TSDN_NULL;
 
-	sec_init(&sec, &ta.pai, /* nshards */ 1, /* alloc_max */ 10 * PAGE,
-	    /* bytes_max */ 1000 * PAGE);
+	test_sec_init(&sec, &ta.pai, /* nshards */ 1, /* max_alloc */ 10 * PAGE,
+	    /* max_bytes */ 1000 * PAGE);
 	edata_t *edata = pai_alloc(tsdn, &sec.pai, PAGE, PAGE,
 	    /* zero */ false);
 	expect_ptr_not_null(edata, "Unexpected alloc failure");
@@ -395,8 +413,9 @@ TEST_BEGIN(test_nshards_0) {
 	/* See the note above -- we can't use the real tsd. */
 	tsdn_t *tsdn = TSDN_NULL;
 
-	sec_init(&sec, &ta.pai, /* nshards */ 0, /* alloc_max */ 10 * PAGE,
-	    /* bytes_max */ 1000 * PAGE);
+	sec_opts_t opts = SEC_OPTS_DEFAULT;
+	opts.nshards = 0;
+	sec_init(&sec, &ta.pai, &opts);
 
 	edata_t *edata = pai_alloc(tsdn, &sec.pai, PAGE, PAGE,
 	    /* zero */ false);
@@ -433,8 +452,8 @@ TEST_BEGIN(test_stats_simple) {
 		FLUSH_PAGES = 20,
 	};
 
-	sec_init(&sec, &ta.pai, /* nshards */ 1, /* alloc_max */ PAGE,
-	    /* bytes_max */ FLUSH_PAGES * PAGE);
+	test_sec_init(&sec, &ta.pai, /* nshards */ 1, /* max_alloc */ PAGE,
+	    /* max_bytes */ FLUSH_PAGES * PAGE);
 
 	edata_t *allocs[FLUSH_PAGES];
 	for (size_t i = 0; i < FLUSH_PAGES; i++) {
@@ -470,8 +489,8 @@ TEST_BEGIN(test_stats_auto_flush) {
 		FLUSH_PAGES = 10,
 	};
 
-	sec_init(&sec, &ta.pai, /* nshards */ 1, /* alloc_max */ PAGE,
-	    /* bytes_max */ FLUSH_PAGES * PAGE);
+	test_sec_init(&sec, &ta.pai, /* nshards */ 1, /* max_alloc */ PAGE,
+	    /* max_bytes */ FLUSH_PAGES * PAGE);
 
 	edata_t *extra_alloc0;
 	edata_t *extra_alloc1;
@@ -514,8 +533,8 @@ TEST_BEGIN(test_stats_manual_flush) {
 		FLUSH_PAGES = 10,
 	};
 
-	sec_init(&sec, &ta.pai, /* nshards */ 1, /* alloc_max */ PAGE,
-	    /* bytes_max */ FLUSH_PAGES * PAGE);
+	test_sec_init(&sec, &ta.pai, /* nshards */ 1, /* max_alloc */ PAGE,
+	    /* max_bytes */ FLUSH_PAGES * PAGE);
 
 	edata_t *allocs[FLUSH_PAGES];
 	for (size_t i = 0; i < FLUSH_PAGES; i++) {
@@ -550,7 +569,7 @@ main(void) {
 	    test_auto_flush,
 	    test_disable,
 	    test_flush,
-	    test_alloc_max_respected,
+	    test_max_alloc_respected,
 	    test_expand_shrink_delegate,
 	    test_nshards_0,
 	    test_stats_simple,

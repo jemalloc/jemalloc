@@ -98,9 +98,11 @@ CTL_PROTO(opt_hpa_slab_max_alloc)
 CTL_PROTO(opt_hpa_hugification_threshold)
 CTL_PROTO(opt_hpa_dehugification_threshold)
 CTL_PROTO(opt_hpa_dirty_mult)
+CTL_PROTO(opt_hpa_sec_nshards)
 CTL_PROTO(opt_hpa_sec_max_alloc)
 CTL_PROTO(opt_hpa_sec_max_bytes)
-CTL_PROTO(opt_hpa_sec_nshards)
+CTL_PROTO(opt_hpa_sec_bytes_after_flush)
+CTL_PROTO(opt_hpa_sec_batch_fill_extra)
 CTL_PROTO(opt_metadata_thp)
 CTL_PROTO(opt_retain)
 CTL_PROTO(opt_dss)
@@ -406,9 +408,13 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("hpa_dehugification_threshold"),
 		CTL(opt_hpa_dehugification_threshold)},
 	{NAME("hpa_dirty_mult"), CTL(opt_hpa_dirty_mult)},
+	{NAME("hpa_sec_nshards"),	CTL(opt_hpa_sec_nshards)},
 	{NAME("hpa_sec_max_alloc"),	CTL(opt_hpa_sec_max_alloc)},
 	{NAME("hpa_sec_max_bytes"),	CTL(opt_hpa_sec_max_bytes)},
-	{NAME("hpa_sec_nshards"),	CTL(opt_hpa_sec_nshards)},
+	{NAME("hpa_sec_bytes_after_flush"),
+		CTL(opt_hpa_sec_bytes_after_flush)},
+	{NAME("hpa_sec_batch_fill_extra"),
+		CTL(opt_hpa_sec_batch_fill_extra)},
 	{NAME("metadata_thp"),	CTL(opt_metadata_thp)},
 	{NAME("retain"),	CTL(opt_retain)},
 	{NAME("dss"),		CTL(opt_dss)},
@@ -2100,8 +2106,9 @@ CTL_RO_NL_GEN(opt_abort_conf, opt_abort_conf, bool)
 CTL_RO_NL_GEN(opt_cache_oblivious, opt_cache_oblivious, bool)
 CTL_RO_NL_GEN(opt_trust_madvise, opt_trust_madvise, bool)
 CTL_RO_NL_GEN(opt_confirm_conf, opt_confirm_conf, bool)
+
+/* HPA options. */
 CTL_RO_NL_GEN(opt_hpa, opt_hpa, bool)
-CTL_RO_NL_GEN(opt_hpa_slab_max_alloc, opt_hpa_opts.slab_max_alloc, size_t)
 CTL_RO_NL_GEN(opt_hpa_hugification_threshold,
     opt_hpa_opts.hugification_threshold, size_t)
 CTL_RO_NL_GEN(opt_hpa_dehugification_threshold,
@@ -2111,9 +2118,17 @@ CTL_RO_NL_GEN(opt_hpa_dehugification_threshold,
  * its representation are internal implementation details.
  */
 CTL_RO_NL_GEN(opt_hpa_dirty_mult, opt_hpa_opts.dirty_mult, fxp_t)
-CTL_RO_NL_GEN(opt_hpa_sec_max_alloc, opt_hpa_sec_max_alloc, size_t)
-CTL_RO_NL_GEN(opt_hpa_sec_max_bytes, opt_hpa_sec_max_bytes, size_t)
-CTL_RO_NL_GEN(opt_hpa_sec_nshards, opt_hpa_sec_nshards, size_t)
+CTL_RO_NL_GEN(opt_hpa_slab_max_alloc, opt_hpa_opts.slab_max_alloc, size_t)
+
+/* HPA SEC options */
+CTL_RO_NL_GEN(opt_hpa_sec_nshards, opt_hpa_sec_opts.nshards, size_t)
+CTL_RO_NL_GEN(opt_hpa_sec_max_alloc, opt_hpa_sec_opts.max_alloc, size_t)
+CTL_RO_NL_GEN(opt_hpa_sec_max_bytes, opt_hpa_sec_opts.max_bytes, size_t)
+CTL_RO_NL_GEN(opt_hpa_sec_bytes_after_flush, opt_hpa_sec_opts.bytes_after_flush,
+    size_t)
+CTL_RO_NL_GEN(opt_hpa_sec_batch_fill_extra, opt_hpa_sec_opts.batch_fill_extra,
+    size_t)
+
 CTL_RO_NL_GEN(opt_metadata_thp, metadata_thp_mode_names[opt_metadata_thp],
     const char *)
 CTL_RO_NL_GEN(opt_retain, opt_retain, bool)

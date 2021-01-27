@@ -1486,9 +1486,11 @@ stats_general_print(emitter_t *emitter) {
 			    "opt.hpa_dirty_mult", emitter_type_string, &bufp);
 		}
 	}
+	OPT_WRITE_SIZE_T("hpa_sec_nshards")
 	OPT_WRITE_SIZE_T("hpa_sec_max_alloc")
 	OPT_WRITE_SIZE_T("hpa_sec_max_bytes")
-	OPT_WRITE_SIZE_T("hpa_sec_nshards")
+	OPT_WRITE_SIZE_T("hpa_sec_bytes_after_flush")
+	OPT_WRITE_SIZE_T("hpa_sec_batch_fill_extra")
 	OPT_WRITE_CHAR_P("metadata_thp")
 	OPT_WRITE_BOOL_MUTABLE("background_thread", "background_thread")
 	OPT_WRITE_SSIZE_T_MUTABLE("dirty_decay_ms", "arenas.dirty_decay_ms")

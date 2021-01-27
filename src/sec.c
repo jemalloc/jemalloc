@@ -19,12 +19,12 @@ sec_bin_init(sec_bin_t *bin) {
 }
 
 bool
-sec_init(sec_t *sec, pai_t *fallback, size_t nshards, size_t alloc_max,
-    size_t bytes_max) {
-	if (nshards > SEC_NSHARDS_MAX) {
-		nshards = SEC_NSHARDS_MAX;
+sec_init(sec_t *sec, pai_t *fallback, const sec_opts_t *opts) {
+	size_t nshards_clipped = opts->nshards;
+	if (nshards_clipped > SEC_NSHARDS_MAX) {
+		nshards_clipped = SEC_NSHARDS_MAX;
 	}
-	for (size_t i = 0; i < nshards; i++) {
+	for (size_t i = 0; i < nshards_clipped; i++) {
 		sec_shard_t *shard = &sec->shards[i];
 		bool err = malloc_mutex_init(&shard->mtx, "sec_shard",
 		    WITNESS_RANK_SEC_SHARD, malloc_mutex_rank_exclusive);
@@ -39,15 +39,15 @@ sec_init(sec_t *sec, pai_t *fallback, size_t nshards, size_t alloc_max,
 		shard->to_flush_next = 0;
 	}
 	sec->fallback = fallback;
-	sec->alloc_max = alloc_max;
-	if (sec->alloc_max > sz_pind2sz(SEC_NPSIZES - 1)) {
-		sec->alloc_max = sz_pind2sz(SEC_NPSIZES - 1);
+
+	size_t max_alloc_clipped = opts->max_alloc;
+	if (max_alloc_clipped > sz_pind2sz(SEC_NPSIZES - 1)) {
+		max_alloc_clipped = sz_pind2sz(SEC_NPSIZES - 1);
 	}
 
-	sec->bytes_max = bytes_max;
-	sec->bytes_after_flush = bytes_max / 2;
-	sec->batch_fill_extra = 4;
-	sec->nshards = nshards;
+	sec->opts = *opts;
+	sec->opts.nshards = nshards_clipped;
+	sec->opts.max_alloc = max_alloc_clipped;
 
 	/*
 	 * Initialize these last so that an improper use of an SEC whose
@@ -83,8 +83,9 @@ sec_shard_pick(tsdn_t *tsdn, sec_t *sec) {
 		 * when we multiply by the number of shards.
 		 */
 		uint64_t rand32 = prng_lg_range_u64(tsd_prng_statep_get(tsd), 32);
-		uint32_t idx = (uint32_t)((rand32 * (uint64_t)sec->nshards) >> 32);
-		assert(idx < (uint32_t)sec->nshards);
+		uint32_t idx =
+		    (uint32_t)((rand32 * (uint64_t)sec->opts.nshards) >> 32);
+		assert(idx < (uint32_t)sec->opts.nshards);
 		*idxp = (uint8_t)idx;
 	}
 	return &sec->shards[*idxp];
@@ -99,7 +100,7 @@ sec_flush_some_and_unlock(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard) {
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
 	edata_list_active_t to_flush;
 	edata_list_active_init(&to_flush);
-	while (shard->bytes_cur > sec->bytes_after_flush) {
+	while (shard->bytes_cur > sec->opts.bytes_after_flush) {
 		/* Pick a victim. */
 		sec_bin_t *bin = &shard->bins[shard->to_flush_next];
 
@@ -155,7 +156,7 @@ sec_batch_fill_and_alloc(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard,
 	edata_list_active_t result;
 	edata_list_active_init(&result);
 	size_t nalloc = pai_alloc_batch(tsdn, sec->fallback, size,
-	    1 + sec->batch_fill_extra, &result);
+	    1 + sec->opts.batch_fill_extra, &result);
 
 	edata_t *ret = edata_list_active_first(&result);
 	if (ret != NULL) {
@@ -182,7 +183,7 @@ sec_batch_fill_and_alloc(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard,
 	bin->bytes_cur += new_cached_bytes;
 	shard->bytes_cur += new_cached_bytes;
 
-	if (shard->bytes_cur > sec->bytes_max) {
+	if (shard->bytes_cur > sec->opts.max_bytes) {
 		sec_flush_some_and_unlock(tsdn, sec, shard);
 	} else {
 		malloc_mutex_unlock(tsdn, &shard->mtx);
@@ -197,8 +198,8 @@ sec_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero) {
 
 	sec_t *sec = (sec_t *)self;
 
-	if (zero || alignment > PAGE || sec->nshards == 0
-	    || size > sec->alloc_max) {
+	if (zero || alignment > PAGE || sec->opts.nshards == 0
+	    || size > sec->opts.max_alloc) {
 		return pai_alloc(tsdn, sec->fallback, size, alignment, zero);
 	}
 	pszind_t pszind = sz_psz2ind(size);
@@ -209,7 +210,8 @@ sec_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero) {
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	edata_t *edata = sec_shard_alloc_locked(tsdn, sec, shard, bin);
 	if (edata == NULL) {
-		if (!bin->being_batch_filled && sec->batch_fill_extra > 0) {
+		if (!bin->being_batch_filled
+		    && sec->opts.batch_fill_extra > 0) {
 			bin->being_batch_filled = true;
 			do_batch_fill = true;
 		}
@@ -266,7 +268,7 @@ static void
 sec_shard_dalloc_and_unlock(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard,
     edata_t *edata) {
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
-	assert(shard->bytes_cur <= sec->bytes_max);
+	assert(shard->bytes_cur <= sec->opts.max_bytes);
 	size_t size = edata_size_get(edata);
 	pszind_t pszind = sz_psz2ind(size);
 	/*
@@ -277,7 +279,7 @@ sec_shard_dalloc_and_unlock(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard,
 	edata_list_active_prepend(&bin->freelist, edata);
 	bin->bytes_cur += size;
 	shard->bytes_cur += size;
-	if (shard->bytes_cur > sec->bytes_max) {
+	if (shard->bytes_cur > sec->opts.max_bytes) {
 		/*
 		 * We've exceeded the shard limit.  We make two nods in the
 		 * direction of fragmentation avoidance: we flush everything in
@@ -297,7 +299,8 @@ sec_shard_dalloc_and_unlock(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard,
 static void
 sec_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 	sec_t *sec = (sec_t *)self;
-	if (sec->nshards == 0 || edata_size_get(edata) > sec->alloc_max) {
+	if (sec->opts.nshards == 0
+	    || edata_size_get(edata) > sec->opts.max_alloc) {
 		pai_dalloc(tsdn, sec->fallback, edata);
 		return;
 	}
@@ -313,7 +316,7 @@ sec_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 
 void
 sec_flush(tsdn_t *tsdn, sec_t *sec) {
-	for (size_t i = 0; i < sec->nshards; i++) {
+	for (size_t i = 0; i < sec->opts.nshards; i++) {
 		malloc_mutex_lock(tsdn, &sec->shards[i].mtx);
 		sec_flush_all_locked(tsdn, sec, &sec->shards[i]);
 		malloc_mutex_unlock(tsdn, &sec->shards[i].mtx);
@@ -322,7 +325,7 @@ sec_flush(tsdn_t *tsdn, sec_t *sec) {
 
 void
 sec_disable(tsdn_t *tsdn, sec_t *sec) {
-	for (size_t i = 0; i < sec->nshards; i++) {
+	for (size_t i = 0; i < sec->opts.nshards; i++) {
 		malloc_mutex_lock(tsdn, &sec->shards[i].mtx);
 		sec->shards[i].enabled = false;
 		sec_flush_all_locked(tsdn, sec, &sec->shards[i]);
@@ -333,7 +336,7 @@ sec_disable(tsdn_t *tsdn, sec_t *sec) {
 void
 sec_stats_merge(tsdn_t *tsdn, sec_t *sec, sec_stats_t *stats) {
 	size_t sum = 0;
-	for (size_t i = 0; i < sec->nshards; i++) {
+	for (size_t i = 0; i < sec->opts.nshards; i++) {
 		/*
 		 * We could save these lock acquisitions by making bytes_cur
 		 * atomic, but stats collection is rare anyways and we expect
@@ -349,7 +352,7 @@ sec_stats_merge(tsdn_t *tsdn, sec_t *sec, sec_stats_t *stats) {
 void
 sec_mutex_stats_read(tsdn_t *tsdn, sec_t *sec,
     mutex_prof_data_t *mutex_prof_data) {
-	for (size_t i = 0; i < sec->nshards; i++) {
+	for (size_t i = 0; i < sec->opts.nshards; i++) {
 		malloc_mutex_lock(tsdn, &sec->shards[i].mtx);
 		malloc_mutex_prof_accum(tsdn, mutex_prof_data,
 		    &sec->shards[i].mtx);
@@ -359,21 +362,21 @@ sec_mutex_stats_read(tsdn_t *tsdn, sec_t *sec,
 
 void
 sec_prefork2(tsdn_t *tsdn, sec_t *sec) {
-	for (size_t i = 0; i < sec->nshards; i++) {
+	for (size_t i = 0; i < sec->opts.nshards; i++) {
 		malloc_mutex_prefork(tsdn, &sec->shards[i].mtx);
 	}
 }
 
 void
 sec_postfork_parent(tsdn_t *tsdn, sec_t *sec) {
-	for (size_t i = 0; i < sec->nshards; i++) {
+	for (size_t i = 0; i < sec->opts.nshards; i++) {
 		malloc_mutex_postfork_parent(tsdn, &sec->shards[i].mtx);
 	}
 }
 
 void
 sec_postfork_child(tsdn_t *tsdn, sec_t *sec) {
-	for (size_t i = 0; i < sec->nshards; i++) {
+	for (size_t i = 0; i < sec->opts.nshards; i++) {
 		malloc_mutex_postfork_child(tsdn, &sec->shards[i].mtx);
 	}
 }
