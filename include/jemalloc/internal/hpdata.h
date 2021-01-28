@@ -112,6 +112,11 @@ hpdata_assert_empty(hpdata_t *hpdata) {
 	assert(hpdata_nfree_get(hpdata) == HUGEPAGE_PAGES);
 }
 
+/*
+ * Only used in tests, and in hpdata_assert_consistent, below.  Verifies some
+ * consistency properties of the hpdata (e.g. that cached counts of page stats
+ * match computed ones).
+ */
 static inline bool
 hpdata_consistent(hpdata_t *hpdata) {
 	if(fb_urange_longest(hpdata->active_pages, HUGEPAGE_PAGES)
