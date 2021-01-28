@@ -236,11 +236,22 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena,
 	return ret;
 }
 
+static const void *
+tcache_bin_flush_ptr_getter(void *arr_ctx, size_t ind) {
+	cache_bin_ptr_array_t *arr = (cache_bin_ptr_array_t *)arr_ctx;
+	return cache_bin_ptr_array_get(arr, (unsigned)ind);
+}
+
+static void
+tcache_bin_flush_metadata_visitor(void *szind_sum_ctx,
+    emap_full_alloc_ctx_t *alloc_ctx) {
+	size_t *szind_sum = (size_t *)szind_sum_ctx;
+	*szind_sum -= alloc_ctx->szind;
+}
+
 static void
 tcache_bin_flush_edatas_lookup(tsd_t *tsd, cache_bin_ptr_array_t *arr,
     szind_t binind, size_t nflush, edata_t **edatas) {
-	/* Avoids null-checking tsdn in the loop below. */
-	util_assume(tsd != NULL);
 
 	/*
 	 * This gets compiled away when config_opt_safety_checks is false.
@@ -248,18 +259,13 @@ tcache_bin_flush_edatas_lookup(tsd_t *tsd, cache_bin_ptr_array_t *arr,
 	 * corrupting metadata.
 	 */
 	size_t szind_sum = binind * nflush;
-	for (unsigned i = 0; i < nflush; i++) {
-		emap_full_alloc_ctx_t full_alloc_ctx;
-		emap_full_alloc_ctx_lookup(tsd_tsdn(tsd), &arena_emap_global,
-		    cache_bin_ptr_array_get(arr, i), &full_alloc_ctx);
-		edatas[i] = full_alloc_ctx.edata;
-		szind_sum -= full_alloc_ctx.szind;
-	}
-
+	emap_edata_lookup_batch(tsd, &arena_emap_global, nflush,
+	    &tcache_bin_flush_ptr_getter, (void *)arr,
+	    &tcache_bin_flush_metadata_visitor, (void *)&szind_sum,
+	    edatas);
 	if (config_opt_safety_checks && szind_sum != 0) {
 		safety_check_fail_sized_dealloc(false);
 	}
-
 }
 
 JEMALLOC_ALWAYS_INLINE bool

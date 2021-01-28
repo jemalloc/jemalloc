@@ -213,4 +213,37 @@ emap_alloc_ctx_try_lookup_fast(tsd_t *tsd, emap_t *emap, const void *ptr,
 	return false;
 }
 
+/*
+ * We want to do batch lookups out of the cache bins, which use
+ * cache_bin_ptr_array_get to access the i'th element of the bin (since they
+ * invert usual ordering in deciding what to flush).  This lets the emap avoid
+ * caring about its caller's ordering.
+ */
+typedef const void *(*emap_ptr_getter)(void *ctx, size_t ind);
+/*
+ * This allows size-checking assertions, which we can only do while we're in the
+ * process of edata lookups.
+ */
+typedef void (*emap_metadata_visitor)(void *ctx, emap_full_alloc_ctx_t *alloc_ctx);
+
+JEMALLOC_ALWAYS_INLINE void
+emap_edata_lookup_batch(tsd_t *tsd, emap_t *emap, size_t nptrs,
+    emap_ptr_getter ptr_getter, void *ptr_getter_ctx,
+    emap_metadata_visitor metadata_visitor, void *metadata_visitor_ctx,
+    edata_t **r_edatas) {
+
+	/* Avoids null-checking tsdn in the loop below. */
+	util_assume(tsd != NULL);
+
+	for (size_t i = 0; i < nptrs; i++) {
+		emap_full_alloc_ctx_t full_alloc_ctx;
+		const void *ptr = ptr_getter(ptr_getter_ctx, i);
+
+		emap_full_alloc_ctx_lookup(tsd_tsdn(tsd), emap, ptr,
+		    &full_alloc_ctx);
+		r_edatas[i] = full_alloc_ctx.edata;
+		metadata_visitor(metadata_visitor_ctx, &full_alloc_ctx);
+	}
+}
+
 #endif /* JEMALLOC_INTERNAL_EMAP_H */
