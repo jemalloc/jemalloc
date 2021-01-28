@@ -226,23 +226,47 @@ typedef const void *(*emap_ptr_getter)(void *ctx, size_t ind);
  */
 typedef void (*emap_metadata_visitor)(void *ctx, emap_full_alloc_ctx_t *alloc_ctx);
 
+typedef union emap_batch_lookup_result_u emap_batch_lookup_result_t;
+union emap_batch_lookup_result_u {
+	edata_t *edata;
+	rtree_leaf_elm_t *rtree_leaf;
+};
+
 JEMALLOC_ALWAYS_INLINE void
 emap_edata_lookup_batch(tsd_t *tsd, emap_t *emap, size_t nptrs,
     emap_ptr_getter ptr_getter, void *ptr_getter_ctx,
     emap_metadata_visitor metadata_visitor, void *metadata_visitor_ctx,
-    edata_t **r_edatas) {
-
+    emap_batch_lookup_result_t *result) {
 	/* Avoids null-checking tsdn in the loop below. */
 	util_assume(tsd != NULL);
+	rtree_ctx_t *rtree_ctx = tsd_rtree_ctxp_get(tsd);
 
 	for (size_t i = 0; i < nptrs; i++) {
-		emap_full_alloc_ctx_t full_alloc_ctx;
 		const void *ptr = ptr_getter(ptr_getter_ctx, i);
+		/*
+		 * Reuse the edatas array as a temp buffer, lying a little about
+		 * the types.
+		 */
+		result[i].rtree_leaf = rtree_leaf_elm_lookup(tsd_tsdn(tsd),
+		    &emap->rtree, rtree_ctx, (uintptr_t)ptr,
+		    /* dependent */ true, /* init_missing */ false);
+	}
 
-		emap_full_alloc_ctx_lookup(tsd_tsdn(tsd), emap, ptr,
-		    &full_alloc_ctx);
-		r_edatas[i] = full_alloc_ctx.edata;
-		metadata_visitor(metadata_visitor_ctx, &full_alloc_ctx);
+	for (size_t i = 0; i < nptrs; i++) {
+		rtree_leaf_elm_t *elm = result[i].rtree_leaf;
+		rtree_contents_t contents = rtree_leaf_elm_read(tsd_tsdn(tsd),
+		    &emap->rtree, elm, /* dependent */ true);
+		result[i].edata = contents.edata;
+		emap_full_alloc_ctx_t alloc_ctx;
+		/*
+		 * Not all these fields are read in practice by the metadata
+		 * visitor.  But the compiler can easily optimize away the ones
+		 * that aren't, so no sense in being incomplete.
+		 */
+		alloc_ctx.szind = contents.metadata.szind;
+		alloc_ctx.slab = contents.metadata.slab;
+		alloc_ctx.edata = contents.edata;
+		metadata_visitor(metadata_visitor_ctx, &alloc_ctx);
 	}
 }
 
