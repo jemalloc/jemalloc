@@ -251,7 +251,7 @@ tcache_bin_flush_metadata_visitor(void *szind_sum_ctx,
 
 static void
 tcache_bin_flush_edatas_lookup(tsd_t *tsd, cache_bin_ptr_array_t *arr,
-    szind_t binind, size_t nflush, edata_t **edatas) {
+    szind_t binind, size_t nflush, emap_batch_lookup_result_t *edatas) {
 
 	/*
 	 * This gets compiled away when config_opt_safety_checks is false.
@@ -305,7 +305,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 	 * Variable length array must have > 0 length; the last element is never
 	 * touched (it's just included to satisfy the no-zero-length rule).
 	 */
-	VARIABLE_ARRAY(edata_t *, item_edata, nflush + 1);
+	VARIABLE_ARRAY(emap_batch_lookup_result_t, item_edata, nflush + 1);
 	CACHE_BIN_PTR_ARRAY_DECLARE(ptrs, nflush);
 
 	cache_bin_init_ptr_array_for_flush(cache_bin, &tcache_bin_info[binind],
@@ -329,7 +329,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 	bool merged_stats = false;
 	while (nflush > 0) {
 		/* Lock the arena, or bin, associated with the first object. */
-		edata_t *edata = item_edata[0];
+		edata_t *edata = item_edata[0].edata;
 		unsigned cur_arena_ind = edata_arena_ind_get(edata);
 		arena_t *cur_arena = arena_get(tsdn, cur_arena_ind, false);
 
@@ -382,7 +382,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 		if (!small) {
 			for (unsigned i = 0; i < nflush; i++) {
 				void *ptr = cache_bin_ptr_array_get(&ptrs, i);
-				edata = item_edata[i];
+				edata = item_edata[i].edata;
 				assert(ptr != NULL && edata != NULL);
 
 				if (tcache_bin_flush_match(edata, cur_arena_ind,
@@ -400,7 +400,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 		unsigned ndeferred = 0;
 		for (unsigned i = 0; i < nflush; i++) {
 			void *ptr = cache_bin_ptr_array_get(&ptrs, i);
-			edata = item_edata[i];
+			edata = item_edata[i].edata;
 			assert(ptr != NULL && edata != NULL);
 			if (!tcache_bin_flush_match(edata, cur_arena_ind,
 			    cur_binshard, small)) {
@@ -411,7 +411,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 				 * it can be handled in a future pass.
 				 */
 				cache_bin_ptr_array_set(&ptrs, ndeferred, ptr);
-				item_edata[ndeferred] = edata;
+				item_edata[ndeferred].edata = edata;
 				ndeferred++;
 				continue;
 			}
