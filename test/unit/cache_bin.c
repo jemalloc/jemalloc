@@ -43,7 +43,7 @@ do_flush_test(cache_bin_t *bin, cache_bin_info_t *info, void **ptrs,
 	CACHE_BIN_PTR_ARRAY_DECLARE(arr, nflush);
 	cache_bin_init_ptr_array_for_flush(bin, info, &arr, nflush);
 	for (cache_bin_sz_t i = 0; i < nflush; i++) {
-		expect_ptr_eq(cache_bin_ptr_array_get(&arr, i), &ptrs[i], "");
+		expect_ptr_eq(arr.ptr[i], &ptrs[nflush - i - 1], "");
 	}
 	cache_bin_finish_flush(bin, info, &arr, nflush);
 
