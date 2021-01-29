@@ -239,7 +239,7 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena,
 static const void *
 tcache_bin_flush_ptr_getter(void *arr_ctx, size_t ind) {
 	cache_bin_ptr_array_t *arr = (cache_bin_ptr_array_t *)arr_ctx;
-	return cache_bin_ptr_array_get(arr, (unsigned)ind);
+	return arr->ptr[ind];
 }
 
 static void
@@ -382,7 +382,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 		 */
 		if (!small) {
 			for (unsigned i = 0; i < nflush; i++) {
-				void *ptr = cache_bin_ptr_array_get(&ptrs, i);
+				void *ptr = ptrs.ptr[i];
 				edata = item_edata[i].edata;
 				assert(ptr != NULL && edata != NULL);
 
@@ -404,7 +404,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 			arena_dalloc_bin_locked_begin(&dalloc_bin_info, binind);
 		}
 		for (unsigned i = 0; i < nflush; i++) {
-			void *ptr = cache_bin_ptr_array_get(&ptrs, i);
+			void *ptr = ptrs.ptr[i];
 			edata = item_edata[i].edata;
 			assert(ptr != NULL && edata != NULL);
 			if (!tcache_bin_flush_match(edata, cur_arena_ind,
@@ -415,7 +415,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 				 * arena.  Either way, stash the object so that
 				 * it can be handled in a future pass.
 				 */
-				cache_bin_ptr_array_set(&ptrs, ndeferred, ptr);
+				ptrs.ptr[ndeferred] = ptr;
 				item_edata[ndeferred].edata = edata;
 				ndeferred++;
 				continue;

@@ -441,27 +441,16 @@ cache_bin_finish_fill(cache_bin_t *bin, cache_bin_info_t *info,
 	bin->stack_head = empty_position - nfilled;
 }
 
-/* Same deal, but with flush. */
+/*
+ * Same deal, but with flush.  Unlike fill (which can fail), the user must flush
+ * everything we give them.
+ */
 static inline void
 cache_bin_init_ptr_array_for_flush(cache_bin_t *bin, cache_bin_info_t *info,
     cache_bin_ptr_array_t *arr, cache_bin_sz_t nflush) {
-	arr->ptr = cache_bin_empty_position_get(bin) - 1;
+	arr->ptr = cache_bin_empty_position_get(bin) - nflush;
 	assert(cache_bin_ncached_get_local(bin, info) == 0
 	    || *arr->ptr != NULL);
-}
-
-/*
- * These accessors are used by the flush pathways -- they reverse ordinary array
- * ordering.  See the note above.
- */
-JEMALLOC_ALWAYS_INLINE void *
-cache_bin_ptr_array_get(cache_bin_ptr_array_t *arr, cache_bin_sz_t n) {
-	return *(arr->ptr - n);
-}
-
-JEMALLOC_ALWAYS_INLINE void
-cache_bin_ptr_array_set(cache_bin_ptr_array_t *arr, cache_bin_sz_t n, void *p) {
-	*(arr->ptr - n) = p;
 }
 
 static inline void
