@@ -247,6 +247,7 @@ tcache_bin_flush_metadata_visitor(void *szind_sum_ctx,
     emap_full_alloc_ctx_t *alloc_ctx) {
 	size_t *szind_sum = (size_t *)szind_sum_ctx;
 	*szind_sum -= alloc_ctx->szind;
+	util_prefetch_write_range(alloc_ctx->edata, sizeof(edata_t));
 }
 
 static void
