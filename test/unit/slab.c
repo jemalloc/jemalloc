@@ -16,10 +16,13 @@ TEST_BEGIN(test_arena_slab_regind) {
 		    EXTENT_NOT_HEAD);
 		expect_ptr_not_null(edata_addr_get(&slab),
 		    "Unexpected malloc() failure");
+		arena_dalloc_bin_locked_info_t dalloc_info;
+		arena_dalloc_bin_locked_begin(&dalloc_info, binind);
 		for (regind = 0; regind < bin_info->nregs; regind++) {
 			void *reg = (void *)((uintptr_t)edata_addr_get(&slab) +
 			    (bin_info->reg_size * regind));
-			expect_zu_eq(arena_slab_regind(&slab, binind, reg),
+			expect_zu_eq(arena_slab_regind(&dalloc_info, binind,
+			    &slab, reg),
 			    regind,
 			    "Incorrect region index computed for size %zu",
 			    bin_info->reg_size);
