@@ -1475,6 +1475,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	arena->base = base;
 	/* Set arena before creating background threads. */
 	arena_set(ind, arena);
+	arena->ind = ind;
 
 	nstime_init_update(&arena->create_time);
 

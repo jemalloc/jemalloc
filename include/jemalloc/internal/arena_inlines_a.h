@@ -3,7 +3,7 @@
 
 static inline unsigned
 arena_ind_get(const arena_t *arena) {
-	return base_ind_get(arena->base);
+	return arena->ind;
 }
 
 static inline void

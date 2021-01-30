@@ -84,6 +84,12 @@ struct arena_s {
 	bins_t			bins[SC_NBINS];
 
 	/*
+	 * A cached copy of base->ind.  This can get accessed on hot paths;
+	 * looking it up in base requires an extra pointer hop / cache miss.
+	 */
+	unsigned ind;
+
+	/*
 	 * Base allocator, from which arena metadata are allocated.
 	 *
 	 * Synchronization: internal.
