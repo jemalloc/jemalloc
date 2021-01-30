@@ -3,7 +3,6 @@
 
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/decay.h"
-#include "jemalloc/internal/div.h"
 #include "jemalloc/internal/ehooks.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
@@ -45,7 +44,7 @@ const uint64_t h_steps[SMOOTHSTEP_NSTEPS] = {
 #undef STEP
 };
 
-static div_info_t arena_binind_div_info[SC_NBINS];
+div_info_t arena_binind_div_info[SC_NBINS];
 
 size_t opt_oversize_threshold = OVERSIZE_THRESHOLD_DEFAULT;
 size_t oversize_threshold = OVERSIZE_THRESHOLD_DEFAULT;
@@ -258,44 +257,6 @@ arena_slab_reg_alloc_batch(edata_t *slab, const bin_info_t *bin_info,
 	}
 #endif
 	edata_nfree_sub(slab, cnt);
-}
-
-#ifndef JEMALLOC_JET
-static
-#endif
-size_t
-arena_slab_regind(edata_t *slab, szind_t binind, const void *ptr) {
-	size_t diff, regind;
-
-	/* Freeing a pointer outside the slab can cause assertion failure. */
-	assert((uintptr_t)ptr >= (uintptr_t)edata_addr_get(slab));
-	assert((uintptr_t)ptr < (uintptr_t)edata_past_get(slab));
-	/* Freeing an interior pointer can cause assertion failure. */
-	assert(((uintptr_t)ptr - (uintptr_t)edata_addr_get(slab)) %
-	    (uintptr_t)bin_infos[binind].reg_size == 0);
-
-	diff = (size_t)((uintptr_t)ptr - (uintptr_t)edata_addr_get(slab));
-
-	/* Avoid doing division with a variable divisor. */
-	regind = div_compute(&arena_binind_div_info[binind], diff);
-
-	assert(regind < bin_infos[binind].nregs);
-
-	return regind;
-}
-
-static void
-arena_slab_reg_dalloc(edata_t *slab, slab_data_t *slab_data, void *ptr) {
-	szind_t binind = edata_szind_get(slab);
-	const bin_info_t *bin_info = &bin_infos[binind];
-	size_t regind = arena_slab_regind(slab, binind, ptr);
-
-	assert(edata_nfree_get(slab) < bin_info->nregs);
-	/* Freeing an unallocated pointer can cause assertion failure. */
-	assert(bitmap_get(slab_data->bitmap, &bin_info->bitmap_info, regind));
-
-	bitmap_unset(slab_data->bitmap, &bin_info->bitmap_info, regind);
-	edata_nfree_inc(slab);
 }
 
 static void
@@ -1189,37 +1150,18 @@ arena_dalloc_bin_slab_prepare(tsdn_t *tsdn, edata_t *slab, bin_t *bin) {
 	}
 }
 
-/* Returns true if arena_slab_dalloc must be called on slab */
-static bool
-arena_dalloc_bin_locked_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
-    szind_t binind, edata_t *slab, void *ptr) {
-	const bin_info_t *bin_info = &bin_infos[binind];
-	arena_slab_reg_dalloc(slab, edata_slab_data_get(slab), ptr);
-
-	bool ret = false;
-	unsigned nfree = edata_nfree_get(slab);
-	if (nfree == bin_info->nregs) {
-		arena_dissociate_bin_slab(arena, slab, bin);
-		arena_dalloc_bin_slab_prepare(tsdn, slab, bin);
-		ret = true;
-	} else if (nfree == 1 && slab != bin->slabcur) {
-		arena_bin_slabs_full_remove(arena, bin, slab);
-		arena_bin_lower_slab(tsdn, arena, slab, bin);
-	}
-
-	if (config_stats) {
-		bin->stats.ndalloc++;
-		bin->stats.curregs--;
-	}
-
-	return ret;
+void
+arena_dalloc_bin_locked_handle_newly_empty(tsdn_t *tsdn, arena_t *arena,
+    edata_t *slab, bin_t *bin) {
+	arena_dissociate_bin_slab(arena, slab, bin);
+	arena_dalloc_bin_slab_prepare(tsdn, slab, bin);
 }
 
-bool
-arena_dalloc_bin_locked(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
-szind_t binind, edata_t *edata, void *ptr) {
-	return arena_dalloc_bin_locked_impl(tsdn, arena, bin, binind, edata,
-	    ptr);
+void
+arena_dalloc_bin_locked_handle_newly_nonempty(tsdn_t *tsdn, arena_t *arena,
+    edata_t *slab, bin_t *bin) {
+	arena_bin_slabs_full_remove(arena, bin, slab);
+	arena_bin_lower_slab(tsdn, arena, slab, bin);
 }
 
 static void
@@ -1229,8 +1171,11 @@ arena_dalloc_bin(tsdn_t *tsdn, arena_t *arena, edata_t *edata, void *ptr) {
 	bin_t *bin = &arena->bins[binind].bin_shards[binshard];
 
 	malloc_mutex_lock(tsdn, &bin->lock);
-	bool ret = arena_dalloc_bin_locked_impl(tsdn, arena, bin, binind, edata,
-	    ptr);
+	arena_dalloc_bin_locked_info_t info;
+	arena_dalloc_bin_locked_begin(&info, binind);
+	bool ret = arena_dalloc_bin_locked_step(tsdn, arena, bin,
+	    &info, binind, edata, ptr);
+	arena_dalloc_bin_locked_finish(tsdn, arena, bin, &info);
 	malloc_mutex_unlock(tsdn, &bin->lock);
 
 	if (ret) {

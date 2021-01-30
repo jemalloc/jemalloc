@@ -399,6 +399,10 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 
 		/* Deallocate whatever we can. */
 		unsigned ndeferred = 0;
+		arena_dalloc_bin_locked_info_t dalloc_bin_info;
+		if (small) {
+			arena_dalloc_bin_locked_begin(&dalloc_bin_info, binind);
+		}
 		for (unsigned i = 0; i < nflush; i++) {
 			void *ptr = cache_bin_ptr_array_get(&ptrs, i);
 			edata = item_edata[i].edata;
@@ -417,8 +421,9 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 				continue;
 			}
 			if (small) {
-				if (arena_dalloc_bin_locked(tsdn, cur_arena,
-				    cur_bin, binind, edata, ptr)) {
+				if (arena_dalloc_bin_locked_step(tsdn,
+				    cur_arena, cur_bin, &dalloc_bin_info,
+				    binind, edata, ptr)) {
 					dalloc_slabs[dalloc_count] = edata;
 					dalloc_count++;
 				}
@@ -432,6 +437,8 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 		}
 
 		if (small) {
+			arena_dalloc_bin_locked_finish(tsdn, cur_arena, cur_bin,
+			    &dalloc_bin_info);
 			malloc_mutex_unlock(tsdn, &cur_bin->lock);
 		}
 		arena_decay_ticks(tsdn, cur_arena, nflush - ndeferred);

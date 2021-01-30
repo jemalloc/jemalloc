@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_ARENA_EXTERNS_H
 
 #include "jemalloc/internal/bin.h"
+#include "jemalloc/internal/div.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/hook.h"
 #include "jemalloc/internal/pages.h"
@@ -12,6 +13,8 @@ extern ssize_t opt_muzzy_decay_ms;
 
 extern percpu_arena_mode_t opt_percpu_arena;
 extern const char *percpu_arena_mode_names[];
+
+extern div_info_t arena_binind_div_info[SC_NBINS];
 
 extern const uint64_t h_steps[SMOOTHSTEP_NSTEPS];
 extern malloc_mutex_t arenas_lock;
@@ -29,9 +32,6 @@ void arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     bin_stats_data_t *bstats, arena_stats_large_t *lstats,
     pac_estats_t *estats, hpa_shard_stats_t *hpastats, sec_stats_t *secstats);
 void arena_handle_new_dirty_pages(tsdn_t *tsdn, arena_t *arena);
-#ifdef JEMALLOC_JET
-size_t arena_slab_regind(edata_t *slab, szind_t binind, const void *ptr);
-#endif
 edata_t *arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena,
     size_t usize, size_t alignment, bool zero);
 void arena_extent_dalloc_large_prep(tsdn_t *tsdn, arena_t *arena,
@@ -59,8 +59,11 @@ void arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize);
 void arena_dalloc_promoted(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
     bool slow_path);
 void arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, edata_t *slab);
-bool arena_dalloc_bin_locked(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
-    szind_t binind, edata_t *edata, void *ptr);
+
+void arena_dalloc_bin_locked_handle_newly_empty(tsdn_t *tsdn, arena_t *arena,
+    edata_t *slab, bin_t *bin);
+void arena_dalloc_bin_locked_handle_newly_nonempty(tsdn_t *tsdn, arena_t *arena,
+    edata_t *slab, bin_t *bin);
 void arena_dalloc_small(tsdn_t *tsdn, void *ptr);
 bool arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
     size_t extra, bool zero, size_t *newsize);
