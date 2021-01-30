@@ -48,6 +48,10 @@ div_info_t arena_binind_div_info[SC_NBINS];
 
 size_t opt_oversize_threshold = OVERSIZE_THRESHOLD_DEFAULT;
 size_t oversize_threshold = OVERSIZE_THRESHOLD_DEFAULT;
+
+uint32_t arena_bin_offsets[SC_NBINS];
+static unsigned nbins_total;
+
 static unsigned huge_arena_ind;
 
 /******************************************************************************/
@@ -179,7 +183,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	for (szind_t i = 0; i < SC_NBINS; i++) {
 		for (unsigned j = 0; j < bin_infos[i].n_shards; j++) {
 			bin_stats_merge(tsdn, &bstats[i],
-			    &arena->bins[i].bin_shards[j]);
+			    arena_get_bin(arena, i, j));
 		}
 	}
 }
@@ -595,8 +599,7 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 	/* Bins. */
 	for (unsigned i = 0; i < SC_NBINS; i++) {
 		for (unsigned j = 0; j < bin_infos[i].n_shards; j++) {
-			arena_bin_reset(tsd, arena,
-			    &arena->bins[i].bin_shards[j]);
+			arena_bin_reset(tsd, arena, arena_get_bin(arena, i, j));
 		}
 	}
 	pa_shard_reset(tsd_tsdn(tsd), &arena->pa_shard);
@@ -721,7 +724,7 @@ arena_bin_choose(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 	if (binshard_p != NULL) {
 		*binshard_p = binshard;
 	}
-	return &arena->bins[binind].bin_shards[binshard];
+	return arena_get_bin(arena, binind, binshard);
 }
 
 void
@@ -1168,7 +1171,7 @@ static void
 arena_dalloc_bin(tsdn_t *tsdn, arena_t *arena, edata_t *edata, void *ptr) {
 	szind_t binind = edata_szind_get(edata);
 	unsigned binshard = edata_binshard_get(edata);
-	bin_t *bin = &arena->bins[binind].bin_shards[binshard];
+	bin_t *bin = arena_get_bin(arena, binind, binshard);
 
 	malloc_mutex_lock(tsdn, &bin->lock);
 	arena_dalloc_bin_locked_info_t info;
@@ -1411,10 +1414,6 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		}
 	}
 
-	unsigned nbins_total = 0;
-	for (i = 0; i < SC_NBINS; i++) {
-		nbins_total += bin_infos[i].n_shards;
-	}
 	size_t arena_size = sizeof(arena_t) + sizeof(bin_t) * nbins_total;
 	arena = (arena_t *)base_alloc(tsdn, base, arena_size, CACHELINE);
 	if (arena == NULL) {
@@ -1457,20 +1456,13 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	}
 
 	/* Initialize bins. */
-	uintptr_t bin_addr = (uintptr_t)arena + sizeof(arena_t);
 	atomic_store_u(&arena->binshard_next, 0, ATOMIC_RELEASE);
-	for (i = 0; i < SC_NBINS; i++) {
-		unsigned nshards = bin_infos[i].n_shards;
-		arena->bins[i].bin_shards = (bin_t *)bin_addr;
-		bin_addr += nshards * sizeof(bin_t);
-		for (unsigned j = 0; j < nshards; j++) {
-			bool err = bin_init(&arena->bins[i].bin_shards[j]);
-			if (err) {
-				goto label_error;
-			}
+	for (i = 0; i < nbins_total; i++) {
+		bool err = bin_init(&arena->bins[i]);
+		if (err) {
+			goto label_error;
 		}
 	}
-	assert(bin_addr == (uintptr_t)arena + arena_size);
 
 	arena->base = base;
 	/* Set arena before creating background threads. */
@@ -1587,6 +1579,13 @@ arena_boot(sc_data_t *sc_data) {
 		div_init(&arena_binind_div_info[i],
 		    (1U << sc->lg_base) + (sc->ndelta << sc->lg_delta));
 	}
+
+	uint32_t cur_offset = (uint32_t)offsetof(arena_t, bins);
+	for (szind_t i = 0; i < SC_NBINS; i++) {
+		arena_bin_offsets[i] = cur_offset;
+		nbins_total += bin_infos[i].n_shards;
+		cur_offset += (uint32_t)(bin_infos[i].n_shards * sizeof(bin_t));
+	}
 }
 
 void
@@ -1633,23 +1632,17 @@ arena_prefork7(tsdn_t *tsdn, arena_t *arena) {
 
 void
 arena_prefork8(tsdn_t *tsdn, arena_t *arena) {
-	for (unsigned i = 0; i < SC_NBINS; i++) {
-		for (unsigned j = 0; j < bin_infos[i].n_shards; j++) {
-			bin_prefork(tsdn, &arena->bins[i].bin_shards[j]);
-		}
+	for (unsigned i = 0; i < nbins_total; i++) {
+		bin_prefork(tsdn, &arena->bins[i]);
 	}
 }
 
 void
 arena_postfork_parent(tsdn_t *tsdn, arena_t *arena) {
-	unsigned i;
-
-	for (i = 0; i < SC_NBINS; i++) {
-		for (unsigned j = 0; j < bin_infos[i].n_shards; j++) {
-			bin_postfork_parent(tsdn,
-			    &arena->bins[i].bin_shards[j]);
-		}
+	for (unsigned i = 0; i < nbins_total; i++) {
+		bin_postfork_parent(tsdn, &arena->bins[i]);
 	}
+
 	malloc_mutex_postfork_parent(tsdn, &arena->large_mtx);
 	base_postfork_parent(tsdn, arena->base);
 	pa_shard_postfork_parent(tsdn, &arena->pa_shard);
@@ -1660,8 +1653,6 @@ arena_postfork_parent(tsdn_t *tsdn, arena_t *arena) {
 
 void
 arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
-	unsigned i;
-
 	atomic_store_u(&arena->nthreads[0], 0, ATOMIC_RELAXED);
 	atomic_store_u(&arena->nthreads[1], 0, ATOMIC_RELAXED);
 	if (tsd_arena_get(tsdn_tsd(tsdn)) == arena) {
@@ -1686,11 +1677,10 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 		}
 	}
 
-	for (i = 0; i < SC_NBINS; i++) {
-		for (unsigned j = 0; j < bin_infos[i].n_shards; j++) {
-			bin_postfork_child(tsdn, &arena->bins[i].bin_shards[j]);
-		}
+	for (unsigned i = 0; i < nbins_total; i++) {
+		bin_postfork_child(tsdn, &arena->bins[i]);
 	}
+
 	malloc_mutex_postfork_child(tsdn, &arena->large_mtx);
 	base_postfork_child(tsdn, arena->base);
 	pa_shard_postfork_child(tsdn, &arena->pa_shard);

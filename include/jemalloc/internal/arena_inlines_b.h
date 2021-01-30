@@ -534,4 +534,10 @@ arena_dalloc_bin_locked_finish(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 	}
 }
 
+static inline bin_t *
+arena_get_bin(arena_t *arena, szind_t binind, unsigned binshard) {
+	bin_t *shard0 = (bin_t *)((uintptr_t)arena + arena_bin_offsets[binind]);
+	return shard0 + binshard;
+}
+
 #endif /* JEMALLOC_INTERNAL_ARENA_INLINES_B_H */

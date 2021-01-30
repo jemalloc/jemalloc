@@ -344,8 +344,8 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 		bin_t *cur_bin = NULL;
 		if (small) {
 			cur_binshard = edata_binshard_get(edata);
-			cur_bin = &cur_arena->bins[binind].bin_shards[
-			    cur_binshard];
+			cur_bin = arena_get_bin(cur_arena, binind,
+			    cur_binshard);
 			assert(cur_binshard < bin_infos[binind].n_shards);
 		}
 

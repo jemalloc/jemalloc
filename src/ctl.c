@@ -3420,7 +3420,7 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib,
 
 		for (szind_t i = 0; i < SC_NBINS; i++) {
 			for (unsigned j = 0; j < bin_infos[i].n_shards; j++) {
-				bin_t *bin = &arena->bins[i].bin_shards[j];
+				bin_t *bin = arena_get_bin(arena, i, j);
 				MUTEX_PROF_RESET(bin->lock);
 			}
 		}

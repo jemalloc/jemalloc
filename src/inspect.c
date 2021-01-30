@@ -52,11 +52,11 @@ inspect_extent_util_stats_verbose_get(tsdn_t *tsdn, const void *ptr,
 	assert(*nfree <= *nregs);
 	assert(*nfree * edata_usize_get(edata) <= *size);
 
-	const arena_t *arena = (arena_t *)atomic_load_p(
+	arena_t *arena = (arena_t *)atomic_load_p(
 	    &arenas[edata_arena_ind_get(edata)], ATOMIC_RELAXED);
 	assert(arena != NULL);
 	const unsigned binshard = edata_binshard_get(edata);
-	bin_t *bin = &arena->bins[szind].bin_shards[binshard];
+	bin_t *bin = arena_get_bin(arena, szind, binshard);
 
 	malloc_mutex_lock(tsdn, &bin->lock);
 	if (config_stats) {

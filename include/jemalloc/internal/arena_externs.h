@@ -23,6 +23,12 @@ extern emap_t arena_emap_global;
 extern size_t opt_oversize_threshold;
 extern size_t oversize_threshold;
 
+/*
+ * arena_bin_offsets[binind] is the offset of the first bin shard for size class
+ * binind.
+ */
+extern uint32_t arena_bin_offsets[SC_NBINS];
+
 void arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena,
     unsigned *nthreads, const char **dss, ssize_t *dirty_decay_ms,
     ssize_t *muzzy_decay_ms, size_t *nactive, size_t *ndirty, size_t *nmuzzy);
