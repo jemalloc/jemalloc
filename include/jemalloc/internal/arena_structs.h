@@ -77,13 +77,6 @@ struct arena_s {
 	pa_shard_t		pa_shard;
 
 	/*
-	 * bins is used to store heaps of free regions.
-	 *
-	 * Synchronization: internal.
-	 */
-	bins_t			bins[SC_NBINS];
-
-	/*
 	 * A cached copy of base->ind.  This can get accessed on hot paths;
 	 * looking it up in base requires an extra pointer hop / cache miss.
 	 */
@@ -97,6 +90,12 @@ struct arena_s {
 	base_t			*base;
 	/* Used to determine uptime.  Read-only after initialization. */
 	nstime_t		create_time;
+
+	/*
+	 * The arena is allocated alongside its bins; really this is a
+	 * dynamically sized array determined by the binshard settings.
+	 */
+	bin_t			bins[0];
 };
 
 /* Used in conjunction with tsd for fast arena-related context lookup. */
