@@ -56,31 +56,6 @@ percpu_arena_ind_limit(percpu_arena_mode_t mode) {
 	}
 }
 
-static inline arena_tdata_t *
-arena_tdata_get(tsd_t *tsd, unsigned ind, bool refresh_if_missing) {
-	arena_tdata_t *tdata;
-	arena_tdata_t *arenas_tdata = tsd_arenas_tdata_get(tsd);
-
-	if (unlikely(arenas_tdata == NULL)) {
-		/* arenas_tdata hasn't been initialized yet. */
-		return arena_tdata_get_hard(tsd, ind);
-	}
-	if (unlikely(ind >= tsd_narenas_tdata_get(tsd))) {
-		/*
-		 * ind is invalid, cache is old (too small), or tdata to be
-		 * initialized.
-		 */
-		return (refresh_if_missing ? arena_tdata_get_hard(tsd, ind) :
-		    NULL);
-	}
-
-	tdata = &arenas_tdata[ind];
-	if (likely(tdata != NULL) || !refresh_if_missing) {
-		return tdata;
-	}
-	return arena_tdata_get_hard(tsd, ind);
-}
-
 static inline arena_t *
 arena_get(tsdn_t *tsdn, unsigned ind, bool init_if_missing) {
 	arena_t *ret;
@@ -95,17 +70,6 @@ arena_get(tsdn_t *tsdn, unsigned ind, bool init_if_missing) {
 		}
 	}
 	return ret;
-}
-
-static inline ticker_t *
-decay_ticker_get(tsd_t *tsd, unsigned ind) {
-	arena_tdata_t *tdata;
-
-	tdata = arena_tdata_get(tsd, ind, true);
-	if (unlikely(tdata == NULL)) {
-		return NULL;
-	}
-	return &tdata->decay_ticker;
 }
 
 JEMALLOC_ALWAYS_INLINE bool

@@ -251,8 +251,6 @@ assert_tsd_data_cleanup_done(tsd_t *tsd) {
 	assert(!tsd_in_nominal_list(tsd));
 	assert(*tsd_arenap_get_unsafe(tsd) == NULL);
 	assert(*tsd_iarenap_get_unsafe(tsd) == NULL);
-	assert(*tsd_arenas_tdata_bypassp_get_unsafe(tsd) == true);
-	assert(*tsd_arenas_tdatap_get_unsafe(tsd) == NULL);
 	assert(*tsd_tcache_enabledp_get_unsafe(tsd) == false);
 	assert(*tsd_prof_tdatap_get_unsafe(tsd) == NULL);
 }
@@ -267,7 +265,6 @@ tsd_data_init_nocleanup(tsd_t *tsd) {
 	 * We set up tsd in a way that no cleanup is needed.
 	 */
 	rtree_ctx_data_init(tsd_rtree_ctxp_get_unsafe(tsd));
-	*tsd_arenas_tdata_bypassp_get(tsd) = true;
 	*tsd_tcache_enabledp_get_unsafe(tsd) = false;
 	*tsd_reentrancy_levelp_get(tsd) = 1;
 	tsd_prng_state_init(tsd);
@@ -375,7 +372,6 @@ tsd_do_data_cleanup(tsd_t *tsd) {
 	prof_tdata_cleanup(tsd);
 	iarena_cleanup(tsd);
 	arena_cleanup(tsd);
-	arenas_tdata_cleanup(tsd);
 	tcache_cleanup(tsd);
 	witnesses_cleanup(tsd_witness_tsdp_get_unsafe(tsd));
 	*tsd_reentrancy_levelp_get(tsd) = 1;
@@ -439,7 +435,6 @@ malloc_tsd_boot0(void) {
 		return NULL;
 	}
 	tsd = tsd_fetch();
-	*tsd_arenas_tdata_bypassp_get(tsd) = true;
 	return tsd;
 }
 
@@ -449,7 +444,6 @@ malloc_tsd_boot1(void) {
 	tsd_t *tsd = tsd_fetch();
 	/* malloc_slow has been set properly.  Update tsd_slow. */
 	tsd_slow_update(tsd);
-	*tsd_arenas_tdata_bypassp_get(tsd) = false;
 }
 
 #ifdef _WIN32

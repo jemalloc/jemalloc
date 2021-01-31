@@ -98,9 +98,4 @@ struct arena_s {
 	bin_t			bins[0];
 };
 
-/* Used in conjunction with tsd for fast arena-related context lookup. */
-struct arena_tdata_s {
-	ticker_t		decay_ticker;
-};
-
 #endif /* JEMALLOC_INTERNAL_ARENA_STRUCTS_B_H */

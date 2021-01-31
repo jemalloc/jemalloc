@@ -116,18 +116,22 @@ arena_prof_info_set(tsd_t *tsd, edata_t *edata, prof_tctx_t *tctx,
 
 JEMALLOC_ALWAYS_INLINE void
 arena_decay_ticks(tsdn_t *tsdn, arena_t *arena, unsigned nticks) {
-	tsd_t *tsd;
-	ticker_t *decay_ticker;
-
 	if (unlikely(tsdn_null(tsdn))) {
 		return;
 	}
-	tsd = tsdn_tsd(tsdn);
-	decay_ticker = decay_ticker_get(tsd, arena_ind_get(arena));
-	if (unlikely(decay_ticker == NULL)) {
-		return;
-	}
-	if (unlikely(ticker_ticks(decay_ticker, nticks))) {
+	tsd_t *tsd = tsdn_tsd(tsdn);
+	/*
+	 * We use the ticker_geom_t to avoid having per-arena state in the tsd.
+	 * Instead of having a countdown-until-decay timer running for every
+	 * arena in every thread, we flip a coin once per tick, whose
+	 * probability of coming up heads is 1/nticks; this is effectively the
+	 * operation of the ticker_geom_t.  Each arena has the same chance of a
+	 * coinflip coming up heads (1/ARENA_DECAY_NTICKS_PER_UPDATE), so we can
+	 * use a single ticker for all of them.
+	 */
+	ticker_geom_t *decay_ticker = tsd_arena_decay_tickerp_get(tsd);
+	uint64_t *prng_state = tsd_prng_statep_get(tsd);
+	if (unlikely(ticker_geom_ticks(decay_ticker, prng_state, nticks))) {
 		arena_decay(tsdn, arena, false, false);
 	}
 }
