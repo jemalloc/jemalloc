@@ -160,6 +160,9 @@
     <ClCompile Include="..\..\..\..\src\thread_event.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\src\ticker.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\src\tsd.c">
       <Filter>Source Files</Filter>
     </ClCompile>

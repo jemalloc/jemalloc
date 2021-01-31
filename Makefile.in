@@ -151,6 +151,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/tcache.c \
 	$(srcroot)src/test_hooks.c \
 	$(srcroot)src/thread_event.c \
+	$(srcroot)src/ticker.c \
 	$(srcroot)src/tsd.c \
 	$(srcroot)src/witness.c
 ifeq ($(enable_zone_allocator), 1)
@@ -188,7 +189,8 @@ ifeq (1, $(link_whole_archive))
 C_UTIL_INTEGRATION_SRCS :=
 C_UTIL_CPP_SRCS :=
 else
-C_UTIL_INTEGRATION_SRCS := $(srcroot)src/nstime.c $(srcroot)src/malloc_io.c
+C_UTIL_INTEGRATION_SRCS := $(srcroot)src/nstime.c $(srcroot)src/malloc_io.c \
+	$(srcroot)src/ticker.c
 C_UTIL_CPP_SRCS := $(srcroot)src/nstime.c $(srcroot)src/malloc_io.c
 endif
 TESTS_UNIT := \
