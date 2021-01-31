@@ -64,10 +64,37 @@ TEST_BEGIN(test_ticker_copy) {
 }
 TEST_END
 
+TEST_BEGIN(test_ticker_geom) {
+	const int32_t ticks = 100;
+	const uint64_t niters = 100 * 1000;
+
+	ticker_geom_t ticker;
+	ticker_geom_init(&ticker, ticks);
+	uint64_t total_ticks = 0;
+	/* Just some random constant. */
+	uint64_t prng_state = 0x343219f93496db9fULL;
+	for (uint64_t i = 0; i < niters; i++) {
+		while(!ticker_geom_tick(&ticker, &prng_state)) {
+			total_ticks++;
+		}
+	}
+	/*
+	 * In fact, with this choice of random seed and the PRNG implementation
+	 * used at the time this was tested, total_ticks is 95.1% of the
+	 * expected ticks.
+	 */
+	expect_u64_ge(total_ticks , niters * ticks * 9 / 10,
+	    "Mean off by > 10%%");
+	expect_u64_le(total_ticks , niters * ticks * 11 / 10,
+	    "Mean off by > 10%%");
+}
+TEST_END
+
 int
 main(void) {
 	return test(
 	    test_ticker_tick,
 	    test_ticker_ticks,
-	    test_ticker_copy);
+	    test_ticker_copy,
+	    test_ticker_geom);
 }
