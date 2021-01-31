@@ -58,9 +58,7 @@ typedef ql_elm(tsd_t) tsd_link_t;
 /*  O(name,			type,			nullable type) */
 #define TSD_DATA_SLOW							\
     O(tcache_enabled,		bool,			bool)		\
-    O(arenas_tdata_bypass,	bool,			bool)		\
     O(reentrancy_level,		int8_t,			int8_t)		\
-    O(narenas_tdata,		uint32_t,		uint32_t)	\
     O(thread_allocated_last_event,	uint64_t,	uint64_t)	\
     O(thread_allocated_next_event,	uint64_t,	uint64_t)	\
     O(thread_deallocated_last_event,	uint64_t,	uint64_t)	\
@@ -77,7 +75,7 @@ typedef ql_elm(tsd_t) tsd_link_t;
     O(prng_state,		uint64_t,		uint64_t)	\
     O(iarena,			arena_t *,		arena_t *)	\
     O(arena,			arena_t *,		arena_t *)	\
-    O(arenas_tdata,		arena_tdata_t *,	arena_tdata_t *)\
+    O(arena_decay_ticker,	ticker_geom_t,		ticker_geom_t)	\
     O(sec_shard,		uint8_t,		uint8_t)	\
     O(binshards,		tsd_binshards_t,	tsd_binshards_t)\
     O(tsd_link,			tsd_link_t,		tsd_link_t)	\
@@ -90,9 +88,7 @@ typedef ql_elm(tsd_t) tsd_link_t;
 
 #define TSD_DATA_SLOW_INITIALIZER					\
     /* tcache_enabled */	TCACHE_ENABLED_ZERO_INITIALIZER,	\
-    /* arenas_tdata_bypass */	false,					\
     /* reentrancy_level */	0,					\
-    /* narenas_tdata */		0,					\
     /* thread_allocated_last_event */	0,				\
     /* thread_allocated_next_event */	0,				\
     /* thread_deallocated_last_event */	0,				\
@@ -109,7 +105,8 @@ typedef ql_elm(tsd_t) tsd_link_t;
     /* prng_state */		0,					\
     /* iarena */		NULL,					\
     /* arena */			NULL,					\
-    /* arenas_tdata */		NULL,					\
+    /* arena_decay_ticker */						\
+	TICKER_GEOM_INIT(ARENA_DECAY_NTICKS_PER_UPDATE),		\
     /* sec_shard */		(uint8_t)-1,				\
     /* binshards */		TSD_BINSHARDS_ZERO_INITIALIZER,		\
     /* tsd_link */		{NULL},					\
