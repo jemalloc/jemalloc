@@ -17,6 +17,12 @@ struct bin_s {
 	malloc_mutex_t		lock;
 
 	/*
+	 * Bin statistics.  These get touched every time the lock is acquired,
+	 * so put them close by in the hopes of getting some cache locality.
+	 */
+	bin_stats_t	stats;
+
+	/*
 	 * Current slab being used to service allocations of this bin's size
 	 * class.  slabcur is independent of slabs_{nonfull,full}; whenever
 	 * slabcur is reassigned, the previous slab must be deallocated or
@@ -33,9 +39,6 @@ struct bin_s {
 
 	/* List used to track full slabs. */
 	edata_list_active_t	slabs_full;
-
-	/* Bin statistics. */
-	bin_stats_t	stats;
 };
 
 /* A set of sharded bins of the same size class. */

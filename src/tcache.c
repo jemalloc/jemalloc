@@ -347,6 +347,13 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 			cur_bin = arena_get_bin(cur_arena, binind,
 			    cur_binshard);
 			assert(cur_binshard < bin_infos[binind].n_shards);
+			/*
+			 * If you're looking at profiles, you might think this
+			 * is a good place to prefetch the bin stats, which are
+			 * often a cache miss.  This turns out not to be
+			 * helpful on the workloads we've looked at, with moving
+			 * the bin stats next to the lock seeming to do better.
+			 */
 		}
 
 		if (small) {
