@@ -70,8 +70,8 @@ struct psset_s {
 	 * allocations.
 	 */
 	hpdata_empty_list_t empty;
-	/* Slabs which are available to be purged. */
-	hpdata_purge_list_t to_purge;
+	/* Slabs which are available to be purged, ordered by purge level. */
+	hpdata_purge_list_t to_purge[hpdata_purge_level_count];
 	/* Slabs which are available to be hugified. */
 	hpdata_hugify_list_t to_hugify;
 };
