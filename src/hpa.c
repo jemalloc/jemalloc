@@ -151,34 +151,59 @@ hpa_good_hugification_candidate(hpa_shard_t *shard, hpdata_t *ps) {
 	    >= shard->opts.hugification_threshold;
 }
 
-static bool
-hpa_should_purge(hpa_shard_t *shard) {
+static size_t
+hpa_adjusted_ndirty(tsdn_t *tsdn, hpa_shard_t *shard) {
+	malloc_mutex_assert_owner(tsdn, &shard->mtx);
+	return psset_ndirty(&shard->psset) - shard->npending_purge;
+}
+
+static size_t
+hpa_ndirty_max(tsdn_t *tsdn, hpa_shard_t *shard) {
+	malloc_mutex_assert_owner(tsdn, &shard->mtx);
 	if (shard->opts.dirty_mult == (fxp_t)-1) {
+		return (size_t)-1;
+	}
+	return fxp_mul_frac(psset_nactive(&shard->psset),
+	    shard->opts.dirty_mult);
+}
+
+static bool
+hpa_hugify_blocked_by_ndirty(tsdn_t *tsdn, hpa_shard_t *shard) {
+	malloc_mutex_assert_owner(tsdn, &shard->mtx);
+	hpdata_t *to_hugify = psset_pick_hugify(&shard->psset);
+	if (to_hugify == NULL) {
 		return false;
 	}
-	size_t adjusted_ndirty = psset_ndirty(&shard->psset)
-	    - shard->npending_purge;
-	/*
-	 * Another simple static check; purge whenever dirty exceeds 25% of
-	 * active.
-	 */
-	size_t max_ndirty = fxp_mul_frac(psset_nactive(&shard->psset),
-	    shard->opts.dirty_mult);
-	return adjusted_ndirty > max_ndirty;
+	return hpa_adjusted_ndirty(tsdn, shard)
+	    + hpdata_nretained_get(to_hugify) > hpa_ndirty_max(tsdn, shard);
+}
+
+static bool
+hpa_should_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
+	malloc_mutex_assert_owner(tsdn, &shard->mtx);
+	if (hpa_adjusted_ndirty(tsdn, shard) > hpa_ndirty_max(tsdn, shard)) {
+		return true;
+	}
+	if (hpa_hugify_blocked_by_ndirty(tsdn, shard)) {
+		return true;
+	}
+	return false;
 }
 
 static void
-hpa_update_purge_hugify_eligibility(hpa_shard_t *shard, hpdata_t *ps) {
+hpa_update_purge_hugify_eligibility(tsdn_t *tsdn, hpa_shard_t *shard,
+    hpdata_t *ps) {
+	malloc_mutex_assert_owner(tsdn, &shard->mtx);
 	if (hpdata_changing_state_get(ps)) {
-		hpdata_purge_allowed_set(ps, false);
+		hpdata_purge_level_set(ps, hpdata_purge_level_never);
 		hpdata_hugify_allowed_set(ps, false);
 		return;
 	}
 	/*
-	 * Hugepages are distinctly costly to purge, so do it only if they're
-	 * *particularly* full of dirty pages.  Eventually, we should use a
-	 * smarter / more dynamic heuristic for situations where we have to
-	 * manually hugify.
+	 * Hugepages are distinctly costly to purge, so try to avoid it unless
+	 * they're *particularly* full of dirty pages.  Eventually, we should
+	 * use a smarter / more dynamic heuristic for situations where we have
+	 * to manually hugify.
 	 *
 	 * In situations where we don't manually hugify, this problem is
 	 * reduced.  The "bad" situation we're trying to avoid is one's that's
@@ -195,17 +220,23 @@ hpa_update_purge_hugify_eligibility(hpa_shard_t *shard, hpdata_t *ps) {
 	 * deferred; in that case we don't need any explicit calls on the
 	 * allocator's end at all; we just try to pack allocations in a
 	 * hugepage-friendly manner and let the OS hugify in the background.
-	 *
-	 * Anyways, our strategy to delay dehugification is to only consider
-	 * purging a hugified hugepage if it's individually dirtier than the
-	 * overall max dirty pages setting.  That setting is 1 dirty page per 4
-	 * active pages; i.e. 4/5s of hugepage pages must be active.
 	 */
-	if ((!hpdata_huge_get(ps) && hpdata_ndirty_get(ps) > 0)
-	    || (hpdata_ndirty_get(ps) != 0
-	    && hpdata_ndirty_get(ps) * PAGE
-	    >= shard->opts.dehugification_threshold)) {
-		hpdata_purge_allowed_set(ps, true);
+	if (hpdata_ndirty_get(ps) > 0) {
+		if (hpdata_huge_get(ps)) {
+			if (hpa_good_hugification_candidate(shard, ps)) {
+				hpdata_purge_level_set(ps,
+				    hpdata_purge_level_strongly_nonpreferred);
+			} else if (hpdata_ndirty_get(ps) * PAGE
+			    >= shard->opts.dehugification_threshold) {
+				hpdata_purge_level_set(ps,
+				    hpdata_purge_level_nonpreferred);
+			} else {
+				hpdata_purge_level_set(ps,
+				    hpdata_purge_level_default);
+			}
+		} else {
+			hpdata_purge_level_set(ps, hpdata_purge_level_default);
+		}
 	}
 	if (hpa_good_hugification_candidate(shard, ps)
 	    && !hpdata_huge_get(ps)) {
@@ -286,7 +317,7 @@ hpa_try_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
 	if (to_purge == NULL) {
 		return false;
 	}
-	assert(hpdata_purge_allowed_get(to_purge));
+	assert(hpdata_purge_level_get(to_purge) != hpdata_purge_level_never);
 	assert(!hpdata_changing_state_get(to_purge));
 
 	/*
@@ -297,7 +328,7 @@ hpa_try_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
 	psset_update_begin(&shard->psset, to_purge);
 	assert(hpdata_alloc_allowed_get(to_purge));
 	hpdata_mid_purge_set(to_purge, true);
-	hpdata_purge_allowed_set(to_purge, false);
+	hpdata_purge_level_set(to_purge, hpdata_purge_level_never);
 	hpdata_hugify_allowed_set(to_purge, false);
 	/*
 	 * Unlike with hugification (where concurrent
@@ -352,7 +383,7 @@ hpa_try_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
 	hpdata_mid_purge_set(to_purge, false);
 
 	hpdata_alloc_allowed_set(to_purge, true);
-	hpa_update_purge_hugify_eligibility(shard, to_purge);
+	hpa_update_purge_hugify_eligibility(tsdn, shard, to_purge);
 
 	psset_update_end(&shard->psset, to_purge);
 
@@ -363,6 +394,10 @@ hpa_try_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
 static bool
 hpa_try_hugify(tsdn_t *tsdn, hpa_shard_t *shard) {
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
+
+	if (hpa_hugify_blocked_by_ndirty(tsdn, shard)) {
+		return false;
+	}
 
 	hpdata_t *to_hugify = psset_pick_hugify(&shard->psset);
 	if (to_hugify == NULL) {
@@ -378,7 +413,7 @@ hpa_try_hugify(tsdn_t *tsdn, hpa_shard_t *shard) {
 	 */
 	psset_update_begin(&shard->psset, to_hugify);
 	hpdata_mid_hugify_set(to_hugify, true);
-	hpdata_purge_allowed_set(to_hugify, false);
+	hpdata_purge_level_set(to_hugify, hpdata_purge_level_never);
 	hpdata_hugify_allowed_set(to_hugify, false);
 	assert(hpdata_alloc_allowed_get(to_hugify));
 	psset_update_end(&shard->psset, to_hugify);
@@ -401,7 +436,7 @@ hpa_try_hugify(tsdn_t *tsdn, hpa_shard_t *shard) {
 	psset_update_begin(&shard->psset, to_hugify);
 	hpdata_hugify(to_hugify);
 	hpdata_mid_hugify_set(to_hugify, false);
-	hpa_update_purge_hugify_eligibility(shard, to_hugify);
+	hpa_update_purge_hugify_eligibility(tsdn, shard, to_hugify);
 	psset_update_end(&shard->psset, to_hugify);
 
 	return true;
@@ -419,7 +454,7 @@ hpa_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard) {
 		hugified = hpa_try_hugify(tsdn, shard);
 
 		purged = false;
-		if (hpa_should_purge(shard)) {
+		if (hpa_should_purge(tsdn, shard)) {
 			purged = hpa_try_purge(tsdn, shard);
 		}
 		malloc_mutex_assert_owner(tsdn, &shard->mtx);
@@ -491,7 +526,7 @@ hpa_try_alloc_one_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 		return NULL;
 	}
 
-	hpa_update_purge_hugify_eligibility(shard, ps);
+	hpa_update_purge_hugify_eligibility(tsdn, shard, ps);
 	psset_update_end(&shard->psset, ps);
 	return edata;
 }
@@ -703,7 +738,7 @@ hpa_dalloc_locked(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata) {
 
 	psset_update_begin(&shard->psset, ps);
 	hpdata_unreserve(ps, unreserve_addr, unreserve_size);
-	hpa_update_purge_hugify_eligibility(shard, ps);
+	hpa_update_purge_hugify_eligibility(tsdn, shard, ps);
 	psset_update_end(&shard->psset, ps);
 	hpa_do_deferred_work(tsdn, shard);
 }

@@ -7,6 +7,42 @@
 #include "jemalloc/internal/typed_list.h"
 
 /*
+ * How badly we want to purge some region of memory.  This is a temporary
+ * definition; it gets deleted in the next commit (where we adopt a more
+ * explicit dirtiest-first policy that only considers hugification status).
+ */
+enum hpdata_purge_level_e {
+	/*
+	 * The level number is important -- we use it as indices into an array
+	 * of size 2 (one for each purge level).
+	 */
+
+	/* "Regular" candidates for purging. */
+	hpdata_purge_level_default = 0,
+
+	/*
+	 * Candidates for purging, but as a last resort.  Practically,
+	 * nonpreferred corresponds to hugified regions that are below the
+	 * hugification threshold but have not yet reached the dehugification
+	 * threshold, while strongly nonpreferred candidates are those which are
+	 * above the hugification threshold.
+	 */
+	hpdata_purge_level_nonpreferred = 1,
+	hpdata_purge_level_strongly_nonpreferred = 2,
+
+	/* Don't purge, no matter what. */
+	hpdata_purge_level_never = 2,
+
+	/*
+	 * How big an array has to be to accomodate all purge levels.  This
+	 * relies on the fact that we don't actually keep unpurgable hpdatas in
+	 * a container.
+	 */
+	hpdata_purge_level_count = hpdata_purge_level_never
+};
+typedef enum hpdata_purge_level_e hpdata_purge_level_t;
+
+/*
  * The metadata representation we use for extents in hugepages.  While the PAC
  * uses the edata_t to represent both active and inactive extents, the HP only
  * uses the edata_t for active ones; instead, inactive extent state is tracked
@@ -52,8 +88,8 @@ struct hpdata_s {
 	bool h_in_psset_alloc_container;
 
 	/* The same, but with purging. */
-	bool h_purge_allowed;
-	bool h_in_psset_purge_container;
+	uint8_t h_purge_level;
+	uint8_t h_purge_container_level;
 
 	/* And with hugifying. */
 	bool h_hugify_allowed;
@@ -164,26 +200,26 @@ hpdata_in_psset_alloc_container_set(hpdata_t *hpdata, bool in_container) {
 	hpdata->h_in_psset_alloc_container = in_container;
 }
 
-static inline bool
-hpdata_purge_allowed_get(const hpdata_t *hpdata) {
-	return hpdata->h_purge_allowed;
+static inline hpdata_purge_level_t
+hpdata_purge_level_get(const hpdata_t *hpdata) {
+	return (hpdata_purge_level_t)hpdata->h_purge_level;
 }
 
 static inline void
-hpdata_purge_allowed_set(hpdata_t *hpdata, bool purge_allowed) {
-	assert(purge_allowed == false || !hpdata->h_mid_purge);
-	hpdata->h_purge_allowed = purge_allowed;
+hpdata_purge_level_set(hpdata_t *hpdata, hpdata_purge_level_t level) {
+	assert(level == hpdata_purge_level_never || !hpdata->h_mid_purge);
+	hpdata->h_purge_level = (uint8_t)level;
 }
 
-static inline bool
-hpdata_in_psset_purge_container_get(const hpdata_t *hpdata) {
-	return hpdata->h_in_psset_purge_container;
+static inline hpdata_purge_level_t
+hpdata_purge_container_level_get(const hpdata_t *hpdata) {
+	return (hpdata_purge_level_t)hpdata->h_purge_container_level;
 }
 
 static inline void
-hpdata_in_psset_purge_container_set(hpdata_t *hpdata, bool in_container) {
-	assert(in_container != hpdata->h_in_psset_purge_container);
-	hpdata->h_in_psset_purge_container = in_container;
+hpdata_purge_container_level_set(hpdata_t *hpdata, hpdata_purge_level_t level) {
+	assert(level != hpdata->h_purge_container_level);
+	hpdata->h_purge_container_level = level;
 }
 
 static inline bool
@@ -284,6 +320,11 @@ hpdata_ndirty_get(hpdata_t *hpdata) {
 	return hpdata->h_ntouched - hpdata->h_nactive;
 }
 
+static inline size_t
+hpdata_nretained_get(hpdata_t *hpdata) {
+	return hpdata->h_nactive - hpdata->h_ntouched;
+}
+
 static inline void
 hpdata_assert_empty(hpdata_t *hpdata) {
 	assert(fb_empty(hpdata->active_pages, HUGEPAGE_PAGES));
@@ -316,11 +357,12 @@ hpdata_consistent(hpdata_t *hpdata) {
 		return false;
 	}
 	if (hpdata_changing_state_get(hpdata)
-	    && (hpdata->h_purge_allowed || hpdata->h_hugify_allowed)) {
+	    && ((hpdata->h_purge_level != hpdata_purge_level_never)
+	    || hpdata->h_hugify_allowed)) {
 		return false;
 	}
-	if (hpdata_purge_allowed_get(hpdata)
-	    != hpdata_in_psset_purge_container_get(hpdata)) {
+	if (hpdata_purge_level_get(hpdata)
+	    != hpdata_purge_container_level_get(hpdata)) {
 		return false;
 	}
 	if (hpdata_hugify_allowed_get(hpdata)

@@ -14,7 +14,9 @@ psset_init(psset_t *psset) {
 	memset(&psset->merged_stats, 0, sizeof(psset->merged_stats));
 	memset(&psset->stats, 0, sizeof(psset->stats));
 	hpdata_empty_list_init(&psset->empty);
-	hpdata_purge_list_init(&psset->to_purge);
+	for (int i = 0; i < hpdata_purge_level_count; i++) {
+		hpdata_purge_list_init(&psset->to_purge[i]);
+	}
 	hpdata_hugify_list_init(&psset->to_hugify);
 }
 
@@ -230,14 +232,31 @@ psset_update_end(psset_t *psset, hpdata_t *ps) {
 		psset_alloc_container_insert(psset, ps);
 	}
 
-	if (hpdata_purge_allowed_get(ps)
-	    && !hpdata_in_psset_purge_container_get(ps)) {
-		hpdata_in_psset_purge_container_set(ps, true);
-		hpdata_purge_list_append(&psset->to_purge, ps);
-	} else if (!hpdata_purge_allowed_get(ps)
-	    && hpdata_in_psset_purge_container_get(ps)) {
-		hpdata_in_psset_purge_container_set(ps, false);
-		hpdata_purge_list_remove(&psset->to_purge, ps);
+	if (hpdata_purge_level_get(ps) == hpdata_purge_level_never
+	    && hpdata_purge_container_level_get(ps)
+	    != hpdata_purge_level_never) {
+		/* In some purge container, but shouldn't be in any. */
+		hpdata_purge_list_remove(
+		    &psset->to_purge[hpdata_purge_container_level_get(ps)],
+		    ps);
+		hpdata_purge_container_level_set(ps, hpdata_purge_level_never);
+	} else if (hpdata_purge_level_get(ps) != hpdata_purge_level_never
+	    && hpdata_purge_container_level_get(ps)
+	    == hpdata_purge_level_never) {
+		/* Not in any purge container, but should be in one. */
+		hpdata_purge_list_append(
+		    &psset->to_purge[hpdata_purge_level_get(ps)], ps);
+		hpdata_purge_container_level_set(ps,
+		    hpdata_purge_level_get(ps));
+	} else if (hpdata_purge_level_get(ps)
+	    != hpdata_purge_container_level_get(ps)) {
+		/* Should switch containers. */
+		hpdata_purge_list_remove(
+		    &psset->to_purge[hpdata_purge_container_level_get(ps)], ps);
+		hpdata_purge_list_append(
+		    &psset->to_purge[hpdata_purge_level_get(ps)], ps);
+		hpdata_purge_container_level_set(ps,
+		    hpdata_purge_level_get(ps));
 	}
 
 	if (hpdata_hugify_allowed_get(ps)
@@ -275,7 +294,13 @@ psset_pick_alloc(psset_t *psset, size_t size) {
 
 hpdata_t *
 psset_pick_purge(psset_t *psset) {
-	return hpdata_purge_list_first(&psset->to_purge);
+	for (int i = 0; i < hpdata_purge_level_count; i++) {
+		hpdata_t *ps = hpdata_purge_list_first(&psset->to_purge[i]);
+		if (ps != NULL) {
+			return ps;
+		}
+	}
+	return NULL;
 }
 
 hpdata_t *
@@ -291,10 +316,15 @@ psset_insert(psset_t *psset, hpdata_t *ps) {
 	if (hpdata_alloc_allowed_get(ps)) {
 		psset_alloc_container_insert(psset, ps);
 	}
-	if (hpdata_purge_allowed_get(ps)) {
-		hpdata_in_psset_purge_container_set(ps, true);
-		hpdata_purge_list_append(&psset->to_purge, ps);
+	assert(
+	    hpdata_purge_container_level_get(ps) == hpdata_purge_level_never);
+	if (hpdata_purge_level_get(ps) != hpdata_purge_level_never) {
+		hpdata_purge_container_level_set(ps,
+		    hpdata_purge_level_get(ps));
+		hpdata_purge_list_append(
+		    &psset->to_purge[hpdata_purge_level_get(ps)], ps);
 	}
+
 	if (hpdata_hugify_allowed_get(ps)) {
 		hpdata_in_psset_hugify_container_set(ps, true);
 		hpdata_hugify_list_append(&psset->to_hugify, ps);
@@ -309,12 +339,13 @@ psset_remove(psset_t *psset, hpdata_t *ps) {
 	if (hpdata_in_psset_alloc_container_get(ps)) {
 		psset_alloc_container_remove(psset, ps);
 	}
-	if (hpdata_in_psset_purge_container_get(ps)) {
-		hpdata_in_psset_purge_container_set(ps, false);
-		hpdata_purge_list_remove(&psset->to_purge, ps);
+	if (hpdata_purge_container_level_get(ps) != hpdata_purge_level_never) {
+		hpdata_purge_list_remove(
+		    &psset->to_purge[hpdata_purge_container_level_get(ps)], ps);
+		hpdata_purge_container_level_set(ps, hpdata_purge_level_never);
 	}
-	if (hpdata_in_psset_purge_container_get(ps)) {
-		hpdata_in_psset_purge_container_set(ps, false);
-		hpdata_purge_list_remove(&psset->to_purge, ps);
+	if (hpdata_in_psset_hugify_container_get(ps)) {
+		hpdata_in_psset_hugify_container_set(ps, false);
+		hpdata_hugify_list_remove(&psset->to_hugify, ps);
 	}
 }
