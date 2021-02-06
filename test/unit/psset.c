@@ -91,7 +91,7 @@ edata_expect(edata_t *edata, size_t page_offset, size_t page_cnt) {
 	expect_false(edata_slab_get(edata), "");
 	expect_u_eq(SC_NSIZES, edata_szind_get_maybe_invalid(edata),
 	    "");
-	expect_zu_eq(0, edata_sn_get(edata), "");
+	expect_u64_eq(0, edata_sn_get(edata), "");
 	expect_d_eq(edata_state_get(edata), extent_state_active, "");
 	expect_false(edata_zeroed_get(edata), "");
 	expect_true(edata_committed_get(edata), "");

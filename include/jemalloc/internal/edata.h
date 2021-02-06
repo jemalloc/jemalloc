@@ -87,9 +87,8 @@ struct edata_s {
 	 * i: szind
 	 * f: nfree
 	 * s: bin_shard
-	 * n: sn
 	 *
-	 * nnnnnnnn ... nnnnnnss ssssffff ffffffii iiiiiitt zpcbaaaa aaaaaaaa
+	 * 00000000 ... 000000ss ssssffff ffffffii iiiiiitt zpcbaaaa aaaaaaaa
 	 *
 	 * arena_ind: Arena from which this extent came, or all 1 bits if
 	 *            unassociated.
@@ -120,16 +119,6 @@ struct edata_s {
 	 * nfree: Number of free regions in slab.
 	 *
 	 * bin_shard: the shard of the bin from which this extent came.
-	 *
-	 * sn: Serial number (potentially non-unique).
-	 *
-	 *     Serial numbers may wrap around if !opt_retain, but as long as
-	 *     comparison functions fall back on address comparison for equal
-	 *     serial numbers, stable (if imperfect) ordering is maintained.
-	 *
-	 *     Serial numbers may not be unique even in the absence of
-	 *     wrap-around, e.g. when splitting an extent and assigning the same
-	 *     serial number to both resulting adjacent extents.
 	 */
 	uint64_t		e_bits;
 #define MASK(CURRENT_FIELD_WIDTH, CURRENT_FIELD_SHIFT) ((((((uint64_t)0x1U) << (CURRENT_FIELD_WIDTH)) - 1)) << (CURRENT_FIELD_SHIFT))
@@ -174,9 +163,6 @@ struct edata_s {
 #define EDATA_BITS_IS_HEAD_SHIFT  (EDATA_BITS_BINSHARD_WIDTH + EDATA_BITS_BINSHARD_SHIFT)
 #define EDATA_BITS_IS_HEAD_MASK  MASK(EDATA_BITS_IS_HEAD_WIDTH, EDATA_BITS_IS_HEAD_SHIFT)
 
-#define EDATA_BITS_SN_SHIFT   (EDATA_BITS_IS_HEAD_WIDTH + EDATA_BITS_IS_HEAD_SHIFT)
-#define EDATA_BITS_SN_MASK  (UINT64_MAX << EDATA_BITS_SN_SHIFT)
-
 	/* Pointer to the extent that this structure is responsible for. */
 	void			*e_addr;
 
@@ -201,8 +187,11 @@ struct edata_s {
 	 * into pageslabs).  This tracks it.
 	 */
 	hpdata_t *e_ps;
-	/* Extra field reserved for HPA. */
-	void *e_reserved;
+	/*
+	 * Serial number.  These are not necessarily unique; splitting an extent
+	 * results in two extents with the same serial number.
+	 */
+	uint64_t e_sn;
 
 	union {
 		/*
@@ -274,10 +263,9 @@ edata_binshard_get(const edata_t *edata) {
 	return binshard;
 }
 
-static inline size_t
+static inline uint64_t
 edata_sn_get(const edata_t *edata) {
-	return (size_t)((edata->e_bits & EDATA_BITS_SN_MASK) >>
-	    EDATA_BITS_SN_SHIFT);
+	return edata->e_sn;
 }
 
 static inline extent_state_t
@@ -488,9 +476,8 @@ edata_nfree_sub(edata_t *edata, uint64_t n) {
 }
 
 static inline void
-edata_sn_set(edata_t *edata, size_t sn) {
-	edata->e_bits = (edata->e_bits & ~EDATA_BITS_SN_MASK) |
-	    ((uint64_t)sn << EDATA_BITS_SN_SHIFT);
+edata_sn_set(edata_t *edata, uint64_t sn) {
+	edata->e_sn = sn;
 }
 
 static inline void
@@ -566,7 +553,7 @@ edata_is_head_set(edata_t *edata, bool is_head) {
  */
 static inline void
 edata_init(edata_t *edata, unsigned arena_ind, void *addr, size_t size,
-    bool slab, szind_t szind, size_t sn, extent_state_t state, bool zeroed,
+    bool slab, szind_t szind, uint64_t sn, extent_state_t state, bool zeroed,
     bool committed, extent_pai_t pai, extent_head_state_t is_head) {
 	assert(addr == PAGE_ADDR2BASE(addr) || !slab);
 
@@ -587,7 +574,7 @@ edata_init(edata_t *edata, unsigned arena_ind, void *addr, size_t size,
 }
 
 static inline void
-edata_binit(edata_t *edata, void *addr, size_t bsize, size_t sn) {
+edata_binit(edata_t *edata, void *addr, size_t bsize, uint64_t sn) {
 	edata_arena_ind_set(edata, (1U << MALLOCX_ARENA_BITS) - 1);
 	edata_addr_set(edata, addr);
 	edata_bsize_set(edata, bsize);
@@ -607,8 +594,8 @@ edata_binit(edata_t *edata, void *addr, size_t bsize, size_t sn) {
 
 static inline int
 edata_sn_comp(const edata_t *a, const edata_t *b) {
-	size_t a_sn = edata_sn_get(a);
-	size_t b_sn = edata_sn_get(b);
+	uint64_t a_sn = edata_sn_get(a);
+	uint64_t b_sn = edata_sn_get(b);
 
 	return (a_sn > b_sn) - (a_sn < b_sn);
 }
