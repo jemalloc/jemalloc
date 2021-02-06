@@ -458,8 +458,9 @@ hpa_try_alloc_one_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 
 	void *addr = hpdata_reserve_alloc(ps, size);
 	edata_init(edata, shard->ind, addr, size, /* slab */ false,
-	    SC_NSIZES, /* sn */ 0, extent_state_active, /* zeroed */ false,
-	    /* committed */ true, EXTENT_PAI_HPA, EXTENT_NOT_HEAD);
+	    SC_NSIZES, /* sn */ hpdata_age_get(ps), extent_state_active,
+	    /* zeroed */ false, /* committed */ true, EXTENT_PAI_HPA,
+	    EXTENT_NOT_HEAD);
 	edata_ps_set(edata, ps);
 
 	/*

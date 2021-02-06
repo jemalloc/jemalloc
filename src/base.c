@@ -448,7 +448,7 @@ base_alloc_impl(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment,
 
 	ret = base_extent_bump_alloc(base, edata, usize, alignment);
 	if (esn != NULL) {
-		*esn = edata_sn_get(edata);
+		*esn = (size_t)edata_sn_get(edata);
 	}
 label_return:
 	malloc_mutex_unlock(tsdn, &base->mtx);
