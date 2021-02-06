@@ -228,9 +228,10 @@ large_dalloc_safety_checks(edata_t *edata, void *ptr, szind_t szind) {
 		    (uintptr_t)edata_addr_get(edata));
 		return true;
 	}
-	if (unlikely(sz_index2size(szind) != edata_usize_get(edata))) {
-		safety_check_fail_sized_dealloc(/* current_dealloc */ true,
-		    ptr);
+	size_t input_size = sz_index2size(szind);
+	if (unlikely(input_size != edata_usize_get(edata))) {
+		safety_check_fail_sized_dealloc(/* current_dealloc */ true, ptr,
+		    /* true_size */ edata_usize_get(edata), input_size);
 		return true;
 	}
 

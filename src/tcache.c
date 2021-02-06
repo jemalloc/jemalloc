@@ -255,10 +255,14 @@ tcache_bin_flush_size_check_fail(cache_bin_ptr_array_t *arr, szind_t szind,
     size_t nptrs, emap_batch_lookup_result_t *edatas) {
 	bool found_mismatch = false;
 	for (size_t i = 0; i < nptrs; i++) {
-		if (edata_szind_get(edatas[i].edata) != szind) {
+		szind_t true_szind = edata_szind_get(edatas[i].edata);
+		if (true_szind != szind) {
 			found_mismatch = true;
-			safety_check_fail_sized_dealloc(false,
-			    tcache_bin_flush_ptr_getter(arr, i));
+			safety_check_fail_sized_dealloc(
+			    /* current_dealloc */ false,
+			    /* ptr */ tcache_bin_flush_ptr_getter(arr, i),
+			    /* true_size */ sz_index2size(true_szind),
+			    /* input_size */ sz_index2size(szind));
 		}
 	}
 	assert(found_mismatch);
