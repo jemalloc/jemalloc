@@ -74,6 +74,7 @@ hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz) {
 		 * to serve the allocation.
 		 */
 		assert(found);
+		assert(len <= hpdata_longest_free_range_get(hpdata));
 		if (len >= npages) {
 			/*
 			 * We use first-fit within the page slabs; this gives
@@ -103,25 +104,30 @@ hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz) {
 	hpdata->h_ntouched += new_dirty;
 
 	/*
-	 * We might have shrunk the longest free range.  We have to keep
-	 * scanning until the end of the hpdata to be sure.
-	 *
-	 * TODO: As an optimization, we should only do this when the range we
-	 * just allocated from was equal to the longest free range size.
+	 * If we allocated out of a range that was the longest in the hpdata, it
+	 * might be the only one of that size and we'll have to adjust the
+	 * metadata.
 	 */
-	start = begin + npages;
-	while (start < HUGEPAGE_PAGES) {
-		bool found = fb_urange_iter(hpdata->active_pages,
-		    HUGEPAGE_PAGES, start, &begin, &len);
-		if (!found) {
-			break;
+	if (len == hpdata_longest_free_range_get(hpdata)) {
+		start = begin + npages;
+		while (start < HUGEPAGE_PAGES) {
+			bool found = fb_urange_iter(hpdata->active_pages,
+			    HUGEPAGE_PAGES, start, &begin, &len);
+			if (!found) {
+				break;
+			}
+			assert(len <= hpdata_longest_free_range_get(hpdata));
+			if (len == hpdata_longest_free_range_get(hpdata)) {
+				largest_unchosen_range = len;
+				break;
+			}
+			if (len > largest_unchosen_range) {
+				largest_unchosen_range = len;
+			}
+			start = begin + len;
 		}
-		if (len > largest_unchosen_range) {
-			largest_unchosen_range = len;
-		}
-		start = begin + len;
+		hpdata_longest_free_range_set(hpdata, largest_unchosen_range);
 	}
-	hpdata_longest_free_range_set(hpdata, largest_unchosen_range);
 
 	hpdata_assert_consistent(hpdata);
 	return (void *)(
