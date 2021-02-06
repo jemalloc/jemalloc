@@ -1,7 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_SAFETY_CHECK_H
 #define JEMALLOC_INTERNAL_SAFETY_CHECK_H
 
-void safety_check_fail_sized_dealloc(bool current_dealloc);
+void safety_check_fail_sized_dealloc(bool current_dealloc, const void *ptr);
 void safety_check_fail(const char *format, ...);
 /* Can set to NULL for a default. */
 void safety_check_set_abort(void (*abort_fn)(const char *));

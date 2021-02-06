@@ -3,14 +3,14 @@
 
 static void (*safety_check_abort)(const char *message);
 
-void safety_check_fail_sized_dealloc(bool current_dealloc) {
+void safety_check_fail_sized_dealloc(bool current_dealloc, const void *ptr) {
 	char *src = current_dealloc ? "the current pointer being freed" :
 	    "in thread cache, possibly from previous deallocations";
 
 	safety_check_fail("<jemalloc>: size mismatch detected, likely caused by"
-	   " application sized deallocation bugs (source: %s). Suggest building"
-	    "with --enable-debug or address sanitizer for debugging. Abort.\n",
-	    src);
+	    " application sized deallocation bugs (source address: %p, %s). "
+	    "Suggest building with --enable-debug or address sanitizer for "
+	    "debugging. Abort.\n", ptr, src);
 }
 
 void safety_check_set_abort(void (*abort_fn)(const char *)) {

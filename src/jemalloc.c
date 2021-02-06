@@ -2863,7 +2863,7 @@ maybe_check_alloc_ctx(tsd_t *tsd, void *ptr, emap_alloc_ctx_t *alloc_ctx) {
 		    &dbg_ctx);
 		if (alloc_ctx->szind != dbg_ctx.szind) {
 			safety_check_fail_sized_dealloc(
-			    /* current_dealloc */ true);
+			    /* current_dealloc */ true, ptr);
 			return true;
 		}
 		if (alloc_ctx->slab != dbg_ctx.slab) {
@@ -2913,7 +2913,8 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 			if (config_opt_safety_checks) {
 				/* Small alloc may have !slab (sampled). */
 				if (alloc_ctx.szind != sz_size2index(usize)) {
-					safety_check_fail_sized_dealloc(true);
+					safety_check_fail_sized_dealloc(true,
+					    ptr);
 				}
 			}
 		} else {
