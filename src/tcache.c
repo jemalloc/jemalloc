@@ -250,6 +250,20 @@ tcache_bin_flush_metadata_visitor(void *szind_sum_ctx,
 	util_prefetch_write_range(alloc_ctx->edata, sizeof(edata_t));
 }
 
+JEMALLOC_NOINLINE static void
+tcache_bin_flush_size_check_fail(cache_bin_ptr_array_t *arr, szind_t szind,
+    size_t nptrs, emap_batch_lookup_result_t *edatas) {
+	bool found_mismatch = false;
+	for (size_t i = 0; i < nptrs; i++) {
+		if (edata_szind_get(edatas[i].edata) != szind) {
+			found_mismatch = true;
+			safety_check_fail_sized_dealloc(false,
+			    tcache_bin_flush_ptr_getter(arr, i));
+		}
+	}
+	assert(found_mismatch);
+}
+
 static void
 tcache_bin_flush_edatas_lookup(tsd_t *tsd, cache_bin_ptr_array_t *arr,
     szind_t binind, size_t nflush, emap_batch_lookup_result_t *edatas) {
@@ -264,8 +278,8 @@ tcache_bin_flush_edatas_lookup(tsd_t *tsd, cache_bin_ptr_array_t *arr,
 	    &tcache_bin_flush_ptr_getter, (void *)arr,
 	    &tcache_bin_flush_metadata_visitor, (void *)&szind_sum,
 	    edatas);
-	if (config_opt_safety_checks && szind_sum != 0) {
-		safety_check_fail_sized_dealloc(false);
+	if (config_opt_safety_checks && unlikely(szind_sum != 0)) {
+		tcache_bin_flush_size_check_fail(arr, binind, nflush, edatas);
 	}
 }
 
@@ -435,7 +449,8 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 					dalloc_count++;
 				}
 			} else {
-				if (large_dalloc_safety_checks(edata, binind)) {
+				if (large_dalloc_safety_checks(edata, ptr,
+				    binind)) {
 					/* See the comment in isfree. */
 					continue;
 				}

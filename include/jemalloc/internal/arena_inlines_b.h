@@ -211,7 +211,7 @@ arena_vsalloc(tsdn_t *tsdn, const void *ptr) {
 }
 
 JEMALLOC_ALWAYS_INLINE bool
-large_dalloc_safety_checks(edata_t *edata, szind_t szind) {
+large_dalloc_safety_checks(edata_t *edata, void *ptr, szind_t szind) {
 	if (!config_opt_safety_checks) {
 		return false;
 	}
@@ -229,7 +229,8 @@ large_dalloc_safety_checks(edata_t *edata, szind_t szind) {
 		return true;
 	}
 	if (unlikely(sz_index2size(szind) != edata_usize_get(edata))) {
-		safety_check_fail_sized_dealloc(/* current_dealloc */ true);
+		safety_check_fail_sized_dealloc(/* current_dealloc */ true,
+		    ptr);
 		return true;
 	}
 
@@ -243,7 +244,7 @@ arena_dalloc_large_no_tcache(tsdn_t *tsdn, void *ptr, szind_t szind) {
 	} else {
 		edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global,
 		    ptr);
-		if (large_dalloc_safety_checks(edata, szind)) {
+		if (large_dalloc_safety_checks(edata, ptr, szind)) {
 			/* See the comment in isfree. */
 			return;
 		}
@@ -287,7 +288,7 @@ arena_dalloc_large(tsdn_t *tsdn, void *ptr, tcache_t *tcache, szind_t szind,
 	} else {
 		edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global,
 		    ptr);
-		if (large_dalloc_safety_checks(edata, szind)) {
+		if (large_dalloc_safety_checks(edata, ptr, szind)) {
 			/* See the comment in isfree. */
 			return;
 		}
