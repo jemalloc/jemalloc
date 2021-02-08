@@ -20,6 +20,14 @@
  */
 #define PSSET_NPSIZES 64
 
+/*
+ * We keep two purge lists per page size class; one for hugified hpdatas (at
+ * index 2*pszind), and one for the non-hugified hpdatas (at index 2*pszind +
+ * 1).  This lets us implement a preference for purging non-hugified hpdatas
+ * among similarly-dirty ones.
+ */
+#define PSSET_NPURGE_LISTS (2 * PSSET_NPSIZES)
+
 typedef struct psset_bin_stats_s psset_bin_stats_t;
 struct psset_bin_stats_s {
 	/* How many pageslabs are in this bin? */
@@ -71,7 +79,9 @@ struct psset_s {
 	 */
 	hpdata_empty_list_t empty;
 	/* Slabs which are available to be purged, ordered by purge level. */
-	hpdata_purge_list_t to_purge[hpdata_purge_level_count];
+	hpdata_purge_list_t to_purge[PSSET_NPURGE_LISTS];
+	/* Bitmap for which set bits correspond to non-empty purge lists. */
+	fb_group_t purge_bitmap[FB_NGROUPS(PSSET_NPURGE_LISTS)];
 	/* Slabs which are available to be hugified. */
 	hpdata_hugify_list_t to_hugify;
 };
