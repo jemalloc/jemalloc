@@ -2,7 +2,7 @@
 #define JEMALLOC_INTERNAL_ESET_H
 
 #include "jemalloc/internal/atomic.h"
-#include "jemalloc/internal/bitmap.h"
+#include "jemalloc/internal/flat_bitmap.h"
 #include "jemalloc/internal/edata.h"
 #include "jemalloc/internal/mutex.h"
 
@@ -22,7 +22,7 @@ struct eset_s {
 	atomic_zu_t nbytes[SC_NPSIZES + 1];
 
 	/* Bitmap for which set bits correspond to non-empty heaps. */
-	bitmap_t bitmap[BITMAP_GROUPS(SC_NPSIZES + 1)];
+	fb_group_t bitmap[FB_NGROUPS(SC_NPSIZES + 1)];
 
 	/* LRU of all extents in heaps. */
 	edata_list_inactive_t lru;

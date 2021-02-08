@@ -5,15 +5,12 @@
 
 #include "jemalloc/internal/flat_bitmap.h"
 
-static const bitmap_info_t psset_bitmap_info =
-    BITMAP_INFO_INITIALIZER(PSSET_NPSIZES);
-
 void
 psset_init(psset_t *psset) {
 	for (unsigned i = 0; i < PSSET_NPSIZES; i++) {
 		hpdata_age_heap_new(&psset->pageslabs[i]);
 	}
-	bitmap_init(psset->bitmap, &psset_bitmap_info, /* fill */ true);
+	fb_init(psset->bitmap, PSSET_NPSIZES);
 	memset(&psset->merged_stats, 0, sizeof(psset->merged_stats));
 	memset(&psset->stats, 0, sizeof(psset->stats));
 	hpdata_empty_list_init(&psset->empty);
@@ -101,14 +98,14 @@ static void
 psset_hpdata_heap_remove(psset_t *psset, pszind_t pind, hpdata_t *ps) {
 	hpdata_age_heap_remove(&psset->pageslabs[pind], ps);
 	if (hpdata_age_heap_empty(&psset->pageslabs[pind])) {
-		bitmap_set(psset->bitmap, &psset_bitmap_info, (size_t)pind);
+		fb_unset(psset->bitmap, PSSET_NPSIZES, (size_t)pind);
 	}
 }
 
 static void
 psset_hpdata_heap_insert(psset_t *psset, pszind_t pind, hpdata_t *ps) {
 	if (hpdata_age_heap_empty(&psset->pageslabs[pind])) {
-		bitmap_unset(psset->bitmap, &psset_bitmap_info, (size_t)pind);
+		fb_set(psset->bitmap, PSSET_NPSIZES, (size_t)pind);
 	}
 	hpdata_age_heap_insert(&psset->pageslabs[pind], ps);
 }
@@ -266,7 +263,7 @@ psset_pick_alloc(psset_t *psset, size_t size) {
 	assert(size <= HUGEPAGE);
 
 	pszind_t min_pind = sz_psz2ind(sz_psz_quantize_ceil(size));
-	pszind_t pind = (pszind_t)bitmap_ffu(psset->bitmap, &psset_bitmap_info,
+	pszind_t pind = (pszind_t)fb_ffs(psset->bitmap, PSSET_NPSIZES,
 	    (size_t)min_pind);
 	if (pind == PSSET_NPSIZES) {
 		return hpdata_empty_list_first(&psset->empty);
