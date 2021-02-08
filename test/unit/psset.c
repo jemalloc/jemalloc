@@ -540,6 +540,89 @@ TEST_BEGIN(test_insert_remove) {
 }
 TEST_END
 
+TEST_BEGIN(test_purge_prefers_nonhuge) {
+	/*
+	 * All else being equal, we should prefer purging non-huge pages over
+	 * huge ones.
+	 */
+
+	/* Nothing magic about this constant. */
+	enum {
+		NHP = 23,
+	};
+	hpdata_t *hpdata;
+
+	psset_t psset;
+	psset_init(&psset);
+
+	hpdata_t hpdata_huge[NHP];
+	uintptr_t huge_begin = (uintptr_t)&hpdata_huge[0];
+	uintptr_t huge_end = (uintptr_t)&hpdata_huge[NHP];
+	hpdata_t hpdata_nonhuge[NHP];
+	uintptr_t nonhuge_begin = (uintptr_t)&hpdata_nonhuge[0];
+	uintptr_t nonhuge_end = (uintptr_t)&hpdata_nonhuge[NHP];
+
+	for (size_t i = 0; i < NHP; i++) {
+		hpdata_init(&hpdata_huge[i], (void *)((10 + i) * HUGEPAGE),
+		    123 + i);
+		psset_insert(&psset, &hpdata_huge[i]);
+
+		hpdata_init(&hpdata_nonhuge[i],
+		    (void *)((10 + NHP + i) * HUGEPAGE),
+		    456 + i);
+		psset_insert(&psset, &hpdata_nonhuge[i]);
+
+	}
+	for (int i = 0; i < 2 * NHP; i++) {
+		hpdata = psset_pick_alloc(&psset, HUGEPAGE * 3 / 4);
+		psset_update_begin(&psset, hpdata);
+		void *ptr;
+		ptr = hpdata_reserve_alloc(hpdata, HUGEPAGE * 3 / 4);
+		/* Ignore the first alloc, which will stick around. */
+		(void)ptr;
+		/*
+		 * The second alloc is to dirty the pages; free it immediately
+		 * after allocating.
+		 */
+		ptr = hpdata_reserve_alloc(hpdata, HUGEPAGE / 4);
+		hpdata_unreserve(hpdata, ptr, HUGEPAGE / 4);
+
+		if (huge_begin <= (uintptr_t)hpdata
+		    && (uintptr_t)hpdata < huge_end) {
+			hpdata_hugify(hpdata);
+		}
+
+		hpdata_purge_allowed_set(hpdata, true);
+		psset_update_end(&psset, hpdata);
+	}
+
+	/*
+	 * We've got a bunch of 1/8th dirty hpdatas.  It should give us all the
+	 * non-huge ones to purge, then all the huge ones, then refuse to purge
+	 * further.
+	 */
+	for (int i = 0; i < NHP; i++) {
+		hpdata = psset_pick_purge(&psset);
+		assert_true(nonhuge_begin <= (uintptr_t)hpdata
+		    && (uintptr_t)hpdata < nonhuge_end, "");
+		psset_update_begin(&psset, hpdata);
+		test_psset_fake_purge(hpdata);
+		hpdata_purge_allowed_set(hpdata, false);
+		psset_update_end(&psset, hpdata);
+	}
+	for (int i = 0; i < NHP; i++) {
+		hpdata = psset_pick_purge(&psset);
+		expect_true(huge_begin <= (uintptr_t)hpdata
+		    && (uintptr_t)hpdata < huge_end, "");
+		psset_update_begin(&psset, hpdata);
+		hpdata_dehugify(hpdata);
+		test_psset_fake_purge(hpdata);
+		hpdata_purge_allowed_set(hpdata, false);
+		psset_update_end(&psset, hpdata);
+	}
+}
+TEST_END
+
 int
 main(void) {
 	return test_no_reentrancy(
@@ -550,5 +633,6 @@ main(void) {
 	    test_multi_pageslab,
 	    test_stats,
 	    test_oldest_fit,
-	    test_insert_remove);
+	    test_insert_remove,
+	    test_purge_prefers_nonhuge);
 }

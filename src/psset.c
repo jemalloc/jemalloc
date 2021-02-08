@@ -14,9 +14,10 @@ psset_init(psset_t *psset) {
 	memset(&psset->merged_stats, 0, sizeof(psset->merged_stats));
 	memset(&psset->stats, 0, sizeof(psset->stats));
 	hpdata_empty_list_init(&psset->empty);
-	for (int i = 0; i < hpdata_purge_level_count; i++) {
+	for (int i = 0; i < PSSET_NPURGE_LISTS; i++) {
 		hpdata_purge_list_init(&psset->to_purge[i]);
 	}
+	fb_init(psset->purge_bitmap, PSSET_NPURGE_LISTS);
 	hpdata_hugify_list_init(&psset->to_hugify);
 }
 
@@ -195,6 +196,51 @@ psset_alloc_container_remove(psset_t *psset, hpdata_t *ps) {
 	}
 }
 
+static size_t
+psset_purge_list_ind(hpdata_t *ps) {
+	size_t ndirty = hpdata_ndirty_get(ps);
+	/* Shouldn't have something with no dirty pages purgeable. */
+	assert(ndirty > 0);
+	pszind_t pind = sz_psz2ind(sz_psz_quantize_floor(ndirty << LG_PAGE));
+	/*
+	 * Higher indices correspond to lists we'd like to purge earlier;
+	 * increment the index for the nonhugified hpdatas first, so that we'll
+	 * pick them before picking hugified ones.
+	 */
+	return (size_t)pind * 2 + (hpdata_huge_get(ps) ? 0 : 1);
+}
+
+static void
+psset_maybe_remove_purge_list(psset_t *psset, hpdata_t *ps) {
+	/*
+	 * Remove the hpdata from its purge list (if it's in one).  Even if it's
+	 * going to stay in the same one, by appending it during
+	 * psset_update_end, we move it to the end of its queue, so that we
+	 * purge LRU within a given dirtiness bucket.
+	 */
+	if (hpdata_purge_allowed_get(ps)) {
+		size_t ind = psset_purge_list_ind(ps);
+		hpdata_purge_list_t *purge_list = &psset->to_purge[ind];
+		hpdata_purge_list_remove(purge_list, ps);
+		if (hpdata_purge_list_empty(purge_list)) {
+			fb_unset(psset->purge_bitmap, PSSET_NPURGE_LISTS, ind);
+		}
+	}
+}
+
+static void
+psset_maybe_insert_purge_list(psset_t *psset, hpdata_t *ps) {
+	if (hpdata_purge_allowed_get(ps)) {
+		size_t ind = psset_purge_list_ind(ps);
+		hpdata_purge_list_t *purge_list = &psset->to_purge[ind];
+		if (hpdata_purge_list_empty(purge_list)) {
+			fb_set(psset->purge_bitmap, PSSET_NPURGE_LISTS, ind);
+		}
+		hpdata_purge_list_append(purge_list, ps);
+	}
+
+}
+
 void
 psset_update_begin(psset_t *psset, hpdata_t *ps) {
 	hpdata_assert_consistent(ps);
@@ -210,10 +256,11 @@ psset_update_begin(psset_t *psset, hpdata_t *ps) {
 		assert(hpdata_alloc_allowed_get(ps));
 		psset_alloc_container_remove(psset, ps);
 	}
+	psset_maybe_remove_purge_list(psset, ps);
 	/*
-	 * We don't update presence in the purge list or hugify list; we try to
-	 * keep those FIFO, even in the presence of other metadata updates.
-	 * We'll update presence at the end of the metadata update if necessary.
+	 * We don't update presence in the hugify list; we try to keep it FIFO,
+	 * even in the presence of other metadata updates.  We'll update
+	 * presence at the end of the metadata update if necessary.
 	 */
 }
 
@@ -231,33 +278,7 @@ psset_update_end(psset_t *psset, hpdata_t *ps) {
 	if (hpdata_alloc_allowed_get(ps)) {
 		psset_alloc_container_insert(psset, ps);
 	}
-
-	if (hpdata_purge_level_get(ps) == hpdata_purge_level_never
-	    && hpdata_purge_container_level_get(ps)
-	    != hpdata_purge_level_never) {
-		/* In some purge container, but shouldn't be in any. */
-		hpdata_purge_list_remove(
-		    &psset->to_purge[hpdata_purge_container_level_get(ps)],
-		    ps);
-		hpdata_purge_container_level_set(ps, hpdata_purge_level_never);
-	} else if (hpdata_purge_level_get(ps) != hpdata_purge_level_never
-	    && hpdata_purge_container_level_get(ps)
-	    == hpdata_purge_level_never) {
-		/* Not in any purge container, but should be in one. */
-		hpdata_purge_list_append(
-		    &psset->to_purge[hpdata_purge_level_get(ps)], ps);
-		hpdata_purge_container_level_set(ps,
-		    hpdata_purge_level_get(ps));
-	} else if (hpdata_purge_level_get(ps)
-	    != hpdata_purge_container_level_get(ps)) {
-		/* Should switch containers. */
-		hpdata_purge_list_remove(
-		    &psset->to_purge[hpdata_purge_container_level_get(ps)], ps);
-		hpdata_purge_list_append(
-		    &psset->to_purge[hpdata_purge_level_get(ps)], ps);
-		hpdata_purge_container_level_set(ps,
-		    hpdata_purge_level_get(ps));
-	}
+	psset_maybe_insert_purge_list(psset, ps);
 
 	if (hpdata_hugify_allowed_get(ps)
 	    && !hpdata_in_psset_hugify_container_get(ps)) {
@@ -294,13 +315,16 @@ psset_pick_alloc(psset_t *psset, size_t size) {
 
 hpdata_t *
 psset_pick_purge(psset_t *psset) {
-	for (int i = 0; i < hpdata_purge_level_count; i++) {
-		hpdata_t *ps = hpdata_purge_list_first(&psset->to_purge[i]);
-		if (ps != NULL) {
-			return ps;
-		}
+	ssize_t ind_ssz = fb_fls(psset->purge_bitmap, PSSET_NPURGE_LISTS,
+	    PSSET_NPURGE_LISTS - 1);
+	if (ind_ssz < 0) {
+		return NULL;
 	}
-	return NULL;
+	pszind_t ind = (pszind_t)ind_ssz;
+	assert(ind < PSSET_NPSIZES);
+	hpdata_t *ps = hpdata_purge_list_first(&psset->to_purge[ind]);
+	assert(ps != NULL);
+	return ps;
 }
 
 hpdata_t *
@@ -316,14 +340,7 @@ psset_insert(psset_t *psset, hpdata_t *ps) {
 	if (hpdata_alloc_allowed_get(ps)) {
 		psset_alloc_container_insert(psset, ps);
 	}
-	assert(
-	    hpdata_purge_container_level_get(ps) == hpdata_purge_level_never);
-	if (hpdata_purge_level_get(ps) != hpdata_purge_level_never) {
-		hpdata_purge_container_level_set(ps,
-		    hpdata_purge_level_get(ps));
-		hpdata_purge_list_append(
-		    &psset->to_purge[hpdata_purge_level_get(ps)], ps);
-	}
+	psset_maybe_insert_purge_list(psset, ps);
 
 	if (hpdata_hugify_allowed_get(ps)) {
 		hpdata_in_psset_hugify_container_set(ps, true);
@@ -339,11 +356,7 @@ psset_remove(psset_t *psset, hpdata_t *ps) {
 	if (hpdata_in_psset_alloc_container_get(ps)) {
 		psset_alloc_container_remove(psset, ps);
 	}
-	if (hpdata_purge_container_level_get(ps) != hpdata_purge_level_never) {
-		hpdata_purge_list_remove(
-		    &psset->to_purge[hpdata_purge_container_level_get(ps)], ps);
-		hpdata_purge_container_level_set(ps, hpdata_purge_level_never);
-	}
+	psset_maybe_remove_purge_list(psset, ps);
 	if (hpdata_in_psset_hugify_container_get(ps)) {
 		hpdata_in_psset_hugify_container_set(ps, false);
 		hpdata_hugify_list_remove(&psset->to_hugify, ps);

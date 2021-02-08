@@ -24,8 +24,7 @@ hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age) {
 	hpdata->h_huge = false;
 	hpdata->h_alloc_allowed = true;
 	hpdata->h_in_psset_alloc_container = false;
-	hpdata->h_purge_level = hpdata_purge_level_never;
-	hpdata->h_purge_container_level = hpdata_purge_level_never;
+	hpdata->h_purge_allowed = false;
 	hpdata->h_hugify_allowed = false;
 	hpdata->h_in_psset_hugify_container = false;
 	hpdata->h_mid_purge = false;

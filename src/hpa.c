@@ -195,7 +195,7 @@ hpa_update_purge_hugify_eligibility(tsdn_t *tsdn, hpa_shard_t *shard,
     hpdata_t *ps) {
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
 	if (hpdata_changing_state_get(ps)) {
-		hpdata_purge_level_set(ps, hpdata_purge_level_never);
+		hpdata_purge_allowed_set(ps, false);
 		hpdata_hugify_allowed_set(ps, false);
 		return;
 	}
@@ -221,23 +221,7 @@ hpa_update_purge_hugify_eligibility(tsdn_t *tsdn, hpa_shard_t *shard,
 	 * allocator's end at all; we just try to pack allocations in a
 	 * hugepage-friendly manner and let the OS hugify in the background.
 	 */
-	if (hpdata_ndirty_get(ps) > 0) {
-		if (hpdata_huge_get(ps)) {
-			if (hpa_good_hugification_candidate(shard, ps)) {
-				hpdata_purge_level_set(ps,
-				    hpdata_purge_level_strongly_nonpreferred);
-			} else if (hpdata_ndirty_get(ps) * PAGE
-			    >= shard->opts.dehugification_threshold) {
-				hpdata_purge_level_set(ps,
-				    hpdata_purge_level_nonpreferred);
-			} else {
-				hpdata_purge_level_set(ps,
-				    hpdata_purge_level_default);
-			}
-		} else {
-			hpdata_purge_level_set(ps, hpdata_purge_level_default);
-		}
-	}
+	hpdata_purge_allowed_set(ps, hpdata_ndirty_get(ps) > 0);
 	if (hpa_good_hugification_candidate(shard, ps)
 	    && !hpdata_huge_get(ps)) {
 		hpdata_hugify_allowed_set(ps, true);
@@ -317,7 +301,7 @@ hpa_try_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
 	if (to_purge == NULL) {
 		return false;
 	}
-	assert(hpdata_purge_level_get(to_purge) != hpdata_purge_level_never);
+	assert(hpdata_purge_allowed_get(to_purge));
 	assert(!hpdata_changing_state_get(to_purge));
 
 	/*
@@ -328,7 +312,7 @@ hpa_try_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
 	psset_update_begin(&shard->psset, to_purge);
 	assert(hpdata_alloc_allowed_get(to_purge));
 	hpdata_mid_purge_set(to_purge, true);
-	hpdata_purge_level_set(to_purge, hpdata_purge_level_never);
+	hpdata_purge_allowed_set(to_purge, false);
 	hpdata_hugify_allowed_set(to_purge, false);
 	/*
 	 * Unlike with hugification (where concurrent
@@ -413,7 +397,7 @@ hpa_try_hugify(tsdn_t *tsdn, hpa_shard_t *shard) {
 	 */
 	psset_update_begin(&shard->psset, to_hugify);
 	hpdata_mid_hugify_set(to_hugify, true);
-	hpdata_purge_level_set(to_hugify, hpdata_purge_level_never);
+	hpdata_purge_allowed_set(to_hugify, false);
 	hpdata_hugify_allowed_set(to_hugify, false);
 	assert(hpdata_alloc_allowed_get(to_hugify));
 	psset_update_end(&shard->psset, to_hugify);
