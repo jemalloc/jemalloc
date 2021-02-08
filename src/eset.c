@@ -3,15 +3,14 @@
 
 #include "jemalloc/internal/eset.h"
 
-const bitmap_info_t eset_bitmap_info =
-    BITMAP_INFO_INITIALIZER(SC_NPSIZES+1);
+#define ESET_NPSIZES (SC_NPSIZES + 1)
 
 void
 eset_init(eset_t *eset, extent_state_t state) {
-	for (unsigned i = 0; i < SC_NPSIZES + 1; i++) {
+	for (unsigned i = 0; i < ESET_NPSIZES; i++) {
 		edata_heap_new(&eset->heaps[i]);
 	}
-	bitmap_init(eset->bitmap, &eset_bitmap_info, true);
+	fb_init(eset->bitmap, ESET_NPSIZES);
 	edata_list_inactive_init(&eset->lru);
 	atomic_store_zu(&eset->npages, 0, ATOMIC_RELAXED);
 	eset->state = state;
@@ -56,8 +55,7 @@ eset_insert(eset_t *eset, edata_t *edata) {
 	size_t psz = sz_psz_quantize_floor(size);
 	pszind_t pind = sz_psz2ind(psz);
 	if (edata_heap_empty(&eset->heaps[pind])) {
-		bitmap_unset(eset->bitmap, &eset_bitmap_info,
-		    (size_t)pind);
+		fb_set(eset->bitmap, ESET_NPSIZES, (size_t)pind);
 	}
 	edata_heap_insert(&eset->heaps[pind], edata);
 
@@ -92,8 +90,7 @@ eset_remove(eset_t *eset, edata_t *edata) {
 	}
 
 	if (edata_heap_empty(&eset->heaps[pind])) {
-		bitmap_set(eset->bitmap, &eset_bitmap_info,
-		    (size_t)pind);
+		fb_unset(eset->bitmap, ESET_NPSIZES, (size_t)pind);
 	}
 	edata_list_inactive_remove(&eset->lru, edata);
 	size_t npages = size >> LG_PAGE;
@@ -122,10 +119,10 @@ eset_fit_alignment(eset_t *eset, size_t min_size, size_t max_size,
         pszind_t pind = sz_psz2ind(sz_psz_quantize_ceil(min_size));
         pszind_t pind_max = sz_psz2ind(sz_psz_quantize_ceil(max_size));
 
-	for (pszind_t i = (pszind_t)bitmap_ffu(eset->bitmap,
-	    &eset_bitmap_info, (size_t)pind); i < pind_max; i =
-	    (pszind_t)bitmap_ffu(eset->bitmap, &eset_bitmap_info,
-	    (size_t)i+1)) {
+	for (pszind_t i =
+	    (pszind_t)fb_ffs(eset->bitmap, ESET_NPSIZES, (size_t)pind);
+	    i < pind_max;
+	    i = (pszind_t)fb_ffs(eset->bitmap, ESET_NPSIZES, (size_t)i + 1)) {
 		assert(i < SC_NPSIZES);
 		assert(!edata_heap_empty(&eset->heaps[i]));
 		edata_t *edata = edata_heap_first(&eset->heaps[i]);
@@ -171,11 +168,10 @@ eset_first_fit(eset_t *eset, size_t size, bool exact_only,
 		    edata_heap_first(&eset->heaps[pind]);
 	}
 
-	for (pszind_t i = (pszind_t)bitmap_ffu(eset->bitmap,
-	    &eset_bitmap_info, (size_t)pind);
-	    i < SC_NPSIZES + 1;
-	    i = (pszind_t)bitmap_ffu(eset->bitmap, &eset_bitmap_info,
-	    (size_t)i+1)) {
+	for (pszind_t i =
+	    (pszind_t)fb_ffs(eset->bitmap, ESET_NPSIZES, (size_t)pind);
+	    i < ESET_NPSIZES;
+	    i = (pszind_t)fb_ffs(eset->bitmap, ESET_NPSIZES, (size_t)i + 1)) {
 		assert(!edata_heap_empty(&eset->heaps[i]));
 		edata_t *edata = edata_heap_first(&eset->heaps[i]);
 		assert(edata_size_get(edata) >= size);
