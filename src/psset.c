@@ -10,7 +10,7 @@ psset_init(psset_t *psset) {
 	for (unsigned i = 0; i < PSSET_NPSIZES; i++) {
 		hpdata_age_heap_new(&psset->pageslabs[i]);
 	}
-	fb_init(psset->bitmap, PSSET_NPSIZES);
+	fb_init(psset->pageslab_bitmap, PSSET_NPSIZES);
 	memset(&psset->merged_stats, 0, sizeof(psset->merged_stats));
 	memset(&psset->stats, 0, sizeof(psset->stats));
 	hpdata_empty_list_init(&psset->empty);
@@ -40,14 +40,9 @@ psset_stats_accum(psset_stats_t *dst, psset_stats_t *src) {
 }
 
 /*
- * The stats maintenance strategy is simple, but not necessarily obvious.
- * edata_nfree and the bitmap must remain consistent at all times.  If they
- * change while an edata is within an edata_heap (or full), then the associated
- * stats bin (or the full bin) must also change.  If they change while not in a
- * bin (say, in between extraction and reinsertion), then the bin stats need not
- * change.  If a pageslab is removed from a bin (or becomes nonfull), it should
- * no longer contribute to that bin's stats (or the full stats).  These help
- * ensure we don't miss any heap modification operations.
+ * The stats maintenance strategy is to remove a pageslab's contribution to the
+ * stats when we call psset_update_begin, and re-add it (to a potentially new
+ * bin) when we call psset_update_end.
  */
 JEMALLOC_ALWAYS_INLINE void
 psset_bin_stats_insert_remove(psset_t *psset, psset_bin_stats_t *binstats,
@@ -98,14 +93,14 @@ static void
 psset_hpdata_heap_remove(psset_t *psset, pszind_t pind, hpdata_t *ps) {
 	hpdata_age_heap_remove(&psset->pageslabs[pind], ps);
 	if (hpdata_age_heap_empty(&psset->pageslabs[pind])) {
-		fb_unset(psset->bitmap, PSSET_NPSIZES, (size_t)pind);
+		fb_unset(psset->pageslab_bitmap, PSSET_NPSIZES, (size_t)pind);
 	}
 }
 
 static void
 psset_hpdata_heap_insert(psset_t *psset, pszind_t pind, hpdata_t *ps) {
 	if (hpdata_age_heap_empty(&psset->pageslabs[pind])) {
-		fb_set(psset->bitmap, PSSET_NPSIZES, (size_t)pind);
+		fb_set(psset->pageslab_bitmap, PSSET_NPSIZES, (size_t)pind);
 	}
 	hpdata_age_heap_insert(&psset->pageslabs[pind], ps);
 }
@@ -263,7 +258,7 @@ psset_pick_alloc(psset_t *psset, size_t size) {
 	assert(size <= HUGEPAGE);
 
 	pszind_t min_pind = sz_psz2ind(sz_psz_quantize_ceil(size));
-	pszind_t pind = (pszind_t)fb_ffs(psset->bitmap, PSSET_NPSIZES,
+	pszind_t pind = (pszind_t)fb_ffs(psset->pageslab_bitmap, PSSET_NPSIZES,
 	    (size_t)min_pind);
 	if (pind == PSSET_NPSIZES) {
 		return hpdata_empty_list_first(&psset->empty);

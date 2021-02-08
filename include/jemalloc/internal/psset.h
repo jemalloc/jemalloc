@@ -57,7 +57,7 @@ struct psset_s {
 	 */
 	hpdata_age_heap_t pageslabs[PSSET_NPSIZES];
 	/* Bitmap for which set bits correspond to non-empty heaps. */
-	fb_group_t bitmap[FB_NGROUPS(PSSET_NPSIZES)];
+	fb_group_t pageslab_bitmap[FB_NGROUPS(PSSET_NPSIZES)];
 	/*
 	 * The sum of all bin stats in stats.  This lets us quickly answer
 	 * queries for the number of dirty, active, and retained pages in the
