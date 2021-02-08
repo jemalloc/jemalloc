@@ -30,6 +30,7 @@ extern bool opt_xmalloc;
 extern bool opt_zero;
 extern unsigned opt_narenas;
 extern zero_realloc_action_t opt_zero_realloc_action;
+extern malloc_init_t malloc_init_state;
 extern const char *zero_realloc_mode_names[];
 extern atomic_zu_t zero_realloc_count;
 
@@ -64,7 +65,7 @@ size_t batch_alloc(void **ptrs, size_t num, size_t size, int flags);
 void jemalloc_prefork(void);
 void jemalloc_postfork_parent(void);
 void jemalloc_postfork_child(void);
-bool malloc_initialized(void);
 void je_sdallocx_noflags(void *ptr, size_t size);
+void *malloc_default(size_t size);
 
 #endif /* JEMALLOC_INTERNAL_EXTERNS_H */

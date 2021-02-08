@@ -169,13 +169,7 @@ static arena_t		*a0; /* arenas[0]. */
 unsigned		narenas_auto;
 unsigned		manual_arena_base;
 
-typedef enum {
-	malloc_init_uninitialized	= 3,
-	malloc_init_a0_initialized	= 2,
-	malloc_init_recursible		= 1,
-	malloc_init_initialized		= 0 /* Common case --> jnz. */
-} malloc_init_t;
-static malloc_init_t	malloc_init_state = malloc_init_uninitialized;
+malloc_init_t malloc_init_state = malloc_init_uninitialized;
 
 /* False should be the common case.  Set to true to trigger initialization. */
 bool			malloc_slow = true;
@@ -279,11 +273,6 @@ static bool	malloc_init_hard(void);
 /*
  * Begin miscellaneous support functions.
  */
-
-bool
-malloc_initialized(void) {
-	return (malloc_init_state == malloc_init_initialized);
-}
 
 JEMALLOC_ALWAYS_INLINE bool
 malloc_init_a0(void) {
@@ -2597,112 +2586,11 @@ malloc_default(size_t size) {
  * Begin malloc(3)-compatible functions.
  */
 
-JEMALLOC_ALWAYS_INLINE void
-fastpath_success_finish(tsd_t *tsd, uint64_t allocated_after,
-    cache_bin_t *bin, void *ret) {
-	thread_allocated_set(tsd, allocated_after);
-	if (config_stats) {
-		bin->tstats.nrequests++;
-	}
-
-	LOG("core.malloc.exit", "result: %p", ret);
-}
-
-/*
- * malloc() fastpath.
- *
- * Fastpath assumes size <= SC_LOOKUP_MAXCLASS, and that we hit
- * tcache.  If either of these is false, we tail-call to the slowpath,
- * malloc_default().  Tail-calling is used to avoid any caller-saved
- * registers.
- *
- * fastpath supports ticker and profiling, both of which will also
- * tail-call to the slowpath if they fire.
- */
 JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
 void JEMALLOC_NOTHROW *
 JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(1)
 je_malloc(size_t size) {
-	LOG("core.malloc.entry", "size: %zu", size);
-
-	if (tsd_get_allocates() && unlikely(!malloc_initialized())) {
-		return malloc_default(size);
-	}
-
-	tsd_t *tsd = tsd_get(false);
-	if (unlikely((size > SC_LOOKUP_MAXCLASS) || tsd == NULL)) {
-		return malloc_default(size);
-	}
-	/*
-	 * The code below till the branch checking the next_event threshold may
-	 * execute before malloc_init(), in which case the threshold is 0 to
-	 * trigger slow path and initialization.
-	 *
-	 * Note that when uninitialized, only the fast-path variants of the sz /
-	 * tsd facilities may be called.
-	 */
-	szind_t ind;
-	/*
-	 * The thread_allocated counter in tsd serves as a general purpose
-	 * accumulator for bytes of allocation to trigger different types of
-	 * events.  usize is always needed to advance thread_allocated, though
-	 * it's not always needed in the core allocation logic.
-	 */
-	size_t usize;
-	sz_size2index_usize_fastpath(size, &ind, &usize);
-	/* Fast path relies on size being a bin. */
-	assert(ind < SC_NBINS);
-	assert((SC_LOOKUP_MAXCLASS < SC_SMALL_MAXCLASS) &&
-	    (size <= SC_SMALL_MAXCLASS));
-
-	uint64_t allocated, threshold;
-	te_malloc_fastpath_ctx(tsd, &allocated, &threshold);
-	uint64_t allocated_after = allocated + usize;
-	/*
-	 * The ind and usize might be uninitialized (or partially) before
-	 * malloc_init().  The assertions check for: 1) full correctness (usize
-	 * & ind) when initialized; and 2) guaranteed slow-path (threshold == 0)
-	 * when !initialized.
-	 */
-	if (!malloc_initialized()) {
-		assert(threshold == 0);
-	} else {
-		assert(ind == sz_size2index(size));
-		assert(usize > 0 && usize == sz_index2size(ind));
-	}
-	/*
-	 * Check for events and tsd non-nominal (fast_threshold will be set to
-	 * 0) in a single branch.
-	 */
-	if (unlikely(allocated_after >= threshold)) {
-		return malloc_default(size);
-	}
-	assert(tsd_fast(tsd));
-
-	tcache_t *tcache = tcache_get_from_ind(tsd, TCACHE_IND_AUTOMATIC,
-	    /* slow */ false, /* is_alloc */ true);
-	cache_bin_t *bin = &tcache->bins[ind];
-	bool tcache_success;
-	void *ret;
-
-	/*
-	 * We split up the code this way so that redundant low-water
-	 * computation doesn't happen on the (more common) case in which we
-	 * don't touch the low water mark.  The compiler won't do this
-	 * duplication on its own.
-	 */
-	ret = cache_bin_alloc_easy(bin, &tcache_success);
-	if (tcache_success) {
-		fastpath_success_finish(tsd, allocated_after, bin, ret);
-		return ret;
-	}
-	ret = cache_bin_alloc(bin, &tcache_success);
-	if (tcache_success) {
-		fastpath_success_finish(tsd, allocated_after, bin, ret);
-		return ret;
-	}
-
-	return malloc_default(size);
+	return imalloc_fastpath(size, &malloc_default);
 }
 
 JEMALLOC_EXPORT int JEMALLOC_NOTHROW

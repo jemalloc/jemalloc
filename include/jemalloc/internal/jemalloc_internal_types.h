@@ -20,6 +20,14 @@ typedef enum zero_realloc_action_e zero_realloc_action_t;
 /* Signature of write callback. */
 typedef void (write_cb_t)(void *, const char *);
 
+enum malloc_init_e {
+	malloc_init_uninitialized	= 3,
+	malloc_init_a0_initialized	= 2,
+	malloc_init_recursible		= 1,
+	malloc_init_initialized		= 0 /* Common case --> jnz. */
+};
+typedef enum malloc_init_e malloc_init_t;
+
 /*
  * Flags bits:
  *

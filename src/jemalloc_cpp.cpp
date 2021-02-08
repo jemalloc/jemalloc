@@ -86,15 +86,22 @@ handleOOM(std::size_t size, bool nothrow) {
 }
 
 template <bool IsNoExcept>
-JEMALLOC_ALWAYS_INLINE
-void *
-newImpl(std::size_t size) noexcept(IsNoExcept) {
-	void *ptr = je_malloc(size);
+JEMALLOC_NOINLINE
+static void *
+fallback_impl(std::size_t size) noexcept(IsNoExcept) {
+	void *ptr = malloc_default(size);
 	if (likely(ptr != nullptr)) {
 		return ptr;
 	}
 
 	return handleOOM(size, IsNoExcept);
+}
+
+template <bool IsNoExcept>
+JEMALLOC_ALWAYS_INLINE
+void *
+newImpl(std::size_t size) noexcept(IsNoExcept) {
+	return imalloc_fastpath(size, &fallback_impl<IsNoExcept>);
 }
 
 void *
