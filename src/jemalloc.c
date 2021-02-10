@@ -102,6 +102,14 @@ bool	opt_trust_madvise =
 #endif
     ;
 
+bool opt_cache_oblivious =
+#ifdef JEMALLOC_CACHE_OBLIVIOUS
+    true
+#else
+    false
+#endif
+    ;
+
 zero_realloc_action_t opt_zero_realloc_action =
     zero_realloc_action_strict;
 
@@ -1697,7 +1705,7 @@ malloc_init_hard_a0_locked() {
 		prof_boot0();
 	}
 	malloc_conf_init(&sc_data, bin_shard_sizes);
-	sz_boot(&sc_data);
+	sz_boot(&sc_data, opt_cache_oblivious);
 	bin_info_boot(&sc_data, bin_shard_sizes);
 
 	if (opt_stats_print) {
@@ -2790,12 +2798,7 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 			 * usize can be trusted to determine szind and slab.
 			 */
 			alloc_ctx.szind = sz_size2index(usize);
-			if (config_cache_oblivious) {
-				alloc_ctx.slab = (alloc_ctx.szind < SC_NBINS);
-			} else {
-				/* Non page aligned must be slab allocated. */
-				alloc_ctx.slab = true;
-			}
+			alloc_ctx.slab = (alloc_ctx.szind < SC_NBINS);
 		} else if (opt_prof) {
 			emap_alloc_ctx_lookup(tsd_tsdn(tsd), &arena_emap_global,
 			    ptr, &alloc_ctx);

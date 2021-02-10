@@ -47,7 +47,7 @@ TEST_BEGIN(test_large_extent_size) {
 	 */
 
 	sz = sizeof(bool);
-	expect_d_eq(mallctl("config.cache_oblivious", (void *)&cache_oblivious,
+	expect_d_eq(mallctl("opt.cache_oblivious", (void *)&cache_oblivious,
 	    &sz, NULL, 0), 0, "Unexpected mallctl failure");
 
 	sz = sizeof(unsigned);

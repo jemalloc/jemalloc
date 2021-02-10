@@ -936,6 +936,22 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         </para></listitem>
       </varlistentry>
 
+      <varlistentry id="opt.cache_oblivious">
+        <term>
+          <mallctl>opt.cache_oblivious</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Enable / Disable cache-oblivious large allocation
+        alignment, for large requests with no alignment constraints.  If this
+        feature is disabled, all large allocations are page-aligned as an
+        implementation artifact, which can severely harm CPU cache utilization.
+        However, the cache-oblivious layout comes at the cost of one extra page
+        per large allocation, which in the most extreme case increases physical
+        memory usage for the 16 KiB size class to 20 KiB. This option is enabled
+        by default.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="opt.metadata_thp">
         <term>
           <mallctl>opt.metadata_thp</mallctl>

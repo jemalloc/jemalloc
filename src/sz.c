@@ -1,9 +1,10 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/jemalloc_internal_includes.h"
 #include "jemalloc/internal/sz.h"
 
 JEMALLOC_ALIGNED(CACHELINE)
 size_t sz_pind2sz_tab[SC_NPSIZES+1];
-
+size_t sz_large_pad;
 
 size_t
 sz_psz_quantize_floor(size_t size) {
@@ -105,7 +106,8 @@ sz_boot_size2index_tab(const sc_data_t *sc_data) {
 }
 
 void
-sz_boot(const sc_data_t *sc_data) {
+sz_boot(const sc_data_t *sc_data, bool cache_oblivious) {
+	sz_large_pad = cache_oblivious ? PAGE : 0;
 	sz_boot_pind2sz_tab(sc_data);
 	sz_boot_index2size_tab(sc_data);
 	sz_boot_size2index_tab(sc_data);

@@ -1458,6 +1458,7 @@ stats_general_print(emitter_t *emitter) {
 
 	OPT_WRITE_BOOL("abort")
 	OPT_WRITE_BOOL("abort_conf")
+	OPT_WRITE_BOOL("cache_oblivious")
 	OPT_WRITE_BOOL("confirm_conf")
 	OPT_WRITE_BOOL("retain")
 	OPT_WRITE_CHAR_P("dss")

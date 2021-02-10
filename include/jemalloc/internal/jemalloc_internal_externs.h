@@ -33,6 +33,7 @@ extern zero_realloc_action_t opt_zero_realloc_action;
 extern malloc_init_t malloc_init_state;
 extern const char *zero_realloc_mode_names[];
 extern atomic_zu_t zero_realloc_count;
+extern bool opt_cache_oblivious;
 
 /* Number of CPUs. */
 extern unsigned ncpus;
