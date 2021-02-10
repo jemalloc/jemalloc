@@ -45,15 +45,13 @@ extern size_t sz_index2size_tab[SC_NSIZES];
  */
 extern uint8_t sz_size2index_tab[];
 
-static const size_t sz_large_pad =
-#ifdef JEMALLOC_CACHE_OBLIVIOUS
-    PAGE
-#else
-    0
-#endif
-    ;
+/*
+ * Padding for large allocations: PAGE when opt_cache_oblivious == true (to
+ * enable cache index randomization); 0 otherwise.
+ */
+extern size_t sz_large_pad;
 
-extern void sz_boot(const sc_data_t *sc_data);
+extern void sz_boot(const sc_data_t *sc_data, bool cache_oblivious);
 
 JEMALLOC_ALWAYS_INLINE pszind_t
 sz_psz2ind(size_t psz) {

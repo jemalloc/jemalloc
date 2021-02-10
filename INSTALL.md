@@ -185,13 +185,13 @@ any of the following arguments (not a definitive list) to 'configure':
 
 * `--disable-cache-oblivious`
 
-    Disable cache-oblivious large allocation alignment for large allocation
-    requests with no alignment constraints.  If this feature is disabled, all
-    large allocations are page-aligned as an implementation artifact, which can
-    severely harm CPU cache utilization.  However, the cache-oblivious layout
-    comes at the cost of one extra page per large allocation, which in the
-    most extreme case increases physical memory usage for the 16 KiB size class
-    to 20 KiB.
+    Disable cache-oblivious large allocation alignment by default, for large
+    allocation requests with no alignment constraints.  If this feature is
+    disabled, all large allocations are page-aligned as an implementation
+    artifact, which can severely harm CPU cache utilization.  However, the
+    cache-oblivious layout comes at the cost of one extra page per large
+    allocation, which in the most extreme case increases physical memory usage
+    for the 16 KiB size class to 20 KiB.
 
 * `--disable-syscall`
 

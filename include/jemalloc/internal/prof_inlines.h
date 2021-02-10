@@ -223,7 +223,7 @@ prof_sample_align(size_t orig_align) {
 	 * w/o metadata lookup.
 	 */
 	assert(opt_prof);
-	return (config_cache_oblivious && orig_align < PAGE) ? PAGE :
+	return (opt_cache_oblivious && orig_align < PAGE) ? PAGE :
 	    orig_align;
 }
 

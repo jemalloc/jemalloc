@@ -95,7 +95,8 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
 	}
 
 	if (zero) {
-		if (config_cache_oblivious) {
+		if (opt_cache_oblivious) {
+			assert(sz_large_pad == PAGE);
 			/*
 			 * Zero the trailing bytes of the original allocation's
 			 * last page, since they are in an indeterminate state.
