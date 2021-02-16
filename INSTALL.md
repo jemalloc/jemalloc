@@ -12,7 +12,9 @@ that might work is:
     make
     make install
 
-Note that documentation is built by the default target only when xsltproc is
+Notes:
+ - "autoconf" needs to be installed
+ - Documentation is built by the default target only when xsltproc is
 available.  Build will warn but not stop if the dependency is missing.
 
 
