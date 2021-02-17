@@ -3904,18 +3904,14 @@ je_malloc_stats_print(void (*write_cb)(void *, const char *), void *cbopaque,
 }
 #undef STATS_PRINT_BUFSIZE
 
-JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW
-je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr) {
-	size_t ret;
-	tsdn_t *tsdn;
-
-	LOG("core.malloc_usable_size.entry", "ptr: %p", ptr);
-
+JEMALLOC_ALWAYS_INLINE size_t
+je_malloc_usable_size_impl(JEMALLOC_USABLE_SIZE_CONST void *ptr) {
 	assert(malloc_initialized() || IS_INITIALIZER);
 
-	tsdn = tsdn_fetch();
+	tsdn_t *tsdn = tsdn_fetch();
 	check_entry_exit_locking(tsdn);
 
+	size_t ret;
 	if (unlikely(ptr == NULL)) {
 		ret = 0;
 	} else {
@@ -3926,11 +3922,32 @@ je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr) {
 			ret = isalloc(tsdn, ptr);
 		}
 	}
-
 	check_entry_exit_locking(tsdn);
+
+	return ret;
+}
+
+JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW
+je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr) {
+	LOG("core.malloc_usable_size.entry", "ptr: %p", ptr);
+
+	size_t ret = je_malloc_usable_size_impl(ptr);
+
 	LOG("core.malloc_usable_size.exit", "result: %zu", ret);
 	return ret;
 }
+
+#ifdef JEMALLOC_HAVE_MALLOC_SIZE
+JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW
+je_malloc_size(const void *ptr) {
+	LOG("core.malloc_size.entry", "ptr: %p", ptr);
+
+	size_t ret = je_malloc_usable_size_impl(ptr);
+
+	LOG("core.malloc_size.exit", "result: %zu", ret);
+	return ret;
+}
+#endif
 
 static void
 batch_alloc_prof_sample_assert(tsd_t *tsd, size_t batch, size_t usize) {

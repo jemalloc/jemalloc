@@ -1056,6 +1056,9 @@ AC_CHECK_FUNC([memalign],
 AC_CHECK_FUNC([valloc],
 	      [AC_DEFINE([JEMALLOC_OVERRIDE_VALLOC], [ ])
 	       public_syms="${public_syms} valloc"])
+AC_CHECK_FUNC([malloc_size],
+	      [AC_DEFINE([JEMALLOC_HAVE_MALLOC_SIZE], [ ])
+	       public_syms="${public_syms} malloc_size"])
 
 dnl Check for allocator-related functions that should be wrapped.
 wrap_syms=
