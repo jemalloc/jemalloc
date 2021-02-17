@@ -337,6 +337,11 @@
  */
 #undef JEMALLOC_HAVE_MEMCNTL
 
+/*
+ * Defined if malloc_size is supported
+ */
+#undef JEMALLOC_HAVE_MALLOC_SIZE
+
 /* Define if operating system has alloca.h header. */
 #undef JEMALLOC_HAS_ALLOCA_H
 
