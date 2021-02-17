@@ -265,6 +265,22 @@ typedef struct {
 #  define UTRACE(a, b, c)
 #endif
 
+#define JEMALLOC_MALLOC_USABLE_SIZE_IMPL				\
+	assert(malloc_initialized() || IS_INITIALIZER);			\
+	tsdn = tsdn_fetch();						\
+	check_entry_exit_locking(tsdn);					\
+	if (unlikely(ptr == NULL)) {					\
+		ret = 0;						\
+	} else {							\
+		if (config_debug || force_ivsalloc) {			\
+			ret = ivsalloc(tsdn, ptr);			\
+			assert(force_ivsalloc || ret != 0);		\
+		} else {						\
+			ret = isalloc(tsdn, ptr);			\
+		}							\
+	}								\
+	check_entry_exit_locking(tsdn);
+
 /* Whether encountered any invalid config options. */
 static bool had_conf_error = false;
 
@@ -3885,26 +3901,26 @@ je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr) {
 
 	LOG("core.malloc_usable_size.entry", "ptr: %p", ptr);
 
-	assert(malloc_initialized() || IS_INITIALIZER);
+	JEMALLOC_MALLOC_USABLE_SIZE_IMPL
 
-	tsdn = tsdn_fetch();
-	check_entry_exit_locking(tsdn);
-
-	if (unlikely(ptr == NULL)) {
-		ret = 0;
-	} else {
-		if (config_debug || force_ivsalloc) {
-			ret = ivsalloc(tsdn, ptr);
-			assert(force_ivsalloc || ret != 0);
-		} else {
-			ret = isalloc(tsdn, ptr);
-		}
-	}
-
-	check_entry_exit_locking(tsdn);
 	LOG("core.malloc_usable_size.exit", "result: %zu", ret);
 	return ret;
 }
+
+#ifdef JEMALLOC_HAVE_MALLOC_SIZE
+JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW
+je_malloc_size(const void *ptr) {
+	size_t ret;
+	tsdn_t *tsdn;
+
+	LOG("core.malloc_size.entry", "ptr: %p", ptr);
+
+	JEMALLOC_MALLOC_USABLE_SIZE_IMPL
+
+	LOG("core.malloc_size.exit", "result: %zu", ret);
+	return ret;
+}
+#endif
 
 static void
 batch_alloc_prof_sample_assert(tsd_t *tsd, size_t batch, size_t usize) {
