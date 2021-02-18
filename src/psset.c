@@ -3,7 +3,7 @@
 
 #include "jemalloc/internal/psset.h"
 
-#include "jemalloc/internal/flat_bitmap.h"
+#include "jemalloc/internal/fb.h"
 
 void
 psset_init(psset_t *psset) {

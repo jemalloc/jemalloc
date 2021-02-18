@@ -1,3 +1,6 @@
+#ifndef JEMALLOC_INTERNAL_RB_H
+#define JEMALLOC_INTERNAL_RB_H
+
 /*-
  *******************************************************************************
  *
@@ -18,9 +21,6 @@
  *
  *******************************************************************************
  */
-
-#ifndef RB_H_
-#define RB_H_
 
 #ifndef __PGI
 #define RB_COMPACT
@@ -1003,4 +1003,4 @@ a_prefix##destroy(a_rbt_type *rbtree, void (*cb)(a_type *, void *),	\
     rbtree->rbt_root = NULL;						\
 }
 
-#endif /* RB_H_ */
+#endif /* JEMALLOC_INTERNAL_RB_H */
