@@ -1,6 +1,6 @@
 #include "test/jemalloc_test.h"
 
-#include "jemalloc/internal/flat_bitmap.h"
+#include "jemalloc/internal/fb.h"
 #include "test/nbits.h"
 
 static void

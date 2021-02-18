@@ -2,7 +2,7 @@
 #define JEMALLOC_INTERNAL_ESET_H
 
 #include "jemalloc/internal/atomic.h"
-#include "jemalloc/internal/flat_bitmap.h"
+#include "jemalloc/internal/fb.h"
 #include "jemalloc/internal/edata.h"
 #include "jemalloc/internal/mutex.h"
 

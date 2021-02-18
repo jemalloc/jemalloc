@@ -215,7 +215,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/edata_cache.c \
 	$(srcroot)test/unit/emitter.c \
 	$(srcroot)test/unit/extent_quantize.c \
-	${srcroot}test/unit/flat_bitmap.c \
+	${srcroot}test/unit/fb.c \
 	$(srcroot)test/unit/fork.c \
 	${srcroot}test/unit/fxp.c \
 	$(srcroot)test/unit/hash.c \

@@ -3,7 +3,7 @@
 
 #include "jemalloc/internal/hpa.h"
 
-#include "jemalloc/internal/flat_bitmap.h"
+#include "jemalloc/internal/fb.h"
 #include "jemalloc/internal/witness.h"
 
 #define HPA_EDEN_SIZE (128 * HUGEPAGE)

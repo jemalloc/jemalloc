@@ -1,3 +1,6 @@
+#ifndef JEMALLOC_INTERNAL_PH_H
+#define JEMALLOC_INTERNAL_PH_H
+
 /*
  * A Pairing Heap implementation.
  *
@@ -11,9 +14,6 @@
  *
  *******************************************************************************
  */
-
-#ifndef PH_H_
-#define PH_H_
 
 /* Node structure. */
 #define phn(a_type)							\
@@ -388,4 +388,4 @@ a_prefix##remove(a_ph_type *ph, a_type *phn) {				\
 	}								\
 }
 
-#endif /* PH_H_ */
+#endif /* JEMALLOC_INTERNAL_PH_H */
