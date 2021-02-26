@@ -23,7 +23,7 @@ typedef enum extent_state_e extent_state_t;
 
 enum extent_head_state_e {
 	EXTENT_NOT_HEAD,
-	EXTENT_IS_HEAD   /* Only relevant for Windows && opt.retain. */
+	EXTENT_IS_HEAD   /* See comments in ehooks_default_merge_impl(). */
 };
 typedef enum extent_head_state_e extent_head_state_t;
 
