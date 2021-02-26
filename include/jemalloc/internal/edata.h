@@ -13,6 +13,12 @@
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/typed_list.h"
 
+/*
+ * sizeof(edata_t) is 128 bytes on 64-bit architectures.  Ensure the alignment
+ * to free up the low bits in the rtree leaf.
+ */
+#define EDATA_ALIGNMENT 128
+
 enum extent_state_e {
 	extent_state_active   = 0,
 	extent_state_dirty    = 1,
@@ -88,7 +94,7 @@ struct edata_s {
 	 * f: nfree
 	 * s: bin_shard
 	 *
-	 * 00000000 ... 000000ss ssssffff ffffffii iiiiiitt zpcbaaaa aaaaaaaa
+	 * 00000000 ... 00000sss sssfffff fffffiii iiiiittt zpcbaaaa aaaaaaaa
 	 *
 	 * arena_ind: Arena from which this extent came, or all 1 bits if
 	 *            unassociated.
@@ -143,7 +149,7 @@ struct edata_s {
 #define EDATA_BITS_ZEROED_SHIFT  (EDATA_BITS_PAI_WIDTH + EDATA_BITS_PAI_SHIFT)
 #define EDATA_BITS_ZEROED_MASK  MASK(EDATA_BITS_ZEROED_WIDTH, EDATA_BITS_ZEROED_SHIFT)
 
-#define EDATA_BITS_STATE_WIDTH  2
+#define EDATA_BITS_STATE_WIDTH  3
 #define EDATA_BITS_STATE_SHIFT  (EDATA_BITS_ZEROED_WIDTH + EDATA_BITS_ZEROED_SHIFT)
 #define EDATA_BITS_STATE_MASK  MASK(EDATA_BITS_STATE_WIDTH, EDATA_BITS_STATE_SHIFT)
 

@@ -64,11 +64,12 @@ extent_may_force_decay(pac_t *pac) {
 static bool
 extent_try_delayed_coalesce(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *edata) {
-	edata_state_set(edata, extent_state_active);
+	emap_edata_state_update(tsdn, pac->emap, edata, extent_state_active);
+
 	bool coalesced;
 	edata = extent_try_coalesce(tsdn, pac, ehooks, ecache,
 	    edata, &coalesced, false);
-	edata_state_set(edata, ecache->state);
+	emap_edata_state_update(tsdn, pac->emap, edata, ecache->state);
 
 	if (!coalesced) {
 		return true;
@@ -182,7 +183,8 @@ ecache_evict(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		not_reached();
 	case extent_state_dirty:
 	case extent_state_muzzy:
-		edata_state_set(edata, extent_state_active);
+		emap_edata_state_update(tsdn, pac->emap, edata,
+		    extent_state_active);
 		break;
 	case extent_state_retained:
 		extent_deregister(tsdn, pac, edata);
@@ -223,28 +225,30 @@ extents_abandon_vm(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 }
 
 static void
-extent_deactivate_locked(tsdn_t *tsdn, ecache_t *ecache, edata_t *edata) {
+extent_deactivate_locked(tsdn_t *tsdn, pac_t *pac, ecache_t *ecache,
+    edata_t *edata) {
 	assert(edata_arena_ind_get(edata) == ecache_ind_get(ecache));
 	assert(edata_state_get(edata) == extent_state_active);
 
-	edata_state_set(edata, ecache->state);
+	emap_edata_state_update(tsdn, pac->emap, edata, ecache->state);
 	eset_insert(&ecache->eset, edata);
 }
 
 static void
-extent_deactivate(tsdn_t *tsdn, ecache_t *ecache, edata_t *edata) {
+extent_deactivate(tsdn_t *tsdn, pac_t *pac, ecache_t *ecache, edata_t *edata) {
 	malloc_mutex_lock(tsdn, &ecache->mtx);
-	extent_deactivate_locked(tsdn, ecache, edata);
+	extent_deactivate_locked(tsdn, pac, ecache, edata);
 	malloc_mutex_unlock(tsdn, &ecache->mtx);
 }
 
 static void
-extent_activate_locked(tsdn_t *tsdn, ecache_t *ecache, edata_t *edata) {
+extent_activate_locked(tsdn_t *tsdn, pac_t *pac, ecache_t *ecache,
+    edata_t *edata) {
 	assert(edata_arena_ind_get(edata) == ecache_ind_get(ecache));
 	assert(edata_state_get(edata) == ecache->state);
 
 	eset_remove(&ecache->eset, edata);
-	edata_state_set(edata, extent_state_active);
+	emap_edata_state_update(tsdn, pac->emap, edata, extent_state_active);
 }
 
 static void
@@ -421,7 +425,7 @@ extent_recycle_extract(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		return NULL;
 	}
 
-	extent_activate_locked(tsdn, ecache, edata);
+	extent_activate_locked(tsdn, pac, ecache, edata);
 	malloc_mutex_unlock(tsdn, &ecache->mtx);
 
 	return edata;
@@ -527,16 +531,16 @@ extent_recycle_split(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		 * leaking the extent.
 		 */
 		assert(to_leak != NULL && lead == NULL && trail == NULL);
-		extent_deactivate(tsdn, ecache, to_leak);
+		extent_deactivate(tsdn, pac, ecache, to_leak);
 		return NULL;
 	}
 
 	if (result == extent_split_interior_ok) {
 		if (lead != NULL) {
-			extent_deactivate(tsdn, ecache, lead);
+			extent_deactivate(tsdn, pac, ecache, lead);
 		}
 		if (trail != NULL) {
-			extent_deactivate(tsdn, ecache, trail);
+			extent_deactivate(tsdn, pac, ecache, trail);
 		}
 		return edata;
 	} else {
@@ -837,7 +841,7 @@ extent_coalesce(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
     edata_t *inner, edata_t *outer, bool forward, bool growing_retained) {
 	assert(extent_can_coalesce(ecache, inner, outer));
 
-	extent_activate_locked(tsdn, ecache, outer);
+	extent_activate_locked(tsdn, pac, ecache, outer);
 
 	malloc_mutex_unlock(tsdn, &ecache->mtx);
 	bool err = extent_merge_impl(tsdn, pac, ehooks,
@@ -845,7 +849,7 @@ extent_coalesce(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 	malloc_mutex_lock(tsdn, &ecache->mtx);
 
 	if (err) {
-		extent_deactivate_locked(tsdn, ecache, outer);
+		extent_deactivate_locked(tsdn, pac, ecache, outer);
 	}
 
 	return err;
@@ -1008,7 +1012,7 @@ extent_record(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 			return;
 		}
 	}
-	extent_deactivate_locked(tsdn, ecache, edata);
+	extent_deactivate_locked(tsdn, pac, ecache, edata);
 
 	malloc_mutex_unlock(tsdn, &ecache->mtx);
 }

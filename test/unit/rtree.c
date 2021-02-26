@@ -32,12 +32,22 @@ TEST_END
 #undef NITERS
 #undef SEED
 
+static edata_t *
+alloc_edata(void) {
+	void *ret = mallocx(sizeof(edata_t), MALLOCX_ALIGN(EDATA_ALIGNMENT));
+	assert_ptr_not_null(ret, "Unexpected mallocx() failure");
+
+	return ret;
+}
+
 TEST_BEGIN(test_rtree_extrema) {
-	edata_t edata_a = {0}, edata_b = {0};
-	edata_init(&edata_a, INVALID_ARENA_IND, NULL, SC_LARGE_MINCLASS,
+	edata_t *edata_a, *edata_b;
+	edata_a = alloc_edata();
+	edata_b = alloc_edata();
+	edata_init(edata_a, INVALID_ARENA_IND, NULL, SC_LARGE_MINCLASS,
 	    false, sz_size2index(SC_LARGE_MINCLASS), 0,
 	    extent_state_active, false, false, EXTENT_PAI_PAC, EXTENT_NOT_HEAD);
-	edata_init(&edata_b, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
+	edata_init(edata_b, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
 	    extent_state_active, false, false, EXTENT_PAI_PAC, EXTENT_NOT_HEAD);
 
 	tsdn_t *tsdn = tsdn_fetch();
@@ -52,10 +62,11 @@ TEST_BEGIN(test_rtree_extrema) {
 	    "Unexpected rtree_new() failure");
 
 	rtree_contents_t contents_a;
-	contents_a.edata = &edata_a;
-	contents_a.metadata.szind = edata_szind_get(&edata_a);
-	contents_a.metadata.slab = edata_slab_get(&edata_a);
-	contents_a.metadata.is_head = edata_is_head_get(&edata_a);
+	contents_a.edata = edata_a;
+	contents_a.metadata.szind = edata_szind_get(edata_a);
+	contents_a.metadata.slab = edata_slab_get(edata_a);
+	contents_a.metadata.is_head = edata_is_head_get(edata_a);
+	contents_a.metadata.state = edata_state_get(edata_a);
 	expect_false(rtree_write(tsdn, rtree, &rtree_ctx, PAGE, contents_a),
 	    "Unexpected rtree_write() failure");
 	expect_false(rtree_write(tsdn, rtree, &rtree_ctx, PAGE, contents_a),
@@ -65,14 +76,16 @@ TEST_BEGIN(test_rtree_extrema) {
 	expect_true(contents_a.edata == read_contents_a.edata
 	    && contents_a.metadata.szind == read_contents_a.metadata.szind
 	    && contents_a.metadata.slab == read_contents_a.metadata.slab
-	    && contents_a.metadata.is_head == read_contents_a.metadata.is_head,
+	    && contents_a.metadata.is_head == read_contents_a.metadata.is_head
+	    && contents_a.metadata.state == read_contents_a.metadata.state,
 	    "rtree_read() should return previously set value");
 
 	rtree_contents_t contents_b;
-	contents_b.edata = &edata_b;
-	contents_b.metadata.szind = edata_szind_get_maybe_invalid(&edata_b);
-	contents_b.metadata.slab = edata_slab_get(&edata_b);
-	contents_b.metadata.is_head = edata_is_head_get(&edata_b);
+	contents_b.edata = edata_b;
+	contents_b.metadata.szind = edata_szind_get_maybe_invalid(edata_b);
+	contents_b.metadata.slab = edata_slab_get(edata_b);
+	contents_b.metadata.is_head = edata_is_head_get(edata_b);
+	contents_b.metadata.state = edata_state_get(edata_b);
 	expect_false(rtree_write(tsdn, rtree, &rtree_ctx, ~((uintptr_t)0),
 	    contents_b), "Unexpected rtree_write() failure");
 	rtree_contents_t read_contents_b = rtree_read(tsdn, rtree, &rtree_ctx,
@@ -80,7 +93,8 @@ TEST_BEGIN(test_rtree_extrema) {
 	assert_true(contents_b.edata == read_contents_b.edata
 	    && contents_b.metadata.szind == read_contents_b.metadata.szind
 	    && contents_b.metadata.slab == read_contents_b.metadata.slab
-	    && contents_b.metadata.is_head == read_contents_b.metadata.is_head,
+	    && contents_b.metadata.is_head == read_contents_b.metadata.is_head
+	    && contents_b.metadata.state == read_contents_b.metadata.state,
 	    "rtree_read() should return previously set value");
 
 	base_delete(tsdn, base);
@@ -94,9 +108,8 @@ TEST_BEGIN(test_rtree_bits) {
 
 	uintptr_t keys[] = {PAGE, PAGE + 1,
 	    PAGE + (((uintptr_t)1) << LG_PAGE) - 1};
-
-	edata_t edata = {0};
-	edata_init(&edata, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
+	edata_t *edata_c = alloc_edata();
+	edata_init(edata_c, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
 	    extent_state_active, false, false, EXTENT_PAI_PAC, EXTENT_NOT_HEAD);
 
 	rtree_t *rtree = &test_rtree;
@@ -107,16 +120,17 @@ TEST_BEGIN(test_rtree_bits) {
 
 	for (unsigned i = 0; i < sizeof(keys)/sizeof(uintptr_t); i++) {
 		rtree_contents_t contents;
-		contents.edata = &edata;
+		contents.edata = edata_c;
 		contents.metadata.szind = SC_NSIZES;
 		contents.metadata.slab = false;
 		contents.metadata.is_head = false;
+		contents.metadata.state = extent_state_active;
 
 		expect_false(rtree_write(tsdn, rtree, &rtree_ctx, keys[i],
 		    contents), "Unexpected rtree_write() failure");
 		for (unsigned j = 0; j < sizeof(keys)/sizeof(uintptr_t); j++) {
 			expect_ptr_eq(rtree_read(tsdn, rtree, &rtree_ctx,
-			    keys[j]).edata, &edata,
+			    keys[j]).edata, edata_c,
 			    "rtree_edata_read() should return previously set "
 			    "value and ignore insignificant key bits; i=%u, "
 			    "j=%u, set key=%#"FMTxPTR", get key=%#"FMTxPTR, i,
@@ -146,8 +160,8 @@ TEST_BEGIN(test_rtree_random) {
 	rtree_ctx_t rtree_ctx;
 	rtree_ctx_data_init(&rtree_ctx);
 
-	edata_t edata = {0};
-	edata_init(&edata, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
+	edata_t *edata_d = alloc_edata();
+	edata_init(edata_d, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
 	    extent_state_active, false, false, EXTENT_PAI_PAC, EXTENT_NOT_HEAD);
 
 	expect_false(rtree_new(rtree, base, false),
@@ -160,18 +174,19 @@ TEST_BEGIN(test_rtree_random) {
 		expect_ptr_not_null(elm,
 		    "Unexpected rtree_leaf_elm_lookup() failure");
 		rtree_contents_t contents;
-		contents.edata = &edata;
+		contents.edata = edata_d;
 		contents.metadata.szind = SC_NSIZES;
 		contents.metadata.slab = false;
 		contents.metadata.is_head = false;
+		contents.metadata.state = edata_state_get(edata_d);
 		rtree_leaf_elm_write(tsdn, rtree, elm, contents);
 		expect_ptr_eq(rtree_read(tsdn, rtree, &rtree_ctx,
-		    keys[i]).edata, &edata,
+		    keys[i]).edata, edata_d,
 		    "rtree_edata_read() should return previously set value");
 	}
 	for (unsigned i = 0; i < NSET; i++) {
 		expect_ptr_eq(rtree_read(tsdn, rtree, &rtree_ctx,
-		    keys[i]).edata, &edata,
+		    keys[i]).edata, edata_d,
 		    "rtree_edata_read() should return previously set value, "
 		    "i=%u", i);
 	}

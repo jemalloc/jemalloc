@@ -136,6 +136,36 @@ emap_assert_not_mapped(tsdn_t *tsdn, emap_t *emap, edata_t *edata) {
 	}
 }
 
+static inline void
+emap_update_rtree_at_addr(tsdn_t *tsdn, rtree_t *rtree, edata_t *expected_edata,
+    uintptr_t addr, extent_state_t state) {
+	rtree_ctx_t rtree_ctx_fallback;
+	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
+
+	rtree_leaf_elm_t *elm = rtree_leaf_elm_lookup(tsdn, rtree, rtree_ctx,
+	    addr, /* dependent */ true, /* init_missing */ false);
+	assert(elm != NULL);
+	rtree_contents_t contents = rtree_leaf_elm_read(tsdn, rtree, elm,
+	    /* dependent */ true);
+	assert(contents.edata == expected_edata);
+	contents.metadata.state = state;
+	rtree_leaf_elm_write(tsdn, rtree, elm, contents);
+}
+
+static inline void
+emap_edata_state_update(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
+    extent_state_t state) {
+	/* Only emap is allowed to modify the edata internal state. */
+	edata_state_set(edata, state);
+
+	emap_update_rtree_at_addr(tsdn, &emap->rtree, edata,
+	    (uintptr_t)edata_base_get(edata), state);
+	emap_update_rtree_at_addr(tsdn, &emap->rtree, edata,
+	    (uintptr_t)edata_last_get(edata), state);
+
+	emap_assert_mapped(tsdn, emap, edata);
+}
+
 JEMALLOC_ALWAYS_INLINE edata_t *
 emap_edata_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr) {
 	rtree_ctx_t rtree_ctx_fallback;
