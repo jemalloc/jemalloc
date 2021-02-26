@@ -46,6 +46,7 @@ struct rtree_node_elm_s {
 typedef struct rtree_metadata_s rtree_metadata_t;
 struct rtree_metadata_s {
 	szind_t szind;
+	bool is_head; /* Mirrors edata->is_head. */
 	bool slab;
 };
 
@@ -65,9 +66,10 @@ struct rtree_leaf_elm_s {
 	 *
 	 * x: index
 	 * e: edata
+	 * h: is_head
 	 * b: slab
 	 *
-	 *   00000000 xxxxxxxx eeeeeeee [...] eeeeeeee eeee000b
+	 *   00000000 xxxxxxxx eeeeeeee [...] eeeeeeee eeee00hb
 	 */
 	atomic_p_t	le_bits;
 #else
@@ -184,12 +186,16 @@ rtree_leaf_elm_bits_encode(rtree_contents_t contents) {
 	    & (((uintptr_t)1 << LG_VADDR) - 1);
 	uintptr_t szind_bits = (uintptr_t)contents.metadata.szind << LG_VADDR;
 	/*
-	 * Slab shares the low bit of edata; we know edata is on an even address
-	 * (in fact, it's 128 bytes on 64-bit systems; we can enforce this
-	 * alignment if we want to steal 6 extra rtree leaf bits someday.
+	 * Metadata shares the low bits of edata. edata is CACHELINE aligned (in
+	 * fact, it's 128 bytes on 64-bit systems); we can enforce this
+	 * alignment if we want to steal the extra rtree leaf bits someday.
 	 */
 	uintptr_t slab_bits = (uintptr_t)contents.metadata.slab;
-	return szind_bits | edata_bits | slab_bits;
+	uintptr_t is_head_bits = (uintptr_t)contents.metadata.is_head << 1;
+	uintptr_t metadata_bits = szind_bits | is_head_bits | slab_bits;
+	assert((edata_bits & metadata_bits) == 0);
+
+	return edata_bits | metadata_bits;
 }
 
 JEMALLOC_ALWAYS_INLINE rtree_contents_t
@@ -198,20 +204,23 @@ rtree_leaf_elm_bits_decode(uintptr_t bits) {
 	/* Do the easy things first. */
 	contents.metadata.szind = bits >> LG_VADDR;
 	contents.metadata.slab = (bool)(bits & 1);
+	contents.metadata.is_head = (bool)(bits & (1 << 1));
+
+	uintptr_t metadata_mask = ~((uintptr_t)((1 << 2) - 1));
 #    ifdef __aarch64__
 	/*
 	 * aarch64 doesn't sign extend the highest virtual address bit to set
 	 * the higher ones.  Instead, the high bits get zeroed.
 	 */
 	uintptr_t high_bit_mask = ((uintptr_t)1 << LG_VADDR) - 1;
-	/* Mask off the slab bit. */
-	uintptr_t low_bit_mask = ~(uintptr_t)1;
+	/* Mask off metadata. */
+	uintptr_t low_bit_mask = metadata_mask;
 	uintptr_t mask = high_bit_mask & low_bit_mask;
 	contents.edata = (edata_t *)(bits & mask);
 #    else
-	/* Restore sign-extended high bits, mask slab bit. */
+	/* Restore sign-extended high bits, mask metadata bits. */
 	contents.edata = (edata_t *)((uintptr_t)((intptr_t)(bits << RTREE_NHIB)
-	    >> RTREE_NHIB) & ~((uintptr_t)0x1));
+	    >> RTREE_NHIB) & metadata_mask);
 #    endif
 	return contents;
 }
@@ -230,7 +239,8 @@ rtree_leaf_elm_read(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 	unsigned metadata_bits = atomic_load_u(&elm->le_metadata, dependent
 	    ? ATOMIC_RELAXED : ATOMIC_ACQUIRE);
 	contents.metadata.slab = (bool)(metadata_bits & 1);
-	contents.metadata.szind = (metadata_bits >> 1);
+	contents.metadata.is_head = (bool)(metadata_bits & (1 << 1));
+	contents.metadata.szind = (metadata_bits >> 2);
 
 	contents.edata = (edata_t *)atomic_load_p(&elm->le_edata, dependent
 	    ? ATOMIC_RELAXED : ATOMIC_ACQUIRE);
@@ -247,7 +257,8 @@ rtree_leaf_elm_write(tsdn_t *tsdn, rtree_t *rtree,
 	atomic_store_p(&elm->le_bits, (void *)bits, ATOMIC_RELEASE);
 #else
 	unsigned metadata_bits = ((unsigned)contents.metadata.slab
-	    | ((unsigned)contents.metadata.szind << 1));
+	    | ((unsigned)contents.metadata.is_head << 1)
+	    | ((unsigned)contents.metadata.szind << 2));
 	atomic_store_u(&elm->le_metadata, metadata_bits, ATOMIC_RELEASE);
 	/*
 	 * Write edata last, since the element is atomically considered valid
@@ -418,6 +429,7 @@ rtree_clear(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	contents.edata = NULL;
 	contents.metadata.szind = SC_NSIZES;
 	contents.metadata.slab = false;
+	contents.metadata.is_head = false;
 	rtree_leaf_elm_write(tsdn, rtree, elm, contents);
 }
 

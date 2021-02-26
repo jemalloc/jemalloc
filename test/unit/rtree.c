@@ -55,6 +55,7 @@ TEST_BEGIN(test_rtree_extrema) {
 	contents_a.edata = &edata_a;
 	contents_a.metadata.szind = edata_szind_get(&edata_a);
 	contents_a.metadata.slab = edata_slab_get(&edata_a);
+	contents_a.metadata.is_head = edata_is_head_get(&edata_a);
 	expect_false(rtree_write(tsdn, rtree, &rtree_ctx, PAGE, contents_a),
 	    "Unexpected rtree_write() failure");
 	expect_false(rtree_write(tsdn, rtree, &rtree_ctx, PAGE, contents_a),
@@ -63,20 +64,23 @@ TEST_BEGIN(test_rtree_extrema) {
 	    PAGE);
 	expect_true(contents_a.edata == read_contents_a.edata
 	    && contents_a.metadata.szind == read_contents_a.metadata.szind
-	    && contents_a.metadata.slab == read_contents_a.metadata.slab,
+	    && contents_a.metadata.slab == read_contents_a.metadata.slab
+	    && contents_a.metadata.is_head == read_contents_a.metadata.is_head,
 	    "rtree_read() should return previously set value");
 
 	rtree_contents_t contents_b;
 	contents_b.edata = &edata_b;
 	contents_b.metadata.szind = edata_szind_get_maybe_invalid(&edata_b);
 	contents_b.metadata.slab = edata_slab_get(&edata_b);
+	contents_b.metadata.is_head = edata_is_head_get(&edata_b);
 	expect_false(rtree_write(tsdn, rtree, &rtree_ctx, ~((uintptr_t)0),
 	    contents_b), "Unexpected rtree_write() failure");
 	rtree_contents_t read_contents_b = rtree_read(tsdn, rtree, &rtree_ctx,
 	    ~((uintptr_t)0));
 	assert_true(contents_b.edata == read_contents_b.edata
 	    && contents_b.metadata.szind == read_contents_b.metadata.szind
-	    && contents_b.metadata.slab == read_contents_b.metadata.slab,
+	    && contents_b.metadata.slab == read_contents_b.metadata.slab
+	    && contents_b.metadata.is_head == read_contents_b.metadata.is_head,
 	    "rtree_read() should return previously set value");
 
 	base_delete(tsdn, base);
@@ -106,6 +110,7 @@ TEST_BEGIN(test_rtree_bits) {
 		contents.edata = &edata;
 		contents.metadata.szind = SC_NSIZES;
 		contents.metadata.slab = false;
+		contents.metadata.is_head = false;
 
 		expect_false(rtree_write(tsdn, rtree, &rtree_ctx, keys[i],
 		    contents), "Unexpected rtree_write() failure");
@@ -158,6 +163,7 @@ TEST_BEGIN(test_rtree_random) {
 		contents.edata = &edata;
 		contents.metadata.szind = SC_NSIZES;
 		contents.metadata.slab = false;
+		contents.metadata.is_head = false;
 		rtree_leaf_elm_write(tsdn, rtree, elm, contents);
 		expect_ptr_eq(rtree_read(tsdn, rtree, &rtree_ctx,
 		    keys[i]).edata, &edata,
