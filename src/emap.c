@@ -143,6 +143,7 @@ emap_rtree_write_acquired(tsdn_t *tsdn, emap_t *emap, rtree_leaf_elm_t *elm_a,
 	contents.metadata.slab = slab;
 	contents.metadata.is_head = (edata == NULL) ? false :
 	    edata_is_head_get(edata);
+	contents.metadata.state = (edata == NULL) ? 0 : edata_state_get(edata);
 	rtree_leaf_elm_write(tsdn, &emap->rtree, elm_a, contents);
 	if (elm_b != NULL) {
 		rtree_leaf_elm_write(tsdn, &emap->rtree, elm_b, contents);
@@ -170,11 +171,13 @@ emap_register_interior(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
 	EMAP_DECLARE_RTREE_CTX;
 
 	assert(edata_slab_get(edata));
+	assert(edata_state_get(edata) == extent_state_active);
 
 	rtree_contents_t contents;
 	contents.edata = edata;
 	contents.metadata.szind = szind;
 	contents.metadata.slab = true;
+	contents.metadata.state = extent_state_active;
 	contents.metadata.is_head = false; /* Not allowed to access. */
 
 	/* Register interior. */
@@ -219,6 +222,7 @@ emap_remap(tsdn_t *tsdn, emap_t *emap, edata_t *edata, szind_t szind,
 		contents.metadata.szind = szind;
 		contents.metadata.slab = slab;
 		contents.metadata.is_head = edata_is_head_get(edata);
+		contents.metadata.state = edata_state_get(edata);
 
 		rtree_write(tsdn, &emap->rtree, rtree_ctx,
 		    (uintptr_t)edata_addr_get(edata), contents);
@@ -304,6 +308,7 @@ emap_merge_commit(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
 	clear_contents.metadata.szind = SC_NSIZES;
 	clear_contents.metadata.slab = false;
 	clear_contents.metadata.is_head = false;
+	clear_contents.metadata.state = (extent_state_t)0;
 
 	if (prepare->lead_elm_b != NULL) {
 		rtree_leaf_elm_write(tsdn, &emap->rtree,
@@ -331,6 +336,7 @@ emap_do_assert_mapped(tsdn_t *tsdn, emap_t *emap, edata_t *edata) {
 	    (uintptr_t)edata_base_get(edata));
 	assert(contents.edata == edata);
 	assert(contents.metadata.is_head == edata_is_head_get(edata));
+	assert(contents.metadata.state == edata_state_get(edata));
 }
 
 void

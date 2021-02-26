@@ -472,7 +472,7 @@ edata_t *
 base_alloc_edata(tsdn_t *tsdn, base_t *base) {
 	size_t esn;
 	edata_t *edata = base_alloc_impl(tsdn, base, sizeof(edata_t),
-	    CACHELINE, &esn);
+	    EDATA_ALIGNMENT, &esn);
 	if (edata == NULL) {
 		return NULL;
 	}
