@@ -139,6 +139,9 @@ emap_assert_not_mapped(tsdn_t *tsdn, emap_t *emap, edata_t *edata) {
 static inline void
 emap_update_rtree_at_addr(tsdn_t *tsdn, rtree_t *rtree, edata_t *expected_edata,
     uintptr_t addr, extent_state_t state) {
+	witness_assert_positive_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE);
+
 	rtree_ctx_t rtree_ctx_fallback;
 	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback);
 

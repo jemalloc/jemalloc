@@ -243,26 +243,13 @@ witness_assert_not_owner(witness_tsdn_t *witness_tsdn,
 	}
 }
 
-static inline void
-witness_assert_depth_to_rank(witness_tsdn_t *witness_tsdn,
-    witness_rank_t rank_inclusive, unsigned depth) {
-	witness_tsd_t *witness_tsd;
-	unsigned d;
-	witness_list_t *witnesses;
-	witness_t *w;
+/* Returns depth.  Not intended for direct use. */
+static inline unsigned
+witness_depth_to_rank(witness_list_t *witnesses, witness_rank_t rank_inclusive)
+{
+	unsigned d = 0;
+	witness_t *w = ql_last(witnesses, link);
 
-	if (!config_debug) {
-		return;
-	}
-
-	if (witness_tsdn_null(witness_tsdn)) {
-		return;
-	}
-	witness_tsd = witness_tsdn_tsd(witness_tsdn);
-
-	d = 0;
-	witnesses = &witness_tsd->witnesses;
-	w = ql_last(witnesses, link);
 	if (w != NULL) {
 		ql_reverse_foreach(w, witnesses, link) {
 			if (w->rank < rank_inclusive) {
@@ -271,6 +258,20 @@ witness_assert_depth_to_rank(witness_tsdn_t *witness_tsdn,
 			d++;
 		}
 	}
+
+	return d;
+}
+
+static inline void
+witness_assert_depth_to_rank(witness_tsdn_t *witness_tsdn,
+    witness_rank_t rank_inclusive, unsigned depth) {
+	if (!config_debug || witness_tsdn_null(witness_tsdn)) {
+		return;
+	}
+
+	witness_list_t *witnesses = &witness_tsdn_tsd(witness_tsdn)->witnesses;
+	unsigned d = witness_depth_to_rank(witnesses, rank_inclusive);
+
 	if (d != depth) {
 		witness_depth_error(witnesses, rank_inclusive, depth);
 	}
@@ -284,6 +285,21 @@ witness_assert_depth(witness_tsdn_t *witness_tsdn, unsigned depth) {
 static inline void
 witness_assert_lockless(witness_tsdn_t *witness_tsdn) {
 	witness_assert_depth(witness_tsdn, 0);
+}
+
+static inline void
+witness_assert_positive_depth_to_rank(witness_tsdn_t *witness_tsdn,
+    witness_rank_t rank_inclusive) {
+	if (!config_debug || witness_tsdn_null(witness_tsdn)) {
+		return;
+	}
+
+	witness_list_t *witnesses = &witness_tsdn_tsd(witness_tsdn)->witnesses;
+	unsigned d = witness_depth_to_rank(witnesses, rank_inclusive);
+
+	if (d == 0) {
+		witness_depth_error(witnesses, rank_inclusive, 1);
+	}
 }
 
 static inline void
