@@ -23,7 +23,11 @@ enum extent_state_e {
 	extent_state_active   = 0,
 	extent_state_dirty    = 1,
 	extent_state_muzzy    = 2,
-	extent_state_retained = 3
+	extent_state_retained = 3,
+	extent_state_transition = 4, /* States below are intermediate. */
+	extent_state_updating = 4,
+	extent_state_merging = 5,
+	extent_state_max = 5 /* Sanity checking only. */
 };
 typedef enum extent_state_e extent_state_t;
 
@@ -548,6 +552,11 @@ static inline void
 edata_is_head_set(edata_t *edata, bool is_head) {
 	edata->e_bits = (edata->e_bits & ~EDATA_BITS_IS_HEAD_MASK) |
 	    ((uint64_t)is_head << EDATA_BITS_IS_HEAD_SHIFT);
+}
+
+static inline bool
+edata_state_in_transition(extent_state_t state) {
+	return state >= extent_state_transition;
 }
 
 /*

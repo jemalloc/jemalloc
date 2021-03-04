@@ -64,12 +64,12 @@ extent_may_force_decay(pac_t *pac) {
 static bool
 extent_try_delayed_coalesce(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *edata) {
-	emap_edata_state_update(tsdn, pac->emap, edata, extent_state_active);
+	emap_update_edata_state(tsdn, pac->emap, edata, extent_state_active);
 
 	bool coalesced;
 	edata = extent_try_coalesce(tsdn, pac, ehooks, ecache,
 	    edata, &coalesced, false);
-	emap_edata_state_update(tsdn, pac->emap, edata, ecache->state);
+	emap_update_edata_state(tsdn, pac->emap, edata, ecache->state);
 
 	if (!coalesced) {
 		return true;
@@ -183,7 +183,7 @@ ecache_evict(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		not_reached();
 	case extent_state_dirty:
 	case extent_state_muzzy:
-		emap_edata_state_update(tsdn, pac->emap, edata,
+		emap_update_edata_state(tsdn, pac->emap, edata,
 		    extent_state_active);
 		break;
 	case extent_state_retained:
@@ -230,7 +230,7 @@ extent_deactivate_locked(tsdn_t *tsdn, pac_t *pac, ecache_t *ecache,
 	assert(edata_arena_ind_get(edata) == ecache_ind_get(ecache));
 	assert(edata_state_get(edata) == extent_state_active);
 
-	emap_edata_state_update(tsdn, pac->emap, edata, ecache->state);
+	emap_update_edata_state(tsdn, pac->emap, edata, ecache->state);
 	eset_insert(&ecache->eset, edata);
 }
 
@@ -245,10 +245,11 @@ static void
 extent_activate_locked(tsdn_t *tsdn, pac_t *pac, ecache_t *ecache,
     edata_t *edata) {
 	assert(edata_arena_ind_get(edata) == ecache_ind_get(ecache));
-	assert(edata_state_get(edata) == ecache->state);
+	assert(edata_state_get(edata) == ecache->state ||
+	    edata_state_get(edata) == extent_state_updating);
 
 	eset_remove(&ecache->eset, edata);
-	emap_edata_state_update(tsdn, pac->emap, edata, extent_state_active);
+	emap_update_edata_state(tsdn, pac->emap, edata, extent_state_active);
 }
 
 static void
@@ -290,19 +291,15 @@ extent_gdump_sub(tsdn_t *tsdn, const edata_t *edata) {
 
 static bool
 extent_register_impl(tsdn_t *tsdn, pac_t *pac, edata_t *edata, bool gdump_add) {
+	assert(edata_state_get(edata) == extent_state_active);
 	/*
-	 * We need to hold the lock to protect against a concurrent coalesce
-	 * operation that sees us in a partial state.
+	 * No locking needed, as the edata must be in active state, which
+	 * prevents other threads from accessing the edata.
 	 */
-	emap_lock_edata(tsdn, pac->emap, edata);
-
 	if (emap_register_boundary(tsdn, pac->emap, edata, SC_NSIZES,
 	    /* slab */ false)) {
-		emap_unlock_edata(tsdn, pac->emap, edata);
 		return true;
 	}
-
-	emap_unlock_edata(tsdn, pac->emap, edata);
 
 	if (config_prof && gdump_add) {
 		extent_gdump_add(tsdn, edata);
@@ -333,9 +330,7 @@ extent_reregister(tsdn_t *tsdn, pac_t *pac, edata_t *edata) {
 static void
 extent_deregister_impl(tsdn_t *tsdn, pac_t *pac, edata_t *edata,
     bool gdump) {
-	emap_lock_edata(tsdn, pac->emap, edata);
 	emap_deregister_boundary(tsdn, pac->emap, edata);
-	emap_unlock_edata(tsdn, pac->emap, edata);
 
 	if (config_prof && gdump) {
 		extent_gdump_sub(tsdn, edata);
@@ -383,22 +378,18 @@ extent_recycle_extract(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	malloc_mutex_lock(tsdn, &ecache->mtx);
 	edata_t *edata;
 	if (new_addr != NULL) {
-		edata = emap_lock_edata_from_addr(tsdn, pac->emap, new_addr,
-		    false);
+		edata = emap_try_acquire_edata(tsdn, pac->emap, new_addr,
+		    ecache->state, /* allow_head_extent*/ false);
 		if (edata != NULL) {
-			/*
-			 * We might null-out edata to report an error, but we
-			 * still need to unlock the associated mutex after.
-			 */
-			edata_t *unlock_edata = edata;
 			assert(edata_base_get(edata) == new_addr);
-			if (edata_arena_ind_get(edata) != ecache_ind_get(ecache)
-			    || edata_size_get(edata) < size
-			    || edata_state_get(edata)
-			    != ecache->state) {
+			assert(edata_arena_ind_get(edata) ==
+			    ecache_ind_get(ecache));
+			assert(edata_state_get(edata) == extent_state_updating);
+			if (edata_size_get(edata) < size) {
+				emap_release_edata(tsdn, pac->emap, edata,
+				    ecache->state);
 				edata = NULL;
 			}
-			emap_unlock_edata(tsdn, pac->emap, unlock_edata);
 		}
 	} else {
 		/*
@@ -557,8 +548,8 @@ extent_recycle_split(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 			extent_deregister_no_gdump_sub(tsdn, pac, to_leak);
 			extents_abandon_vm(tsdn, pac, ehooks, ecache, to_leak,
 			    growing_retained);
-			assert(emap_lock_edata_from_addr(tsdn, pac->emap,
-			    leak, false) == NULL);
+			assert(emap_try_acquire_edata(tsdn, pac->emap,
+			    leak, ecache->state, true) == NULL);
 		}
 		return NULL;
 	}
@@ -807,41 +798,10 @@ extent_alloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 }
 
 static bool
-extent_can_coalesce(ecache_t *ecache, const edata_t *inner,
-    const edata_t *outer) {
-	assert(edata_arena_ind_get(inner) == ecache_ind_get(ecache));
-
-	if (edata_arena_ind_get(inner) != edata_arena_ind_get(outer)) {
-		return false;
-	}
-
-	/*
-	 * We wouldn't really get into this situation because one or the other
-	 * edata would have to have a head bit set to true, but this is
-	 * conceptually correct and cheap.
-	 */
-	if (edata_pai_get(inner) != edata_pai_get(outer)) {
-		return false;
-	}
-
-	assert(edata_state_get(inner) == extent_state_active);
-	if (edata_state_get(outer) != ecache->state) {
-		return false;
-	}
-
-	if (edata_committed_get(inner) != edata_committed_get(outer)) {
-		return false;
-	}
-
-	return true;
-}
-
-static bool
 extent_coalesce(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
     edata_t *inner, edata_t *outer, bool forward, bool growing_retained) {
-	assert(extent_can_coalesce(ecache, inner, outer));
-
-	extent_activate_locked(tsdn, pac, ecache, outer);
+	extent_assert_can_coalesce(inner, outer);
+	eset_remove(&ecache->eset, outer);
 
 	malloc_mutex_unlock(tsdn, &ecache->mtx);
 	bool err = extent_merge_impl(tsdn, pac, ehooks,
@@ -873,22 +833,11 @@ extent_try_coalesce_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		again = false;
 
 		/* Try to coalesce forward. */
-		edata_t *next = emap_lock_edata_from_addr(tsdn, pac->emap,
-		    edata_past_get(edata), inactive_only);
+		edata_t *next = emap_try_acquire_edata_neighbor(tsdn, pac->emap,
+		    edata, EXTENT_PAI_PAC, ecache->state, /* forward */ true);
 		if (next != NULL) {
-			/*
-			 * ecache->mtx only protects against races for
-			 * like-state extents, so call extent_can_coalesce()
-			 * before releasing next's pool lock.
-			 */
-			bool can_coalesce = extent_can_coalesce(ecache,
-			    edata, next);
-
-			emap_unlock_edata(tsdn, pac->emap, next);
-
-			if (can_coalesce && !extent_coalesce(tsdn, pac,
-			    ehooks, ecache, edata, next, true,
-			    growing_retained)) {
+			if (!extent_coalesce(tsdn, pac, ehooks, ecache, edata,
+			    next, true, growing_retained)) {
 				if (ecache->delay_coalesce) {
 					/* Do minimal coalescing. */
 					*coalesced = true;
@@ -899,30 +848,11 @@ extent_try_coalesce_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		}
 
 		/* Try to coalesce backward. */
-		edata_t *prev = NULL;
-		if (edata_before_get(edata) != NULL) {
-			/*
-			 * This is subtle; the rtree code asserts that its input
-			 * pointer is non-NULL, and this is a useful thing to
-			 * check.  But it's possible that edata corresponds to
-			 * an address of (void *)PAGE (in practice, this has
-			 * only been observed on FreeBSD when address-space
-			 * randomization is on, but it could in principle happen
-			 * anywhere).  In this case, edata_before_get(edata) is
-			 * NULL, triggering the assert.
-			 */
-			prev = emap_lock_edata_from_addr(tsdn, pac->emap,
-			    edata_before_get(edata), inactive_only);
-
-		}
+		edata_t *prev = emap_try_acquire_edata_neighbor(tsdn, pac->emap,
+		    edata, EXTENT_PAI_PAC, ecache->state, /* forward */ false);
 		if (prev != NULL) {
-			bool can_coalesce = extent_can_coalesce(ecache, edata,
-			    prev);
-			emap_unlock_edata(tsdn, pac->emap, prev);
-
-			if (can_coalesce && !extent_coalesce(tsdn, pac,
-			    ehooks, ecache, edata, prev, false,
-			    growing_retained)) {
+			if (!extent_coalesce(tsdn, pac, ehooks, ecache, edata,
+			    prev, false, growing_retained)) {
 				edata = prev;
 				if (ecache->delay_coalesce) {
 					/* Do minimal coalescing. */
@@ -1218,24 +1148,27 @@ extent_split_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		goto label_error_b;
 	}
 
-	emap_lock_edata2(tsdn, pac->emap, edata, trail);
+	/*
+	 * No need to acquire trail or edata, because: 1) trail was new (just
+	 * allocated); and 2) edata is either an active allocation (the shrink
+	 * path), or in an acquired state (extracted from the ecache on the
+	 * extent_recycle_split path).
+	 */
+	assert(emap_edata_is_acquired(tsdn, pac->emap, edata));
+	assert(emap_edata_is_acquired(tsdn, pac->emap, trail));
 
 	err = ehooks_split(tsdn, ehooks, edata_base_get(edata), size_a + size_b,
 	    size_a, size_b, edata_committed_get(edata));
 
 	if (err) {
-		goto label_error_c;
+		goto label_error_b;
 	}
 
 	edata_size_set(edata, size_a);
 	emap_split_commit(tsdn, pac->emap, &prepare, edata, size_a, trail,
 	    size_b);
 
-	emap_unlock_edata2(tsdn, pac->emap, edata, trail);
-
 	return trail;
-label_error_c:
-	emap_unlock_edata2(tsdn, pac->emap, edata, trail);
 label_error_b:
 	edata_cache_put(tsdn, pac->edata_cache, trail);
 label_error_a:
@@ -1277,15 +1210,15 @@ extent_merge_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, edata_t *a,
 	emap_prepare_t prepare;
 	emap_merge_prepare(tsdn, pac->emap, &prepare, a, b);
 
-	emap_lock_edata2(tsdn, pac->emap, a, b);
-
+	assert(edata_state_get(a) == extent_state_active ||
+	    edata_state_get(a) == extent_state_merging);
+	edata_state_set(a, extent_state_active);
 	edata_size_set(a, edata_size_get(a) + edata_size_get(b));
 	edata_sn_set(a, (edata_sn_get(a) < edata_sn_get(b)) ?
 	    edata_sn_get(a) : edata_sn_get(b));
 	edata_zeroed_set(a, edata_zeroed_get(a) && edata_zeroed_get(b));
 
 	emap_merge_commit(tsdn, pac->emap, &prepare, a, b);
-	emap_unlock_edata2(tsdn, pac->emap, a, b);
 
 	edata_cache_put(tsdn, pac->edata_cache, b);
 

@@ -78,7 +78,8 @@ eset_insert(eset_t *eset, edata_t *edata) {
 
 void
 eset_remove(eset_t *eset, edata_t *edata) {
-	assert(edata_state_get(edata) == eset->state);
+	assert(edata_state_get(edata) == eset->state ||
+	    edata_state_in_transition(edata_state_get(edata)));
 
 	size_t size = edata_size_get(edata);
 	size_t psz = sz_psz_quantize_floor(size);
