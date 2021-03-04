@@ -81,7 +81,7 @@ struct rtree_leaf_elm_s {
 #else
 	atomic_p_t	le_edata; /* (edata_t *) */
 	/*
-	 * From low to high bits: slab, is_head, state.
+	 * From high to low bits: szind (8 bits), state (4 bits), is_head, slab
 	 */
 	atomic_u_t	le_metadata;
 #endif
@@ -187,6 +187,7 @@ rtree_leaf_elm_bits_read(tsdn_t *tsdn, rtree_t *rtree,
 
 JEMALLOC_ALWAYS_INLINE uintptr_t
 rtree_leaf_elm_bits_encode(rtree_contents_t contents) {
+	assert((uintptr_t)contents.edata % (uintptr_t)EDATA_ALIGNMENT == 0);
 	uintptr_t edata_bits = (uintptr_t)contents.edata
 	    & (((uintptr_t)1 << LG_VADDR) - 1);
 
@@ -212,6 +213,7 @@ rtree_leaf_elm_bits_decode(uintptr_t bits) {
 
 	uintptr_t state_bits = (bits & RTREE_LEAF_STATE_MASK) >>
 	    RTREE_LEAF_STATE_SHIFT;
+	assert(state_bits <= extent_state_max);
 	contents.metadata.state = (extent_state_t)state_bits;
 
 	uintptr_t low_bit_mask = ~((uintptr_t)EDATA_ALIGNMENT - 1);
@@ -229,6 +231,7 @@ rtree_leaf_elm_bits_decode(uintptr_t bits) {
 	contents.edata = (edata_t *)((uintptr_t)((intptr_t)(bits << RTREE_NHIB)
 	    >> RTREE_NHIB) & low_bit_mask);
 #    endif
+	assert((uintptr_t)contents.edata % (uintptr_t)EDATA_ALIGNMENT == 0);
 	return contents;
 }
 
@@ -250,6 +253,7 @@ rtree_leaf_elm_read(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 
 	uintptr_t state_bits = (metadata_bits & RTREE_LEAF_STATE_MASK) >>
 	    RTREE_LEAF_STATE_SHIFT;
+	assert(state_bits <= extent_state_max);
 	contents.metadata.state = (extent_state_t)state_bits;
 	contents.metadata.szind = metadata_bits >> (RTREE_LEAF_STATE_SHIFT +
 	    RTREE_LEAF_STATE_WIDTH);
@@ -280,6 +284,31 @@ rtree_leaf_elm_write(tsdn_t *tsdn, rtree_t *rtree,
 	 * as soon as the edata field is non-NULL.
 	 */
 	atomic_store_p(&elm->le_edata, contents.edata, ATOMIC_RELEASE);
+#endif
+}
+
+/* The state field can be updated independently (and more frequently). */
+static inline void
+rtree_leaf_elm_state_update(tsdn_t *tsdn, rtree_t *rtree,
+    rtree_leaf_elm_t *elm1, rtree_leaf_elm_t *elm2, extent_state_t state) {
+	assert(elm1 != NULL);
+#ifdef RTREE_LEAF_COMPACT
+	uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm1,
+	    /* dependent */ true);
+	bits &= ~RTREE_LEAF_STATE_MASK;
+	bits |= state << RTREE_LEAF_STATE_SHIFT;
+	atomic_store_p(&elm1->le_bits, (void *)bits, ATOMIC_RELEASE);
+	if (elm2 != NULL) {
+		atomic_store_p(&elm2->le_bits, (void *)bits, ATOMIC_RELEASE);
+	}
+#else
+	unsigned bits = atomic_load_u(&elm1->le_metadata, ATOMIC_RELAXED);
+	bits &= ~RTREE_LEAF_STATE_MASK;
+	bits |= state << RTREE_LEAF_STATE_SHIFT;
+	atomic_store_u(&elm1->le_metadata, bits, ATOMIC_RELEASE);
+	if (elm2 != NULL) {
+		atomic_store_u(&elm2->le_metadata, bits, ATOMIC_RELEASE);
+	}
 #endif
 }
 
