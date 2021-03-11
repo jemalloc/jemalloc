@@ -20,9 +20,11 @@
 extern size_t opt_lg_extent_max_active_fit;
 
 edata_t *ecache_alloc(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
-    ecache_t *ecache, void *new_addr, size_t size, size_t alignment, bool zero);
+    ecache_t *ecache, edata_t *expand_edata, size_t size, size_t alignment,
+    bool zero);
 edata_t *ecache_alloc_grow(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
-    ecache_t *ecache, void *new_addr, size_t size, size_t alignment, bool zero);
+    ecache_t *ecache, edata_t *expand_edata, size_t size, size_t alignment,
+    bool zero);
 void ecache_dalloc(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *edata);
 edata_t *ecache_evict(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,

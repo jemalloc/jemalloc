@@ -133,9 +133,7 @@ static bool
 pac_expand_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
     size_t new_size, bool zero) {
 	pac_t *pac = (pac_t *)self;
-
 	ehooks_t *ehooks = pac_ehooks_get(pac);
-	void *trail_begin = edata_past_get(edata);
 
 	size_t mapped_add = 0;
 	size_t expand_amount = new_size - old_size;
@@ -144,14 +142,14 @@ pac_expand_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
 		return true;
 	}
 	edata_t *trail = ecache_alloc(tsdn, pac, ehooks, &pac->ecache_dirty,
-	    trail_begin, expand_amount, PAGE, zero);
+	    edata, expand_amount, PAGE, zero);
 	if (trail == NULL) {
 		trail = ecache_alloc(tsdn, pac, ehooks, &pac->ecache_muzzy,
-		    trail_begin, expand_amount, PAGE, zero);
+		    edata, expand_amount, PAGE, zero);
 	}
 	if (trail == NULL) {
 		trail = ecache_alloc_grow(tsdn, pac, ehooks,
-		    &pac->ecache_retained, trail_begin, expand_amount, PAGE,
+		    &pac->ecache_retained, edata, expand_amount, PAGE,
 		    zero);
 		mapped_add = expand_amount;
 	}
