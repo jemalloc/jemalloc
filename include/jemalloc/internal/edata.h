@@ -25,7 +25,6 @@ enum extent_state_e {
 	extent_state_muzzy    = 2,
 	extent_state_retained = 3,
 	extent_state_transition = 4, /* States below are intermediate. */
-	extent_state_updating = 4,
 	extent_state_merging = 5,
 	extent_state_max = 5 /* Sanity checking only. */
 };

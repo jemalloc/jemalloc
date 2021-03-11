@@ -43,11 +43,26 @@ void emap_remap(tsdn_t *tsdn, emap_t *emap, edata_t *edata, szind_t szind,
 void emap_update_edata_state(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
     extent_state_t state);
 
-edata_t *emap_try_acquire_edata(tsdn_t *tsdn, emap_t *emap, void *addr,
-    extent_state_t expected_state, bool allow_head_extent);
+/*
+ * The two acquire functions below allow accessing neighbor edatas, if it's safe
+ * and valid to do so (i.e. from the same arena, of the same state, etc.).  This
+ * is necessary because the ecache locks are state based, and only protect
+ * edatas with the same state.  Therefore the neighbor edata's state needs to be
+ * verified first, before chasing the edata pointer.  The returned edata will be
+ * in an acquired state, meaning other threads will be prevented from accessing
+ * it, even if technically the edata can still be discovered from the rtree.
+ *
+ * This means, at any moment when holding pointers to edata, either one of the
+ * state based locks is held (and the edatas are all of the protected state), or
+ * the edatas are in an acquired state (e.g. in active or merging state).  The
+ * acquire operation itself (changing the edata to an acquired state) is done
+ * under the state locks.
+ */
 edata_t *emap_try_acquire_edata_neighbor(tsdn_t *tsdn, emap_t *emap,
     edata_t *edata, extent_pai_t pai, extent_state_t expected_state,
     bool forward);
+edata_t *emap_try_acquire_edata_neighbor_expand(tsdn_t *tsdn, emap_t *emap,
+    edata_t *edata, extent_pai_t pai, extent_state_t expected_state);
 void emap_release_edata(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
     extent_state_t new_state);
 
@@ -196,6 +211,17 @@ extent_assert_can_coalesce(const edata_t *inner, const edata_t *outer) {
 	assert(edata_committed_get(inner) == edata_committed_get(outer));
 	assert(edata_state_get(inner) == extent_state_active);
 	assert(edata_state_get(outer) == extent_state_merging);
+	assert(edata_base_get(inner) == edata_past_get(outer) ||
+	    edata_base_get(outer) == edata_past_get(inner));
+}
+
+JEMALLOC_ALWAYS_INLINE void
+extent_assert_can_expand(const edata_t *original, const edata_t *expand) {
+	assert(edata_arena_ind_get(original) == edata_arena_ind_get(expand));
+	assert(edata_pai_get(original) == edata_pai_get(expand));
+	assert(edata_state_get(original) == extent_state_active);
+	assert(edata_state_get(expand) == extent_state_merging);
+	assert(edata_past_get(original) == edata_base_get(expand));
 }
 
 JEMALLOC_ALWAYS_INLINE edata_t *

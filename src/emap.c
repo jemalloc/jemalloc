@@ -70,7 +70,8 @@ edata_neighbor_head_state_mergeable(bool edata_is_head,
 
 static inline bool
 edata_can_acquire_neighbor(edata_t *edata, rtree_contents_t contents,
-    extent_pai_t pai, extent_state_t expected_state, bool forward) {
+    extent_pai_t pai, extent_state_t expected_state, bool forward,
+    bool expanding) {
 	edata_t *neighbor = contents.edata;
 	if (neighbor == NULL) {
 		return false;
@@ -87,8 +88,8 @@ edata_can_acquire_neighbor(edata_t *edata, rtree_contents_t contents,
 			return false;
 		}
 		/* From this point, it's safe to access *neighbor. */
-		if (edata_committed_get(edata) !=
-		    edata_committed_get(neighbor)) {
+		if (!expanding && (edata_committed_get(edata) !=
+		    edata_committed_get(neighbor))) {
 			/*
 			 * Some platforms (e.g. Windows) require an explicit
 			 * commit step (and writing to uncomitted memory is not
@@ -125,47 +126,13 @@ edata_can_acquire_neighbor(edata_t *edata, rtree_contents_t contents,
 	return true;
 }
 
-/* Will be removed in the next commit. */
-edata_t *
-emap_try_acquire_edata(tsdn_t *tsdn, emap_t *emap, void *addr,
-    extent_state_t expected_state, bool allow_head_extent) {
-	EMAP_DECLARE_RTREE_CTX;
-	rtree_leaf_elm_t *elm = rtree_leaf_elm_lookup(tsdn, &emap->rtree,
-	    rtree_ctx, (uintptr_t)addr, false, false);
-	if (elm == NULL) {
-		return NULL;
-	}
-	rtree_contents_t contents = rtree_leaf_elm_read(tsdn, &emap->rtree, elm,
-	    /* dependent */ true);
-	if (!allow_head_extent && contents.metadata.is_head) {
-		/* !allow_head_extent indicates the expanding path. */
-		return NULL;
-	}
-
-	edata_t *edata = contents.edata;
-	if (edata == NULL || contents.metadata.state != expected_state) {
-		return NULL;
-	}
-	assert(edata_state_get(edata) == expected_state);
-	emap_update_edata_state(tsdn, emap, edata, extent_state_updating);
-
-	return edata;
-}
-
-void
-emap_release_edata(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
-    extent_state_t new_state) {
-	assert(emap_edata_in_transition(tsdn, emap, edata));
-	assert(emap_edata_is_acquired(tsdn, emap, edata));
-
-	emap_update_edata_state(tsdn, emap, edata, new_state);
-}
-
-edata_t *
-emap_try_acquire_edata_neighbor(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
-    extent_pai_t pai, extent_state_t expected_state, bool forward) {
+static inline edata_t *
+emap_try_acquire_edata_neighbor_impl(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
+    extent_pai_t pai, extent_state_t expected_state, bool forward,
+    bool expanding) {
 	witness_assert_positive_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE);
+	assert(!expanding || forward);
 	assert(!edata_state_in_transition(expected_state));
 	assert(expected_state == extent_state_dirty ||
 	       expected_state == extent_state_muzzy ||
@@ -196,16 +163,45 @@ emap_try_acquire_edata_neighbor(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
 	rtree_contents_t neighbor_contents = rtree_leaf_elm_read(tsdn,
 	    &emap->rtree, elm, /* dependent */ true);
 	if (!edata_can_acquire_neighbor(edata, neighbor_contents, pai,
-	    expected_state, forward)) {
+	    expected_state, forward, expanding)) {
 		return NULL;
 	}
 
 	/* From this point, the neighbor edata can be safely acquired. */
 	edata_t *neighbor = neighbor_contents.edata;
+	assert(edata_state_get(neighbor) == expected_state);
 	emap_update_edata_state(tsdn, emap, neighbor, extent_state_merging);
-	extent_assert_can_coalesce(edata, neighbor);
+	if (expanding) {
+		extent_assert_can_expand(edata, neighbor);
+	} else {
+		extent_assert_can_coalesce(edata, neighbor);
+	}
 
 	return neighbor;
+}
+
+edata_t *
+emap_try_acquire_edata_neighbor(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
+    extent_pai_t pai, extent_state_t expected_state, bool forward) {
+	return emap_try_acquire_edata_neighbor_impl(tsdn, emap, edata, pai,
+	    expected_state, forward, /* expand */ false);
+}
+
+edata_t *
+emap_try_acquire_edata_neighbor_expand(tsdn_t *tsdn, emap_t *emap,
+    edata_t *edata, extent_pai_t pai, extent_state_t expected_state) {
+	/* Try expanding forward. */
+	return emap_try_acquire_edata_neighbor_impl(tsdn, emap, edata, pai,
+	    expected_state, /* forward */ true, /* expand */ true);
+}
+
+void
+emap_release_edata(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
+    extent_state_t new_state) {
+	assert(emap_edata_in_transition(tsdn, emap, edata));
+	assert(emap_edata_is_acquired(tsdn, emap, edata));
+
+	emap_update_edata_state(tsdn, emap, edata, new_state);
 }
 
 static bool
