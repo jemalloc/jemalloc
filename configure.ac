@@ -1203,9 +1203,6 @@ fi
 if test "x$enable_debug" = "x1" ; then
   AC_DEFINE([JEMALLOC_DEBUG], [ ])
 fi
-if test "x$enable_debug" = "x1" ; then
-  AC_DEFINE([JEMALLOC_DEBUG], [ ])
-fi
 AC_SUBST([enable_debug])
 
 dnl Only optimize if not debugging.
