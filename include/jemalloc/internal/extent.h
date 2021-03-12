@@ -28,8 +28,6 @@ void ecache_dalloc(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 edata_t *ecache_evict(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     ecache_t *ecache, size_t npages_min);
 
-edata_t *extent_alloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
-    void *new_addr, size_t size, size_t alignment, bool zero, bool *commit);
 void extent_dalloc_gap(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     edata_t *edata);
 void extent_dalloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
