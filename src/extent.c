@@ -1189,8 +1189,8 @@ extent_merge_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, edata_t *a,
 	emap_assert_mapped(tsdn, pac->emap, b);
 
 	bool err = ehooks_merge(tsdn, ehooks, edata_base_get(a),
-	    edata_size_get(a), edata_is_head_get(a), edata_base_get(b),
-	    edata_size_get(b), edata_is_head_get(b), edata_committed_get(a));
+	    edata_size_get(a), edata_base_get(b), edata_size_get(b),
+	    edata_committed_get(a));
 
 	if (err) {
 		return true;

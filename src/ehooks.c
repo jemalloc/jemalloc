@@ -188,11 +188,10 @@ ehooks_default_split(extent_hooks_t *extent_hooks, void *addr, size_t size,
 }
 
 bool
-ehooks_default_merge_impl(tsdn_t *tsdn, void *addr_a, bool head_a, void *addr_b,
-    bool head_b) {
+ehooks_default_merge_impl(tsdn_t *tsdn, void *addr_a, void *addr_b) {
 	assert(addr_a < addr_b);
 	/*
-	 * For non-DSS cases (first 2 branches) --
+	 * For non-DSS cases --
 	 * a) W/o maps_coalesce, merge is not always allowed (Windows):
 	 *   1) w/o retain, never merge (first branch below).
 	 *   2) with retain, only merge extents from the same VirtualAlloc
@@ -204,17 +203,23 @@ ehooks_default_merge_impl(tsdn_t *tsdn, void *addr_a, bool head_a, void *addr_b,
 	 *      disallowed if b is a head extent, i.e. no merging across
 	 *      different mmap regions.
 	 *
-	 * a2) and b2) share the implementation (the no_merge_heads branch).
+	 * a2) and b2) are implemented in emap_try_acquire_edata_neighbor, and
+	 * sanity checked in the second branch below.
 	 */
 	if (!maps_coalesce && !opt_retain) {
 		return true;
 	}
-	/*
-	 * Don't merge across mappings when retain is on -- this preserves
-	 * first-fit ordering.
-	 */
-	if (opt_retain && head_b) {
-		return true;
+	if (config_debug) {
+		edata_t *a = emap_edata_lookup(tsdn, &arena_emap_global,
+		    addr_a);
+		bool head_a = edata_is_head_get(a);
+		edata_t *b = emap_edata_lookup(tsdn, &arena_emap_global,
+		    addr_b);
+		bool head_b = edata_is_head_get(b);
+		emap_assert_mapped(tsdn, &arena_emap_global, a);
+		emap_assert_mapped(tsdn, &arena_emap_global, b);
+		assert(edata_neighbor_head_state_mergeable(head_a, head_b,
+		    /* forward */ true));
 	}
 	if (have_dss && !extent_dss_mergeable(addr_a, addr_b)) {
 		return true;
@@ -228,14 +233,7 @@ ehooks_default_merge(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
     void *addr_b, size_t size_b, bool committed, unsigned arena_ind) {
 	tsdn_t *tsdn = tsdn_fetch();
 
-	edata_t *a = emap_edata_lookup(tsdn, &arena_emap_global, addr_a);
-	bool head_a = edata_is_head_get(a);
-	edata_t *b = emap_edata_lookup(tsdn, &arena_emap_global, addr_b);
-	bool head_b = edata_is_head_get(b);
-	emap_assert_mapped(tsdn, &arena_emap_global, a);
-	emap_assert_mapped(tsdn, &arena_emap_global, b);
-
-	return ehooks_default_merge_impl(tsdn, addr_a, head_a, addr_b, head_b);
+	return ehooks_default_merge_impl(tsdn, addr_a, addr_b);
 }
 
 void
