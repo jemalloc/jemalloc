@@ -49,26 +49,6 @@ emap_update_edata_state(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
 }
 
 static inline bool
-edata_neighbor_head_state_mergeable(bool edata_is_head,
-    bool neighbor_is_head, bool forward) {
-	/*
-	 * Head states checking: disallow merging if the higher addr extent is a
-	 * head extent.  This helps preserve first-fit, and more importantly
-	 * makes sure no merge across arenas.
-	 */
-	if (forward) {
-		if (neighbor_is_head) {
-			return false;
-		}
-	} else {
-		if (edata_is_head) {
-			return false;
-		}
-	}
-	return true;
-}
-
-static inline bool
 edata_can_acquire_neighbor(edata_t *edata, rtree_contents_t contents,
     extent_pai_t pai, extent_state_t expected_state, bool forward,
     bool expanding) {
