@@ -45,6 +45,8 @@ static void extent_record(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 static edata_t *extent_alloc_retained(tsdn_t *tsdn, pac_t *pac,
     ehooks_t *ehooks, void *new_addr, size_t size, size_t alignment, bool zero,
     bool *commit);
+static edata_t *extent_alloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
+    void *new_addr, size_t size, size_t alignment, bool zero, bool *commit);
 
 /******************************************************************************/
 
@@ -771,7 +773,7 @@ extent_alloc_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	return edata;
 }
 
-edata_t *
+static edata_t *
 extent_alloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     void *new_addr, size_t size, size_t alignment, bool zero, bool *commit) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
@@ -791,7 +793,7 @@ extent_alloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	edata_init(edata, ecache_ind_get(&pac->ecache_dirty), addr,
 	    size, /* slab */ false, SC_NSIZES, extent_sn_next(pac),
 	    extent_state_active, zero, *commit, EXTENT_PAI_PAC,
-	    EXTENT_NOT_HEAD);
+	    opt_retain ? EXTENT_IS_HEAD : EXTENT_NOT_HEAD);
 	if (extent_register(tsdn, pac, edata)) {
 		edata_cache_put(tsdn, pac->edata_cache, edata);
 		return NULL;
