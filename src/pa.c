@@ -120,7 +120,7 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 		emap_remap(tsdn, shard->emap, edata, szind, slab);
 		edata_szind_set(edata, szind);
 		edata_slab_set(edata, slab);
-		if (slab) {
+		if (slab && (size > 2 * PAGE)) {
 			emap_register_interior(tsdn, shard->emap, edata, szind);
 		}
 	}

@@ -137,23 +137,24 @@ bool rtree_new(rtree_t *rtree, base_t *base, bool zeroed);
 rtree_leaf_elm_t *rtree_leaf_elm_lookup_hard(tsdn_t *tsdn, rtree_t *rtree,
     rtree_ctx_t *rtree_ctx, uintptr_t key, bool dependent, bool init_missing);
 
-JEMALLOC_ALWAYS_INLINE uintptr_t
-rtree_leafkey(uintptr_t key) {
+JEMALLOC_ALWAYS_INLINE unsigned
+rtree_leaf_maskbits(void) {
 	unsigned ptrbits = ZU(1) << (LG_SIZEOF_PTR+3);
 	unsigned cumbits = (rtree_levels[RTREE_HEIGHT-1].cumbits -
 	    rtree_levels[RTREE_HEIGHT-1].bits);
-	unsigned maskbits = ptrbits - cumbits;
-	uintptr_t mask = ~((ZU(1) << maskbits) - 1);
+	return ptrbits - cumbits;
+}
+
+JEMALLOC_ALWAYS_INLINE uintptr_t
+rtree_leafkey(uintptr_t key) {
+	uintptr_t mask = ~((ZU(1) << rtree_leaf_maskbits()) - 1);
 	return (key & mask);
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
 rtree_cache_direct_map(uintptr_t key) {
-	unsigned ptrbits = ZU(1) << (LG_SIZEOF_PTR+3);
-	unsigned cumbits = (rtree_levels[RTREE_HEIGHT-1].cumbits -
-	    rtree_levels[RTREE_HEIGHT-1].bits);
-	unsigned maskbits = ptrbits - cumbits;
-	return (size_t)((key >> maskbits) & (RTREE_CTX_NCACHE - 1));
+	return (size_t)((key >> rtree_leaf_maskbits()) &
+	    (RTREE_CTX_NCACHE - 1));
 }
 
 JEMALLOC_ALWAYS_INLINE uintptr_t
@@ -265,30 +266,49 @@ rtree_leaf_elm_read(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 #endif
 }
 
-static inline void
-rtree_leaf_elm_write(tsdn_t *tsdn, rtree_t *rtree,
-    rtree_leaf_elm_t *elm, rtree_contents_t contents) {
-	assert((uintptr_t)contents.edata % EDATA_ALIGNMENT == 0);
+JEMALLOC_ALWAYS_INLINE void
+rtree_contents_encode(rtree_contents_t contents, void **bits,
+    unsigned *additional) {
 #ifdef RTREE_LEAF_COMPACT
-	uintptr_t bits = rtree_leaf_elm_bits_encode(contents);
-	atomic_store_p(&elm->le_bits, (void *)bits, ATOMIC_RELEASE);
+	*bits = (void *)rtree_leaf_elm_bits_encode(contents);
 #else
-	unsigned metadata_bits = (unsigned)contents.metadata.slab
+	*additional = (unsigned)contents.metadata.slab
 	    | ((unsigned)contents.metadata.is_head << 1)
 	    | ((unsigned)contents.metadata.state << RTREE_LEAF_STATE_SHIFT)
 	    | ((unsigned)contents.metadata.szind << (RTREE_LEAF_STATE_SHIFT +
 	    RTREE_LEAF_STATE_WIDTH));
-	atomic_store_u(&elm->le_metadata, metadata_bits, ATOMIC_RELEASE);
+	*bits = contents.edata;
+#endif
+}
+
+JEMALLOC_ALWAYS_INLINE void
+rtree_leaf_elm_write_commit(tsdn_t *tsdn, rtree_t *rtree,
+    rtree_leaf_elm_t *elm, void *bits, unsigned additional) {
+#ifdef RTREE_LEAF_COMPACT
+	atomic_store_p(&elm->le_bits, bits, ATOMIC_RELEASE);
+#else
+	atomic_store_u(&elm->le_metadata, additional, ATOMIC_RELEASE);
 	/*
 	 * Write edata last, since the element is atomically considered valid
 	 * as soon as the edata field is non-NULL.
 	 */
-	atomic_store_p(&elm->le_edata, contents.edata, ATOMIC_RELEASE);
+	atomic_store_p(&elm->le_edata, bits, ATOMIC_RELEASE);
 #endif
 }
 
+JEMALLOC_ALWAYS_INLINE void
+rtree_leaf_elm_write(tsdn_t *tsdn, rtree_t *rtree,
+    rtree_leaf_elm_t *elm, rtree_contents_t contents) {
+	assert((uintptr_t)contents.edata % EDATA_ALIGNMENT == 0);
+	void *bits;
+	unsigned additional;
+
+	rtree_contents_encode(contents, &bits, &additional);
+	rtree_leaf_elm_write_commit(tsdn, rtree, elm, bits, additional);
+}
+
 /* The state field can be updated independently (and more frequently). */
-static inline void
+JEMALLOC_ALWAYS_INLINE void
 rtree_leaf_elm_state_update(tsdn_t *tsdn, rtree_t *rtree,
     rtree_leaf_elm_t *elm1, rtree_leaf_elm_t *elm2, extent_state_t state) {
 	assert(elm1 != NULL);
@@ -447,7 +467,45 @@ rtree_metadata_try_read_fast(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ct
 	return false;
 }
 
-static inline bool
+JEMALLOC_ALWAYS_INLINE void
+rtree_write_range_impl(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
+    uintptr_t base, uintptr_t end, rtree_contents_t contents, bool clearing) {
+	assert((base & PAGE_MASK) == 0 && (end & PAGE_MASK) == 0);
+	/*
+	 * Only used for emap_(de)register_interior, which implies the
+	 * boundaries have been registered already.  Therefore all the lookups
+	 * are dependent w/o init_missing, assuming the range spans across at
+	 * most 2 rtree leaf nodes (each covers 1 GiB of vaddr).
+	 */
+	void *bits;
+	unsigned additional;
+	rtree_contents_encode(contents, &bits, &additional);
+
+	rtree_leaf_elm_t *elm = NULL; /* Dead store. */
+	for (uintptr_t addr = base; addr <= end; addr += PAGE) {
+		if (addr == base ||
+		    (addr & ((ZU(1) << rtree_leaf_maskbits()) - 1)) == 0) {
+			elm = rtree_leaf_elm_lookup(tsdn, rtree, rtree_ctx, addr,
+			    /* dependent */ true, /* init_missing */ false);
+			assert(elm != NULL);
+		}
+		assert(elm == rtree_leaf_elm_lookup(tsdn, rtree, rtree_ctx, addr,
+		    /* dependent */ true, /* init_missing */ false));
+		assert(!clearing || rtree_leaf_elm_read(tsdn, rtree, elm,
+		    /* dependent */ true).edata != NULL);
+		rtree_leaf_elm_write_commit(tsdn, rtree, elm, bits, additional);
+		elm++;
+	}
+}
+
+JEMALLOC_ALWAYS_INLINE void
+rtree_write_range(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
+    uintptr_t base, uintptr_t end, rtree_contents_t contents) {
+	rtree_write_range_impl(tsdn, rtree, rtree_ctx, base, end, contents,
+	    /* clearing */ false);
+}
+
+JEMALLOC_ALWAYS_INLINE bool
 rtree_write(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx, uintptr_t key,
     rtree_contents_t contents) {
 	rtree_leaf_elm_t *elm = rtree_leaf_elm_lookup(tsdn, rtree, rtree_ctx,
@@ -476,6 +534,19 @@ rtree_clear(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	contents.metadata.is_head = false;
 	contents.metadata.state = (extent_state_t)0;
 	rtree_leaf_elm_write(tsdn, rtree, elm, contents);
+}
+
+static inline void
+rtree_clear_range(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
+    uintptr_t base, uintptr_t end) {
+	rtree_contents_t contents;
+	contents.edata = NULL;
+	contents.metadata.szind = SC_NSIZES;
+	contents.metadata.slab = false;
+	contents.metadata.is_head = false;
+	contents.metadata.state = (extent_state_t)0;
+	rtree_write_range_impl(tsdn, rtree, rtree_ctx, base, end, contents,
+	    /* clearing */ true);
 }
 
 #endif /* JEMALLOC_INTERNAL_RTREE_H */

@@ -241,6 +241,7 @@ emap_register_boundary(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
 	return false;
 }
 
+/* Invoked *after* emap_register_boundary. */
 void
 emap_register_interior(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
     szind_t szind) {
@@ -249,6 +250,22 @@ emap_register_interior(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
 	assert(edata_slab_get(edata));
 	assert(edata_state_get(edata) == extent_state_active);
 
+	if (config_debug) {
+		/* Making sure the boundary is registered already. */
+		rtree_leaf_elm_t *elm_a, *elm_b;
+		bool err = emap_rtree_leaf_elms_lookup(tsdn, emap, rtree_ctx,
+		    edata, /* dependent */ true, /* init_missing */ false,
+		    &elm_a, &elm_b);
+		assert(!err);
+		rtree_contents_t contents_a, contents_b;
+		contents_a = rtree_leaf_elm_read(tsdn, &emap->rtree, elm_a,
+		    /* dependent */ true);
+		contents_b = rtree_leaf_elm_read(tsdn, &emap->rtree, elm_b,
+		    /* dependent */ true);
+		assert(contents_a.edata == edata && contents_b.edata == edata);
+		assert(contents_a.metadata.slab && contents_b.metadata.slab);
+	}
+
 	rtree_contents_t contents;
 	contents.edata = edata;
 	contents.metadata.szind = szind;
@@ -256,12 +273,10 @@ emap_register_interior(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
 	contents.metadata.state = extent_state_active;
 	contents.metadata.is_head = false; /* Not allowed to access. */
 
-	/* Register interior. */
-	for (size_t i = 1; i < (edata_size_get(edata) >> LG_PAGE) - 1; i++) {
-		rtree_write(tsdn, &emap->rtree, rtree_ctx,
-		    (uintptr_t)edata_base_get(edata) + (uintptr_t)(i <<
-		    LG_PAGE), contents);
-	}
+	assert(edata_size_get(edata) > (2 << LG_PAGE));
+	rtree_write_range(tsdn, &emap->rtree, rtree_ctx,
+	    (uintptr_t)edata_base_get(edata) + PAGE,
+	    (uintptr_t)edata_last_get(edata) - PAGE, contents);
 }
 
 void
@@ -289,10 +304,10 @@ emap_deregister_interior(tsdn_t *tsdn, emap_t *emap, edata_t *edata) {
 	EMAP_DECLARE_RTREE_CTX;
 
 	assert(edata_slab_get(edata));
-	for (size_t i = 1; i < (edata_size_get(edata) >> LG_PAGE) - 1; i++) {
-		rtree_clear(tsdn, &emap->rtree, rtree_ctx,
-		    (uintptr_t)edata_base_get(edata) + (uintptr_t)(i <<
-		    LG_PAGE));
+	if (edata_size_get(edata) > (2 << LG_PAGE)) {
+		rtree_clear_range(tsdn, &emap->rtree, rtree_ctx,
+		    (uintptr_t)edata_base_get(edata) + PAGE,
+		    (uintptr_t)edata_last_get(edata) - PAGE);
 	}
 }
 
