@@ -210,11 +210,75 @@ TEST_BEGIN(test_rtree_random) {
 }
 TEST_END
 
+static void
+test_rtree_range_write(tsdn_t *tsdn, rtree_t *rtree, uintptr_t start,
+    uintptr_t end) {
+	rtree_ctx_t rtree_ctx;
+	rtree_ctx_data_init(&rtree_ctx);
+
+	edata_t *edata_e = alloc_edata();
+	edata_init(edata_e, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
+	    extent_state_active, false, false, EXTENT_PAI_PAC, EXTENT_NOT_HEAD);
+	rtree_contents_t contents;
+	contents.edata = edata_e;
+	contents.metadata.szind = SC_NSIZES;
+	contents.metadata.slab = false;
+	contents.metadata.is_head = false;
+	contents.metadata.state = extent_state_active;
+
+	expect_false(rtree_write(tsdn, rtree, &rtree_ctx, start,
+	    contents), "Unexpected rtree_write() failure");
+	expect_false(rtree_write(tsdn, rtree, &rtree_ctx, end,
+	    contents), "Unexpected rtree_write() failure");
+
+	rtree_write_range(tsdn, rtree, &rtree_ctx, start, end, contents);
+	for (uintptr_t i = 0; i < ((end - start) >> LG_PAGE); i++) {
+		expect_ptr_eq(rtree_read(tsdn, rtree, &rtree_ctx,
+		    start + (i << LG_PAGE)).edata, edata_e,
+		    "rtree_edata_read() should return previously set value");
+	}
+	rtree_clear_range(tsdn, rtree, &rtree_ctx, start, end);
+	rtree_leaf_elm_t *elm;
+	for (uintptr_t i = 0; i < ((end - start) >> LG_PAGE); i++) {
+		elm = rtree_leaf_elm_lookup(tsdn, rtree, &rtree_ctx,
+		    start + (i << LG_PAGE), false, false);
+		expect_ptr_not_null(elm, "Should have been initialized.");
+		expect_ptr_null(rtree_leaf_elm_read(tsdn, rtree, elm,
+		    false).edata, "Should have been cleared.");
+	}
+}
+
+TEST_BEGIN(test_rtree_range) {
+	tsdn_t *tsdn = tsdn_fetch();
+	base_t *base = base_new(tsdn, 0, &ehooks_default_extent_hooks);
+	expect_ptr_not_null(base, "Unexpected base_new failure");
+
+	rtree_t *rtree = &test_rtree;
+	expect_false(rtree_new(rtree, base, false),
+	    "Unexpected rtree_new() failure");
+
+	/* Not crossing rtree node boundary first. */
+	uintptr_t start = ZU(1) << rtree_leaf_maskbits();
+	uintptr_t end = start + (ZU(100) << LG_PAGE);
+	test_rtree_range_write(tsdn, rtree, start, end);
+
+	/* Crossing rtree node boundary. */
+	start = (ZU(1) << rtree_leaf_maskbits()) - (ZU(10) << LG_PAGE);
+	end = start + (ZU(100) << LG_PAGE);
+	assert_ptr_ne((void *)rtree_leafkey(start), (void *)rtree_leafkey(end),
+	    "The range should span across two rtree nodes");
+	test_rtree_range_write(tsdn, rtree, start, end);
+
+	base_delete(tsdn, base);
+}
+TEST_END
+
 int
 main(void) {
 	return test(
 	    test_rtree_read_empty,
 	    test_rtree_extrema,
 	    test_rtree_bits,
-	    test_rtree_random);
+	    test_rtree_random,
+	    test_rtree_range);
 }
