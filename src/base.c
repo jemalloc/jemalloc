@@ -476,7 +476,6 @@ base_alloc_edata(tsdn_t *tsdn, base_t *base) {
 	if (edata == NULL) {
 		return NULL;
 	}
-	edata_arena_ind_set(edata, ehooks_ind_get(&base->ehooks));
 	edata_esn_set(edata, esn);
 	return edata;
 }
