@@ -454,7 +454,6 @@ hpa_try_alloc_one_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 		*oom = true;
 		return NULL;
 	}
-	assert(edata_arena_ind_get(edata) == shard->ind);
 
 	hpdata_t *ps = psset_pick_alloc(&shard->psset, size);
 	if (ps == NULL) {
