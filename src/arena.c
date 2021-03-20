@@ -605,6 +605,90 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 	pa_shard_reset(tsd_tsdn(tsd), &arena->pa_shard);
 }
 
+static void
+arena_prepare_base_deletion_sync_finish(tsd_t *tsd, malloc_mutex_t **mutexes,
+    unsigned n_mtx) {
+	for (unsigned i = 0; i < n_mtx; i++) {
+		malloc_mutex_lock(tsd_tsdn(tsd), mutexes[i]);
+		malloc_mutex_unlock(tsd_tsdn(tsd), mutexes[i]);
+	}
+}
+
+#define ARENA_DESTROY_MAX_DELAYED_MTX 32
+static void
+arena_prepare_base_deletion_sync(tsd_t *tsd, malloc_mutex_t *mtx,
+    malloc_mutex_t **delayed_mtx, unsigned *n_delayed) {
+	if (!malloc_mutex_trylock(tsd_tsdn(tsd), mtx)) {
+		/* No contention. */
+		malloc_mutex_unlock(tsd_tsdn(tsd), mtx);
+		return;
+	}
+	unsigned n = *n_delayed;
+	assert(n < ARENA_DESTROY_MAX_DELAYED_MTX);
+	/* Add another to the batch. */
+	delayed_mtx[n++] = mtx;
+
+	if (n == ARENA_DESTROY_MAX_DELAYED_MTX) {
+		arena_prepare_base_deletion_sync_finish(tsd, delayed_mtx, n);
+		n = 0;
+	}
+	*n_delayed = n;
+}
+
+static void
+arena_prepare_base_deletion(tsd_t *tsd, base_t *base_to_destroy) {
+	/*
+	 * In order to coalesce, emap_try_acquire_edata_neighbor will attempt to
+	 * check neighbor edata's state to determine eligibility.  This means
+	 * under certain conditions, the metadata from an arena can be accessed
+	 * w/o holding any locks from that arena.  In order to guarantee safe
+	 * memory access, the metadata and the underlying base allocator needs
+	 * to be kept alive, until all pending accesses are done.
+	 *
+	 * 1) with opt_retain, the arena boundary implies the is_head state
+	 * (tracked in the rtree leaf), and the coalesce flow will stop at the
+	 * head state branch.  Therefore no cross arena metadata access
+	 * possible.
+	 *
+	 * 2) w/o opt_retain, the arena id needs to be read from the edata_t,
+	 * meaning read only cross-arena metadata access is possible.  The
+	 * coalesce attempt will stop at the arena_id mismatch, and is always
+	 * under one of the ecache locks.  To allow safe passthrough of such
+	 * metadata accesses, the loop below will iterate through all manual
+	 * arenas' ecache locks.  As all the metadata from this base allocator
+	 * have been unlinked from the rtree, after going through all the
+	 * relevant ecache locks, it's safe to say that a) pending accesses are
+	 * all finished, and b) no new access will be generated.
+	 */
+	if (opt_retain) {
+		return;
+	}
+	unsigned destroy_ind = base_ind_get(base_to_destroy);
+	assert(destroy_ind >= manual_arena_base);
+
+	tsdn_t *tsdn = tsd_tsdn(tsd);
+	malloc_mutex_t *delayed_mtx[ARENA_DESTROY_MAX_DELAYED_MTX];
+	unsigned n_delayed = 0, total = narenas_total_get();
+	for (unsigned i = 0; i < total; i++) {
+		if (i == destroy_ind) {
+			continue;
+		}
+		arena_t *arena = arena_get(tsdn, i, false);
+		if (arena == NULL) {
+			continue;
+		}
+		pac_t *pac = &arena->pa_shard.pac;
+		arena_prepare_base_deletion_sync(tsd, &pac->ecache_dirty.mtx,
+		    delayed_mtx, &n_delayed);
+		arena_prepare_base_deletion_sync(tsd, &pac->ecache_muzzy.mtx,
+		    delayed_mtx, &n_delayed);
+		arena_prepare_base_deletion_sync(tsd, &pac->ecache_retained.mtx,
+		    delayed_mtx, &n_delayed);
+	}
+	arena_prepare_base_deletion_sync_finish(tsd, delayed_mtx, n_delayed);
+}
+#undef ARENA_DESTROY_MAX_DELAYED_MTX
+
 void
 arena_destroy(tsd_t *tsd, arena_t *arena) {
 	assert(base_ind_get(arena->base) >= narenas_auto);
@@ -633,8 +717,10 @@ arena_destroy(tsd_t *tsd, arena_t *arena) {
 
 	/*
 	 * Destroy the base allocator, which manages all metadata ever mapped by
-	 * this arena.
+	 * this arena.  The prepare function will make sure no pending access to
+	 * the metadata in this base anymore.
 	 */
+	arena_prepare_base_deletion(tsd, arena->base);
 	base_delete(tsd_tsdn(tsd), arena->base);
 }
 
