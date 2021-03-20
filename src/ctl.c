@@ -2650,6 +2650,8 @@ arena_i_destroy_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	arena_t *arena;
 	ctl_arena_t *ctl_darena, *ctl_arena;
 
+	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
+
 	ret = arena_i_reset_destroy_helper(tsd, mib, miblen, oldp, oldlenp,
 	    newp, newlen, &arena_ind, &arena);
 	if (ret != 0) {
@@ -2680,6 +2682,8 @@ arena_i_destroy_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 
 	assert(ret == 0);
 label_return:
+	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
+
 	return ret;
 }
 
