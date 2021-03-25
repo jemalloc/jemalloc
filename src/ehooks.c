@@ -218,7 +218,7 @@ ehooks_default_merge_impl(tsdn_t *tsdn, void *addr_a, void *addr_b) {
 		bool head_b = edata_is_head_get(b);
 		emap_assert_mapped(tsdn, &arena_emap_global, a);
 		emap_assert_mapped(tsdn, &arena_emap_global, b);
-		assert(edata_neighbor_head_state_mergeable(head_a, head_b,
+		assert(extent_neighbor_head_state_mergeable(head_a, head_b,
 		    /* forward */ true));
 	}
 	if (have_dss && !extent_dss_mergeable(addr_a, addr_b)) {
