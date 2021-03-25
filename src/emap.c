@@ -48,64 +48,6 @@ emap_update_edata_state(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
 	emap_assert_mapped(tsdn, emap, edata);
 }
 
-static inline bool
-edata_can_acquire_neighbor(edata_t *edata, rtree_contents_t contents,
-    extent_pai_t pai, extent_state_t expected_state, bool forward,
-    bool expanding) {
-	edata_t *neighbor = contents.edata;
-	if (neighbor == NULL) {
-		return false;
-	}
-	/* It's not safe to access *neighbor yet; must verify states first. */
-	bool neighbor_is_head = contents.metadata.is_head;
-	if (!edata_neighbor_head_state_mergeable(edata_is_head_get(edata),
-	    neighbor_is_head, forward)) {
-		return NULL;
-	}
-	extent_state_t neighbor_state = contents.metadata.state;
-	if (pai == EXTENT_PAI_PAC) {
-		if (neighbor_state != expected_state) {
-			return false;
-		}
-		/* From this point, it's safe to access *neighbor. */
-		if (!expanding && (edata_committed_get(edata) !=
-		    edata_committed_get(neighbor))) {
-			/*
-			 * Some platforms (e.g. Windows) require an explicit
-			 * commit step (and writing to uncomitted memory is not
-			 * allowed).
-			 */
-			return false;
-		}
-	} else {
-		if (neighbor_state == extent_state_active) {
-			return false;
-		}
-		/* From this point, it's safe to access *neighbor. */
-	}
-
-	assert(edata_pai_get(edata) == pai);
-	if (edata_pai_get(neighbor) != pai) {
-		return false;
-	}
-	if (opt_retain) {
-		assert(edata_arena_ind_get(edata) ==
-		    edata_arena_ind_get(neighbor));
-	} else {
-		/*
-		 * This isn't entirely safe with the presence of arena_reset /
-		 * destroy, in which case the neighbor edata can be destoryed if
-		 * it belongs to a manual arena.  More on that later.
-		 */
-		if (edata_arena_ind_get(edata) !=
-		    edata_arena_ind_get(neighbor)) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
 static inline edata_t *
 emap_try_acquire_edata_neighbor_impl(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
     extent_pai_t pai, extent_state_t expected_state, bool forward,
@@ -142,7 +84,7 @@ emap_try_acquire_edata_neighbor_impl(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
 
 	rtree_contents_t neighbor_contents = rtree_leaf_elm_read(tsdn,
 	    &emap->rtree, elm, /* dependent */ true);
-	if (!edata_can_acquire_neighbor(edata, neighbor_contents, pai,
+	if (!extent_can_acquire_neighbor(edata, neighbor_contents, pai,
 	    expected_state, forward, expanding)) {
 		return NULL;
 	}

@@ -224,26 +224,6 @@ extent_assert_can_expand(const edata_t *original, const edata_t *expand) {
 	assert(edata_past_get(original) == edata_base_get(expand));
 }
 
-JEMALLOC_ALWAYS_INLINE bool
-edata_neighbor_head_state_mergeable(bool edata_is_head,
-    bool neighbor_is_head, bool forward) {
-	/*
-	 * Head states checking: disallow merging if the higher addr extent is a
-	 * head extent.  This helps preserve first-fit, and more importantly
-	 * makes sure no merge across arenas.
-	 */
-	if (forward) {
-		if (neighbor_is_head) {
-			return false;
-		}
-	} else {
-		if (edata_is_head) {
-			return false;
-		}
-	}
-	return true;
-}
-
 JEMALLOC_ALWAYS_INLINE edata_t *
 emap_edata_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr) {
 	EMAP_DECLARE_RTREE_CTX;

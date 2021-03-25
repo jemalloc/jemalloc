@@ -51,4 +51,77 @@ bool extent_merge_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 size_t extent_sn_next(pac_t *pac);
 bool extent_boot(void);
 
+JEMALLOC_ALWAYS_INLINE bool
+extent_neighbor_head_state_mergeable(bool edata_is_head,
+    bool neighbor_is_head, bool forward) {
+	/*
+	 * Head states checking: disallow merging if the higher addr extent is a
+	 * head extent.  This helps preserve first-fit, and more importantly
+	 * makes sure no merge across arenas.
+	 */
+	if (forward) {
+		if (neighbor_is_head) {
+			return false;
+		}
+	} else {
+		if (edata_is_head) {
+			return false;
+		}
+	}
+	return true;
+}
+
+JEMALLOC_ALWAYS_INLINE bool
+extent_can_acquire_neighbor(edata_t *edata, rtree_contents_t contents,
+    extent_pai_t pai, extent_state_t expected_state, bool forward,
+    bool expanding) {
+	edata_t *neighbor = contents.edata;
+	if (neighbor == NULL) {
+		return false;
+	}
+	/* It's not safe to access *neighbor yet; must verify states first. */
+	bool neighbor_is_head = contents.metadata.is_head;
+	if (!extent_neighbor_head_state_mergeable(edata_is_head_get(edata),
+	    neighbor_is_head, forward)) {
+		return NULL;
+	}
+	extent_state_t neighbor_state = contents.metadata.state;
+	if (pai == EXTENT_PAI_PAC) {
+		if (neighbor_state != expected_state) {
+			return false;
+		}
+		/* From this point, it's safe to access *neighbor. */
+		if (!expanding && (edata_committed_get(edata) !=
+		    edata_committed_get(neighbor))) {
+			/*
+			 * Some platforms (e.g. Windows) require an explicit
+			 * commit step (and writing to uncomitted memory is not
+			 * allowed).
+			 */
+			return false;
+		}
+	} else {
+		if (neighbor_state == extent_state_active) {
+			return false;
+		}
+		/* From this point, it's safe to access *neighbor. */
+	}
+
+	assert(edata_pai_get(edata) == pai);
+	if (edata_pai_get(neighbor) != pai) {
+		return false;
+	}
+	if (opt_retain) {
+		assert(edata_arena_ind_get(edata) ==
+		    edata_arena_ind_get(neighbor));
+	} else {
+		if (edata_arena_ind_get(edata) !=
+		    edata_arena_ind_get(neighbor)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 #endif /* JEMALLOC_INTERNAL_EXTENT_H */
