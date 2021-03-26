@@ -12,17 +12,7 @@ typedef enum emap_lock_result_e emap_lock_result_t;
 
 bool
 emap_init(emap_t *emap, base_t *base, bool zeroed) {
-	bool err;
-	err = rtree_new(&emap->rtree, base, zeroed);
-	if (err) {
-		return true;
-	}
-	err = mutex_pool_init(&emap->mtx_pool, "emap_mutex_pool",
-	    WITNESS_RANK_EMAP);
-	if (err) {
-		return true;
-	}
-	return false;
+	return rtree_new(&emap->rtree, base, zeroed);
 }
 
 void
