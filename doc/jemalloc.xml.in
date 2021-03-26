@@ -630,7 +630,7 @@ for (i = 0; i < nbins; i++) {
         </row>
         <row>
           <entry>8 KiB</entry>
-          <entry>[40 KiB, 48 KiB, 54 KiB, 64 KiB]</entry>
+          <entry>[40 KiB, 48 KiB, 56 KiB, 64 KiB]</entry>
         </row>
         <row>
           <entry>16 KiB</entry>
