@@ -91,9 +91,6 @@
     <ClCompile Include="..\..\..\..\src\mutex.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\src\mutex_pool.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\src\nstime.c">
       <Filter>Source Files</Filter>
     </ClCompile>

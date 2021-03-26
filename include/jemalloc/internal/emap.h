@@ -2,7 +2,6 @@
 #define JEMALLOC_INTERNAL_EMAP_H
 
 #include "jemalloc/internal/base.h"
-#include "jemalloc/internal/mutex_pool.h"
 #include "jemalloc/internal/rtree.h"
 
 /*
@@ -17,8 +16,6 @@
 typedef struct emap_s emap_t;
 struct emap_s {
 	rtree_t rtree;
-	/* Keyed by the address of the edata_t being protected. */
-	mutex_pool_t mtx_pool;
 };
 
 /* Used to pass rtree lookup context down the path. */

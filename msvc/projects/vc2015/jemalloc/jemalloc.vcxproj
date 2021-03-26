@@ -69,7 +69,6 @@
     <ClCompile Include="..\..\..\..\src\log.c" />
     <ClCompile Include="..\..\..\..\src\malloc_io.c" />
     <ClCompile Include="..\..\..\..\src\mutex.c" />
-    <ClCompile Include="..\..\..\..\src\mutex_pool.c" />
     <ClCompile Include="..\..\..\..\src\nstime.c" />
     <ClCompile Include="..\..\..\..\src\pa.c" />
     <ClCompile Include="..\..\..\..\src\pa_extra.c" />
