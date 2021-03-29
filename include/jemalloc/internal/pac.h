@@ -121,8 +121,6 @@ bool pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
     edata_cache_t *edata_cache, nstime_t *cur_time, size_t oversize_threshold,
     ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms, pac_stats_t *pac_stats,
     malloc_mutex_t *stats_mtx);
-bool pac_retain_grow_limit_get_set(tsdn_t *tsdn, pac_t *pac, size_t *old_limit,
-    size_t *new_limit);
 void pac_stats_merge(tsdn_t *tsdn, pac_t *pac, pac_stats_t *pac_stats_out,
     pac_estats_t *estats_out, size_t *resident);
 
