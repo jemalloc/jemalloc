@@ -22,7 +22,7 @@ mallctl_thread_name_set_impl(const char *thread_name, const char *func,
     int line) {
 	expect_d_eq(mallctl("thread.prof.name", NULL, NULL,
 	    (void *)&thread_name, sizeof(thread_name)), 0,
-	    "%s():%d: Unexpected mallctl failure reading thread.prof.name",
+	    "%s():%d: Unexpected mallctl failure writing thread.prof.name",
 	    func, line);
 	mallctl_thread_name_get_impl(thread_name, func, line);
 }
@@ -33,6 +33,7 @@ TEST_BEGIN(test_prof_thread_name_validation) {
 	const char *thread_name;
 
 	test_skip_if(!config_prof);
+	test_skip_if(opt_prof_sys_thread_name);
 
 	mallctl_thread_name_get("");
 	mallctl_thread_name_set("hi there");
@@ -94,11 +95,12 @@ thd_start(void *varg) {
 }
 
 TEST_BEGIN(test_prof_thread_name_threaded) {
+	test_skip_if(!config_prof);
+	test_skip_if(opt_prof_sys_thread_name);
+
 	thd_t thds[NTHREADS];
 	unsigned thd_args[NTHREADS];
 	unsigned i;
-
-	test_skip_if(!config_prof);
 
 	for (i = 0; i < NTHREADS; i++) {
 		thd_args[i] = i;
