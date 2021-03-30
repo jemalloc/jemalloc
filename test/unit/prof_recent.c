@@ -439,6 +439,18 @@ confirm_record(const char *template, const confirm_record_t *records,
 			}
 			ASSERT_CHAR(',');
 
+			if (opt_prof_sys_thread_name) {
+				ASSERT_FORMATTED_STR("\"%s_thread_name\"",
+				    *type);
+				ASSERT_CHAR(':');
+				ASSERT_CHAR('"');
+				while (*start != '"') {
+					++start;
+				}
+				ASSERT_CHAR('"');
+				ASSERT_CHAR(',');
+			}
+
 			ASSERT_FORMATTED_STR("\"%s_time\"", *type);
 			ASSERT_CHAR(':');
 			while (isdigit(*start)) {
