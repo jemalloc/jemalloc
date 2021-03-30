@@ -22,7 +22,7 @@ static bool extent_purge_forced_impl(tsdn_t *tsdn, ehooks_t *ehooks,
 static edata_t *extent_split_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     edata_t *edata, size_t size_a, size_t size_b, bool growing_retained);
 static bool extent_merge_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
-    edata_t *a, edata_t *b, bool growing_retained);
+    edata_t *a, edata_t *b, bool holding_core_locks);
 
 /* Used exclusively for gdump triggering. */
 static atomic_zu_t curpages;
@@ -39,9 +39,9 @@ static edata_t *extent_recycle(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *expand_edata, size_t usize, size_t alignment,
     bool zero, bool *commit, bool growing_retained);
 static edata_t *extent_try_coalesce(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
-    ecache_t *ecache, edata_t *edata, bool *coalesced, bool growing_retained);
+    ecache_t *ecache, edata_t *edata, bool *coalesced);
 static void extent_record(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
-    ecache_t *ecache, edata_t *edata, bool growing_retained);
+    ecache_t *ecache, edata_t *edata);
 static edata_t *extent_alloc_retained(tsdn_t *tsdn, pac_t *pac,
     ehooks_t *ehooks, edata_t *expand_edata, size_t size, size_t alignment,
     bool zero, bool *commit);
@@ -68,7 +68,7 @@ extent_try_delayed_coalesce(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 
 	bool coalesced;
 	edata = extent_try_coalesce(tsdn, pac, ehooks, ecache,
-	    edata, &coalesced, false);
+	    edata, &coalesced);
 	emap_update_edata_state(tsdn, pac->emap, edata, ecache->state);
 
 	if (!coalesced) {
@@ -136,7 +136,7 @@ ecache_dalloc(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 	edata_addr_set(edata, edata_base_get(edata));
 	edata_zeroed_set(edata, false);
 
-	extent_record(tsdn, pac, ehooks, ecache, edata, false);
+	extent_record(tsdn, pac, ehooks, ecache, edata);
 }
 
 edata_t *
@@ -574,8 +574,7 @@ extent_recycle(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 	if (*commit && !edata_committed_get(edata)) {
 		if (extent_commit_impl(tsdn, ehooks, edata, 0,
 		    edata_size_get(edata), growing_retained)) {
-			extent_record(tsdn, pac, ehooks, ecache, edata,
-			    growing_retained);
+			extent_record(tsdn, pac, ehooks, ecache, edata);
 			return NULL;
 		}
 	}
@@ -664,11 +663,11 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	if (result == extent_split_interior_ok) {
 		if (lead != NULL) {
 			extent_record(tsdn, pac, ehooks, &pac->ecache_retained,
-			    lead, true);
+			    lead);
 		}
 		if (trail != NULL) {
-			extent_record(tsdn, pac, ehooks,
-			    &pac->ecache_retained, trail, true);
+			extent_record(tsdn, pac, ehooks, &pac->ecache_retained,
+			    trail);
 		}
 	} else {
 		/*
@@ -681,7 +680,7 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 				extent_gdump_add(tsdn, to_salvage);
 			}
 			extent_record(tsdn, pac, ehooks, &pac->ecache_retained,
-			    to_salvage, true);
+			    to_salvage);
 		}
 		if (to_leak != NULL) {
 			extent_deregister_no_gdump_sub(tsdn, pac, to_leak);
@@ -695,7 +694,7 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		if (extent_commit_impl(tsdn, ehooks, edata, 0,
 		    edata_size_get(edata), true)) {
 			extent_record(tsdn, pac, ehooks,
-			    &pac->ecache_retained, edata, true);
+			    &pac->ecache_retained, edata);
 			goto label_err;
 		}
 		/* A successful commit should return zeroed memory. */
@@ -793,15 +792,13 @@ extent_alloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 
 static bool
 extent_coalesce(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
-    edata_t *inner, edata_t *outer, bool forward, bool growing_retained) {
+    edata_t *inner, edata_t *outer, bool forward) {
 	extent_assert_can_coalesce(inner, outer);
 	eset_remove(&ecache->eset, outer);
 
-	malloc_mutex_unlock(tsdn, &ecache->mtx);
 	bool err = extent_merge_impl(tsdn, pac, ehooks,
-	    forward ? inner : outer, forward ? outer : inner, growing_retained);
-	malloc_mutex_lock(tsdn, &ecache->mtx);
-
+	    forward ? inner : outer, forward ? outer : inner,
+	    /* holding_core_locks */ true);
 	if (err) {
 		extent_deactivate_locked(tsdn, pac, ecache, outer);
 	}
@@ -811,8 +808,7 @@ extent_coalesce(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 
 static edata_t *
 extent_try_coalesce_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
-    ecache_t *ecache, edata_t *edata, bool *coalesced, bool growing_retained,
-    bool inactive_only) {
+    ecache_t *ecache, edata_t *edata, bool *coalesced) {
 	/*
 	 * We avoid checking / locking inactive neighbors for large size
 	 * classes, since they are eagerly coalesced on deallocation which can
@@ -831,7 +827,7 @@ extent_try_coalesce_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		    edata, EXTENT_PAI_PAC, ecache->state, /* forward */ true);
 		if (next != NULL) {
 			if (!extent_coalesce(tsdn, pac, ehooks, ecache, edata,
-			    next, true, growing_retained)) {
+			    next, true)) {
 				if (ecache->delay_coalesce) {
 					/* Do minimal coalescing. */
 					*coalesced = true;
@@ -846,7 +842,7 @@ extent_try_coalesce_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		    edata, EXTENT_PAI_PAC, ecache->state, /* forward */ false);
 		if (prev != NULL) {
 			if (!extent_coalesce(tsdn, pac, ehooks, ecache, edata,
-			    prev, false, growing_retained)) {
+			    prev, false)) {
 				edata = prev;
 				if (ecache->delay_coalesce) {
 					/* Do minimal coalescing. */
@@ -866,16 +862,16 @@ extent_try_coalesce_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 
 static edata_t *
 extent_try_coalesce(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
-    ecache_t *ecache, edata_t *edata, bool *coalesced, bool growing_retained) {
+    ecache_t *ecache, edata_t *edata, bool *coalesced) {
 	return extent_try_coalesce_impl(tsdn, pac, ehooks, ecache, edata,
-	    coalesced, growing_retained, false);
+	    coalesced);
 }
 
 static edata_t *
 extent_try_coalesce_large(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
-    ecache_t *ecache, edata_t *edata, bool *coalesced, bool growing_retained) {
+    ecache_t *ecache, edata_t *edata, bool *coalesced) {
 	return extent_try_coalesce_impl(tsdn, pac, ehooks, ecache, edata,
-	    coalesced, growing_retained, true);
+	    coalesced);
 }
 
 /* Purge a single extent to retained / unmapped directly. */
@@ -906,7 +902,7 @@ extent_maximally_purge(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
  */
 static void
 extent_record(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
-    ecache_t *ecache, edata_t *edata, bool growing_retained) {
+    ecache_t *ecache, edata_t *edata) {
 	assert((ecache->state != extent_state_dirty &&
 	    ecache->state != extent_state_muzzy) ||
 	    !edata_zeroed_get(edata));
@@ -917,7 +913,7 @@ extent_record(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 
 	if (!ecache->delay_coalesce) {
 		edata = extent_try_coalesce(tsdn, pac,  ehooks, ecache, edata,
-		    NULL, growing_retained);
+		    NULL);
 	} else if (edata_size_get(edata) >= SC_LARGE_MINCLASS) {
 		assert(ecache == &pac->ecache_dirty);
 		/* Always coalesce large extents eagerly. */
@@ -925,7 +921,7 @@ extent_record(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		do {
 			assert(edata_state_get(edata) == extent_state_active);
 			edata = extent_try_coalesce_large(tsdn, pac, ehooks,
-			    ecache, edata, &coalesced, growing_retained);
+			    ecache, edata, &coalesced);
 		} while (coalesced);
 		if (edata_size_get(edata) >=
 		    atomic_load_zu(&pac->oversize_threshold, ATOMIC_RELAXED)
@@ -1020,8 +1016,7 @@ extent_dalloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		extent_gdump_sub(tsdn, edata);
 	}
 
-	extent_record(tsdn, pac, ehooks, &pac->ecache_retained, edata,
-	    false);
+	extent_record(tsdn, pac, ehooks, &pac->ecache_retained, edata);
 }
 
 void
@@ -1178,11 +1173,17 @@ extent_split_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, edata_t *edata,
 
 static bool
 extent_merge_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, edata_t *a,
-    edata_t *b, bool growing_retained) {
-	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
-	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
-	assert(edata_base_get(a) < edata_base_get(b));
+    edata_t *b, bool holding_core_locks) {
+	/* Only the expanding path may merge w/o holding ecache locks. */
+	if (holding_core_locks) {
+		witness_assert_positive_depth_to_rank(
+		    tsdn_witness_tsdp_get(tsdn), WITNESS_RANK_CORE);
+	} else {
+		witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+		    WITNESS_RANK_CORE, 0);
+	}
 
+	assert(edata_base_get(a) < edata_base_get(b));
 	assert(edata_arena_ind_get(a) == edata_arena_ind_get(b));
 	assert(edata_arena_ind_get(a) == ehooks_ind_get(ehooks));
 	emap_assert_mapped(tsdn, pac->emap, a);
@@ -1222,7 +1223,8 @@ extent_merge_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, edata_t *a,
 bool
 extent_merge_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     edata_t *a, edata_t *b) {
-	return extent_merge_impl(tsdn, pac, ehooks, a, b, false);
+	return extent_merge_impl(tsdn, pac, ehooks, a, b,
+	    /* holding_core_locks */ false);
 }
 
 bool
