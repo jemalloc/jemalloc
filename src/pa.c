@@ -123,8 +123,6 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 		if (slab && (size > 2 * PAGE)) {
 			emap_register_interior(tsdn, shard->emap, edata, szind);
 		}
-	}
-	if (edata != NULL) {
 		assert(edata_arena_ind_get(edata) == shard->ind);
 	}
 	return edata;
