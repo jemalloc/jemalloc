@@ -244,6 +244,16 @@ ehooks_default_zero_impl(void *addr, size_t size) {
 	}
 }
 
+void
+ehooks_default_guard_impl(void *guard1, void *guard2) {
+	pages_mark_guards(guard1, guard2);
+}
+
+void
+ehooks_default_unguard_impl(void *guard1, void *guard2) {
+	pages_unmark_guards(guard1, guard2);
+}
+
 const extent_hooks_t ehooks_default_extent_hooks = {
 	ehooks_default_alloc,
 	ehooks_default_dalloc,

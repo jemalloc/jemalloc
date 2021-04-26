@@ -50,7 +50,9 @@ test_sec_init(sec_t *sec, pai_t *fallback, size_t nshards, size_t max_alloc,
 
 static inline edata_t *
 pai_test_allocator_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
-    size_t alignment, bool zero, bool *deferred_work_generated) {
+    size_t alignment, bool zero, bool guarded,
+    bool *deferred_work_generated) {
+	assert(!guarded);
 	pai_test_allocator_t *ta = (pai_test_allocator_t *)self;
 	*deferred_work_generated = false;
 	if (ta->alloc_fail) {
@@ -182,10 +184,12 @@ TEST_BEGIN(test_reuse) {
 	    /* max_bytes */ 2 * (NALLOCS * PAGE + NALLOCS * 2 * PAGE));
 	for (int i = 0; i < NALLOCS; i++) {
 		one_page[i] = pai_alloc(tsdn, &sec.pai, PAGE, PAGE,
-		    /* zero */ false, &deferred_work_generated);
+		    /* zero */ false, /* guarded */ false,
+		    &deferred_work_generated);
 		expect_ptr_not_null(one_page[i], "Unexpected alloc failure");
 		two_page[i] = pai_alloc(tsdn, &sec.pai, 2 * PAGE, PAGE,
-		    /* zero */ false, &deferred_work_generated);
+		    /* zero */ false, /* guarded */ false,
+		    &deferred_work_generated);
 		expect_ptr_not_null(one_page[i], "Unexpected alloc failure");
 	}
 	expect_zu_eq(0, ta.alloc_count, "Should be using batch allocs");
@@ -216,9 +220,11 @@ TEST_BEGIN(test_reuse) {
 	 */
 	for (int i = 0; i < NALLOCS; i++) {
 		edata_t *alloc1 = pai_alloc(tsdn, &sec.pai, PAGE, PAGE,
-		    /* zero */ false, &deferred_work_generated);
+		    /* zero */ false, /* guarded */ false,
+		    &deferred_work_generated);
 		edata_t *alloc2 = pai_alloc(tsdn, &sec.pai, 2 * PAGE, PAGE,
-		    /* zero */ false, &deferred_work_generated);
+		    /* zero */ false, /* guarded */ false,
+		    &deferred_work_generated);
 		expect_ptr_eq(one_page[i], alloc1,
 		    "Got unexpected allocation");
 		expect_ptr_eq(two_page[i], alloc2,
@@ -255,11 +261,12 @@ TEST_BEGIN(test_auto_flush) {
 	    /* max_bytes */ NALLOCS * PAGE);
 	for (int i = 0; i < NALLOCS; i++) {
 		allocs[i] = pai_alloc(tsdn, &sec.pai, PAGE, PAGE,
-		    /* zero */ false, &deferred_work_generated);
+		    /* zero */ false, /* guarded */ false,
+		    &deferred_work_generated);
 		expect_ptr_not_null(allocs[i], "Unexpected alloc failure");
 	}
 	extra_alloc = pai_alloc(tsdn, &sec.pai, PAGE, PAGE, /* zero */ false,
-	    &deferred_work_generated);
+	    /* guarded */ false, &deferred_work_generated);
 	expect_ptr_not_null(extra_alloc, "Unexpected alloc failure");
 	size_t max_allocs = ta.alloc_count + ta.alloc_batch_count;
 	expect_zu_le(NALLOCS + 1, max_allocs,
@@ -310,7 +317,8 @@ do_disable_flush_test(bool is_disable) {
 	    /* max_bytes */ NALLOCS * PAGE);
 	for (int i = 0; i < NALLOCS; i++) {
 		allocs[i] = pai_alloc(tsdn, &sec.pai, PAGE, PAGE,
-		    /* zero */ false, &deferred_work_generated);
+		    /* zero */ false, /* guarded */ false,
+		    &deferred_work_generated);
 		expect_ptr_not_null(allocs[i], "Unexpected alloc failure");
 	}
 	/* Free all but the last aloc. */
@@ -383,7 +391,8 @@ TEST_BEGIN(test_max_alloc_respected) {
 		expect_zu_eq(i, ta.dalloc_count,
 		    "Incorrect number of deallocations");
 		edata_t *edata = pai_alloc(tsdn, &sec.pai, attempted_alloc,
-		    PAGE, /* zero */ false, &deferred_work_generated);
+		    PAGE, /* zero */ false, /* guarded */ false,
+		    &deferred_work_generated);
 		expect_ptr_not_null(edata, "Unexpected alloc failure");
 		expect_zu_eq(i + 1, ta.alloc_count,
 		    "Incorrect number of allocations");
@@ -410,7 +419,8 @@ TEST_BEGIN(test_expand_shrink_delegate) {
 	test_sec_init(&sec, &ta.pai, /* nshards */ 1, /* max_alloc */ 10 * PAGE,
 	    /* max_bytes */ 1000 * PAGE);
 	edata_t *edata = pai_alloc(tsdn, &sec.pai, PAGE, PAGE,
-	    /* zero */ false, &deferred_work_generated);
+	    /* zero */ false, /* guarded */ false,
+	    &deferred_work_generated);
 	expect_ptr_not_null(edata, "Unexpected alloc failure");
 
 	bool err = pai_expand(tsdn, &sec.pai, edata, PAGE, 4 * PAGE,
@@ -450,7 +460,8 @@ TEST_BEGIN(test_nshards_0) {
 
 	bool deferred_work_generated;
 	edata_t *edata = pai_alloc(tsdn, &sec.pai, PAGE, PAGE,
-	    /* zero */ false, &deferred_work_generated);
+	    /* zero */ false, /* guarded */ false,
+	    &deferred_work_generated);
 	pai_dalloc(tsdn, &sec.pai, edata, &deferred_work_generated);
 
 	/* Both operations should have gone directly to the fallback. */
@@ -492,7 +503,8 @@ TEST_BEGIN(test_stats_simple) {
 	edata_t *allocs[FLUSH_PAGES];
 	for (size_t i = 0; i < FLUSH_PAGES; i++) {
 		allocs[i] = pai_alloc(tsdn, &sec.pai, PAGE, PAGE,
-		    /* zero */ false, &deferred_work_generated);
+		    /* zero */ false, /* guarded */ false,
+		    &deferred_work_generated);
 		expect_stats_pages(tsdn, &sec, 0);
 	}
 
@@ -505,7 +517,8 @@ TEST_BEGIN(test_stats_simple) {
 		}
 		for (size_t j = 0; j < FLUSH_PAGES / 2; j++) {
 			allocs[j] = pai_alloc(tsdn, &sec.pai, PAGE, PAGE,
-			    /* zero */ false, &deferred_work_generated);
+			    /* zero */ false, /* guarded */ false,
+			    &deferred_work_generated);
 			expect_stats_pages(tsdn, &sec, FLUSH_PAGES / 2 - j - 1);
 		}
 	}
@@ -534,13 +547,14 @@ TEST_BEGIN(test_stats_auto_flush) {
 	bool deferred_work_generated;
 
 	extra_alloc0 = pai_alloc(tsdn, &sec.pai, PAGE, PAGE, /* zero */ false,
-	    &deferred_work_generated);
+	    /* guarded */ false, &deferred_work_generated);
 	extra_alloc1 = pai_alloc(tsdn, &sec.pai, PAGE, PAGE, /* zero */ false,
-	    &deferred_work_generated);
+	    /* guarded */ false, &deferred_work_generated);
 
 	for (size_t i = 0; i < 2 * FLUSH_PAGES; i++) {
 		allocs[i] = pai_alloc(tsdn, &sec.pai, PAGE, PAGE,
-		    /* zero */ false, &deferred_work_generated);
+		    /* zero */ false, /* guarded */ false,
+		    &deferred_work_generated);
 	}
 
 	for (size_t i = 0; i < FLUSH_PAGES; i++) {
@@ -580,7 +594,8 @@ TEST_BEGIN(test_stats_manual_flush) {
 	edata_t *allocs[FLUSH_PAGES];
 	for (size_t i = 0; i < FLUSH_PAGES; i++) {
 		allocs[i] = pai_alloc(tsdn, &sec.pai, PAGE, PAGE,
-		    /* zero */ false, &deferred_work_generated);
+		    /* zero */ false, /* guarded */ false,
+		    &deferred_work_generated);
 		expect_stats_pages(tsdn, &sec, 0);
 	}
 

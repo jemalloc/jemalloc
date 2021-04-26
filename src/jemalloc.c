@@ -10,6 +10,7 @@
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/fxp.h"
+#include "jemalloc/internal/guard.h"
 #include "jemalloc/internal/hook.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/log.h"
@@ -1617,6 +1618,14 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				}
 				CONF_CONTINUE;
 			}
+
+			CONF_HANDLE_SIZE_T(opt_san_guard_small,
+			    "san_guard_small", 0, SIZE_T_MAX,
+			    CONF_DONT_CHECK_MIN, CONF_DONT_CHECK_MAX, false)
+			CONF_HANDLE_SIZE_T(opt_san_guard_large,
+			    "san_guard_large", 0, SIZE_T_MAX,
+			    CONF_DONT_CHECK_MIN, CONF_DONT_CHECK_MAX, false)
+
 			CONF_ERROR("Invalid conf pair", k, klen, v, vlen);
 #undef CONF_ERROR
 #undef CONF_CONTINUE

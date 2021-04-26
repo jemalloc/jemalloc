@@ -7,7 +7,7 @@ pai_alloc_batch_default(tsdn_t *tsdn, pai_t *self, size_t size, size_t nallocs,
 	for (size_t i = 0; i < nallocs; i++) {
 		bool deferred_by_alloc = false;
 		edata_t *edata = pai_alloc(tsdn, self, size, PAGE,
-		    /* zero */ false, &deferred_by_alloc);
+		    /* zero */ false, /* guarded */ false, &deferred_by_alloc);
 		*deferred_work_generated |= deferred_by_alloc;
 		if (edata == NULL) {
 			return i;

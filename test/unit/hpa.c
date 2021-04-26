@@ -80,11 +80,11 @@ TEST_BEGIN(test_alloc_max) {
 
 	/* Small max */
 	bool deferred_work_generated;
-	edata = pai_alloc(tsdn, &shard->pai, ALLOC_MAX, PAGE, false,
+	edata = pai_alloc(tsdn, &shard->pai, ALLOC_MAX, PAGE, false, false,
 	    &deferred_work_generated);
 	expect_ptr_not_null(edata, "Allocation of small max failed");
 	edata = pai_alloc(tsdn, &shard->pai, ALLOC_MAX + PAGE, PAGE, false,
-	    &deferred_work_generated);
+	    false, &deferred_work_generated);
 	expect_ptr_null(edata, "Allocation of larger than small max succeeded");
 
 	destroy_test_data(shard);
@@ -188,7 +188,7 @@ TEST_BEGIN(test_stress) {
 			size_t npages = npages_min + prng_range_zu(&prng_state,
 			    npages_max - npages_min);
 			edata_t *edata = pai_alloc(tsdn, &shard->pai,
-			    npages * PAGE, PAGE, false,
+			    npages * PAGE, PAGE, false, false,
 			    &deferred_work_generated);
 			assert_ptr_not_null(edata,
 			    "Unexpected allocation failure");
@@ -263,7 +263,8 @@ TEST_BEGIN(test_alloc_dalloc_batch) {
 	 */
 	for (size_t i = 0; i < NALLOCS / 2; i++) {
 		allocs[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE,
-		    /* zero */ false, &deferred_work_generated);
+		    /* zero */ false, /* guarded */ false,
+		    &deferred_work_generated);
 		expect_ptr_not_null(allocs[i], "Unexpected alloc failure");
 	}
 	edata_list_active_t allocs_list;
@@ -299,7 +300,8 @@ TEST_BEGIN(test_alloc_dalloc_batch) {
 	/* Reallocate (individually), and ensure reuse and contiguity. */
 	for (size_t i = 0; i < NALLOCS; i++) {
 		allocs[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE,
-		    /* zero */ false, &deferred_work_generated);
+		    /* zero */ false, /* guarded */ false,
+		    &deferred_work_generated);
 		expect_ptr_not_null(allocs[i], "Unexpected alloc failure.");
 	}
 	void *new_base = edata_base_get(allocs[0]);
@@ -374,7 +376,7 @@ TEST_BEGIN(test_defer_time) {
 	edata_t *edatas[HUGEPAGE_PAGES];
 	for (int i = 0; i < (int)HUGEPAGE_PAGES; i++) {
 		edatas[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false,
-		    &deferred_work_generated);
+		    false, &deferred_work_generated);
 		expect_ptr_not_null(edatas[i], "Unexpected null edata");
 	}
 	hpa_shard_do_deferred_work(tsdn, shard);
@@ -408,7 +410,7 @@ TEST_BEGIN(test_defer_time) {
 	 */
 	for (int i = 0; i < (int)HUGEPAGE_PAGES / 2; i++) {
 		edatas[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false,
-		    &deferred_work_generated);
+		    false, &deferred_work_generated);
 		expect_ptr_not_null(edatas[i], "Unexpected null edata");
 	}
 	/*
