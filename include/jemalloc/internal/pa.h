@@ -167,7 +167,7 @@ void pa_shard_destroy(tsdn_t *tsdn, pa_shard_t *shard);
 
 /* Gets an edata for the given allocation. */
 edata_t *pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size,
-    size_t alignment, bool slab, szind_t szind, bool zero,
+    size_t alignment, bool slab, szind_t szind, bool zero, bool guarded,
     bool *deferred_work_generated);
 /* Returns true on error, in which case nothing changed. */
 bool pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,

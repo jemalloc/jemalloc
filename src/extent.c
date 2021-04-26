@@ -37,14 +37,14 @@ static atomic_zu_t highpages;
 static void extent_deregister(tsdn_t *tsdn, pac_t *pac, edata_t *edata);
 static edata_t *extent_recycle(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *expand_edata, size_t usize, size_t alignment,
-    bool zero, bool *commit, bool growing_retained);
+    bool zero, bool *commit, bool growing_retained, bool guarded);
 static edata_t *extent_try_coalesce(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *edata, bool *coalesced);
 static void extent_record(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *edata);
 static edata_t *extent_alloc_retained(tsdn_t *tsdn, pac_t *pac,
     ehooks_t *ehooks, edata_t *expand_edata, size_t size, size_t alignment,
-    bool zero, bool *commit);
+    bool zero, bool *commit, bool guarded);
 static edata_t *extent_alloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     void *new_addr, size_t size, size_t alignment, bool zero, bool *commit);
 
@@ -80,7 +80,8 @@ extent_try_delayed_coalesce(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 
 edata_t *
 ecache_alloc(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
-    edata_t *expand_edata, size_t size, size_t alignment, bool zero) {
+    edata_t *expand_edata, size_t size, size_t alignment, bool zero,
+    bool guarded) {
 	assert(size != 0);
 	assert(alignment != 0);
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
@@ -88,14 +89,15 @@ ecache_alloc(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 
 	bool commit = true;
 	edata_t *edata = extent_recycle(tsdn, pac, ehooks, ecache, expand_edata,
-	    size, alignment, zero, &commit, false);
+	    size, alignment, zero, &commit, false, guarded);
 	assert(edata == NULL || edata_pai_get(edata) == EXTENT_PAI_PAC);
 	return edata;
 }
 
 edata_t *
 ecache_alloc_grow(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
-    edata_t *expand_edata, size_t size, size_t alignment, bool zero) {
+    edata_t *expand_edata, size_t size, size_t alignment, bool zero,
+    bool guarded) {
 	assert(size != 0);
 	assert(alignment != 0);
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
@@ -103,7 +105,7 @@ ecache_alloc_grow(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 
 	bool commit = true;
 	edata_t *edata = extent_alloc_retained(tsdn, pac, ehooks, expand_edata,
-	    size, alignment, zero, &commit);
+	    size, alignment, zero, &commit, guarded);
 	if (edata == NULL) {
 		if (opt_retain && expand_edata != NULL) {
 			/*
@@ -111,6 +113,14 @@ ecache_alloc_grow(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 			 * not attempt extent_alloc_wrapper which does mmap that
 			 * is very unlikely to succeed (unless it happens to be
 			 * at the end).
+			 */
+			return NULL;
+		}
+		if (guarded) {
+			/*
+			 * Means no cached guarded extents available (and no
+			 * grow_retained was attempted).  The pac_alloc flow
+			 * will alloc regular extents to make new guarded ones.
 			 */
 			return NULL;
 		}
@@ -151,9 +161,19 @@ ecache_evict(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	edata_t *edata;
 	while (true) {
 		/* Get the LRU extent, if any. */
-		edata = edata_list_inactive_first(&ecache->eset.lru);
+		eset_t *eset = &ecache->eset;
+		edata = edata_list_inactive_first(&eset->lru);
 		if (edata == NULL) {
-			goto label_return;
+			/*
+			 * Next check if there are guarded extents.  They are
+			 * more expensive to purge (since they are not
+			 * mergeable), thus in favor of caching them longer.
+			 */
+			eset = &ecache->guarded_eset;
+			edata = edata_list_inactive_first(&eset->lru);
+			if (edata == NULL) {
+				goto label_return;
+			}
 		}
 		/* Check the eviction limit. */
 		size_t extents_npages = ecache_npages_get(ecache);
@@ -161,7 +181,7 @@ ecache_evict(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 			edata = NULL;
 			goto label_return;
 		}
-		eset_remove(&ecache->eset, edata);
+		eset_remove(eset, edata);
 		if (!ecache->delay_coalesce) {
 			break;
 		}
@@ -234,17 +254,19 @@ extent_deactivate_locked(tsdn_t *tsdn, pac_t *pac, ecache_t *ecache,
 	assert(edata_state_get(edata) == extent_state_active);
 
 	emap_update_edata_state(tsdn, pac->emap, edata, ecache->state);
-	eset_insert(&ecache->eset, edata);
+	eset_t *eset = edata_guarded_get(edata) ? &ecache->guarded_eset :
+	    &ecache->eset;
+	eset_insert(eset, edata);
 }
 
 static void
-extent_activate_locked(tsdn_t *tsdn, pac_t *pac, ecache_t *ecache,
+extent_activate_locked(tsdn_t *tsdn, pac_t *pac, ecache_t *ecache, eset_t *eset,
     edata_t *edata) {
 	assert(edata_arena_ind_get(edata) == ecache_ind_get(ecache));
 	assert(edata_state_get(edata) == ecache->state ||
 	    edata_state_get(edata) == extent_state_merging);
 
-	eset_remove(&ecache->eset, edata);
+	eset_remove(eset, edata);
 	emap_update_edata_state(tsdn, pac->emap, edata, extent_state_active);
 }
 
@@ -350,7 +372,8 @@ extent_deregister_no_gdump_sub(tsdn_t *tsdn, pac_t *pac,
  */
 static edata_t *
 extent_recycle_extract(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
-    ecache_t *ecache, edata_t *expand_edata, size_t size, size_t alignment) {
+    ecache_t *ecache, edata_t *expand_edata, size_t size, size_t alignment,
+    bool guarded) {
 	malloc_mutex_assert_owner(tsdn, &ecache->mtx);
 	assert(alignment > 0);
 	if (config_debug && expand_edata != NULL) {
@@ -366,6 +389,7 @@ extent_recycle_extract(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	}
 
 	edata_t *edata;
+	eset_t *eset = guarded ? &ecache->guarded_eset : &ecache->eset;
 	if (expand_edata != NULL) {
 		edata = emap_try_acquire_edata_neighbor_expand(tsdn, pac->emap,
 		    expand_edata, EXTENT_PAI_PAC, ecache->state);
@@ -382,7 +406,7 @@ extent_recycle_extract(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		 * If split and merge are not allowed (Windows w/o retain), try
 		 * exact fit only.
 		 */
-		bool exact_only = (!maps_coalesce && !opt_retain);
+		bool exact_only = (!maps_coalesce && !opt_retain) || guarded;
 		/*
 		 * A large extent might be broken up from its original size to
 		 * some small size to satisfy a small request.  When that small
@@ -394,13 +418,13 @@ extent_recycle_extract(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		 */
 		unsigned lg_max_fit = ecache->delay_coalesce
 		    ? (unsigned)opt_lg_extent_max_active_fit : SC_PTR_BITS;
-		edata = eset_fit(&ecache->eset, size, alignment, exact_only,
-		    lg_max_fit);
+		edata = eset_fit(eset, size, alignment, exact_only, lg_max_fit);
 	}
 	if (edata == NULL) {
 		return NULL;
 	}
-	extent_activate_locked(tsdn, pac, ecache, edata);
+	assert(!guarded || edata_guarded_get(edata));
+	extent_activate_locked(tsdn, pac, ecache, eset, edata);
 
 	return edata;
 }
@@ -551,13 +575,14 @@ extent_recycle_split(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 static edata_t *
 extent_recycle(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
     edata_t *expand_edata, size_t size, size_t alignment, bool zero,
-    bool *commit, bool growing_retained) {
+    bool *commit, bool growing_retained, bool guarded) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
+	assert(!guarded || expand_edata == NULL);
 
 	malloc_mutex_lock(tsdn, &ecache->mtx);
 	edata_t *edata = extent_recycle_extract(tsdn, pac, ehooks, ecache,
-	    expand_edata, size, alignment);
+	    expand_edata, size, alignment, guarded);
 	if (edata == NULL) {
 		malloc_mutex_unlock(tsdn, &ecache->mtx);
 		return NULL;
@@ -734,7 +759,7 @@ label_err:
 static edata_t *
 extent_alloc_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     edata_t *expand_edata, size_t size, size_t alignment, bool zero,
-    bool *commit) {
+    bool *commit, bool guarded) {
 	assert(size != 0);
 	assert(alignment != 0);
 
@@ -742,13 +767,13 @@ extent_alloc_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 
 	edata_t *edata = extent_recycle(tsdn, pac, ehooks,
 	    &pac->ecache_retained, expand_edata, size, alignment, zero, commit,
-	    /* growing_retained */ true);
+	    /* growing_retained */ true, guarded);
 	if (edata != NULL) {
 		malloc_mutex_unlock(tsdn, &pac->grow_mtx);
 		if (config_prof) {
 			extent_gdump_add(tsdn, edata);
 		}
-	} else if (opt_retain && expand_edata == NULL) {
+	} else if (opt_retain && expand_edata == NULL && !guarded) {
 		edata = extent_grow_retained(tsdn, pac, ehooks, size,
 		    alignment, zero, commit);
 		/* extent_grow_retained() always releases pac->grow_mtx. */
@@ -910,6 +935,9 @@ extent_record(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 
 	emap_assert_mapped(tsdn, pac->emap, edata);
 
+	if (edata_guarded_get(edata)) {
+		goto label_skip_coalesce;
+	}
 	if (!ecache->delay_coalesce) {
 		edata = extent_try_coalesce(tsdn, pac,  ehooks, ecache, edata,
 		    NULL);
@@ -931,6 +959,7 @@ extent_record(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 			return;
 		}
 	}
+label_skip_coalesce:
 	extent_deactivate_locked(tsdn, pac, ecache, edata);
 
 	malloc_mutex_unlock(tsdn, &ecache->mtx);
@@ -981,6 +1010,11 @@ extent_dalloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 
 	/* Avoid calling the default extent_dalloc unless have to. */
 	if (!ehooks_dalloc_will_fail(ehooks)) {
+		/* Restore guard pages for dalloc / unmap. */
+		if (edata_guarded_get(edata)) {
+			assert(ehooks_are_default(ehooks));
+			unguard_pages(tsdn, ehooks, edata, pac->emap);
+		}
 		/*
 		 * Deregister first to avoid a race with other allocating
 		 * threads, and reregister if deallocation fails.

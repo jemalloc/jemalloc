@@ -59,6 +59,7 @@
     <ClCompile Include="..\..\..\..\src\extent_dss.c" />
     <ClCompile Include="..\..\..\..\src\extent_mmap.c" />
     <ClCompile Include="..\..\..\..\src\fxp.c" />
+    <ClCompile Include="..\..\..\..\src\guard.c" />
     <ClCompile Include="..\..\..\..\src\hook.c" />
     <ClCompile Include="..\..\..\..\src\hpa.c" />
     <ClCompile Include="..\..\..\..\src\hpa_hooks.c" />

@@ -9,7 +9,7 @@
 #define HPA_EDEN_SIZE (128 * HUGEPAGE)
 
 static edata_t *hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
-    size_t alignment, bool zero, bool *deferred_work_generated);
+    size_t alignment, bool zero, bool guarded, bool *deferred_work_generated);
 static size_t hpa_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size,
     size_t nallocs, edata_list_active_t *results, bool *deferred_work_generated);
 static bool hpa_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata,
@@ -750,8 +750,9 @@ hpa_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size, size_t nallocs,
 
 static edata_t *
 hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
-    bool *deferred_work_generated) {
+    bool guarded, bool *deferred_work_generated) {
 	assert((size & PAGE_MASK) == 0);
+	assert(!guarded);
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
@@ -796,7 +797,6 @@ hpa_dalloc_prepare_unlocked(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata) {
 	assert(edata_state_get(edata) == extent_state_active);
 	assert(edata_arena_ind_get(edata) == shard->ind);
 	assert(edata_szind_get_maybe_invalid(edata) == SC_NSIZES);
-	assert(!edata_slab_get(edata));
 	assert(edata_committed_get(edata));
 	assert(edata_base_get(edata) != NULL);
 
@@ -865,6 +865,7 @@ hpa_dalloc_batch(tsdn_t *tsdn, pai_t *self, edata_list_active_t *list,
 static void
 hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata,
     bool *deferred_work_generated) {
+	assert(!edata_guarded_get(edata));
 	/* Just a dalloc_batch of size 1; this lets us share logic. */
 	edata_list_active_t dalloc_list;
 	edata_list_active_init(&dalloc_list);

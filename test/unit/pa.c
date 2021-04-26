@@ -91,7 +91,7 @@ do_alloc_free_purge(void *arg) {
 		bool deferred_work_generated;
 		edata_t *edata = pa_alloc(TSDN_NULL, &test_data->shard, PAGE,
 		    PAGE, /* slab */ false, /* szind */ 0, /* zero */ false,
-		    &deferred_work_generated);
+		    /* guarded */ false, &deferred_work_generated);
 		assert_ptr_not_null(edata, "");
 		pa_dalloc(TSDN_NULL, &test_data->shard, edata,
 		    &deferred_work_generated);

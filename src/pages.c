@@ -316,13 +316,9 @@ pages_unmap(void *addr, size_t size) {
 }
 
 static bool
-pages_commit_impl(void *addr, size_t size, bool commit) {
+os_pages_commit(void *addr, size_t size, bool commit) {
 	assert(PAGE_ADDR2BASE(addr) == addr);
 	assert(PAGE_CEILING(size) == size);
-
-	if (os_overcommits) {
-		return true;
-	}
 
 #ifdef _WIN32
 	return (commit ? (addr != VirtualAlloc(addr, size, MEM_COMMIT,
@@ -348,6 +344,15 @@ pages_commit_impl(void *addr, size_t size, bool commit) {
 #endif
 }
 
+static bool
+pages_commit_impl(void *addr, size_t size, bool commit) {
+	if (os_overcommits) {
+		return true;
+	}
+
+	return os_pages_commit(addr, size, commit);
+}
+
 bool
 pages_commit(void *addr, size_t size) {
 	return pages_commit_impl(addr, size, true);
@@ -356,6 +361,38 @@ pages_commit(void *addr, size_t size) {
 bool
 pages_decommit(void *addr, size_t size) {
 	return pages_commit_impl(addr, size, false);
+}
+
+void
+pages_mark_guards(void *head, void *tail) {
+	assert(head != NULL && tail != NULL);
+	assert((uintptr_t)head < (uintptr_t)tail);
+#ifdef JEMALLOC_HAVE_MPROTECT
+	mprotect(head, PAGE, PROT_NONE);
+	mprotect(tail, PAGE, PROT_NONE);
+#else
+	/* Decommit sets to PROT_NONE / MEM_DECOMMIT. */
+	os_pages_commit(head, PAGE, false);
+	os_pages_commit(tail, PAGE, false);
+#endif
+}
+
+void
+pages_unmark_guards(void *head, void *tail) {
+	assert(head != NULL && tail != NULL);
+	assert((uintptr_t)head < (uintptr_t)tail);
+#ifdef JEMALLOC_HAVE_MPROTECT
+	size_t range = (uintptr_t)tail - (uintptr_t)head + PAGE;
+	if (range <= SC_LARGE_MINCLASS) {
+		mprotect(head, range, PROT_READ | PROT_WRITE);
+	} else {
+		mprotect(head, PAGE, PROT_READ | PROT_WRITE);
+		mprotect(tail, PAGE, PROT_READ | PROT_WRITE);
+	}
+#else
+	os_pages_commit(head, PAGE, true);
+	os_pages_commit(tail, PAGE, true);
+#endif
 }
 
 bool

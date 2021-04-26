@@ -1,6 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/guard.h"
 #include "jemalloc/internal/hpa.h"
 
 static void
@@ -118,15 +119,17 @@ pa_get_pai(pa_shard_t *shard, edata_t *edata) {
 
 edata_t *
 pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
-    bool slab, szind_t szind, bool zero, bool *deferred_work_generated) {
+    bool slab, szind_t szind, bool zero, bool guarded,
+    bool *deferred_work_generated) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
+	assert(!guarded || alignment <= PAGE);
 
 	edata_t *edata = NULL;
 	*deferred_work_generated = false;
-	if (pa_shard_uses_hpa(shard)) {
+	if (!guarded && pa_shard_uses_hpa(shard)) {
 		edata = pai_alloc(tsdn, &shard->hpa_sec.pai, size, alignment,
-		    zero, deferred_work_generated);
+		    zero, /* guarded */ false, deferred_work_generated);
 	}
 	/*
 	 * Fall back to the PAC if the HPA is off or couldn't serve the given
@@ -134,10 +137,10 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 	 */
 	if (edata == NULL) {
 		edata = pai_alloc(tsdn, &shard->pac.pai, size, alignment, zero,
-		    deferred_work_generated);
+		    guarded, deferred_work_generated);
 	}
-
 	if (edata != NULL) {
+		assert(edata_size_get(edata) == size);
 		pa_nactive_add(shard, size >> LG_PAGE);
 		emap_remap(tsdn, shard->emap, edata, szind, slab);
 		edata_szind_set(edata, szind);
@@ -145,8 +148,6 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 		if (slab && (size > 2 * PAGE)) {
 			emap_register_interior(tsdn, shard->emap, edata, szind);
 		}
-	}
-	if (edata != NULL) {
 		assert(edata_arena_ind_get(edata) == shard->ind);
 	}
 	return edata;
@@ -158,7 +159,9 @@ pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 	assert(new_size > old_size);
 	assert(edata_size_get(edata) == old_size);
 	assert((new_size & PAGE_MASK) == 0);
-
+	if (edata_guarded_get(edata)) {
+		return true;
+	}
 	size_t expand_amount = new_size - old_size;
 
 	pai_t *pai = pa_get_pai(shard, edata);
@@ -181,6 +184,9 @@ pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 	assert(new_size < old_size);
 	assert(edata_size_get(edata) == old_size);
 	assert((new_size & PAGE_MASK) == 0);
+	if (edata_guarded_get(edata)) {
+		return true;
+	}
 	size_t shrink_amount = old_size - new_size;
 
 	pai_t *pai = pa_get_pai(shard, edata);
@@ -202,7 +208,10 @@ pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
 	emap_remap(tsdn, shard->emap, edata, SC_NSIZES, /* slab */ false);
 	if (edata_slab_get(edata)) {
 		emap_deregister_interior(tsdn, shard->emap, edata);
-		edata_slab_set(edata, false);
+		/*
+		 * The slab state of the extent isn't cleared.  It may be used
+		 * by the pai implementation, e.g. to make caching decisions.
+		 */
 	}
 	edata_addr_set(edata, edata_base_get(edata));
 	edata_szind_set(edata, SC_NSIZES);

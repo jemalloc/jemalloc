@@ -2257,6 +2257,18 @@ else
 fi
 
 dnl ============================================================================
+dnl Check for mprotect(2).
+
+JE_COMPILABLE([mprotect(2)], [
+#include <sys/mman.h>
+], [
+	mprotect((void *)0, 0, PROT_NONE);
+], [je_cv_mprotect])
+if test "x${je_cv_mprotect}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_MPROTECT], [ ])
+fi
+
+dnl ============================================================================
 dnl Check for __builtin_clz(), __builtin_clzl(), and __builtin_clzll().
 
 AC_CACHE_CHECK([for __builtin_clz],

@@ -98,12 +98,13 @@ struct edata_s {
 	 * c: committed
 	 * p: pai
 	 * z: zeroed
+	 * g: guarded
 	 * t: state
 	 * i: szind
 	 * f: nfree
 	 * s: bin_shard
 	 *
-	 * 00000000 ... 00000sss sssfffff fffffiii iiiiittt zpcbaaaa aaaaaaaa
+	 * 00000000 ... 0000ssss ssffffff ffffiiii iiiitttg zpcbaaaa aaaaaaaa
 	 *
 	 * arena_ind: Arena from which this extent came, or all 1 bits if
 	 *            unassociated.
@@ -122,6 +123,9 @@ struct edata_s {
 	 *
 	 * zeroed: The zeroed flag is used by extent recycling code to track
 	 *         whether memory is zero-filled.
+	 *
+	 * guarded: The guarded flag is use by the sanitizer to track whether
+	 *          the extent has page guards around it.
 	 *
 	 * state: The state flag is an extent_state_t.
 	 *
@@ -158,8 +162,12 @@ struct edata_s {
 #define EDATA_BITS_ZEROED_SHIFT  (EDATA_BITS_PAI_WIDTH + EDATA_BITS_PAI_SHIFT)
 #define EDATA_BITS_ZEROED_MASK  MASK(EDATA_BITS_ZEROED_WIDTH, EDATA_BITS_ZEROED_SHIFT)
 
+#define EDATA_BITS_GUARDED_WIDTH  1
+#define EDATA_BITS_GUARDED_SHIFT  (EDATA_BITS_ZEROED_WIDTH + EDATA_BITS_ZEROED_SHIFT)
+#define EDATA_BITS_GUARDED_MASK  MASK(EDATA_BITS_GUARDED_WIDTH, EDATA_BITS_GUARDED_SHIFT)
+
 #define EDATA_BITS_STATE_WIDTH  3
-#define EDATA_BITS_STATE_SHIFT  (EDATA_BITS_ZEROED_WIDTH + EDATA_BITS_ZEROED_SHIFT)
+#define EDATA_BITS_STATE_SHIFT  (EDATA_BITS_GUARDED_WIDTH + EDATA_BITS_GUARDED_SHIFT)
 #define EDATA_BITS_STATE_MASK  MASK(EDATA_BITS_STATE_WIDTH, EDATA_BITS_STATE_SHIFT)
 
 #define EDATA_BITS_SZIND_WIDTH  LG_CEIL(SC_NSIZES)
@@ -291,6 +299,12 @@ static inline extent_state_t
 edata_state_get(const edata_t *edata) {
 	return (extent_state_t)((edata->e_bits & EDATA_BITS_STATE_MASK) >>
 	    EDATA_BITS_STATE_SHIFT);
+}
+
+static inline bool
+edata_guarded_get(const edata_t *edata) {
+	return (bool)((edata->e_bits & EDATA_BITS_GUARDED_MASK) >>
+	    EDATA_BITS_GUARDED_SHIFT);
 }
 
 static inline bool
@@ -506,6 +520,12 @@ edata_state_set(edata_t *edata, extent_state_t state) {
 }
 
 static inline void
+edata_guarded_set(edata_t *edata, bool guarded) {
+	edata->e_bits = (edata->e_bits & ~EDATA_BITS_GUARDED_MASK) |
+	    ((uint64_t)guarded << EDATA_BITS_GUARDED_SHIFT);
+}
+
+static inline void
 edata_zeroed_set(edata_t *edata, bool zeroed) {
 	edata->e_bits = (edata->e_bits & ~EDATA_BITS_ZEROED_MASK) |
 	    ((uint64_t)zeroed << EDATA_BITS_ZEROED_SHIFT);
@@ -588,6 +608,7 @@ edata_init(edata_t *edata, unsigned arena_ind, void *addr, size_t size,
 	edata_szind_set(edata, szind);
 	edata_sn_set(edata, sn);
 	edata_state_set(edata, state);
+	edata_guarded_set(edata, false);
 	edata_zeroed_set(edata, zeroed);
 	edata_committed_set(edata, committed);
 	edata_pai_set(edata, pai);
@@ -606,6 +627,7 @@ edata_binit(edata_t *edata, void *addr, size_t bsize, uint64_t sn) {
 	edata_szind_set(edata, SC_NSIZES);
 	edata_sn_set(edata, sn);
 	edata_state_set(edata, extent_state_active);
+	edata_guarded_set(edata, false);
 	edata_zeroed_set(edata, true);
 	edata_committed_set(edata, true);
 	/*

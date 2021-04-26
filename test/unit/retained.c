@@ -1,5 +1,6 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/guard.h"
 #include "jemalloc/internal/spin.h"
 
 static unsigned		arena_ind;
@@ -103,7 +104,8 @@ TEST_BEGIN(test_retained) {
 
 	arena_ind = do_arena_create(NULL);
 	sz = nallocx(HUGEPAGE, 0);
-	esz = sz + sz_large_pad;
+	size_t guard_sz = san_enabled() ? PAGE_GUARDS_SIZE : 0;
+	esz = sz + sz_large_pad + guard_sz;
 
 	atomic_store_u(&epoch, 0, ATOMIC_RELAXED);
 
@@ -133,7 +135,8 @@ TEST_BEGIN(test_retained) {
 		 */
 		do_refresh();
 
-		size_t allocated = esz * nthreads * PER_THD_NALLOCS;
+		size_t allocated = (esz - guard_sz) * nthreads *
+		    PER_THD_NALLOCS;
 		size_t active = do_get_active(arena_ind);
 		expect_zu_le(allocated, active, "Unexpected active memory");
 		size_t mapped = do_get_mapped(arena_ind);
