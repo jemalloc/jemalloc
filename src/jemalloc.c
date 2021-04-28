@@ -10,6 +10,7 @@
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/fxp.h"
+#include "jemalloc/internal/guard.h"
 #include "jemalloc/internal/hook.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/log.h"
@@ -154,6 +155,11 @@ malloc_mutex_t arenas_lock;
 bool opt_hpa = false;
 hpa_shard_opts_t opt_hpa_opts = HPA_SHARD_OPTS_DEFAULT;
 sec_opts_t opt_hpa_sec_opts = SEC_OPTS_DEFAULT;
+
+/* The sanitizer options. */
+bool opt_san = true;
+size_t opt_san_guard_large_nextents = SAN_GUARD_LARGE_N_EXTENTS;
+size_t opt_san_guard_small_nextents = SAN_GUARD_SMALL_N_EXTENTS;
 
 /*
  * Arenas that are used to service external requests.  Not all elements of the
@@ -1615,6 +1621,15 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				}
 				CONF_CONTINUE;
 			}
+
+			CONF_HANDLE_BOOL(opt_san, "san")
+			CONF_HANDLE_SIZE_T(opt_san_guard_small_nextents,
+			    "san_guard_small_nextents", 0, SIZE_T_MAX,
+			    CONF_DONT_CHECK_MIN, CONF_DONT_CHECK_MAX, false)
+			CONF_HANDLE_SIZE_T(opt_san_guard_large_nextents,
+			    "san_guard_large_nextents", 0, SIZE_T_MAX,
+			    CONF_DONT_CHECK_MIN, CONF_DONT_CHECK_MAX, false)
+
 			CONF_ERROR("Invalid conf pair", k, klen, v, vlen);
 #undef CONF_ERROR
 #undef CONF_CONTINUE

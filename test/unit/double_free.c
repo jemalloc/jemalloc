@@ -30,8 +30,15 @@ TEST_BEGIN(test_large_double_free_tcache) {
 
 	test_large_double_free_pre();
 	char *ptr = malloc(SC_LARGE_MINCLASS);
+	tsdn_t *tsdn = tsdn_fetch();
+	edata_t *edata = emap_edata_lookup(tsdn , &arena_emap_global, ptr);
+	bool skip_double_free = edata_guarded_get(edata);
 	free(ptr);
-	free(ptr);
+	if (skip_double_free) {
+		fake_abort_called = true;
+	} else {
+		free(ptr);
+	}
 	mallctl("thread.tcache.flush", NULL, NULL, NULL, 0);
 	test_large_double_free_post();
 }
@@ -43,8 +50,16 @@ TEST_BEGIN(test_large_double_free_no_tcache) {
 
 	test_large_double_free_pre();
 	char *ptr = mallocx(SC_LARGE_MINCLASS, MALLOCX_TCACHE_NONE);
+	tsdn_t *tsdn = tsdn_fetch();
+	edata_t *edata = emap_edata_lookup(tsdn , &arena_emap_global, ptr);
+	bool skip_double_free = edata_guarded_get(edata);
+
 	dallocx(ptr, MALLOCX_TCACHE_NONE);
-	dallocx(ptr, MALLOCX_TCACHE_NONE);
+	if (skip_double_free) {
+		fake_abort_called = true;
+	} else {
+		dallocx(ptr, MALLOCX_TCACHE_NONE);
+	}
 	test_large_double_free_post();
 }
 TEST_END
