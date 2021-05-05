@@ -1476,8 +1476,9 @@ stats_general_print(emitter_t *emitter) {
 		 * representation.
 		 */
 		if (u32v == (uint32_t)-1) {
+			const char *neg1 = "-1";
 			emitter_kv(emitter, "hpa_dirty_mult",
-			    "opt.hpa_dirty_mult", emitter_type_string, "-1");
+			    "opt.hpa_dirty_mult", emitter_type_string, &neg1);
 		} else {
 			char buf[FXP_BUF_SIZE];
 			fxp_print(u32v, buf);
