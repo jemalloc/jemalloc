@@ -121,7 +121,6 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/fxp.c \
 	$(srcroot)src/hook.c \
 	$(srcroot)src/hpa.c \
-	$(srcroot)src/hpa_central.c \
 	$(srcroot)src/hpa_hooks.c \
 	$(srcroot)src/hpdata.c \
 	$(srcroot)src/inspect.c \
@@ -223,7 +222,6 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/hook.c \
 	$(srcroot)test/unit/hpa.c \
 	$(srcroot)test/unit/hpa_background_thread.c \
-	$(srcroot)test/unit/hpa_central.c \
 	$(srcroot)test/unit/hpdata.c \
 	$(srcroot)test/unit/huge.c \
 	$(srcroot)test/unit/inspect.c \

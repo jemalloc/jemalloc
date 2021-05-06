@@ -61,7 +61,6 @@
     <ClCompile Include="..\..\..\..\src\fxp.c" />
     <ClCompile Include="..\..\..\..\src\hook.c" />
     <ClCompile Include="..\..\..\..\src\hpa.c" />
-    <ClCompile Include="..\..\..\..\src\hpa_central.c" />
     <ClCompile Include="..\..\..\..\src\hpa_hooks.c" />
     <ClCompile Include="..\..\..\..\src\hpdata.c" />
     <ClCompile Include="..\..\..\..\src\inspect.c" />
