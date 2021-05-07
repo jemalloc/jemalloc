@@ -15,10 +15,23 @@ pa_nactive_sub(pa_shard_t *shard, size_t sub_pages) {
 }
 
 bool
-pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
-    unsigned ind, pa_shard_stats_t *stats, malloc_mutex_t *stats_mtx,
-    nstime_t *cur_time, size_t oversize_threshold, ssize_t dirty_decay_ms,
-    ssize_t muzzy_decay_ms) {
+pa_central_init(pa_central_t *central, base_t *base, bool hpa,
+    hpa_hooks_t *hpa_hooks) {
+	bool err;
+	if (hpa) {
+		err = hpa_central_init(&central->hpa, base, hpa_hooks);
+		if (err) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool
+pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, pa_central_t *central,
+    emap_t *emap, base_t *base, unsigned ind, pa_shard_stats_t *stats,
+    malloc_mutex_t *stats_mtx, nstime_t *cur_time, size_t oversize_threshold,
+    ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms) {
 	/* This will change eventually, but for now it should hold. */
 	assert(base_ind_get(base) == ind);
 	if (edata_cache_init(&shard->edata_cache, base)) {
@@ -42,6 +55,7 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
 	shard->stats = stats;
 	memset(shard->stats, 0, sizeof(*shard->stats));
 
+	shard->central = central;
 	shard->emap = emap;
 	shard->base = base;
 
@@ -50,10 +64,9 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
 
 bool
 pa_shard_enable_hpa(tsdn_t *tsdn, pa_shard_t *shard,
-    const hpa_hooks_t *hpa_hooks, const hpa_shard_opts_t *hpa_opts,
-    const sec_opts_t *hpa_sec_opts) {
-	if (hpa_shard_init(&shard->hpa_shard, shard->emap, shard->base,
-	    &shard->edata_cache, shard->ind, hpa_hooks, hpa_opts)) {
+    const hpa_shard_opts_t *hpa_opts, const sec_opts_t *hpa_sec_opts) {
+	if (hpa_shard_init(&shard->hpa_shard, &shard->central->hpa, shard->emap,
+	    shard->base, &shard->edata_cache, shard->ind, hpa_opts)) {
 		return true;
 	}
 	if (sec_init(tsdn, &shard->hpa_sec, shard->base, &shard->hpa_shard.pai,

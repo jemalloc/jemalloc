@@ -13,6 +13,7 @@ struct test_data_s {
 	 * test_data_t and the hpa_shard_t;
 	 */
 	hpa_shard_t shard;
+	hpa_central_t central;
 	base_t *base;
 	edata_cache_t shard_edata_cache;
 
@@ -50,9 +51,12 @@ create_test_data(hpa_hooks_t *hooks, hpa_shard_opts_t *opts) {
 	err = emap_init(&test_data->emap, test_data->base, /* zeroed */ false);
 	assert_false(err, "");
 
-	err = hpa_shard_init(&test_data->shard, &test_data->emap,
-	    test_data->base, &test_data->shard_edata_cache, SHARD_IND,
-	    hooks, opts);
+	err = hpa_central_init(&test_data->central, test_data->base, hooks);
+	assert_false(err, "");
+
+	err = hpa_shard_init(&test_data->shard, &test_data->central,
+	    &test_data->emap, test_data->base, &test_data->shard_edata_cache,
+	    SHARD_IND, opts);
 	assert_false(err, "");
 
 	return (hpa_shard_t *)test_data;

@@ -51,9 +51,125 @@ hpa_supported() {
 }
 
 bool
-hpa_shard_init(hpa_shard_t *shard, emap_t *emap, base_t *base,
-    edata_cache_t *edata_cache, unsigned ind,
-    const hpa_hooks_t *hooks, const hpa_shard_opts_t *opts) {
+hpa_central_init(hpa_central_t *central, base_t *base, const hpa_hooks_t *hooks) {
+	/* malloc_conf processing should have filtered out these cases. */
+	assert(hpa_supported());
+	bool err;
+	err = malloc_mutex_init(&central->grow_mtx, "hpa_central_grow",
+	    WITNESS_RANK_HPA_CENTRAL_GROW, malloc_mutex_rank_exclusive);
+	if (err) {
+		return true;
+	}
+	err = malloc_mutex_init(&central->mtx, "hpa_central",
+	    WITNESS_RANK_HPA_CENTRAL, malloc_mutex_rank_exclusive);
+	if (err) {
+		return true;
+	}
+	central->base = base;
+	central->eden = NULL;
+	central->eden_len = 0;
+	central->age_counter = 0;
+	central->hooks = *hooks;
+	return false;
+}
+
+static hpdata_t *
+hpa_alloc_ps(tsdn_t *tsdn, hpa_central_t *central) {
+	return (hpdata_t *)base_alloc(tsdn, central->base, sizeof(hpdata_t),
+	    CACHELINE);
+}
+
+hpdata_t *
+hpa_central_extract(tsdn_t *tsdn, hpa_central_t *central, size_t size,
+    bool *oom) {
+	/* Don't yet support big allocations; these should get filtered out. */
+	assert(size <= HUGEPAGE);
+	/*
+	 * Should only try to extract from the central allocator if the local
+	 * shard is exhausted.  We should hold the grow_mtx on that shard.
+	 */
+	witness_assert_positive_depth_to_rank(
+	    tsdn_witness_tsdp_get(tsdn), WITNESS_RANK_HPA_SHARD_GROW);
+
+	malloc_mutex_lock(tsdn, &central->grow_mtx);
+	*oom = false;
+
+	hpdata_t *ps = NULL;
+
+	/* Is eden a perfect fit? */
+	if (central->eden != NULL && central->eden_len == HUGEPAGE) {
+		ps = hpa_alloc_ps(tsdn, central);
+		if (ps == NULL) {
+			*oom = true;
+			malloc_mutex_unlock(tsdn, &central->grow_mtx);
+			return NULL;
+		}
+		hpdata_init(ps, central->eden, central->age_counter++);
+		central->eden = NULL;
+		central->eden_len = 0;
+		malloc_mutex_unlock(tsdn, &central->grow_mtx);
+		return ps;
+	}
+
+	/*
+	 * We're about to try to allocate from eden by splitting.  If eden is
+	 * NULL, we have to allocate it too.  Otherwise, we just have to
+	 * allocate an edata_t for the new psset.
+	 */
+	if (central->eden == NULL) {
+		/*
+		 * During development, we're primarily concerned with systems
+		 * with overcommit.  Eventually, we should be more careful here.
+		 */
+		bool commit = true;
+		/* Allocate address space, bailing if we fail. */
+		void *new_eden = pages_map(NULL, HPA_EDEN_SIZE, HUGEPAGE,
+		    &commit);
+		if (new_eden == NULL) {
+			*oom = true;
+			malloc_mutex_unlock(tsdn, &central->grow_mtx);
+			return NULL;
+		}
+		ps = hpa_alloc_ps(tsdn, central);
+		if (ps == NULL) {
+			pages_unmap(new_eden, HPA_EDEN_SIZE);
+			*oom = true;
+			malloc_mutex_unlock(tsdn, &central->grow_mtx);
+			return NULL;
+		}
+		central->eden = new_eden;
+		central->eden_len = HPA_EDEN_SIZE;
+	} else {
+		/* Eden is already nonempty; only need an edata for ps. */
+		ps = hpa_alloc_ps(tsdn, central);
+		if (ps == NULL) {
+			*oom = true;
+			malloc_mutex_unlock(tsdn, &central->grow_mtx);
+			return NULL;
+		}
+	}
+	assert(ps != NULL);
+	assert(central->eden != NULL);
+	assert(central->eden_len > HUGEPAGE);
+	assert(central->eden_len % HUGEPAGE == 0);
+	assert(HUGEPAGE_ADDR2BASE(central->eden) == central->eden);
+
+	hpdata_init(ps, central->eden, central->age_counter++);
+
+	char *eden_char = (char *)central->eden;
+	eden_char += HUGEPAGE;
+	central->eden = (void *)eden_char;
+	central->eden_len -= HUGEPAGE;
+
+	malloc_mutex_unlock(tsdn, &central->grow_mtx);
+
+	return ps;
+}
+
+bool
+hpa_shard_init(hpa_shard_t *shard, hpa_central_t *central, emap_t *emap,
+    base_t *base, edata_cache_t *edata_cache, unsigned ind,
+    const hpa_shard_opts_t *opts) {
 	/* malloc_conf processing should have filtered out these cases. */
 	assert(hpa_supported());
 	bool err;
@@ -69,13 +185,11 @@ hpa_shard_init(hpa_shard_t *shard, emap_t *emap, base_t *base,
 	}
 
 	assert(edata_cache != NULL);
+	shard->central = central;
 	shard->base = base;
-	shard->hooks = *hooks;
 	edata_cache_small_init(&shard->ecs, edata_cache);
 	psset_init(&shard->psset);
 	shard->age_counter = 0;
-	shard->eden = NULL;
-	shard->eden_len = 0;
 	shard->ind = ind;
 	shard->emap = emap;
 
@@ -134,12 +248,6 @@ hpa_shard_stats_merge(tsdn_t *tsdn, hpa_shard_t *shard,
 	hpa_shard_nonderived_stats_accum(&dst->nonderived_stats, &shard->stats);
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 	malloc_mutex_unlock(tsdn, &shard->grow_mtx);
-}
-
-static hpdata_t *
-hpa_alloc_ps(tsdn_t *tsdn, hpa_shard_t *shard) {
-	return (hpdata_t *)base_alloc(tsdn, shard->base, sizeof(hpdata_t),
-	    CACHELINE);
 }
 
 static bool
@@ -227,7 +335,7 @@ hpa_update_purge_hugify_eligibility(tsdn_t *tsdn, hpa_shard_t *shard,
 	if (hpa_good_hugification_candidate(shard, ps)
 	    && !hpdata_huge_get(ps)) {
 		nstime_t now;
-		shard->hooks.curtime(&now);
+		shard->central->hooks.curtime(&now);
 		hpdata_allow_hugify(ps, now);
 	}
 	/*
@@ -245,64 +353,6 @@ hpa_update_purge_hugify_eligibility(tsdn_t *tsdn, hpa_shard_t *shard,
 	if (hpdata_nactive_get(ps) == 0) {
 		hpdata_disallow_hugify(ps);
 	}
-}
-
-static hpdata_t *
-hpa_grow(tsdn_t *tsdn, hpa_shard_t *shard) {
-	malloc_mutex_assert_owner(tsdn, &shard->grow_mtx);
-	hpdata_t *ps = NULL;
-
-	/* Is eden a perfect fit? */
-	if (shard->eden != NULL && shard->eden_len == HUGEPAGE) {
-		ps = hpa_alloc_ps(tsdn, shard);
-		if (ps == NULL) {
-			return NULL;
-		}
-		hpdata_init(ps, shard->eden, shard->age_counter++);
-		shard->eden = NULL;
-		shard->eden_len = 0;
-		return ps;
-	}
-
-	/*
-	 * We're about to try to allocate from eden by splitting.  If eden is
-	 * NULL, we have to allocate it too.  Otherwise, we just have to
-	 * allocate an edata_t for the new psset.
-	 */
-	if (shard->eden == NULL) {
-		/* Allocate address space, bailing if we fail. */
-		void *new_eden = shard->hooks.map(HPA_EDEN_SIZE);
-		if (new_eden == NULL) {
-			return NULL;
-		}
-		ps = hpa_alloc_ps(tsdn, shard);
-		if (ps == NULL) {
-			shard->hooks.unmap(new_eden, HPA_EDEN_SIZE);
-			return NULL;
-		}
-		shard->eden = new_eden;
-		shard->eden_len = HPA_EDEN_SIZE;
-	} else {
-		/* Eden is already nonempty; only need an edata for ps. */
-		ps = hpa_alloc_ps(tsdn, shard);
-		if (ps == NULL) {
-			return NULL;
-		}
-	}
-	assert(ps != NULL);
-	assert(shard->eden != NULL);
-	assert(shard->eden_len > HUGEPAGE);
-	assert(shard->eden_len % HUGEPAGE == 0);
-	assert(HUGEPAGE_ADDR2BASE(shard->eden) == shard->eden);
-
-	hpdata_init(ps, shard->eden, shard->age_counter++);
-
-	char *eden_char = (char *)shard->eden;
-	eden_char += HUGEPAGE;
-	shard->eden = (void *)eden_char;
-	shard->eden_len -= HUGEPAGE;
-
-	return ps;
 }
 
 /* Returns whether or not we purged anything. */
@@ -348,7 +398,8 @@ hpa_try_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
 
 	/* Actually do the purging, now that the lock is dropped. */
 	if (dehugify) {
-		shard->hooks.dehugify(hpdata_addr_get(to_purge), HUGEPAGE);
+		shard->central->hooks.dehugify(hpdata_addr_get(to_purge),
+		    HUGEPAGE);
 	}
 	size_t total_purged = 0;
 	uint64_t purges_this_pass = 0;
@@ -359,7 +410,7 @@ hpa_try_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
 		total_purged += purge_size;
 		assert(total_purged <= HUGEPAGE);
 		purges_this_pass++;
-		shard->hooks.purge(purge_addr, purge_size);
+		shard->central->hooks.purge(purge_addr, purge_size);
 	}
 
 	malloc_mutex_lock(tsdn, &shard->mtx);
@@ -406,7 +457,7 @@ hpa_try_hugify(tsdn_t *tsdn, hpa_shard_t *shard) {
 	/* Make sure that it's been hugifiable for long enough. */
 	nstime_t time_hugify_allowed = hpdata_time_hugify_allowed(to_hugify);
 	nstime_t nstime;
-	shard->hooks.curtime(&nstime);
+	shard->central->hooks.curtime(&nstime);
 	nstime_subtract(&nstime, &time_hugify_allowed);
 	uint64_t millis = nstime_msec(&nstime);
 	if (millis < shard->opts.hugify_delay_ms) {
@@ -427,7 +478,7 @@ hpa_try_hugify(tsdn_t *tsdn, hpa_shard_t *shard) {
 
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 
-	shard->hooks.hugify(hpdata_addr_get(to_hugify), HUGEPAGE);
+	shard->central->hooks.hugify(hpdata_addr_get(to_hugify), HUGEPAGE);
 
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	shard->stats.nhugifies++;
@@ -604,7 +655,7 @@ hpa_alloc_batch_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 	 * deallocations (and allocations of smaller sizes) may still succeed
 	 * while we're doing this potentially expensive system call.
 	 */
-	hpdata_t *ps = hpa_grow(tsdn, shard);
+	hpdata_t *ps = hpa_central_extract(tsdn, shard->central, size, &oom);
 	if (ps == NULL) {
 		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
 		return nsuccess;
@@ -833,7 +884,7 @@ hpa_shard_destroy(tsdn_t *tsdn, hpa_shard_t *shard) {
 		/* There should be no allocations anywhere. */
 		assert(hpdata_empty(ps));
 		psset_remove(&shard->psset, ps);
-		shard->hooks.unmap(hpdata_addr_get(ps), HUGEPAGE);
+		shard->central->hooks.unmap(hpdata_addr_get(ps), HUGEPAGE);
 	}
 }
 
