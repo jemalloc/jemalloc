@@ -20,6 +20,11 @@
  * others will be coming soon.
  */
 
+typedef struct pa_central_s pa_central_t;
+struct pa_central_s {
+	hpa_central_t hpa;
+};
+
 /*
  * The stats for a particular pa_shard.  Because of the way the ctl module
  * handles stats epoch data collection (it has its own arena_stats, and merges
@@ -61,6 +66,9 @@ struct pa_shard_stats_s {
  */
 typedef struct pa_shard_s pa_shard_t;
 struct pa_shard_s {
+	/* The central PA this shard is associated with. */
+	pa_central_t *central;
+
 	/*
 	 * Number of pages in active extents.
 	 *
@@ -76,6 +84,7 @@ struct pa_shard_s {
 	 * for those allocations.
 	 */
 	atomic_b_t use_hpa;
+
 	/*
 	 * If we never used the HPA to begin with, it wasn't initialized, and so
 	 * we shouldn't try to e.g. acquire its mutexes during fork.  This
@@ -121,18 +130,21 @@ pa_shard_ehooks_get(pa_shard_t *shard) {
 }
 
 /* Returns true on error. */
-bool pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
-    unsigned ind, pa_shard_stats_t *stats, malloc_mutex_t *stats_mtx,
-    nstime_t *cur_time, size_t oversize_threshold, ssize_t dirty_decay_ms,
-    ssize_t muzzy_decay_ms);
+bool pa_central_init(pa_central_t *central, base_t *base, bool hpa,
+    hpa_hooks_t *hpa_hooks);
+
+/* Returns true on error. */
+bool pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, pa_central_t *central,
+    emap_t *emap, base_t *base, unsigned ind, pa_shard_stats_t *stats,
+    malloc_mutex_t *stats_mtx, nstime_t *cur_time, size_t oversize_threshold,
+    ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms);
 
 /*
  * This isn't exposed to users; we allow late enablement of the HPA shard so
  * that we can boot without worrying about the HPA, then turn it on in a0.
  */
 bool pa_shard_enable_hpa(tsdn_t *tsdn, pa_shard_t *shard,
-    const hpa_hooks_t *hpa_hooks, const hpa_shard_opts_t *hpa_opts,
-    const sec_opts_t *hpa_sec_opts);
+    const hpa_shard_opts_t *hpa_opts, const sec_opts_t *hpa_sec_opts);
 
 /*
  * We stop using the HPA when custom extent hooks are installed, but still

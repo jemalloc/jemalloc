@@ -1747,7 +1747,19 @@ malloc_init_hard_a0_locked() {
 	if (config_prof) {
 		prof_boot1();
 	}
-	arena_boot(&sc_data);
+	if (opt_hpa && !hpa_supported()) {
+		malloc_printf("<jemalloc>: HPA not supported in the current "
+		    "configuration; %s.",
+		    opt_abort_conf ? "aborting" : "disabling");
+		if (opt_abort_conf) {
+			malloc_abort_invalid_conf();
+		} else {
+			opt_hpa = false;
+		}
+	}
+	if (arena_boot(&sc_data, b0get(), opt_hpa)) {
+		return true;
+	}
 	if (tcache_boot(TSDN_NULL, b0get())) {
 		return true;
 	}
@@ -1786,7 +1798,7 @@ malloc_init_hard_a0_locked() {
 		hpa_shard_opts_t hpa_shard_opts = opt_hpa_opts;
 		hpa_shard_opts.deferral_allowed = background_thread_enabled();
 		if (pa_shard_enable_hpa(TSDN_NULL, &a0->pa_shard,
-		    &hpa_hooks_default, &hpa_shard_opts, &opt_hpa_sec_opts)) {
+		    &hpa_shard_opts, &opt_hpa_sec_opts)) {
 			return true;
 		}
 	}

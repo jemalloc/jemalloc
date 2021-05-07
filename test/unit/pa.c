@@ -40,6 +40,7 @@ init_test_extent_hooks(extent_hooks_t *hooks) {
 typedef struct test_data_s test_data_t;
 struct test_data_s {
 	pa_shard_t shard;
+	pa_central_t central;
 	base_t *base;
 	emap_t emap;
 	pa_shard_stats_t stats;
@@ -63,9 +64,13 @@ test_data_t *init_test_data(ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms) {
 	nstime_t time;
 	nstime_init(&time, 0);
 
+	err = pa_central_init(&test_data->central, base, opt_hpa,
+	    &hpa_hooks_default);
+	assert_false(err, "");
+
 	const size_t oversize_threshold = 8 * 1024 * 1024;
-	err = pa_shard_init(TSDN_NULL, &test_data->shard, &test_data->emap,
-	    test_data->base, /* ind */ 1, &test_data->stats,
+	err = pa_shard_init(TSDN_NULL, &test_data->shard, &test_data->central,
+	    &test_data->emap, test_data->base, /* ind */ 1, &test_data->stats,
 	    &test_data->stats_mtx, &time, oversize_threshold, dirty_decay_ms,
 	    muzzy_decay_ms);
 	assert_false(err, "");

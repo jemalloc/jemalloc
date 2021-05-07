@@ -99,7 +99,7 @@ bin_t *arena_bin_choose(tsdn_t *tsdn, arena_t *arena, szind_t binind,
     unsigned *binshard);
 size_t arena_fill_small_fresh(tsdn_t *tsdn, arena_t *arena, szind_t binind,
     void **ptrs, size_t nfill, bool zero);
-void arena_boot(sc_data_t *sc_data);
+bool arena_boot(sc_data_t *sc_data, base_t *base, bool hpa);
 void arena_prefork0(tsdn_t *tsdn, arena_t *arena);
 void arena_prefork1(tsdn_t *tsdn, arena_t *arena);
 void arena_prefork2(tsdn_t *tsdn, arena_t *arena);

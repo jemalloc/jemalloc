@@ -36,6 +36,7 @@ static atomic_zd_t dirty_decay_ms_default;
 static atomic_zd_t muzzy_decay_ms_default;
 
 emap_t arena_emap_global;
+pa_central_t arena_pa_central_global;
 
 const uint64_t h_steps[SMOOTHSTEP_NSTEPS] = {
 #define STEP(step, h, x, y)			\
@@ -1541,9 +1542,10 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 
 	nstime_t cur_time;
 	nstime_init_update(&cur_time);
-	if (pa_shard_init(tsdn, &arena->pa_shard, &arena_emap_global, base, ind,
-	    &arena->stats.pa_shard_stats, LOCKEDINT_MTX(arena->stats.mtx),
-	    &cur_time, oversize_threshold, arena_dirty_decay_ms_default_get(),
+	if (pa_shard_init(tsdn, &arena->pa_shard, &arena_pa_central_global,
+	    &arena_emap_global, base, ind, &arena->stats.pa_shard_stats,
+	    LOCKEDINT_MTX(arena->stats.mtx), &cur_time, oversize_threshold,
+	    arena_dirty_decay_ms_default_get(),
 	    arena_muzzy_decay_ms_default_get())) {
 		goto label_error;
 	}
@@ -1575,7 +1577,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		hpa_shard_opts_t hpa_shard_opts = opt_hpa_opts;
 		hpa_shard_opts.deferral_allowed = background_thread_enabled();
 		if (pa_shard_enable_hpa(tsdn, &arena->pa_shard,
-		    &hpa_hooks_default, &hpa_shard_opts, &opt_hpa_sec_opts)) {
+		    &hpa_shard_opts, &opt_hpa_sec_opts)) {
 			goto label_error;
 		}
 	}
@@ -1664,8 +1666,8 @@ arena_is_huge(unsigned arena_ind) {
 	return (arena_ind == huge_arena_ind);
 }
 
-void
-arena_boot(sc_data_t *sc_data) {
+bool
+arena_boot(sc_data_t *sc_data, base_t *base, bool hpa) {
 	arena_dirty_decay_ms_default_set(opt_dirty_decay_ms);
 	arena_muzzy_decay_ms_default_set(opt_muzzy_decay_ms);
 	for (unsigned i = 0; i < SC_NBINS; i++) {
@@ -1680,6 +1682,8 @@ arena_boot(sc_data_t *sc_data) {
 		nbins_total += bin_infos[i].n_shards;
 		cur_offset += (uint32_t)(bin_infos[i].n_shards * sizeof(bin_t));
 	}
+	return pa_central_init(&arena_pa_central_global, base, hpa,
+	    &hpa_hooks_default);
 }
 
 void
