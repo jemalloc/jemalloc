@@ -233,6 +233,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/malloc_conf_2.c \
 	$(srcroot)test/unit/malloc_io.c \
 	$(srcroot)test/unit/math.c \
+	$(srcroot)test/unit/mpsc_queue.c \
 	$(srcroot)test/unit/mq.c \
 	$(srcroot)test/unit/mtx.c \
 	$(srcroot)test/unit/nstime.c \
