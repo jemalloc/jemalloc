@@ -128,6 +128,7 @@ static const bool config_debug =
 #include "test/test.h"
 #include "test/timer.h"
 #include "test/thd.h"
+#include "test/bgthd.h"
 #define MEXP 19937
 #include "test/SFMT.h"
 
