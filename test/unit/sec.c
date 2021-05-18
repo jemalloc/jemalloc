@@ -37,7 +37,14 @@ test_sec_init(sec_t *sec, pai_t *fallback, size_t nshards, size_t max_alloc,
 	opts.bytes_after_flush = max_bytes / 2;
 	opts.batch_fill_extra = 4;
 
-	bool err = sec_init(sec, fallback, &opts);
+	/*
+	 * We end up leaking this base, but that's fine; this test is
+	 * short-running, and SECs are arena-scoped in reality.
+	 */
+	base_t *base = base_new(TSDN_NULL, /* ind */ 123,
+	    &ehooks_default_extent_hooks);
+
+	bool err = sec_init(TSDN_NULL, sec, base, fallback, &opts);
 	assert_false(err, "Unexpected initialization failure");
 }
 
@@ -412,10 +419,12 @@ TEST_BEGIN(test_nshards_0) {
 	sec_t sec;
 	/* See the note above -- we can't use the real tsd. */
 	tsdn_t *tsdn = TSDN_NULL;
+	base_t *base = base_new(TSDN_NULL, /* ind */ 123,
+	    &ehooks_default_extent_hooks);
 
 	sec_opts_t opts = SEC_OPTS_DEFAULT;
 	opts.nshards = 0;
-	sec_init(&sec, &ta.pai, &opts);
+	sec_init(TSDN_NULL, &sec, base, &ta.pai, &opts);
 
 	edata_t *edata = pai_alloc(tsdn, &sec.pai, PAGE, PAGE,
 	    /* zero */ false);

@@ -19,35 +19,55 @@ sec_bin_init(sec_bin_t *bin) {
 }
 
 bool
-sec_init(sec_t *sec, pai_t *fallback, const sec_opts_t *opts) {
-	size_t nshards_clipped = opts->nshards;
-	if (nshards_clipped > SEC_NSHARDS_MAX) {
-		nshards_clipped = SEC_NSHARDS_MAX;
+sec_init(tsdn_t *tsdn, sec_t *sec, base_t *base, pai_t *fallback,
+    const sec_opts_t *opts) {
+	size_t max_alloc = opts->max_alloc & PAGE_MASK;
+	pszind_t npsizes = sz_psz2ind(max_alloc);
+	if (sz_pind2sz(npsizes) > opts->max_alloc) {
+		npsizes--;
 	}
-	for (size_t i = 0; i < nshards_clipped; i++) {
-		sec_shard_t *shard = &sec->shards[i];
+	size_t sz_shards = opts->nshards * sizeof(sec_shard_t);
+	size_t sz_bins = opts->nshards * (size_t)npsizes * sizeof(sec_bin_t);
+	size_t sz_alloc = sz_shards + sz_bins;
+	void *dynalloc = base_alloc(tsdn, base, sz_alloc, CACHELINE);
+	if (dynalloc == NULL) {
+		return true;
+	}
+	sec_shard_t *shard_cur = (sec_shard_t *)dynalloc;
+	sec->shards = shard_cur;
+	sec_bin_t *bin_cur = (sec_bin_t *)&shard_cur[opts->nshards];
+	/* Just for asserts, below. */
+	sec_bin_t *bin_start = bin_cur;
+
+	for (size_t i = 0; i < opts->nshards; i++) {
+		sec_shard_t *shard = shard_cur;
+		shard_cur++;
 		bool err = malloc_mutex_init(&shard->mtx, "sec_shard",
 		    WITNESS_RANK_SEC_SHARD, malloc_mutex_rank_exclusive);
 		if (err) {
 			return true;
 		}
 		shard->enabled = true;
-		for (pszind_t j = 0; j < SEC_NPSIZES; j++) {
+		shard->bins = bin_cur;
+		for (pszind_t j = 0; j < npsizes; j++) {
 			sec_bin_init(&shard->bins[j]);
+			bin_cur++;
 		}
 		shard->bytes_cur = 0;
 		shard->to_flush_next = 0;
 	}
+	/*
+	 * Should have exactly matched the bin_start to the first unused byte
+	 * after the shards.
+	 */
+	assert((void *)shard_cur == (void *)bin_start);
+	/* And the last bin to use up the last bytes of the allocation. */
+	assert((char *)bin_cur == ((char *)dynalloc + sz_alloc));
 	sec->fallback = fallback;
 
-	size_t max_alloc_clipped = opts->max_alloc;
-	if (max_alloc_clipped > sz_pind2sz(SEC_NPSIZES - 1)) {
-		max_alloc_clipped = sz_pind2sz(SEC_NPSIZES - 1);
-	}
 
 	sec->opts = *opts;
-	sec->opts.nshards = nshards_clipped;
-	sec->opts.max_alloc = max_alloc_clipped;
+	sec->npsizes = npsizes;
 
 	/*
 	 * Initialize these last so that an improper use of an SEC whose
@@ -106,7 +126,7 @@ sec_flush_some_and_unlock(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard) {
 
 		/* Update our victim-picking state. */
 		shard->to_flush_next++;
-		if (shard->to_flush_next == SEC_NPSIZES) {
+		if (shard->to_flush_next == sec->npsizes) {
 			shard->to_flush_next = 0;
 		}
 
@@ -249,7 +269,7 @@ sec_flush_all_locked(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard) {
 	shard->bytes_cur = 0;
 	edata_list_active_t to_flush;
 	edata_list_active_init(&to_flush);
-	for (pszind_t i = 0; i < SEC_NPSIZES; i++) {
+	for (pszind_t i = 0; i < sec->npsizes; i++) {
 		sec_bin_t *bin = &shard->bins[i];
 		bin->bytes_cur = 0;
 		edata_list_active_concat(&to_flush, &bin->freelist);

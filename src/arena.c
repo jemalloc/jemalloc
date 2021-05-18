@@ -1565,7 +1565,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	 *   so arena_hpa_global is not yet initialized.
 	 */
 	if (opt_hpa && ehooks_are_default(base_ehooks_get(base)) && ind != 0) {
-		if (pa_shard_enable_hpa(&arena->pa_shard, &opt_hpa_opts,
+		if (pa_shard_enable_hpa(tsdn, &arena->pa_shard, &opt_hpa_opts,
 		    &opt_hpa_sec_opts)) {
 			goto label_error;
 		}
