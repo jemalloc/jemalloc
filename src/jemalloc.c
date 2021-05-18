@@ -1781,7 +1781,7 @@ malloc_init_hard_a0_locked() {
 			opt_hpa = false;
 		}
 	} else if (opt_hpa) {
-		if (pa_shard_enable_hpa(&a0->pa_shard, &opt_hpa_opts,
+		if (pa_shard_enable_hpa(TSDN_NULL, &a0->pa_shard, &opt_hpa_opts,
 		    &opt_hpa_sec_opts)) {
 			return true;
 		}
