@@ -65,6 +65,9 @@
 #  ifdef __le32__
 #    define LG_QUANTUM		4
 #  endif
+#  ifdef __arc__
+#    define LG_QUANTUM		3
+#  endif
 #  ifndef LG_QUANTUM
 #    error "Unknown minimum alignment for architecture; specify via "
 	 "--with-lg-quantum"
