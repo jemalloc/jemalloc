@@ -610,6 +610,48 @@ ifeq ($(enable_doc), 1)
 install: install_doc
 endif
 
+uninstall_bin:
+	$(RM) -v $(foreach b,$(notdir $(BINS)),$(BINDIR)/$(b))
+
+uninstall_include:
+	$(RM) -v $(foreach h,$(notdir $(C_HDRS)),$(INCLUDEDIR)/jemalloc/$(h))
+	rmdir -v $(INCLUDEDIR)/jemalloc
+
+uninstall_lib_shared:
+	$(RM) -v $(LIBDIR)/$(LIBJEMALLOC).$(SOREV)
+ifneq ($(SOREV),$(SO))
+	$(RM) -v $(LIBDIR)/$(LIBJEMALLOC).$(SO)
+endif
+
+uninstall_lib_static:
+	$(RM) -v $(foreach l,$(notdir $(STATIC_LIBS)),$(LIBDIR)/$(l))
+
+uninstall_lib_pc:
+	$(RM) -v $(foreach p,$(notdir $(PC)),$(LIBDIR)/pkgconfig/$(p))
+
+ifeq ($(enable_shared), 1)
+uninstall_lib: uninstall_lib_shared
+endif
+ifeq ($(enable_static), 1)
+uninstall_lib: uninstall_lib_static
+endif
+uninstall_lib: uninstall_lib_pc
+
+uninstall_doc_html:
+	$(RM) -v $(foreach d,$(notdir $(DOCS_HTML)),$(DATADIR)/doc/jemalloc$(install_suffix)/$(d))
+	rmdir -v $(DATADIR)/doc/jemalloc$(install_suffix)
+
+uninstall_doc_man:
+	$(RM) -v $(foreach d,$(notdir $(DOCS_MAN3)),$(MANDIR)/man3/$(d))
+
+uninstall_doc: uninstall_doc_html uninstall_doc_man
+
+uninstall: uninstall_bin uninstall_include uninstall_lib
+
+ifeq ($(enable_doc), 1)
+uninstall: uninstall_doc
+endif
+
 tests_unit: $(TESTS_UNIT:$(srcroot)%.c=$(objroot)%$(EXE))
 tests_integration: $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%$(EXE)) $(TESTS_INTEGRATION_CPP:$(srcroot)%.cpp=$(objroot)%$(EXE))
 tests_analyze: $(TESTS_ANALYZE:$(srcroot)%.c=$(objroot)%$(EXE))
