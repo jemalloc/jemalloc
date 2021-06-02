@@ -93,7 +93,9 @@ LIBJEMALLOC := $(LIBPREFIX)jemalloc$(install_suffix)
 
 # Lists of files.
 BINS := $(objroot)bin/jemalloc-config $(objroot)bin/jemalloc.sh $(objroot)bin/jeprof
+UNINSTALL_BINS := jemalloc-config jemalloc.sh jeprof
 C_HDRS := $(objroot)include/jemalloc/jemalloc$(install_suffix).h
+UNINSTALL_HDRS := jemalloc/jemalloc$(install_suffix).h
 C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/arena.c \
 	$(srcroot)src/background_thread.c \
@@ -599,6 +601,54 @@ install: install_bin install_include install_lib
 
 ifeq ($(enable_doc), 1)
 install: install_doc
+endif
+
+uninstall_bin:
+	@for b in $(UNINSTALL_BINS); do \
+	echo "$(RM) $(BINDIR)/$$b"; \
+	$(RM) $(BINDIR)/$$b ; \
+done
+
+uninstall_include:
+	@for h in $(UNINSTALL_HDRS); do \
+	echo "$(RM) $(INCLUDEDIR)/$$h"; \
+	$(RM) $(INCLUDEDIR)/$$h; \
+done
+	-rmdir $(INCLUDEDIR)/jemalloc
+
+uninstall_lib:
+	@for l in $(LIBDIR)/libjemalloc*; do \
+	echo "$(RM) $$l"; \
+	$(RM) $$l; \
+done
+
+uninstall_lib_pc:
+	@for l in $(PC); do \
+	echo "$(RM) $(LIBDIR)/pkgconfig/$$l"; \
+	$(RM) $(LIBDIR)/pkgconfig/$$l; \
+done
+
+uninstall_lib: uninstall_lib_pc
+
+uninstall_doc_html:
+	@for d in $(DATADIR)/doc/jemalloc/*; do \
+	echo "$(RM) $$d"; \
+	$(RM) $$d; \
+done
+	rmdir $(DATADIR)/doc/jemalloc$(install_suffix)
+
+uninstall_doc_man:
+	@for d in $(MANDIR)/man3/jemalloc*; do \
+	echo "$(RM) $$d"; \
+	$(RM) $$d; \
+done
+
+uninstall_doc: uninstall_doc_html uninstall_doc_man
+
+uninstall: uninstall_bin uninstall_include uninstall_lib
+
+ifeq ($(enable_doc), 1)
+uninstall: uninstall_doc
 endif
 
 tests_unit: $(TESTS_UNIT:$(srcroot)%.c=$(objroot)%$(EXE))
