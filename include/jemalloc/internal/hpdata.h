@@ -110,7 +110,7 @@ struct hpdata_s {
 	 */
 	size_t h_ntouched;
 
-	/* The dirty pages (using the same definition as above). */
+	/* The touched pages (using the same definition as above). */
 	fb_group_t touched_pages[FB_NGROUPS(HUGEPAGE_PAGES)];
 };
 
@@ -356,6 +356,7 @@ void hpdata_unreserve(hpdata_t *hpdata, void *begin, size_t sz);
 typedef struct hpdata_purge_state_s hpdata_purge_state_t;
 struct hpdata_purge_state_s {
 	size_t npurged;
+	size_t ndirty_to_purge;
 	fb_group_t to_purge[FB_NGROUPS(HUGEPAGE_PAGES)];
 	size_t next_purge_search_begin;
 };
@@ -372,7 +373,7 @@ struct hpdata_purge_state_s {
  * until you're done, and then end.  Allocating out of an hpdata undergoing
  * purging is not allowed.
  *
- * Returns the number of pages that will be purged.
+ * Returns the number of dirty pages that will be purged.
  */
 size_t hpdata_purge_begin(hpdata_t *hpdata, hpdata_purge_state_t *purge_state);
 

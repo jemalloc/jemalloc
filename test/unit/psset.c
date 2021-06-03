@@ -18,12 +18,14 @@ edata_init_test(edata_t *edata) {
 static void
 test_psset_fake_purge(hpdata_t *ps) {
 	hpdata_purge_state_t purge_state;
+	hpdata_alloc_allowed_set(ps, false);
 	hpdata_purge_begin(ps, &purge_state);
 	void *addr;
 	size_t size;
 	while (hpdata_purge_next(ps, &purge_state, &addr, &size)) {
 	}
 	hpdata_purge_end(ps, &purge_state);
+	hpdata_alloc_allowed_set(ps, true);
 }
 
 static void
