@@ -1489,8 +1489,8 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			    "hpa_sec_bytes_after_flush", PAGE, 0,
 			    CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
 			CONF_HANDLE_SIZE_T(opt_hpa_sec_opts.batch_fill_extra,
-			    "hpa_sec_batch_fill_extra", PAGE, 0, CONF_CHECK_MIN,
-			    CONF_DONT_CHECK_MAX, true);
+			    "hpa_sec_batch_fill_extra", 0, HUGEPAGE_PAGES,
+			    CONF_CHECK_MIN, CONF_CHECK_MAX, true);
 
 			if (CONF_MATCH("slab_sizes")) {
 				if (CONF_MATCH_VALUE("default")) {
