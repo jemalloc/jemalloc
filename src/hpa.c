@@ -723,17 +723,6 @@ hpa_dalloc_locked(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata) {
 	hpdata_unreserve(ps, unreserve_addr, unreserve_size);
 	hpa_update_purge_hugify_eligibility(tsdn, shard, ps);
 	psset_update_end(&shard->psset, ps);
-	hpa_do_deferred_work(tsdn, shard);
-}
-
-static void
-hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
-	hpa_shard_t *shard = hpa_from_pai(self);
-
-	hpa_dalloc_prepare_unlocked(tsdn, shard, edata);
-	malloc_mutex_lock(tsdn, &shard->mtx);
-	hpa_dalloc_locked(tsdn, shard, edata);
-	malloc_mutex_unlock(tsdn, &shard->mtx);
 }
 
 static void
@@ -751,7 +740,17 @@ hpa_dalloc_batch(tsdn_t *tsdn, pai_t *self, edata_list_active_t *list) {
 		edata_list_active_remove(list, edata);
 		hpa_dalloc_locked(tsdn, shard, edata);
 	}
+	hpa_do_deferred_work(tsdn, shard);
 	malloc_mutex_unlock(tsdn, &shard->mtx);
+}
+
+static void
+hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
+	/* Just a dalloc_batch of size 1; this lets us share logic. */
+	edata_list_active_t dalloc_list;
+	edata_list_active_init(&dalloc_list);
+	edata_list_active_append(&dalloc_list, edata);
+	hpa_dalloc_batch(tsdn, self, &dalloc_list);
 }
 
 void
