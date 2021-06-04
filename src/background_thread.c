@@ -291,7 +291,7 @@ background_work_sleep_once(tsdn_t *tsdn, background_thread_info_t *info, unsigne
 		if (!arena) {
 			continue;
 		}
-		arena_decay(tsdn, arena, true, false);
+		arena_do_deferred_work(tsdn, arena);
 		if (min_interval == BACKGROUND_THREAD_MIN_INTERVAL_NS) {
 			/* Min interval will be used. */
 			continue;

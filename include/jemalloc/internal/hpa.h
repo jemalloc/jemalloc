@@ -55,6 +55,7 @@ struct hpa_shard_s {
 	malloc_mutex_t mtx;
 	/* The base metadata allocator. */
 	base_t *base;
+
 	/*
 	 * This edata cache is the one we use when allocating a small extent
 	 * from a pageslab.  The pageslab itself comes from the centralized
@@ -121,6 +122,10 @@ void hpa_shard_stats_merge(tsdn_t *tsdn, hpa_shard_t *shard,
  */
 void hpa_shard_disable(tsdn_t *tsdn, hpa_shard_t *shard);
 void hpa_shard_destroy(tsdn_t *tsdn, hpa_shard_t *shard);
+
+void hpa_shard_set_deferral_allowed(tsdn_t *tsdn, hpa_shard_t *shard,
+    bool deferral_allowed);
+void hpa_shard_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard);
 
 /*
  * We share the fork ordering with the PA and arena prefork handling; that's why

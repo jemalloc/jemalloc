@@ -51,6 +51,7 @@ bool arena_decay_ms_set(tsdn_t *tsdn, arena_t *arena, extent_state_t state,
 ssize_t arena_decay_ms_get(arena_t *arena, extent_state_t state);
 void arena_decay(tsdn_t *tsdn, arena_t *arena, bool is_background_thread,
     bool all);
+void arena_do_deferred_work(tsdn_t *tsdn, arena_t *arena);
 void arena_reset(tsd_t *tsd, arena_t *arena);
 void arena_destroy(tsd_t *tsd, arena_t *arena);
 void arena_cache_bin_fill_small(tsdn_t *tsdn, arena_t *arena,
