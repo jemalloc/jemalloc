@@ -426,17 +426,29 @@ hpa_try_hugify(tsdn_t *tsdn, hpa_shard_t *shard) {
 	return true;
 }
 
+/*
+ * Execution of deferred work is forced if it's triggered by an explicit
+ * hpa_shard_do_deferred_work() call.
+ */
 static void
-hpa_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard) {
+hpa_shard_maybe_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard,
+    bool forced) {
 	bool hugified;
 	bool purged;
 	size_t nloop = 0;
-	/* Just *some* bound, to impose a worst-case latency bound. */
-	size_t maxloops = 100;;
+	malloc_mutex_assert_owner(tsdn, &shard->mtx);
+	if (!forced && shard->opts.deferral_allowed) {
+		return;
+	}
+	/*
+	 * If we're on a background thread, do work so long as there's work to
+	 * be done.  Otherwise, bound latency to not be *too* bad by doing at
+	 * most a small fixed number of operations.
+	 */
+	size_t maxloops = (forced ? (size_t)-1 : 8);
 	do {
-		malloc_mutex_assert_owner(tsdn, &shard->mtx);
 		hugified = hpa_try_hugify(tsdn, shard);
-
+		malloc_mutex_assert_owner(tsdn, &shard->mtx);
 		purged = false;
 		if (hpa_should_purge(tsdn, shard)) {
 			purged = hpa_try_purge(tsdn, shard);
@@ -528,7 +540,7 @@ hpa_try_alloc_batch_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 		edata_list_active_append(results, edata);
 	}
 
-	hpa_do_deferred_work(tsdn, shard);
+	hpa_shard_maybe_do_deferred_work(tsdn, shard, /* forced */ false);
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 	return nsuccess;
 }
@@ -740,7 +752,7 @@ hpa_dalloc_batch(tsdn_t *tsdn, pai_t *self, edata_list_active_t *list) {
 		edata_list_active_remove(list, edata);
 		hpa_dalloc_locked(tsdn, shard, edata);
 	}
-	hpa_do_deferred_work(tsdn, shard);
+	hpa_shard_maybe_do_deferred_work(tsdn, shard, /* forced */ false);
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 }
 
@@ -798,6 +810,26 @@ hpa_shard_destroy(tsdn_t *tsdn, hpa_shard_t *shard) {
 		psset_remove(&shard->psset, ps);
 		pages_unmap(hpdata_addr_get(ps), HUGEPAGE);
 	}
+}
+
+void
+hpa_shard_set_deferral_allowed(tsdn_t *tsdn, hpa_shard_t *shard,
+    bool deferral_allowed) {
+	malloc_mutex_lock(tsdn, &shard->mtx);
+	bool deferral_previously_allowed = shard->opts.deferral_allowed;
+	shard->opts.deferral_allowed = deferral_allowed;
+	if (deferral_previously_allowed && !deferral_allowed) {
+		hpa_shard_maybe_do_deferred_work(tsdn, shard,
+		    /* forced */ true);
+	}
+	malloc_mutex_unlock(tsdn, &shard->mtx);
+}
+
+void
+hpa_shard_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard) {
+	malloc_mutex_lock(tsdn, &shard->mtx);
+	hpa_shard_maybe_do_deferred_work(tsdn, shard, /* forced */ true);
+	malloc_mutex_unlock(tsdn, &shard->mtx);
 }
 
 void

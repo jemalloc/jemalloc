@@ -32,6 +32,14 @@ struct hpa_shard_opts_s {
 	 * active_pages.  This may be set to (fxp_t)-1 to disable purging.
 	 */
 	fxp_t dirty_mult;
+
+	/*
+	 * Whether or not the PAI methods are allowed to defer work to a
+	 * subsequent hpa_shard_do_deferred_work() call.  Practically, this
+	 * corresponds to background threads being enabled.  We track this
+	 * ourselves for encapsulation purposes.
+	 */
+	bool deferral_allowed;
 };
 
 #define HPA_SHARD_OPTS_DEFAULT {					\
@@ -42,7 +50,15 @@ struct hpa_shard_opts_s {
 	/* dehugification_threshold */					\
 	HUGEPAGE * 20 / 100,						\
 	/* dirty_mult */						\
-	FXP_INIT_PERCENT(25)						\
+	FXP_INIT_PERCENT(25),						\
+	/*								\
+	 * deferral_allowed						\
+	 * 								\
+	 * Really, this is always set by the arena during creation	\
+	 * or by an hpa_shard_set_deferral_allowed call, so the value	\
+	 * we put here doesn't matter.					\
+	 */								\
+	false								\
 }
 
 #endif /* JEMALLOC_INTERNAL_HPA_OPTS_H */
