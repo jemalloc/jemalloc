@@ -13,6 +13,13 @@ JEMALLOC_DIAGNOSTIC_DISABLE_SPURIOUS
 /* Read-only after initialization. */
 bool opt_background_thread = BACKGROUND_THREAD_DEFAULT;
 size_t opt_max_background_threads = MAX_BACKGROUND_THREAD_LIMIT + 1;
+/*
+ * This is disabled (and set to -1) if the HPA is.  If the HPA is enabled,
+ * malloc_conf initialization sets it to
+ * BACKGROUND_THREAD_HPA_INTERVAL_MAX_DEFAULT_WHEN_ENABLED.
+ */
+ssize_t opt_background_thread_hpa_interval_max_ms =
+    BACKGROUND_THREAD_HPA_INTERVAL_MAX_UNINITIALIZED;
 
 /* Used for thread creation, termination and stats. */
 malloc_mutex_t background_thread_lock;
@@ -209,7 +216,20 @@ arena_decay_compute_purge_interval(tsdn_t *tsdn, arena_t *arena) {
 	i2 = arena_decay_compute_purge_interval_impl(tsdn,
 	    &arena->pa_shard.pac.decay_muzzy, &arena->pa_shard.pac.ecache_muzzy);
 
-	return i1 < i2 ? i1 : i2;
+	uint64_t min_so_far = i1 < i2 ? i1 : i2;
+	if (opt_background_thread_hpa_interval_max_ms >= 0) {
+		uint64_t hpa_interval = 1000 * 1000 *
+		    (uint64_t)opt_background_thread_hpa_interval_max_ms;
+		if (hpa_interval < min_so_far) {
+			if (hpa_interval < BACKGROUND_THREAD_MIN_INTERVAL_NS) {
+				min_so_far = BACKGROUND_THREAD_MIN_INTERVAL_NS;
+			} else {
+				min_so_far = hpa_interval;
+			}
+		}
+	}
+
+	return min_so_far;
 }
 
 static void
@@ -607,16 +627,16 @@ background_threads_enable(tsd_t *tsd) {
 	malloc_mutex_assert_owner(tsd_tsdn(tsd), &background_thread_lock);
 
 	VARIABLE_ARRAY(bool, marked, max_background_threads);
-	unsigned i, nmarked;
-	for (i = 0; i < max_background_threads; i++) {
+	unsigned nmarked;
+	for (unsigned i = 0; i < max_background_threads; i++) {
 		marked[i] = false;
 	}
 	nmarked = 0;
 	/* Thread 0 is required and created at the end. */
 	marked[0] = true;
 	/* Mark the threads we need to create for thread 0. */
-	unsigned n = narenas_total_get();
-	for (i = 1; i < n; i++) {
+	unsigned narenas = narenas_total_get();
+	for (unsigned i = 1; i < narenas; i++) {
 		if (marked[i % max_background_threads] ||
 		    arena_get(tsd_tsdn(tsd), i, false) == NULL) {
 			continue;
@@ -633,7 +653,18 @@ background_threads_enable(tsd_t *tsd) {
 		}
 	}
 
-	return background_thread_create_locked(tsd, 0);
+	bool err = background_thread_create_locked(tsd, 0);
+	if (err) {
+		return true;
+	}
+	for (unsigned i = 0; i < narenas; i++) {
+		arena_t *arena = arena_get(tsd_tsdn(tsd), i, false);
+		if (arena != NULL) {
+			pa_shard_set_deferral_allowed(tsd_tsdn(tsd),
+			    &arena->pa_shard, true);
+		}
+	}
+	return false;
 }
 
 bool
@@ -647,6 +678,14 @@ background_threads_disable(tsd_t *tsd) {
 		return true;
 	}
 	assert(n_background_threads == 0);
+	unsigned narenas = narenas_total_get();
+	for (unsigned i = 0; i < narenas; i++) {
+		arena_t *arena = arena_get(tsd_tsdn(tsd), i, false);
+		if (arena != NULL) {
+			pa_shard_set_deferral_allowed(tsd_tsdn(tsd),
+			    &arena->pa_shard, false);
+		}
+	}
 
 	return false;
 }

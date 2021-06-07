@@ -465,6 +465,7 @@ arena_decay(tsdn_t *tsdn, arena_t *arena, bool is_background_thread, bool all) {
 void
 arena_do_deferred_work(tsdn_t *tsdn, arena_t *arena) {
 	arena_decay(tsdn, arena, true, false);
+	pa_shard_do_deferred_work(tsdn, &arena->pa_shard);
 }
 
 void

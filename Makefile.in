@@ -221,6 +221,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/hash.c \
 	$(srcroot)test/unit/hook.c \
 	$(srcroot)test/unit/hpa.c \
+	$(srcroot)test/unit/hpa_background_thread.c \
 	$(srcroot)test/unit/hpa_central.c \
 	$(srcroot)test/unit/hpdata.c \
 	$(srcroot)test/unit/huge.c \
