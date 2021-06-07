@@ -172,10 +172,20 @@ bool pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
  */
 void pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
     bool *generated_dirty);
-
 bool pa_decay_ms_set(tsdn_t *tsdn, pa_shard_t *shard, extent_state_t state,
     ssize_t decay_ms, pac_purge_eagerness_t eagerness);
 ssize_t pa_decay_ms_get(pa_shard_t *shard, extent_state_t state);
+
+/*
+ * Do deferred work on this PA shard.
+ *
+ * Morally, this should do both PAC decay and the HPA deferred work.  For now,
+ * though, the arena, background thread, and PAC modules are tightly interwoven
+ * in a way that's tricky to extricate, so we only do the HPA-specific parts.
+ */
+void pa_shard_set_deferral_allowed(tsdn_t *tsdn, pa_shard_t *shard,
+    bool deferral_allowed);
+void pa_shard_do_deferred_work(tsdn_t *tsdn, pa_shard_t *shard);
 
 /******************************************************************************/
 /*

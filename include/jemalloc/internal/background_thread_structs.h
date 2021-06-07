@@ -11,6 +11,14 @@
 #define MAX_BACKGROUND_THREAD_LIMIT MALLOCX_ARENA_LIMIT
 #define DEFAULT_NUM_BACKGROUND_THREAD 4
 
+/*
+ * These exist only as a transitional state.  Eventually, deferral should be
+ * part of the PAI, and each implementation can indicate wait times with more
+ * specificity.
+ */
+#define BACKGROUND_THREAD_HPA_INTERVAL_MAX_UNINITIALIZED (-2)
+#define BACKGROUND_THREAD_HPA_INTERVAL_MAX_DEFAULT_WHEN_ENABLED 5000
+
 typedef enum {
 	background_thread_stopped,
 	background_thread_started,
