@@ -1574,8 +1574,8 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	if (opt_hpa && ehooks_are_default(base_ehooks_get(base)) && ind != 0) {
 		hpa_shard_opts_t hpa_shard_opts = opt_hpa_opts;
 		hpa_shard_opts.deferral_allowed = background_thread_enabled();
-		if (pa_shard_enable_hpa(tsdn, &arena->pa_shard, &hpa_shard_opts,
-		    &opt_hpa_sec_opts)) {
+		if (pa_shard_enable_hpa(tsdn, &arena->pa_shard,
+		    &hpa_hooks_default, &hpa_shard_opts, &opt_hpa_sec_opts)) {
 			goto label_error;
 		}
 	}

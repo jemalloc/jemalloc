@@ -50,9 +50,10 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, emap_t *emap, base_t *base,
 
 bool
 pa_shard_enable_hpa(tsdn_t *tsdn, pa_shard_t *shard,
-    const hpa_shard_opts_t *hpa_opts, const sec_opts_t *hpa_sec_opts) {
+    const hpa_hooks_t *hpa_hooks, const hpa_shard_opts_t *hpa_opts,
+    const sec_opts_t *hpa_sec_opts) {
 	if (hpa_shard_init(&shard->hpa_shard, shard->emap, shard->base,
-	    &shard->edata_cache, shard->ind, hpa_opts)) {
+	    &shard->edata_cache, shard->ind, hpa_hooks, hpa_opts)) {
 		return true;
 	}
 	if (sec_init(tsdn, &shard->hpa_sec, shard->base, &shard->hpa_shard.pai,

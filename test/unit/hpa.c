@@ -42,7 +42,7 @@ create_test_data() {
 
 	err = hpa_shard_init(&test_data->shard, &test_data->emap,
 	    test_data->base, &test_data->shard_edata_cache, SHARD_IND,
-	    &opts);
+	    &hpa_hooks_default, &opts);
 	assert_false(err, "");
 
 	return (hpa_shard_t *)test_data;
