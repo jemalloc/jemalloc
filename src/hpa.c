@@ -52,7 +52,8 @@ hpa_supported() {
 
 bool
 hpa_shard_init(hpa_shard_t *shard, emap_t *emap, base_t *base,
-    edata_cache_t *edata_cache, unsigned ind, const hpa_shard_opts_t *opts) {
+    edata_cache_t *edata_cache, unsigned ind,
+    const hpa_hooks_t *hooks, const hpa_shard_opts_t *opts) {
 	/* malloc_conf processing should have filtered out these cases. */
 	assert(hpa_supported());
 	bool err;
@@ -69,6 +70,7 @@ hpa_shard_init(hpa_shard_t *shard, emap_t *emap, base_t *base,
 
 	assert(edata_cache != NULL);
 	shard->base = base;
+	shard->hooks = *hooks;
 	edata_cache_small_init(&shard->ecs, edata_cache);
 	psset_init(&shard->psset);
 	shard->age_counter = 0;
@@ -251,20 +253,14 @@ hpa_grow(tsdn_t *tsdn, hpa_shard_t *shard) {
 	 * allocate an edata_t for the new psset.
 	 */
 	if (shard->eden == NULL) {
-		/*
-		 * During development, we're primarily concerned with systems
-		 * with overcommit.  Eventually, we should be more careful here.
-		 */
-		bool commit = true;
 		/* Allocate address space, bailing if we fail. */
-		void *new_eden = pages_map(NULL, HPA_EDEN_SIZE, HUGEPAGE,
-		    &commit);
+		void *new_eden = shard->hooks.map(HPA_EDEN_SIZE);
 		if (new_eden == NULL) {
 			return NULL;
 		}
 		ps = hpa_alloc_ps(tsdn, shard);
 		if (ps == NULL) {
-			pages_unmap(new_eden, HPA_EDEN_SIZE);
+			shard->hooks.unmap(new_eden, HPA_EDEN_SIZE);
 			return NULL;
 		}
 		shard->eden = new_eden;
@@ -335,7 +331,7 @@ hpa_try_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
 
 	/* Actually do the purging, now that the lock is dropped. */
 	if (dehugify) {
-		pages_nohuge(hpdata_addr_get(to_purge), HUGEPAGE);
+		shard->hooks.dehugify(hpdata_addr_get(to_purge), HUGEPAGE);
 	}
 	size_t total_purged = 0;
 	uint64_t purges_this_pass = 0;
@@ -346,7 +342,7 @@ hpa_try_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
 		total_purged += purge_size;
 		assert(total_purged <= HUGEPAGE);
 		purges_this_pass++;
-		pages_purge_forced(purge_addr, purge_size);
+		shard->hooks.purge(purge_addr, purge_size);
 	}
 
 	malloc_mutex_lock(tsdn, &shard->mtx);
@@ -404,15 +400,7 @@ hpa_try_hugify(tsdn_t *tsdn, hpa_shard_t *shard) {
 
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 
-	bool err = pages_huge(hpdata_addr_get(to_hugify),
-	    HUGEPAGE);
-	/*
-	 * It's not clear what we could do in case of error; we
-	 * might get into situations where we loop trying to
-	 * hugify some page and failing over and over again.
-	 * Just eat the error and pretend we were successful.
-	 */
-	(void)err;
+	shard->hooks.hugify(hpdata_addr_get(to_hugify), HUGEPAGE);
 
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	shard->stats.nhugifies++;
@@ -808,7 +796,7 @@ hpa_shard_destroy(tsdn_t *tsdn, hpa_shard_t *shard) {
 		/* There should be no allocations anywhere. */
 		assert(hpdata_empty(ps));
 		psset_remove(&shard->psset, ps);
-		pages_unmap(hpdata_addr_get(ps), HUGEPAGE);
+		shard->hooks.unmap(hpdata_addr_get(ps), HUGEPAGE);
 	}
 }
 

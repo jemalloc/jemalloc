@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_HPA_H
 
 #include "jemalloc/internal/exp_grow.h"
+#include "jemalloc/internal/hpa_hooks.h"
 #include "jemalloc/internal/hpa_opts.h"
 #include "jemalloc/internal/pai.h"
 #include "jemalloc/internal/psset.h"
@@ -57,6 +58,14 @@ struct hpa_shard_s {
 	base_t *base;
 
 	/*
+	 * The HPA hooks for this shard.  Eventually, once we have the
+	 * hpa_central_t back, these should live there (since it doesn't make
+	 * sense for different shards on the same hpa_central_t to have
+	 * different hooks).
+	 */
+	hpa_hooks_t hooks;
+
+	/*
 	 * This edata cache is the one we use when allocating a small extent
 	 * from a pageslab.  The pageslab itself comes from the centralized
 	 * allocator, and so will use its edata_cache.
@@ -109,7 +118,8 @@ struct hpa_shard_s {
  */
 bool hpa_supported();
 bool hpa_shard_init(hpa_shard_t *shard, emap_t *emap, base_t *base,
-    edata_cache_t *edata_cache, unsigned ind, const hpa_shard_opts_t *opts);
+    edata_cache_t *edata_cache, unsigned ind, const hpa_hooks_t *hooks,
+    const hpa_shard_opts_t *opts);
 
 void hpa_shard_stats_accum(hpa_shard_stats_t *dst, hpa_shard_stats_t *src);
 void hpa_shard_stats_merge(tsdn_t *tsdn, hpa_shard_t *shard,

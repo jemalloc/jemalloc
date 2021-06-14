@@ -122,6 +122,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/hook.c \
 	$(srcroot)src/hpa.c \
 	$(srcroot)src/hpa_central.c \
+	$(srcroot)src/hpa_hooks.c \
 	$(srcroot)src/hpdata.c \
 	$(srcroot)src/inspect.c \
 	$(srcroot)src/large.c \

@@ -1800,7 +1800,7 @@ malloc_init_hard_a0_locked() {
 		hpa_shard_opts_t hpa_shard_opts = opt_hpa_opts;
 		hpa_shard_opts.deferral_allowed = background_thread_enabled();
 		if (pa_shard_enable_hpa(TSDN_NULL, &a0->pa_shard,
-		    &hpa_shard_opts, &opt_hpa_sec_opts)) {
+		    &hpa_hooks_default, &hpa_shard_opts, &opt_hpa_sec_opts)) {
 			return true;
 		}
 	}
