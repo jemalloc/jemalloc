@@ -8,6 +8,7 @@ static void hpa_hooks_unmap(void *ptr, size_t size);
 static void hpa_hooks_purge(void *ptr, size_t size);
 static void hpa_hooks_hugify(void *ptr, size_t size);
 static void hpa_hooks_dehugify(void *ptr, size_t size);
+static void hpa_hooks_curtime(nstime_t *r_nstime);
 
 hpa_hooks_t hpa_hooks_default = {
 	&hpa_hooks_map,
@@ -15,6 +16,7 @@ hpa_hooks_t hpa_hooks_default = {
 	&hpa_hooks_purge,
 	&hpa_hooks_hugify,
 	&hpa_hooks_dehugify,
+	&hpa_hooks_curtime,
 };
 
 static void *
@@ -43,4 +45,9 @@ static void
 hpa_hooks_dehugify(void *ptr, size_t size) {
 	bool err = pages_nohuge(ptr, size);
 	(void)err;
+}
+
+static void
+hpa_hooks_curtime(nstime_t *r_nstime) {
+	nstime_update(r_nstime);
 }

@@ -17,16 +17,13 @@ struct hpa_shard_opts_s {
 	 * any allocation request.
 	 */
 	size_t slab_max_alloc;
+
 	/*
 	 * When the number of active bytes in a hugepage is >=
 	 * hugification_threshold, we force hugify it.
 	 */
 	size_t hugification_threshold;
-	/*
-	 * When the number of dirty bytes in a hugepage is >=
-	 * dehugification_threshold, we force dehugify it.
-	 */
-	size_t dehugification_threshold;
+
 	/*
 	 * The HPA purges whenever the number of pages exceeds dirty_mult *
 	 * active_pages.  This may be set to (fxp_t)-1 to disable purging.
@@ -40,6 +37,12 @@ struct hpa_shard_opts_s {
 	 * ourselves for encapsulation purposes.
 	 */
 	bool deferral_allowed;
+
+	/*
+	 * How long a hugepage has to be a hugification candidate before it will
+	 * actually get hugified.
+	 */
+	uint64_t hugify_delay_ms;
 };
 
 #define HPA_SHARD_OPTS_DEFAULT {					\
@@ -47,8 +50,6 @@ struct hpa_shard_opts_s {
 	64 * 1024,							\
 	/* hugification_threshold */					\
 	HUGEPAGE * 95 / 100,						\
-	/* dehugification_threshold */					\
-	HUGEPAGE * 20 / 100,						\
 	/* dirty_mult */						\
 	FXP_INIT_PERCENT(25),						\
 	/*								\
@@ -58,7 +59,9 @@ struct hpa_shard_opts_s {
 	 * or by an hpa_shard_set_deferral_allowed call, so the value	\
 	 * we put here doesn't matter.					\
 	 */								\
-	false								\
+	false,								\
+	/* hugify_delay_ms */						\
+	10 * 1000							\
 }
 
 #endif /* JEMALLOC_INTERNAL_HPA_OPTS_H */

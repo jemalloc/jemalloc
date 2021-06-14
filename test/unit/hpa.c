@@ -19,8 +19,21 @@ struct test_data_s {
 	emap_t emap;
 };
 
+static hpa_shard_opts_t test_hpa_shard_opts_default = {
+	/* slab_max_alloc */
+	ALLOC_MAX,
+	/* hugification threshold */
+	HUGEPAGE,
+	/* dirty_mult */
+	FXP_INIT_PERCENT(25),
+	/* deferral_allowed */
+	false,
+	/* hugify_delay_ms */
+	10 * 1000,
+};
+
 static hpa_shard_t *
-create_test_data() {
+create_test_data(hpa_hooks_t *hooks, hpa_shard_opts_t *opts) {
 	bool err;
 	base_t *base = base_new(TSDN_NULL, /* ind */ SHARD_IND,
 	    &ehooks_default_extent_hooks);
@@ -37,12 +50,9 @@ create_test_data() {
 	err = emap_init(&test_data->emap, test_data->base, /* zeroed */ false);
 	assert_false(err, "");
 
-	hpa_shard_opts_t opts = HPA_SHARD_OPTS_DEFAULT;
-	opts.slab_max_alloc = ALLOC_MAX;
-
 	err = hpa_shard_init(&test_data->shard, &test_data->emap,
 	    test_data->base, &test_data->shard_edata_cache, SHARD_IND,
-	    &hpa_hooks_default, &opts);
+	    hooks, opts);
 	assert_false(err, "");
 
 	return (hpa_shard_t *)test_data;
@@ -58,7 +68,8 @@ destroy_test_data(hpa_shard_t *shard) {
 TEST_BEGIN(test_alloc_max) {
 	test_skip_if(!hpa_supported());
 
-	hpa_shard_t *shard = create_test_data();
+	hpa_shard_t *shard = create_test_data(&hpa_hooks_default,
+	    &test_hpa_shard_opts_default);
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 
 	edata_t *edata;
@@ -134,7 +145,8 @@ node_remove(mem_tree_t *tree, edata_t *edata) {
 TEST_BEGIN(test_stress) {
 	test_skip_if(!hpa_supported());
 
-	hpa_shard_t *shard = create_test_data();
+	hpa_shard_t *shard = create_test_data(&hpa_hooks_default,
+	    &test_hpa_shard_opts_default);
 
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 
@@ -224,7 +236,8 @@ expect_contiguous(edata_t **edatas, size_t nedatas) {
 TEST_BEGIN(test_alloc_dalloc_batch) {
 	test_skip_if(!hpa_supported());
 
-	hpa_shard_t *shard = create_test_data();
+	hpa_shard_t *shard = create_test_data(&hpa_hooks_default,
+	    &test_hpa_shard_opts_default);
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 
 	enum {NALLOCS = 8};
@@ -282,6 +295,117 @@ TEST_BEGIN(test_alloc_dalloc_batch) {
 }
 TEST_END
 
+static uintptr_t defer_bump_ptr = HUGEPAGE * 123;
+static void *
+defer_test_map(size_t size) {
+	void *result = (void *)defer_bump_ptr;
+	defer_bump_ptr += size;
+	return result;
+}
+
+static void
+defer_test_unmap(void *ptr, size_t size) {
+	(void)ptr;
+	(void)size;
+}
+
+static bool defer_purge_called = false;
+static void
+defer_test_purge(void *ptr, size_t size) {
+	(void)ptr;
+	(void)size;
+	defer_purge_called = true;
+}
+
+static bool defer_hugify_called = false;
+static void
+defer_test_hugify(void *ptr, size_t size) {
+	defer_hugify_called = true;
+}
+
+static bool defer_dehugify_called = false;
+static void
+defer_test_dehugify(void *ptr, size_t size) {
+	defer_dehugify_called = true;
+}
+
+static nstime_t defer_curtime;
+static void
+defer_test_curtime(nstime_t *r_time) {
+	*r_time = defer_curtime;
+}
+
+TEST_BEGIN(test_defer_time) {
+	test_skip_if(!hpa_supported());
+
+	hpa_hooks_t hooks;
+	hooks.map = &defer_test_map;
+	hooks.unmap = &defer_test_unmap;
+	hooks.purge = &defer_test_purge;
+	hooks.hugify = &defer_test_hugify;
+	hooks.dehugify = &defer_test_dehugify;
+	hooks.curtime = &defer_test_curtime;
+
+	hpa_shard_opts_t opts = test_hpa_shard_opts_default;
+	opts.deferral_allowed = true;
+
+	hpa_shard_t *shard = create_test_data(&hooks, &opts);
+
+	nstime_init(&defer_curtime, 0);
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+	edata_t *edatas[HUGEPAGE_PAGES];
+	for (int i = 0; i < (int)HUGEPAGE_PAGES; i++) {
+		edatas[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false);
+		expect_ptr_not_null(edatas[i], "Unexpected null edata");
+	}
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_false(defer_hugify_called, "Hugified too early");
+
+	/* Hugification delay is set to 10 seconds in options. */
+	nstime_init2(&defer_curtime, 11, 0);
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_true(defer_hugify_called, "Failed to hugify");
+
+	defer_hugify_called = false;
+
+	/* Purge.  Recall that dirty_mult is .25. */
+	for (int i = 0; i < (int)HUGEPAGE_PAGES / 2; i++) {
+		pai_dalloc(tsdn, &shard->pai, edatas[i]);
+	}
+
+	hpa_shard_do_deferred_work(tsdn, shard);
+
+	expect_false(defer_hugify_called, "Hugified too early");
+	expect_true(defer_dehugify_called, "Should have dehugified");
+	expect_true(defer_purge_called, "Should have purged");
+	defer_hugify_called = false;
+	defer_dehugify_called = false;
+	defer_purge_called = false;
+
+	/*
+	 * Refill the page.  We now meet the hugification threshold; we should
+	 * be marked for pending hugify.
+	 */
+	for (int i = 0; i < (int)HUGEPAGE_PAGES / 2; i++) {
+		edatas[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false);
+		expect_ptr_not_null(edatas[i], "Unexpected null edata");
+	}
+	/*
+	 * We would be ineligible for hugification, had we not already met the
+	 * threshold before dipping below it.
+	 */
+	pai_dalloc(tsdn, &shard->pai, edatas[0]);
+	/* Wait for the threshold again. */
+	nstime_init2(&defer_curtime, 22, 0);
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_true(defer_hugify_called, "Hugified too early");
+	expect_false(defer_dehugify_called, "Unexpected dehugify");
+	expect_false(defer_purge_called, "Unexpected purge");
+
+	destroy_test_data(shard);
+}
+TEST_END
+
 int
 main(void) {
 	/*
@@ -299,5 +423,6 @@ main(void) {
 	return test_no_reentrancy(
 	    test_alloc_max,
 	    test_stress,
-	    test_alloc_dalloc_batch);
+	    test_alloc_dalloc_batch,
+	    test_defer_time);
 }
