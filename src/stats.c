@@ -1376,7 +1376,7 @@ stats_general_print(emitter_t *emitter) {
 	uint64_t u64v;
 	int64_t i64v;
 	ssize_t ssv, ssv2;
-	size_t sv, bsz, usz, u32sz, i64sz, ssz, sssz, cpsz;
+	size_t sv, bsz, usz, u32sz, u64sz, i64sz, ssz, sssz, cpsz;
 
 	bsz = sizeof(bool);
 	usz = sizeof(unsigned);
@@ -1385,6 +1385,7 @@ stats_general_print(emitter_t *emitter) {
 	cpsz = sizeof(const char *);
 	u32sz = sizeof(uint32_t);
 	i64sz = sizeof(int64_t);
+	u64sz = sizeof(uint64_t);
 
 	CTL_GET("version", &cpv, const char *);
 	emitter_kv(emitter, "version", "Version", emitter_type_string, &cpv);
@@ -1442,6 +1443,8 @@ stats_general_print(emitter_t *emitter) {
 
 #define OPT_WRITE_INT64(name)						\
 	OPT_WRITE(name, i64v, i64sz, emitter_type_int64)
+#define OPT_WRITE_UINT64(name)						\
+	OPT_WRITE(name, u64v, u64sz, emitter_type_uint64)
 
 #define OPT_WRITE_SIZE_T(name)						\
 	OPT_WRITE(name, sv, ssz, emitter_type_size)
@@ -1468,7 +1471,7 @@ stats_general_print(emitter_t *emitter) {
 	OPT_WRITE_BOOL("hpa")
 	OPT_WRITE_SIZE_T("hpa_slab_max_alloc")
 	OPT_WRITE_SIZE_T("hpa_hugification_threshold")
-	OPT_WRITE_SIZE_T("hpa_dehugification_threshold")
+	OPT_WRITE_UINT64("hpa_hugify_delay_ms")
 	if (je_mallctl("opt.hpa_dirty_mult", (void *)&u32v, &u32sz, NULL, 0)
 	    == 0) {
 		/*

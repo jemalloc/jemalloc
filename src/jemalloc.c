@@ -1145,6 +1145,9 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 #define CONF_HANDLE_INT64_T(o, n, min, max, check_min, check_max, clip)	\
 			CONF_HANDLE_T_SIGNED(int64_t, o, n, min, max,	\
 			    check_min, check_max, clip)
+#define CONF_HANDLE_UINT64_T(o, n, min, max, check_min, check_max, clip)\
+			CONF_HANDLE_T_U(uint64_t, o, n, min, max,	\
+			    check_min, check_max, clip)
 #define CONF_HANDLE_SSIZE_T(o, n, min, max)				\
 			CONF_HANDLE_T_SIGNED(ssize_t, o, n, min, max,	\
 			    CONF_CHECK_MIN, CONF_CHECK_MAX, false)
@@ -1441,26 +1444,9 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				CONF_CONTINUE;
 			}
 
-			/* And the same for the dehugification_threhsold. */
 			CONF_HANDLE_SIZE_T(
-			    opt_hpa_opts.dehugification_threshold,
-			    "hpa_dehugification_threshold", PAGE, HUGEPAGE,
-			    CONF_CHECK_MIN, CONF_CHECK_MAX, true);
-			if (CONF_MATCH("hpa_dehugification_threshold_ratio")) {
-				fxp_t ratio;
-				char *end;
-				bool err = fxp_parse(&ratio, v,
-				    &end);
-				if (err || (size_t)(end - v) != vlen
-				    || ratio > FXP_INIT_INT(1)) {
-					CONF_ERROR("Invalid conf value",
-					    k, klen, v, vlen);
-				} else {
-					opt_hpa_opts.dehugification_threshold =
-					    fxp_mul_frac(HUGEPAGE, ratio);
-				}
-				CONF_CONTINUE;
-			}
+			    opt_hpa_opts.hugify_delay_ms, "hpa_hugify_delay_ms",
+			    0, 0, CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
 
 			if (CONF_MATCH("hpa_dirty_mult")) {
 				if (CONF_MATCH_VALUE("-1")) {

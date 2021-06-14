@@ -198,7 +198,7 @@ hpa_update_purge_hugify_eligibility(tsdn_t *tsdn, hpa_shard_t *shard,
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
 	if (hpdata_changing_state_get(ps)) {
 		hpdata_purge_allowed_set(ps, false);
-		hpdata_hugify_allowed_set(ps, false);
+		hpdata_disallow_hugify(ps);
 		return;
 	}
 	/*
@@ -226,7 +226,24 @@ hpa_update_purge_hugify_eligibility(tsdn_t *tsdn, hpa_shard_t *shard,
 	hpdata_purge_allowed_set(ps, hpdata_ndirty_get(ps) > 0);
 	if (hpa_good_hugification_candidate(shard, ps)
 	    && !hpdata_huge_get(ps)) {
-		hpdata_hugify_allowed_set(ps, true);
+		nstime_t now;
+		shard->hooks.curtime(&now);
+		hpdata_allow_hugify(ps, now);
+	}
+	/*
+	 * Once a hugepage has become eligible for hugification, we don't mark
+	 * it as ineligible just because it stops meeting the criteria (this
+	 * could lead to situations where a hugepage that spends most of its
+	 * time meeting the criteria never quite getting hugified if there are
+	 * intervening deallocations).  The idea is that the hugification delay
+	 * will allow them to get purged, reseting their "hugify-allowed" bit.
+	 * If they don't get purged, then the hugification isn't hurting and
+	 * might help.  As an exception, we don't hugify hugepages that are now
+	 * empty; it definitely doesn't help there until the hugepage gets
+	 * reused, which is likely not for a while.
+	 */
+	if (hpdata_nactive_get(ps) == 0) {
+		hpdata_disallow_hugify(ps);
 	}
 }
 
@@ -309,7 +326,7 @@ hpa_try_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
 	assert(hpdata_alloc_allowed_get(to_purge));
 	hpdata_mid_purge_set(to_purge, true);
 	hpdata_purge_allowed_set(to_purge, false);
-	hpdata_hugify_allowed_set(to_purge, false);
+	hpdata_disallow_hugify(to_purge);
 	/*
 	 * Unlike with hugification (where concurrent
 	 * allocations are allowed), concurrent allocation out
@@ -386,6 +403,16 @@ hpa_try_hugify(tsdn_t *tsdn, hpa_shard_t *shard) {
 	assert(hpdata_hugify_allowed_get(to_hugify));
 	assert(!hpdata_changing_state_get(to_hugify));
 
+	/* Make sure that it's been hugifiable for long enough. */
+	nstime_t time_hugify_allowed = hpdata_time_hugify_allowed(to_hugify);
+	nstime_t nstime;
+	shard->hooks.curtime(&nstime);
+	nstime_subtract(&nstime, &time_hugify_allowed);
+	uint64_t millis = nstime_msec(&nstime);
+	if (millis < shard->opts.hugify_delay_ms) {
+		return false;
+	}
+
 	/*
 	 * Don't let anyone else purge or hugify this page while
 	 * we're hugifying it (allocations and deallocations are
@@ -394,7 +421,7 @@ hpa_try_hugify(tsdn_t *tsdn, hpa_shard_t *shard) {
 	psset_update_begin(&shard->psset, to_hugify);
 	hpdata_mid_hugify_set(to_hugify, true);
 	hpdata_purge_allowed_set(to_hugify, false);
-	hpdata_hugify_allowed_set(to_hugify, false);
+	hpdata_disallow_hugify(to_hugify);
 	assert(hpdata_alloc_allowed_get(to_hugify));
 	psset_update_end(&shard->psset, to_hugify);
 
@@ -421,9 +448,6 @@ hpa_try_hugify(tsdn_t *tsdn, hpa_shard_t *shard) {
 static void
 hpa_shard_maybe_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard,
     bool forced) {
-	bool hugified;
-	bool purged;
-	size_t nloop = 0;
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
 	if (!forced && shard->opts.deferral_allowed) {
 		return;
@@ -433,16 +457,29 @@ hpa_shard_maybe_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard,
 	 * be done.  Otherwise, bound latency to not be *too* bad by doing at
 	 * most a small fixed number of operations.
 	 */
-	size_t maxloops = (forced ? (size_t)-1 : 8);
+	bool hugified = false;
+	bool purged = false;
+	size_t max_ops = (forced ? (size_t)-1 : 16);
+	size_t nops = 0;
 	do {
-		hugified = hpa_try_hugify(tsdn, shard);
-		malloc_mutex_assert_owner(tsdn, &shard->mtx);
+		/*
+		 * Always purge before hugifying, to make sure we get some
+		 * ability to hit our quiescence targets.
+		 */
 		purged = false;
-		if (hpa_should_purge(tsdn, shard)) {
+		while (hpa_should_purge(tsdn, shard) && nops < max_ops) {
 			purged = hpa_try_purge(tsdn, shard);
+			if (purged) {
+				nops++;
+			}
+		}
+		hugified = hpa_try_hugify(tsdn, shard);
+		if (hugified) {
+			nops++;
 		}
 		malloc_mutex_assert_owner(tsdn, &shard->mtx);
-	} while ((hugified || purged) && nloop++ < maxloops);
+		malloc_mutex_assert_owner(tsdn, &shard->mtx);
+	} while ((hugified || purged) && nops < max_ops);
 }
 
 static edata_t *

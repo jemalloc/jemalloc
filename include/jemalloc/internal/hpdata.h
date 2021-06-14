@@ -61,6 +61,8 @@ struct hpdata_s {
 
 	/* And with hugifying. */
 	bool h_hugify_allowed;
+	/* When we became a hugification candidate. */
+	nstime_t h_time_hugify_allowed;
 	bool h_in_psset_hugify_container;
 
 	/* Whether or not a purge or hugify is currently happening. */
@@ -175,8 +177,8 @@ hpdata_purge_allowed_get(const hpdata_t *hpdata) {
 
 static inline void
 hpdata_purge_allowed_set(hpdata_t *hpdata, bool purge_allowed) {
-	assert(purge_allowed == false || !hpdata->h_mid_purge);
-	hpdata->h_purge_allowed = purge_allowed;
+       assert(purge_allowed == false || !hpdata->h_mid_purge);
+       hpdata->h_purge_allowed = purge_allowed;
 }
 
 static inline bool
@@ -185,9 +187,20 @@ hpdata_hugify_allowed_get(const hpdata_t *hpdata) {
 }
 
 static inline void
-hpdata_hugify_allowed_set(hpdata_t *hpdata, bool hugify_allowed) {
-	assert(hugify_allowed == false || !hpdata->h_mid_hugify);
-	hpdata->h_hugify_allowed = hugify_allowed;
+hpdata_allow_hugify(hpdata_t *hpdata, nstime_t now) {
+	assert(!hpdata->h_mid_hugify);
+	hpdata->h_hugify_allowed = true;
+	hpdata->h_time_hugify_allowed = now;
+}
+
+static inline nstime_t
+hpdata_time_hugify_allowed(hpdata_t *hpdata) {
+	return hpdata->h_time_hugify_allowed;
+}
+
+static inline void
+hpdata_disallow_hugify(hpdata_t *hpdata) {
+	hpdata->h_hugify_allowed = false;
 }
 
 static inline bool
