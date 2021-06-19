@@ -83,7 +83,7 @@ extent_can_acquire_neighbor(edata_t *edata, rtree_contents_t contents,
 	bool neighbor_is_head = contents.metadata.is_head;
 	if (!extent_neighbor_head_state_mergeable(edata_is_head_get(edata),
 	    neighbor_is_head, forward)) {
-		return NULL;
+		return false;
 	}
 	extent_state_t neighbor_state = contents.metadata.state;
 	if (pai == EXTENT_PAI_PAC) {
