@@ -26,6 +26,7 @@ extern void (*junk_free_callback)(void *ptr, size_t size);
 extern void (*junk_alloc_callback)(void *ptr, size_t size);
 extern bool opt_utrace;
 extern bool opt_xmalloc;
+extern bool opt_experimental_infallible_new;
 extern bool opt_zero;
 extern unsigned opt_narenas;
 extern zero_realloc_action_t opt_zero_realloc_action;

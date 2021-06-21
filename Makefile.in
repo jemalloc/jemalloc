@@ -309,7 +309,9 @@ TESTS_INTEGRATION += \
 endif
 ifeq (@enable_cxx@, 1)
 CPP_SRCS := $(srcroot)src/jemalloc_cpp.cpp
-TESTS_INTEGRATION_CPP := $(srcroot)test/integration/cpp/basic.cpp
+TESTS_INTEGRATION_CPP := $(srcroot)test/integration/cpp/basic.cpp \
+	$(srcroot)test/integration/cpp/infallible_new_true.cpp \
+	$(srcroot)test/integration/cpp/infallible_new_false.cpp
 else
 CPP_SRCS :=
 TESTS_INTEGRATION_CPP :=

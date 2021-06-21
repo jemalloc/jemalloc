@@ -1,4 +1,3 @@
-#include <memory>
 #include "test/jemalloc_test.h"
 
 TEST_BEGIN(test_basic) {

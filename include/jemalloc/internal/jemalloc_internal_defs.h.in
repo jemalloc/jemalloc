@@ -401,6 +401,9 @@
 /* Performs additional safety checks when defined. */
 #undef JEMALLOC_OPT_SAFETY_CHECKS
 
+/* Is C++ support being built? */
+#undef JEMALLOC_ENABLE_CXX
+
 /* Performs additional size checks when defined. */
 #undef JEMALLOC_OPT_SIZE_CHECKS
 

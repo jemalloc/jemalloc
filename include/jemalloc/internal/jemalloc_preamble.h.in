@@ -198,6 +198,15 @@ static const bool config_opt_size_checks =
 #endif
     ;
 
+/* Whether or not the C++ extensions are enabled. */
+static const bool config_enable_cxx =
+#ifdef JEMALLOC_ENABLE_CXX
+    true
+#else
+    false
+#endif
+;
+
 #if defined(_WIN32) || defined(JEMALLOC_HAVE_SCHED_GETCPU)
 /* Currently percpu_arena depends on sched_getcpu. */
 #define JEMALLOC_PERCPU_ARENA
