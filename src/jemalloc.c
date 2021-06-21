@@ -141,6 +141,7 @@ void (*junk_free_callback)(void *ptr, size_t size) = &default_junk_free;
 
 bool	opt_utrace = false;
 bool	opt_xmalloc = false;
+bool	opt_experimental_infallible_new = false;
 bool	opt_zero = false;
 unsigned	opt_narenas = 0;
 fxp_t		opt_narenas_ratio = FXP_INIT_INT(4);
@@ -1307,6 +1308,12 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			if (config_xmalloc) {
 				CONF_HANDLE_BOOL(opt_xmalloc, "xmalloc")
 			}
+			if (config_enable_cxx) {
+				CONF_HANDLE_BOOL(
+				    opt_experimental_infallible_new,
+				    "experimental_infallible_new")
+			}
+
 			CONF_HANDLE_BOOL(opt_tcache, "tcache")
 			CONF_HANDLE_SIZE_T(opt_tcache_max, "tcache_max",
 			    0, TCACHE_MAXCLASS_LIMIT, CONF_DONT_CHECK_MIN,

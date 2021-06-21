@@ -324,6 +324,9 @@ if test "x$enable_cxx" = "x1" ; then
     enable_cxx="0"
   fi
 fi
+if test "x$enable_cxx" = "x1"; then
+  AC_DEFINE([JEMALLOC_ENABLE_CXX], [ ])
+fi
 AC_SUBST([enable_cxx])
 AC_SUBST([CONFIGURE_CXXFLAGS])
 AC_SUBST([SPECIFIED_CXXFLAGS])
