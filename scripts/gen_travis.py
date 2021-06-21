@@ -1,10 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from itertools import combinations
 
 travis_template = """\
 language: generic
-dist: precise
+dist: focal
 
 matrix:
   include:
@@ -30,7 +30,6 @@ script:
 # travis though, we don't test all 2**7 = 128 possible combinations of these;
 # instead, we only test combinations of up to 2 'unusual' settings, under the
 # hope that bugs involving interactions of such settings are rare.
-# Things at once, for C(7, 0) + C(7, 1) + C(7, 2) = 29
 MAX_UNUSUAL_OPTIONS = 2
 
 os_default = 'linux'
@@ -41,7 +40,6 @@ arch_unusual = 'ppc64le'
 
 compilers_default = 'CC=gcc CXX=g++'
 compilers_unusual = 'CC=clang CXX=clang++'
-compilers_ppc_default = 'CC=gcc-8 CXX=g++-8'
 
 compiler_flag_unusuals = ['-m32']
 
@@ -67,7 +65,7 @@ all_unusuals = (
 )
 
 unusual_combinations_to_test = []
-for i in xrange(MAX_UNUSUAL_OPTIONS + 1):
+for i in range(MAX_UNUSUAL_OPTIONS + 1):
     unusual_combinations_to_test += combinations(all_unusuals, i)
 
 gcc_multilib_set = False
@@ -117,24 +115,24 @@ def format_job(combination):
             job += '        apt:\n'
             job += '          packages:\n'
             job += '            - gcc-multilib\n'
+            job += '            - g++-multilib\n'
             gcc_multilib_set = True
 
-    if arch == 'ppc64le':
-        job += '      addons:'
-        if gcc_ppc_set:
-            job += ' *gcc_ppc\n'
-        else:
-            job += ' &gcc_ppc\n'
-            job += '        apt:\n'
-            job += '          packages:\n'
-            job += '            - g++-8\n'
-        # Compilers overwritten for PPC64LE to gcc-8
-        compilers = compilers_ppc_default
-
     # We get some spurious errors when -Warray-bounds is enabled.
+    extra_cflags = ['-Werror', '-Wno-array-bounds']
+    if 'clang' in compilers or os == 'osx':
+        extra_cflags += [
+	    '-Wno-unknown-warning-option',
+	    '-Wno-ignored-attributes'
+	]
+    if os == 'osx':
+        extra_cflags += [
+	    '-Wno-deprecated-declarations',
+	]
     env_string = ('{} COMPILER_FLAGS="{}" CONFIGURE_FLAGS="{}" '
-                'EXTRA_CFLAGS="-Werror -Wno-array-bounds"').format(
-                compilers, " ".join(compiler_flags), " ".join(configure_flags))
+        'EXTRA_CFLAGS="{}"'.format(
+        compilers, ' '.join(compiler_flags), ' '.join(configure_flags),
+        ' '.join(extra_cflags)))
 
     job += '      env: %s\n' % env_string
     return job
@@ -157,16 +155,19 @@ include_rows += '''\
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-debug --enable-experimental-smallocx --enable-stats --enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
 '''
 
+# Does not seem to be working on newer travis machines. Valgrind has long been a
+# pain point; abandon it for now.
 # Valgrind build bots
-include_rows += '''
-    # Valgrind
-    - os: linux
-      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds" JEMALLOC_TEST_PREFIX="valgrind"
-      addons:
-        apt:
-          packages:
-            - valgrind
-'''
+#include_rows += '''
+#    # Valgrind
+#    - os: linux
+#      arch: amd64
+#      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds" JEMALLOC_TEST_PREFIX="valgrind"
+#      addons:
+#        apt:
+#          packages:
+#            - valgrind
+#'''
 
 # To enable valgrind on macosx add:
 #
@@ -176,4 +177,4 @@ include_rows += '''
 #
 # It currently fails due to: https://github.com/jemalloc/jemalloc/issues/1274
 
-print travis_template % include_rows
+print(travis_template % include_rows)

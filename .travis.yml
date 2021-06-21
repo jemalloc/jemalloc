@@ -1,5 +1,5 @@
 language: generic
-dist: precise
+dist: focal
 
 matrix:
   include:
@@ -8,23 +8,20 @@ matrix:
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: osx
       arch: amd64
-      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
     - os: linux
       arch: ppc64le
-      addons: &gcc_ppc
-        apt:
-          packages:
-            - g++-8
-      env: CC=gcc-8 CXX=g++-8 COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
       addons: &gcc_multilib
         apt:
           packages:
             - gcc-multilib
+            - g++-multilib
       env: CC=gcc CXX=g++ COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
@@ -58,132 +55,92 @@ matrix:
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: osx
       arch: amd64
-      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
     - os: osx
       arch: amd64
-      env: CC=gcc CXX=g++ COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
     - os: osx
       arch: amd64
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-debug" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+    - os: osx
+      arch: amd64
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--disable-stats" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+    - os: osx
+      arch: amd64
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--disable-libdl" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+    - os: osx
+      arch: amd64
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-opt-safety-checks" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+    - os: osx
+      arch: amd64
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-lg-page=16" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+    - os: osx
+      arch: amd64
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+    - os: linux
+      arch: ppc64le
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-debug" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-    - os: osx
-      arch: amd64
+    - os: linux
+      arch: ppc64le
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
+      arch: ppc64le
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--disable-stats" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-    - os: osx
-      arch: amd64
+    - os: linux
+      arch: ppc64le
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--disable-libdl" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-    - os: osx
-      arch: amd64
+    - os: linux
+      arch: ppc64le
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-opt-safety-checks" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-    - os: osx
-      arch: amd64
+    - os: linux
+      arch: ppc64le
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-lg-page=16" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-    - os: osx
-      arch: amd64
+    - os: linux
+      arch: ppc64le
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: ppc64le
-      addons: &gcc_ppc
-        apt:
-          packages:
-            - g++-8
-      env: CC=gcc-8 CXX=g++-8 COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-debug" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=dss:primary" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: ppc64le
-      addons: &gcc_ppc
-        apt:
-          packages:
-            - g++-8
-      env: CC=gcc-8 CXX=g++-8 COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: ppc64le
-      addons: &gcc_ppc
-        apt:
-          packages:
-            - g++-8
-      env: CC=gcc-8 CXX=g++-8 COMPILER_FLAGS="" CONFIGURE_FLAGS="--disable-stats" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-    - os: linux
-      arch: ppc64le
-      addons: &gcc_ppc
-        apt:
-          packages:
-            - g++-8
-      env: CC=gcc-8 CXX=g++-8 COMPILER_FLAGS="" CONFIGURE_FLAGS="--disable-libdl" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-    - os: linux
-      arch: ppc64le
-      addons: &gcc_ppc
-        apt:
-          packages:
-            - g++-8
-      env: CC=gcc-8 CXX=g++-8 COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-opt-safety-checks" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-    - os: linux
-      arch: ppc64le
-      addons: &gcc_ppc
-        apt:
-          packages:
-            - g++-8
-      env: CC=gcc-8 CXX=g++-8 COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-lg-page=16" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-    - os: linux
-      arch: ppc64le
-      addons: &gcc_ppc
-        apt:
-          packages:
-            - g++-8
-      env: CC=gcc-8 CXX=g++-8 COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-    - os: linux
-      arch: ppc64le
-      addons: &gcc_ppc
-        apt:
-          packages:
-            - g++-8
-      env: CC=gcc-8 CXX=g++-8 COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=dss:primary" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-    - os: linux
-      arch: ppc64le
-      addons: &gcc_ppc
-        apt:
-          packages:
-            - g++-8
-      env: CC=gcc-8 CXX=g++-8 COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-    - os: linux
-      arch: ppc64le
-      addons: &gcc_ppc
-        apt:
-          packages:
-            - g++-8
-      env: CC=gcc-8 CXX=g++-8 COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
       addons: *gcc_multilib
-      env: CC=clang CXX=clang++ COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=clang CXX=clang++ COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-debug" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-debug" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--disable-stats" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--disable-stats" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--disable-libdl" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--disable-libdl" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-opt-safety-checks" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-opt-safety-checks" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-lg-page=16" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-lg-page=16" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=dss:primary" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=dss:primary" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=clang CXX=clang++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
       addons: *gcc_multilib
@@ -365,14 +322,6 @@ matrix:
     # --enable-expermental-smallocx:
     - os: linux
       env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="--enable-debug --enable-experimental-smallocx --enable-stats --enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-
-    # Valgrind
-    - os: linux
-      env: CC=gcc CXX=g++ COMPILER_FLAGS="" CONFIGURE_FLAGS="" EXTRA_CFLAGS="-Werror -Wno-array-bounds" JEMALLOC_TEST_PREFIX="valgrind"
-      addons:
-        apt:
-          packages:
-            - valgrind
 
 
 before_script:
