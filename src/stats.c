@@ -947,7 +947,7 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	emitter_table_row(emitter, &header_row);
 	emitter_json_array_kv_begin(emitter, "nonfull_slabs");
 	bool in_gap = false;
-	for (pszind_t j = 0; j < PSSET_NPSIZES; j++) {
+	for (pszind_t j = 0; j < PSSET_NPSIZES && j < SC_NPSIZES; j++) {
 		stats_arenas_mib[5] = j;
 
 		CTL_LEAF(stats_arenas_mib, 6, "npageslabs_huge",
