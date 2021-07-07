@@ -87,6 +87,9 @@ def format_job(combination):
       'percpu_arena:percpu' in malloc_conf or 'background_thread:true' \
       in malloc_conf):
         return ""
+    # gcc is just a redirect to clang on OS X. No need to test both.
+    if os == 'osx' and compilers_unusual in combination:
+        return ""
     if len(malloc_conf) > 0:
         configure_flags.append('--with-malloc-conf=' + ",".join(malloc_conf))
 
