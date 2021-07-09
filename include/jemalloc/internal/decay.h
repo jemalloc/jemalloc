@@ -146,4 +146,14 @@ void decay_reinit(decay_t *decay, nstime_t *cur_time, ssize_t decay_ms);
 bool decay_maybe_advance_epoch(decay_t *decay, nstime_t *new_time,
     size_t current_npages);
 
+typedef struct purge_interval_opts_s purge_interval_opts_t;
+struct purge_interval_opts_s {
+	uint64_t min_interval_ns;
+	uint64_t npages_threshold;
+	uint64_t indefinite_sleep;
+};
+
+uint64_t arena_decay_compute_purge_interval(
+    tsdn_t *tsdn, arena_t *arena, const purge_interval_opts_t *opts);
+
 #endif /* JEMALLOC_INTERNAL_DECAY_H */
