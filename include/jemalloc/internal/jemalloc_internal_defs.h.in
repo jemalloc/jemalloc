@@ -312,6 +312,9 @@
  */
 #undef JEMALLOC_MADVISE_NOCORE
 
+/* Defined if mprotect(2) is available. */
+#undef JEMALLOC_HAVE_MPROTECT
+
 /*
  * Defined if transparent huge pages (THPs) are supported via the
  * MADV_[NO]HUGEPAGE arguments to madvise(2), and THP support is enabled.

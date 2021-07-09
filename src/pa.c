@@ -1,6 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/guard.h"
 #include "jemalloc/internal/hpa.h"
 
 static void
@@ -99,12 +100,12 @@ pa_get_pai(pa_shard_t *shard, edata_t *edata) {
 
 edata_t *
 pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
-    bool slab, szind_t szind, bool zero) {
+    bool slab, szind_t szind, bool zero, bool guarded) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
 	edata_t *edata = NULL;
-	if (atomic_load_b(&shard->use_hpa, ATOMIC_RELAXED)) {
+	if (!guarded && atomic_load_b(&shard->use_hpa, ATOMIC_RELAXED)) {
 		edata = pai_alloc(tsdn, &shard->hpa_sec.pai, size, alignment,
 		    zero);
 	}
@@ -113,10 +114,17 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 	 * allocation request.
 	 */
 	if (edata == NULL) {
-		edata = pai_alloc(tsdn, &shard->pac.pai, size, alignment, zero);
+		size_t size_with_guards = size + PAGE_GUARDS_SIZE;
+		edata = pai_alloc(tsdn, &shard->pac.pai, guarded ?
+		    size_with_guards : size, alignment, zero);
 	}
-
 	if (edata != NULL) {
+		if (guarded) {
+			emap_deregister_boundary(tsdn, shard->emap, edata);
+			guard_pages(tsdn, edata, size);
+		}
+		assert(edata_size_get(edata) == size);
+
 		pa_nactive_add(shard, size >> LG_PAGE);
 		emap_remap(tsdn, shard->emap, edata, szind, slab);
 		edata_szind_set(edata, szind);
@@ -124,8 +132,6 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 		if (slab && (size > 2 * PAGE)) {
 			emap_register_interior(tsdn, shard->emap, edata, szind);
 		}
-	}
-	if (edata != NULL) {
 		assert(edata_arena_ind_get(edata) == shard->ind);
 	}
 	return edata;
@@ -137,7 +143,9 @@ pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 	assert(new_size > old_size);
 	assert(edata_size_get(edata) == old_size);
 	assert((new_size & PAGE_MASK) == 0);
-
+	if (edata_guarded_get(edata)) {
+		return true;
+	}
 	size_t expand_amount = new_size - old_size;
 
 	pai_t *pai = pa_get_pai(shard, edata);
@@ -159,6 +167,9 @@ pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 	assert(new_size < old_size);
 	assert(edata_size_get(edata) == old_size);
 	assert((new_size & PAGE_MASK) == 0);
+	if (edata_guarded_get(edata)) {
+		return true;
+	}
 	size_t shrink_amount = old_size - new_size;
 
 	*generated_dirty = false;
@@ -186,6 +197,14 @@ pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
 	edata_addr_set(edata, edata_base_get(edata));
 	edata_szind_set(edata, SC_NSIZES);
 	pa_nactive_sub(shard, edata_size_get(edata) >> LG_PAGE);
+	if (edata_guarded_get(edata)) {
+		/* Remove the inner boundary which no longer exists. */
+		emap_deregister_boundary(tsdn, shard->emap, edata);
+		unguard_pages(tsdn, edata);
+		/* Then re-register the outer boundary including the guards. */
+		emap_register_boundary(tsdn, shard->emap, edata, SC_NSIZES,
+		    /* slab */ false);
+	}
 	pai_t *pai = pa_get_pai(shard, edata);
 	pai_dalloc(tsdn, pai, edata);
 	*generated_dirty = (edata_pai_get(edata) == EXTENT_PAI_PAC);

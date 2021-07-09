@@ -35,6 +35,10 @@ extern const char *zero_realloc_mode_names[];
 extern atomic_zu_t zero_realloc_count;
 extern bool opt_cache_oblivious;
 
+extern bool opt_san;
+extern size_t opt_san_guard_large_nextents;
+extern size_t opt_san_guard_small_nextents;
+
 /* Number of CPUs. */
 extern unsigned ncpus;
 

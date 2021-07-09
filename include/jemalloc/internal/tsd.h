@@ -73,6 +73,8 @@ typedef ql_elm(tsd_t) tsd_link_t;
     O(peak_dalloc_event_wait,	uint64_t,	uint64_t)		\
     O(prof_tdata,		prof_tdata_t *,		prof_tdata_t *)	\
     O(prng_state,		uint64_t,		uint64_t)	\
+    O(san_guard_small_nextent,	uint64_t,		uint64_t)	\
+    O(san_guard_large_nextent,	uint64_t,		uint64_t)	\
     O(iarena,			arena_t *,		arena_t *)	\
     O(arena,			arena_t *,		arena_t *)	\
     O(arena_decay_ticker,	ticker_geom_t,		ticker_geom_t)	\
@@ -103,6 +105,8 @@ typedef ql_elm(tsd_t) tsd_link_t;
     /* peak_dalloc_event_wait */	0,				\
     /* prof_tdata */		NULL,					\
     /* prng_state */		0,					\
+    /* san_guard_small_nextent */	0,				\
+    /* san_guard_large_nextent */	0,				\
     /* iarena */		NULL,					\
     /* arena */			NULL,					\
     /* arena_decay_ticker */						\
