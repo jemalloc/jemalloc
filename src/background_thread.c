@@ -97,120 +97,6 @@ set_current_thread_affinity(int cpu) {
 /* Minimal sleep interval 100 ms. */
 #define BACKGROUND_THREAD_MIN_INTERVAL_NS (BILLION / 10)
 
-static inline size_t
-decay_npurge_after_interval(decay_t *decay, size_t interval) {
-	size_t i;
-	uint64_t sum = 0;
-	for (i = 0; i < interval; i++) {
-		sum += decay->backlog[i] * h_steps[i];
-	}
-	for (; i < SMOOTHSTEP_NSTEPS; i++) {
-		sum += decay->backlog[i] * (h_steps[i] - h_steps[i - interval]);
-	}
-
-	return (size_t)(sum >> SMOOTHSTEP_BFP);
-}
-
-static uint64_t
-arena_decay_compute_purge_interval_impl(tsdn_t *tsdn, decay_t *decay,
-    ecache_t *ecache) {
-	if (malloc_mutex_trylock(tsdn, &decay->mtx)) {
-		/* Use minimal interval if decay is contended. */
-		return BACKGROUND_THREAD_MIN_INTERVAL_NS;
-	}
-
-	uint64_t interval;
-	ssize_t decay_time = decay_ms_read(decay);
-	if (decay_time <= 0) {
-		/* Purging is eagerly done or disabled currently. */
-		interval = BACKGROUND_THREAD_INDEFINITE_SLEEP;
-		goto label_done;
-	}
-
-	uint64_t decay_interval_ns = decay_epoch_duration_ns(decay);
-	assert(decay_interval_ns > 0);
-	size_t npages = ecache_npages_get(ecache);
-	if (npages == 0) {
-		unsigned i;
-		for (i = 0; i < SMOOTHSTEP_NSTEPS; i++) {
-			if (decay->backlog[i] > 0) {
-				break;
-			}
-		}
-		if (i == SMOOTHSTEP_NSTEPS) {
-			/* No dirty pages recorded.  Sleep indefinitely. */
-			interval = BACKGROUND_THREAD_INDEFINITE_SLEEP;
-			goto label_done;
-		}
-	}
-	if (npages <= BACKGROUND_THREAD_NPAGES_THRESHOLD) {
-		/* Use max interval. */
-		interval = decay_interval_ns * SMOOTHSTEP_NSTEPS;
-		goto label_done;
-	}
-
-	size_t lb = BACKGROUND_THREAD_MIN_INTERVAL_NS / decay_interval_ns;
-	size_t ub = SMOOTHSTEP_NSTEPS;
-	/* Minimal 2 intervals to ensure reaching next epoch deadline. */
-	lb = (lb < 2) ? 2 : lb;
-	if ((decay_interval_ns * ub <= BACKGROUND_THREAD_MIN_INTERVAL_NS) ||
-	    (lb + 2 > ub)) {
-		interval = BACKGROUND_THREAD_MIN_INTERVAL_NS;
-		goto label_done;
-	}
-
-	assert(lb + 2 <= ub);
-	size_t npurge_lb, npurge_ub;
-	npurge_lb = decay_npurge_after_interval(decay, lb);
-	if (npurge_lb > BACKGROUND_THREAD_NPAGES_THRESHOLD) {
-		interval = decay_interval_ns * lb;
-		goto label_done;
-	}
-	npurge_ub = decay_npurge_after_interval(decay, ub);
-	if (npurge_ub < BACKGROUND_THREAD_NPAGES_THRESHOLD) {
-		interval = decay_interval_ns * ub;
-		goto label_done;
-	}
-
-	unsigned n_search = 0;
-	size_t target, npurge;
-	while ((npurge_lb + BACKGROUND_THREAD_NPAGES_THRESHOLD < npurge_ub)
-	    && (lb + 2 < ub)) {
-		target = (lb + ub) / 2;
-		npurge = decay_npurge_after_interval(decay, target);
-		if (npurge > BACKGROUND_THREAD_NPAGES_THRESHOLD) {
-			ub = target;
-			npurge_ub = npurge;
-		} else {
-			lb = target;
-			npurge_lb = npurge;
-		}
-		assert(n_search < lg_floor(SMOOTHSTEP_NSTEPS) + 1);
-		++n_search;
-	}
-	interval = decay_interval_ns * (ub + lb) / 2;
-label_done:
-	interval = (interval < BACKGROUND_THREAD_MIN_INTERVAL_NS) ?
-	    BACKGROUND_THREAD_MIN_INTERVAL_NS : interval;
-	malloc_mutex_unlock(tsdn, &decay->mtx);
-
-	return interval;
-}
-
-/* Compute purge interval for background threads. */
-static uint64_t
-arena_decay_compute_purge_interval(tsdn_t *tsdn, arena_t *arena) {
-	uint64_t i1, i2;
-	i1 = arena_decay_compute_purge_interval_impl(tsdn,
-	    &arena->pa_shard.pac.decay_dirty, &arena->pa_shard.pac.ecache_dirty);
-	if (i1 == BACKGROUND_THREAD_MIN_INTERVAL_NS) {
-		return i1;
-	}
-	i2 = arena_decay_compute_purge_interval_impl(tsdn,
-	    &arena->pa_shard.pac.decay_muzzy, &arena->pa_shard.pac.ecache_muzzy);
-
-	return i1 < i2 ? i1 : i2;
-}
 
 static void
 background_thread_sleep(tsdn_t *tsdn, background_thread_info_t *info,
@@ -285,6 +171,10 @@ static inline void
 background_work_sleep_once(tsdn_t *tsdn, background_thread_info_t *info, unsigned ind) {
 	uint64_t min_interval = BACKGROUND_THREAD_INDEFINITE_SLEEP;
 	unsigned narenas = narenas_total_get();
+	const purge_interval_opts_t purge_interval_opts = {
+		.min_interval_ns = BACKGROUND_THREAD_MIN_INTERVAL_NS,
+		.npages_threshold = BACKGROUND_THREAD_NPAGES_THRESHOLD,
+		.indefinite_sleep = BACKGROUND_THREAD_INDEFINITE_SLEEP};
 
 	for (unsigned i = ind; i < narenas; i += max_background_threads) {
 		arena_t *arena = arena_get(tsdn, i, false);
@@ -296,8 +186,9 @@ background_work_sleep_once(tsdn_t *tsdn, background_thread_info_t *info, unsigne
 			/* Min interval will be used. */
 			continue;
 		}
-		uint64_t interval = arena_decay_compute_purge_interval(tsdn,
-		    arena);
+		uint64_t interval =
+		    arena_decay_compute_purge_interval(tsdn, arena,
+			&purge_interval_opts);
 		assert(interval >= BACKGROUND_THREAD_MIN_INTERVAL_NS);
 		if (min_interval > interval) {
 			min_interval = interval;
