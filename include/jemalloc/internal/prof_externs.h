@@ -30,6 +30,15 @@ extern bool opt_prof_sys_thread_name;
 /* Whether to record per size class counts and request size totals. */
 extern bool opt_prof_stats;
 
+/* If not 0, profiling will only select allocations of the designated usize. */
+extern size_t opt_prof_select_usize;
+
+/*
+ * If opt_prof_select_usize is not 0, profiling will only select allocations
+ * wasting at least the designated amount of memory in internal fragmentation.
+ */
+extern size_t opt_prof_select_waste;
+
 /* Accessed via prof_active_[gs]et{_unlocked,}(). */
 extern bool prof_active;
 
