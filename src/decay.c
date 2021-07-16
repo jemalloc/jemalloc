@@ -175,3 +175,76 @@ decay_maybe_advance_epoch(decay_t *decay, nstime_t *new_time,
 
 	return true;
 }
+
+static inline size_t
+decay_npurge_after_interval(decay_t *decay, size_t interval) {
+	size_t i;
+	uint64_t sum = 0;
+	for (i = 0; i < interval; i++) {
+		sum += decay->backlog[i] * h_steps[i];
+	}
+	for (; i < SMOOTHSTEP_NSTEPS; i++) {
+		sum += decay->backlog[i] *
+		    (h_steps[i] - h_steps[i - interval]);
+	}
+
+	return (size_t)(sum >> SMOOTHSTEP_BFP);
+}
+
+uint64_t decay_ns_until_purge(decay_t *decay, size_t npages_current,
+    uint64_t npages_threshold) {
+	ssize_t decay_time = decay_ms_read(decay);
+	if (decay_time <= 0) {
+		/* Purging is eagerly done or disabled currently. */
+		return DECAY_UNBOUNDED_TIME_TO_PURGE;
+	}
+	uint64_t decay_interval_ns = decay_epoch_duration_ns(decay);
+	assert(decay_interval_ns > 0);
+	if (npages_current == 0) {
+		unsigned i;
+		for (i = 0; i < SMOOTHSTEP_NSTEPS; i++) {
+			if (decay->backlog[i] > 0) {
+				break;
+			}
+		}
+		if (i == SMOOTHSTEP_NSTEPS) {
+			/* No dirty pages recorded.  Sleep indefinitely. */
+			return DECAY_UNBOUNDED_TIME_TO_PURGE;
+		}
+	}
+	if (npages_current <= npages_threshold) {
+		/* Use max interval. */
+		return decay_interval_ns * SMOOTHSTEP_NSTEPS;
+	}
+
+	/* Minimal 2 intervals to ensure reaching next epoch deadline. */
+	size_t lb = 2;
+	size_t ub = SMOOTHSTEP_NSTEPS;
+
+	size_t npurge_lb, npurge_ub;
+	npurge_lb = decay_npurge_after_interval(decay, lb);
+	if (npurge_lb > npages_threshold) {
+		return decay_interval_ns * lb;
+	}
+	npurge_ub = decay_npurge_after_interval(decay, ub);
+	if (npurge_ub < npages_threshold) {
+		return decay_interval_ns * ub;
+	}
+
+	unsigned n_search = 0;
+	size_t target, npurge;
+	while ((npurge_lb + npages_threshold < npurge_ub) && (lb + 2 < ub)) {
+		target = (lb + ub) / 2;
+		npurge = decay_npurge_after_interval(decay, target);
+		if (npurge > npages_threshold) {
+			ub = target;
+			npurge_ub = npurge;
+		} else {
+			lb = target;
+			npurge_lb = npurge;
+		}
+		assert(n_search < lg_floor(SMOOTHSTEP_NSTEPS) + 1);
+		++n_search;
+	}
+	return decay_interval_ns * (ub + lb) / 2;
+}
