@@ -18,6 +18,7 @@
  * hugepage-sized and hugepage-aligned; it's *potentially* huge.
  */
 typedef struct hpdata_s hpdata_t;
+ph_structs(hpdata_age_heap, hpdata_t);
 struct hpdata_s {
 	/*
 	 * We likewise follow the edata convention of mangling names and forcing
@@ -82,7 +83,7 @@ struct hpdata_s {
 
 	union {
 		/* When nonempty (and also nonfull), used by the psset bins. */
-		phn(hpdata_t) ph_link;
+		hpdata_age_heap_link_t age_link;
 		/*
 		 * When empty (or not corresponding to any hugepage), list
 		 * linkage.
@@ -120,8 +121,7 @@ TYPED_LIST(hpdata_empty_list, hpdata_t, ql_link_empty)
 TYPED_LIST(hpdata_purge_list, hpdata_t, ql_link_purge)
 TYPED_LIST(hpdata_hugify_list, hpdata_t, ql_link_hugify)
 
-typedef ph(hpdata_t) hpdata_age_heap_t;
-ph_proto(, hpdata_age_heap_, hpdata_age_heap_t, hpdata_t);
+ph_proto(, hpdata_age_heap, hpdata_t);
 
 static inline void *
 hpdata_addr_get(const hpdata_t *hpdata) {
