@@ -81,8 +81,8 @@ struct edata_map_info_s {
 
 /* Extent (span of pages).  Use accessor functions for e_* fields. */
 typedef struct edata_s edata_t;
-typedef ph(edata_t) edata_avail_t;
-typedef ph(edata_t) edata_heap_t;
+ph_structs(edata_avail, edata_t);
+ph_structs(edata_heap, edata_t);
 struct edata_s {
 	/*
 	 * Bitfield containing several fields:
@@ -214,7 +214,10 @@ struct edata_s {
 		 * slabs_nonfull, or when the edata_t is unassociated with an
 		 * extent and sitting in an edata_cache.
 		 */
-		phn(edata_t)	ph_link;
+		union {
+			edata_heap_link_t heap_link;
+			edata_avail_link_t avail_link;
+		};
 	};
 
 	union {
@@ -664,7 +667,7 @@ edata_esnead_comp(const edata_t *a, const edata_t *b) {
 	return ret;
 }
 
-ph_proto(, edata_avail_, edata_avail_t, edata_t)
-ph_proto(, edata_heap_, edata_heap_t, edata_t)
+ph_proto(, edata_avail, edata_t)
+ph_proto(, edata_heap, edata_t)
 
 #endif /* JEMALLOC_INTERNAL_EDATA_H */

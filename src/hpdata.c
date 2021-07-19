@@ -15,7 +15,7 @@ hpdata_age_comp(const hpdata_t *a, const hpdata_t *b) {
 	return (a_age > b_age) - (a_age < b_age);
 }
 
-ph_gen(, hpdata_age_heap_, hpdata_age_heap_t, hpdata_t, ph_link, hpdata_age_comp)
+ph_gen(, hpdata_age_heap, hpdata_t, age_link, hpdata_age_comp)
 
 void
 hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age) {
