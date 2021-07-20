@@ -14,15 +14,27 @@
  * there are mutating operations.  One exception is the stats counters, which
  * may be read without any locking.
  */
+
+typedef struct eset_bin_s eset_bin_t;
+struct eset_bin_s {
+	edata_heap_t heap;
+};
+
+typedef struct eset_bin_stats_s eset_bin_stats_t;
+struct eset_bin_stats_s {
+	atomic_zu_t nextents;
+	atomic_zu_t nbytes;
+};
+
 typedef struct eset_s eset_t;
 struct eset_s {
-	/* Quantized per size class heaps of extents. */
-	edata_heap_t heaps[SC_NPSIZES + 1];
-	atomic_zu_t nextents[SC_NPSIZES + 1];
-	atomic_zu_t nbytes[SC_NPSIZES + 1];
-
 	/* Bitmap for which set bits correspond to non-empty heaps. */
 	fb_group_t bitmap[FB_NGROUPS(SC_NPSIZES + 1)];
+
+	/* Quantized per size class heaps of extents. */
+	eset_bin_t bins[SC_NPSIZES + 1];
+
+	eset_bin_stats_t bin_stats[SC_NPSIZES + 1];
 
 	/* LRU of all extents in heaps. */
 	edata_list_inactive_t lru;

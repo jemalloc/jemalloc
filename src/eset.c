@@ -5,14 +5,25 @@
 
 #define ESET_NPSIZES (SC_NPSIZES + 1)
 
+static void
+eset_bin_init(eset_bin_t *bin) {
+	edata_heap_new(&bin->heap);
+}
+
+static void
+eset_bin_stats_init(eset_bin_stats_t *bin_stats) {
+	atomic_store_zu(&bin_stats->nextents, 0, ATOMIC_RELAXED);
+	atomic_store_zu(&bin_stats->nbytes, 0, ATOMIC_RELAXED);
+}
+
 void
 eset_init(eset_t *eset, extent_state_t state) {
 	for (unsigned i = 0; i < ESET_NPSIZES; i++) {
-		edata_heap_new(&eset->heaps[i]);
+		eset_bin_init(&eset->bins[i]);
+		eset_bin_stats_init(&eset->bin_stats[i]);
 	}
 	fb_init(eset->bitmap, ESET_NPSIZES);
 	edata_list_inactive_init(&eset->lru);
-	atomic_store_zu(&eset->npages, 0, ATOMIC_RELAXED);
 	eset->state = state;
 }
 
@@ -23,28 +34,34 @@ eset_npages_get(eset_t *eset) {
 
 size_t
 eset_nextents_get(eset_t *eset, pszind_t pind) {
-	return atomic_load_zu(&eset->nextents[pind], ATOMIC_RELAXED);
+	return atomic_load_zu(&eset->bin_stats[pind].nextents, ATOMIC_RELAXED);
 }
 
 size_t
 eset_nbytes_get(eset_t *eset, pszind_t pind) {
-	return atomic_load_zu(&eset->nbytes[pind], ATOMIC_RELAXED);
+	return atomic_load_zu(&eset->bin_stats[pind].nbytes, ATOMIC_RELAXED);
 }
 
 static void
 eset_stats_add(eset_t *eset, pszind_t pind, size_t sz) {
-	size_t cur = atomic_load_zu(&eset->nextents[pind], ATOMIC_RELAXED);
-	atomic_store_zu(&eset->nextents[pind], cur + 1, ATOMIC_RELAXED);
-	cur = atomic_load_zu(&eset->nbytes[pind], ATOMIC_RELAXED);
-	atomic_store_zu(&eset->nbytes[pind], cur + sz, ATOMIC_RELAXED);
+	size_t cur = atomic_load_zu(&eset->bin_stats[pind].nextents,
+	    ATOMIC_RELAXED);
+	atomic_store_zu(&eset->bin_stats[pind].nextents, cur + 1,
+	    ATOMIC_RELAXED);
+	cur = atomic_load_zu(&eset->bin_stats[pind].nbytes, ATOMIC_RELAXED);
+	atomic_store_zu(&eset->bin_stats[pind].nbytes, cur + sz,
+	    ATOMIC_RELAXED);
 }
 
 static void
 eset_stats_sub(eset_t *eset, pszind_t pind, size_t sz) {
-	size_t cur = atomic_load_zu(&eset->nextents[pind], ATOMIC_RELAXED);
-	atomic_store_zu(&eset->nextents[pind], cur - 1, ATOMIC_RELAXED);
-	cur = atomic_load_zu(&eset->nbytes[pind], ATOMIC_RELAXED);
-	atomic_store_zu(&eset->nbytes[pind], cur - sz, ATOMIC_RELAXED);
+	size_t cur = atomic_load_zu(&eset->bin_stats[pind].nextents,
+	    ATOMIC_RELAXED);
+	atomic_store_zu(&eset->bin_stats[pind].nextents, cur - 1,
+	    ATOMIC_RELAXED);
+	cur = atomic_load_zu(&eset->bin_stats[pind].nbytes, ATOMIC_RELAXED);
+	atomic_store_zu(&eset->bin_stats[pind].nbytes, cur - sz,
+	    ATOMIC_RELAXED);
 }
 
 void
@@ -54,10 +71,10 @@ eset_insert(eset_t *eset, edata_t *edata) {
 	size_t size = edata_size_get(edata);
 	size_t psz = sz_psz_quantize_floor(size);
 	pszind_t pind = sz_psz2ind(psz);
-	if (edata_heap_empty(&eset->heaps[pind])) {
+	if (edata_heap_empty(&eset->bins[pind].heap)) {
 		fb_set(eset->bitmap, ESET_NPSIZES, (size_t)pind);
 	}
-	edata_heap_insert(&eset->heaps[pind], edata);
+	edata_heap_insert(&eset->bins[pind].heap, edata);
 
 	if (config_stats) {
 		eset_stats_add(eset, pind, size);
@@ -84,13 +101,13 @@ eset_remove(eset_t *eset, edata_t *edata) {
 	size_t size = edata_size_get(edata);
 	size_t psz = sz_psz_quantize_floor(size);
 	pszind_t pind = sz_psz2ind(psz);
-	edata_heap_remove(&eset->heaps[pind], edata);
+	edata_heap_remove(&eset->bins[pind].heap, edata);
 
 	if (config_stats) {
 		eset_stats_sub(eset, pind, size);
 	}
 
-	if (edata_heap_empty(&eset->heaps[pind])) {
+	if (edata_heap_empty(&eset->bins[pind].heap)) {
 		fb_unset(eset->bitmap, ESET_NPSIZES, (size_t)pind);
 	}
 	edata_list_inactive_remove(&eset->lru, edata);
@@ -125,8 +142,8 @@ eset_fit_alignment(eset_t *eset, size_t min_size, size_t max_size,
 	    i < pind_max;
 	    i = (pszind_t)fb_ffs(eset->bitmap, ESET_NPSIZES, (size_t)i + 1)) {
 		assert(i < SC_NPSIZES);
-		assert(!edata_heap_empty(&eset->heaps[i]));
-		edata_t *edata = edata_heap_first(&eset->heaps[i]);
+		assert(!edata_heap_empty(&eset->bins[i].heap));
+		edata_t *edata = edata_heap_first(&eset->bins[i].heap);
 		uintptr_t base = (uintptr_t)edata_base_get(edata);
 		size_t candidate_size = edata_size_get(edata);
 		assert(candidate_size >= min_size);
@@ -165,16 +182,16 @@ eset_first_fit(eset_t *eset, size_t size, bool exact_only,
 	pszind_t pind = sz_psz2ind(sz_psz_quantize_ceil(size));
 
 	if (exact_only) {
-		return edata_heap_empty(&eset->heaps[pind]) ? NULL :
-		    edata_heap_first(&eset->heaps[pind]);
+		return edata_heap_empty(&eset->bins[pind].heap) ? NULL :
+		    edata_heap_first(&eset->bins[pind].heap);
 	}
 
 	for (pszind_t i =
 	    (pszind_t)fb_ffs(eset->bitmap, ESET_NPSIZES, (size_t)pind);
 	    i < ESET_NPSIZES;
 	    i = (pszind_t)fb_ffs(eset->bitmap, ESET_NPSIZES, (size_t)i + 1)) {
-		assert(!edata_heap_empty(&eset->heaps[i]));
-		edata_t *edata = edata_heap_first(&eset->heaps[i]);
+		assert(!edata_heap_empty(&eset->bins[i].heap));
+		edata_t *edata = edata_heap_first(&eset->bins[i].heap);
 		assert(edata_size_get(edata) >= size);
 		if (lg_max_fit == SC_PTR_BITS) {
 			/*
