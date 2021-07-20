@@ -18,6 +18,14 @@
 typedef struct eset_bin_s eset_bin_t;
 struct eset_bin_s {
 	edata_heap_t heap;
+	/*
+	 * We do first-fit across multiple size classes.  If we compared against
+	 * the min element in each heap directly, we'd take a cache miss per
+	 * extent we looked at.  If we co-locate the edata summaries, we only
+	 * take a miss on the edata we're actually going to return (which is
+	 * inevitable anyways).
+	 */
+	edata_cmp_summary_t heap_min;
 };
 
 typedef struct eset_bin_stats_s eset_bin_stats_t;
