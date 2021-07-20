@@ -64,7 +64,7 @@ typedef struct e_prof_info_s e_prof_info_t;
 
 /*
  * The information about a particular edata that lives in an emap.  Space is
- * more previous there (the information, plus the edata pointer, has to live in
+ * more precious there (the information, plus the edata pointer, has to live in
  * a 64-bit word if we want to enable a packed representation.
  *
  * There are two things that are special about the information here:
@@ -196,6 +196,7 @@ struct edata_s {
 	 * into pageslabs).  This tracks it.
 	 */
 	hpdata_t *e_ps;
+
 	/*
 	 * Serial number.  These are not necessarily unique; splitting an extent
 	 * results in two extents with the same serial number.
