@@ -149,7 +149,8 @@ bool decay_maybe_advance_epoch(decay_t *decay, nstime_t *new_time,
     size_t current_npages);
 
 /*
- * Calculates wait time until at least npages_threshold pages should be purged.
+ * Calculates wait time until a number of pages in the interval
+ * [0.5 * npages_threshold .. 1.5 * npages_threshold] should be purged.
  *
  * Returns number of nanoseconds or DECAY_UNBOUNDED_TIME_TO_PURGE in case of
  * indefinite wait.

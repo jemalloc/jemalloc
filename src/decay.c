@@ -102,6 +102,11 @@ decay_backlog_npages_limit(const decay_t *decay) {
 	return npages_limit_backlog;
 }
 
+/*
+ * Update backlog, assuming that 'nadvance_u64' time intervals have passed.
+ * Trailing 'nadvance_u64' records should be erased and 'current_npages' is
+ * placed as the newest record.
+ */
 static void
 decay_backlog_update(decay_t *decay, uint64_t nadvance_u64,
     size_t current_npages) {
@@ -176,6 +181,22 @@ decay_maybe_advance_epoch(decay_t *decay, nstime_t *new_time,
 	return true;
 }
 
+/*
+ * Calculate how many pages should be purged after 'interval'.
+ *
+ * First, calculate how many pages should remain at the moment, then subtract
+ * the number of pages that should remain after 'interval'. The difference is
+ * how many pages should be purged until then.
+ *
+ * The number of pages that should remain at a specific moment is calculated
+ * like this: pages(now) = sum(backlog[i] * h_steps[i]). After 'interval'
+ * passes, backlog would shift 'interval' positions to the left and sigmoid
+ * curve would be applied starting with backlog[interval].
+ *
+ * The implementation doesn't directly map to the description, but it's
+ * essentially the same calculation, optimized to avoid iterating over
+ * [interval..SMOOTHSTEP_NSTEPS) twice.
+ */
 static inline size_t
 decay_npurge_after_interval(decay_t *decay, size_t interval) {
 	size_t i;
