@@ -79,6 +79,12 @@ struct edata_map_info_s {
 	szind_t szind;
 };
 
+typedef struct edata_cmp_summary_s edata_cmp_summary_t;
+struct edata_cmp_summary_s {
+	uint64_t sn;
+	uintptr_t addr;
+};
+
 /* Extent (span of pages).  Use accessor functions for e_* fields. */
 typedef struct edata_s edata_t;
 ph_structs(edata_avail, edata_t);
@@ -611,27 +617,11 @@ edata_binit(edata_t *edata, void *addr, size_t bsize, uint64_t sn) {
 }
 
 static inline int
-edata_sn_comp(const edata_t *a, const edata_t *b) {
-	uint64_t a_sn = edata_sn_get(a);
-	uint64_t b_sn = edata_sn_get(b);
-
-	return (a_sn > b_sn) - (a_sn < b_sn);
-}
-
-static inline int
 edata_esn_comp(const edata_t *a, const edata_t *b) {
 	size_t a_esn = edata_esn_get(a);
 	size_t b_esn = edata_esn_get(b);
 
 	return (a_esn > b_esn) - (a_esn < b_esn);
-}
-
-static inline int
-edata_ad_comp(const edata_t *a, const edata_t *b) {
-	uintptr_t a_addr = (uintptr_t)edata_addr_get(a);
-	uintptr_t b_addr = (uintptr_t)edata_addr_get(b);
-
-	return (a_addr > b_addr) - (a_addr < b_addr);
 }
 
 static inline int
@@ -642,17 +632,29 @@ edata_ead_comp(const edata_t *a, const edata_t *b) {
 	return (a_eaddr > b_eaddr) - (a_eaddr < b_eaddr);
 }
 
-static inline int
-edata_snad_comp(const edata_t *a, const edata_t *b) {
-	int ret;
+static inline edata_cmp_summary_t
+edata_cmp_summary_get(const edata_t *edata) {
+	return (edata_cmp_summary_t){edata_sn_get(edata),
+		(uintptr_t)edata_addr_get(edata)};
+}
 
-	ret = edata_sn_comp(a, b);
+static inline int
+edata_cmp_summary_comp(edata_cmp_summary_t a, edata_cmp_summary_t b) {
+	int ret;
+	ret = (a.sn > b.sn) - (a.sn < b.sn);
 	if (ret != 0) {
 		return ret;
 	}
-
-	ret = edata_ad_comp(a, b);
+	ret = (a.addr > b.addr) - (a.addr < b.addr);
 	return ret;
+}
+
+static inline int
+edata_snad_comp(const edata_t *a, const edata_t *b) {
+	edata_cmp_summary_t a_cmp = edata_cmp_summary_get(a);
+	edata_cmp_summary_t b_cmp = edata_cmp_summary_get(b);
+
+	return edata_cmp_summary_comp(a_cmp, b_cmp);
 }
 
 static inline int
