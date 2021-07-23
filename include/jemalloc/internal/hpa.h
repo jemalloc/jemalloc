@@ -102,7 +102,7 @@ struct hpa_shard_s {
 	 * from a pageslab.  The pageslab itself comes from the centralized
 	 * allocator, and so will use its edata_cache.
 	 */
-	edata_cache_small_t ecs;
+	edata_cache_fast_t ecf;
 
 	psset_t psset;
 
