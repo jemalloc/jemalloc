@@ -187,7 +187,7 @@ hpa_shard_init(hpa_shard_t *shard, hpa_central_t *central, emap_t *emap,
 	assert(edata_cache != NULL);
 	shard->central = central;
 	shard->base = base;
-	edata_cache_small_init(&shard->ecs, edata_cache);
+	edata_cache_fast_init(&shard->ecf, edata_cache);
 	psset_init(&shard->psset);
 	shard->age_counter = 0;
 	shard->ind = ind;
@@ -537,7 +537,7 @@ static edata_t *
 hpa_try_alloc_one_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
     bool *oom) {
 	bool err;
-	edata_t *edata = edata_cache_small_get(tsdn, &shard->ecs);
+	edata_t *edata = edata_cache_fast_get(tsdn, &shard->ecf);
 	if (edata == NULL) {
 		*oom = true;
 		return NULL;
@@ -545,7 +545,7 @@ hpa_try_alloc_one_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 
 	hpdata_t *ps = psset_pick_alloc(&shard->psset, size);
 	if (ps == NULL) {
-		edata_cache_small_put(tsdn, &shard->ecs, edata);
+		edata_cache_fast_put(tsdn, &shard->ecf, edata);
 		return NULL;
 	}
 
@@ -592,7 +592,7 @@ hpa_try_alloc_one_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 		 * tweaked the stats, but our tweaks weren't really accurate).
 		 */
 		psset_update_end(&shard->psset, ps);
-		edata_cache_small_put(tsdn, &shard->ecs, edata);
+		edata_cache_fast_put(tsdn, &shard->ecf, edata);
 		*oom = true;
 		return NULL;
 	}
@@ -805,7 +805,7 @@ hpa_dalloc_locked(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata) {
 	assert(ps != NULL);
 	void *unreserve_addr = edata_addr_get(edata);
 	size_t unreserve_size = edata_size_get(edata);
-	edata_cache_small_put(tsdn, &shard->ecs, edata);
+	edata_cache_fast_put(tsdn, &shard->ecf, edata);
 
 	psset_update_begin(&shard->psset, ps);
 	hpdata_unreserve(ps, unreserve_addr, unreserve_size);
@@ -844,7 +844,7 @@ hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 void
 hpa_shard_disable(tsdn_t *tsdn, hpa_shard_t *shard) {
 	malloc_mutex_lock(tsdn, &shard->mtx);
-	edata_cache_small_disable(tsdn, &shard->ecs);
+	edata_cache_fast_disable(tsdn, &shard->ecf);
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 }
 
