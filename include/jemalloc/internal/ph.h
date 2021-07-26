@@ -319,6 +319,20 @@ ph_insert(ph_t *ph, void *phn, size_t offset, ph_cmp_t cmp) {
 	if (ph->root == NULL) {
 		ph->root = phn;
 	} else {
+		/*
+		 * As a special case, check to see if we can replace the root.
+		 * This is practically common in some important cases, and lets
+		 * us defer some insertions (hopefully, until the point where
+		 * some of the items in the aux list have been removed, savings
+		 * us from linking them at all).
+		 */
+		if (cmp(phn, ph->root) < 0) {
+			phn_lchild_set(phn, ph->root, offset);
+			phn_prev_set(ph->root, phn, offset);
+			ph->root = phn;
+			ph->auxcount = 0;
+			return;
+		}
 		ph->auxcount++;
 		phn_next_set(phn, phn_next_get(ph->root, offset), offset);
 		if (phn_next_get(ph->root, offset) != NULL) {
