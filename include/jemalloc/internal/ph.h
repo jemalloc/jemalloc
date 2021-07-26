@@ -13,6 +13,40 @@
  * http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.106.2988&rep=rep1&type=pdf
  *
  *******************************************************************************
+ *
+ * We include a non-obvious optimization:
+ * - First, we introduce a new pop-and-link operation; pop the two most
+ *   recently-inserted items off the aux-list, link them, and push the resulting
+ *   heap.
+ * - We maintain a count of the number of insertions since the last time we
+ *   merged the aux-list (i.e. via first() or remove_first()).  After N inserts,
+ *   we do ffs(N) pop-and-link operations.
+ *
+ * One way to think of this is that we're progressively building up a tree in
+ * the aux-list, rather than a linked-list (think of the series of merges that
+ * will be performed as the aux-count grows).
+ *
+ * There's a couple reasons we benefit from this:
+ * - Ordinarily, after N insertions, the aux-list is of size N.  With our
+ *   strategy, it's of size O(log(N)).  So we decrease the worst-case time of
+ *   first() calls, and reduce the average cost of remove_min calls.  Since
+ *   these almost always occur while holding a lock, we practically reduce the
+ *   frequency of unusually long hold times.
+ * - This moves the bulk of the work of merging the aux-list onto the threads
+ *   that are inserting into the heap.  In some common scenarios, insertions
+ *   happen in bulk, from a single thread (think tcache flushing; we potentially
+ *   move many slabs from slabs_full to slabs_nonfull).  All the nodes in this
+ *   case are in the inserting threads cache, and linking them is very cheap
+ *   (cache misses dominate linking cost).  Without this optimization, linking
+ *   happens on the next call to remove_first.  Since that remove_first call
+ *   likely happens on a different thread (or at least, after the cache has
+ *   gotten cold if done on the same thread), deferring linking trades cheap
+ *   link operations now for expensive ones later.
+ *
+ * The ffs trick keeps amortized insert cost at constant time.  Similar
+ * strategies based on periodically sorting the list after a batch of operations
+ * perform worse than this in practice, even with various fancy tricks; they
+ * all took amortized complexity of an insert from O(1) to O(log(n)).
  */
 
 typedef int (*ph_cmp_t)(void *, void *);
@@ -28,6 +62,13 @@ struct phn_link_s {
 typedef struct ph_s ph_t;
 struct ph_s {
 	void *root;
+	/*
+	 * Inserts done since the last aux-list merge.  This is not necessarily
+	 * the size of the aux-list, since it's possible that removals have
+	 * happened since, and we don't track whether or not those removals are
+	 * from the aux list.
+	 */
+	size_t auxcount;
 };
 
 JEMALLOC_ALWAYS_INLINE phn_link_t *
@@ -181,6 +222,7 @@ phn_merge_siblings(void *phn, size_t offset, ph_cmp_t cmp) {
 
 JEMALLOC_ALWAYS_INLINE void
 ph_merge_aux(ph_t *ph, size_t offset, ph_cmp_t cmp) {
+	ph->auxcount = 0;
 	void *phn = phn_next_get(ph->root, offset);
 	if (phn != NULL) {
 		phn_prev_set(ph->root, NULL, offset);
@@ -207,6 +249,7 @@ ph_merge_children(void *phn, size_t offset, ph_cmp_t cmp) {
 JEMALLOC_ALWAYS_INLINE void
 ph_new(ph_t *ph) {
 	ph->root = NULL;
+	ph->auxcount = 0;
 }
 
 JEMALLOC_ALWAYS_INLINE bool
@@ -235,8 +278,35 @@ ph_any(ph_t *ph, size_t offset) {
 	return ph->root;
 }
 
+/* Returns true if we should stop trying to merge. */
+JEMALLOC_ALWAYS_INLINE bool
+ph_try_aux_merge_pair(ph_t *ph, size_t offset, ph_cmp_t cmp) {
+	assert(ph->root != NULL);
+	void *phn0 = phn_next_get(ph->root, offset);
+	if (phn0 == NULL) {
+		return true;
+	}
+	void *phn1 = phn_next_get(phn0, offset);
+	if (phn1 == NULL) {
+		return true;
+	}
+	void *next_phn1 = phn_next_get(phn1, offset);
+	phn_next_set(phn0, NULL, offset);
+	phn_prev_set(phn0, NULL, offset);
+	phn_next_set(phn1, NULL, offset);
+	phn_prev_set(phn1, NULL, offset);
+	phn0 = phn_merge(phn0, phn1, offset, cmp);
+	phn_next_set(phn0, next_phn1, offset);
+	if (next_phn1 != NULL) {
+		phn_prev_set(next_phn1, phn0, offset);
+	}
+	phn_next_set(ph->root, phn0, offset);
+	phn_prev_set(phn0, ph->root, offset);
+	return next_phn1 == NULL;
+}
+
 JEMALLOC_ALWAYS_INLINE void
-ph_insert(ph_t *ph, void *phn, size_t offset) {
+ph_insert(ph_t *ph, void *phn, size_t offset, ph_cmp_t cmp) {
 	phn_link_init(phn, offset);
 
 	/*
@@ -249,6 +319,7 @@ ph_insert(ph_t *ph, void *phn, size_t offset) {
 	if (ph->root == NULL) {
 		ph->root = phn;
 	} else {
+		ph->auxcount++;
 		phn_next_set(phn, phn_next_get(ph->root, offset), offset);
 		if (phn_next_get(ph->root, offset) != NULL) {
 			phn_prev_set(phn_next_get(ph->root, offset), phn,
@@ -256,6 +327,13 @@ ph_insert(ph_t *ph, void *phn, size_t offset) {
 		}
 		phn_prev_set(phn, ph->root, offset);
 		phn_next_set(ph->root, phn, offset);
+	}
+	if (ph->auxcount > 1) {
+		unsigned nmerges = ffs_zu(ph->auxcount - 1);
+		bool done = false;
+		for (unsigned i = 0; i < nmerges && !done; i++) {
+			done = ph_try_aux_merge_pair(ph, offset, cmp);
+		}
 	}
 }
 
@@ -272,31 +350,6 @@ ph_remove_first(ph_t *ph, size_t offset, ph_cmp_t cmp) {
 
 	return ret;
 
-}
-
-JEMALLOC_ALWAYS_INLINE void *
-ph_remove_any(ph_t *ph, size_t offset, ph_cmp_t cmp) {
-	/*
-	 * Remove the most recently inserted aux list element, or the root if
-	 * the aux list is empty.  This has the effect of behaving as a LIFO
-	 * (and insertion/removal is therefore constant-time) if
-	 * a_prefix##[remove_]first() are never called.
-	 */
-	if (ph->root == NULL) {
-		return NULL;
-	}
-	void *ret = phn_next_get(ph->root, offset);
-	if (ret != NULL) {
-		void *aux = phn_next_get(ret, offset);
-		phn_next_set(ph->root, aux, offset);
-		if (aux != NULL) {
-			phn_prev_set(aux, ph->root, offset);
-		}
-		return ret;
-	}
-	ret = ph->root;
-	ph->root = ph_merge_children(ph->root, offset, cmp);
-	return ret;
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -392,8 +445,8 @@ a_attr a_type *a_prefix##_first(a_prefix##_t *ph);			\
 a_attr a_type *a_prefix##_any(a_prefix##_t *ph);			\
 a_attr void a_prefix##_insert(a_prefix##_t *ph, a_type *phn);		\
 a_attr a_type *a_prefix##_remove_first(a_prefix##_t *ph);		\
-a_attr a_type *a_prefix##_remove_any(a_prefix##_t *ph);			\
-a_attr void a_prefix##_remove(a_prefix##_t *ph, a_type *phn);
+a_attr void a_prefix##_remove(a_prefix##_t *ph, a_type *phn);		\
+a_attr a_type *a_prefix##_remove_any(a_prefix##_t *ph);
 
 /* The ph_gen() macro generates a type-specific pairing heap implementation. */
 #define ph_gen(a_attr, a_prefix, a_type, a_field, a_cmp)		\
@@ -425,7 +478,8 @@ a_prefix##_any(a_prefix##_t *ph) {					\
 									\
 a_attr void								\
 a_prefix##_insert(a_prefix##_t *ph, a_type *phn) {			\
-	ph_insert(&ph->ph, phn, offsetof(a_type, a_field));		\
+	ph_insert(&ph->ph, phn, offsetof(a_type, a_field),		\
+	    a_prefix##_ph_cmp);						\
 }									\
 									\
 a_attr a_type *								\
@@ -434,16 +488,19 @@ a_prefix##_remove_first(a_prefix##_t *ph) {				\
 	    a_prefix##_ph_cmp);						\
 }									\
 									\
-a_attr a_type *								\
-a_prefix##_remove_any(a_prefix##_t *ph) {				\
-	return ph_remove_any(&ph->ph, offsetof(a_type, a_field),	\
-	    a_prefix##_ph_cmp);						\
-}									\
-									\
 a_attr void								\
 a_prefix##_remove(a_prefix##_t *ph, a_type *phn) {			\
 	ph_remove(&ph->ph, phn, offsetof(a_type, a_field),		\
 	    a_prefix##_ph_cmp);						\
+}									\
+									\
+a_attr a_type *								\
+a_prefix##_remove_any(a_prefix##_t *ph) {				\
+	a_type *ret = a_prefix##_any(ph);				\
+	if (ret != NULL) {						\
+		a_prefix##_remove(ph, ret);				\
+	}								\
+	return ret;							\
 }
 
 #endif /* JEMALLOC_INTERNAL_PH_H */
