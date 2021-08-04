@@ -1496,6 +1496,7 @@ stats_general_print(emitter_t *emitter) {
 	OPT_WRITE_SIZE_T("hpa_sec_bytes_after_flush")
 	OPT_WRITE_SIZE_T("hpa_sec_batch_fill_extra")
 	OPT_WRITE_CHAR_P("metadata_thp")
+	OPT_WRITE_INT64("mutex_max_spin")
 	OPT_WRITE_BOOL_MUTABLE("background_thread", "background_thread")
 	OPT_WRITE_SSIZE_T("background_thread_hpa_interval_max_ms")
 	OPT_WRITE_SSIZE_T_MUTABLE("dirty_decay_ms", "arenas.dirty_decay_ms")
