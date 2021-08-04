@@ -1256,6 +1256,9 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				} while (vlen_left > 0);
 				CONF_CONTINUE;
 			}
+			CONF_HANDLE_INT64_T(opt_mutex_max_spin,
+			    "mutex_max_spin", -1, INT64_MAX, CONF_CHECK_MIN,
+			    CONF_DONT_CHECK_MAX, false);
 			CONF_HANDLE_SSIZE_T(opt_dirty_decay_ms,
 			    "dirty_decay_ms", -1, NSTIME_SEC_MAX * KQU(1000) <
 			    QU(SSIZE_MAX) ? NSTIME_SEC_MAX * KQU(1000) :

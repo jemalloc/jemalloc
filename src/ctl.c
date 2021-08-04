@@ -110,6 +110,7 @@ CTL_PROTO(opt_narenas)
 CTL_PROTO(opt_percpu_arena)
 CTL_PROTO(opt_oversize_threshold)
 CTL_PROTO(opt_background_thread)
+CTL_PROTO(opt_mutex_max_spin)
 CTL_PROTO(opt_max_background_threads)
 CTL_PROTO(opt_background_thread_hpa_interval_max_ms)
 CTL_PROTO(opt_dirty_decay_ms)
@@ -421,6 +422,7 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("narenas"),	CTL(opt_narenas)},
 	{NAME("percpu_arena"),	CTL(opt_percpu_arena)},
 	{NAME("oversize_threshold"),	CTL(opt_oversize_threshold)},
+	{NAME("mutex_max_spin"),	CTL(opt_mutex_max_spin)},
 	{NAME("background_thread"),	CTL(opt_background_thread)},
 	{NAME("max_background_threads"),	CTL(opt_max_background_threads)},
 	{NAME("background_thread_hpa_interval_max_ms"),
@@ -2138,6 +2140,7 @@ CTL_RO_NL_GEN(opt_dss, opt_dss, const char *)
 CTL_RO_NL_GEN(opt_narenas, opt_narenas, unsigned)
 CTL_RO_NL_GEN(opt_percpu_arena, percpu_arena_mode_names[opt_percpu_arena],
     const char *)
+CTL_RO_NL_GEN(opt_mutex_max_spin, opt_mutex_max_spin, int64_t)
 CTL_RO_NL_GEN(opt_oversize_threshold, opt_oversize_threshold, size_t)
 CTL_RO_NL_GEN(opt_background_thread, opt_background_thread, bool)
 CTL_RO_NL_GEN(opt_max_background_threads, opt_max_background_threads, size_t)
