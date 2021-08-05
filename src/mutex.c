@@ -13,7 +13,7 @@
  * Based on benchmark results, a fixed spin with this amount of retries works
  * well for our critical sections.
  */
-int64_t opt_mutex_max_spin = 250;
+int64_t opt_mutex_max_spin = 600;
 
 /******************************************************************************/
 /* Data. */
