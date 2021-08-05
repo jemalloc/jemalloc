@@ -226,11 +226,15 @@ pa_decay_ms_get(pa_shard_t *shard, extent_state_t state) {
 void
 pa_shard_set_deferral_allowed(tsdn_t *tsdn, pa_shard_t *shard,
     bool deferral_allowed) {
-	hpa_shard_set_deferral_allowed(tsdn, &shard->hpa_shard,
-	    deferral_allowed);
+	if (atomic_load_b(&shard->use_hpa, ATOMIC_RELAXED)) {
+		hpa_shard_set_deferral_allowed(tsdn, &shard->hpa_shard,
+		    deferral_allowed);
+	}
 }
 
 void
 pa_shard_do_deferred_work(tsdn_t *tsdn, pa_shard_t *shard) {
-	hpa_shard_do_deferred_work(tsdn, &shard->hpa_shard);
+	if (atomic_load_b(&shard->use_hpa, ATOMIC_RELAXED)) {
+		hpa_shard_do_deferred_work(tsdn, &shard->hpa_shard);
+	}
 }
