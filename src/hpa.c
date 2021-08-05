@@ -50,6 +50,11 @@ hpa_supported() {
 	return true;
 }
 
+static void
+hpa_do_consistency_checks(hpa_shard_t *shard) {
+	assert(shard->base != NULL);
+}
+
 bool
 hpa_central_init(hpa_central_t *central, base_t *base, const hpa_hooks_t *hooks) {
 	/* malloc_conf processing should have filtered out these cases. */
@@ -214,6 +219,8 @@ hpa_shard_init(hpa_shard_t *shard, hpa_central_t *central, emap_t *emap,
 	shard->pai.dalloc = &hpa_dalloc;
 	shard->pai.dalloc_batch = &hpa_dalloc_batch;
 
+	hpa_do_consistency_checks(shard);
+
 	return false;
 }
 
@@ -242,6 +249,8 @@ hpa_shard_stats_accum(hpa_shard_stats_t *dst, hpa_shard_stats_t *src) {
 void
 hpa_shard_stats_merge(tsdn_t *tsdn, hpa_shard_t *shard,
     hpa_shard_stats_t *dst) {
+	hpa_do_consistency_checks(shard);
+
 	malloc_mutex_lock(tsdn, &shard->grow_mtx);
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	psset_stats_accum(&dst->psset_stats, &shard->psset.stats);
@@ -843,6 +852,8 @@ hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 
 void
 hpa_shard_disable(tsdn_t *tsdn, hpa_shard_t *shard) {
+	hpa_do_consistency_checks(shard);
+
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	edata_cache_fast_disable(tsdn, &shard->ecf);
 	malloc_mutex_unlock(tsdn, &shard->mtx);
@@ -868,6 +879,7 @@ hpa_assert_empty(tsdn_t *tsdn, hpa_shard_t *shard, psset_t *psset) {
 
 void
 hpa_shard_destroy(tsdn_t *tsdn, hpa_shard_t *shard) {
+	hpa_do_consistency_checks(shard);
 	/*
 	 * By the time we're here, the arena code should have dalloc'd all the
 	 * active extents, which means we should have eventually evicted
@@ -891,6 +903,8 @@ hpa_shard_destroy(tsdn_t *tsdn, hpa_shard_t *shard) {
 void
 hpa_shard_set_deferral_allowed(tsdn_t *tsdn, hpa_shard_t *shard,
     bool deferral_allowed) {
+	hpa_do_consistency_checks(shard);
+
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	bool deferral_previously_allowed = shard->opts.deferral_allowed;
 	shard->opts.deferral_allowed = deferral_allowed;
@@ -903,6 +917,8 @@ hpa_shard_set_deferral_allowed(tsdn_t *tsdn, hpa_shard_t *shard,
 
 void
 hpa_shard_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard) {
+	hpa_do_consistency_checks(shard);
+
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	hpa_shard_maybe_do_deferred_work(tsdn, shard, /* forced */ true);
 	malloc_mutex_unlock(tsdn, &shard->mtx);
@@ -910,22 +926,30 @@ hpa_shard_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard) {
 
 void
 hpa_shard_prefork3(tsdn_t *tsdn, hpa_shard_t *shard) {
+	hpa_do_consistency_checks(shard);
+
 	malloc_mutex_prefork(tsdn, &shard->grow_mtx);
 }
 
 void
 hpa_shard_prefork4(tsdn_t *tsdn, hpa_shard_t *shard) {
+	hpa_do_consistency_checks(shard);
+
 	malloc_mutex_prefork(tsdn, &shard->mtx);
 }
 
 void
 hpa_shard_postfork_parent(tsdn_t *tsdn, hpa_shard_t *shard) {
+	hpa_do_consistency_checks(shard);
+
 	malloc_mutex_postfork_parent(tsdn, &shard->grow_mtx);
 	malloc_mutex_postfork_parent(tsdn, &shard->mtx);
 }
 
 void
 hpa_shard_postfork_child(tsdn_t *tsdn, hpa_shard_t *shard) {
+	hpa_do_consistency_checks(shard);
+
 	malloc_mutex_postfork_child(tsdn, &shard->grow_mtx);
 	malloc_mutex_postfork_child(tsdn, &shard->mtx);
 }
