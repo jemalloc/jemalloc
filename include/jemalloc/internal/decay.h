@@ -118,6 +118,25 @@ decay_epoch_duration_ns(const decay_t *decay) {
 	return nstime_ns(&decay->interval);
 }
 
+static inline bool
+decay_immediately(const decay_t *decay) {
+	ssize_t decay_ms = decay_ms_read(decay);
+	return decay_ms == 0;
+}
+
+static inline bool
+decay_disabled(const decay_t *decay) {
+	ssize_t decay_ms = decay_ms_read(decay);
+	return decay_ms < 0;
+}
+
+/* Returns true if decay is enabled and done gradually. */
+static inline bool
+decay_gradually(const decay_t *decay) {
+	ssize_t decay_ms = decay_ms_read(decay);
+	return decay_ms > 0;
+}
+
 /*
  * Returns true if the passed in decay time setting is valid.
  * < -1 : invalid
@@ -143,6 +162,12 @@ bool decay_init(decay_t *decay, nstime_t *cur_time, ssize_t decay_ms);
  * be zeroed).
  */
 void decay_reinit(decay_t *decay, nstime_t *cur_time, ssize_t decay_ms);
+
+/*
+ * Compute how many of 'npages_new' pages we would need to purge in 'time'.
+ */
+uint64_t decay_npages_purge_in(decay_t *decay, nstime_t *time,
+    size_t npages_new);
 
 /* Returns true if the epoch advanced and there are pages to purge. */
 bool decay_maybe_advance_epoch(decay_t *decay, nstime_t *new_time,

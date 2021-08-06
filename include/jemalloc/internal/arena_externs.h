@@ -8,6 +8,12 @@
 #include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/stats.h"
 
+/*
+ * When the amount of pages to be purged exceeds this amount, deferred purge
+ * should happen.
+ */
+#define ARENA_DEFERRED_PURGE_NPAGES_THRESHOLD UINT64_C(1024)
+
 extern ssize_t opt_dirty_decay_ms;
 extern ssize_t opt_muzzy_decay_ms;
 
@@ -16,7 +22,6 @@ extern const char *percpu_arena_mode_names[];
 
 extern div_info_t arena_binind_div_info[SC_NBINS];
 
-extern const uint64_t h_steps[SMOOTHSTEP_NSTEPS];
 extern malloc_mutex_t arenas_lock;
 extern emap_t arena_emap_global;
 
@@ -51,6 +56,7 @@ bool arena_decay_ms_set(tsdn_t *tsdn, arena_t *arena, extent_state_t state,
 ssize_t arena_decay_ms_get(arena_t *arena, extent_state_t state);
 void arena_decay(tsdn_t *tsdn, arena_t *arena, bool is_background_thread,
     bool all);
+uint64_t arena_time_until_deferred(tsdn_t *tsdn, arena_t *arena);
 void arena_do_deferred_work(tsdn_t *tsdn, arena_t *arena);
 void arena_reset(tsd_t *tsd, arena_t *arena);
 void arena_destroy(tsd_t *tsd, arena_t *arena);

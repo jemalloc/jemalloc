@@ -3,6 +3,13 @@
 
 #include "jemalloc/internal/decay.h"
 
+const uint64_t h_steps[SMOOTHSTEP_NSTEPS] = {
+#define STEP(step, h, x, y)			\
+		h,
+		SMOOTHSTEP
+#undef STEP
+};
+
 /*
  * Generate a new deadline that is uniformly random within the next epoch after
  * the current one.
@@ -147,6 +154,25 @@ decay_deadline_reached(const decay_t *decay, const nstime_t *time) {
 	return (nstime_compare(&decay->deadline, time) <= 0);
 }
 
+uint64_t
+decay_npages_purge_in(decay_t *decay, nstime_t *time, size_t npages_new) {
+	uint64_t decay_interval_ns = decay_epoch_duration_ns(decay);
+	size_t n_epoch = (size_t)(nstime_ns(time) / decay_interval_ns);
+
+	uint64_t npages_purge;
+	if (n_epoch >= SMOOTHSTEP_NSTEPS) {
+		npages_purge = npages_new;
+	} else {
+		uint64_t h_steps_max = h_steps[SMOOTHSTEP_NSTEPS - 1];
+		assert(h_steps_max >=
+		    h_steps[SMOOTHSTEP_NSTEPS - 1 - n_epoch]);
+		npages_purge = npages_new * (h_steps_max -
+		    h_steps[SMOOTHSTEP_NSTEPS - 1 - n_epoch]);
+		npages_purge >>= SMOOTHSTEP_BFP;
+	}
+	return npages_purge;
+}
+
 bool
 decay_maybe_advance_epoch(decay_t *decay, nstime_t *new_time,
     size_t npages_current) {
@@ -214,9 +240,7 @@ decay_npurge_after_interval(decay_t *decay, size_t interval) {
 
 uint64_t decay_ns_until_purge(decay_t *decay, size_t npages_current,
     uint64_t npages_threshold) {
-	ssize_t decay_time = decay_ms_read(decay);
-	if (decay_time <= 0) {
-		/* Purging is eagerly done or disabled currently. */
+	if (!decay_gradually(decay)) {
 		return DECAY_UNBOUNDED_TIME_TO_PURGE;
 	}
 	uint64_t decay_interval_ns = decay_epoch_duration_ns(decay);

@@ -200,6 +200,8 @@ ssize_t pa_decay_ms_get(pa_shard_t *shard, extent_state_t state);
 void pa_shard_set_deferral_allowed(tsdn_t *tsdn, pa_shard_t *shard,
     bool deferral_allowed);
 void pa_shard_do_deferred_work(tsdn_t *tsdn, pa_shard_t *shard);
+void pa_shard_try_deferred_work(tsdn_t *tsdn, pa_shard_t *shard);
+uint64_t pa_shard_time_until_deferred_work(tsdn_t *tsdn, pa_shard_t *shard);
 
 /******************************************************************************/
 /*
