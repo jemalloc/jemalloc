@@ -36,6 +36,37 @@ TEST_BEGIN(test_decay_ms_valid) {
 }
 TEST_END
 
+TEST_BEGIN(test_decay_npages_purge_in) {
+	decay_t decay;
+	memset(&decay, 0, sizeof(decay));
+
+	nstime_t curtime;
+	nstime_init(&curtime, 0);
+
+	uint64_t decay_ms = 1000;
+	nstime_t decay_nstime;
+	nstime_init(&decay_nstime, decay_ms * 1000 * 1000);
+	expect_false(decay_init(&decay, &curtime, (ssize_t)decay_ms),
+	    "Failed to initialize decay");
+
+	const size_t new_pages = 100;
+
+	nstime_t time;
+	nstime_copy(&time, &decay_nstime);
+	expect_u64_eq(decay_npages_purge_in(&decay, &time, new_pages),
+	    new_pages, "Not all pages are expected to decay in decay_ms");
+
+	nstime_init(&time, 0);
+	expect_u64_eq(decay_npages_purge_in(&decay, &time, new_pages), 0,
+	    "More than zero pages are expected to instantly decay");
+
+	nstime_copy(&time, &decay_nstime);
+	nstime_idivide(&time, 2);
+	expect_u64_eq(decay_npages_purge_in(&decay, &time, new_pages),
+	    new_pages / 2, "Not half of pages decay in half the decay period");
+}
+TEST_END
+
 TEST_BEGIN(test_decay_maybe_advance_epoch) {
 	decay_t decay;
 	memset(&decay, 0, sizeof(decay));
@@ -244,6 +275,7 @@ main(void) {
 	return test(
 	    test_decay_init,
 	    test_decay_ms_valid,
+	    test_decay_npages_purge_in,
 	    test_decay_maybe_advance_epoch,
 	    test_decay_empty,
 	    test_decay,

@@ -24,6 +24,7 @@ struct pai_s {
 	/* This function empties out list as a side-effect of being called. */
 	void (*dalloc_batch)(tsdn_t *tsdn, pai_t *self,
 	    edata_list_active_t *list);
+	uint64_t (*time_until_deferred_work)(tsdn_t *tsdn, pai_t *self);
 };
 
 /*
@@ -62,6 +63,11 @@ pai_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 static inline void
 pai_dalloc_batch(tsdn_t *tsdn, pai_t *self, edata_list_active_t *list) {
 	self->dalloc_batch(tsdn, self, list);
+}
+
+static inline uint64_t
+pai_time_until_deferred_work(tsdn_t *tsdn, pai_t *self) {
+	return self->time_until_deferred_work(tsdn, self);
 }
 
 /*

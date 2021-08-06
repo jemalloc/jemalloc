@@ -96,6 +96,11 @@ pa_shard_reset(tsdn_t *tsdn, pa_shard_t *shard) {
 	}
 }
 
+static bool
+pa_shard_uses_hpa(pa_shard_t *shard) {
+	return atomic_load_b(&shard->use_hpa, ATOMIC_RELAXED);
+}
+
 void
 pa_shard_destroy(tsdn_t *tsdn, pa_shard_t *shard) {
 	pac_destroy(tsdn, &shard->pac);
@@ -118,7 +123,7 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 	    WITNESS_RANK_CORE, 0);
 
 	edata_t *edata = NULL;
-	if (atomic_load_b(&shard->use_hpa, ATOMIC_RELAXED)) {
+	if (pa_shard_uses_hpa(shard)) {
 		edata = pai_alloc(tsdn, &shard->hpa_sec.pai, size, alignment,
 		    zero);
 	}
@@ -226,7 +231,7 @@ pa_decay_ms_get(pa_shard_t *shard, extent_state_t state) {
 void
 pa_shard_set_deferral_allowed(tsdn_t *tsdn, pa_shard_t *shard,
     bool deferral_allowed) {
-	if (atomic_load_b(&shard->use_hpa, ATOMIC_RELAXED)) {
+	if (pa_shard_uses_hpa(shard)) {
 		hpa_shard_set_deferral_allowed(tsdn, &shard->hpa_shard,
 		    deferral_allowed);
 	}
@@ -234,7 +239,63 @@ pa_shard_set_deferral_allowed(tsdn_t *tsdn, pa_shard_t *shard,
 
 void
 pa_shard_do_deferred_work(tsdn_t *tsdn, pa_shard_t *shard) {
-	if (atomic_load_b(&shard->use_hpa, ATOMIC_RELAXED)) {
+	if (pa_shard_uses_hpa(shard)) {
 		hpa_shard_do_deferred_work(tsdn, &shard->hpa_shard);
 	}
+}
+
+static inline uint64_t
+pa_shard_ns_until_purge(tsdn_t *tsdn, decay_t *decay, size_t npages) {
+	if (malloc_mutex_trylock(tsdn, &decay->mtx)) {
+		/* Use minimal interval if decay is contended. */
+		return BACKGROUND_THREAD_DEFERRED_MIN;
+	}
+	uint64_t result = decay_ns_until_purge(decay, npages,
+	    ARENA_DEFERRED_PURGE_NPAGES_THRESHOLD);
+
+	malloc_mutex_unlock(tsdn, &decay->mtx);
+	return result;
+}
+
+/*
+ * Get time until next deferred work ought to happen. If there are multiple
+ * things that have been deferred, this function calculates the time until
+ * the soonest of those things.
+ */
+uint64_t
+pa_shard_time_until_deferred_work(tsdn_t *tsdn, pa_shard_t *shard) {
+	uint64_t time;
+	time = pa_shard_ns_until_purge(tsdn,
+	    &shard->pac.decay_dirty,
+	    ecache_npages_get(&shard->pac.ecache_dirty));
+	if (time == BACKGROUND_THREAD_DEFERRED_MIN) {
+		return time;
+	}
+
+	uint64_t muzzy = pa_shard_ns_until_purge(tsdn,
+	    &shard->pac.decay_muzzy,
+	    ecache_npages_get(&shard->pac.ecache_muzzy));
+	if (muzzy < time) {
+		time = muzzy;
+		if (time == BACKGROUND_THREAD_DEFERRED_MIN) {
+			return time;
+		}
+	}
+
+	uint64_t pac = pai_time_until_deferred_work(tsdn, &shard->pac.pai);
+	if (pac < time) {
+		time = pac;
+		if (time == BACKGROUND_THREAD_DEFERRED_MIN) {
+			return time;
+		}
+	}
+
+	if (pa_shard_uses_hpa(shard)) {
+		uint64_t hpa =
+		    pai_time_until_deferred_work(tsdn, &shard->hpa_shard.pai);
+		if (hpa < time) {
+			time = hpa;
+		}
+	}
+	return time;
 }

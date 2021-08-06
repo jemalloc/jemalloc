@@ -19,6 +19,7 @@ static bool hpa_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata,
 static void hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata);
 static void hpa_dalloc_batch(tsdn_t *tsdn, pai_t *self,
     edata_list_active_t *list);
+static uint64_t hpa_time_until_deferred_work(tsdn_t *tsdn, pai_t *self);
 
 bool
 hpa_supported() {
@@ -218,6 +219,7 @@ hpa_shard_init(hpa_shard_t *shard, hpa_central_t *central, emap_t *emap,
 	shard->pai.shrink = &hpa_shrink;
 	shard->pai.dalloc = &hpa_dalloc;
 	shard->pai.dalloc_batch = &hpa_dalloc_batch;
+	shard->pai.time_until_deferred_work = &hpa_time_until_deferred_work;
 
 	hpa_do_consistency_checks(shard);
 
@@ -848,6 +850,11 @@ hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 	edata_list_active_init(&dalloc_list);
 	edata_list_active_append(&dalloc_list, edata);
 	hpa_dalloc_batch(tsdn, self, &dalloc_list);
+}
+
+static uint64_t
+hpa_time_until_deferred_work(tsdn_t *tsdn, pai_t *self) {
+	return opt_background_thread_hpa_interval_max_ms;
 }
 
 void

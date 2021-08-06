@@ -10,6 +10,7 @@ static bool pac_expand_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata,
 static bool pac_shrink_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata,
     size_t old_size, size_t new_size);
 static void pac_dalloc_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata);
+static uint64_t pac_time_until_deferred_work(tsdn_t *tsdn, pai_t *self);
 
 static ehooks_t *
 pac_ehooks_get(pac_t *pac) {
@@ -96,6 +97,7 @@ pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
 	pac->pai.shrink = &pac_shrink_impl;
 	pac->pai.dalloc = &pac_dalloc_impl;
 	pac->pai.dalloc_batch = &pai_dalloc_batch_default;
+	pac->pai.time_until_deferred_work = &pac_time_until_deferred_work;
 
 	return false;
 }
@@ -194,6 +196,11 @@ pac_dalloc_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
 	pac_t *pac = (pac_t *)self;
 	ehooks_t *ehooks = pac_ehooks_get(pac);
 	ecache_dalloc(tsdn, pac, ehooks, &pac->ecache_dirty, edata);
+}
+
+static uint64_t
+pac_time_until_deferred_work(tsdn_t *tsdn, pai_t *self) {
+	return BACKGROUND_THREAD_DEFERRED_MAX;
 }
 
 bool
