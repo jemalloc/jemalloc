@@ -582,21 +582,21 @@ install_lib: install_lib_static
 endif
 install_lib: install_lib_pc
 
-install_doc_html:
+install_doc_html: build_doc_html
 	$(INSTALL) -d $(DATADIR)/doc/jemalloc$(install_suffix)
 	@for d in $(DOCS_HTML); do \
 	echo "$(INSTALL) -m 644 $$d $(DATADIR)/doc/jemalloc$(install_suffix)"; \
 	$(INSTALL) -m 644 $$d $(DATADIR)/doc/jemalloc$(install_suffix); \
 done
 
-install_doc_man:
+install_doc_man: build_doc_man
 	$(INSTALL) -d $(MANDIR)/man3
 	@for d in $(DOCS_MAN3); do \
 	echo "$(INSTALL) -m 644 $$d $(MANDIR)/man3"; \
 	$(INSTALL) -m 644 $$d $(MANDIR)/man3; \
 done
 
-install_doc: build_doc install_doc_html install_doc_man
+install_doc: install_doc_html install_doc_man
 
 install: install_bin install_include install_lib
 
