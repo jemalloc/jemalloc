@@ -33,7 +33,7 @@ task:
   install_script:
     - sed -i.bak -e 's,pkg+http://pkg.FreeBSD.org/\${ABI}/quarterly,pkg+http://pkg.FreeBSD.org/\${ABI}/latest,' /etc/pkg/FreeBSD.conf
     - pkg upgrade -y
-    - pkg install -y autoconf gmake
+    - pkg install -y autoconf gmake llvm12
   script:
     - autoconf
     # We don't perfectly track freebsd stdlib.h definitions.  This is fine when
