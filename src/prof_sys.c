@@ -34,7 +34,7 @@ static uint64_t prof_dump_iseq;
 static uint64_t prof_dump_mseq;
 static uint64_t prof_dump_useq;
 
-static char *prof_dump_prefix = NULL;
+static char *prof_prefix = NULL;
 
 /* The fallback allocator profiling functionality will use. */
 base_t *prof_base;
@@ -524,16 +524,16 @@ prof_strncpy(char *UNUSED dest, const char *UNUSED src, size_t UNUSED size) {
 }
 
 static const char *
-prof_dump_prefix_get(tsdn_t* tsdn) {
+prof_prefix_get(tsdn_t* tsdn) {
 	malloc_mutex_assert_owner(tsdn, &prof_dump_filename_mtx);
 
-	return prof_dump_prefix == NULL ? opt_prof_prefix : prof_dump_prefix;
+	return prof_prefix == NULL ? opt_prof_prefix : prof_prefix;
 }
 
 static bool
-prof_dump_prefix_is_empty(tsdn_t *tsdn) {
+prof_prefix_is_empty(tsdn_t *tsdn) {
 	malloc_mutex_lock(tsdn, &prof_dump_filename_mtx);
-	bool ret = (prof_dump_prefix_get(tsdn)[0] == '\0');
+	bool ret = (prof_prefix_get(tsdn)[0] == '\0');
 	malloc_mutex_unlock(tsdn, &prof_dump_filename_mtx);
 	return ret;
 }
@@ -545,18 +545,18 @@ prof_dump_filename(tsd_t *tsd, char *filename, char v, uint64_t vseq) {
 	cassert(config_prof);
 
 	assert(tsd_reentrancy_level_get(tsd) == 0);
-	const char *prof_prefix = prof_dump_prefix_get(tsd_tsdn(tsd));
+	const char *prof_prefix = prof_prefix_get(tsd_tsdn(tsd));
 
 	if (vseq != VSEQ_INVALID) {
 	        /* "<prefix>.<pid>.<seq>.v<vseq>.heap" */
 		malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
-		    "%s.%d.%"FMTu64".%c%"FMTu64".heap",
-		    prof_prefix, prof_getpid(), prof_dump_seq, v, vseq);
+		    "%s.%d.%"FMTu64".%c%"FMTu64".heap", prof_prefix,
+		    prof_getpid(), prof_dump_seq, v, vseq);
 	} else {
 	        /* "<prefix>.<pid>.<seq>.<v>.heap" */
 		malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
-		    "%s.%d.%"FMTu64".%c.heap",
-		    prof_prefix, prof_getpid(), prof_dump_seq, v);
+		    "%s.%d.%"FMTu64".%c.heap", prof_prefix,
+		    prof_getpid(), prof_dump_seq, v);
 	}
 	prof_dump_seq++;
 }
@@ -565,8 +565,7 @@ void
 prof_get_default_filename(tsdn_t *tsdn, char *filename, uint64_t ind) {
 	malloc_mutex_lock(tsdn, &prof_dump_filename_mtx);
 	malloc_snprintf(filename, PROF_DUMP_FILENAME_LEN,
-	    "%s.%d.%"FMTu64".json", prof_dump_prefix_get(tsdn), prof_getpid(),
-	    ind);
+	    "%s.%d.%"FMTu64".json", prof_prefix_get(tsdn), prof_getpid(), ind);
 	malloc_mutex_unlock(tsdn, &prof_dump_filename_mtx);
 }
 
@@ -574,7 +573,7 @@ void
 prof_fdump_impl(tsd_t *tsd) {
 	char filename[DUMP_FILENAME_BUFSIZE];
 
-	assert(!prof_dump_prefix_is_empty(tsd_tsdn(tsd)));
+	assert(!prof_prefix_is_empty(tsd_tsdn(tsd)));
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
 	prof_dump_filename(tsd, filename, 'f', VSEQ_INVALID);
 	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
@@ -582,11 +581,11 @@ prof_fdump_impl(tsd_t *tsd) {
 }
 
 bool
-prof_dump_prefix_set(tsdn_t *tsdn, const char *prefix) {
+prof_prefix_set(tsdn_t *tsdn, const char *prefix) {
 	cassert(config_prof);
 	ctl_mtx_assert_held(tsdn);
 	malloc_mutex_lock(tsdn, &prof_dump_filename_mtx);
-	if (prof_dump_prefix == NULL) {
+	if (prof_prefix == NULL) {
 		malloc_mutex_unlock(tsdn, &prof_dump_filename_mtx);
 		/* Everything is still guarded by ctl_mtx. */
 		char *buffer = base_alloc(tsdn, prof_base,
@@ -595,12 +594,12 @@ prof_dump_prefix_set(tsdn_t *tsdn, const char *prefix) {
 			return true;
 		}
 		malloc_mutex_lock(tsdn, &prof_dump_filename_mtx);
-		prof_dump_prefix = buffer;
+		prof_prefix = buffer;
 	}
-	assert(prof_dump_prefix != NULL);
+	assert(prof_prefix != NULL);
 
-	prof_strncpy(prof_dump_prefix, prefix, PROF_DUMP_FILENAME_LEN - 1);
-	prof_dump_prefix[PROF_DUMP_FILENAME_LEN - 1] = '\0';
+	prof_strncpy(prof_prefix, prefix, PROF_DUMP_FILENAME_LEN - 1);
+	prof_prefix[PROF_DUMP_FILENAME_LEN - 1] = '\0';
 	malloc_mutex_unlock(tsdn, &prof_dump_filename_mtx);
 
 	return false;
@@ -609,7 +608,7 @@ prof_dump_prefix_set(tsdn_t *tsdn, const char *prefix) {
 void
 prof_idump_impl(tsd_t *tsd) {
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
-	if (prof_dump_prefix_get(tsd_tsdn(tsd))[0] == '\0') {
+	if (prof_prefix_get(tsd_tsdn(tsd))[0] == '\0') {
 		malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
 		return;
 	}
@@ -626,7 +625,7 @@ prof_mdump_impl(tsd_t *tsd, const char *filename) {
 	if (filename == NULL) {
 		/* No filename specified, so automatically generate one. */
 		malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
-		if (prof_dump_prefix_get(tsd_tsdn(tsd))[0] == '\0') {
+		if (prof_prefix_get(tsd_tsdn(tsd))[0] == '\0') {
 			malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
 			return true;
 		}
@@ -642,7 +641,7 @@ void
 prof_gdump_impl(tsd_t *tsd) {
 	tsdn_t *tsdn = tsd_tsdn(tsd);
 	malloc_mutex_lock(tsdn, &prof_dump_filename_mtx);
-	if (prof_dump_prefix_get(tsdn)[0] == '\0') {
+	if (prof_prefix_get(tsdn)[0] == '\0') {
 		malloc_mutex_unlock(tsdn, &prof_dump_filename_mtx);
 		return;
 	}
