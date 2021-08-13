@@ -244,6 +244,7 @@ if test "x$GCC" = "xyes" ; then
       AC_DEFINE_UNQUOTED([JEMALLOC_HAS_RESTRICT])
     fi
   fi
+  JE_CFLAGS_ADD([-Werror=unknown-warning-option])
   JE_CFLAGS_ADD([-Wall])
   JE_CFLAGS_ADD([-Wextra])
   JE_CFLAGS_ADD([-Wshorten-64-to-32])
