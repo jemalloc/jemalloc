@@ -43,6 +43,11 @@ struct hpa_shard_opts_s {
 	 * actually get hugified.
 	 */
 	uint64_t hugify_delay_ms;
+
+	/*
+	 * Minimum amount of time between purges.
+	 */
+	uint64_t min_purge_interval_ms;
 };
 
 #define HPA_SHARD_OPTS_DEFAULT {					\
@@ -61,7 +66,9 @@ struct hpa_shard_opts_s {
 	 */								\
 	false,								\
 	/* hugify_delay_ms */						\
-	10 * 1000							\
+	10 * 1000,							\
+	/* min_purge_interval_ms */					\
+	5 * 1000							\
 }
 
 #endif /* JEMALLOC_INTERNAL_HPA_OPTS_H */

@@ -97,6 +97,7 @@ CTL_PROTO(opt_hpa)
 CTL_PROTO(opt_hpa_slab_max_alloc)
 CTL_PROTO(opt_hpa_hugification_threshold)
 CTL_PROTO(opt_hpa_hugify_delay_ms)
+CTL_PROTO(opt_hpa_min_purge_interval_ms)
 CTL_PROTO(opt_hpa_dirty_mult)
 CTL_PROTO(opt_hpa_sec_nshards)
 CTL_PROTO(opt_hpa_sec_max_alloc)
@@ -408,6 +409,7 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("hpa_hugification_threshold"),
 		CTL(opt_hpa_hugification_threshold)},
 	{NAME("hpa_hugify_delay_ms"), CTL(opt_hpa_hugify_delay_ms)},
+	{NAME("hpa_min_purge_interval_ms"), CTL(opt_hpa_min_purge_interval_ms)},
 	{NAME("hpa_dirty_mult"), CTL(opt_hpa_dirty_mult)},
 	{NAME("hpa_sec_nshards"),	CTL(opt_hpa_sec_nshards)},
 	{NAME("hpa_sec_max_alloc"),	CTL(opt_hpa_sec_max_alloc)},
@@ -2116,6 +2118,8 @@ CTL_RO_NL_GEN(opt_hpa, opt_hpa, bool)
 CTL_RO_NL_GEN(opt_hpa_hugification_threshold,
     opt_hpa_opts.hugification_threshold, size_t)
 CTL_RO_NL_GEN(opt_hpa_hugify_delay_ms, opt_hpa_opts.hugify_delay_ms, uint64_t)
+CTL_RO_NL_GEN(opt_hpa_min_purge_interval_ms, opt_hpa_opts.min_purge_interval_ms,
+    uint64_t)
 
 /*
  * This will have to change before we publicly document this option; fxp_t and
