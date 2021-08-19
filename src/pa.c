@@ -118,21 +118,23 @@ pa_get_pai(pa_shard_t *shard, edata_t *edata) {
 
 edata_t *
 pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
-    bool slab, szind_t szind, bool zero) {
+    bool slab, szind_t szind, bool zero, bool *deferred_work_generated) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
 	edata_t *edata = NULL;
+	*deferred_work_generated = false;
 	if (pa_shard_uses_hpa(shard)) {
 		edata = pai_alloc(tsdn, &shard->hpa_sec.pai, size, alignment,
-		    zero);
+		    zero, deferred_work_generated);
 	}
 	/*
 	 * Fall back to the PAC if the HPA is off or couldn't serve the given
 	 * allocation request.
 	 */
 	if (edata == NULL) {
-		edata = pai_alloc(tsdn, &shard->pac.pai, size, alignment, zero);
+		edata = pai_alloc(tsdn, &shard->pac.pai, size, alignment, zero,
+		    deferred_work_generated);
 	}
 
 	if (edata != NULL) {
@@ -152,7 +154,7 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 
 bool
 pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
-    size_t new_size, szind_t szind, bool zero) {
+    size_t new_size, szind_t szind, bool zero, bool *deferred_work_generated) {
 	assert(new_size > old_size);
 	assert(edata_size_get(edata) == old_size);
 	assert((new_size & PAGE_MASK) == 0);
@@ -161,7 +163,8 @@ pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 
 	pai_t *pai = pa_get_pai(shard, edata);
 
-	bool error = pai_expand(tsdn, pai, edata, old_size, new_size, zero);
+	bool error = pai_expand(tsdn, pai, edata, old_size, new_size, zero,
+	    deferred_work_generated);
 	if (error) {
 		return true;
 	}
@@ -174,20 +177,19 @@ pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 
 bool
 pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
-    size_t new_size, szind_t szind, bool *generated_dirty) {
+    size_t new_size, szind_t szind, bool *deferred_work_generated) {
 	assert(new_size < old_size);
 	assert(edata_size_get(edata) == old_size);
 	assert((new_size & PAGE_MASK) == 0);
 	size_t shrink_amount = old_size - new_size;
 
-	*generated_dirty = false;
 	pai_t *pai = pa_get_pai(shard, edata);
-	bool error = pai_shrink(tsdn, pai, edata, old_size, new_size);
+	bool error = pai_shrink(tsdn, pai, edata, old_size, new_size,
+	    deferred_work_generated);
 	if (error) {
 		return true;
 	}
 	pa_nactive_sub(shard, shrink_amount >> LG_PAGE);
-	*generated_dirty = (edata_pai_get(edata) == EXTENT_PAI_PAC);
 
 	edata_szind_set(edata, szind);
 	emap_remap(tsdn, shard->emap, edata, szind, /* slab */ false);
@@ -196,7 +198,7 @@ pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 
 void
 pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
-    bool *generated_dirty) {
+    bool *deferred_work_generated) {
 	emap_remap(tsdn, shard->emap, edata, SC_NSIZES, /* slab */ false);
 	if (edata_slab_get(edata)) {
 		emap_deregister_interior(tsdn, shard->emap, edata);
@@ -206,8 +208,7 @@ pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
 	edata_szind_set(edata, SC_NSIZES);
 	pa_nactive_sub(shard, edata_size_get(edata) >> LG_PAGE);
 	pai_t *pai = pa_get_pai(shard, edata);
-	pai_dalloc(tsdn, pai, edata);
-	*generated_dirty = (edata_pai_get(edata) == EXTENT_PAI_PAC);
+	pai_dalloc(tsdn, pai, edata, deferred_work_generated);
 }
 
 bool

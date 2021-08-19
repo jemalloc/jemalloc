@@ -66,6 +66,23 @@ set_background_thread_enabled(bool enabled) {
 }
 
 static void
+wait_until_thread_is_enabled(unsigned arena_id) {
+	tsd_t* tsd = tsd_fetch();
+
+	bool sleeping = false;
+	int iterations = 0;
+	do {
+		background_thread_info_t *info =
+		    background_thread_info_get(arena_id);
+		malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
+		malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
+		sleeping = background_thread_indefinite_sleep(info);
+		assert_d_lt(iterations, (int)1e6,
+		    "Waiting for a thread to start for too long");
+	} while (!sleeping);
+}
+
+static void
 expect_purging(unsigned arena_ind, bool expect_deferred) {
 	size_t empty_ndirty;
 
@@ -132,6 +149,7 @@ TEST_BEGIN(test_hpa_background_thread_enable_disable) {
 	expect_purging(arena_ind, false);
 
 	set_background_thread_enabled(true);
+	wait_until_thread_is_enabled(arena_ind);
 	expect_purging(arena_ind, true);
 }
 TEST_END

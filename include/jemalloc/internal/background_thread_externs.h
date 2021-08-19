@@ -13,7 +13,7 @@ extern background_thread_info_t *background_thread_info;
 bool background_thread_create(tsd_t *tsd, unsigned arena_ind);
 bool background_threads_enable(tsd_t *tsd);
 bool background_threads_disable(tsd_t *tsd);
-bool background_thread_running(background_thread_info_t* info);
+bool background_thread_is_started(background_thread_info_t* info);
 void background_thread_wakeup_early(background_thread_info_t *info,
     nstime_t *remaining_sleep);
 void background_thread_interval_check(tsdn_t *tsdn, arena_t *arena,

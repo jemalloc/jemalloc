@@ -167,16 +167,17 @@ void pa_shard_destroy(tsdn_t *tsdn, pa_shard_t *shard);
 
 /* Gets an edata for the given allocation. */
 edata_t *pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size,
-    size_t alignment, bool slab, szind_t szind, bool zero);
+    size_t alignment, bool slab, szind_t szind, bool zero,
+    bool *deferred_work_generated);
 /* Returns true on error, in which case nothing changed. */
 bool pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
-    size_t new_size, szind_t szind, bool zero);
+    size_t new_size, szind_t szind, bool zero, bool *deferred_work_generated);
 /*
  * The same.  Sets *generated_dirty to true if we produced new dirty pages, and
  * false otherwise.
  */
 bool pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
-    size_t new_size, szind_t szind, bool *generated_dirty);
+    size_t new_size, szind_t szind, bool *deferred_work_generated);
 /*
  * Frees the given edata back to the pa.  Sets *generated_dirty if we produced
  * new dirty pages (well, we alwyas set it for now; but this need not be the
@@ -185,7 +186,7 @@ bool pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
  * consistent with the shrink pathway and our error codes here).
  */
 void pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
-    bool *generated_dirty);
+    bool *deferred_work_generated);
 bool pa_decay_ms_set(tsdn_t *tsdn, pa_shard_t *shard, extent_state_t state,
     ssize_t decay_ms, pac_purge_eagerness_t eagerness);
 ssize_t pa_decay_ms_get(pa_shard_t *shard, extent_state_t state);

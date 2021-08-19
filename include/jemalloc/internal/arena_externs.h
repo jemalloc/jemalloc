@@ -42,7 +42,7 @@ void arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     size_t *nactive, size_t *ndirty, size_t *nmuzzy, arena_stats_t *astats,
     bin_stats_data_t *bstats, arena_stats_large_t *lstats,
     pac_estats_t *estats, hpa_shard_stats_t *hpastats, sec_stats_t *secstats);
-void arena_handle_new_dirty_pages(tsdn_t *tsdn, arena_t *arena);
+void arena_handle_deferred_work(tsdn_t *tsdn, arena_t *arena);
 edata_t *arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena,
     size_t usize, size_t alignment, bool zero);
 void arena_extent_dalloc_large_prep(tsdn_t *tsdn, arena_t *arena,
