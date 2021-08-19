@@ -3,7 +3,7 @@
 
 #include "jemalloc/internal/decay.h"
 
-const uint64_t h_steps[SMOOTHSTEP_NSTEPS] = {
+static const uint64_t h_steps[SMOOTHSTEP_NSTEPS] = {
 #define STEP(step, h, x, y)			\
 		h,
 		SMOOTHSTEP

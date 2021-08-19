@@ -136,6 +136,11 @@ struct hpa_shard_s {
 	 * stats.
 	 */
 	hpa_shard_nonderived_stats_t stats;
+
+	/*
+	 * Last time we performed purge on this shard.
+	 */
+	nstime_t last_purge;
 };
 
 /*

@@ -49,7 +49,7 @@ TEST_BEGIN(test_decay_npages_purge_in) {
 	expect_false(decay_init(&decay, &curtime, (ssize_t)decay_ms),
 	    "Failed to initialize decay");
 
-	const size_t new_pages = 100;
+	size_t new_pages = 100;
 
 	nstime_t time;
 	nstime_copy(&time, &decay_nstime);

@@ -119,7 +119,8 @@ background_thread_sleep(tsdn_t *tsdn, background_thread_info_t *info,
 
 	int ret;
 	if (interval == BACKGROUND_THREAD_INDEFINITE_SLEEP) {
-		assert(background_thread_indefinite_sleep(info));
+		background_thread_wakeup_time_set(tsdn, info,
+		    BACKGROUND_THREAD_INDEFINITE_SLEEP);
 		ret = pthread_cond_wait(&info->cond, &info->mtx.lock);
 		assert(ret == 0);
 	} else {
@@ -144,8 +145,6 @@ background_thread_sleep(tsdn_t *tsdn, background_thread_info_t *info,
 		assert(!background_thread_indefinite_sleep(info));
 		ret = pthread_cond_timedwait(&info->cond, &info->mtx.lock, &ts);
 		assert(ret == ETIMEDOUT || ret == 0);
-		background_thread_wakeup_time_set(tsdn, info,
-		    BACKGROUND_THREAD_INDEFINITE_SLEEP);
 	}
 	if (config_stats) {
 		gettimeofday(&tv, NULL);
@@ -177,13 +176,21 @@ background_work_sleep_once(tsdn_t *tsdn, background_thread_info_t *info,
     unsigned ind) {
 	uint64_t ns_until_deferred = BACKGROUND_THREAD_DEFERRED_MAX;
 	unsigned narenas = narenas_total_get();
+	bool slept_indefinitely = background_thread_indefinite_sleep(info);
 
 	for (unsigned i = ind; i < narenas; i += max_background_threads) {
 		arena_t *arena = arena_get(tsdn, i, false);
 		if (!arena) {
 			continue;
 		}
-		arena_do_deferred_work(tsdn, arena);
+		/*
+		 * If thread was woken up from the indefinite sleep, don't
+		 * do the work instantly, but rather check when the deferred
+		 * work that caused this thread to wake up is scheduled for.
+		 */
+		if (!slept_indefinitely) {
+			arena_do_deferred_work(tsdn, arena);
+		}
 		if (ns_until_deferred <= BACKGROUND_THREAD_MIN_INTERVAL_NS) {
 			/* Min interval will be used. */
 			continue;
@@ -574,7 +581,7 @@ background_threads_disable(tsd_t *tsd) {
 }
 
 bool
-background_thread_running(background_thread_info_t *info) {
+background_thread_is_started(background_thread_info_t *info) {
 	return info->state == background_thread_started;
 }
 
@@ -586,7 +593,8 @@ background_thread_wakeup_early(background_thread_info_t *info,
 	 * we know that background thread wakes up soon, so the time to cache
 	 * the just freed memory is bounded and low.
 	 */
-	if (nstime_ns(remaining_sleep) < BACKGROUND_THREAD_MIN_INTERVAL_NS) {
+	if (remaining_sleep && nstime_ns(remaining_sleep) <
+	    BACKGROUND_THREAD_MIN_INTERVAL_NS) {
 		return;
 	}
 	pthread_cond_signal(&info->cond);

@@ -9,16 +9,17 @@
 #define HPA_EDEN_SIZE (128 * HUGEPAGE)
 
 static edata_t *hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
-    size_t alignment, bool zero);
+    size_t alignment, bool zero, bool *deferred_work_generated);
 static size_t hpa_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size,
-    size_t nallocs, edata_list_active_t *results);
+    size_t nallocs, edata_list_active_t *results, bool *deferred_work_generated);
 static bool hpa_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata,
-    size_t old_size, size_t new_size, bool zero);
+    size_t old_size, size_t new_size, bool zero, bool *deferred_work_generated);
 static bool hpa_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata,
-    size_t old_size, size_t new_size);
-static void hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata);
+    size_t old_size, size_t new_size, bool *deferred_work_generated);
+static void hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata,
+    bool *deferred_work_generated);
 static void hpa_dalloc_batch(tsdn_t *tsdn, pai_t *self,
-    edata_list_active_t *list);
+    edata_list_active_t *list, bool *deferred_work_generated);
 static uint64_t hpa_time_until_deferred_work(tsdn_t *tsdn, pai_t *self);
 
 bool
@@ -366,6 +367,13 @@ hpa_update_purge_hugify_eligibility(tsdn_t *tsdn, hpa_shard_t *shard,
 	}
 }
 
+static bool
+hpa_shard_has_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard) {
+	malloc_mutex_assert_owner(tsdn, &shard->mtx);
+	hpdata_t *to_hugify = psset_pick_hugify(&shard->psset);
+	return to_hugify != NULL || hpa_should_purge(tsdn, shard);
+}
+
 /* Returns whether or not we purged anything. */
 static bool
 hpa_try_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
@@ -429,6 +437,7 @@ hpa_try_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
 	shard->npending_purge -= num_to_purge;
 	shard->stats.npurge_passes++;
 	shard->stats.npurges += purges_this_pass;
+	shard->central->hooks.curtime(&shard->last_purge);
 	if (dehugify) {
 		shard->stats.ndehugifies++;
 	}
@@ -615,7 +624,8 @@ hpa_try_alloc_one_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 
 static size_t
 hpa_try_alloc_batch_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
-    bool *oom, size_t nallocs, edata_list_active_t *results) {
+    bool *oom, size_t nallocs, edata_list_active_t *results,
+    bool *deferred_work_generated) {
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	size_t nsuccess = 0;
 	for (; nsuccess < nallocs; nsuccess++) {
@@ -628,18 +638,20 @@ hpa_try_alloc_batch_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 	}
 
 	hpa_shard_maybe_do_deferred_work(tsdn, shard, /* forced */ false);
+	*deferred_work_generated = hpa_shard_has_deferred_work(tsdn, shard);
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 	return nsuccess;
 }
 
 static size_t
 hpa_alloc_batch_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
-    size_t nallocs, edata_list_active_t *results) {
+    size_t nallocs, edata_list_active_t *results,
+    bool *deferred_work_generated) {
 	assert(size <= shard->opts.slab_max_alloc);
 	bool oom = false;
 
 	size_t nsuccess = hpa_try_alloc_batch_no_grow(tsdn, shard, size, &oom,
-	    nallocs, results);
+	    nallocs, results, deferred_work_generated);
 
 	if (nsuccess == nallocs || oom) {
 		return nsuccess;
@@ -655,7 +667,7 @@ hpa_alloc_batch_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 	 * in between when we dropped the main mutex and grabbed the grow mutex.
 	 */
 	nsuccess += hpa_try_alloc_batch_no_grow(tsdn, shard, size, &oom,
-	    nallocs - nsuccess, results);
+	    nallocs - nsuccess, results, deferred_work_generated);
 	if (nsuccess == nallocs || oom) {
 		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
 		return nsuccess;
@@ -683,7 +695,7 @@ hpa_alloc_batch_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 
 	nsuccess += hpa_try_alloc_batch_no_grow(tsdn, shard, size, &oom,
-	    nallocs - nsuccess, results);
+	    nallocs - nsuccess, results, deferred_work_generated);
 	/*
 	 * Drop grow_mtx before doing deferred work; other threads blocked on it
 	 * should be allowed to proceed while we're working.
@@ -704,7 +716,7 @@ hpa_from_pai(pai_t *self) {
 
 static size_t
 hpa_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size, size_t nallocs,
-    edata_list_active_t *results) {
+    edata_list_active_t *results, bool *deferred_work_generated) {
 	assert(nallocs > 0);
 	assert((size & PAGE_MASK) == 0);
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
@@ -716,7 +728,7 @@ hpa_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size, size_t nallocs,
 	}
 
 	size_t nsuccess = hpa_alloc_batch_psset(tsdn, shard, size, nallocs,
-	    results);
+	    results, deferred_work_generated);
 
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
@@ -737,7 +749,8 @@ hpa_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size, size_t nallocs,
 }
 
 static edata_t *
-hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero) {
+hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
+    bool *deferred_work_generated) {
 	assert((size & PAGE_MASK) == 0);
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
@@ -753,23 +766,25 @@ hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero) {
 	edata_list_active_t results;
 	edata_list_active_init(&results);
 	size_t nallocs = hpa_alloc_batch(tsdn, self, size, /* nallocs */ 1,
-	    &results);
+	    &results, deferred_work_generated);
 	assert(nallocs == 0 || nallocs == 1);
 	edata_t *edata = edata_list_active_first(&results);
 	return edata;
 }
 
 static bool
-hpa_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata,
-    size_t old_size, size_t new_size, bool zero) {
+hpa_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
+    size_t new_size, bool zero, bool *deferred_work_generated) {
 	/* Expand not yet supported. */
+	*deferred_work_generated = false;
 	return true;
 }
 
 static bool
 hpa_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata,
-    size_t old_size, size_t new_size) {
+    size_t old_size, size_t new_size, bool *deferred_work_generated) {
 	/* Shrink not yet supported. */
+	*deferred_work_generated = false;
 	return true;
 }
 
@@ -825,7 +840,8 @@ hpa_dalloc_locked(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata) {
 }
 
 static void
-hpa_dalloc_batch(tsdn_t *tsdn, pai_t *self, edata_list_active_t *list) {
+hpa_dalloc_batch(tsdn_t *tsdn, pai_t *self, edata_list_active_t *list,
+    bool *deferred_work_generated) {
 	hpa_shard_t *shard = hpa_from_pai(self);
 
 	edata_t *edata;
@@ -840,21 +856,83 @@ hpa_dalloc_batch(tsdn_t *tsdn, pai_t *self, edata_list_active_t *list) {
 		hpa_dalloc_locked(tsdn, shard, edata);
 	}
 	hpa_shard_maybe_do_deferred_work(tsdn, shard, /* forced */ false);
+	*deferred_work_generated =
+	    hpa_shard_has_deferred_work(tsdn, shard);
+
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 }
 
 static void
-hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata) {
+hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata,
+    bool *deferred_work_generated) {
 	/* Just a dalloc_batch of size 1; this lets us share logic. */
 	edata_list_active_t dalloc_list;
 	edata_list_active_init(&dalloc_list);
 	edata_list_active_append(&dalloc_list, edata);
-	hpa_dalloc_batch(tsdn, self, &dalloc_list);
+	hpa_dalloc_batch(tsdn, self, &dalloc_list, deferred_work_generated);
 }
 
+/*
+ * Calculate time until either purging or hugification ought to happen.
+ * Called by background threads.
+ */
 static uint64_t
 hpa_time_until_deferred_work(tsdn_t *tsdn, pai_t *self) {
-	return opt_background_thread_hpa_interval_max_ms;
+	hpa_shard_t *shard = hpa_from_pai(self);
+	uint64_t time_ns = BACKGROUND_THREAD_DEFERRED_MAX;
+
+	malloc_mutex_lock(tsdn, &shard->mtx);
+
+	hpdata_t *to_hugify = psset_pick_hugify(&shard->psset);
+	if (to_hugify != NULL) {
+		nstime_t time_hugify_allowed =
+		    hpdata_time_hugify_allowed(to_hugify);
+		nstime_t nstime;
+		shard->central->hooks.curtime(&nstime);
+		nstime_subtract(&nstime, &time_hugify_allowed);
+		uint64_t since_hugify_allowed_ms = nstime_msec(&nstime);
+		/*
+		 * If not enough time has passed since hugification was allowed,
+		 * sleep for the rest.
+		 */
+		if (since_hugify_allowed_ms < shard->opts.hugify_delay_ms) {
+			time_ns = shard->opts.hugify_delay_ms - since_hugify_allowed_ms;
+			time_ns *= 1000 * 1000;
+		} else {
+			malloc_mutex_unlock(tsdn, &shard->mtx);
+			return BACKGROUND_THREAD_DEFERRED_MIN;
+		}
+	}
+
+	if (hpa_should_purge(tsdn, shard)) {
+		/*
+		 * If we haven't purged before, no need to check interval
+		 * between purges. Simply purge as soon as possible.
+		 */
+		if (shard->stats.npurge_passes == 0) {
+			malloc_mutex_unlock(tsdn, &shard->mtx);
+			return BACKGROUND_THREAD_DEFERRED_MIN;
+		}
+		nstime_t nstime;
+		shard->central->hooks.curtime(&nstime);
+		nstime_subtract(&nstime, &shard->last_purge);
+		uint64_t since_last_purge_ms = nstime_msec(&nstime);
+
+		if (since_last_purge_ms < shard->opts.min_purge_interval_ms) {
+			uint64_t until_purge_ns;
+			until_purge_ns = shard->opts.min_purge_interval_ms -
+			    since_last_purge_ms;
+			until_purge_ns *= 1000 * 1000;
+
+			if (until_purge_ns < time_ns) {
+				time_ns = until_purge_ns;
+			}
+		} else {
+			time_ns = BACKGROUND_THREAD_DEFERRED_MIN;
+		}
+	}
+	malloc_mutex_unlock(tsdn, &shard->mtx);
+	return time_ns;
 }
 
 void
