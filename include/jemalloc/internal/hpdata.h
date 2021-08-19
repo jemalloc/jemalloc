@@ -292,7 +292,7 @@ hpdata_ndirty_get(hpdata_t *hpdata) {
 
 static inline size_t
 hpdata_nretained_get(hpdata_t *hpdata) {
-	return hpdata->h_nactive - hpdata->h_ntouched;
+	return HUGEPAGE_PAGES - hpdata->h_ntouched;
 }
 
 static inline void
