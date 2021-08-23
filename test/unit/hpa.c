@@ -37,7 +37,7 @@ static hpa_shard_t *
 create_test_data(hpa_hooks_t *hooks, hpa_shard_opts_t *opts) {
 	bool err;
 	base_t *base = base_new(TSDN_NULL, /* ind */ SHARD_IND,
-	    &ehooks_default_extent_hooks);
+	    &ehooks_default_extent_hooks, /* metadata_use_hooks */ true);
 	assert_ptr_not_null(base, "");
 
 	test_data_t *test_data = malloc(sizeof(test_data_t));

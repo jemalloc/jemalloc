@@ -66,7 +66,7 @@ arena_get(tsdn_t *tsdn, unsigned ind, bool init_if_missing) {
 	if (unlikely(ret == NULL)) {
 		if (init_if_missing) {
 			ret = arena_init(tsdn, ind,
-			    (extent_hooks_t *)&ehooks_default_extent_hooks);
+			    &arena_config_default);
 		}
 	}
 	return ret;

@@ -32,7 +32,8 @@ TEST_BEGIN(test_base_hooks_default) {
 
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 	base = base_new(tsdn, 0,
-	    (extent_hooks_t *)&ehooks_default_extent_hooks);
+	    (extent_hooks_t *)&ehooks_default_extent_hooks,
+	    /* metadata_use_hooks */ true);
 
 	if (config_stats) {
 		base_stats_get(tsdn, base, &allocated0, &resident, &mapped,
@@ -74,7 +75,7 @@ TEST_BEGIN(test_base_hooks_null) {
 	memcpy(&hooks, &hooks_null, sizeof(extent_hooks_t));
 
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
-	base = base_new(tsdn, 0, &hooks);
+	base = base_new(tsdn, 0, &hooks, /* metadata_use_hooks */ true);
 	expect_ptr_not_null(base, "Unexpected base_new() failure");
 
 	if (config_stats) {
@@ -120,7 +121,7 @@ TEST_BEGIN(test_base_hooks_not_null) {
 
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 	did_alloc = false;
-	base = base_new(tsdn, 0, &hooks);
+	base = base_new(tsdn, 0, &hooks, /* metadata_use_hooks */ true);
 	expect_ptr_not_null(base, "Unexpected base_new() failure");
 	expect_true(did_alloc, "Expected alloc");
 

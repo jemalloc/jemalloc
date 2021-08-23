@@ -5,7 +5,7 @@
 static void
 test_edata_cache_init(edata_cache_t *edata_cache) {
 	base_t *base = base_new(TSDN_NULL, /* ind */ 1,
-	    &ehooks_default_extent_hooks);
+	    &ehooks_default_extent_hooks, /* metadata_use_hooks */ true);
 	assert_ptr_not_null(base, "");
 	bool err = edata_cache_init(edata_cache, base);
 	assert_false(err, "");

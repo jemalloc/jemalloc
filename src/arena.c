@@ -55,6 +55,11 @@ static unsigned nbins_total;
 
 static unsigned huge_arena_ind;
 
+const arena_config_t arena_config_default = {
+	/* .extent_hooks = */ (extent_hooks_t *)&ehooks_default_extent_hooks,
+	/* .metadata_use_hooks = */ true,
+};
+
 /******************************************************************************/
 /*
  * Function prototypes for static functions that are referenced prior to
@@ -1427,7 +1432,6 @@ arena_set_extent_hooks(tsd_t *tsd, arena_t *arena,
 	return ret;
 }
 
-
 dss_prec_t
 arena_dss_prec_get(arena_t *arena) {
 	return (dss_prec_t)atomic_load_u(&arena->dss_prec, ATOMIC_ACQUIRE);
@@ -1494,7 +1498,7 @@ arena_nthreads_dec(arena_t *arena, bool internal) {
 }
 
 arena_t *
-arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
+arena_new(tsdn_t *tsdn, unsigned ind, const arena_config_t *config) {
 	arena_t *arena;
 	base_t *base;
 	unsigned i;
@@ -1502,7 +1506,8 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	if (ind == 0) {
 		base = b0get();
 	} else {
-		base = base_new(tsdn, ind, extent_hooks);
+		base = base_new(tsdn, ind, config->extent_hooks,
+		    config->metadata_use_hooks);
 		if (base == NULL) {
 			return NULL;
 		}

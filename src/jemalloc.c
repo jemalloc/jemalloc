@@ -384,7 +384,7 @@ narenas_total_get(void) {
 
 /* Create a new arena and insert it into the arenas array at index ind. */
 static arena_t *
-arena_init_locked(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
+arena_init_locked(tsdn_t *tsdn, unsigned ind, const arena_config_t *config) {
 	arena_t *arena;
 
 	assert(ind <= narenas_total_get());
@@ -406,7 +406,7 @@ arena_init_locked(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	}
 
 	/* Actually initialize the arena. */
-	arena = arena_new(tsdn, ind, extent_hooks);
+	arena = arena_new(tsdn, ind, config);
 
 	return arena;
 }
@@ -430,11 +430,11 @@ arena_new_create_background_thread(tsdn_t *tsdn, unsigned ind) {
 }
 
 arena_t *
-arena_init(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
+arena_init(tsdn_t *tsdn, unsigned ind, const arena_config_t *config) {
 	arena_t *arena;
 
 	malloc_mutex_lock(tsdn, &arenas_lock);
-	arena = arena_init_locked(tsdn, ind, extent_hooks);
+	arena = arena_init_locked(tsdn, ind, config);
 	malloc_mutex_unlock(tsdn, &arenas_lock);
 
 	arena_new_create_background_thread(tsdn, ind);
@@ -570,8 +570,7 @@ arena_choose_hard(tsd_t *tsd, bool internal) {
 				choose[j] = first_null;
 				arena = arena_init_locked(tsd_tsdn(tsd),
 				    choose[j],
-				    (extent_hooks_t *)
-				    &ehooks_default_extent_hooks);
+				    &arena_config_default);
 				if (arena == NULL) {
 					malloc_mutex_unlock(tsd_tsdn(tsd),
 					    &arenas_lock);
@@ -1782,8 +1781,7 @@ malloc_init_hard_a0_locked() {
 	 * Initialize one arena here.  The rest are lazily created in
 	 * arena_choose_hard().
 	 */
-	if (arena_init(TSDN_NULL, 0,
-	    (extent_hooks_t *)&ehooks_default_extent_hooks) == NULL) {
+	if (arena_init(TSDN_NULL, 0, &arena_config_default) == NULL) {
 		return true;
 	}
 	a0 = arena_get(TSDN_NULL, 0, false);
