@@ -25,6 +25,11 @@ struct base_s {
 	 */
 	ehooks_t ehooks;
 
+	/*
+	 * Use user hooks for metadata when true.
+	 */
+	bool metadata_use_hooks;
+
 	/* Protects base_alloc() and base_stats_get() operations. */
 	malloc_mutex_t mtx;
 

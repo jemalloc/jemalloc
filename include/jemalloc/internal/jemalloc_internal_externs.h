@@ -57,7 +57,7 @@ void *bootstrap_calloc(size_t num, size_t size);
 void bootstrap_free(void *ptr);
 void arena_set(unsigned ind, arena_t *arena);
 unsigned narenas_total_get(void);
-arena_t *arena_init(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks);
+arena_t *arena_init(tsdn_t *tsdn, unsigned ind, const arena_config_t *config);
 arena_t *arena_choose_hard(tsd_t *tsd, bool internal);
 void arena_migrate(tsd_t *tsd, unsigned oldind, unsigned newind);
 void iarena_cleanup(tsd_t *tsd);

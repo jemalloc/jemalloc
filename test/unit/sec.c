@@ -42,7 +42,7 @@ test_sec_init(sec_t *sec, pai_t *fallback, size_t nshards, size_t max_alloc,
 	 * short-running, and SECs are arena-scoped in reality.
 	 */
 	base_t *base = base_new(TSDN_NULL, /* ind */ 123,
-	    &ehooks_default_extent_hooks);
+	    &ehooks_default_extent_hooks, /* metadata_use_hooks */ true);
 
 	bool err = sec_init(TSDN_NULL, sec, base, fallback, &opts);
 	assert_false(err, "Unexpected initialization failure");
@@ -442,7 +442,7 @@ TEST_BEGIN(test_nshards_0) {
 	/* See the note above -- we can't use the real tsd. */
 	tsdn_t *tsdn = TSDN_NULL;
 	base_t *base = base_new(TSDN_NULL, /* ind */ 123,
-	    &ehooks_default_extent_hooks);
+	    &ehooks_default_extent_hooks, /* metadata_use_hooks */ true);
 
 	sec_opts_t opts = SEC_OPTS_DEFAULT;
 	opts.nshards = 0;
