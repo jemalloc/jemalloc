@@ -10,6 +10,7 @@
 #include "jemalloc/internal/prof_recent.h"
 #include "jemalloc/internal/prof_stats.h"
 #include "jemalloc/internal/prof_sys.h"
+#include "jemalloc/internal/prof_hook.h"
 #include "jemalloc/internal/thread_event.h"
 
 /*
@@ -68,6 +69,9 @@ static malloc_mutex_t next_thr_uid_mtx;
 
 /* Do not dump any profiles until bootstrapping is complete. */
 bool prof_booted = false;
+
+/* Logically a prof_backtrace_hook_t. */
+atomic_p_t prof_backtrace_hook;
 
 /******************************************************************************/
 
@@ -519,6 +523,17 @@ prof_gdump_set(tsdn_t *tsdn, bool gdump) {
 }
 
 void
+prof_backtrace_hook_set(prof_backtrace_hook_t hook) {
+	atomic_store_p(&prof_backtrace_hook, hook, ATOMIC_RELEASE);
+}
+
+prof_backtrace_hook_t
+prof_backtrace_hook_get() {
+	return (prof_backtrace_hook_t)atomic_load_p(&prof_backtrace_hook,
+	    ATOMIC_ACQUIRE);
+}
+
+void
 prof_boot0(void) {
 	cassert(config_prof);
 
@@ -657,6 +672,7 @@ prof_boot2(tsd_t *tsd, base_t *base) {
 			}
 		}
 
+		prof_hooks_init();
 		prof_unwind_init();
 	}
 	prof_booted = true;

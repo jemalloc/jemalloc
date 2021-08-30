@@ -6,6 +6,7 @@ extern base_t *prof_base;
 
 void bt_init(prof_bt_t *bt, void **vec);
 void prof_backtrace(tsd_t *tsd, prof_bt_t *bt);
+void prof_hooks_init();
 void prof_unwind_init();
 void prof_sys_thread_name_fetch(tsd_t *tsd);
 int prof_getpid(void);

@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_PROF_EXTERNS_H
 
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/prof_hook.h"
 
 extern bool opt_prof;
 extern bool opt_prof_active;
@@ -52,7 +53,8 @@ extern bool prof_booted;
  * otherwise difficult to guarantee that two allocations are reported as coming
  * from the exact same stack trace in the presence of an optimizing compiler.
  */
-extern void (* JET_MUTABLE prof_backtrace_hook)(prof_bt_t *bt);
+void prof_backtrace_hook_set(prof_backtrace_hook_t hook);
+prof_backtrace_hook_t prof_backtrace_hook_get();
 
 /* Functions only accessed in prof_inlines.h */
 prof_tdata_t *prof_tdata_init(tsd_t *tsd);

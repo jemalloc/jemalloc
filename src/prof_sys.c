@@ -49,18 +49,18 @@ bt_init(prof_bt_t *bt, void **vec) {
 
 #ifdef JEMALLOC_PROF_LIBUNWIND
 static void
-prof_backtrace_impl(prof_bt_t *bt) {
+prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 	int nframes;
 
 	cassert(config_prof);
-	assert(bt->len == 0);
-	assert(bt->vec != NULL);
+	assert(*len == 0);
+	assert(vec != NULL);
 
-	nframes = unw_backtrace(bt->vec, PROF_BT_MAX);
+	nframes = unw_backtrace(vec, PROF_BT_MAX);
 	if (nframes <= 0) {
 		return;
 	}
-	bt->len = nframes;
+	*len = nframes;
 }
 #elif (defined(JEMALLOC_PROF_LIBGCC))
 static _Unwind_Reason_Code
@@ -81,9 +81,9 @@ prof_unwind_callback(struct _Unwind_Context *context, void *arg) {
 	if (ip == NULL) {
 		return _URC_END_OF_STACK;
 	}
-	data->bt->vec[data->bt->len] = ip;
-	data->bt->len++;
-	if (data->bt->len == data->max) {
+	data->vec[*data->len] = ip;
+	(*data->len)++;
+	if (*data->len == data->max) {
 		return _URC_END_OF_STACK;
 	}
 
@@ -91,8 +91,8 @@ prof_unwind_callback(struct _Unwind_Context *context, void *arg) {
 }
 
 static void
-prof_backtrace_impl(prof_bt_t *bt) {
-	prof_unwind_data_t data = {bt, PROF_BT_MAX};
+prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
+	prof_unwind_data_t data = {vec, len, max_len};
 
 	cassert(config_prof);
 
@@ -100,9 +100,9 @@ prof_backtrace_impl(prof_bt_t *bt) {
 }
 #elif (defined(JEMALLOC_PROF_GCC))
 static void
-prof_backtrace_impl(prof_bt_t *bt) {
+prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 #define BT_FRAME(i)							\
-	if ((i) < PROF_BT_MAX) {					\
+	if ((i) < max_len) {						\
 		void *p;						\
 		if (__builtin_frame_address(i) == 0) {			\
 			return;						\
@@ -111,8 +111,8 @@ prof_backtrace_impl(prof_bt_t *bt) {
 		if (p == NULL) {					\
 			return;						\
 		}							\
-		bt->vec[(i)] = p;					\
-		bt->len = (i) + 1;					\
+		vec[(i)] = p;						\
+		*len = (i) + 1;						\
 	} else {							\
 		return;							\
 	}
@@ -263,24 +263,28 @@ prof_backtrace_impl(prof_bt_t *bt) {
 }
 #else
 static void
-prof_backtrace_impl(prof_bt_t *bt) {
+prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 	cassert(config_prof);
 	not_reached();
 }
 #endif
 
-
-void (* JET_MUTABLE prof_backtrace_hook)(prof_bt_t *bt) = &prof_backtrace_impl;
-
 void
 prof_backtrace(tsd_t *tsd, prof_bt_t *bt) {
 	cassert(config_prof);
 	pre_reentrancy(tsd, NULL);
-	prof_backtrace_hook(bt);
+	prof_backtrace_hook_t prof_backtrace_hook = prof_backtrace_hook_get();
+	prof_backtrace_hook(bt->vec, &bt->len, PROF_BT_MAX);
 	post_reentrancy(tsd);
 }
 
-void prof_unwind_init() {
+void
+prof_hooks_init() {
+	prof_backtrace_hook_set(&prof_backtrace_impl);
+}
+
+void
+prof_unwind_init() {
 #ifdef JEMALLOC_PROF_LIBGCC
 	/*
 	 * Cause the backtracing machinery to allocate its internal

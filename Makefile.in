@@ -247,6 +247,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/prof_accum.c \
 	$(srcroot)test/unit/prof_active.c \
 	$(srcroot)test/unit/prof_gdump.c \
+	$(srcroot)test/unit/prof_hook.c \
 	$(srcroot)test/unit/prof_idump.c \
 	$(srcroot)test/unit/prof_log.c \
 	$(srcroot)test/unit/prof_mdump.c \

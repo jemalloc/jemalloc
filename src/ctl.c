@@ -305,6 +305,7 @@ CTL_PROTO(stats_retained)
 CTL_PROTO(stats_zero_reallocs)
 CTL_PROTO(experimental_hooks_install)
 CTL_PROTO(experimental_hooks_remove)
+CTL_PROTO(experimental_hooks_prof_backtrace)
 CTL_PROTO(experimental_thread_activity_callback)
 CTL_PROTO(experimental_utilization_query)
 CTL_PROTO(experimental_utilization_batch_query)
@@ -833,7 +834,8 @@ static const ctl_named_node_t stats_node[] = {
 
 static const ctl_named_node_t experimental_hooks_node[] = {
 	{NAME("install"),	CTL(experimental_hooks_install)},
-	{NAME("remove"),	CTL(experimental_hooks_remove)}
+	{NAME("remove"),	CTL(experimental_hooks_remove)},
+	{NAME("prof_backtrace"),	CTL(experimental_hooks_prof_backtrace)}
 };
 
 static const ctl_named_node_t experimental_thread_node[] = {
@@ -3326,6 +3328,38 @@ prof_log_stop_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	}
 
 	return 0;
+}
+
+static int
+experimental_hooks_prof_backtrace_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+
+	if (oldp == NULL && newp == NULL) {
+		ret = EINVAL;
+		goto label_return;
+	}
+	if (oldp != NULL) {
+		prof_backtrace_hook_t old_hook =
+		    prof_backtrace_hook_get();
+		READ(old_hook, prof_backtrace_hook_t);
+	}
+	if (newp != NULL) {
+		if (!opt_prof) {
+			ret = ENOENT;
+			goto label_return;
+		}
+		prof_backtrace_hook_t new_hook JEMALLOC_CC_SILENCE_INIT(NULL);
+		WRITE(new_hook, prof_backtrace_hook_t);
+		if (new_hook == NULL) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		prof_backtrace_hook_set(new_hook);
+	}
+	ret = 0;
+label_return:
+	return ret;
 }
 
 /******************************************************************************/

@@ -24,12 +24,12 @@
  */
 
 static void
-mock_backtrace(prof_bt_t *bt) {
-	bt->len = 4;
-	bt->vec[0] = (void *)0x111;
-	bt->vec[1] = (void *)0x222;
-	bt->vec[2] = (void *)0x333;
-	bt->vec[3] = (void *)0x444;
+mock_backtrace(void **vec, unsigned *len, unsigned max_len) {
+	*len = 4;
+	vec[0] = (void *)0x111;
+	vec[1] = (void *)0x222;
+	vec[2] = (void *)0x333;
+	vec[3] = (void *)0x444;
 }
 
 static void
@@ -50,7 +50,7 @@ main(void) {
 	    sizeof(lg_prof_sample));
 	assert(err == 0);
 
-	prof_backtrace_hook = &mock_backtrace;
+	prof_backtrace_hook_set(mock_backtrace);
 	do_allocs(16, 32 * 1024 * 1024, /* do_frees */ true);
 	do_allocs(32 * 1024* 1024, 16, /* do_frees */ true);
 	do_allocs(16, 32 * 1024 * 1024, /* do_frees */ false);
