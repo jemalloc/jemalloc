@@ -13,4 +13,9 @@
  */
 typedef void (*prof_backtrace_hook_t)(void **, unsigned *, unsigned);
 
+/*
+ * A callback hook that notifies about recently dumped heap profile.
+ */
+typedef void (*prof_dump_hook_t)(const char *filename);
+
 #endif /* JEMALLOC_INTERNAL_PROF_HOOK_H */

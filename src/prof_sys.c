@@ -55,6 +55,7 @@ prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 	cassert(config_prof);
 	assert(*len == 0);
 	assert(vec != NULL);
+	assert(max_len == PROF_BT_MAX);
 
 	nframes = unw_backtrace(vec, PROF_BT_MAX);
 	if (nframes <= 0) {
@@ -95,6 +96,8 @@ prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 	prof_unwind_data_t data = {vec, len, max_len};
 
 	cassert(config_prof);
+	assert(vec != NULL);
+	assert(max_len == PROF_BT_MAX);
 
 	_Unwind_Backtrace(prof_unwind_callback, &data);
 }
@@ -118,6 +121,8 @@ prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 	}
 
 	cassert(config_prof);
+	assert(vec != NULL);
+	assert(max_len == PROF_BT_MAX);
 
 	BT_FRAME(0)
 	BT_FRAME(1)
@@ -272,8 +277,10 @@ prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 void
 prof_backtrace(tsd_t *tsd, prof_bt_t *bt) {
 	cassert(config_prof);
-	pre_reentrancy(tsd, NULL);
 	prof_backtrace_hook_t prof_backtrace_hook = prof_backtrace_hook_get();
+	assert(prof_backtrace_hook != NULL);
+
+	pre_reentrancy(tsd, NULL);
 	prof_backtrace_hook(bt->vec, &bt->len, PROF_BT_MAX);
 	post_reentrancy(tsd);
 }
@@ -281,6 +288,7 @@ prof_backtrace(tsd_t *tsd, prof_bt_t *bt) {
 void
 prof_hooks_init() {
 	prof_backtrace_hook_set(&prof_backtrace_impl);
+	prof_dump_hook_set(NULL);
 }
 
 void
@@ -506,6 +514,10 @@ prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
 	buf_writer_terminate(tsd_tsdn(tsd), &buf_writer);
 	prof_dump_close(&arg);
 
+	prof_dump_hook_t dump_hook = prof_dump_hook_get();
+	if (dump_hook != NULL) {
+		dump_hook(filename);
+	}
 	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_mtx);
 	post_reentrancy(tsd);
 

@@ -48,13 +48,11 @@ extern size_t lg_prof_sample;
 
 extern bool prof_booted;
 
-/*
- * A hook to mock out backtrace functionality.  This can be handy, since it's
- * otherwise difficult to guarantee that two allocations are reported as coming
- * from the exact same stack trace in the presence of an optimizing compiler.
- */
 void prof_backtrace_hook_set(prof_backtrace_hook_t hook);
 prof_backtrace_hook_t prof_backtrace_hook_get();
+
+void prof_dump_hook_set(prof_dump_hook_t hook);
+prof_dump_hook_t prof_dump_hook_get();
 
 /* Functions only accessed in prof_inlines.h */
 prof_tdata_t *prof_tdata_init(tsd_t *tsd);
