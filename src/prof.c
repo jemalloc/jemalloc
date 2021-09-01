@@ -73,6 +73,9 @@ bool prof_booted = false;
 /* Logically a prof_backtrace_hook_t. */
 atomic_p_t prof_backtrace_hook;
 
+/* Logically a prof_dump_hook_t. */
+atomic_p_t prof_dump_hook;
+
 /******************************************************************************/
 
 void
@@ -534,6 +537,17 @@ prof_backtrace_hook_get() {
 }
 
 void
+prof_dump_hook_set(prof_dump_hook_t hook) {
+	atomic_store_p(&prof_dump_hook, hook, ATOMIC_RELEASE);
+}
+
+prof_dump_hook_t
+prof_dump_hook_get() {
+	return (prof_dump_hook_t)atomic_load_p(&prof_dump_hook,
+	    ATOMIC_ACQUIRE);
+}
+
+void
 prof_boot0(void) {
 	cassert(config_prof);
 
@@ -672,8 +686,8 @@ prof_boot2(tsd_t *tsd, base_t *base) {
 			}
 		}
 
-		prof_hooks_init();
 		prof_unwind_init();
+		prof_hooks_init();
 	}
 	prof_booted = true;
 
