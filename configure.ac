@@ -1281,6 +1281,9 @@ AC_ARG_ENABLE([prof-libunwind],
   enable_prof_libunwind="0"
 else
   enable_prof_libunwind="1"
+  if test "x$enable_prof" = "x0" ; then
+    AC_MSG_ERROR([--enable-prof-libunwind should only be used with --enable-prof])
+  fi
 fi
 ],
 [enable_prof_libunwind="0"]
