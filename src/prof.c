@@ -554,69 +554,62 @@ bool
 prof_boot2(tsd_t *tsd, base_t *base) {
 	cassert(config_prof);
 
-	if (opt_prof) {
-		unsigned i;
+	/*
+	 * Initialize the global mutexes unconditionally to maintain correct
+	 * stats when opt_prof is false.
+	 */
+	if (malloc_mutex_init(&prof_active_mtx, "prof_active",
+	    WITNESS_RANK_PROF_ACTIVE, malloc_mutex_rank_exclusive)) {
+		return true;
+	}
+	if (malloc_mutex_init(&prof_gdump_mtx, "prof_gdump",
+	    WITNESS_RANK_PROF_GDUMP, malloc_mutex_rank_exclusive)) {
+		return true;
+	}
+	if (malloc_mutex_init(&prof_thread_active_init_mtx,
+	    "prof_thread_active_init", WITNESS_RANK_PROF_THREAD_ACTIVE_INIT,
+	    malloc_mutex_rank_exclusive)) {
+		return true;
+	}
+	if (malloc_mutex_init(&bt2gctx_mtx, "prof_bt2gctx",
+	    WITNESS_RANK_PROF_BT2GCTX, malloc_mutex_rank_exclusive)) {
+		return true;
+	}
+	if (malloc_mutex_init(&tdatas_mtx, "prof_tdatas",
+	    WITNESS_RANK_PROF_TDATAS, malloc_mutex_rank_exclusive)) {
+		return true;
+	}
+	if (malloc_mutex_init(&next_thr_uid_mtx, "prof_next_thr_uid",
+	    WITNESS_RANK_PROF_NEXT_THR_UID, malloc_mutex_rank_exclusive)) {
+		return true;
+	}
+	if (malloc_mutex_init(&prof_stats_mtx, "prof_stats",
+	    WITNESS_RANK_PROF_STATS, malloc_mutex_rank_exclusive)) {
+		return true;
+	}
+	if (malloc_mutex_init(&prof_dump_filename_mtx,
+	    "prof_dump_filename", WITNESS_RANK_PROF_DUMP_FILENAME,
+	    malloc_mutex_rank_exclusive)) {
+		return true;
+	}
+	if (malloc_mutex_init(&prof_dump_mtx, "prof_dump",
+	    WITNESS_RANK_PROF_DUMP, malloc_mutex_rank_exclusive)) {
+		return true;
+	}
 
+	if (opt_prof) {
 		lg_prof_sample = opt_lg_prof_sample;
 		prof_unbias_map_init();
-
 		prof_active = opt_prof_active;
-		if (malloc_mutex_init(&prof_active_mtx, "prof_active",
-		    WITNESS_RANK_PROF_ACTIVE, malloc_mutex_rank_exclusive)) {
-			return true;
-		}
-
 		prof_gdump_val = opt_prof_gdump;
-		if (malloc_mutex_init(&prof_gdump_mtx, "prof_gdump",
-		    WITNESS_RANK_PROF_GDUMP, malloc_mutex_rank_exclusive)) {
-			return true;
-		}
-
 		prof_thread_active_init = opt_prof_thread_active_init;
-		if (malloc_mutex_init(&prof_thread_active_init_mtx,
-		    "prof_thread_active_init",
-		    WITNESS_RANK_PROF_THREAD_ACTIVE_INIT,
-		    malloc_mutex_rank_exclusive)) {
-			return true;
-		}
 
 		if (prof_data_init(tsd)) {
 			return true;
 		}
 
-		if (malloc_mutex_init(&bt2gctx_mtx, "prof_bt2gctx",
-		    WITNESS_RANK_PROF_BT2GCTX, malloc_mutex_rank_exclusive)) {
-			return true;
-		}
-
-		if (malloc_mutex_init(&tdatas_mtx, "prof_tdatas",
-		    WITNESS_RANK_PROF_TDATAS, malloc_mutex_rank_exclusive)) {
-			return true;
-		}
-
 		next_thr_uid = 0;
-		if (malloc_mutex_init(&next_thr_uid_mtx, "prof_next_thr_uid",
-		    WITNESS_RANK_PROF_NEXT_THR_UID,
-		    malloc_mutex_rank_exclusive)) {
-			return true;
-		}
-
-		if (malloc_mutex_init(&prof_stats_mtx, "prof_stats",
-		    WITNESS_RANK_PROF_STATS, malloc_mutex_rank_exclusive)) {
-			return true;
-		}
-
 		if (prof_idump_accum_init()) {
-			return true;
-		}
-
-		if (malloc_mutex_init(&prof_dump_filename_mtx,
-		    "prof_dump_filename", WITNESS_RANK_PROF_DUMP_FILENAME,
-		    malloc_mutex_rank_exclusive)) {
-			return true;
-		}
-		if (malloc_mutex_init(&prof_dump_mtx, "prof_dump",
-		    WITNESS_RANK_PROF_DUMP, malloc_mutex_rank_exclusive)) {
 			return true;
 		}
 
@@ -643,7 +636,7 @@ prof_boot2(tsd_t *tsd, base_t *base) {
 		if (gctx_locks == NULL) {
 			return true;
 		}
-		for (i = 0; i < PROF_NCTX_LOCKS; i++) {
+		for (unsigned i = 0; i < PROF_NCTX_LOCKS; i++) {
 			if (malloc_mutex_init(&gctx_locks[i], "prof_gctx",
 			    WITNESS_RANK_PROF_GCTX,
 			    malloc_mutex_rank_exclusive)) {
@@ -656,7 +649,7 @@ prof_boot2(tsd_t *tsd, base_t *base) {
 		if (tdata_locks == NULL) {
 			return true;
 		}
-		for (i = 0; i < PROF_NTDATA_LOCKS; i++) {
+		for (unsigned i = 0; i < PROF_NTDATA_LOCKS; i++) {
 			if (malloc_mutex_init(&tdata_locks[i], "prof_tdata",
 			    WITNESS_RANK_PROF_TDATA,
 			    malloc_mutex_rank_exclusive)) {

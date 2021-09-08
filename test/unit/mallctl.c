@@ -914,7 +914,7 @@ TEST_BEGIN(test_prof_active) {
 	old = true;
 	expect_d_eq(mallctl("prof.active", &old, &len, &active, len), ENOENT,
 	    "Setting prof_active to true should fail when opt_prof is off");
-	expect_true(old, "old valud should not be touched when mallctl fails");
+	expect_true(old, "old value should not be touched when mallctl fails");
 	active = false;
 	expect_d_eq(mallctl("prof.active", NULL, NULL, &active, len), 0,
 	    "Setting prof_active to false should succeed when opt_prof is off");
