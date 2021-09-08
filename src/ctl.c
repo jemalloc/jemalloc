@@ -2338,7 +2338,7 @@ thread_prof_name_ctl(tsd_t *tsd, const size_t *mib,
     size_t newlen) {
 	int ret;
 
-	if (!config_prof) {
+	if (!config_prof || !opt_prof) {
 		return ENOENT;
 	}
 
@@ -2375,8 +2375,12 @@ thread_prof_active_ctl(tsd_t *tsd, const size_t *mib,
 		return ENOENT;
 	}
 
-	oldval = prof_thread_active_get(tsd);
+	oldval = opt_prof ? prof_thread_active_get(tsd) : false;
 	if (newp != NULL) {
+		if (!opt_prof) {
+			ret = ENOENT;
+			goto label_return;
+		}
 		if (newlen != sizeof(bool)) {
 			ret = EINVAL;
 			goto label_return;
@@ -3129,6 +3133,10 @@ prof_thread_active_init_ctl(tsd_t *tsd, const size_t *mib,
 	}
 
 	if (newp != NULL) {
+		if (!opt_prof) {
+			ret = ENOENT;
+			goto label_return;
+		}
 		if (newlen != sizeof(bool)) {
 			ret = EINVAL;
 			goto label_return;
@@ -3136,7 +3144,8 @@ prof_thread_active_init_ctl(tsd_t *tsd, const size_t *mib,
 		oldval = prof_thread_active_init_set(tsd_tsdn(tsd),
 		    *(bool *)newp);
 	} else {
-		oldval = prof_thread_active_init_get(tsd_tsdn(tsd));
+		oldval = opt_prof ? prof_thread_active_init_get(tsd_tsdn(tsd)) :
+		    false;
 	}
 	READ(oldval, bool);
 
@@ -3162,13 +3171,19 @@ prof_active_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 			goto label_return;
 		}
 		bool val = *(bool *)newp;
-		if (!opt_prof && val) {
-			ret = ENOENT;
-			goto label_return;
+		if (!opt_prof) {
+			if (val) {
+				ret = ENOENT;
+				goto label_return;
+			} else {
+				/* No change needed (already off). */
+				oldval = false;
+			}
+		} else {
+			oldval = prof_active_set(tsd_tsdn(tsd), val);
 		}
-		oldval = prof_active_set(tsd_tsdn(tsd), val);
 	} else {
-		oldval = prof_active_get(tsd_tsdn(tsd));
+		oldval = opt_prof ? prof_active_get(tsd_tsdn(tsd)) : false;
 	}
 	READ(oldval, bool);
 
@@ -3183,7 +3198,7 @@ prof_dump_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 	int ret;
 	const char *filename = NULL;
 
-	if (!config_prof) {
+	if (!config_prof || !opt_prof) {
 		return ENOENT;
 	}
 
@@ -3211,13 +3226,17 @@ prof_gdump_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 	}
 
 	if (newp != NULL) {
+		if (!opt_prof) {
+			ret = ENOENT;
+			goto label_return;
+		}
 		if (newlen != sizeof(bool)) {
 			ret = EINVAL;
 			goto label_return;
 		}
 		oldval = prof_gdump_set(tsd_tsdn(tsd), *(bool *)newp);
 	} else {
-		oldval = prof_gdump_get(tsd_tsdn(tsd));
+		oldval = opt_prof ? prof_gdump_get(tsd_tsdn(tsd)) : false;
 	}
 	READ(oldval, bool);
 
@@ -3232,7 +3251,7 @@ prof_prefix_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 	int ret;
 	const char *prefix = NULL;
 
-	if (!config_prof) {
+	if (!config_prof || !opt_prof) {
 		return ENOENT;
 	}
 
@@ -3252,7 +3271,7 @@ prof_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 	int ret;
 	size_t lg_sample = lg_prof_sample;
 
-	if (!config_prof) {
+	if (!config_prof || !opt_prof) {
 		return ENOENT;
 	}
 
@@ -3279,7 +3298,7 @@ prof_log_start_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 
 	const char *filename = NULL;
 
-	if (!config_prof) {
+	if (!config_prof || !opt_prof) {
 		return ENOENT;
 	}
 
@@ -3299,7 +3318,7 @@ label_return:
 static int
 prof_log_stop_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	if (!config_prof) {
+	if (!config_prof || !opt_prof) {
 		return ENOENT;
 	}
 
