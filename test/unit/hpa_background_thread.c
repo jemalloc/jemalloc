@@ -77,7 +77,7 @@ wait_until_thread_is_enabled(unsigned arena_id) {
 		malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
 		malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
 		sleeping = background_thread_indefinite_sleep(info);
-		assert_d_lt(iterations, (int)1e6,
+		assert_d_lt(iterations, UINT64_C(1000000),
 		    "Waiting for a thread to start for too long");
 	} while (!sleeping);
 }

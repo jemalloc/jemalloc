@@ -13,13 +13,6 @@ JEMALLOC_DIAGNOSTIC_DISABLE_SPURIOUS
 /* Read-only after initialization. */
 bool opt_background_thread = BACKGROUND_THREAD_DEFAULT;
 size_t opt_max_background_threads = MAX_BACKGROUND_THREAD_LIMIT + 1;
-/*
- * This is disabled (and set to -1) if the HPA is.  If the HPA is enabled,
- * malloc_conf initialization sets it to
- * BACKGROUND_THREAD_HPA_INTERVAL_MAX_DEFAULT_WHEN_ENABLED.
- */
-ssize_t opt_background_thread_hpa_interval_max_ms =
-    BACKGROUND_THREAD_HPA_INTERVAL_MAX_UNINITIALIZED;
 
 /* Used for thread creation, termination and stats. */
 malloc_mutex_t background_thread_lock;
@@ -60,7 +53,7 @@ pthread_create_wrapper(pthread_t *__restrict thread, const pthread_attr_t *attr,
 bool background_thread_create(tsd_t *tsd, unsigned arena_ind) NOT_REACHED
 bool background_threads_enable(tsd_t *tsd) NOT_REACHED
 bool background_threads_disable(tsd_t *tsd) NOT_REACHED
-bool background_thread_running(background_thread_info_t *info) NOT_REACHED
+bool background_thread_is_started(background_thread_info_t *info) NOT_REACHED
 void background_thread_wakeup_early(background_thread_info_t *info,
     nstime_t *remaining_sleep) NOT_REACHED
 void background_thread_prefork0(tsdn_t *tsdn) NOT_REACHED
@@ -593,7 +586,7 @@ background_thread_wakeup_early(background_thread_info_t *info,
 	 * we know that background thread wakes up soon, so the time to cache
 	 * the just freed memory is bounded and low.
 	 */
-	if (remaining_sleep && nstime_ns(remaining_sleep) <
+	if (remaining_sleep != NULL && nstime_ns(remaining_sleep) <
 	    BACKGROUND_THREAD_MIN_INTERVAL_NS) {
 		return;
 	}

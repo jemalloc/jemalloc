@@ -208,9 +208,38 @@ pac_dalloc_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata,
 	*deferred_work_generated = true;
 }
 
+static inline uint64_t
+pac_ns_until_purge(tsdn_t *tsdn, decay_t *decay, size_t npages) {
+	if (malloc_mutex_trylock(tsdn, &decay->mtx)) {
+		/* Use minimal interval if decay is contended. */
+		return BACKGROUND_THREAD_DEFERRED_MIN;
+	}
+	uint64_t result = decay_ns_until_purge(decay, npages,
+	    ARENA_DEFERRED_PURGE_NPAGES_THRESHOLD);
+
+	malloc_mutex_unlock(tsdn, &decay->mtx);
+	return result;
+}
+
 static uint64_t
 pac_time_until_deferred_work(tsdn_t *tsdn, pai_t *self) {
-	return BACKGROUND_THREAD_DEFERRED_MAX;
+	uint64_t time;
+	pac_t *pac = (pac_t *)self;
+
+	time = pac_ns_until_purge(tsdn,
+	    &pac->decay_dirty,
+	    ecache_npages_get(&pac->ecache_dirty));
+	if (time == BACKGROUND_THREAD_DEFERRED_MIN) {
+		return time;
+	}
+
+	uint64_t muzzy = pac_ns_until_purge(tsdn,
+	    &pac->decay_muzzy,
+	    ecache_npages_get(&pac->ecache_muzzy));
+	if (muzzy < time) {
+		time = muzzy;
+	}
+	return time;
 }
 
 bool
