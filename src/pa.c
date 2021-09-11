@@ -245,19 +245,6 @@ pa_shard_do_deferred_work(tsdn_t *tsdn, pa_shard_t *shard) {
 	}
 }
 
-static inline uint64_t
-pa_shard_ns_until_purge(tsdn_t *tsdn, decay_t *decay, size_t npages) {
-	if (malloc_mutex_trylock(tsdn, &decay->mtx)) {
-		/* Use minimal interval if decay is contended. */
-		return BACKGROUND_THREAD_DEFERRED_MIN;
-	}
-	uint64_t result = decay_ns_until_purge(decay, npages,
-	    ARENA_DEFERRED_PURGE_NPAGES_THRESHOLD);
-
-	malloc_mutex_unlock(tsdn, &decay->mtx);
-	return result;
-}
-
 /*
  * Get time until next deferred work ought to happen. If there are multiple
  * things that have been deferred, this function calculates the time until
@@ -265,30 +252,9 @@ pa_shard_ns_until_purge(tsdn_t *tsdn, decay_t *decay, size_t npages) {
  */
 uint64_t
 pa_shard_time_until_deferred_work(tsdn_t *tsdn, pa_shard_t *shard) {
-	uint64_t time;
-	time = pa_shard_ns_until_purge(tsdn,
-	    &shard->pac.decay_dirty,
-	    ecache_npages_get(&shard->pac.ecache_dirty));
+	uint64_t time = pai_time_until_deferred_work(tsdn, &shard->pac.pai);
 	if (time == BACKGROUND_THREAD_DEFERRED_MIN) {
 		return time;
-	}
-
-	uint64_t muzzy = pa_shard_ns_until_purge(tsdn,
-	    &shard->pac.decay_muzzy,
-	    ecache_npages_get(&shard->pac.ecache_muzzy));
-	if (muzzy < time) {
-		time = muzzy;
-		if (time == BACKGROUND_THREAD_DEFERRED_MIN) {
-			return time;
-		}
-	}
-
-	uint64_t pac = pai_time_until_deferred_work(tsdn, &shard->pac.pai);
-	if (pac < time) {
-		time = pac;
-		if (time == BACKGROUND_THREAD_DEFERRED_MIN) {
-			return time;
-		}
 	}
 
 	if (pa_shard_uses_hpa(shard)) {
