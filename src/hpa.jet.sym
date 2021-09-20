@@ -1,0 +1,14 @@
+hpa_central_extract
+hpa_central_init
+hpa_shard_destroy
+hpa_shard_disable
+hpa_shard_do_deferred_work
+hpa_shard_init
+hpa_shard_postfork_child
+hpa_shard_postfork_parent
+hpa_shard_prefork3
+hpa_shard_prefork4
+hpa_shard_set_deferral_allowed
+hpa_shard_stats_accum
+hpa_shard_stats_merge
+hpa_supported

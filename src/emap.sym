@@ -1,0 +1,16 @@
+emap_deregister_boundary
+emap_deregister_interior
+emap_do_assert_mapped
+emap_do_assert_not_mapped
+emap_init
+emap_merge_commit
+emap_merge_prepare
+emap_register_boundary
+emap_register_interior
+emap_release_edata
+emap_remap
+emap_split_commit
+emap_split_prepare
+emap_try_acquire_edata_neighbor
+emap_try_acquire_edata_neighbor_expand
+emap_update_edata_state

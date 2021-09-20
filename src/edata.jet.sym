@@ -1,0 +1,16 @@
+edata_avail_any
+edata_avail_empty
+edata_avail_first
+edata_avail_insert
+edata_avail_new
+edata_avail_remove
+edata_avail_remove_any
+edata_avail_remove_first
+edata_heap_any
+edata_heap_empty
+edata_heap_first
+edata_heap_insert
+edata_heap_new
+edata_heap_remove
+edata_heap_remove_any
+edata_heap_remove_first

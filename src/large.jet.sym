@@ -1,0 +1,11 @@
+large_dalloc
+large_dalloc_finish
+large_dalloc_prep_locked
+large_malloc
+large_palloc
+large_prof_info_get
+large_prof_info_set
+large_prof_tctx_reset
+large_ralloc
+large_ralloc_no_move
+large_salloc

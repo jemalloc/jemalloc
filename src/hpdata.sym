@@ -1,0 +1,16 @@
+hpdata_age_heap_any
+hpdata_age_heap_empty
+hpdata_age_heap_first
+hpdata_age_heap_insert
+hpdata_age_heap_new
+hpdata_age_heap_remove
+hpdata_age_heap_remove_any
+hpdata_age_heap_remove_first
+hpdata_dehugify
+hpdata_hugify
+hpdata_init
+hpdata_purge_begin
+hpdata_purge_end
+hpdata_purge_next
+hpdata_reserve_alloc
+hpdata_unreserve

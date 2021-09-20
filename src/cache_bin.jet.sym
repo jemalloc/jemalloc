@@ -1,0 +1,6 @@
+cache_bin_info_compute_alloc
+cache_bin_info_init
+cache_bin_init
+cache_bin_postincrement
+cache_bin_preincrement
+cache_bin_still_zero_initialized

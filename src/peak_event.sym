@@ -1,0 +1,9 @@
+peak_alloc_event_handler
+peak_alloc_new_event_wait
+peak_alloc_postponed_event_wait
+peak_dalloc_event_handler
+peak_dalloc_new_event_wait
+peak_dalloc_postponed_event_wait
+peak_event_max
+peak_event_update
+peak_event_zero

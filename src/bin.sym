@@ -1,0 +1,6 @@
+bin_init
+bin_postfork_child
+bin_postfork_parent
+bin_prefork
+bin_shard_sizes_boot
+bin_update_shard_size

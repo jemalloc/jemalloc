@@ -1,0 +1,6 @@
+hook_boot
+hook_install
+hook_invoke_alloc
+hook_invoke_dalloc
+hook_invoke_expand
+hook_remove

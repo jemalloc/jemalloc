@@ -1,0 +1,8 @@
+pac_decay_all
+pac_decay_ms_get
+pac_decay_ms_set
+pac_destroy
+pac_init
+pac_maybe_decay_purge
+pac_reset
+pac_retain_grow_limit_get_set

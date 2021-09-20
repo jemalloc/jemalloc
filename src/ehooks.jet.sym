@@ -1,0 +1,12 @@
+ehooks_default_alloc_impl
+ehooks_default_commit_impl
+ehooks_default_dalloc_impl
+ehooks_default_decommit_impl
+ehooks_default_destroy_impl
+ehooks_default_extent_hooks
+ehooks_default_merge
+ehooks_default_merge_impl
+ehooks_default_purge_lazy_impl
+ehooks_default_split_impl
+ehooks_default_zero_impl
+ehooks_init

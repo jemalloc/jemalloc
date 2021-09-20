@@ -1,0 +1,6 @@
+decay_deadline_init
+decay_init
+decay_maybe_advance_epoch
+decay_ms_valid
+decay_ns_until_purge
+decay_reinit

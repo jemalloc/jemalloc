@@ -1,0 +1,7 @@
+eset_fit
+eset_init
+eset_insert
+eset_nbytes_get
+eset_nextents_get
+eset_npages_get
+eset_remove

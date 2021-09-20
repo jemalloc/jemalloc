@@ -1,0 +1,83 @@
+#!/bin/sh
+
+usage() {
+	cat <<EOF
+Usage:
+  /bin/jemalloc-config <option>
+Options:
+  --help | -h  : Print usage.
+  --version    : Print jemalloc version.
+  --revision   : Print shared library revision number.
+  --config     : Print configure options used to build jemalloc.
+  --prefix     : Print installation directory prefix.
+  --bindir     : Print binary installation directory.
+  --datadir    : Print data installation directory.
+  --includedir : Print include installation directory.
+  --libdir     : Print library installation directory.
+  --mandir     : Print manual page installation directory.
+  --cc         : Print compiler used to build jemalloc.
+  --cflags     : Print compiler flags used to build jemalloc.
+  --cppflags   : Print preprocessor flags used to build jemalloc.
+  --cxxflags   : Print C++ compiler flags used to build jemalloc.
+  --ldflags    : Print library flags used to build jemalloc.
+  --libs       : Print libraries jemalloc was linked against.
+EOF
+}
+
+prefix=""
+exec_prefix=""
+
+case "$1" in
+--help | -h)
+	usage
+	exit 0
+	;;
+--version)
+	echo "5.2.1-773-g8b24cb8fdf2bf210e243c1d676484a4ffa5c3f6c"
+	;;
+--revision)
+	echo "2"
+	;;
+--config)
+	echo "--enable-debug"
+	;;
+--prefix)
+	echo ""
+	;;
+--bindir)
+	echo "/bin"
+	;;
+--datadir)
+	echo "/share"
+	;;
+--includedir)
+	echo "/include"
+	;;
+--libdir)
+	echo "/lib"
+	;;
+--mandir)
+	echo "/share/man"
+	;;
+--cc)
+	echo "cl.exe -nologo"
+	;;
+--cflags)
+	echo "-Zi -MT -W3 -FS"
+	;;
+--cppflags)
+	echo "-I./include/msvc_compat -D_REENTRANT"
+	;;
+--cxxflags)
+	echo "-g"
+	;;
+--ldflags)
+	echo " -link -DEBUG"
+	;;
+--libs)
+	echo ""
+	;;
+*)
+	usage
+	exit 1
+esac

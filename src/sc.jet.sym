@@ -1,0 +1,4 @@
+sc_boot
+sc_data_global
+sc_data_init
+sc_data_update_slab_size

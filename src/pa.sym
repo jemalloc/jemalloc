@@ -1,0 +1,15 @@
+pa_alloc
+pa_central_init
+pa_dalloc
+pa_decay_ms_get
+pa_decay_ms_set
+pa_expand
+pa_shard_destroy
+pa_shard_disable_hpa
+pa_shard_do_deferred_work
+pa_shard_enable_hpa
+pa_shard_init
+pa_shard_reset
+pa_shard_retain_grow_limit_get_set
+pa_shard_set_deferral_allowed
+pa_shrink

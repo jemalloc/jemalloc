@@ -1,0 +1,13 @@
+log_mtx
+opt_prof_log
+prof_log_alloc_count
+prof_log_bt_count
+prof_log_dummy_set
+prof_log_init
+prof_log_is_logging
+prof_log_rep_check
+prof_log_start
+prof_log_stop
+prof_log_thr_count
+prof_logging_state
+prof_try_log

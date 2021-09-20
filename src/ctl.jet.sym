@@ -1,0 +1,10 @@
+ctl_boot
+ctl_bymib
+ctl_bymibname
+ctl_byname
+ctl_mibnametomib
+ctl_mtx_assert_held
+ctl_nametomib
+ctl_postfork_child
+ctl_postfork_parent
+ctl_prefork

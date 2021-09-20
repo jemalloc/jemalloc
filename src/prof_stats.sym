@@ -1,0 +1,6 @@
+opt_prof_stats
+prof_stats_dec
+prof_stats_get_accum
+prof_stats_get_live
+prof_stats_inc
+prof_stats_mtx
