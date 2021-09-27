@@ -43,7 +43,7 @@ typedef enum {
 
 struct arena_config_s {
 	/* extent hooks to be used for the arena */
-	struct extent_hooks_s *extent_hooks;
+	extent_hooks_t *extent_hooks;
 
 	/*
 	 * Use extent hooks for metadata (base) allocations when true.
