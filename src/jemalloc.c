@@ -570,8 +570,7 @@ arena_choose_hard(tsd_t *tsd, bool internal) {
 				/* Initialize a new arena. */
 				choose[j] = first_null;
 				arena = arena_init_locked(tsd_tsdn(tsd),
-				    choose[j],
-				    &arena_config_default);
+				    choose[j], &arena_config_default);
 				if (arena == NULL) {
 					malloc_mutex_unlock(tsd_tsdn(tsd),
 					    &arenas_lock);

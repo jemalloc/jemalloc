@@ -298,7 +298,7 @@ base_block_alloc(tsdn_t *tsdn, base_t *base, ehooks_t *ehooks, unsigned ind,
 static ehooks_t *
 base_ehooks_get_for_metadata(base_t *base) {
 	return base->metadata_use_hooks ? &base->ehooks :
-		(struct ehooks_s *)&ehooks_default_extent_hooks;
+	    (ehooks_t *)&ehooks_default_extent_hooks;
 }
 
 /*
@@ -522,7 +522,7 @@ base_postfork_child(tsdn_t *tsdn, base_t *base) {
 
 bool
 base_boot(tsdn_t *tsdn) {
-	b0 = base_new(tsdn, 0,
-		(extent_hooks_t *)&ehooks_default_extent_hooks, true);
+	b0 = base_new(tsdn, 0, (extent_hooks_t *)&ehooks_default_extent_hooks,
+	    /* metadata_use_hooks */ true);
 	return (b0 == NULL);
 }

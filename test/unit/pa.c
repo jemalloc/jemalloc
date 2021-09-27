@@ -53,8 +53,8 @@ test_data_t *init_test_data(ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms) {
 	assert_ptr_not_null(test_data, "");
 	init_test_extent_hooks(&test_data->hooks);
 
-	base_t *base = base_new(TSDN_NULL, /* ind */ 1,
-	    &test_data->hooks, /* metadata_use_hooks */ true);
+	base_t *base = base_new(TSDN_NULL, /* ind */ 1, &test_data->hooks,
+	    /* metadata_use_hooks */ true);
 	assert_ptr_not_null(base, "");
 
 	test_data->base = base;
