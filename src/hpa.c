@@ -733,17 +733,25 @@ hpa_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size, size_t nallocs,
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	edata_t *edata;
-	ql_foreach(edata, &results->head, ql_link_active) {
-		emap_assert_mapped(tsdn, shard->emap, edata);
-		assert(edata_pai_get(edata) == EXTENT_PAI_HPA);
-		assert(edata_state_get(edata) == extent_state_active);
-		assert(edata_arena_ind_get(edata) == shard->ind);
-		assert(edata_szind_get_maybe_invalid(edata) == SC_NSIZES);
-		assert(!edata_slab_get(edata));
-		assert(edata_committed_get(edata));
-		assert(edata_base_get(edata) == edata_addr_get(edata));
-		assert(edata_base_get(edata) != NULL);
+	/*
+	 * Guard the sanity checks with config_debug because the loop cannot be
+	 * proven non-circular by the compiler, even if everything within the
+	 * loop is optimized away.
+	 */
+	if (config_debug) {
+		edata_t *edata;
+		ql_foreach(edata, &results->head, ql_link_active) {
+			emap_assert_mapped(tsdn, shard->emap, edata);
+			assert(edata_pai_get(edata) == EXTENT_PAI_HPA);
+			assert(edata_state_get(edata) == extent_state_active);
+			assert(edata_arena_ind_get(edata) == shard->ind);
+			assert(edata_szind_get_maybe_invalid(edata) ==
+			    SC_NSIZES);
+			assert(!edata_slab_get(edata));
+			assert(edata_committed_get(edata));
+			assert(edata_base_get(edata) == edata_addr_get(edata));
+			assert(edata_base_get(edata) != NULL);
+		}
 	}
 	return nsuccess;
 }
