@@ -2,7 +2,7 @@
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/pac.h"
-#include "jemalloc/internal/guard.h"
+#include "jemalloc/internal/san.h"
 
 static edata_t *pac_alloc_impl(tsdn_t *tsdn, pai_t *self, size_t size,
     size_t alignment, bool zero, bool guarded, bool *deferred_work_generated);
@@ -73,6 +73,7 @@ pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
 		return true;
 	}
 	exp_grow_init(&pac->exp_grow);
+	exp_grow_init(&pac->exp_grow_guarded);
 	if (malloc_mutex_init(&pac->grow_mtx, "extent_grow",
 	    WITNESS_RANK_EXTENT_GROW, malloc_mutex_rank_exclusive)) {
 		return true;
@@ -110,9 +111,10 @@ pac_may_have_muzzy(pac_t *pac) {
 }
 
 static edata_t *
-pac_alloc_real(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
-    size_t alignment, bool zero, bool guarded) {
-	assert(!guarded || alignment <= PAGE);
+pac_alloc_impl(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment,
+    bool zero, bool guarded, bool *deferred_work_generated) {
+	pac_t *pac = (pac_t *)self;
+	ehooks_t *ehooks = pac_ehooks_get(pac);
 
 	edata_t *edata = ecache_alloc(tsdn, pac, ehooks, &pac->ecache_dirty,
 	    NULL, size, alignment, zero, guarded);
@@ -129,43 +131,6 @@ pac_alloc_real(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 			atomic_fetch_add_zu(&pac->stats->pac_mapped, size,
 			    ATOMIC_RELAXED);
 		}
-	}
-
-	return edata;
-}
-
-static edata_t *
-pac_alloc_new_guarded(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
-    size_t alignment, bool zero) {
-	assert(alignment <= PAGE);
-
-	size_t size_with_guards = size + PAGE_GUARDS_SIZE;
-	/* Alloc a non-guarded extent first.*/
-	edata_t *edata = pac_alloc_real(tsdn, pac, ehooks, size_with_guards,
-	    /* alignment */ PAGE, zero, /* guarded */ false);
-	if (edata != NULL) {
-		/* Add guards around it. */
-		assert(edata_size_get(edata) == size_with_guards);
-		guard_pages(tsdn, ehooks, edata, pac->emap);
-	}
-	assert(edata == NULL || (edata_guarded_get(edata) &&
-	    edata_size_get(edata) == size));
-
-	return edata;
-}
-
-static edata_t *
-pac_alloc_impl(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment,
-    bool zero, bool guarded, bool *deferred_work_generated) {
-	pac_t *pac = (pac_t *)self;
-	ehooks_t *ehooks = pac_ehooks_get(pac);
-
-	edata_t *edata = pac_alloc_real(tsdn, pac, ehooks, size, alignment,
-	    zero, guarded);
-	if (edata == NULL && guarded) {
-		/* No cached guarded extents; creating a new one. */
-		edata = pac_alloc_new_guarded(tsdn, pac, ehooks, size,
-		    alignment, zero);
 	}
 
 	return edata;
@@ -236,26 +201,6 @@ pac_dalloc_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata,
     bool *deferred_work_generated) {
 	pac_t *pac = (pac_t *)self;
 	ehooks_t *ehooks = pac_ehooks_get(pac);
-
-	if (edata_guarded_get(edata)) {
-		/*
-		 * Because cached guarded extents do exact fit only, large
-		 * guarded extents are restored on dalloc eagerly (otherwise
-		 * they will not be reused efficiently).  Slab sizes have a
-		 * limited number of size classes, and tend to cycle faster.
-		 *
-		 * In the case where coalesce is restrained (VirtualFree on
-		 * Windows), guarded extents are also not cached -- otherwise
-		 * during arena destroy / reset, the retained extents would not
-		 * be whole regions (i.e. they are split between regular and
-		 * guarded).
-		 */
-		if (!edata_slab_get(edata) || !maps_coalesce) {
-			assert(edata_size_get(edata) >= SC_LARGE_MINCLASS ||
-			    !maps_coalesce);
-			unguard_pages(tsdn, ehooks, edata, pac->emap);
-		}
-	}
 
 	ecache_dalloc(tsdn, pac, ehooks, &pac->ecache_dirty, edata);
 	/* Purging of deallocated pages is deferred */

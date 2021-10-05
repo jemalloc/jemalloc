@@ -4,7 +4,8 @@
 #include "jemalloc/internal/ehooks.h"
 #include "jemalloc/internal/emap.h"
 
-#define PAGE_GUARDS_SIZE (2 * PAGE)
+#define SAN_PAGE_GUARD PAGE
+#define SAN_PAGE_GUARDS_SIZE SAN_PAGE_GUARD * 2
 
 #define SAN_GUARD_LARGE_EVERY_N_EXTENTS_DEFAULT 0
 #define SAN_GUARD_SMALL_EVERY_N_EXTENTS_DEFAULT 0
@@ -13,9 +14,31 @@
 extern size_t opt_san_guard_large;
 extern size_t opt_san_guard_small;
 
-void guard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap);
-void unguard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap);
+void san_guard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap,
+    bool left, bool right, bool reg_emap);
+void san_unguard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
+    emap_t *emap, bool left, bool right);
 void tsd_san_init(tsd_t *tsd);
+
+static inline size_t
+san_two_side_unguarded_sz(size_t size) {
+	return size - SAN_PAGE_GUARDS_SIZE;
+}
+
+static inline size_t
+san_two_side_guarded_sz(size_t size) {
+	return size + SAN_PAGE_GUARDS_SIZE;
+}
+
+static inline size_t
+san_one_side_unguarded_sz(size_t size) {
+	return size - SAN_PAGE_GUARD;
+}
+
+static inline size_t
+san_one_side_guarded_sz(size_t size) {
+	return size + SAN_PAGE_GUARD;
+}
 
 static inline bool
 san_enabled(void) {
@@ -23,7 +46,7 @@ san_enabled(void) {
 }
 
 static inline bool
-large_extent_decide_guard(tsdn_t *tsdn, ehooks_t *ehooks, size_t size,
+san_large_extent_decide_guard(tsdn_t *tsdn, ehooks_t *ehooks, size_t size,
     size_t alignment) {
 	if (opt_san_guard_large == 0 || ehooks_guard_will_fail(ehooks) ||
 	    tsdn_null(tsdn)) {
@@ -42,7 +65,7 @@ large_extent_decide_guard(tsdn_t *tsdn, ehooks_t *ehooks, size_t size,
 	}
 
 	if (n == 1 && (alignment <= PAGE) &&
-	    (size + PAGE_GUARDS_SIZE <= SC_LARGE_MAXCLASS)) {
+	    (san_two_side_guarded_sz(size) <= SC_LARGE_MAXCLASS)) {
 		*tsd_san_extents_until_guard_largep_get(tsd) =
 		    opt_san_guard_large;
 		return true;
@@ -53,7 +76,7 @@ large_extent_decide_guard(tsdn_t *tsdn, ehooks_t *ehooks, size_t size,
 }
 
 static inline bool
-slab_extent_decide_guard(tsdn_t *tsdn, ehooks_t *ehooks) {
+san_slab_extent_decide_guard(tsdn_t *tsdn, ehooks_t *ehooks) {
 	if (opt_san_guard_small == 0 || ehooks_guard_will_fail(ehooks) ||
 	    tsdn_null(tsdn)) {
 		return false;

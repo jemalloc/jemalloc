@@ -365,33 +365,54 @@ pages_decommit(void *addr, size_t size) {
 
 void
 pages_mark_guards(void *head, void *tail) {
-	assert(head != NULL && tail != NULL);
-	assert((uintptr_t)head < (uintptr_t)tail);
+	assert(head != NULL || tail != NULL);
+	assert(head == NULL || tail == NULL ||
+	    (uintptr_t)head < (uintptr_t)tail);
 #ifdef JEMALLOC_HAVE_MPROTECT
-	mprotect(head, PAGE, PROT_NONE);
-	mprotect(tail, PAGE, PROT_NONE);
+	if (head != NULL) {
+		mprotect(head, PAGE, PROT_NONE);
+	}
+	if (tail != NULL) {
+		mprotect(tail, PAGE, PROT_NONE);
+	}
 #else
 	/* Decommit sets to PROT_NONE / MEM_DECOMMIT. */
-	os_pages_commit(head, PAGE, false);
-	os_pages_commit(tail, PAGE, false);
+	if (head != NULL) {
+		os_pages_commit(head, PAGE, false);
+	}
+	if (tail != NULL) {
+		os_pages_commit(tail, PAGE, false);
+	}
 #endif
 }
 
 void
 pages_unmark_guards(void *head, void *tail) {
-	assert(head != NULL && tail != NULL);
-	assert((uintptr_t)head < (uintptr_t)tail);
+	assert(head != NULL || tail != NULL);
+	assert(head == NULL || tail == NULL ||
+	    (uintptr_t)head < (uintptr_t)tail);
 #ifdef JEMALLOC_HAVE_MPROTECT
+	if (head != NULL && tail != NULL) {
+
+	}
 	size_t range = (uintptr_t)tail - (uintptr_t)head + PAGE;
-	if (range <= SC_LARGE_MINCLASS) {
+	if (head != NULL && tail != NULL && range <= SC_LARGE_MINCLASS) {
 		mprotect(head, range, PROT_READ | PROT_WRITE);
 	} else {
-		mprotect(head, PAGE, PROT_READ | PROT_WRITE);
-		mprotect(tail, PAGE, PROT_READ | PROT_WRITE);
+		if (head != NULL) {
+			mprotect(head, PAGE, PROT_READ | PROT_WRITE);
+		}
+		if (tail != NULL) {
+			mprotect(tail, PAGE, PROT_READ | PROT_WRITE);
+		}
 	}
 #else
-	os_pages_commit(head, PAGE, true);
-	os_pages_commit(tail, PAGE, true);
+	if (head != NULL) {
+		os_pages_commit(head, PAGE, true);
+	}
+	if (tail != NULL) {
+		os_pages_commit(tail, PAGE, true);
+	}
 #endif
 }
 

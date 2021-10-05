@@ -390,6 +390,18 @@ edata_past_get(const edata_t *edata) {
 	    edata_size_get(edata));
 }
 
+static inline void*
+edata_past_guard_get(const edata_t *edata) {
+	assert(edata_guarded_get(edata));
+	return (void *)((uintptr_t)edata_past_get(edata) + PAGE);
+}
+
+static inline void*
+edata_before_guard_get(const edata_t *edata) {
+	assert(edata_guarded_get(edata));
+	return (void *)((uintptr_t)edata_before_get(edata) - PAGE);
+}
+
 static inline slab_data_t *
 edata_slab_data_get(edata_t *edata) {
 	assert(edata_slab_get(edata));

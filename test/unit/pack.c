@@ -88,6 +88,7 @@ arena_reset_mallctl(unsigned arena_ind) {
 }
 
 TEST_BEGIN(test_pack) {
+	test_skip_if(opt_san_guard_small > 1);
 	bool prof_enabled;
 	size_t sz = sizeof(prof_enabled);
 	if (mallctl("opt.prof", (void *)&prof_enabled, &sz, NULL, 0) == 0) {

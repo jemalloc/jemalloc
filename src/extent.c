@@ -91,8 +91,48 @@ ecache_alloc(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 	edata_t *edata = extent_recycle(tsdn, pac, ehooks, ecache, expand_edata,
 	    size, alignment, zero, &commit, false, guarded);
 	assert(edata == NULL || edata_pai_get(edata) == EXTENT_PAI_PAC);
+	assert(edata == NULL || edata_guarded_get(edata) == guarded);
 	return edata;
 }
+
+
+/*
+ * Allocates an extent as a separate mapping. On the other hand,
+ * ecacle_alloc_retained can allocate multiple extents out of a single retained
+ * mapping if opt_retain is enabled.
+ */
+static edata_t*
+extent_alloc_as_mapping(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
+    ecache_t *ecache, edata_t *expand_edata, size_t size, size_t alignment,
+    bool zero, bool commit, bool guarded) {
+	if (opt_retain && expand_edata != NULL) {
+		/*
+		 * When retain is enabled and trying to expand, we do
+		 * not attempt extent_alloc_wrapper which does mmap that
+		 * is very unlikely to succeed (unless it happens to be
+		 * at the end).
+		 */
+		return NULL;
+	}
+	assert(expand_edata == NULL || !guarded);
+	void *new_addr = (expand_edata == NULL) ? NULL :
+	    edata_past_get(expand_edata);
+	if (guarded) {
+		edata_t *edata = extent_alloc_wrapper(tsdn, pac, ehooks,
+		    new_addr, san_two_side_guarded_sz(size), alignment,
+		    zero, &commit);
+		if (edata != NULL) {
+			san_guard_pages(tsdn, ehooks, edata, pac->emap,
+			    /* left */ true, /* right */ true,
+			    /* reg_map */ false);
+			return edata;
+		}
+
+	}
+	return extent_alloc_wrapper(tsdn, pac, ehooks,
+	    new_addr, size, alignment, zero, &commit);
+}
+
 
 edata_t *
 ecache_alloc_grow(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
@@ -107,30 +147,12 @@ ecache_alloc_grow(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 	edata_t *edata = extent_alloc_retained(tsdn, pac, ehooks, expand_edata,
 	    size, alignment, zero, &commit, guarded);
 	if (edata == NULL) {
-		if (opt_retain && expand_edata != NULL) {
-			/*
-			 * When retain is enabled and trying to expand, we do
-			 * not attempt extent_alloc_wrapper which does mmap that
-			 * is very unlikely to succeed (unless it happens to be
-			 * at the end).
-			 */
-			return NULL;
-		}
-		if (guarded) {
-			/*
-			 * Means no cached guarded extents available (and no
-			 * grow_retained was attempted).  The pac_alloc flow
-			 * will alloc regular extents to make new guarded ones.
-			 */
-			return NULL;
-		}
-		void *new_addr = (expand_edata == NULL) ? NULL :
-		    edata_past_get(expand_edata);
-		edata = extent_alloc_wrapper(tsdn, pac, ehooks, new_addr,
-		    size, alignment, zero, &commit);
+		edata = extent_alloc_as_mapping(tsdn, pac, ehooks, ecache,
+		    expand_edata, size, alignment, zero, commit, guarded);
 	}
 
 	assert(edata == NULL || edata_pai_get(edata) == EXTENT_PAI_PAC);
+	assert(edata == NULL || edata_guarded_get(edata) == guarded);
 	return edata;
 }
 
@@ -182,7 +204,7 @@ ecache_evict(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 			goto label_return;
 		}
 		eset_remove(eset, edata);
-		if (!ecache->delay_coalesce) {
+		if (!ecache->delay_coalesce || edata_guarded_get(edata)) {
 			break;
 		}
 		/* Try to coalesce. */
@@ -373,7 +395,7 @@ extent_deregister_no_gdump_sub(tsdn_t *tsdn, pac_t *pac,
 static edata_t *
 extent_recycle_extract(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *expand_edata, size_t size, size_t alignment,
-    bool guarded) {
+    bool guarded, bool *exact_fit) {
 	malloc_mutex_assert_owner(tsdn, &ecache->mtx);
 	assert(alignment > 0);
 	if (config_debug && expand_edata != NULL) {
@@ -403,11 +425,6 @@ extent_recycle_extract(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		}
 	} else {
 		/*
-		 * If split and merge are not allowed (Windows w/o retain), try
-		 * exact fit only.
-		 */
-		bool exact_only = (!maps_coalesce && !opt_retain) || guarded;
-		/*
 		 * A large extent might be broken up from its original size to
 		 * some small size to satisfy a small request.  When that small
 		 * request is freed, though, it won't merge back with the larger
@@ -418,7 +435,34 @@ extent_recycle_extract(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		 */
 		unsigned lg_max_fit = ecache->delay_coalesce
 		    ? (unsigned)opt_lg_extent_max_active_fit : SC_PTR_BITS;
-		edata = eset_fit(eset, size, alignment, exact_only, lg_max_fit);
+
+		if (guarded) {
+			/*
+			 * If guarded extent is recycled, exact fit without the
+			 * need to guard another page is ideal. If such extent
+			 * can't be found, then we look for a larger extent
+			 * which can accommodate requested size and a guard
+			 * page.
+			 */
+			edata = eset_fit(eset, size, alignment, true,
+			    lg_max_fit);
+			if (edata == NULL) {
+				edata = eset_fit(eset, san_one_side_guarded_sz(size),
+				    alignment, false, lg_max_fit);
+				*exact_fit = false;
+			} else {
+				*exact_fit = true;
+			}
+		} else {
+			/*
+			 * If split and merge are not allowed (Windows w/o retain), try
+			 * exact fit only.
+			 */
+			bool exact_only = (!maps_coalesce && !opt_retain);
+			edata = eset_fit(eset, size, alignment, exact_only,
+			    lg_max_fit);
+			*exact_fit = exact_only;
+		}
 	}
 	if (edata == NULL) {
 		return NULL;
@@ -477,6 +521,7 @@ extent_split_interior(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 
 	/* Split the lead. */
 	if (leadsize != 0) {
+		assert(!edata_guarded_get(*edata));
 		*lead = *edata;
 		*edata = extent_split_impl(tsdn, pac, ehooks, *lead, leadsize,
 		    size + trailsize, /* holding_core_locks*/ true);
@@ -513,6 +558,7 @@ static edata_t *
 extent_recycle_split(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *expand_edata, size_t size, size_t alignment,
     edata_t *edata, bool growing_retained) {
+	assert(alignment <= PAGE || !edata_guarded_get(edata));
 	malloc_mutex_assert_owner(tsdn, &ecache->mtx);
 
 	edata_t *lead;
@@ -537,6 +583,7 @@ extent_recycle_split(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 
 	if (result == extent_split_interior_ok) {
 		if (lead != NULL) {
+			assert(!edata_guarded_get(edata));
 			extent_deactivate_locked(tsdn, pac, ecache, lead);
 		}
 		if (trail != NULL) {
@@ -579,17 +626,31 @@ extent_recycle(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
 	assert(!guarded || expand_edata == NULL);
+	assert(!guarded || alignment <= PAGE);
 
 	malloc_mutex_lock(tsdn, &ecache->mtx);
+
+	bool exact_fit = false;
 	edata_t *edata = extent_recycle_extract(tsdn, pac, ehooks, ecache,
-	    expand_edata, size, alignment, guarded);
+	    expand_edata, size, alignment, guarded, &exact_fit);
 	if (edata == NULL) {
 		malloc_mutex_unlock(tsdn, &ecache->mtx);
 		return NULL;
 	}
 
+	size_t split_size;
+	if (guarded && !exact_fit) {
+		/*
+		 * If we could not find a guarded extent that would fit between
+		 * two existing guard pages, then split a larger extent and
+		 * insert a guard page.
+		 */
+		split_size = san_one_side_guarded_sz(size);
+	} else {
+		split_size = size;
+	}
 	edata = extent_recycle_split(tsdn, pac, ehooks, ecache, expand_edata,
-	    size, alignment, edata, growing_retained);
+	    split_size, alignment, edata, growing_retained);
 	malloc_mutex_unlock(tsdn, &ecache->mtx);
 	if (edata == NULL) {
 		return NULL;
@@ -616,6 +677,10 @@ extent_recycle(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 			ehooks_zero(tsdn, ehooks, addr, size);
 		}
 	}
+	if (guarded && !exact_fit) {
+		san_guard_pages(tsdn, ehooks, edata, pac->emap,
+		    /* left */ false, /* right */ true, /* reg_emap */ true);
+	}
 	return edata;
 }
 
@@ -626,10 +691,21 @@ extent_recycle(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
  */
 static edata_t *
 extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
-    size_t size, size_t alignment, bool zero, bool *commit) {
+    size_t size, size_t alignment, bool zero, bool *commit, bool guarded) {
 	malloc_mutex_assert_owner(tsdn, &pac->grow_mtx);
 
-	size_t alloc_size_min = size + PAGE_CEILING(alignment) - PAGE;
+	size_t alloc_size_min;
+	if (guarded) {
+		/* When we map a fresh region, account for the guards */
+		size = san_two_side_guarded_sz(size);
+		/*
+		 * Ensure that the trailing extent can be guarded and is
+		 * non-empty, hence add 2 extra pages.
+		 */
+		alloc_size_min = size + PAGE_CEILING(alignment) + PAGE;
+	} else {
+		alloc_size_min = size + PAGE_CEILING(alignment) - PAGE;
+	}
 	/* Beware size_t wrap-around. */
 	if (alloc_size_min < size) {
 		goto label_err;
@@ -640,7 +716,9 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	 */
 	size_t alloc_size;
 	pszind_t exp_grow_skip;
-	bool err = exp_grow_size_prepare(&pac->exp_grow, alloc_size_min,
+	exp_grow_t *exp_grow = guarded ? &pac->exp_grow_guarded
+	    : &pac->exp_grow;
+	bool err = exp_grow_size_prepare(exp_grow, alloc_size_min,
 	    &alloc_size, &exp_grow_skip);
 	if (err) {
 		goto label_err;
@@ -685,11 +763,27 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	    size, alignment);
 
 	if (result == extent_split_interior_ok) {
+		if (guarded) {
+			/*
+			 * We don't register edata after guarding, because it
+			 * will be registered in pa_alloc anyway.
+			 */
+			san_guard_pages(tsdn, ehooks, edata, pac->emap,
+			    /* left */ true, /* right */ true,
+			    /* reg_emap */ false);
+		}
+
 		if (lead != NULL) {
+			assert(!guarded);
 			extent_record(tsdn, pac, ehooks, &pac->ecache_retained,
 			    lead);
 		}
 		if (trail != NULL) {
+			if (guarded) {
+				san_guard_pages(tsdn, ehooks, trail, pac->emap,
+				    /* left */ false, /* right */ true,
+				    /* reg_emap */ true);
+			}
 			extent_record(tsdn, pac, ehooks, &pac->ecache_retained,
 			    trail);
 		}
@@ -737,7 +831,7 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	 * range.
 	 */
 	/* All opportunities for failure are past. */
-	exp_grow_size_commit(&pac->exp_grow, exp_grow_skip);
+	exp_grow_size_commit(exp_grow, exp_grow_skip);
 	malloc_mutex_unlock(tsdn, &pac->grow_mtx);
 
 	if (config_prof) {
@@ -749,7 +843,6 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		size_t size = edata_size_get(edata);
 		ehooks_zero(tsdn, ehooks, addr, size);
 	}
-
 	return edata;
 label_err:
 	malloc_mutex_unlock(tsdn, &pac->grow_mtx);
@@ -773,9 +866,9 @@ extent_alloc_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		if (config_prof) {
 			extent_gdump_add(tsdn, edata);
 		}
-	} else if (opt_retain && expand_edata == NULL && !guarded) {
+	} else if (opt_retain && expand_edata == NULL) {
 		edata = extent_grow_retained(tsdn, pac, ehooks, size,
-		    alignment, zero, commit);
+		    alignment, zero, commit, guarded);
 		/* extent_grow_retained() always releases pac->grow_mtx. */
 	} else {
 		malloc_mutex_unlock(tsdn, &pac->grow_mtx);
@@ -833,6 +926,7 @@ extent_coalesce(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 static edata_t *
 extent_try_coalesce_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *edata, bool *coalesced) {
+	assert(!edata_guarded_get(edata));
 	/*
 	 * We avoid checking / locking inactive neighbors for large size
 	 * classes, since they are eagerly coalesced on deallocation which can
@@ -939,7 +1033,7 @@ extent_record(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		goto label_skip_coalesce;
 	}
 	if (!ecache->delay_coalesce) {
-		edata = extent_try_coalesce(tsdn, pac,  ehooks, ecache, edata,
+		edata = extent_try_coalesce(tsdn, pac, ehooks, ecache, edata,
 		    NULL);
 	} else if (edata_size_get(edata) >= SC_LARGE_MINCLASS) {
 		assert(ecache == &pac->ecache_dirty);
@@ -1010,10 +1104,11 @@ extent_dalloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 
 	/* Avoid calling the default extent_dalloc unless have to. */
 	if (!ehooks_dalloc_will_fail(ehooks)) {
-		/* Restore guard pages for dalloc / unmap. */
+		/* Remove guard pages for dalloc / unmap. */
 		if (edata_guarded_get(edata)) {
 			assert(ehooks_are_default(ehooks));
-			unguard_pages(tsdn, ehooks, edata, pac->emap);
+			san_unguard_pages(tsdn, ehooks, edata, pac->emap,
+			    /* left */ true, /* right */ true);
 		}
 		/*
 		 * Deregister first to avoid a race with other allocating
@@ -1169,6 +1264,7 @@ extent_split_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	    /* slab */ false, SC_NSIZES, edata_sn_get(edata),
 	    edata_state_get(edata), edata_zeroed_get(edata),
 	    edata_committed_get(edata), EXTENT_PAI_PAC, EXTENT_NOT_HEAD);
+	edata_guarded_set(trail, edata_guarded_get(edata));
 	emap_prepare_t prepare;
 	bool err = emap_split_prepare(tsdn, pac->emap, &prepare, edata,
 	    size_a, trail, size_b);

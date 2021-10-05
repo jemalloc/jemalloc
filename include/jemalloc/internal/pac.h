@@ -96,6 +96,7 @@ struct pac_s {
 
 	/* The grow info for the retained ecache. */
 	exp_grow_t exp_grow;
+	exp_grow_t exp_grow_guarded;
 	malloc_mutex_t grow_mtx;
 
 	/* How large extents should be before getting auto-purged. */
