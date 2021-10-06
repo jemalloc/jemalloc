@@ -148,7 +148,7 @@ sec_flush_some_and_unlock(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard) {
 	}
 
 	malloc_mutex_unlock(tsdn, &shard->mtx);
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 	pai_dalloc_batch(tsdn, sec->fallback, &to_flush,
 	    &deferred_work_generated);
 }
@@ -178,7 +178,7 @@ sec_batch_fill_and_alloc(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard,
 
 	edata_list_active_t result;
 	edata_list_active_init(&result);
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 	size_t nalloc = pai_alloc_batch(tsdn, sec->fallback, size,
 	    1 + sec->opts.batch_fill_extra, &result, &deferred_work_generated);
 
@@ -223,7 +223,6 @@ sec_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
 	assert(!guarded);
 
 	sec_t *sec = (sec_t *)self;
-	*deferred_work_generated = false;
 
 	if (zero || alignment > PAGE || sec->opts.nshards == 0
 	    || size > sec->opts.max_alloc) {
@@ -291,7 +290,7 @@ sec_flush_all_locked(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard) {
 	 * we're disabling the HPA or resetting the arena, both of which are
 	 * rare pathways.
 	 */
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 	pai_dalloc_batch(tsdn, sec->fallback, &to_flush,
 	    &deferred_work_generated);
 }
@@ -341,7 +340,6 @@ sec_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata,
 	sec_shard_t *shard = sec_shard_pick(tsdn, sec);
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	if (shard->enabled) {
-		*deferred_work_generated = false;
 		sec_shard_dalloc_and_unlock(tsdn, sec, shard, edata);
 	} else {
 		malloc_mutex_unlock(tsdn, &shard->mtx);

@@ -324,7 +324,7 @@ arena_large_ralloc_stats_update(tsdn_t *tsdn, arena_t *arena, size_t oldusize,
 edata_t *
 arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
     size_t alignment, bool zero) {
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 	szind_t szind = sz_size2index(usize);
 	size_t esize = usize + sz_large_pad;
 
@@ -561,7 +561,7 @@ arena_do_deferred_work(tsdn_t *tsdn, arena_t *arena) {
 
 void
 arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, edata_t *slab) {
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 	pa_dalloc(tsdn, &arena->pa_shard, slab, &deferred_work_generated);
 	if (deferred_work_generated) {
 		arena_handle_deferred_work(tsdn, arena);
@@ -825,7 +825,7 @@ arena_destroy(tsd_t *tsd, arena_t *arena) {
 static edata_t *
 arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned binshard,
     const bin_info_t *bin_info) {
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
