@@ -126,7 +126,6 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 	assert(!guarded || alignment <= PAGE);
 
 	edata_t *edata = NULL;
-	*deferred_work_generated = false;
 	if (!guarded && pa_shard_uses_hpa(shard)) {
 		edata = pai_alloc(tsdn, &shard->hpa_sec.pai, size, alignment,
 		    zero, /* guarded */ false, deferred_work_generated);

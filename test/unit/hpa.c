@@ -79,7 +79,7 @@ TEST_BEGIN(test_alloc_max) {
 	edata_t *edata;
 
 	/* Small max */
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 	edata = pai_alloc(tsdn, &shard->pai, ALLOC_MAX, PAGE, false, false,
 	    &deferred_work_generated);
 	expect_ptr_not_null(edata, "Allocation of small max failed");
@@ -169,7 +169,7 @@ TEST_BEGIN(test_stress) {
 	mem_tree_t tree;
 	mem_tree_new(&tree);
 
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 
 	for (size_t i = 0; i < 100 * 1000; i++) {
 		size_t operation = prng_range_zu(&prng_state, 2);
@@ -252,7 +252,7 @@ TEST_BEGIN(test_alloc_dalloc_batch) {
 	    &test_hpa_shard_opts_default);
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 
 	enum {NALLOCS = 8};
 
@@ -369,7 +369,7 @@ TEST_BEGIN(test_defer_time) {
 
 	hpa_shard_t *shard = create_test_data(&hooks, &opts);
 
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 
 	nstime_init(&defer_curtime, 0);
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());

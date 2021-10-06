@@ -785,7 +785,6 @@ static bool
 hpa_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
     size_t new_size, bool zero, bool *deferred_work_generated) {
 	/* Expand not yet supported. */
-	*deferred_work_generated = false;
 	return true;
 }
 
@@ -793,7 +792,6 @@ static bool
 hpa_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata,
     size_t old_size, size_t new_size, bool *deferred_work_generated) {
 	/* Shrink not yet supported. */
-	*deferred_work_generated = false;
 	return true;
 }
 

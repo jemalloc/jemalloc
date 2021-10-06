@@ -88,7 +88,7 @@ static void *
 do_alloc_free_purge(void *arg) {
 	test_data_t *test_data = (test_data_t *)arg;
 	for (int i = 0; i < 10 * 1000; i++) {
-		bool deferred_work_generated;
+		bool deferred_work_generated = false;
 		edata_t *edata = pa_alloc(TSDN_NULL, &test_data->shard, PAGE,
 		    PAGE, /* slab */ false, /* szind */ 0, /* zero */ false,
 		    /* guarded */ false, &deferred_work_generated);

@@ -64,7 +64,7 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, edata_t *edata, size_t usize) {
 		return true;
 	}
 
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 	bool err = pa_shrink(tsdn, &arena->pa_shard, edata, old_size,
 	    usize + sz_large_pad, sz_size2index(usize),
 	    &deferred_work_generated);
@@ -90,7 +90,7 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
 
 	szind_t szind = sz_size2index(usize);
 
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 	bool err = pa_expand(tsdn, &arena->pa_shard, edata, old_size, new_size,
 	    szind, zero, &deferred_work_generated);
 
@@ -249,7 +249,7 @@ large_dalloc_prep_impl(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
 
 static void
 large_dalloc_finish_impl(tsdn_t *tsdn, arena_t *arena, edata_t *edata) {
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 	pa_dalloc(tsdn, &arena->pa_shard, edata, &deferred_work_generated);
 	if (deferred_work_generated) {
 		arena_handle_deferred_work(tsdn, arena);

@@ -54,7 +54,6 @@ pai_test_allocator_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
     bool *deferred_work_generated) {
 	assert(!guarded);
 	pai_test_allocator_t *ta = (pai_test_allocator_t *)self;
-	*deferred_work_generated = false;
 	if (ta->alloc_fail) {
 		return NULL;
 	}
@@ -76,7 +75,6 @@ pai_test_allocator_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size,
     size_t nallocs, edata_list_active_t *results,
     bool *deferred_work_generated) {
 	pai_test_allocator_t *ta = (pai_test_allocator_t *)self;
-	*deferred_work_generated = false;
 	if (ta->alloc_fail) {
 		return 0;
 	}
@@ -100,7 +98,6 @@ pai_test_allocator_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata,
     size_t old_size, size_t new_size, bool zero,
     bool *deferred_work_generated) {
 	pai_test_allocator_t *ta = (pai_test_allocator_t *)self;
-	*deferred_work_generated = false;
 	ta->expand_count++;
 	return ta->expand_return_value;
 }
@@ -109,7 +106,6 @@ static bool
 pai_test_allocator_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata,
     size_t old_size, size_t new_size, bool *deferred_work_generated) {
 	pai_test_allocator_t *ta = (pai_test_allocator_t *)self;
-	*deferred_work_generated = false;
 	ta->shrink_count++;
 	return ta->shrink_return_value;
 }
@@ -118,7 +114,6 @@ static void
 pai_test_allocator_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata,
     bool *deferred_work_generated) {
 	pai_test_allocator_t *ta = (pai_test_allocator_t *)self;
-	*deferred_work_generated = false;
 	ta->dalloc_count++;
 	free(edata);
 }
@@ -127,7 +122,6 @@ static void
 pai_test_allocator_dalloc_batch(tsdn_t *tsdn, pai_t *self,
     edata_list_active_t *list, bool *deferred_work_generated) {
 	pai_test_allocator_t *ta = (pai_test_allocator_t *)self;
-	*deferred_work_generated = false;
 
 	edata_t *edata;
 	while ((edata = edata_list_active_first(list)) != NULL) {
@@ -179,7 +173,7 @@ TEST_BEGIN(test_reuse) {
 	enum { NALLOCS = 11 };
 	edata_t *one_page[NALLOCS];
 	edata_t *two_page[NALLOCS];
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 	test_sec_init(&sec, &ta.pai, /* nshards */ 1, /* max_alloc */ 2 * PAGE,
 	    /* max_bytes */ 2 * (NALLOCS * PAGE + NALLOCS * 2 * PAGE));
 	for (int i = 0; i < NALLOCS; i++) {
@@ -256,7 +250,7 @@ TEST_BEGIN(test_auto_flush) {
 	enum { NALLOCS = 10 };
 	edata_t *extra_alloc;
 	edata_t *allocs[NALLOCS];
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 	test_sec_init(&sec, &ta.pai, /* nshards */ 1, /* max_alloc */ PAGE,
 	    /* max_bytes */ NALLOCS * PAGE);
 	for (int i = 0; i < NALLOCS; i++) {
@@ -312,7 +306,7 @@ do_disable_flush_test(bool is_disable) {
 
 	enum { NALLOCS = 11 };
 	edata_t *allocs[NALLOCS];
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 	test_sec_init(&sec, &ta.pai, /* nshards */ 1, /* max_alloc */ PAGE,
 	    /* max_bytes */ NALLOCS * PAGE);
 	for (int i = 0; i < NALLOCS; i++) {
@@ -380,7 +374,7 @@ TEST_BEGIN(test_max_alloc_respected) {
 	size_t max_alloc = 2 * PAGE;
 	size_t attempted_alloc = 3 * PAGE;
 
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 
 	test_sec_init(&sec, &ta.pai, /* nshards */ 1, max_alloc,
 	    /* max_bytes */ 1000 * PAGE);
@@ -414,7 +408,7 @@ TEST_BEGIN(test_expand_shrink_delegate) {
 	/* See the note above -- we can't use the real tsd. */
 	tsdn_t *tsdn = TSDN_NULL;
 
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 
 	test_sec_init(&sec, &ta.pai, /* nshards */ 1, /* max_alloc */ 10 * PAGE,
 	    /* max_bytes */ 1000 * PAGE);
@@ -458,7 +452,7 @@ TEST_BEGIN(test_nshards_0) {
 	opts.nshards = 0;
 	sec_init(TSDN_NULL, &sec, base, &ta.pai, &opts);
 
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 	edata_t *edata = pai_alloc(tsdn, &sec.pai, PAGE, PAGE,
 	    /* zero */ false, /* guarded */ false,
 	    &deferred_work_generated);
@@ -495,7 +489,7 @@ TEST_BEGIN(test_stats_simple) {
 		FLUSH_PAGES = 20,
 	};
 
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 
 	test_sec_init(&sec, &ta.pai, /* nshards */ 1, /* max_alloc */ PAGE,
 	    /* max_bytes */ FLUSH_PAGES * PAGE);
@@ -544,7 +538,7 @@ TEST_BEGIN(test_stats_auto_flush) {
 	edata_t *extra_alloc1;
 	edata_t *allocs[2 * FLUSH_PAGES];
 
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 
 	extra_alloc0 = pai_alloc(tsdn, &sec.pai, PAGE, PAGE, /* zero */ false,
 	    /* guarded */ false, &deferred_work_generated);
@@ -590,7 +584,7 @@ TEST_BEGIN(test_stats_manual_flush) {
 	test_sec_init(&sec, &ta.pai, /* nshards */ 1, /* max_alloc */ PAGE,
 	    /* max_bytes */ FLUSH_PAGES * PAGE);
 
-	bool deferred_work_generated;
+	bool deferred_work_generated = false;
 	edata_t *allocs[FLUSH_PAGES];
 	for (size_t i = 0; i < FLUSH_PAGES; i++) {
 		allocs[i] = pai_alloc(tsdn, &sec.pai, PAGE, PAGE,

@@ -157,8 +157,6 @@ pac_alloc_new_guarded(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 static edata_t *
 pac_alloc_impl(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment,
     bool zero, bool guarded, bool *deferred_work_generated) {
-	*deferred_work_generated = false;
-
 	pac_t *pac = (pac_t *)self;
 	ehooks_t *ehooks = pac_ehooks_get(pac);
 
@@ -178,8 +176,6 @@ pac_expand_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
     size_t new_size, bool zero, bool *deferred_work_generated) {
 	pac_t *pac = (pac_t *)self;
 	ehooks_t *ehooks = pac_ehooks_get(pac);
-
-	*deferred_work_generated = false;
 
 	size_t mapped_add = 0;
 	size_t expand_amount = new_size - old_size;
@@ -220,8 +216,6 @@ pac_shrink_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
 	ehooks_t *ehooks = pac_ehooks_get(pac);
 
 	size_t shrink_amount = old_size - new_size;
-
-	*deferred_work_generated = false;
 
 	if (ehooks_split_will_fail(ehooks)) {
 		return true;
