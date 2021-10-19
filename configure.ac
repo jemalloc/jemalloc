@@ -1564,6 +1564,23 @@ if test "x$enable_opt_size_checks" = "x1" ; then
 fi
 AC_SUBST([enable_opt_size_checks])
 
+dnl Do not check for use-after-free by default.
+AC_ARG_ENABLE([uaf-detection],
+  [AS_HELP_STRING([--enable-uaf-detection],
+  [Allow sampled junk-filling on deallocation to detect use-after-free])],
+[if test "x$enable_uaf_detection" = "xno" ; then
+  enable_uaf_detection="0"
+else
+  enable_uaf_detection="1"
+fi
+],
+[enable_uaf_detection="0"]
+)
+if test "x$enable_uaf_detection" = "x1" ; then
+  AC_DEFINE([JEMALLOC_UAF_DETECTION], [ ])
+fi
+AC_SUBST([enable_uaf_detection])
+
 JE_COMPILABLE([a program using __builtin_unreachable], [
 void foo (void) {
   __builtin_unreachable();

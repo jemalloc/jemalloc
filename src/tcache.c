@@ -4,6 +4,7 @@
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/safety_check.h"
+#include "jemalloc/internal/san.h"
 #include "jemalloc/internal/sc.h"
 
 /******************************************************************************/
@@ -178,6 +179,8 @@ tcache_event(tsd_t *tsd) {
 	szind_t szind = tcache_slow->next_gc_bin;
 	bool is_small = (szind < SC_NBINS);
 	cache_bin_t *cache_bin = &tcache->bins[szind];
+
+	tcache_bin_flush_stashed(tsd, tcache, cache_bin, szind, is_small);
 
 	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin,
 	    &tcache_bin_info[szind]);
@@ -497,6 +500,8 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 JEMALLOC_ALWAYS_INLINE void
 tcache_bin_flush_bottom(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
     szind_t binind, unsigned rem, bool small) {
+	tcache_bin_flush_stashed(tsd, tcache, cache_bin, binind, small);
+
 	cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin,
 	    &tcache_bin_info[binind]);
 	assert((cache_bin_sz_t)rem <= ncached);
@@ -523,6 +528,48 @@ void
 tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
     szind_t binind, unsigned rem) {
 	tcache_bin_flush_bottom(tsd, tcache, cache_bin, binind, rem, false);
+}
+
+/*
+ * Flushing stashed happens when 1) tcache fill, 2) tcache flush, or 3) tcache
+ * GC event.  This makes sure that the stashed items do not hold memory for too
+ * long, and new buffers can only be allocated when nothing is stashed.
+ *
+ * The downside is, the time between stash and flush may be relatively short,
+ * especially when the request rate is high.  It lowers the chance of detecting
+ * write-after-free -- however that is a delayed detection anyway, and is less
+ * of a focus than the memory overhead.
+ */
+void
+tcache_bin_flush_stashed(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
+    szind_t binind, bool is_small) {
+	cache_bin_info_t *info = &tcache_bin_info[binind];
+	/*
+	 * The two below are for assertion only.  The content of original cached
+	 * items remain unchanged -- the stashed items reside on the other end
+	 * of the stack.  Checking the stack head and ncached to verify.
+	 */
+	void *head_content = *cache_bin->stack_head;
+	cache_bin_sz_t orig_cached = cache_bin_ncached_get_local(cache_bin,
+	    info);
+
+	cache_bin_sz_t nstashed = cache_bin_nstashed_get(cache_bin, info);
+	assert(orig_cached + nstashed <= cache_bin_info_ncached_max(info));
+	if (nstashed == 0) {
+		return;
+	}
+
+	CACHE_BIN_PTR_ARRAY_DECLARE(ptrs, nstashed);
+	cache_bin_init_ptr_array_for_stashed(cache_bin, binind, info, &ptrs,
+	    nstashed);
+	san_check_stashed_ptrs(ptrs.ptr, nstashed, sz_index2size(binind));
+	tcache_bin_flush_impl(tsd, tcache, cache_bin, binind, &ptrs, nstashed,
+	    is_small);
+	cache_bin_finish_flush_stashed(cache_bin, info);
+
+	assert(cache_bin_nstashed_get(cache_bin, info) == 0);
+	assert(cache_bin_ncached_get_local(cache_bin, info) == orig_cached);
+	assert(head_content == *cache_bin->stack_head);
 }
 
 void

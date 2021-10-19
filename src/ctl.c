@@ -150,6 +150,7 @@ CTL_PROTO(opt_prof_recent_alloc_max)
 CTL_PROTO(opt_prof_stats)
 CTL_PROTO(opt_prof_sys_thread_name)
 CTL_PROTO(opt_prof_time_res)
+CTL_PROTO(opt_lg_san_uaf_align)
 CTL_PROTO(opt_zero_realloc)
 CTL_PROTO(tcache_create)
 CTL_PROTO(tcache_flush)
@@ -472,6 +473,7 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("prof_stats"),	CTL(opt_prof_stats)},
 	{NAME("prof_sys_thread_name"),	CTL(opt_prof_sys_thread_name)},
 	{NAME("prof_time_resolution"),	CTL(opt_prof_time_res)},
+	{NAME("lg_san_uaf_align"),	CTL(opt_lg_san_uaf_align)},
 	{NAME("zero_realloc"),	CTL(opt_zero_realloc)}
 };
 
@@ -2201,6 +2203,8 @@ CTL_RO_NL_CGEN(config_prof, opt_prof_sys_thread_name, opt_prof_sys_thread_name,
     bool)
 CTL_RO_NL_CGEN(config_prof, opt_prof_time_res,
     prof_time_res_mode_names[opt_prof_time_res], const char *)
+CTL_RO_NL_CGEN(config_uaf_detection, opt_lg_san_uaf_align,
+    opt_lg_san_uaf_align, ssize_t)
 CTL_RO_NL_GEN(opt_zero_realloc,
     zero_realloc_mode_names[opt_zero_realloc_action], const char *)
 

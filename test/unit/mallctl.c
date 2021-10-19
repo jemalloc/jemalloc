@@ -323,6 +323,7 @@ TEST_BEGIN(test_mallctl_opt) {
 	TEST_MALLCTL_OPT(ssize_t, prof_recent_alloc_max, prof);
 	TEST_MALLCTL_OPT(bool, prof_stats, prof);
 	TEST_MALLCTL_OPT(bool, prof_sys_thread_name, prof);
+	TEST_MALLCTL_OPT(ssize_t, lg_san_uaf_align, uaf_detection);
 
 #undef TEST_MALLCTL_OPT
 }
@@ -368,7 +369,7 @@ TEST_BEGIN(test_tcache_none) {
 	/* Make sure that tcache-based allocation returns p, not q. */
 	void *p1 = mallocx(42, 0);
 	expect_ptr_not_null(p1, "Unexpected mallocx() failure");
-	if (!opt_prof) {
+	if (!opt_prof && !san_uaf_detection_enabled()) {
 		expect_ptr_eq(p0, p1,
 		    "Expected tcache to allocate cached region");
 	}
@@ -434,8 +435,10 @@ TEST_BEGIN(test_tcache) {
 		ps[i] = mallocx(psz, MALLOCX_TCACHE(tis[i]));
 		expect_ptr_not_null(ps[i], "Unexpected mallocx() failure, i=%u",
 		    i);
-		expect_ptr_eq(ps[i], p0,
-		    "Expected mallocx() to allocate cached region, i=%u", i);
+		if (!san_uaf_detection_enabled()) {
+			expect_ptr_eq(ps[i], p0, "Expected mallocx() to "
+			    "allocate cached region, i=%u", i);
+		}
 	}
 
 	/* Verify that reallocation uses cached regions. */
@@ -444,8 +447,10 @@ TEST_BEGIN(test_tcache) {
 		qs[i] = rallocx(ps[i], qsz, MALLOCX_TCACHE(tis[i]));
 		expect_ptr_not_null(qs[i], "Unexpected rallocx() failure, i=%u",
 		    i);
-		expect_ptr_eq(qs[i], q0,
-		    "Expected rallocx() to allocate cached region, i=%u", i);
+		if (!san_uaf_detection_enabled()) {
+			expect_ptr_eq(qs[i], q0, "Expected rallocx() to "
+			    "allocate cached region, i=%u", i);
+		}
 		/* Avoid undefined behavior in case of test failure. */
 		if (qs[i] == NULL) {
 			qs[i] = ps[i];

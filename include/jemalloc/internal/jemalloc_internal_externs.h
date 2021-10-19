@@ -35,6 +35,9 @@ extern const char *zero_realloc_mode_names[];
 extern atomic_zu_t zero_realloc_count;
 extern bool opt_cache_oblivious;
 
+/* Escape free-fastpath when ptr & mask == 0 (for sanitization purpose). */
+extern uintptr_t san_cache_bin_nonfast_mask;
+
 /* Number of CPUs. */
 extern unsigned ncpus;
 
