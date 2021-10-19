@@ -1657,6 +1657,31 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				}
 				CONF_CONTINUE;
 			}
+			if (config_uaf_detection &&
+			    CONF_MATCH("lg_san_uaf_align")) {
+				ssize_t a;
+				CONF_VALUE_READ(ssize_t, a)
+				if (CONF_VALUE_READ_FAIL() || a < -1) {
+					CONF_ERROR("Invalid conf value",
+					    k, klen, v, vlen);
+				}
+				if (a == -1) {
+					opt_lg_san_uaf_align = -1;
+					CONF_CONTINUE;
+				}
+
+				/* clip if necessary */
+				ssize_t max_allowed = (sizeof(size_t) << 3) - 1;
+				ssize_t min_allowed = LG_PAGE;
+				if (a > max_allowed) {
+					a = max_allowed;
+				} else if (a < min_allowed) {
+					a = min_allowed;
+				}
+
+				opt_lg_san_uaf_align = a;
+				CONF_CONTINUE;
+			}
 
 			CONF_HANDLE_SIZE_T(opt_san_guard_small,
 			    "san_guard_small", 0, SIZE_T_MAX,
@@ -1760,6 +1785,7 @@ malloc_init_hard_a0_locked() {
 		prof_boot0();
 	}
 	malloc_conf_init(&sc_data, bin_shard_sizes);
+	san_init(opt_lg_san_uaf_align);
 	sz_boot(&sc_data, opt_cache_oblivious);
 	bin_info_boot(&sc_data, bin_shard_sizes);
 
@@ -2970,6 +2996,41 @@ free_default(void *ptr) {
 	}
 }
 
+JEMALLOC_ALWAYS_INLINE bool
+free_fastpath_nonfast_aligned(void *ptr, bool check_prof) {
+	/*
+	 * free_fastpath do not handle two uncommon cases: 1) sampled profiled
+	 * objects and 2) sampled junk & stash for use-after-free detection.
+	 * Both have special alignments which are used to escape the fastpath.
+	 *
+	 * prof_sample is page-aligned, which covers the UAF check when both
+	 * are enabled (the assertion below).  Avoiding redundant checks since
+	 * this is on the fastpath -- at most one runtime branch from this.
+	 */
+	if (config_debug && cache_bin_nonfast_aligned(ptr)) {
+		assert(prof_sample_aligned(ptr));
+	}
+
+	if (config_prof && check_prof) {
+		/* When prof is enabled, the prof_sample alignment is enough. */
+		if (prof_sample_aligned(ptr)) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	if (config_uaf_detection) {
+		if (cache_bin_nonfast_aligned(ptr)) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	return false;
+}
+
 /* Returns whether or not the free attempt was successful. */
 JEMALLOC_ALWAYS_INLINE
 bool free_fastpath(void *ptr, size_t size, bool size_hint) {
@@ -2992,18 +3053,21 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 		    &arena_emap_global, ptr, &alloc_ctx);
 
 		/* Note: profiled objects will have alloc_ctx.slab set */
-		if (unlikely(err || !alloc_ctx.slab)) {
+		if (unlikely(err || !alloc_ctx.slab ||
+		    free_fastpath_nonfast_aligned(ptr,
+		    /* check_prof */ false))) {
 			return false;
 		}
 		assert(alloc_ctx.szind != SC_NSIZES);
 	} else {
 		/*
-		 * Check for both sizes that are too large, and for sampled
-		 * objects.  Sampled objects are always page-aligned.  The
-		 * sampled object check will also check for null ptr.
+		 * Check for both sizes that are too large, and for sampled /
+		 * special aligned objects.  The alignment check will also check
+		 * for null ptr.
 		 */
 		if (unlikely(size > SC_LOOKUP_MAXCLASS ||
-		    (config_prof && prof_sample_aligned(ptr)))) {
+		    free_fastpath_nonfast_aligned(ptr,
+		    /* check_prof */ true))) {
 			return false;
 		}
 		alloc_ctx.szind = sz_size2index_lookup(size);

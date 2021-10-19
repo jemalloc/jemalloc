@@ -157,6 +157,8 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 			cache_bin_t *cache_bin = &descriptor->bins[i];
 			astats->tcache_bytes +=
 			    cache_bin_ncached_get_remote(cache_bin,
+			    &tcache_bin_info[i]) * sz_index2size(i) +
+			    cache_bin_nstashed_get(cache_bin,
 			    &tcache_bin_info[i]) * sz_index2size(i);
 		}
 	}

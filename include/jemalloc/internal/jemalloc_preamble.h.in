@@ -198,6 +198,14 @@ static const bool config_opt_size_checks =
 #endif
     ;
 
+static const bool config_uaf_detection =
+#if defined(JEMALLOC_UAF_DETECTION) || defined(JEMALLOC_DEBUG)
+    true
+#else
+    false
+#endif
+    ;
+
 /* Whether or not the C++ extensions are enabled. */
 static const bool config_enable_cxx =
 #ifdef JEMALLOC_ENABLE_CXX
