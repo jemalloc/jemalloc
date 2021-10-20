@@ -35,9 +35,6 @@
 #  define RTREE_LEAF_COMPACT
 #endif
 
-/* Needed for initialization only. */
-#define RTREE_LEAFKEY_INVALID ((uintptr_t)1)
-
 typedef struct rtree_node_elm_s rtree_node_elm_t;
 struct rtree_node_elm_s {
 	atomic_p_t	child; /* (rtree_{node,leaf}_elm_t *) */

@@ -119,7 +119,7 @@ typedef ql_elm(tsd_t) tsd_link_t;
     /* activity_callback_thunk */					\
 	ACTIVITY_CALLBACK_THUNK_INITIALIZER,				\
     /* tcache_slow */		TCACHE_SLOW_ZERO_INITIALIZER,		\
-    /* rtree_ctx */		RTREE_CTX_ZERO_INITIALIZER,
+    /* rtree_ctx */		RTREE_CTX_INITIALIZER,
 
 /*  O(name,			type,			nullable type) */
 #define TSD_DATA_FAST							\
