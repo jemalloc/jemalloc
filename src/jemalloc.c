@@ -2910,12 +2910,19 @@ free_default(void *ptr) {
 JEMALLOC_ALWAYS_INLINE
 bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 	tsd_t *tsd = tsd_get(false);
+	/* The branch gets optimized away unless tsd_get_allocates(). */
+	if (unlikely(tsd == NULL)) {
+		return false;
+	}
+	/*
+	 *  The tsd_fast() / uninitialized checks are folded into the branch
+	 *  testing fast_threshold (set to 0 when !tsd_fast).
+	 */
+	assert(tsd_fast(tsd) ||
+	    *tsd_thread_deallocated_next_event_fastp_get_unsafe(tsd) == 0);
 
 	emap_alloc_ctx_t alloc_ctx;
 	if (!size_hint) {
-		if (unlikely(tsd == NULL || !tsd_fast(tsd))) {
-			return false;
-		}
 		bool err = emap_alloc_ctx_try_lookup_fast(tsd,
 		    &arena_emap_global, ptr, &alloc_ctx);
 
@@ -2925,15 +2932,6 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 		}
 		assert(alloc_ctx.szind != SC_NSIZES);
 	} else {
-		/*
-		 * The size hinted fastpath does not involve rtree lookup, thus
-		 * can tolerate an uninitialized tsd.  This allows the tsd_fast
-		 * check to be folded into the branch testing fast_threshold
-		 * (set to 0 when !tsd_fast).
-		 */
-		if (unlikely(tsd == NULL)) {
-			return false;
-		}
 		/*
 		 * Check for both sizes that are too large, and for sampled
 		 * objects.  Sampled objects are always page-aligned.  The
@@ -2949,7 +2947,7 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 	}
 
 	uint64_t deallocated, threshold;
-	te_free_fastpath_ctx(tsd, &deallocated, &threshold, size_hint);
+	te_free_fastpath_ctx(tsd, &deallocated, &threshold);
 
 	size_t usize = sz_index2size(alloc_ctx.szind);
 	uint64_t deallocated_after = deallocated + usize;
@@ -2963,7 +2961,7 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 	if (unlikely(deallocated_after >= threshold)) {
 		return false;
 	}
-
+	assert(tsd_fast(tsd));
 	bool fail = maybe_check_alloc_ctx(tsd, ptr, &alloc_ctx);
 	if (fail) {
 		/* See the comment in isfree. */
