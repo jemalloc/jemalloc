@@ -276,12 +276,14 @@ emap_full_alloc_ctx_try_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr,
 }
 
 /*
- * Returns true on error.
+ * Only used on the fastpath of free.  Returns true when cannot be fulfilled by
+ * fast path, e.g. when the metadata key is not cached.
  */
 JEMALLOC_ALWAYS_INLINE bool
 emap_alloc_ctx_try_lookup_fast(tsd_t *tsd, emap_t *emap, const void *ptr,
     emap_alloc_ctx_t *alloc_ctx) {
-	rtree_ctx_t *rtree_ctx = tsd_rtree_ctx(tsd);
+	/* Use the unsafe getter since this may gets called during exit. */
+	rtree_ctx_t *rtree_ctx = tsd_rtree_ctxp_get_unsafe(tsd);
 
 	rtree_metadata_t metadata;
 	bool err = rtree_metadata_try_read_fast(tsd_tsdn(tsd), &emap->rtree,
