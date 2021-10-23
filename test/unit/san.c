@@ -14,6 +14,8 @@ verify_extent_guarded(tsdn_t *tsdn, void *ptr) {
 void *small_alloc[MAX_SMALL_ALLOCATIONS];
 
 TEST_BEGIN(test_guarded_small) {
+	test_skip_if(opt_prof);
+
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 	unsigned npages = 16, pages_found = 0, ends_found = 0;
 	VARIABLE_ARRAY(uintptr_t, pages, npages);
@@ -27,6 +29,8 @@ TEST_BEGIN(test_guarded_small) {
 		small_alloc[n_alloc] = ptr;
 		verify_extent_guarded(tsdn, ptr);
 		if ((uintptr_t)ptr % PAGE == 0) {
+			assert_u_lt(pages_found, npages,
+			    "Unexpectedly large number of page aligned allocs");
 			pages[pages_found++] = (uintptr_t)ptr;
 		}
 		if (((uintptr_t)ptr + (uintptr_t)sz) % PAGE == 0) {
