@@ -3,7 +3,7 @@
 
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/ehooks.h"
-#include "jemalloc/internal/guard.h"
+#include "jemalloc/internal/san.h"
 #include "jemalloc/internal/tsd.h"
 
 /* The sanitizer options. */
@@ -11,7 +11,7 @@ size_t opt_san_guard_large = SAN_GUARD_LARGE_EVERY_N_EXTENTS_DEFAULT;
 size_t opt_san_guard_small = SAN_GUARD_SMALL_EVERY_N_EXTENTS_DEFAULT;
 
 void
-guard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap) {
+san_guard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap) {
 	emap_deregister_boundary(tsdn, emap, edata);
 
 	size_t size_with_guards = edata_size_get(edata);
@@ -33,8 +33,8 @@ guard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap) {
 }
 
 static void
-unguard_pages_impl(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap,
-    bool reg_emap) {
+san_unguard_pages_impl(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
+    emap_t *emap, bool reg_emap) {
 	/* Remove the inner boundary which no longer exists. */
 	if (reg_emap) {
 		assert(edata_state_get(edata) == extent_state_active);
@@ -68,15 +68,16 @@ unguard_pages_impl(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap,
 }
 
 void
-unguard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap) {
-	unguard_pages_impl(tsdn, ehooks, edata, emap, /* reg_emap */ true);
+san_unguard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
+    emap_t *emap) {
+	san_unguard_pages_impl(tsdn, ehooks, edata, emap, /* reg_emap */ true);
 }
 
 void
-unguard_pages_pre_destroy(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
+san_unguard_pages_pre_destroy(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
     emap_t *emap) {
 	emap_assert_not_mapped(tsdn, emap, edata);
-	unguard_pages_impl(tsdn, ehooks, edata, emap, /* reg_emap */ false);
+	san_unguard_pages_impl(tsdn, ehooks, edata, emap, /* reg_emap */ false);
 }
 
 void

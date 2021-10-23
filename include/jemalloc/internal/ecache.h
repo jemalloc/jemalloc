@@ -2,7 +2,7 @@
 #define JEMALLOC_INTERNAL_ECACHE_H
 
 #include "jemalloc/internal/eset.h"
-#include "jemalloc/internal/guard.h"
+#include "jemalloc/internal/san.h"
 #include "jemalloc/internal/mutex.h"
 
 typedef struct ecache_s ecache_t;

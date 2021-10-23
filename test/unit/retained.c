@@ -1,6 +1,6 @@
 #include "test/jemalloc_test.h"
 
-#include "jemalloc/internal/guard.h"
+#include "jemalloc/internal/san.h"
 #include "jemalloc/internal/spin.h"
 
 static unsigned		arena_ind;

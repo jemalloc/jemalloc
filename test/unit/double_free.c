@@ -1,5 +1,5 @@
 #include "test/jemalloc_test.h"
-#include "test/guard.h"
+#include "test/san.h"
 
 #include "jemalloc/internal/safety_check.h"
 

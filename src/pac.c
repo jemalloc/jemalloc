@@ -2,7 +2,7 @@
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/pac.h"
-#include "jemalloc/internal/guard.h"
+#include "jemalloc/internal/san.h"
 
 static edata_t *pac_alloc_impl(tsdn_t *tsdn, pai_t *self, size_t size,
     size_t alignment, bool zero, bool guarded, bool *deferred_work_generated);
@@ -146,7 +146,7 @@ pac_alloc_new_guarded(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 	if (edata != NULL) {
 		/* Add guards around it. */
 		assert(edata_size_get(edata) == size_with_guards);
-		guard_pages(tsdn, ehooks, edata, pac->emap);
+		san_guard_pages(tsdn, ehooks, edata, pac->emap);
 	}
 	assert(edata == NULL || (edata_guarded_get(edata) &&
 	    edata_size_get(edata) == size));
@@ -253,7 +253,7 @@ pac_dalloc_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata,
 		if (!edata_slab_get(edata) || !maps_coalesce) {
 			assert(edata_size_get(edata) >= SC_LARGE_MINCLASS ||
 			    !maps_coalesce);
-			unguard_pages(tsdn, ehooks, edata, pac->emap);
+			san_unguard_pages(tsdn, ehooks, edata, pac->emap);
 		}
 	}
 

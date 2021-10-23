@@ -13,15 +13,16 @@
 extern size_t opt_san_guard_large;
 extern size_t opt_san_guard_small;
 
-void guard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap);
-void unguard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
+void san_guard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
+    emap_t *emap);
+void san_unguard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
     emap_t *emap);
 /*
  * Unguard the extent, but don't modify emap boundaries. Must be called on an
  * extent that has been erased from emap and shouldn't be placed back.
  */
-void unguard_pages_pre_destroy(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
-    emap_t *emap);
+void san_unguard_pages_pre_destroy(tsdn_t *tsdn, ehooks_t *ehooks,
+    edata_t *edata, emap_t *emap);
 void tsd_san_init(tsd_t *tsd);
 
 static inline bool
@@ -30,7 +31,7 @@ san_enabled(void) {
 }
 
 static inline bool
-large_extent_decide_guard(tsdn_t *tsdn, ehooks_t *ehooks, size_t size,
+san_large_extent_decide_guard(tsdn_t *tsdn, ehooks_t *ehooks, size_t size,
     size_t alignment) {
 	if (opt_san_guard_large == 0 || ehooks_guard_will_fail(ehooks) ||
 	    tsdn_null(tsdn)) {
@@ -60,7 +61,7 @@ large_extent_decide_guard(tsdn_t *tsdn, ehooks_t *ehooks, size_t size,
 }
 
 static inline bool
-slab_extent_decide_guard(tsdn_t *tsdn, ehooks_t *ehooks) {
+san_slab_extent_decide_guard(tsdn_t *tsdn, ehooks_t *ehooks) {
 	if (opt_san_guard_small == 0 || ehooks_guard_will_fail(ehooks) ||
 	    tsdn_null(tsdn)) {
 		return false;

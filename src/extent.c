@@ -1013,7 +1013,7 @@ extent_dalloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		/* Restore guard pages for dalloc / unmap. */
 		if (edata_guarded_get(edata)) {
 			assert(ehooks_are_default(ehooks));
-			unguard_pages(tsdn, ehooks, edata, pac->emap);
+			san_unguard_pages(tsdn, ehooks, edata, pac->emap);
 		}
 		/*
 		 * Deregister first to avoid a race with other allocating
@@ -1063,7 +1063,7 @@ extent_destroy_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	    WITNESS_RANK_CORE, 0);
 
 	if (edata_guarded_get(edata)) {
-		unguard_pages_pre_destroy(tsdn, ehooks, edata, pac->emap);
+		san_unguard_pages_pre_destroy(tsdn, ehooks, edata, pac->emap);
 	}
 	edata_addr_set(edata, edata_base_get(edata));
 

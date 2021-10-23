@@ -2,7 +2,7 @@
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/assert.h"
-#include "jemalloc/internal/guard.h"
+#include "jemalloc/internal/san.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/rtree.h"
 
