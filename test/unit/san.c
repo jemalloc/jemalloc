@@ -1,8 +1,8 @@
 #include "test/jemalloc_test.h"
 #include "test/arena_decay.h"
-#include "test/guard.h"
+#include "test/san.h"
 
-#include "jemalloc/internal/guard.h"
+#include "jemalloc/internal/san.h"
 
 static void
 verify_extent_guarded(tsdn_t *tsdn, void *ptr) {
