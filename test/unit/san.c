@@ -1,5 +1,5 @@
 #include "test/jemalloc_test.h"
-#include "test/arena_decay.h"
+#include "test/arena_util.h"
 #include "test/san.h"
 
 #include "jemalloc/internal/san.h"
