@@ -7,28 +7,14 @@
 #include "jemalloc/internal/ehooks.h"
 #include "jemalloc/internal/edata_cache.h"
 
-const size_t SBA_RETAINED_ALLOC_SIZE = 1024 * 1024 * 4; /* 4 MB */
-
 static bool
 san_bump_grow_locked(tsdn_t *tsdn, san_bump_alloc_t *sba, pac_t *pac,
     ehooks_t *ehooks, size_t size);
 
-bool
-san_bump_alloc_init(san_bump_alloc_t* sba) {
-	bool err = malloc_mutex_init(&sba->mtx, "sanitizer_bump_allocator",
-	    WITNESS_RANK_SAN_BUMP_ALLOC, malloc_mutex_rank_exclusive);
-	if (err) {
-		return true;
-	}
-	sba->curr_reg = NULL;
-
-	return false;
-}
-
 edata_t *
 san_bump_alloc(tsdn_t *tsdn, san_bump_alloc_t* sba, pac_t *pac,
     ehooks_t *ehooks, size_t size, bool zero) {
-	assert(maps_coalesce && opt_retain);
+	assert(san_bump_enabled());
 
 	edata_t* to_destroy;
 	size_t guarded_size = san_one_side_guarded_sz(size);

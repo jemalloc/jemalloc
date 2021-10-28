@@ -99,6 +99,9 @@ struct pac_s {
 	exp_grow_t exp_grow;
 	malloc_mutex_t grow_mtx;
 
+	/* Special allocator for guarded frequently reused extents. */
+	san_bump_alloc_t sba;
+
 	/* How large extents should be before getting auto-purged. */
 	atomic_zu_t oversize_threshold;
 

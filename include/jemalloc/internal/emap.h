@@ -208,6 +208,7 @@ extent_assert_can_coalesce(const edata_t *inner, const edata_t *outer) {
 	assert(edata_committed_get(inner) == edata_committed_get(outer));
 	assert(edata_state_get(inner) == extent_state_active);
 	assert(edata_state_get(outer) == extent_state_merging);
+	assert(!edata_guarded_get(inner) && !edata_guarded_get(outer));
 	assert(edata_base_get(inner) == edata_past_get(outer) ||
 	    edata_base_get(outer) == edata_past_get(inner));
 }

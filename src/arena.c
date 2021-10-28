@@ -328,8 +328,8 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 	szind_t szind = sz_size2index(usize);
 	size_t esize = usize + sz_large_pad;
 
-	bool guarded = san_large_extent_decide_guard(tsdn, arena_get_ehooks(arena),
-	    esize, alignment);
+	bool guarded = san_large_extent_decide_guard(tsdn,
+	    arena_get_ehooks(arena), esize, alignment);
 	edata_t *edata = pa_alloc(tsdn, &arena->pa_shard, esize, alignment,
 	    /* slab */ false, szind, zero, guarded, &deferred_work_generated);
 	assert(deferred_work_generated == false);
@@ -829,7 +829,8 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned binshard
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	bool guarded = san_slab_extent_decide_guard(tsdn, arena_get_ehooks(arena));
+	bool guarded = san_slab_extent_decide_guard(tsdn,
+	    arena_get_ehooks(arena));
 	edata_t *slab = pa_alloc(tsdn, &arena->pa_shard, bin_info->slab_size,
 	    /* alignment */ PAGE, /* slab */ true, /* szind */ binind,
 	     /* zero */ false, guarded, &deferred_work_generated);
