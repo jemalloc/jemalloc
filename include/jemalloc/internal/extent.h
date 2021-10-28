@@ -127,6 +127,7 @@ extent_can_acquire_neighbor(edata_t *edata, rtree_contents_t contents,
 			return false;
 		}
 	}
+	assert(!edata_guarded_get(edata) && !edata_guarded_get(neighbor));
 
 	return true;
 }

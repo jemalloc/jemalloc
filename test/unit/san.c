@@ -13,6 +13,11 @@ verify_extent_guarded(tsdn_t *tsdn, void *ptr) {
 #define MAX_SMALL_ALLOCATIONS 4096
 void *small_alloc[MAX_SMALL_ALLOCATIONS];
 
+/*
+ * This test allocates page sized slabs and checks that every two slabs have
+ * at least one page in between them. That page is supposed to be the guard
+ * page.
+ */
 TEST_BEGIN(test_guarded_small) {
 	test_skip_if(opt_prof);
 
@@ -21,7 +26,8 @@ TEST_BEGIN(test_guarded_small) {
 	VARIABLE_ARRAY(uintptr_t, pages, npages);
 
 	/* Allocate to get sanitized pointers. */
-	size_t sz = PAGE / 8;
+	size_t slab_sz = PAGE;
+	size_t sz = slab_sz / 8;
 	unsigned n_alloc = 0;
 	while (n_alloc < MAX_SMALL_ALLOCATIONS) {
 		void *ptr = malloc(sz);
@@ -50,8 +56,9 @@ TEST_BEGIN(test_guarded_small) {
 		for (unsigned j = i + 1; j < npages; j++) {
 			uintptr_t ptr_diff = pages[i] > pages[j] ?
 			    pages[i] - pages[j] : pages[j] - pages[i];
-			expect_zu_gt((size_t)ptr_diff, 2 * PAGE,
-			    "Pages should not be next to each other.");
+			expect_zu_ge((size_t)ptr_diff, slab_sz + PAGE,
+			    "There should be at least one pages between "
+			    "guarded slabs");
 		}
 	}
 
@@ -76,20 +83,15 @@ TEST_BEGIN(test_guarded_large) {
 	}
 
 	/* Verify the pages are not continuous, i.e. separated by guards. */
-	uintptr_t min_diff = (uintptr_t)-1;
 	for (unsigned i = 0; i < nlarge; i++) {
 		for (unsigned j = i + 1; j < nlarge; j++) {
 			uintptr_t ptr_diff = large[i] > large[j] ?
 			    large[i] - large[j] : large[j] - large[i];
 			expect_zu_ge((size_t)ptr_diff, large_sz + 2 * PAGE,
-			    "Pages should not be next to each other.");
-			if (ptr_diff < min_diff) {
-				min_diff = ptr_diff;
-			}
+			    "There should be at least two pages between "
+			    " guarded large allocations");
 		}
 	}
-	expect_zu_ge((size_t)min_diff, large_sz + 2 * PAGE,
-	    "Pages should not be next to each other.");
 
 	for (unsigned i = 0; i < nlarge; i++) {
 		free((void *)large[i]);

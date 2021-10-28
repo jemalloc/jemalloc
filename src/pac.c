@@ -81,6 +81,9 @@ pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
 	if (decay_init(&pac->decay_muzzy, cur_time, muzzy_decay_ms)) {
 		return true;
 	}
+	if (san_bump_alloc_init(&pac->sba)) {
+		return true;
+	}
 
 	pac->base = base;
 	pac->emap = emap;
@@ -132,18 +135,24 @@ pac_alloc_real(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 
 static edata_t *
 pac_alloc_new_guarded(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
-    size_t alignment, bool zero) {
+    size_t alignment, bool zero, bool frequent_reuse) {
 	assert(alignment <= PAGE);
 
-	size_t size_with_guards = size + SAN_PAGE_GUARDS_SIZE;
-	/* Alloc a non-guarded extent first.*/
-	edata_t *edata = pac_alloc_real(tsdn, pac, ehooks, size_with_guards,
-	    /* alignment */ PAGE, zero, /* guarded */ false);
-	if (edata != NULL) {
-		/* Add guards around it. */
-		assert(edata_size_get(edata) == size_with_guards);
-		san_guard_pages(tsdn, ehooks, edata, pac->emap, true, true,
-		    true);
+	edata_t *edata;
+	if (san_bump_enabled() && frequent_reuse) {
+		edata = san_bump_alloc(tsdn, &pac->sba, pac, ehooks, size,
+		    zero);
+	} else {
+		size_t size_with_guards = san_two_side_guarded_sz(size);
+		/* Alloc a non-guarded extent first.*/
+		edata = pac_alloc_real(tsdn, pac, ehooks, size_with_guards,
+		    /* alignment */ PAGE, zero, /* guarded */ false);
+		if (edata != NULL) {
+			/* Add guards around it. */
+			assert(edata_size_get(edata) == size_with_guards);
+			san_guard_pages_two_sided(tsdn, ehooks, edata,
+			    pac->emap, true);
+		}
 	}
 	assert(edata == NULL || (edata_guarded_get(edata) &&
 	    edata_size_get(edata) == size));
@@ -158,12 +167,21 @@ pac_alloc_impl(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment,
 	pac_t *pac = (pac_t *)self;
 	ehooks_t *ehooks = pac_ehooks_get(pac);
 
-	edata_t *edata = pac_alloc_real(tsdn, pac, ehooks, size, alignment,
-	    zero, guarded);
+	edata_t *edata = NULL;
+	/*
+	 * The condition is an optimization - not frequently reused guarded
+	 * allocations are never put in the ecache.  pac_alloc_real also
+	 * doesn't grow retained for guarded allocations.  So pac_alloc_real
+	 * for such allocations would always return NULL.
+	 * */
+	if (!guarded || frequent_reuse) {
+		edata =	pac_alloc_real(tsdn, pac, ehooks, size, alignment,
+		    zero, guarded);
+	}
 	if (edata == NULL && guarded) {
 		/* No cached guarded extents; creating a new one. */
 		edata = pac_alloc_new_guarded(tsdn, pac, ehooks, size,
-		    alignment, zero);
+		    alignment, zero, frequent_reuse);
 	}
 
 	return edata;
@@ -189,8 +207,8 @@ pac_expand_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
 	}
 	if (trail == NULL) {
 		trail = ecache_alloc_grow(tsdn, pac, ehooks,
-		    &pac->ecache_retained, edata, expand_amount, PAGE,
-		    zero, /* guarded */ false);
+		    &pac->ecache_retained, edata, expand_amount, PAGE, zero,
+		    /* guarded */ false);
 		mapped_add = expand_amount;
 	}
 	if (trail == NULL) {
