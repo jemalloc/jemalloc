@@ -1057,12 +1057,14 @@ extent_destroy_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     edata_t *edata) {
 	assert(edata_base_get(edata) != NULL);
 	assert(edata_size_get(edata) != 0);
+	assert(edata_state_get(edata) == extent_state_retained);
+	assert(emap_edata_is_acquired(tsdn, pac->emap, edata));
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
 	    WITNESS_RANK_CORE, 0);
 
-	/* Deregister first to avoid a race with other allocating threads. */
-	extent_deregister(tsdn, pac, edata);
-
+	if (edata_guarded_get(edata)) {
+		unguard_pages_pre_destroy(tsdn, ehooks, edata, pac->emap);
+	}
 	edata_addr_set(edata, edata_base_get(edata));
 
 	/* Try to destroy; silently fail otherwise. */
