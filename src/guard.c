@@ -32,10 +32,16 @@ guard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap) {
 	/* The new boundary will be registered on the pa_alloc path. */
 }
 
-void
-unguard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap) {
+static void
+unguard_pages_impl(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap,
+    bool reg_emap) {
 	/* Remove the inner boundary which no longer exists. */
-	emap_deregister_boundary(tsdn, emap, edata);
+	if (reg_emap) {
+		assert(edata_state_get(edata) == extent_state_active);
+		emap_deregister_boundary(tsdn, emap, edata);
+	} else {
+		assert(edata_state_get(edata) == extent_state_retained);
+	}
 
 	size_t size = edata_size_get(edata);
 	size_t size_with_guards = size + PAGE_GUARDS_SIZE;
@@ -44,7 +50,6 @@ unguard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap) {
 	uintptr_t guard1 = addr - PAGE;
 	uintptr_t guard2 = addr + size;
 
-	assert(edata_state_get(edata) == extent_state_active);
 	ehooks_unguard(tsdn, ehooks, (void *)guard1, (void *)guard2);
 
 	/* Update the true addr and usable size of the edata. */
@@ -52,8 +57,26 @@ unguard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap) {
 	edata_addr_set(edata, (void *)guard1);
 	edata_guarded_set(edata, false);
 
-	/* Then re-register the outer boundary including the guards. */
-	emap_register_boundary(tsdn, emap, edata, SC_NSIZES, /* slab */ false);
+	/*
+	 * Then re-register the outer boundary including the guards, if
+	 * requested.
+	 */
+	if (reg_emap) {
+		emap_register_boundary(tsdn, emap, edata, SC_NSIZES,
+		    /* slab */ false);
+	}
+}
+
+void
+unguard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap) {
+	unguard_pages_impl(tsdn, ehooks, edata, emap, /* reg_emap */ true);
+}
+
+void
+unguard_pages_pre_destroy(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
+    emap_t *emap) {
+	emap_assert_not_mapped(tsdn, emap, edata);
+	unguard_pages_impl(tsdn, ehooks, edata, emap, /* reg_emap */ false);
 }
 
 void
