@@ -122,7 +122,7 @@ TEST_BEGIN(test_guarded_decay) {
 	/* Verify that guarded extents as dirty. */
 	size_t sz1 = PAGE, sz2 = PAGE * 2;
 	/* W/o maps_coalesce, guarded extents are unguarded eagerly. */
-	size_t add_guard_size = maps_coalesce ? 0 : PAGE_GUARDS_SIZE;
+	size_t add_guard_size = maps_coalesce ? 0 : SAN_PAGE_GUARDS_SIZE;
 	generate_dirty(arena_ind, sz1);
 	verify_pdirty(arena_ind, sz1 + add_guard_size);
 	verify_pmuzzy(arena_ind, 0);

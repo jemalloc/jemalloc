@@ -10,16 +10,63 @@
 size_t opt_san_guard_large = SAN_GUARD_LARGE_EVERY_N_EXTENTS_DEFAULT;
 size_t opt_san_guard_small = SAN_GUARD_SMALL_EVERY_N_EXTENTS_DEFAULT;
 
+static inline void
+san_find_guarded_addr(edata_t *edata, uintptr_t *guard1, uintptr_t *guard2,
+    uintptr_t *addr, size_t size, bool left, bool right) {
+	assert(!edata_guarded_get(edata));
+	assert(size % PAGE == 0);
+	*addr = (uintptr_t)edata_base_get(edata);
+	if (left) {
+		*guard1 = *addr;
+		*addr += SAN_PAGE_GUARD;
+	} else {
+		*guard1 = 0;
+	}
+
+	if (right) {
+		*guard2 = *addr + size;
+	} else {
+		*guard2 = 0;
+	}
+}
+
+static inline void
+san_find_unguarded_addr(edata_t *edata, uintptr_t *guard1, uintptr_t *guard2,
+    uintptr_t *addr, size_t size, bool left, bool right) {
+	assert(edata_guarded_get(edata));
+	assert(size % PAGE == 0);
+	*addr = (uintptr_t)edata_base_get(edata);
+	if (right) {
+		*guard2 = *addr + size;
+	} else {
+		*guard2 = 0;
+	}
+
+	if (left) {
+		*guard1 = *addr - SAN_PAGE_GUARD;
+		assert(*guard1 != 0);
+		*addr = *guard1;
+	} else {
+		*guard1 = 0;
+	}
+}
+
 void
-san_guard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap) {
-	emap_deregister_boundary(tsdn, emap, edata);
+san_guard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap,
+    bool left, bool right, bool remap) {
+	assert(left || right);
+	if (remap) {
+		emap_deregister_boundary(tsdn, emap, edata);
+	}
 
 	size_t size_with_guards = edata_size_get(edata);
-	size_t usize = size_with_guards - PAGE_GUARDS_SIZE;
+	size_t usize = (left && right)
+	    ? san_two_side_unguarded_sz(size_with_guards)
+	    : san_one_side_unguarded_sz(size_with_guards);
 
-	uintptr_t guard1 = (uintptr_t)edata_base_get(edata);
-	uintptr_t addr = guard1 + PAGE;
-	uintptr_t guard2 = addr + usize;
+	uintptr_t guard1, guard2, addr;
+	san_find_guarded_addr(edata, &guard1, &guard2, &addr, usize, left,
+	    right);
 
 	assert(edata_state_get(edata) == extent_state_active);
 	ehooks_guard(tsdn, ehooks, (void *)guard1, (void *)guard2);
@@ -29,14 +76,18 @@ san_guard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap) {
 	edata_addr_set(edata, (void *)addr);
 	edata_guarded_set(edata, true);
 
-	/* The new boundary will be registered on the pa_alloc path. */
+	if (remap) {
+		emap_register_boundary(tsdn, emap, edata, SC_NSIZES,
+		    /* slab */ false);
+	}
 }
 
 static void
 san_unguard_pages_impl(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
-    emap_t *emap, bool reg_emap) {
+    emap_t *emap, bool left, bool right, bool remap) {
+	assert(left || right);
 	/* Remove the inner boundary which no longer exists. */
-	if (reg_emap) {
+	if (remap) {
 		assert(edata_state_get(edata) == extent_state_active);
 		emap_deregister_boundary(tsdn, emap, edata);
 	} else {
@@ -44,24 +95,26 @@ san_unguard_pages_impl(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
 	}
 
 	size_t size = edata_size_get(edata);
-	size_t size_with_guards = size + PAGE_GUARDS_SIZE;
+	size_t size_with_guards = (left && right)
+	    ? san_two_side_guarded_sz(size)
+	    : san_one_side_guarded_sz(size);
 
-	uintptr_t addr =  (uintptr_t)edata_base_get(edata);
-	uintptr_t guard1 = addr - PAGE;
-	uintptr_t guard2 = addr + size;
+	uintptr_t guard1, guard2, addr;
+	san_find_unguarded_addr(edata, &guard1, &guard2, &addr, size, left,
+	    right);
 
 	ehooks_unguard(tsdn, ehooks, (void *)guard1, (void *)guard2);
 
 	/* Update the true addr and usable size of the edata. */
 	edata_size_set(edata, size_with_guards);
-	edata_addr_set(edata, (void *)guard1);
+	edata_addr_set(edata, (void *)addr);
 	edata_guarded_set(edata, false);
 
 	/*
 	 * Then re-register the outer boundary including the guards, if
 	 * requested.
 	 */
-	if (reg_emap) {
+	if (remap) {
 		emap_register_boundary(tsdn, emap, edata, SC_NSIZES,
 		    /* slab */ false);
 	}
@@ -69,15 +122,23 @@ san_unguard_pages_impl(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
 
 void
 san_unguard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
-    emap_t *emap) {
-	san_unguard_pages_impl(tsdn, ehooks, edata, emap, /* reg_emap */ true);
+    emap_t *emap, bool left, bool right) {
+	san_unguard_pages_impl(tsdn, ehooks, edata, emap, left, right,
+	    /* remap */ true);
 }
 
 void
 san_unguard_pages_pre_destroy(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
     emap_t *emap) {
 	emap_assert_not_mapped(tsdn, emap, edata);
-	san_unguard_pages_impl(tsdn, ehooks, edata, emap, /* reg_emap */ false);
+	/*
+	 * We don't want to touch the emap of about to be destroyed extents, as
+	 * they have been unmapped upon eviction from the retained ecache. Also,
+	 * we unguard the extents to the right, because retained extents only
+	 * own their right guard page per san_bump_alloc's logic.
+	 */
+	 san_unguard_pages_impl(tsdn, ehooks, edata, emap, /* left */ false,
+	    /* right */ true, /* remap */ false);
 }
 
 void

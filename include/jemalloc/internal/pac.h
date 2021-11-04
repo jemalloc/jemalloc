@@ -3,6 +3,7 @@
 
 #include "jemalloc/internal/exp_grow.h"
 #include "jemalloc/internal/pai.h"
+#include "san_bump.h"
 
 
 /*
@@ -125,6 +126,11 @@ bool pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
 static inline size_t
 pac_mapped(pac_t *pac) {
 	return atomic_load_zu(&pac->stats->pac_mapped, ATOMIC_RELAXED);
+}
+
+static inline ehooks_t *
+pac_ehooks_get(pac_t *pac) {
+	return base_ehooks_get(pac->base);
 }
 
 /*

@@ -30,14 +30,20 @@ void ecache_dalloc(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 edata_t *ecache_evict(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     ecache_t *ecache, size_t npages_min);
 
+void extent_gdump_add(tsdn_t *tsdn, const edata_t *edata);
+void extent_record(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
+    edata_t *edata);
 void extent_dalloc_gap(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     edata_t *edata);
+edata_t *extent_alloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
+    void *new_addr, size_t size, size_t alignment, bool zero, bool *commit,
+    bool growing_retained);
 void extent_dalloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     edata_t *edata);
 void extent_destroy_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     edata_t *edata);
 bool extent_commit_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
-    size_t offset, size_t length);
+    size_t offset, size_t length, bool growing_retained);
 bool extent_decommit_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
     size_t offset, size_t length);
 bool extent_purge_lazy_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
@@ -45,7 +51,8 @@ bool extent_purge_lazy_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
 bool extent_purge_forced_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
     size_t offset, size_t length);
 edata_t *extent_split_wrapper(tsdn_t *tsdn, pac_t *pac,
-    ehooks_t *ehooks, edata_t *edata, size_t size_a, size_t size_b);
+    ehooks_t *ehooks, edata_t *edata, size_t size_a, size_t size_b,
+    bool holding_core_locks);
 bool extent_merge_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     edata_t *a, edata_t *b);
 size_t extent_sn_next(pac_t *pac);
