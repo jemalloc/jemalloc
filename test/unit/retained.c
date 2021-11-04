@@ -104,7 +104,7 @@ TEST_BEGIN(test_retained) {
 
 	arena_ind = do_arena_create(NULL);
 	sz = nallocx(HUGEPAGE, 0);
-	size_t guard_sz = san_enabled() ? PAGE_GUARDS_SIZE : 0;
+	size_t guard_sz = san_enabled() ? SAN_PAGE_GUARDS_SIZE : 0;
 	esz = sz + sz_large_pad + guard_sz;
 
 	atomic_store_u(&epoch, 0, ATOMIC_RELAXED);

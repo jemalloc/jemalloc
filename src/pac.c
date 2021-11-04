@@ -14,11 +14,6 @@ static void pac_dalloc_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata,
     bool *deferred_work_generated);
 static uint64_t pac_time_until_deferred_work(tsdn_t *tsdn, pai_t *self);
 
-static ehooks_t *
-pac_ehooks_get(pac_t *pac) {
-	return base_ehooks_get(pac->base);
-}
-
 static inline void
 pac_decay_data_get(pac_t *pac, extent_state_t state,
     decay_t **r_decay, pac_decay_stats_t **r_decay_stats, ecache_t **r_ecache) {
@@ -139,14 +134,15 @@ pac_alloc_new_guarded(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
     size_t alignment, bool zero) {
 	assert(alignment <= PAGE);
 
-	size_t size_with_guards = size + PAGE_GUARDS_SIZE;
+	size_t size_with_guards = size + SAN_PAGE_GUARDS_SIZE;
 	/* Alloc a non-guarded extent first.*/
 	edata_t *edata = pac_alloc_real(tsdn, pac, ehooks, size_with_guards,
 	    /* alignment */ PAGE, zero, /* guarded */ false);
 	if (edata != NULL) {
 		/* Add guards around it. */
 		assert(edata_size_get(edata) == size_with_guards);
-		san_guard_pages(tsdn, ehooks, edata, pac->emap);
+		san_guard_pages(tsdn, ehooks, edata, pac->emap, true, true,
+		    true);
 	}
 	assert(edata == NULL || (edata_guarded_get(edata) &&
 	    edata_size_get(edata) == size));
@@ -222,7 +218,7 @@ pac_shrink_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
 	}
 
 	edata_t *trail = extent_split_wrapper(tsdn, pac, ehooks, edata,
-	    new_size, shrink_amount);
+	    new_size, shrink_amount, /* holding_core_locks */ false);
 	if (trail == NULL) {
 		return true;
 	}
@@ -253,7 +249,8 @@ pac_dalloc_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata,
 		if (!edata_slab_get(edata) || !maps_coalesce) {
 			assert(edata_size_get(edata) >= SC_LARGE_MINCLASS ||
 			    !maps_coalesce);
-			san_unguard_pages(tsdn, ehooks, edata, pac->emap);
+			san_unguard_pages_two_sided(tsdn, ehooks, edata,
+			    pac->emap);
 		}
 	}
 
