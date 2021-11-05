@@ -7,7 +7,7 @@ typedef struct pai_s pai_t;
 struct pai_s {
 	/* Returns NULL on failure. */
 	edata_t *(*alloc)(tsdn_t *tsdn, pai_t *self, size_t size,
-	    size_t alignment, bool zero, bool guarded,
+	    size_t alignment, bool zero, bool guarded, bool frequent_reuse,
 	    bool *deferred_work_generated);
 	/*
 	 * Returns the number of extents added to the list (which may be fewer
@@ -37,10 +37,11 @@ struct pai_s {
  */
 
 static inline edata_t *
-pai_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
-    bool guarded, bool *deferred_work_generated) {
+pai_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment,
+    bool zero, bool guarded, bool frequent_reuse,
+    bool *deferred_work_generated) {
 	return self->alloc(tsdn, self, size, alignment, zero, guarded,
-	    deferred_work_generated);
+	    frequent_reuse, deferred_work_generated);
 }
 
 static inline size_t

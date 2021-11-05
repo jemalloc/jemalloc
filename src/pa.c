@@ -128,7 +128,7 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 	edata_t *edata = NULL;
 	if (!guarded && pa_shard_uses_hpa(shard)) {
 		edata = pai_alloc(tsdn, &shard->hpa_sec.pai, size, alignment,
-		    zero, /* guarded */ false, deferred_work_generated);
+		    zero, /* guarded */ false, slab, deferred_work_generated);
 	}
 	/*
 	 * Fall back to the PAC if the HPA is off or couldn't serve the given
@@ -136,7 +136,7 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 	 */
 	if (edata == NULL) {
 		edata = pai_alloc(tsdn, &shard->pac.pai, size, alignment, zero,
-		    guarded, deferred_work_generated);
+		    guarded, slab, deferred_work_generated);
 	}
 	if (edata != NULL) {
 		assert(edata_size_get(edata) == size);

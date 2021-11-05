@@ -5,7 +5,8 @@
 #include "jemalloc/internal/san.h"
 
 static edata_t *pac_alloc_impl(tsdn_t *tsdn, pai_t *self, size_t size,
-    size_t alignment, bool zero, bool guarded, bool *deferred_work_generated);
+    size_t alignment, bool zero, bool guarded, bool frequent_reuse,
+    bool *deferred_work_generated);
 static bool pac_expand_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata,
     size_t old_size, size_t new_size, bool zero, bool *deferred_work_generated);
 static bool pac_shrink_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata,
@@ -152,7 +153,8 @@ pac_alloc_new_guarded(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 
 static edata_t *
 pac_alloc_impl(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment,
-    bool zero, bool guarded, bool *deferred_work_generated) {
+    bool zero, bool guarded, bool frequent_reuse,
+    bool *deferred_work_generated) {
 	pac_t *pac = (pac_t *)self;
 	ehooks_t *ehooks = pac_ehooks_get(pac);
 
