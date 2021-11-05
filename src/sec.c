@@ -4,7 +4,8 @@
 #include "jemalloc/internal/sec.h"
 
 static edata_t *sec_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
-    size_t alignment, bool zero, bool guarded, bool *deferred_work_generated);
+    size_t alignment, bool zero, bool guarded, bool frequent_reuse,
+    bool *deferred_work_generated);
 static bool sec_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata,
     size_t old_size, size_t new_size, bool zero, bool *deferred_work_generated);
 static bool sec_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata,
@@ -218,7 +219,7 @@ sec_batch_fill_and_alloc(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard,
 
 static edata_t *
 sec_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
-    bool guarded, bool *deferred_work_generated) {
+    bool guarded, bool frequent_reuse, bool *deferred_work_generated) {
 	assert((size & PAGE_MASK) == 0);
 	assert(!guarded);
 
@@ -227,7 +228,8 @@ sec_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
 	if (zero || alignment > PAGE || sec->opts.nshards == 0
 	    || size > sec->opts.max_alloc) {
 		return pai_alloc(tsdn, sec->fallback, size, alignment, zero,
-		    /* guarded */ false, deferred_work_generated);
+		    /* guarded */ false, frequent_reuse,
+		    deferred_work_generated);
 	}
 	pszind_t pszind = sz_psz2ind(size);
 	sec_shard_t *shard = sec_shard_pick(tsdn, sec);
@@ -250,7 +252,8 @@ sec_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
 			    size);
 		} else {
 			edata = pai_alloc(tsdn, sec->fallback, size, alignment,
-			    zero, /* guarded */ false, deferred_work_generated);
+			    zero, /* guarded */ false, frequent_reuse,
+			    deferred_work_generated);
 		}
 	}
 	return edata;

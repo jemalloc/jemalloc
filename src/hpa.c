@@ -9,7 +9,8 @@
 #define HPA_EDEN_SIZE (128 * HUGEPAGE)
 
 static edata_t *hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
-    size_t alignment, bool zero, bool guarded, bool *deferred_work_generated);
+    size_t alignment, bool zero, bool guarded, bool frequent_reuse,
+    bool *deferred_work_generated);
 static size_t hpa_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size,
     size_t nallocs, edata_list_active_t *results, bool *deferred_work_generated);
 static bool hpa_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata,
@@ -760,7 +761,7 @@ hpa_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size, size_t nallocs,
 
 static edata_t *
 hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
-    bool guarded, bool *deferred_work_generated) {
+    bool guarded, bool frequent_reuse, bool *deferred_work_generated) {
 	assert((size & PAGE_MASK) == 0);
 	assert(!guarded);
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
