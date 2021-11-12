@@ -4000,6 +4000,7 @@ batch_alloc(void **ptrs, size_t num, size_t size, int flags) {
 		size_t batch = num - filled;
 		size_t surplus = SIZE_MAX; /* Dead store. */
 		bool prof_sample_event = config_prof && opt_prof
+		    && prof_active_get_unlocked()
 		    && te_prof_sample_event_lookahead_surplus(tsd,
 		    batch * usize, &surplus);
 
