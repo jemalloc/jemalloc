@@ -368,7 +368,10 @@ TEST_BEGIN(test_tcache_none) {
 	/* Make sure that tcache-based allocation returns p, not q. */
 	void *p1 = mallocx(42, 0);
 	expect_ptr_not_null(p1, "Unexpected mallocx() failure");
-	expect_ptr_eq(p0, p1, "Expected tcache to allocate cached region");
+	if (!opt_prof) {
+		expect_ptr_eq(p0, p1,
+		    "Expected tcache to allocate cached region");
+	}
 
 	/* Clean up. */
 	dallocx(p1, MALLOCX_TCACHE_NONE);
@@ -904,6 +907,7 @@ TEST_BEGIN(test_prof_active) {
 	 * test_mallctl_opt was already enough.
 	 */
 	test_skip_if(!config_prof);
+	test_skip_if(opt_prof);
 
 	bool active, old;
 	size_t len = sizeof(bool);
