@@ -104,8 +104,8 @@ expect_purging(unsigned arena_ind, bool expect_deferred) {
 		dallocx(ptr, MALLOCX_TCACHE_NONE);
 		empty_ndirty = get_empty_ndirty(arena_ind);
 		if (expect_deferred) {
-			expect_true(empty_ndirty == 0 || empty_ndirty == 1,
-			    "Unexpected extra dirty page count: %zu",
+			expect_true(empty_ndirty == 0 || empty_ndirty == 1 ||
+			    opt_prof, "Unexpected extra dirty page count: %zu",
 			    empty_ndirty);
 		} else {
 			assert_zu_eq(0, empty_ndirty,
