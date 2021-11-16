@@ -203,6 +203,7 @@ hpa_shard_init(hpa_shard_t *shard, hpa_central_t *central, emap_t *emap,
 	shard->opts = *opts;
 
 	shard->npending_purge = 0;
+	nstime_init_zero(&shard->last_purge);
 
 	shard->stats.npurge_passes = 0;
 	shard->stats.npurges = 0;

@@ -3,10 +3,19 @@
 
 /* Maximum supported number of seconds (~584 years). */
 #define NSTIME_SEC_MAX KQU(18446744072)
-#define NSTIME_ZERO_INITIALIZER {0}
+
+#define NSTIME_MAGIC ((uint32_t)0xb8a9ce37)
+#ifdef JEMALLOC_DEBUG
+#  define NSTIME_ZERO_INITIALIZER {0, NSTIME_MAGIC}
+#else
+#  define NSTIME_ZERO_INITIALIZER {0}
+#endif
 
 typedef struct {
 	uint64_t ns;
+#ifdef JEMALLOC_DEBUG
+	uint32_t magic; /* Tracks if initialized. */
+#endif
 } nstime_t;
 
 static const nstime_t zero = NSTIME_ZERO_INITIALIZER;
