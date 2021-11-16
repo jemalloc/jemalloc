@@ -349,7 +349,7 @@ defer_test_dehugify(void *ptr, size_t size) {
 
 static nstime_t defer_curtime;
 static void
-defer_test_curtime(nstime_t *r_time) {
+defer_test_curtime(nstime_t *r_time, bool first_reading) {
 	*r_time = defer_curtime;
 }
 

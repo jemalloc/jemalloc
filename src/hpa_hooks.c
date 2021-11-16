@@ -8,7 +8,7 @@ static void hpa_hooks_unmap(void *ptr, size_t size);
 static void hpa_hooks_purge(void *ptr, size_t size);
 static void hpa_hooks_hugify(void *ptr, size_t size);
 static void hpa_hooks_dehugify(void *ptr, size_t size);
-static void hpa_hooks_curtime(nstime_t *r_nstime);
+static void hpa_hooks_curtime(nstime_t *r_nstime, bool first_reading);
 
 hpa_hooks_t hpa_hooks_default = {
 	&hpa_hooks_map,
@@ -48,6 +48,9 @@ hpa_hooks_dehugify(void *ptr, size_t size) {
 }
 
 static void
-hpa_hooks_curtime(nstime_t *r_nstime) {
+hpa_hooks_curtime(nstime_t *r_nstime, bool first_reading) {
+	if (first_reading) {
+		nstime_init_zero(r_nstime);
+	}
 	nstime_update(r_nstime);
 }
