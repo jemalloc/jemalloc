@@ -347,7 +347,7 @@ hpa_update_purge_hugify_eligibility(tsdn_t *tsdn, hpa_shard_t *shard,
 	if (hpa_good_hugification_candidate(shard, ps)
 	    && !hpdata_huge_get(ps)) {
 		nstime_t now;
-		shard->central->hooks.curtime(&now);
+		shard->central->hooks.curtime(&now, /* first_reading */ true);
 		hpdata_allow_hugify(ps, now);
 	}
 	/*
@@ -437,7 +437,8 @@ hpa_try_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
 	shard->npending_purge -= num_to_purge;
 	shard->stats.npurge_passes++;
 	shard->stats.npurges += purges_this_pass;
-	shard->central->hooks.curtime(&shard->last_purge);
+	shard->central->hooks.curtime(&shard->last_purge,
+	    /* first_reading */ false);
 	if (dehugify) {
 		shard->stats.ndehugifies++;
 	}
@@ -477,7 +478,7 @@ hpa_try_hugify(tsdn_t *tsdn, hpa_shard_t *shard) {
 	/* Make sure that it's been hugifiable for long enough. */
 	nstime_t time_hugify_allowed = hpdata_time_hugify_allowed(to_hugify);
 	nstime_t nstime;
-	shard->central->hooks.curtime(&nstime);
+	shard->central->hooks.curtime(&nstime, /* first_reading */ true);
 	nstime_subtract(&nstime, &time_hugify_allowed);
 	uint64_t millis = nstime_msec(&nstime);
 	if (millis < shard->opts.hugify_delay_ms) {
@@ -895,7 +896,8 @@ hpa_time_until_deferred_work(tsdn_t *tsdn, pai_t *self) {
 		nstime_t time_hugify_allowed =
 		    hpdata_time_hugify_allowed(to_hugify);
 		nstime_t nstime;
-		shard->central->hooks.curtime(&nstime);
+		shard->central->hooks.curtime(&nstime,
+		    /* first_reading */ true);
 		nstime_subtract(&nstime, &time_hugify_allowed);
 		uint64_t since_hugify_allowed_ms = nstime_msec(&nstime);
 		/*
@@ -921,7 +923,8 @@ hpa_time_until_deferred_work(tsdn_t *tsdn, pai_t *self) {
 			return BACKGROUND_THREAD_DEFERRED_MIN;
 		}
 		nstime_t nstime;
-		shard->central->hooks.curtime(&nstime);
+		shard->central->hooks.curtime(&nstime,
+		    /* first_reading */ true);
 		nstime_subtract(&nstime, &shard->last_purge);
 		uint64_t since_last_purge_ms = nstime_msec(&nstime);
 
