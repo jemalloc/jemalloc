@@ -68,20 +68,11 @@ san_bump_alloc(tsdn_t *tsdn, san_bump_alloc_t* sba, pac_t *pac,
 	san_guard_pages(tsdn, ehooks, edata, pac->emap, /* left */ false,
 	    /* right */ true, /* remap */ true);
 
-	if (!edata_committed_get(edata)) {
-		if (extent_commit_wrapper(tsdn, ehooks, edata, 0,
-		    edata_size_get(edata), true)) {
-			extent_record(tsdn, pac, ehooks, &pac->ecache_retained,
-			    edata);
-			return NULL;
-		}
-		edata_committed_set(edata, true);
-	}
-	if (zero && !edata_zeroed_get(edata)) {
-		void *addr = edata_base_get(edata);
-		size_t size = edata_size_get(edata);
-		ehooks_zero(tsdn, ehooks, addr, size);
-		edata_zeroed_set(edata, true);
+	if (extent_commit_zero(tsdn, ehooks, edata, /* commit */ true, zero,
+	    /* growing_retained */ false)) {
+		extent_record(tsdn, pac, ehooks, &pac->ecache_retained,
+		    edata);
+		return NULL;
 	}
 
 	if (config_prof) {

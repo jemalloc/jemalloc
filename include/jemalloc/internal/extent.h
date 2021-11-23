@@ -43,7 +43,7 @@ void extent_dalloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 void extent_destroy_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     edata_t *edata);
 bool extent_commit_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
-    size_t offset, size_t length, bool growing_retained);
+    size_t offset, size_t length);
 bool extent_decommit_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
     size_t offset, size_t length);
 bool extent_purge_lazy_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
@@ -55,6 +55,8 @@ edata_t *extent_split_wrapper(tsdn_t *tsdn, pac_t *pac,
     bool holding_core_locks);
 bool extent_merge_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     edata_t *a, edata_t *b);
+bool extent_commit_zero(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
+    bool commit, bool zero, bool growing_retained);
 size_t extent_sn_next(pac_t *pac);
 bool extent_boot(void);
 
