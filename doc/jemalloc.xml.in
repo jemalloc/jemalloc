@@ -1547,8 +1547,10 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <manvolnum>3</manvolnum></citerefentry> function to report memory leaks
         detected by allocation sampling.  See the
         <link linkend="opt.prof"><mallctl>opt.prof</mallctl></link> option for
-        information on analyzing heap profile output.  This option is disabled
-        by default.</para></listitem>
+        information on analyzing heap profile output.  Works only when combined
+        with <link linkend="opt.prof_final"><mallctl>opt.prof_final</mallctl>
+        </link>, otherwise does nothing.  This option is disabled by default.
+        </para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.zero_realloc">
