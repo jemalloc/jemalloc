@@ -604,26 +604,20 @@ extent_recycle(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 		return NULL;
 	}
 
-	if (*commit && !edata_committed_get(edata)) {
-		if (extent_commit_impl(tsdn, ehooks, edata, 0,
-		    edata_size_get(edata), growing_retained)) {
-			extent_record(tsdn, pac, ehooks, ecache, edata);
-			return NULL;
-		}
-	}
-
-	if (edata_committed_get(edata)) {
-		*commit = true;
-	}
-
 	assert(edata_state_get(edata) == extent_state_active);
-
-	if (zero) {
-		void *addr = edata_base_get(edata);
-		if (!edata_zeroed_get(edata)) {
-			size_t size = edata_size_get(edata);
-			ehooks_zero(tsdn, ehooks, addr, size);
-		}
+	if (extent_commit_zero(tsdn, ehooks, edata, *commit, zero,
+	    growing_retained)) {
+		extent_record(tsdn, pac, ehooks, ecache, edata);
+		return NULL;
+	}
+	if (edata_committed_get(edata)) {
+		/*
+		 * This reverses the purpose of this variable - previously it
+		 * was treated as an input parameter, now it turns into an
+		 * output parameter, reporting if the edata has actually been
+		 * committed.
+		 */
+		*commit = true;
 	}
 	return edata;
 }
@@ -1106,9 +1100,9 @@ extent_commit_impl(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
 
 bool
 extent_commit_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
-    size_t offset, size_t length, bool growing_retained) {
+    size_t offset, size_t length) {
 	return extent_commit_impl(tsdn, ehooks, edata, offset, length,
-	    growing_retained);
+	    /* growing_retained */ false);
 }
 
 bool
@@ -1285,6 +1279,26 @@ extent_merge_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     edata_t *a, edata_t *b) {
 	return extent_merge_impl(tsdn, pac, ehooks, a, b,
 	    /* holding_core_locks */ false);
+}
+
+bool
+extent_commit_zero(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
+    bool commit, bool zero, bool growing_retained) {
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, growing_retained ? 1 : 0);
+
+	if (commit && !edata_committed_get(edata)) {
+		if (extent_commit_impl(tsdn, ehooks, edata, 0,
+		    edata_size_get(edata), growing_retained)) {
+			return true;
+		}
+	}
+	if (zero && !edata_zeroed_get(edata)) {
+		void *addr = edata_base_get(edata);
+		size_t size = edata_size_get(edata);
+		ehooks_zero(tsdn, ehooks, addr, size);
+	}
+	return false;
 }
 
 bool
