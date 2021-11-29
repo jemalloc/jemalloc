@@ -300,7 +300,7 @@ tcache_bin_flush_match(edata_t *edata, unsigned cur_arena_ind,
 
 JEMALLOC_ALWAYS_INLINE void
 tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
-    szind_t binind, unsigned rem, bool small) {
+    szind_t binind, cache_bin_ptr_array_t *ptrs, unsigned nflush, bool small) {
 	tcache_slow_t *tcache_slow = tcache->tcache_slow;
 	/*
 	 * A couple lookup calls take tsdn; declare it once for convenience
@@ -313,24 +313,15 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 	} else {
 		assert(binind < nhbins);
 	}
-	cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin,
-	    &tcache_bin_info[binind]);
-	assert((cache_bin_sz_t)rem <= ncached);
 	arena_t *tcache_arena = tcache_slow->arena;
 	assert(tcache_arena != NULL);
 
-	unsigned nflush = ncached - rem;
 	/*
 	 * Variable length array must have > 0 length; the last element is never
 	 * touched (it's just included to satisfy the no-zero-length rule).
 	 */
 	VARIABLE_ARRAY(emap_batch_lookup_result_t, item_edata, nflush + 1);
-	CACHE_BIN_PTR_ARRAY_DECLARE(ptrs, nflush);
-
-	cache_bin_init_ptr_array_for_flush(cache_bin, &tcache_bin_info[binind],
-	    &ptrs, nflush);
-
-	tcache_bin_flush_edatas_lookup(tsd, &ptrs, binind, nflush, item_edata);
+	tcache_bin_flush_edatas_lookup(tsd, ptrs, binind, nflush, item_edata);
 
 	/*
 	 * The slabs where we freed the last remaining object in the slab (and
@@ -407,7 +398,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 		 */
 		if (!small) {
 			for (unsigned i = 0; i < nflush; i++) {
-				void *ptr = ptrs.ptr[i];
+				void *ptr = ptrs->ptr[i];
 				edata = item_edata[i].edata;
 				assert(ptr != NULL && edata != NULL);
 
@@ -429,7 +420,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 			arena_dalloc_bin_locked_begin(&dalloc_bin_info, binind);
 		}
 		for (unsigned i = 0; i < nflush; i++) {
-			void *ptr = ptrs.ptr[i];
+			void *ptr = ptrs->ptr[i];
 			edata = item_edata[i].edata;
 			assert(ptr != NULL && edata != NULL);
 			if (!tcache_bin_flush_match(edata, cur_arena_ind,
@@ -440,7 +431,7 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 				 * arena.  Either way, stash the object so that
 				 * it can be handled in a future pass.
 				 */
-				ptrs.ptr[ndeferred] = ptr;
+				ptrs->ptr[ndeferred] = ptr;
 				item_edata[ndeferred].edata = edata;
 				ndeferred++;
 				continue;
@@ -501,6 +492,23 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 		}
 	}
 
+}
+
+JEMALLOC_ALWAYS_INLINE void
+tcache_bin_flush_bottom(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
+    szind_t binind, unsigned rem, bool small) {
+	cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin,
+	    &tcache_bin_info[binind]);
+	assert((cache_bin_sz_t)rem <= ncached);
+	unsigned nflush = ncached - rem;
+
+	CACHE_BIN_PTR_ARRAY_DECLARE(ptrs, nflush);
+	cache_bin_init_ptr_array_for_flush(cache_bin, &tcache_bin_info[binind],
+	    &ptrs, nflush);
+
+	tcache_bin_flush_impl(tsd, tcache, cache_bin, binind, &ptrs, nflush,
+	    small);
+
 	cache_bin_finish_flush(cache_bin, &tcache_bin_info[binind], &ptrs,
 	    ncached - rem);
 }
@@ -508,13 +516,13 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 void
 tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
     szind_t binind, unsigned rem) {
-	tcache_bin_flush_impl(tsd, tcache, cache_bin, binind, rem, true);
+	tcache_bin_flush_bottom(tsd, tcache, cache_bin, binind, rem, true);
 }
 
 void
 tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
     szind_t binind, unsigned rem) {
-	tcache_bin_flush_impl(tsd, tcache, cache_bin, binind, rem, false);
+	tcache_bin_flush_bottom(tsd, tcache, cache_bin, binind, rem, false);
 }
 
 void
