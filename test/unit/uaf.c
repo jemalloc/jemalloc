@@ -53,6 +53,26 @@ uaf_detection_enabled(void) {
 	return true;
 }
 
+static size_t
+read_tcache_stashed_bytes(unsigned arena_ind) {
+	if (!config_stats) {
+		return 0;
+	}
+
+	uint64_t epoch;
+	assert_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sizeof(epoch)),
+	    0, "Unexpected mallctl() failure");
+
+	size_t tcache_stashed_bytes;
+	size_t sz = sizeof(tcache_stashed_bytes);
+	assert_d_eq(mallctl(
+	    "stats.arenas." STRINGIFY(MALLCTL_ARENAS_ALL)
+	    ".tcache_stashed_bytes", &tcache_stashed_bytes, &sz, NULL, 0), 0,
+	    "Unexpected mallctl failure");
+
+	return tcache_stashed_bytes;
+}
+
 static void
 test_use_after_free(size_t alloc_size, bool write_after_free) {
 	void *ptr = (void *)(uintptr_t)san_uaf_align;
@@ -95,6 +115,7 @@ test_use_after_free(size_t alloc_size, bool write_after_free) {
 	while (iter-- != 0) {
 		char *volatile mem = items[iter];
 		assert_c_eq(*mem, magic, "Unexpected memory content");
+		size_t stashed_before = read_tcache_stashed_bytes(arena_ind);
 		free(mem);
 		if (*mem != magic) {
 			junked = true;
@@ -102,6 +123,18 @@ test_use_after_free(size_t alloc_size, bool write_after_free) {
 			    "Unexpected junk-filling bytes");
 			if (write_after_free) {
 				*(char *)mem = magic + 1;
+			}
+
+			size_t stashed_after = read_tcache_stashed_bytes(
+			    arena_ind);
+			/*
+			 * An edge case is the deallocation above triggering the
+			 * tcache GC event, in which case the stashed pointers
+			 * may get flushed immediately, before returning from
+			 * free().  Treat these cases as checked already.
+			 */
+			if (stashed_after <= stashed_before) {
+				fake_abort_called = true;
 			}
 		}
 		/* Flush tcache (including stashed). */

@@ -553,7 +553,7 @@ tcache_bin_flush_stashed(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 	cache_bin_sz_t orig_cached = cache_bin_ncached_get_local(cache_bin,
 	    info);
 
-	cache_bin_sz_t nstashed = cache_bin_nstashed_get(cache_bin, info);
+	cache_bin_sz_t nstashed = cache_bin_nstashed_get_local(cache_bin, info);
 	assert(orig_cached + nstashed <= cache_bin_info_ncached_max(info));
 	if (nstashed == 0) {
 		return;
@@ -567,7 +567,7 @@ tcache_bin_flush_stashed(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 	    is_small);
 	cache_bin_finish_flush_stashed(cache_bin, info);
 
-	assert(cache_bin_nstashed_get(cache_bin, info) == 0);
+	assert(cache_bin_nstashed_get_local(cache_bin, info) == 0);
 	assert(cache_bin_ncached_get_local(cache_bin, info) == orig_cached);
 	assert(head_content == *cache_bin->stack_head);
 }

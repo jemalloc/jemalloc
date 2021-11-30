@@ -1055,7 +1055,7 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	size_t large_allocated;
 	uint64_t large_nmalloc, large_ndalloc, large_nrequests, large_nfills,
 	    large_nflushes;
-	size_t tcache_bytes, abandoned_vm;
+	size_t tcache_bytes, tcache_stashed_bytes, abandoned_vm;
 	uint64_t uptime;
 
 	CTL_GET("arenas.page", &page, size_t);
@@ -1344,6 +1344,7 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	GET_AND_EMIT_MEM_STAT(internal)
 	GET_AND_EMIT_MEM_STAT(metadata_thp)
 	GET_AND_EMIT_MEM_STAT(tcache_bytes)
+	GET_AND_EMIT_MEM_STAT(tcache_stashed_bytes)
 	GET_AND_EMIT_MEM_STAT(resident)
 	GET_AND_EMIT_MEM_STAT(abandoned_vm)
 	GET_AND_EMIT_MEM_STAT(extent_avail)

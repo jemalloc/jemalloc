@@ -224,18 +224,6 @@ cache_bin_ncached_get_local(cache_bin_t *bin, cache_bin_info_t *info) {
 }
 
 /*
- * Obtain a racy view of the number of items currently in the cache bin, in the
- * presence of possible concurrent modifications.
- */
-static inline cache_bin_sz_t
-cache_bin_ncached_get_remote(cache_bin_t *bin, cache_bin_info_t *info) {
-	cache_bin_sz_t n = cache_bin_ncached_get_internal(bin,
-	    /* racy */ true);
-	assert(n <= cache_bin_info_ncached_max(info));
-	return n;
-}
-
-/*
  * Internal.
  *
  * A pointer to the position one past the end of the backing array.
@@ -436,15 +424,49 @@ cache_bin_stash(cache_bin_t *bin, void *ptr) {
 }
 
 JEMALLOC_ALWAYS_INLINE cache_bin_sz_t
-cache_bin_nstashed_get(cache_bin_t *bin, cache_bin_info_t *info) {
+cache_bin_nstashed_get_internal(cache_bin_t *bin, cache_bin_info_t *info,
+    bool racy) {
 	cache_bin_sz_t ncached_max = cache_bin_info_ncached_max(info);
 	void **full = cache_bin_full_position_get(bin, info);
 
-	uint16_t nstashed = cache_bin_diff(bin, (uint16_t)(uintptr_t)full,
+	cache_bin_sz_t n = cache_bin_diff(bin, (uint16_t)(uintptr_t)full,
 	    bin->low_bits_full) / sizeof(void *);
-	assert(nstashed <= ncached_max);
+	assert(n <= ncached_max);
 
-	return nstashed;
+	/* Below are for assertions only. */
+	void *stashed = *(full + n - 1);
+	bool aligned = cache_bin_nonfast_aligned(stashed);
+#ifdef JEMALLOC_JET
+	/* Allow arbitrary pointers to be stashed in tests. */
+	aligned = true;
+#endif
+	assert(n == 0 || (stashed != NULL && aligned) || racy);
+
+	return n;
+}
+
+JEMALLOC_ALWAYS_INLINE cache_bin_sz_t
+cache_bin_nstashed_get_local(cache_bin_t *bin, cache_bin_info_t *info) {
+	cache_bin_sz_t n = cache_bin_nstashed_get_internal(bin, info, false);
+	assert(n <= cache_bin_info_ncached_max(info));
+	return n;
+}
+
+/*
+ * Obtain a racy view of the number of items currently in the cache bin, in the
+ * presence of possible concurrent modifications.
+ */
+static inline void
+cache_bin_nitems_get_remote(cache_bin_t *bin, cache_bin_info_t *info,
+    cache_bin_sz_t *ncached, cache_bin_sz_t *nstashed) {
+	cache_bin_sz_t n = cache_bin_ncached_get_internal(bin, /* racy */ true);
+	assert(n <= cache_bin_info_ncached_max(info));
+	*ncached = n;
+
+	n = cache_bin_nstashed_get_internal(bin, info, /* racy */ true);
+	assert(n <= cache_bin_info_ncached_max(info));
+	*nstashed = n;
+	/* Note that cannot assert ncached + nstashed <= ncached_max (racy). */
 }
 
 /*
@@ -538,7 +560,7 @@ cache_bin_init_ptr_array_for_stashed(cache_bin_t *bin, szind_t binind,
     cache_bin_info_t *info, cache_bin_ptr_array_t *arr,
     cache_bin_sz_t nstashed) {
 	assert(nstashed > 0);
-	assert(cache_bin_nstashed_get(bin, info) == nstashed);
+	assert(cache_bin_nstashed_get_local(bin, info) == nstashed);
 
 	void **full = cache_bin_full_position_get(bin, info);
 	arr->ptr = full;
@@ -551,7 +573,7 @@ cache_bin_finish_flush_stashed(cache_bin_t *bin, cache_bin_info_t *info) {
 
 	/* Reset the bin local full position. */
 	bin->low_bits_full = (uint16_t)(uintptr_t)full;
-	assert(cache_bin_nstashed_get(bin, info) == 0);
+	assert(cache_bin_nstashed_get_local(bin, info) == 0);
 }
 
 /*
