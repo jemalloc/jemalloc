@@ -2943,9 +2943,17 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 			return false;
 		}
 		alloc_ctx.szind = sz_size2index_lookup(size);
+		/* Max lookup class must be small. */
+		assert(alloc_ctx.szind < SC_NBINS);
 		/* This is a dead store, except when opt size checking is on. */
-		alloc_ctx.slab = (alloc_ctx.szind < SC_NBINS);
+		alloc_ctx.slab = true;
 	}
+	/*
+	 * Currently the fastpath only handles small sizes.  The branch on
+	 * SC_LOOKUP_MAXCLASS makes sure of it.  This lets us avoid checking
+	 * tcache szind upper limit (i.e. tcache_maxclass) as well.
+	 */
+	assert(alloc_ctx.slab);
 
 	uint64_t deallocated, threshold;
 	te_free_fastpath_ctx(tsd, &deallocated, &threshold);
