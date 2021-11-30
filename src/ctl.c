@@ -290,6 +290,7 @@ CTL_PROTO(stats_arenas_i_base)
 CTL_PROTO(stats_arenas_i_internal)
 CTL_PROTO(stats_arenas_i_metadata_thp)
 CTL_PROTO(stats_arenas_i_tcache_bytes)
+CTL_PROTO(stats_arenas_i_tcache_stashed_bytes)
 CTL_PROTO(stats_arenas_i_resident)
 CTL_PROTO(stats_arenas_i_abandoned_vm)
 CTL_PROTO(stats_arenas_i_hpa_sec_bytes)
@@ -787,6 +788,8 @@ static const ctl_named_node_t stats_arenas_i_node[] = {
 	{NAME("internal"),	CTL(stats_arenas_i_internal)},
 	{NAME("metadata_thp"),	CTL(stats_arenas_i_metadata_thp)},
 	{NAME("tcache_bytes"),	CTL(stats_arenas_i_tcache_bytes)},
+	{NAME("tcache_stashed_bytes"),
+	    CTL(stats_arenas_i_tcache_stashed_bytes)},
 	{NAME("resident"),	CTL(stats_arenas_i_resident)},
 	{NAME("abandoned_vm"),	CTL(stats_arenas_i_abandoned_vm)},
 	{NAME("hpa_sec_bytes"),	CTL(stats_arenas_i_hpa_sec_bytes)},
@@ -1169,6 +1172,8 @@ MUTEX_PROF_ARENA_MUTEXES
 		    &astats->astats.pa_shard_stats.pac_stats.abandoned_vm);
 
 		sdstats->astats.tcache_bytes += astats->astats.tcache_bytes;
+		sdstats->astats.tcache_stashed_bytes +=
+		    astats->astats.tcache_stashed_bytes;
 
 		if (ctl_arena->arena_ind == 0) {
 			sdstats->astats.uptime = astats->astats.uptime;
@@ -3503,6 +3508,8 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_metadata_thp,
     arenas_i(mib[2])->astats->astats.metadata_thp, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_tcache_bytes,
     arenas_i(mib[2])->astats->astats.tcache_bytes, size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_tcache_stashed_bytes,
+    arenas_i(mib[2])->astats->astats.tcache_stashed_bytes, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_resident,
     arenas_i(mib[2])->astats->astats.resident,
     size_t)

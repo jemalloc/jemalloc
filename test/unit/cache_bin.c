@@ -266,7 +266,8 @@ do_flush_stashed_test(cache_bin_t *bin, cache_bin_info_t *info, void **ptrs,
     cache_bin_sz_t nfill, cache_bin_sz_t nstash) {
 	expect_true(cache_bin_ncached_get_local(bin, info) == 0,
 	    "Bin not empty");
-	expect_true(cache_bin_nstashed_get(bin, info) == 0, "Bin not empty");
+	expect_true(cache_bin_nstashed_get_local(bin, info) == 0,
+	    "Bin not empty");
 	expect_true(nfill + nstash <= info->ncached_max, "Exceeded max");
 
 	bool ret;
@@ -283,7 +284,7 @@ do_flush_stashed_test(cache_bin_t *bin, cache_bin_info_t *info, void **ptrs,
 		ret = cache_bin_stash(bin, &ptrs[i + nfill]);
 		expect_true(ret, "Unexpected stash failure");
 	}
-	expect_true(cache_bin_nstashed_get(bin, info) == nstash,
+	expect_true(cache_bin_nstashed_get_local(bin, info) == nstash,
 	    "Wrong stashed count");
 
 	if (nfill + nstash == info->ncached_max) {
@@ -303,7 +304,7 @@ do_flush_stashed_test(cache_bin_t *bin, cache_bin_info_t *info, void **ptrs,
 	}
 	expect_true(cache_bin_ncached_get_local(bin, info) == 0,
 	    "Wrong cached count");
-	expect_true(cache_bin_nstashed_get(bin, info) == nstash,
+	expect_true(cache_bin_nstashed_get_local(bin, info) == nstash,
 	    "Wrong stashed count");
 
 	cache_bin_alloc(bin, &ret);
@@ -313,7 +314,7 @@ do_flush_stashed_test(cache_bin_t *bin, cache_bin_info_t *info, void **ptrs,
 	cache_bin_finish_flush_stashed(bin, info);
 	expect_true(cache_bin_ncached_get_local(bin, info) == 0,
 	    "Wrong cached count");
-	expect_true(cache_bin_nstashed_get(bin, info) == 0,
+	expect_true(cache_bin_nstashed_get_local(bin, info) == 0,
 	    "Wrong stashed count");
 
 	cache_bin_alloc(bin, &ret);
@@ -338,7 +339,7 @@ TEST_BEGIN(test_cache_bin_stash) {
 	for (cache_bin_sz_t i = 0; i < ncached_max; i++) {
 		expect_true(cache_bin_ncached_get_local(&bin, &info) ==
 		    (i / 2 + i % 2), "Wrong ncached value");
-		expect_true(cache_bin_nstashed_get(&bin, &info) == i / 2,
+		expect_true(cache_bin_nstashed_get_local(&bin, &info) == i / 2,
 		    "Wrong nstashed value");
 		if (i % 2 == 0) {
 			cache_bin_dalloc_easy(&bin, &ptrs[i]);
@@ -361,7 +362,7 @@ TEST_BEGIN(test_cache_bin_stash) {
 			expect_true(diff % 2 == 0, "Should be able to alloc");
 		} else {
 			expect_false(ret, "Should not alloc stashed");
-			expect_true(cache_bin_nstashed_get(&bin, &info) ==
+			expect_true(cache_bin_nstashed_get_local(&bin, &info) ==
 			    ncached_max / 2, "Wrong nstashed value");
 		}
 	}

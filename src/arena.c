@@ -148,18 +148,21 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 
 	LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 
-	/* tcache_bytes counts currently cached bytes. */
+	/* Currently cached bytes and sanitizer-stashed bytes in tcache. */
 	astats->tcache_bytes = 0;
+	astats->tcache_stashed_bytes = 0;
 	malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
 	cache_bin_array_descriptor_t *descriptor;
 	ql_foreach(descriptor, &arena->cache_bin_array_descriptor_ql, link) {
 		for (szind_t i = 0; i < nhbins; i++) {
 			cache_bin_t *cache_bin = &descriptor->bins[i];
-			astats->tcache_bytes +=
-			    cache_bin_ncached_get_remote(cache_bin,
-			    &tcache_bin_info[i]) * sz_index2size(i) +
-			    cache_bin_nstashed_get(cache_bin,
-			    &tcache_bin_info[i]) * sz_index2size(i);
+			cache_bin_sz_t ncached, nstashed;
+			cache_bin_nitems_get_remote(cache_bin,
+			    &tcache_bin_info[i], &ncached, &nstashed);
+
+			astats->tcache_bytes += ncached * sz_index2size(i);
+			astats->tcache_stashed_bytes += nstashed *
+			    sz_index2size(i);
 		}
 	}
 	malloc_mutex_prof_read(tsdn,
