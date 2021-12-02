@@ -652,6 +652,7 @@ case "${host}" in
 	SYM_PREFIX="_"
 	;;
   *-*-freebsd*)
+	JE_APPEND_VS(CPPFLAGS, -D_BSD_SOURCE)
 	abi="elf"
 	AC_DEFINE([JEMALLOC_SYSCTL_VM_OVERCOMMIT], [ ])
 	force_lazy_lock="1"
