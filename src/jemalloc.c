@@ -845,10 +845,12 @@ malloc_conf_next(char const **opts_p, char const **k_p, size_t *klen_p,
 			if (opts != *opts_p) {
 				malloc_write("<jemalloc>: Conf string ends "
 				    "with key\n");
+				had_conf_error = true;
 			}
 			return true;
 		default:
 			malloc_write("<jemalloc>: Malformed conf string\n");
+			had_conf_error = true;
 			return true;
 		}
 	}
@@ -867,6 +869,7 @@ malloc_conf_next(char const **opts_p, char const **k_p, size_t *klen_p,
 			if (*opts == '\0') {
 				malloc_write("<jemalloc>: Conf string ends "
 				    "with comma\n");
+				had_conf_error = true;
 			}
 			*vlen_p = (uintptr_t)opts - 1 - (uintptr_t)*v_p;
 			accept = true;
