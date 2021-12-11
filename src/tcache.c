@@ -418,7 +418,8 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 
 		/* Deallocate whatever we can. */
 		unsigned ndeferred = 0;
-		arena_dalloc_bin_locked_info_t dalloc_bin_info;
+		/* Init only to avoid used-uninitialized warning. */
+		arena_dalloc_bin_locked_info_t dalloc_bin_info = {0};
 		if (small) {
 			arena_dalloc_bin_locked_begin(&dalloc_bin_info, binind);
 		}
