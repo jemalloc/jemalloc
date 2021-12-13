@@ -3088,7 +3088,7 @@ JEMALLOC_EXPORT void *(*__memalign_hook)(size_t alignment, size_t size) =
  * be implemented also, so none of glibc's malloc.o functions are added to the
  * link.
  */
-#    define ALIAS(je_fn)	__attribute__((alias (#je_fn), used))
+#    define ALIAS(je_fn)	__attribute__((alias (#je_fn), visibility("default")))
 /* To force macro expansion of je_ prefix before stringification. */
 #    define PREALIAS(je_fn)	ALIAS(je_fn)
 #    ifdef JEMALLOC_OVERRIDE___LIBC_CALLOC
