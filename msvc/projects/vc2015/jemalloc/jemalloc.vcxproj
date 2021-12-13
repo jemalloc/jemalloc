@@ -59,7 +59,6 @@
     <ClCompile Include="..\..\..\..\src\extent_dss.c" />
     <ClCompile Include="..\..\..\..\src\extent_mmap.c" />
     <ClCompile Include="..\..\..\..\src\fxp.c" />
-    <ClCompile Include="..\..\..\..\src\guard.c" />
     <ClCompile Include="..\..\..\..\src\hook.c" />
     <ClCompile Include="..\..\..\..\src\hpa.c" />
     <ClCompile Include="..\..\..\..\src\hpa_hooks.c" />
@@ -86,6 +85,8 @@
     <ClCompile Include="..\..\..\..\src\psset.c" />
     <ClCompile Include="..\..\..\..\src\rtree.c" />
     <ClCompile Include="..\..\..\..\src\safety_check.c" />
+    <ClCompile Include="..\..\..\..\src\san.c" />
+    <ClCompile Include="..\..\..\..\src\san_bump.c" />
     <ClCompile Include="..\..\..\..\src\sc.c" />
     <ClCompile Include="..\..\..\..\src\sec.c" />
     <ClCompile Include="..\..\..\..\src\stats.c" />
