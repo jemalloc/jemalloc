@@ -371,13 +371,15 @@ cache_bin_alloc(cache_bin_t *bin, bool *success) {
 
 JEMALLOC_ALWAYS_INLINE cache_bin_sz_t
 cache_bin_alloc_batch(cache_bin_t *bin, size_t num, void **out) {
-	size_t n = cache_bin_ncached_get_internal(bin, /* racy */ false);
+	cache_bin_sz_t n = cache_bin_ncached_get_internal(bin,
+	    /* racy */ false);
 	if (n > num) {
-		n = num;
+		n = (cache_bin_sz_t)num;
 	}
 	memcpy(out, bin->stack_head, n * sizeof(void *));
 	bin->stack_head += n;
 	cache_bin_low_water_adjust(bin);
+
 	return n;
 }
 
