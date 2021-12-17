@@ -227,10 +227,39 @@ TEST_BEGIN(test_base_hooks_not_null) {
 }
 TEST_END
 
+TEST_BEGIN(test_base_ehooks_get_for_metadata_default_hook) {
+	extent_hooks_prep();
+	memcpy(&hooks, &hooks_not_null, sizeof(extent_hooks_t));
+	base_t *base;
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+	base = base_new(tsdn, 0, &hooks, /* metadata_use_hooks */ false);
+	ehooks_t *ehooks = base_ehooks_get_for_metadata(base);
+	expect_true(ehooks_are_default(ehooks),
+		"Expected default extent hook functions pointer");
+	base_delete(tsdn, base);
+}
+TEST_END
+
+
+TEST_BEGIN(test_base_ehooks_get_for_metadata_custom_hook) {
+	extent_hooks_prep();
+	memcpy(&hooks, &hooks_not_null, sizeof(extent_hooks_t));
+	base_t *base;
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+	base = base_new(tsdn, 0, &hooks, /* metadata_use_hooks */ true);
+	ehooks_t *ehooks = base_ehooks_get_for_metadata(base);
+	expect_ptr_eq(&hooks, ehooks_get_extent_hooks_ptr(ehooks),
+		"Expected user-specified extend hook functions pointer");
+	base_delete(tsdn, base);
+}
+TEST_END
+
 int
 main(void) {
 	return test(
 	    test_base_hooks_default,
 	    test_base_hooks_null,
-	    test_base_hooks_not_null);
+	    test_base_hooks_not_null,
+            test_base_ehooks_get_for_metadata_default_hook,
+            test_base_ehooks_get_for_metadata_custom_hook);
 }
