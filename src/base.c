@@ -295,12 +295,6 @@ base_block_alloc(tsdn_t *tsdn, base_t *base, ehooks_t *ehooks, unsigned ind,
 	return block;
 }
 
-static ehooks_t *
-base_ehooks_get_for_metadata(base_t *base) {
-	return base->metadata_use_hooks ? &base->ehooks :
-	    (ehooks_t *)&ehooks_default_extent_hooks;
-}
-
 /*
  * Allocate an extent that is at least as large as specified size, with
  * specified alignment.
@@ -375,6 +369,9 @@ base_new(tsdn_t *tsdn, unsigned ind, const extent_hooks_t *extent_hooks,
 	base_t *base = (base_t *)base_extent_bump_alloc_helper(&block->edata,
 	    &gap_size, base_size, base_alignment);
 	ehooks_init(&base->ehooks, (extent_hooks_t *)extent_hooks, ind);
+	ehooks_init(&base->ehooks_base, metadata_use_hooks ?
+	    (extent_hooks_t *)extent_hooks :
+	    (extent_hooks_t *)&ehooks_default_extent_hooks, ind);
 	if (malloc_mutex_init(&base->mtx, "base", WITNESS_RANK_BASE,
 	    malloc_mutex_rank_exclusive)) {
 		base_unmap(tsdn, &fake_ehooks, ind, block, block->size);
@@ -384,7 +381,6 @@ base_new(tsdn_t *tsdn, unsigned ind, const extent_hooks_t *extent_hooks,
 	base->extent_sn_next = extent_sn_next;
 	base->blocks = block;
 	base->auto_thp_switched = false;
-	base->metadata_use_hooks = metadata_use_hooks;
 	for (szind_t i = 0; i < SC_NSIZES; i++) {
 		edata_heap_new(&base->avail[i]);
 	}
@@ -420,6 +416,11 @@ base_delete(tsdn_t *tsdn, base_t *base) {
 ehooks_t *
 base_ehooks_get(base_t *base) {
 	return &base->ehooks;
+}
+
+ehooks_t *
+base_ehooks_get_for_metadata(base_t *base) {
+	return &base->ehooks_base;
 }
 
 extent_hooks_t *
