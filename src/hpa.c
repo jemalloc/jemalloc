@@ -479,10 +479,7 @@ hpa_try_hugify(tsdn_t *tsdn, hpa_shard_t *shard) {
 
 	/* Make sure that it's been hugifiable for long enough. */
 	nstime_t time_hugify_allowed = hpdata_time_hugify_allowed(to_hugify);
-	nstime_t nstime;
-	shard->central->hooks.curtime(&nstime, /* first_reading */ true);
-	nstime_subtract(&nstime, &time_hugify_allowed);
-	uint64_t millis = nstime_msec(&nstime);
+	uint64_t millis = shard->central->hooks.ms_since(&time_hugify_allowed);
 	if (millis < shard->opts.hugify_delay_ms) {
 		return false;
 	}
@@ -897,17 +894,15 @@ hpa_time_until_deferred_work(tsdn_t *tsdn, pai_t *self) {
 	if (to_hugify != NULL) {
 		nstime_t time_hugify_allowed =
 		    hpdata_time_hugify_allowed(to_hugify);
-		nstime_t nstime;
-		shard->central->hooks.curtime(&nstime,
-		    /* first_reading */ true);
-		nstime_subtract(&nstime, &time_hugify_allowed);
-		uint64_t since_hugify_allowed_ms = nstime_msec(&nstime);
+		uint64_t since_hugify_allowed_ms =
+		    shard->central->hooks.ms_since(&time_hugify_allowed);
 		/*
 		 * If not enough time has passed since hugification was allowed,
 		 * sleep for the rest.
 		 */
 		if (since_hugify_allowed_ms < shard->opts.hugify_delay_ms) {
-			time_ns = shard->opts.hugify_delay_ms - since_hugify_allowed_ms;
+			time_ns = shard->opts.hugify_delay_ms -
+			    since_hugify_allowed_ms;
 			time_ns *= 1000 * 1000;
 		} else {
 			malloc_mutex_unlock(tsdn, &shard->mtx);
@@ -924,11 +919,8 @@ hpa_time_until_deferred_work(tsdn_t *tsdn, pai_t *self) {
 			malloc_mutex_unlock(tsdn, &shard->mtx);
 			return BACKGROUND_THREAD_DEFERRED_MIN;
 		}
-		nstime_t nstime;
-		shard->central->hooks.curtime(&nstime,
-		    /* first_reading */ true);
-		nstime_subtract(&nstime, &shard->last_purge);
-		uint64_t since_last_purge_ms = nstime_msec(&nstime);
+		uint64_t since_last_purge_ms = shard->central->hooks.ms_since(
+		    &shard->last_purge);
 
 		if (since_last_purge_ms < shard->opts.min_purge_interval_ms) {
 			uint64_t until_purge_ns;

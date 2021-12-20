@@ -1,6 +1,7 @@
 #include "test/jemalloc_test.h"
 
 #include "jemalloc/internal/hpa.h"
+#include "jemalloc/internal/nstime.h"
 
 #define SHARD_IND 111
 
@@ -353,6 +354,11 @@ defer_test_curtime(nstime_t *r_time, bool first_reading) {
 	*r_time = defer_curtime;
 }
 
+static uint64_t
+defer_test_ms_since(nstime_t *past_time) {
+	return (nstime_ns(&defer_curtime) - nstime_ns(past_time)) / 1000 / 1000;
+}
+
 TEST_BEGIN(test_defer_time) {
 	test_skip_if(!hpa_supported());
 
@@ -363,6 +369,7 @@ TEST_BEGIN(test_defer_time) {
 	hooks.hugify = &defer_test_hugify;
 	hooks.dehugify = &defer_test_dehugify;
 	hooks.curtime = &defer_test_curtime;
+	hooks.ms_since = &defer_test_ms_since;
 
 	hpa_shard_opts_t opts = test_hpa_shard_opts_default;
 	opts.deferral_allowed = true;
