@@ -158,6 +158,19 @@ nstime_divide(const nstime_t *time, const nstime_t *divisor) {
 	return time->ns / divisor->ns;
 }
 
+/* Returns time since *past, w/o updating *past. */
+uint64_t
+nstime_ns_since(const nstime_t *past) {
+	nstime_assert_initialized(past);
+
+	nstime_t now;
+	nstime_copy(&now, past);
+	nstime_update(&now);
+
+	assert(nstime_compare(&now, past) >= 0);
+	return now.ns - past->ns;
+}
+
 #ifdef _WIN32
 #  define NSTIME_MONOTONIC true
 static void

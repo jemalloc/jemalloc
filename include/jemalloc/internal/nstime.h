@@ -35,6 +35,7 @@ void nstime_isubtract(nstime_t *time, uint64_t subtrahend);
 void nstime_imultiply(nstime_t *time, uint64_t multiplier);
 void nstime_idivide(nstime_t *time, uint64_t divisor);
 uint64_t nstime_divide(const nstime_t *time, const nstime_t *divisor);
+uint64_t nstime_ns_since(const nstime_t *past);
 
 typedef bool (nstime_monotonic_t)(void);
 extern nstime_monotonic_t *JET_MUTABLE nstime_monotonic;
