@@ -9,6 +9,7 @@ struct hpa_hooks_s {
 	void (*hugify)(void *ptr, size_t size);
 	void (*dehugify)(void *ptr, size_t size);
 	void (*curtime)(nstime_t *r_time, bool first_reading);
+	uint64_t (*ms_since)(nstime_t *r_time);
 };
 
 extern hpa_hooks_t hpa_hooks_default;
