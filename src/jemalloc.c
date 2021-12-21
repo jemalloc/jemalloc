@@ -148,8 +148,6 @@ unsigned	opt_narenas = 0;
 fxp_t		opt_narenas_ratio = FXP_INIT_INT(4);
 
 unsigned	ncpus;
-/* ncpus is determinstinc, see malloc_cpu_count_is_deterministic() */
-static int	cpu_count_is_deterministic = -1;
 
 /* Protects arenas initialization. */
 malloc_mutex_t arenas_lock;
@@ -758,10 +756,11 @@ malloc_cpu_count_is_deterministic()
 #else
 	long cpu_onln = sysconf(_SC_NPROCESSORS_ONLN);
 	long cpu_conf = sysconf(_SC_NPROCESSORS_CONF);
-	if (cpu_onln != cpu_conf)
+	if (cpu_onln != cpu_conf) {
 		return false;
+	}
 #  if defined(CPU_COUNT)
-#    if defined(__FreeBSD__)
+#    if defined(__FreeBSD__) || defined(__DragonFly__)
 	cpuset_t set;
 #    else
 	cpu_set_t set;
@@ -772,8 +771,9 @@ malloc_cpu_count_is_deterministic()
 	pthread_getaffinity_np(pthread_self(), sizeof(set), &set);
 #    endif /* JEMALLOC_HAVE_SCHED_SETAFFINITY */
 	long cpu_affinity = CPU_COUNT(&set);
-	if (cpu_affinity != cpu_conf)
+	if (cpu_affinity != cpu_conf) {
 		return false;
+	}
 #  endif /* CPU_COUNT */
 	return true;
 #endif
@@ -1871,7 +1871,29 @@ malloc_init_hard_recursible(void) {
 	malloc_init_state = malloc_init_recursible;
 
 	ncpus = malloc_ncpus();
-	cpu_count_is_deterministic = malloc_cpu_count_is_deterministic();
+	if (opt_percpu_arena != percpu_arena_disabled) {
+		bool cpu_count_is_deterministic =
+		    malloc_cpu_count_is_deterministic();
+		if (!cpu_count_is_deterministic) {
+			/*
+			 * If # of CPU is not deterministic, and narenas not
+			 * specified, disables per cpu arena since it may not
+			 * detect CPU IDs properly.
+			 */
+			if (opt_narenas == 0) {
+				opt_percpu_arena = percpu_arena_disabled;
+				malloc_write("<jemalloc>: Number of CPUs "
+				    "detected is not deterministic. Per-CPU "
+				    "arena disabled.\n");
+				if (opt_abort_conf) {
+					malloc_abort_invalid_conf();
+				}
+				if (opt_abort) {
+					abort();
+				}
+			}
+		}
+	}
 
 #if (defined(JEMALLOC_HAVE_PTHREAD_ATFORK) && !defined(JEMALLOC_MUTEX_INIT_CB) \
     && !defined(JEMALLOC_ZONE) && !defined(_WIN32) && \
@@ -1931,22 +1953,7 @@ malloc_init_narenas(void) {
 	assert(ncpus > 0);
 
 	if (opt_percpu_arena != percpu_arena_disabled) {
-		if (!cpu_count_is_deterministic) {
-			if (opt_narenas) {
-				malloc_write("<jemalloc>: Number of CPUs is not deterministic, "
-					"but narenas is set. Hope you not what you are doing and "
-					"you have set narenas to largest possible CPU ID.\n");
-				if (opt_abort) {
-					abort();
-				}
-			} else {
-				opt_percpu_arena = percpu_arena_disabled;
-				if (opt_abort_conf) {
-					malloc_write("<jemalloc>: Number of CPUs is not deterministic\n");
-					malloc_abort_invalid_conf();
-				}
-			}
-		} else if (!have_percpu_arena || malloc_getcpu() < 0) {
+		if (!have_percpu_arena || malloc_getcpu() < 0) {
 			opt_percpu_arena = percpu_arena_disabled;
 			malloc_printf("<jemalloc>: perCPU arena getcpu() not "
 			    "available. Setting narenas to %u.\n", opt_narenas ?
