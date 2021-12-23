@@ -45,9 +45,9 @@ do_allocs(size_t sz, size_t cnt, bool do_frees) {
 
 int
 main(void) {
-	size_t lg_prof_sample = 19;
-	int err = mallctl("prof.reset", NULL, NULL, (void *)&lg_prof_sample,
-	    sizeof(lg_prof_sample));
+	size_t lg_prof_sample_local = 19;
+	int err = mallctl("prof.reset", NULL, NULL,
+	    (void *)&lg_prof_sample_local, sizeof(lg_prof_sample_local));
 	assert(err == 0);
 
 	prof_backtrace_hook_set(mock_backtrace);

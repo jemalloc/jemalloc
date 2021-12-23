@@ -18,7 +18,7 @@ typedef struct {
 #endif
 } nstime_t;
 
-static const nstime_t zero = NSTIME_ZERO_INITIALIZER;
+static const nstime_t nstime_zero = NSTIME_ZERO_INITIALIZER;
 
 void nstime_init(nstime_t *time, uint64_t ns);
 void nstime_init2(nstime_t *time, uint64_t sec, uint64_t nsec);
@@ -60,12 +60,12 @@ extern const char *prof_time_res_mode_names[];
 
 JEMALLOC_ALWAYS_INLINE void
 nstime_init_zero(nstime_t *time) {
-	nstime_copy(time, &zero);
+	nstime_copy(time, &nstime_zero);
 }
 
 JEMALLOC_ALWAYS_INLINE bool
 nstime_equals_zero(nstime_t *time) {
-	int diff = nstime_compare(time, &zero);
+	int diff = nstime_compare(time, &nstime_zero);
 	assert(diff >= 0);
 	return diff == 0;
 }

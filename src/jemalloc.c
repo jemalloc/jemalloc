@@ -1212,12 +1212,12 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			CONF_HANDLE_BOOL(opt_abort_conf, "abort_conf")
 			CONF_HANDLE_BOOL(opt_trust_madvise, "trust_madvise")
 			if (strncmp("metadata_thp", k, klen) == 0) {
-				int i;
+				int m;
 				bool match = false;
-				for (i = 0; i < metadata_thp_mode_limit; i++) {
-					if (strncmp(metadata_thp_mode_names[i],
+				for (m = 0; m < metadata_thp_mode_limit; m++) {
+					if (strncmp(metadata_thp_mode_names[m],
 					    v, vlen) == 0) {
-						opt_metadata_thp = i;
+						opt_metadata_thp = m;
 						match = true;
 						break;
 					}
@@ -1230,18 +1230,18 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			}
 			CONF_HANDLE_BOOL(opt_retain, "retain")
 			if (strncmp("dss", k, klen) == 0) {
-				int i;
+				int m;
 				bool match = false;
-				for (i = 0; i < dss_prec_limit; i++) {
-					if (strncmp(dss_prec_names[i], v, vlen)
+				for (m = 0; m < dss_prec_limit; m++) {
+					if (strncmp(dss_prec_names[m], v, vlen)
 					    == 0) {
-						if (extent_dss_prec_set(i)) {
+						if (extent_dss_prec_set(m)) {
 							CONF_ERROR(
 							    "Error setting dss",
 							    k, klen, v, vlen);
 						} else {
 							opt_dss =
-							    dss_prec_names[i];
+							    dss_prec_names[m];
 							match = true;
 							break;
 						}
@@ -1428,16 +1428,16 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 
 			if (strncmp("percpu_arena", k, klen) == 0) {
 				bool match = false;
-				for (int i = percpu_arena_mode_names_base; i <
-				    percpu_arena_mode_names_limit; i++) {
-					if (strncmp(percpu_arena_mode_names[i],
+				for (int m = percpu_arena_mode_names_base; m <
+				    percpu_arena_mode_names_limit; m++) {
+					if (strncmp(percpu_arena_mode_names[m],
 					    v, vlen) == 0) {
 						if (!have_percpu_arena) {
 							CONF_ERROR(
 							    "No getcpu support",
 							    k, klen, v, vlen);
 						}
-						opt_percpu_arena = i;
+						opt_percpu_arena = m;
 						match = true;
 						break;
 					}
@@ -1622,15 +1622,15 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			}
 			if (CONF_MATCH("thp")) {
 				bool match = false;
-				for (int i = 0; i < thp_mode_names_limit; i++) {
-					if (strncmp(thp_mode_names[i],v, vlen)
+				for (int m = 0; m < thp_mode_names_limit; m++) {
+					if (strncmp(thp_mode_names[m],v, vlen)
 					    == 0) {
 						if (!have_madvise_huge && !have_memcntl) {
 							CONF_ERROR(
 							    "No THP support",
 							    k, klen, v, vlen);
 						}
-						opt_thp = i;
+						opt_thp = m;
 						match = true;
 						break;
 					}

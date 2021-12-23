@@ -32,7 +32,7 @@ extern bool opt_prof_sys_thread_name;
 extern bool opt_prof_stats;
 
 /* Accessed via prof_active_[gs]et{_unlocked,}(). */
-extern bool prof_active;
+extern bool prof_active_state;
 
 /* Accessed via prof_gdump_[gs]et{_unlocked,}(). */
 extern bool prof_gdump_val;

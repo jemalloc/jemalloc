@@ -69,10 +69,10 @@ test_data_t *init_test_data(ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms) {
 	    &hpa_hooks_default);
 	assert_false(err, "");
 
-	const size_t oversize_threshold = 8 * 1024 * 1024;
+	const size_t pa_oversize_threshold = 8 * 1024 * 1024;
 	err = pa_shard_init(TSDN_NULL, &test_data->shard, &test_data->central,
 	    &test_data->emap, test_data->base, /* ind */ 1, &test_data->stats,
-	    &test_data->stats_mtx, &time, oversize_threshold, dirty_decay_ms,
+	    &test_data->stats_mtx, &time, pa_oversize_threshold, dirty_decay_ms,
 	    muzzy_decay_ms);
 	assert_false(err, "");
 

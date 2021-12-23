@@ -31,8 +31,9 @@ pa_central_init(pa_central_t *central, base_t *base, bool hpa,
 bool
 pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, pa_central_t *central,
     emap_t *emap, base_t *base, unsigned ind, pa_shard_stats_t *stats,
-    malloc_mutex_t *stats_mtx, nstime_t *cur_time, size_t oversize_threshold,
-    ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms) {
+    malloc_mutex_t *stats_mtx, nstime_t *cur_time,
+    size_t pac_oversize_threshold, ssize_t dirty_decay_ms,
+    ssize_t muzzy_decay_ms) {
 	/* This will change eventually, but for now it should hold. */
 	assert(base_ind_get(base) == ind);
 	if (edata_cache_init(&shard->edata_cache, base)) {
@@ -40,7 +41,7 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, pa_central_t *central,
 	}
 
 	if (pac_init(tsdn, &shard->pac, base, emap, &shard->edata_cache,
-	    cur_time, oversize_threshold, dirty_decay_ms, muzzy_decay_ms,
+	    cur_time, pac_oversize_threshold, dirty_decay_ms, muzzy_decay_ms,
 	    &stats->pac_stats, stats_mtx)) {
 		return true;
 	}
