@@ -964,7 +964,7 @@ do_update_search_test(int nnodes, int ntrees, int nremovals,
 				tree_insert(&tree, &nodes[j]);
 			}
 		}
-		for (int i = 0; i < nupdates; i++) {
+		for (int j = 0; j < nupdates; j++) {
 			uint32_t ind = gen_rand32_range(sfmt, nnodes);
 			nodes[ind].specialness = 1 - nodes[ind].specialness;
 			tree_update_summaries(&tree, &nodes[ind]);

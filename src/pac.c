@@ -36,9 +36,9 @@ pac_decay_data_get(pac_t *pac, extent_state_t state,
 
 bool
 pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
-    edata_cache_t *edata_cache, nstime_t *cur_time, size_t oversize_threshold,
-    ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms, pac_stats_t *pac_stats,
-    malloc_mutex_t *stats_mtx) {
+    edata_cache_t *edata_cache, nstime_t *cur_time,
+    size_t pac_oversize_threshold, ssize_t dirty_decay_ms,
+    ssize_t muzzy_decay_ms, pac_stats_t *pac_stats, malloc_mutex_t *stats_mtx) {
 	unsigned ind = base_ind_get(base);
 	/*
 	 * Delay coalescing for dirty extents despite the disruptive effect on
@@ -73,7 +73,7 @@ pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
 	    WITNESS_RANK_EXTENT_GROW, malloc_mutex_rank_exclusive)) {
 		return true;
 	}
-	atomic_store_zu(&pac->oversize_threshold, oversize_threshold,
+	atomic_store_zu(&pac->oversize_threshold, pac_oversize_threshold,
 	    ATOMIC_RELAXED);
 	if (decay_init(&pac->decay_dirty, cur_time, dirty_decay_ms)) {
 		return true;

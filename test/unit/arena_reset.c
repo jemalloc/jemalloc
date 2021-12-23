@@ -258,12 +258,12 @@ TEST_BEGIN(test_arena_destroy_hooks_default) {
 
 	/* Try arena.create with custom hooks. */
 	size_t sz = sizeof(extent_hooks_t *);
-	extent_hooks_t *default_hooks;
-	expect_d_eq(mallctl("arena.0.extent_hooks", (void *)&default_hooks,
+	extent_hooks_t *a0_default_hooks;
+	expect_d_eq(mallctl("arena.0.extent_hooks", (void *)&a0_default_hooks,
 	    &sz, NULL, 0), 0, "Unexpected mallctlnametomib() failure");
 
 	/* Default impl; but wrapped as "customized". */
-	extent_hooks_t new_hooks = *default_hooks;
+	extent_hooks_t new_hooks = *a0_default_hooks;
 	extent_hooks_t *hook = &new_hooks;
 	sz = sizeof(unsigned);
 	expect_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz,

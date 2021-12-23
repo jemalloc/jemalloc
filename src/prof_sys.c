@@ -561,18 +561,18 @@ prof_dump_filename(tsd_t *tsd, char *filename, char v, uint64_t vseq) {
 	cassert(config_prof);
 
 	assert(tsd_reentrancy_level_get(tsd) == 0);
-	const char *prof_prefix = prof_prefix_get(tsd_tsdn(tsd));
+	const char *prefix = prof_prefix_get(tsd_tsdn(tsd));
 
 	if (vseq != VSEQ_INVALID) {
 	        /* "<prefix>.<pid>.<seq>.v<vseq>.heap" */
 		malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
-		    "%s.%d.%"FMTu64".%c%"FMTu64".heap", prof_prefix,
-		    prof_getpid(), prof_dump_seq, v, vseq);
+		    "%s.%d.%"FMTu64".%c%"FMTu64".heap", prefix, prof_getpid(),
+		    prof_dump_seq, v, vseq);
 	} else {
 	        /* "<prefix>.<pid>.<seq>.<v>.heap" */
 		malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
-		    "%s.%d.%"FMTu64".%c.heap", prof_prefix,
-		    prof_getpid(), prof_dump_seq, v);
+		    "%s.%d.%"FMTu64".%c.heap", prefix, prof_getpid(),
+		    prof_dump_seq, v);
 	}
 	prof_dump_seq++;
 }

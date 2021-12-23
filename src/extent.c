@@ -748,9 +748,8 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		extent_gdump_add(tsdn, edata);
 	}
 	if (zero && !edata_zeroed_get(edata)) {
-		void *addr = edata_base_get(edata);
-		size_t size = edata_size_get(edata);
-		ehooks_zero(tsdn, ehooks, addr, size);
+		ehooks_zero(tsdn, ehooks, edata_base_get(edata),
+		    edata_size_get(edata));
 	}
 	return edata;
 label_err:

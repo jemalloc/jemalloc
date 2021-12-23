@@ -1606,15 +1606,15 @@ stats_general_print(emitter_t *emitter) {
 		    "Maximum thread-cached size class", emitter_type_size, &sv);
 	}
 
-	unsigned nbins;
-	CTL_GET("arenas.nbins", &nbins, unsigned);
+	unsigned arenas_nbins;
+	CTL_GET("arenas.nbins", &arenas_nbins, unsigned);
 	emitter_kv(emitter, "nbins", "Number of bin size classes",
-	    emitter_type_unsigned, &nbins);
+	    emitter_type_unsigned, &arenas_nbins);
 
-	unsigned nhbins;
-	CTL_GET("arenas.nhbins", &nhbins, unsigned);
+	unsigned arenas_nhbins;
+	CTL_GET("arenas.nhbins", &arenas_nhbins, unsigned);
 	emitter_kv(emitter, "nhbins", "Number of thread-cache bin size classes",
-	    emitter_type_unsigned, &nhbins);
+	    emitter_type_unsigned, &arenas_nhbins);
 
 	/*
 	 * We do enough mallctls in a loop that we actually want to omit them
@@ -1624,7 +1624,7 @@ stats_general_print(emitter_t *emitter) {
 		emitter_json_array_kv_begin(emitter, "bin");
 		size_t arenas_bin_mib[CTL_MAX_DEPTH];
 		CTL_LEAF_PREPARE(arenas_bin_mib, 0, "arenas.bin");
-		for (unsigned i = 0; i < nbins; i++) {
+		for (unsigned i = 0; i < arenas_nbins; i++) {
 			arenas_bin_mib[2] = i;
 			emitter_json_object_begin(emitter);
 

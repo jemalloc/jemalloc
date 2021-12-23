@@ -397,7 +397,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt) {
 
 /* Used in unit tests. */
 static prof_tdata_t *
-prof_tdata_count_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
+prof_tdata_count_iter(prof_tdata_tree_t *tdatas_ptr, prof_tdata_t *tdata,
     void *arg) {
 	size_t *tdata_count = (size_t *)arg;
 
@@ -895,7 +895,7 @@ struct prof_tdata_merge_iter_arg_s {
 };
 
 static prof_tdata_t *
-prof_tdata_merge_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
+prof_tdata_merge_iter(prof_tdata_tree_t *tdatas_ptr, prof_tdata_t *tdata,
     void *opaque) {
 	prof_tdata_merge_iter_arg_t *arg =
 	    (prof_tdata_merge_iter_arg_t *)opaque;
@@ -939,7 +939,7 @@ prof_tdata_merge_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
 }
 
 static prof_tdata_t *
-prof_tdata_dump_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
+prof_tdata_dump_iter(prof_tdata_tree_t *tdatas_ptr, prof_tdata_t *tdata,
     void *opaque) {
 	if (!tdata->dumping) {
 		return NULL;
@@ -1278,7 +1278,7 @@ prof_tdata_expire(tsdn_t *tsdn, prof_tdata_t *tdata) {
 }
 
 static prof_tdata_t *
-prof_tdata_reset_iter(prof_tdata_tree_t *tdatas, prof_tdata_t *tdata,
+prof_tdata_reset_iter(prof_tdata_tree_t *tdatas_ptr, prof_tdata_t *tdata,
     void *arg) {
 	tsdn_t *tsdn = (tsdn_t *)arg;
 

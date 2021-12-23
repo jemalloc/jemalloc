@@ -43,7 +43,7 @@ static counter_accum_t prof_idump_accumulated;
  * Initialized as opt_prof_active, and accessed via
  * prof_active_[gs]et{_unlocked,}().
  */
-bool prof_active;
+bool prof_active_state;
 static malloc_mutex_t prof_active_mtx;
 
 /*
@@ -416,7 +416,7 @@ prof_active_get(tsdn_t *tsdn) {
 
 	prof_active_assert();
 	malloc_mutex_lock(tsdn, &prof_active_mtx);
-	prof_active_current = prof_active;
+	prof_active_current = prof_active_state;
 	malloc_mutex_unlock(tsdn, &prof_active_mtx);
 	return prof_active_current;
 }
@@ -427,8 +427,8 @@ prof_active_set(tsdn_t *tsdn, bool active) {
 
 	prof_active_assert();
 	malloc_mutex_lock(tsdn, &prof_active_mtx);
-	prof_active_old = prof_active;
-	prof_active = active;
+	prof_active_old = prof_active_state;
+	prof_active_state = active;
 	malloc_mutex_unlock(tsdn, &prof_active_mtx);
 	prof_active_assert();
 	return prof_active_old;
@@ -629,7 +629,7 @@ prof_boot2(tsd_t *tsd, base_t *base) {
 	if (opt_prof) {
 		lg_prof_sample = opt_lg_prof_sample;
 		prof_unbias_map_init();
-		prof_active = opt_prof_active;
+		prof_active_state = opt_prof_active;
 		prof_gdump_val = opt_prof_gdump;
 		prof_thread_active_init = opt_prof_thread_active_init;
 

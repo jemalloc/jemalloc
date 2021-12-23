@@ -3622,9 +3622,9 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib,
 		MUTEX_PROF_RESET(arena->tcache_ql_mtx);
 		MUTEX_PROF_RESET(arena->base->mtx);
 
-		for (szind_t i = 0; i < SC_NBINS; i++) {
-			for (unsigned j = 0; j < bin_infos[i].n_shards; j++) {
-				bin_t *bin = arena_get_bin(arena, i, j);
+		for (szind_t j = 0; j < SC_NBINS; j++) {
+			for (unsigned k = 0; k < bin_infos[j].n_shards; k++) {
+				bin_t *bin = arena_get_bin(arena, j, k);
 				MUTEX_PROF_RESET(bin->lock);
 			}
 		}

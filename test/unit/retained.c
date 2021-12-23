@@ -13,43 +13,43 @@ static atomic_u_t	nfinished;
 
 static unsigned
 do_arena_create(extent_hooks_t *h) {
-	unsigned arena_ind;
-	size_t sz = sizeof(unsigned);
-	expect_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz,
+	unsigned new_arena_ind;
+	size_t ind_sz = sizeof(unsigned);
+	expect_d_eq(mallctl("arenas.create", (void *)&new_arena_ind, &ind_sz,
 	    (void *)(h != NULL ? &h : NULL), (h != NULL ? sizeof(h) : 0)), 0,
 	    "Unexpected mallctl() failure");
-	return arena_ind;
+	return new_arena_ind;
 }
 
 static void
-do_arena_destroy(unsigned arena_ind) {
+do_arena_destroy(unsigned ind) {
 	size_t mib[3];
 	size_t miblen;
 
 	miblen = sizeof(mib)/sizeof(size_t);
 	expect_d_eq(mallctlnametomib("arena.0.destroy", mib, &miblen), 0,
 	    "Unexpected mallctlnametomib() failure");
-	mib[1] = (size_t)arena_ind;
+	mib[1] = (size_t)ind;
 	expect_d_eq(mallctlbymib(mib, miblen, NULL, NULL, NULL, 0), 0,
 	    "Unexpected mallctlbymib() failure");
 }
 
 static void
 do_refresh(void) {
-	uint64_t epoch = 1;
-	expect_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch,
-	    sizeof(epoch)), 0, "Unexpected mallctl() failure");
+	uint64_t refresh_epoch = 1;
+	expect_d_eq(mallctl("epoch", NULL, NULL, (void *)&refresh_epoch,
+	    sizeof(refresh_epoch)), 0, "Unexpected mallctl() failure");
 }
 
 static size_t
-do_get_size_impl(const char *cmd, unsigned arena_ind) {
+do_get_size_impl(const char *cmd, unsigned ind) {
 	size_t mib[4];
 	size_t miblen = sizeof(mib) / sizeof(size_t);
 	size_t z = sizeof(size_t);
 
 	expect_d_eq(mallctlnametomib(cmd, mib, &miblen),
 	    0, "Unexpected mallctlnametomib(\"%s\", ...) failure", cmd);
-	mib[2] = arena_ind;
+	mib[2] = ind;
 	size_t size;
 	expect_d_eq(mallctlbymib(mib, miblen, (void *)&size, &z, NULL, 0),
 	    0, "Unexpected mallctlbymib([\"%s\"], ...) failure", cmd);
@@ -58,13 +58,13 @@ do_get_size_impl(const char *cmd, unsigned arena_ind) {
 }
 
 static size_t
-do_get_active(unsigned arena_ind) {
-	return do_get_size_impl("stats.arenas.0.pactive", arena_ind) * PAGE;
+do_get_active(unsigned ind) {
+	return do_get_size_impl("stats.arenas.0.pactive", ind) * PAGE;
 }
 
 static size_t
-do_get_mapped(unsigned arena_ind) {
-	return do_get_size_impl("stats.arenas.0.mapped", arena_ind);
+do_get_mapped(unsigned ind) {
+	return do_get_size_impl("stats.arenas.0.mapped", ind);
 }
 
 static void *
