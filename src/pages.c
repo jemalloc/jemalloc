@@ -278,6 +278,30 @@ pages_map(void *addr, size_t size, size_t alignment, bool *commit) {
 
 		return ret;
 	}
+#elif defined(__linux__) && defined(MAP_FIXED_NOREPLACE)
+	/*
+	 * Since Linux 4.17, there is a similar mechanism throwing EINTR errno
+	 * if there is a mapping collision, there is no straight route
+	 * to produce an aligned page otherwise, see below.
+	 */
+	{
+		if (os_overcommits) {
+			*commit = true;
+		}
+
+		int prot = *commit ? PAGES_PROT_COMMIT : PAGES_PROT_DECOMMIT;
+		int flags = mmap_flags;
+
+		if (addr != NULL) {
+			flags |= MAP_FIXED_NOREPLACE;
+			void *ret = mmap(addr, size, prot, flags, -1, 0);
+			if (ret == MAP_FAILED) {
+				ret = NULL;
+			}
+
+			return ret;
+		}
+	}
 #endif
 	/*
 	 * Ideally, there would be a way to specify alignment to mmap() (like
