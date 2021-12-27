@@ -3239,7 +3239,7 @@ JEMALLOC_EXPORT void *(*__memalign_hook)(size_t alignment, size_t size) =
     je_memalign;
 #  endif
 
-#  ifdef CPU_COUNT
+#  ifdef __GLIBC__
 /*
  * To enable static linking with glibc, the libc specific malloc interface must
  * be implemented also, so none of glibc's malloc.o functions are added to the
