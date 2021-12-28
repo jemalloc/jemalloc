@@ -66,6 +66,17 @@ struct cache_bin_info_s {
 
 /*
  * Responsible for caching allocations associated with a single size.
+ *
+ * Several pointers are used to track the stack.  To save on metadata bytes,
+ * only the stack_head is a full sized pointer (which is dereferenced on the
+ * fastpath), while the others store only the low 16 bits -- this is correct
+ * because a single stack never takes more space than 2^16 bytes, and at the
+ * same time only equality checks are performed on the low bits.
+ *
+ * (low addr)                                                  (high addr)
+ * |------stashed------|------available------|------cached-----|
+ * ^                   ^                     ^                 ^
+ * low_bound(derived)  low_bits_full         stack_head        low_bits_empty
  */
 typedef struct cache_bin_s cache_bin_t;
 struct cache_bin_s {
@@ -94,11 +105,12 @@ struct cache_bin_s {
 
 	/*
 	 * The low bits of the value that stack_head will take on when the array
-	 * is full.  (But remember that stack_head always points to a valid item
-	 * when the array is nonempty -- this is in the array).
+	 * is full (of cached & stashed items).  But remember that stack_head
+	 * always points to a valid item when the array is nonempty -- this is
+	 * in the array.
 	 *
-	 * Recall that since the stack grows down, this is the lowest address in
-	 * the array.  Only adjusted when stashing items.
+	 * Recall that since the stack grows down, this is the lowest available
+	 * address in the array for caching.  Only adjusted when stashing items.
 	 */
 	uint16_t low_bits_full;
 
@@ -246,7 +258,7 @@ cache_bin_empty_position_get(cache_bin_t *bin) {
  * A pointer to the position with the lowest address of the backing array.
  */
 static inline void **
-cache_bin_full_position_get(cache_bin_t *bin, cache_bin_info_t *info) {
+cache_bin_low_bound_get(cache_bin_t *bin, cache_bin_info_t *info) {
 	cache_bin_sz_t ncached_max = cache_bin_info_ncached_max(info);
 	void **ret = cache_bin_empty_position_get(bin) - ncached_max;
 	assert(ret <= bin->stack_head);
@@ -429,14 +441,14 @@ JEMALLOC_ALWAYS_INLINE cache_bin_sz_t
 cache_bin_nstashed_get_internal(cache_bin_t *bin, cache_bin_info_t *info,
     bool racy) {
 	cache_bin_sz_t ncached_max = cache_bin_info_ncached_max(info);
-	void **full = cache_bin_full_position_get(bin, info);
+	void **low_bound = cache_bin_low_bound_get(bin, info);
 
-	cache_bin_sz_t n = cache_bin_diff(bin, (uint16_t)(uintptr_t)full,
+	cache_bin_sz_t n = cache_bin_diff(bin, (uint16_t)(uintptr_t)low_bound,
 	    bin->low_bits_full) / sizeof(void *);
 	assert(n <= ncached_max);
 
 	/* Below are for assertions only. */
-	void *stashed = *(full + n - 1);
+	void *stashed = *(low_bound + n - 1);
 	bool aligned = cache_bin_nonfast_aligned(stashed);
 #ifdef JEMALLOC_JET
 	/* Allow arbitrary pointers to be stashed in tests. */
@@ -564,17 +576,17 @@ cache_bin_init_ptr_array_for_stashed(cache_bin_t *bin, szind_t binind,
 	assert(nstashed > 0);
 	assert(cache_bin_nstashed_get_local(bin, info) == nstashed);
 
-	void **full = cache_bin_full_position_get(bin, info);
-	arr->ptr = full;
+	void **low_bound = cache_bin_low_bound_get(bin, info);
+	arr->ptr = low_bound;
 	assert(*arr->ptr != NULL);
 }
 
 static inline void
 cache_bin_finish_flush_stashed(cache_bin_t *bin, cache_bin_info_t *info) {
-	void **full = cache_bin_full_position_get(bin, info);
+	void **low_bound = cache_bin_low_bound_get(bin, info);
 
 	/* Reset the bin local full position. */
-	bin->low_bits_full = (uint16_t)(uintptr_t)full;
+	bin->low_bits_full = (uint16_t)(uintptr_t)low_bound;
 	assert(cache_bin_nstashed_get_local(bin, info) == 0);
 }
 
