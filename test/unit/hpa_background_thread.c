@@ -129,7 +129,7 @@ TEST_BEGIN(test_hpa_background_thread_purges) {
 	test_skip_if(!hpa_supported());
 	test_skip_if(!have_background_thread);
 	/* Skip since guarded pages cannot be allocated from hpa. */
-	test_skip_if(san_enabled());
+	test_skip_if(san_guard_enabled());
 
 	unsigned arena_ind = create_arena();
 	/*
@@ -145,7 +145,7 @@ TEST_BEGIN(test_hpa_background_thread_enable_disable) {
 	test_skip_if(!hpa_supported());
 	test_skip_if(!have_background_thread);
 	/* Skip since guarded pages cannot be allocated from hpa. */
-	test_skip_if(san_enabled());
+	test_skip_if(san_guard_enabled());
 
 	unsigned arena_ind = create_arena();
 

@@ -76,7 +76,7 @@ san_one_side_guarded_sz(size_t size) {
 }
 
 static inline bool
-san_enabled(void) {
+san_guard_enabled(void) {
 	return (opt_san_guard_large != 0 || opt_san_guard_small != 0);
 }
 
