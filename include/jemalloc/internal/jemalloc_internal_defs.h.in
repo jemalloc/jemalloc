@@ -182,6 +182,9 @@
 /* Support lazy locking (avoid locking unless a second thread is launched). */
 #undef JEMALLOC_LAZY_LOCK
 
+/* Enable prefetching allocated objects. */
+#undef JEMALLOC_PREFETCH_OBJECTS
+
 /*
  * Minimum allocation alignment is 2^LG_QUANTUM bytes (ignoring tiny size
  * classes).
