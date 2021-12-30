@@ -39,14 +39,13 @@ void san_init(ssize_t lg_san_uaf_align);
 static inline void
 san_guard_pages_two_sided(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
     emap_t *emap, bool remap) {
-	return san_guard_pages(tsdn, ehooks, edata, emap, true, true,
-	    remap);
+	san_guard_pages(tsdn, ehooks, edata, emap, true, true, remap);
 }
 
 static inline void
 san_unguard_pages_two_sided(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
     emap_t *emap) {
-	return san_unguard_pages(tsdn, ehooks, edata, emap, true, true);
+	san_unguard_pages(tsdn, ehooks, edata, emap, true, true);
 }
 
 static inline size_t
