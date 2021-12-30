@@ -1,8 +1,12 @@
 #include "test/jemalloc_test.h"
 #include "test/arena_util.h"
+#include "test/san.h"
 
 #include "jemalloc/internal/cache_bin.h"
+#include "jemalloc/internal/san.h"
 #include "jemalloc/internal/safety_check.h"
+
+const char *malloc_conf = TEST_SAN_UAF_ALIGN_ENABLE;
 
 static size_t san_uaf_align;
 
@@ -28,7 +32,7 @@ test_write_after_free_post(void) {
 
 static bool
 uaf_detection_enabled(void) {
-	if (!config_uaf_detection) {
+	if (!config_uaf_detection || !san_uaf_detection_enabled()) {
 		return false;
 	}
 

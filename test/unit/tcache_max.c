@@ -1,4 +1,7 @@
 #include "test/jemalloc_test.h"
+#include "test/san.h"
+
+const char *malloc_conf = TEST_SAN_UAF_ALIGN_DISABLE;
 
 enum {
 	alloc_option_start = 0,
