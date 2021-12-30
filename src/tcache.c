@@ -116,7 +116,7 @@ tcache_gc_item_delay_compute(szind_t szind) {
 	if (item_delay >= delay_max) {
 		item_delay = delay_max - 1;
 	}
-	return item_delay;
+	return (uint8_t)item_delay;
 }
 
 static void
@@ -134,7 +134,11 @@ tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 
 	size_t nflush = low_water - (low_water >> 2);
 	if (nflush < tcache_slow->bin_flush_delay_items[szind]) {
-		tcache_slow->bin_flush_delay_items[szind] -= nflush;
+		/* Workaround for a conversion warning. */
+		uint8_t nflush_uint8 = (uint8_t)nflush;
+		assert(sizeof(tcache_slow->bin_flush_delay_items[0]) ==
+		    sizeof(nflush_uint8));
+		tcache_slow->bin_flush_delay_items[szind] -= nflush_uint8;
 		return;
 	} else {
 		tcache_slow->bin_flush_delay_items[szind]
