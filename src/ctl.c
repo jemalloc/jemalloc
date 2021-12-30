@@ -150,6 +150,7 @@ CTL_PROTO(opt_prof_recent_alloc_max)
 CTL_PROTO(opt_prof_stats)
 CTL_PROTO(opt_prof_sys_thread_name)
 CTL_PROTO(opt_prof_time_res)
+CTL_PROTO(opt_lg_san_uaf_align)
 CTL_PROTO(opt_zero_realloc)
 CTL_PROTO(tcache_create)
 CTL_PROTO(tcache_flush)
@@ -289,6 +290,7 @@ CTL_PROTO(stats_arenas_i_base)
 CTL_PROTO(stats_arenas_i_internal)
 CTL_PROTO(stats_arenas_i_metadata_thp)
 CTL_PROTO(stats_arenas_i_tcache_bytes)
+CTL_PROTO(stats_arenas_i_tcache_stashed_bytes)
 CTL_PROTO(stats_arenas_i_resident)
 CTL_PROTO(stats_arenas_i_abandoned_vm)
 CTL_PROTO(stats_arenas_i_hpa_sec_bytes)
@@ -472,6 +474,7 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("prof_stats"),	CTL(opt_prof_stats)},
 	{NAME("prof_sys_thread_name"),	CTL(opt_prof_sys_thread_name)},
 	{NAME("prof_time_resolution"),	CTL(opt_prof_time_res)},
+	{NAME("lg_san_uaf_align"),	CTL(opt_lg_san_uaf_align)},
 	{NAME("zero_realloc"),	CTL(opt_zero_realloc)}
 };
 
@@ -785,6 +788,8 @@ static const ctl_named_node_t stats_arenas_i_node[] = {
 	{NAME("internal"),	CTL(stats_arenas_i_internal)},
 	{NAME("metadata_thp"),	CTL(stats_arenas_i_metadata_thp)},
 	{NAME("tcache_bytes"),	CTL(stats_arenas_i_tcache_bytes)},
+	{NAME("tcache_stashed_bytes"),
+	    CTL(stats_arenas_i_tcache_stashed_bytes)},
 	{NAME("resident"),	CTL(stats_arenas_i_resident)},
 	{NAME("abandoned_vm"),	CTL(stats_arenas_i_abandoned_vm)},
 	{NAME("hpa_sec_bytes"),	CTL(stats_arenas_i_hpa_sec_bytes)},
@@ -1167,6 +1172,8 @@ MUTEX_PROF_ARENA_MUTEXES
 		    &astats->astats.pa_shard_stats.pac_stats.abandoned_vm);
 
 		sdstats->astats.tcache_bytes += astats->astats.tcache_bytes;
+		sdstats->astats.tcache_stashed_bytes +=
+		    astats->astats.tcache_stashed_bytes;
 
 		if (ctl_arena->arena_ind == 0) {
 			sdstats->astats.uptime = astats->astats.uptime;
@@ -2201,6 +2208,8 @@ CTL_RO_NL_CGEN(config_prof, opt_prof_sys_thread_name, opt_prof_sys_thread_name,
     bool)
 CTL_RO_NL_CGEN(config_prof, opt_prof_time_res,
     prof_time_res_mode_names[opt_prof_time_res], const char *)
+CTL_RO_NL_CGEN(config_uaf_detection, opt_lg_san_uaf_align,
+    opt_lg_san_uaf_align, ssize_t)
 CTL_RO_NL_GEN(opt_zero_realloc,
     zero_realloc_mode_names[opt_zero_realloc_action], const char *)
 
@@ -3499,6 +3508,8 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_metadata_thp,
     arenas_i(mib[2])->astats->astats.metadata_thp, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_tcache_bytes,
     arenas_i(mib[2])->astats->astats.tcache_bytes, size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_tcache_stashed_bytes,
+    arenas_i(mib[2])->astats->astats.tcache_stashed_bytes, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_resident,
     arenas_i(mib[2])->astats->astats.resident,
     size_t)
