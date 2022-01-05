@@ -3167,6 +3167,8 @@ je_valloc(size_t size) {
  * passed an extra argument for the caller return address, which will be
  * ignored.
  */
+#include <features.h> // defines __GLIBC__ if we are compiling against glibc
+
 JEMALLOC_EXPORT void (*__free_hook)(void *ptr) = je_free;
 JEMALLOC_EXPORT void *(*__malloc_hook)(size_t size) = je_malloc;
 JEMALLOC_EXPORT void *(*__realloc_hook)(void *ptr, size_t size) = je_realloc;
