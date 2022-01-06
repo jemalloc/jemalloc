@@ -425,14 +425,15 @@ case "${host_cpu}" in
 	;;
   aarch64|arm*)
 	HAVE_CPU_SPINWAIT=1
-    AC_CACHE_VAL([je_cv_yield],
-      [JE_COMPILABLE([yield instruction], [],
-                    [[__asm__ volatile("yield"); return 0;]],
-                    [je_cv_yield])])
-	if test "x${je_cv_yield}" = "xyes" ; then
-	CPU_SPINWAIT='__asm__ volatile("yield")'
+	dnl isb is a better equivalent to the pause instruction on x86.
+	AC_CACHE_VAL([je_cv_isb],
+	  [JE_COMPILABLE([isb instruction], [],
+			[[__asm__ volatile("isb"); return 0;]],
+			[je_cv_isb])])
+	if test "x${je_cv_isb}" = "xyes" ; then
+	    CPU_SPINWAIT='__asm__ volatile("isb")'
 	fi
-    ;;
+	;;
   *)
 	HAVE_CPU_SPINWAIT=0
 	;;
