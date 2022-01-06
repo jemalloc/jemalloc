@@ -427,10 +427,10 @@ case "${host_cpu}" in
 	HAVE_CPU_SPINWAIT=1
     AC_CACHE_VAL([je_cv_yield],
       [JE_COMPILABLE([yield instruction], [],
-                    [[__asm__ volatile("yield"); return 0;]],
+                    [[__asm__ volatile("isb"); return 0;]],
                     [je_cv_yield])])
 	if test "x${je_cv_yield}" = "xyes" ; then
-	CPU_SPINWAIT='__asm__ volatile("yield")'
+	CPU_SPINWAIT='__asm__ volatile("isb")'
 	fi
     ;;
   *)
