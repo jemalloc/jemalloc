@@ -472,6 +472,12 @@ arena_migrate(tsd_t *tsd, unsigned oldind, unsigned newind) {
 	arena_nthreads_dec(oldarena, false);
 	arena_nthreads_inc(newarena, false);
 	tsd_arena_set(tsd, newarena);
+
+	if (arena_nthreads_get(oldarena, false) == 0) {
+		/* Purge if the old arena has no associated threads anymore. */
+		arena_decay(tsd_tsdn(tsd), oldarena,
+		    /* is_background_thread */ false, /* all */ true);
+	}
 }
 
 static void
