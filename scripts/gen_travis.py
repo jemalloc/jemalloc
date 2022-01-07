@@ -7,6 +7,7 @@ from enum import Enum, auto
 LINUX = 'linux'
 OSX = 'osx'
 WINDOWS = 'windows'
+FREEBSD = 'freebsd'
 
 
 AMD64 = 'amd64'
@@ -140,6 +141,9 @@ all_unusuals = (compilers_unusual + feature_unusuals
 
 
 def get_extra_cflags(os, compiler):
+    if os == FREEBSD:
+        return []
+
     if os == WINDOWS:
         # For non-CL compilers under Windows (for now it's only MinGW-GCC),
         # -fcommon needs to be specified to correctly handle multiple
@@ -273,6 +277,19 @@ def generate_windows(arch):
     return generate_jobs(os, arch, (), max_unusual_opts, unusuals)
 
 
+def generate_freebsd(arch):
+    os = FREEBSD
+
+    max_unusual_opts = 4
+    unusuals = (
+        Option.as_configure_flag('--enable-debug'),
+        Option.as_configure_flag('--enable-prof --enable-prof-libunwind'),
+        Option.as_configure_flag('--with-lg-page=16 --with-malloc-conf=tcache:false'),
+        CROSS_COMPILE_32BIT,
+    )
+    return generate_jobs(os, arch, (), max_unusual_opts, unusuals)
+
+
 
 def get_manual_jobs():
     return """\
@@ -297,6 +314,8 @@ def main():
         generate_macos(AMD64),
 
         #generate_windows(AMD64),
+
+        generate_freebsd(AMD64),
 
         get_manual_jobs()
     ))
