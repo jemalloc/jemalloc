@@ -4,8 +4,8 @@
 static void
 sleep_for_background_thread_interval() {
 	/*
-	 * The sleep interval set in our .sh file is 50ms.  So it should
-	 * definitely run if we sleep for for times that.
+	 * The sleep interval set in our .sh file is 50ms.  So it likely will
+	 * run if we sleep for four times that.
 	 */
 	sleep_ns(200 * 1000 * 1000);
 }
@@ -117,10 +117,18 @@ expect_purging(unsigned arena_ind, bool expect_deferred) {
 		}
 	}
 	expect_b_eq(expect_deferred, observed_dirty_page, "");
-	if (expect_deferred) {
+
+	/*
+	 * Under high concurrency / heavy test load (e.g. using run_test.sh),
+	 * the background thread may not get scheduled for a longer period of
+	 * time.  Retry 100 times max before bailing out.
+	 */
+	unsigned retry = 0;
+	while ((empty_ndirty = get_empty_ndirty(arena_ind)) > 0 &&
+	    expect_deferred && (retry++ < 100)) {
 		sleep_for_background_thread_interval();
 	}
-	empty_ndirty = get_empty_ndirty(arena_ind);
+
 	expect_zu_eq(0, empty_ndirty, "Should have seen a background purge");
 }
 
