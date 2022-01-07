@@ -245,16 +245,29 @@ extents_abandon_vm(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 }
 
 static void
-extent_deactivate_locked(tsdn_t *tsdn, pac_t *pac, ecache_t *ecache,
+extent_deactivate_locked_impl(tsdn_t *tsdn, pac_t *pac, ecache_t *ecache,
     edata_t *edata) {
 	malloc_mutex_assert_owner(tsdn, &ecache->mtx);
 	assert(edata_arena_ind_get(edata) == ecache_ind_get(ecache));
-	assert(edata_state_get(edata) == extent_state_active);
 
 	emap_update_edata_state(tsdn, pac->emap, edata, ecache->state);
 	eset_t *eset = edata_guarded_get(edata) ? &ecache->guarded_eset :
 	    &ecache->eset;
 	eset_insert(eset, edata);
+}
+
+static void
+extent_deactivate_locked(tsdn_t *tsdn, pac_t *pac, ecache_t *ecache,
+    edata_t *edata) {
+	assert(edata_state_get(edata) == extent_state_active);
+	extent_deactivate_locked_impl(tsdn, pac, ecache, edata);
+}
+
+static void
+extent_deactivate_check_state_locked(tsdn_t *tsdn, pac_t *pac, ecache_t *ecache,
+    edata_t *edata, extent_state_t expected_state) {
+	assert(edata_state_get(edata) == expected_state);
+	extent_deactivate_locked_impl(tsdn, pac, ecache, edata);
 }
 
 static void
@@ -796,7 +809,8 @@ extent_coalesce(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 	    forward ? inner : outer, forward ? outer : inner,
 	    /* holding_core_locks */ true);
 	if (err) {
-		extent_deactivate_locked(tsdn, pac, ecache, outer);
+		extent_deactivate_check_state_locked(tsdn, pac, ecache, outer,
+		    extent_state_merging);
 	}
 
 	return err;
