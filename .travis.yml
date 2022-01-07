@@ -304,6 +304,54 @@ jobs:
     - os: osx
       arch: amd64
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+    - os: freebsd
+      arch: amd64
+      env: CC=gcc CXX=g++
+    - os: freebsd
+      arch: amd64
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug"
+    - os: freebsd
+      arch: amd64
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --enable-prof-libunwind"
+    - os: freebsd
+      arch: amd64
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-lg-page=16 --with-malloc-conf=tcache:false"
+    - os: freebsd
+      arch: amd64
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes
+    - os: freebsd
+      arch: amd64
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --enable-prof --enable-prof-libunwind"
+    - os: freebsd
+      arch: amd64
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --with-lg-page=16 --with-malloc-conf=tcache:false"
+    - os: freebsd
+      arch: amd64
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes CONFIGURE_FLAGS="--enable-debug"
+    - os: freebsd
+      arch: amd64
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --enable-prof-libunwind --with-lg-page=16 --with-malloc-conf=tcache:false"
+    - os: freebsd
+      arch: amd64
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes CONFIGURE_FLAGS="--enable-prof --enable-prof-libunwind"
+    - os: freebsd
+      arch: amd64
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes CONFIGURE_FLAGS="--with-lg-page=16 --with-malloc-conf=tcache:false"
+    - os: freebsd
+      arch: amd64
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --enable-prof --enable-prof-libunwind --with-lg-page=16 --with-malloc-conf=tcache:false"
+    - os: freebsd
+      arch: amd64
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes CONFIGURE_FLAGS="--enable-debug --enable-prof --enable-prof-libunwind"
+    - os: freebsd
+      arch: amd64
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes CONFIGURE_FLAGS="--enable-debug --with-lg-page=16 --with-malloc-conf=tcache:false"
+    - os: freebsd
+      arch: amd64
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes CONFIGURE_FLAGS="--enable-prof --enable-prof-libunwind --with-lg-page=16 --with-malloc-conf=tcache:false"
+    - os: freebsd
+      arch: amd64
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes CONFIGURE_FLAGS="--enable-debug --enable-prof --enable-prof-libunwind --with-lg-page=16 --with-malloc-conf=tcache:false"
     # Development build
     - os: linux
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --disable-cache-oblivious --enable-stats --enable-log --enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
