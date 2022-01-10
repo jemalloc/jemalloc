@@ -62,7 +62,7 @@ void arena_set(unsigned ind, arena_t *arena);
 unsigned narenas_total_get(void);
 arena_t *arena_init(tsdn_t *tsdn, unsigned ind, const arena_config_t *config);
 arena_t *arena_choose_hard(tsd_t *tsd, bool internal);
-void arena_migrate(tsd_t *tsd, unsigned oldind, unsigned newind);
+void arena_migrate(tsd_t *tsd, arena_t *oldarena, arena_t *newarena);
 void iarena_cleanup(tsd_t *tsd);
 void arena_cleanup(tsd_t *tsd);
 size_t batch_alloc(void **ptrs, size_t num, size_t size, int flags);

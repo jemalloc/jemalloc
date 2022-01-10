@@ -464,11 +464,10 @@ arena_bind(tsd_t *tsd, unsigned ind, bool internal) {
 }
 
 void
-arena_migrate(tsd_t *tsd, unsigned oldind, unsigned newind) {
-	arena_t *oldarena, *newarena;
+arena_migrate(tsd_t *tsd, arena_t *oldarena, arena_t *newarena) {
+	assert(oldarena != NULL);
+	assert(newarena != NULL);
 
-	oldarena = arena_get(tsd_tsdn(tsd), oldind, false);
-	newarena = arena_get(tsd_tsdn(tsd), newind, false);
 	arena_nthreads_dec(oldarena, false);
 	arena_nthreads_inc(newarena, false);
 	tsd_arena_set(tsd, newarena);
