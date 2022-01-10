@@ -1790,6 +1790,7 @@ prof_leakcheck(const prof_cnt_t *cnt_all, size_t leak_ngctx,
 		malloc_printf(
 		    "<jemalloc>: Run jeprof on \"%s\" for leak detail\n",
 		    filename);
+		_exit(1);    // we don't want to call atexit() routines!
 	}
 #endif
 }
@@ -1937,7 +1938,6 @@ prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
 	if (leakcheck) {
 		prof_leakcheck(&prof_tdata_merge_iter_arg.cnt_all,
 		    prof_gctx_merge_iter_arg.leak_ngctx, filename);
-		_exit(1);    // we don't want to call atexit() routines!
 	}
 	return false;
 }
