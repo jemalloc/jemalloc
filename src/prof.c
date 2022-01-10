@@ -1790,6 +1790,7 @@ prof_leakcheck(const prof_cnt_t *cnt_all, size_t leak_ngctx,
 		malloc_printf(
 		    "<jemalloc>: Run jeprof on \"%s\" for leak detail\n",
 		    filename);
+		_exit(1);    // we don't want to call atexit() routines!
 	}
 #endif
 }
