@@ -977,7 +977,7 @@ AC_PATH_PROG([AUTOCONF], [autoconf], [false], [$PATH])
 
 dnl Enable documentation
 AC_ARG_ENABLE([doc],
-	      [AS_HELP_STRING([--enable-documentation], [Build documentation])],
+	      [AS_HELP_STRING([--enable-doc], [Build documentation])],
 if test "x$enable_doc" = "xno" ; then
   enable_doc="0"
 else
