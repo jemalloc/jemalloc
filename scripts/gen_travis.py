@@ -296,7 +296,7 @@ def main():
 
         generate_macos(AMD64),
 
-        generate_windows(AMD64),
+        #generate_windows(AMD64),
 
         get_manual_jobs()
     ))
