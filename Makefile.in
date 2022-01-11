@@ -177,7 +177,6 @@ else
 LJEMALLOC := $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
 endif
 PC := $(objroot)jemalloc.pc
-MAN3 := $(objroot)doc/jemalloc$(install_suffix).3
 DOCS_XML := $(objroot)doc/jemalloc$(install_suffix).xml
 DOCS_HTML := $(DOCS_XML:$(objroot)%.xml=$(objroot)%.html)
 DOCS_MAN3 := $(DOCS_XML:$(objroot)%.xml=$(objroot)%.3)
@@ -378,7 +377,7 @@ all: build_lib
 
 dist: build_doc
 
-$(objroot)doc/%.html : $(objroot)doc/%.xml $(srcroot)doc/stylesheet.xsl $(objroot)doc/html.xsl
+$(objroot)doc/%$(install_suffix).html : $(objroot)doc/%.xml $(srcroot)doc/stylesheet.xsl $(objroot)doc/html.xsl
 ifneq ($(XSLROOT),)
 	$(XSLTPROC) -o $@ $(objroot)doc/html.xsl $<
 else
@@ -388,9 +387,16 @@ endif
 	@echo "Missing xsltproc.  "$@" not (re)built."
 endif
 
-$(objroot)doc/%.3 : $(objroot)doc/%.xml $(srcroot)doc/stylesheet.xsl $(objroot)doc/manpages.xsl
+$(objroot)doc/%$(install_suffix).3 : $(objroot)doc/%.xml $(srcroot)doc/stylesheet.xsl $(objroot)doc/manpages.xsl
 ifneq ($(XSLROOT),)
 	$(XSLTPROC) -o $@ $(objroot)doc/manpages.xsl $<
+# The -o option (output filename) of xsltproc may not work (it uses the
+# <refname> in the .xml file).  Manually add the suffix if so.
+  ifneq ($(install_suffix),)
+	@if [ -f $(objroot)doc/jemalloc.3 ]; then \
+		mv $(objroot)doc/jemalloc.3 $(objroot)doc/jemalloc$(install_suffix).3 ; \
+	fi
+  endif
 else
 ifeq ($(wildcard $(DOCS_MAN3)),)
 	@echo "Missing xsltproc.  Doc not built." > $@
