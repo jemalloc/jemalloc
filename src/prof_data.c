@@ -1039,8 +1039,8 @@ prof_leakcheck(const prof_cnt_t *cnt_all, size_t leak_ngctx) {
 		    "<jemalloc>: Run jeprof on dump output for leak detail\n");
 		if (opt_prof_leak_error) {
 			malloc_printf(
-					"<jemalloc>: Exiting with error code because of whole-"
-					"program memory leaks\n");
+			    "<jemalloc>: Exiting with error code because of whole-"
+			    "program memory leaks\n");
 			_exit(1);    // we don't want to call atexit() routines!
 		}
 	}
