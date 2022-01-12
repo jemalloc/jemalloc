@@ -1530,6 +1530,7 @@ stats_general_print(emitter_t *emitter) {
 	OPT_WRITE_BOOL("prof_gdump")
 	OPT_WRITE_BOOL("prof_final")
 	OPT_WRITE_BOOL("prof_leak")
+	OPT_WRITE_BOOL("prof_leak_error")
 	OPT_WRITE_BOOL("stats_print")
 	OPT_WRITE_CHAR_P("stats_print_opts")
 	OPT_WRITE_BOOL("stats_print")

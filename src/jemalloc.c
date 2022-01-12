@@ -1578,6 +1578,26 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				CONF_HANDLE_BOOL(opt_prof_gdump, "prof_gdump")
 				CONF_HANDLE_BOOL(opt_prof_final, "prof_final")
 				CONF_HANDLE_BOOL(opt_prof_leak, "prof_leak")
+				if (CONF_MATCH("prof_leak_error")) {
+					if (CONF_MATCH_VALUE("true")) {
+						if (!opt_prof_final) {
+							CONF_ERROR(
+							    "prof_leak_error is"
+							    " not allowed"
+							    " without"
+							    " prof_leak_final",
+							    k, klen, v, vlen);
+						} else {
+							opt_prof_leak = true;
+							opt_prof_leak_error =
+							    true;
+                                                }
+                                        } else if (!CONF_MATCH_VALUE("false")) {
+						CONF_ERROR("Invalid conf value",
+						    k, klen, v, vlen);
+					}
+					CONF_CONTINUE;
+				}
 				CONF_HANDLE_BOOL(opt_prof_log, "prof_log")
 				CONF_HANDLE_SSIZE_T(opt_prof_recent_alloc_max,
 				    "prof_recent_alloc_max", -1, SSIZE_MAX)

@@ -12,6 +12,7 @@ extern ssize_t opt_lg_prof_interval; /* lg(prof_interval). */
 extern bool opt_prof_gdump;          /* High-water memory dumping. */
 extern bool opt_prof_final;          /* Final profile dumping. */
 extern bool opt_prof_leak;           /* Dump leak summary at exit. */
+extern bool opt_prof_leak_error;     /* Exit with error code if memory leaked */
 extern bool opt_prof_accum;          /* Report cumulative bytes. */
 extern bool opt_prof_log;            /* Turn logging on at boot. */
 extern char opt_prof_prefix[

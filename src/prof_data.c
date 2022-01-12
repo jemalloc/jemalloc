@@ -1037,6 +1037,16 @@ prof_leakcheck(const prof_cnt_t *cnt_all, size_t leak_ngctx) {
 		    1) ? "s" : "", leak_ngctx, (leak_ngctx != 1) ? "s" : "");
 		malloc_printf(
 		    "<jemalloc>: Run jeprof on dump output for leak detail\n");
+		if (opt_prof_leak_error) {
+			malloc_printf(
+			    "<jemalloc>: Exiting with error code because memory"
+			    " leaks were detected\n");
+			/*
+			 * Use _exit() with underscore to avoid calling atexit()
+			 * and entering endless cycle.
+			 */
+			_exit(1);
+		}
 	}
 #endif
 }

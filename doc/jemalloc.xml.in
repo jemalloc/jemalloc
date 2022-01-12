@@ -1553,6 +1553,25 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
+      <varlistentry id="opt.prof_leak_error">
+        <term>
+          <mallctl>opt.prof_leak_error</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+          [<option>--enable-prof</option>]
+        </term>
+        <listitem><para>Similar to <link linkend="opt.prof_leak"><mallctl>
+        opt.prof_leak</mallctl></link>, but makes the process exit with error
+        code 1 if a memory leak is detected.  This option supersedes
+        <link linkend="opt.prof_leak"><mallctl>opt.prof_leak</mallctl></link>,
+        meaning that if both are specified, this option takes precedence.  When
+        enabled, also enables <link linkend="opt.prof_leak"><mallctl>
+        opt.prof_leak</mallctl></link>.  Works only when combined with
+        <link linkend="opt.prof_final"><mallctl>opt.prof_final</mallctl></link>,
+        otherwise does nothing.  This option is disabled by default.
+        </para></listitem>
+      </varlistentry>
+
       <varlistentry id="opt.zero_realloc">
         <term>
           <mallctl>opt.zero_realloc</mallctl>
