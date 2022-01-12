@@ -1553,6 +1553,24 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </para></listitem>
       </varlistentry>
 
+      <varlistentry id="opt.prof_leak_error">
+        <term>
+          <mallctl>opt.prof_leak_error</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+          [<option>--enable-prof</option>]
+        </term>
+        <listitem><para>Leak exit error enabled/disabled.  If enabled, use an
+        <citerefentry><refentrytitle>atexit</refentrytitle>
+        <manvolnum>3</manvolnum></citerefentry> function to report memory leaks
+        detected by allocation sampling, and exit 1 when memory leak is found.  See the
+        <link linkend="opt.prof"><mallctl>opt.prof</mallctl></link> option for
+        information on analyzing heap profile output.  Works only when combined
+        with <link linkend="opt.prof_leak"><mallctl>opt.prof_leak</mallctl>
+        </link>, otherwise does nothing.  This option is disabled by default.
+        </para></listitem>
+      </varlistentry>
+
       <varlistentry id="opt.zero_realloc">
         <term>
           <mallctl>opt.zero_realloc</mallctl>
