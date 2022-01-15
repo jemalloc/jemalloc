@@ -554,20 +554,18 @@ endif
 install_bin:
 	$(INSTALL) -d $(BINDIR)
 	@for b in $(BINS); do \
-	echo "$(INSTALL) -m 755 $$b $(BINDIR)"; \
-	$(INSTALL) -m 755 $$b $(BINDIR); \
+	$(INSTALL) -v -m 755 $$b $(BINDIR); \
 done
 
 install_include:
 	$(INSTALL) -d $(INCLUDEDIR)/jemalloc
 	@for h in $(C_HDRS); do \
-	echo "$(INSTALL) -m 644 $$h $(INCLUDEDIR)/jemalloc"; \
-	$(INSTALL) -m 644 $$h $(INCLUDEDIR)/jemalloc; \
+	$(INSTALL) -v -m 644 $$h $(INCLUDEDIR)/jemalloc; \
 done
 
 install_lib_shared: $(DSOS)
 	$(INSTALL) -d $(LIBDIR)
-	$(INSTALL) -m 755 $(objroot)lib/$(LIBJEMALLOC).$(SOREV) $(LIBDIR)
+	$(INSTALL) -v -m 755 $(objroot)lib/$(LIBJEMALLOC).$(SOREV) $(LIBDIR)
 ifneq ($(SOREV),$(SO))
 	ln -sf $(LIBJEMALLOC).$(SOREV) $(LIBDIR)/$(LIBJEMALLOC).$(SO)
 endif
@@ -575,15 +573,13 @@ endif
 install_lib_static: $(STATIC_LIBS)
 	$(INSTALL) -d $(LIBDIR)
 	@for l in $(STATIC_LIBS); do \
-	echo "$(INSTALL) -m 755 $$l $(LIBDIR)"; \
-	$(INSTALL) -m 755 $$l $(LIBDIR); \
+	$(INSTALL) -v -m 755 $$l $(LIBDIR); \
 done
 
 install_lib_pc: $(PC)
 	$(INSTALL) -d $(LIBDIR)/pkgconfig
 	@for l in $(PC); do \
-	echo "$(INSTALL) -m 644 $$l $(LIBDIR)/pkgconfig"; \
-	$(INSTALL) -m 644 $$l $(LIBDIR)/pkgconfig; \
+	$(INSTALL) -v -m 644 $$l $(LIBDIR)/pkgconfig; \
 done
 
 ifeq ($(enable_shared), 1)
@@ -597,15 +593,13 @@ install_lib: install_lib_pc
 install_doc_html: build_doc_html
 	$(INSTALL) -d $(DATADIR)/doc/jemalloc$(install_suffix)
 	@for d in $(DOCS_HTML); do \
-	echo "$(INSTALL) -m 644 $$d $(DATADIR)/doc/jemalloc$(install_suffix)"; \
-	$(INSTALL) -m 644 $$d $(DATADIR)/doc/jemalloc$(install_suffix); \
+	$(INSTALL) -v -m 644 $$d $(DATADIR)/doc/jemalloc$(install_suffix); \
 done
 
 install_doc_man: build_doc_man
 	$(INSTALL) -d $(MANDIR)/man3
 	@for d in $(DOCS_MAN3); do \
-	echo "$(INSTALL) -m 644 $$d $(MANDIR)/man3"; \
-	$(INSTALL) -m 644 $$d $(MANDIR)/man3; \
+	$(INSTALL) -v -m 644 $$d $(MANDIR)/man3; \
 done
 
 install_doc: install_doc_html install_doc_man
