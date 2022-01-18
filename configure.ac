@@ -1109,7 +1109,10 @@ AC_SUBST([private_namespace])
 dnl Do not add suffix to installed files by default.
 AC_ARG_WITH([install_suffix],
   [AS_HELP_STRING([--with-install-suffix=<suffix>], [Suffix to append to all installed files])],
-  [INSTALL_SUFFIX="$with_install_suffix"],
+  [case "$with_install_suffix" in
+   *\ * ) AC_MSG_ERROR([Install suffix should not contain spaces]) ;;
+   * ) INSTALL_SUFFIX="$with_install_suffix" ;;
+esac],
   [INSTALL_SUFFIX=]
 )
 install_suffix="$INSTALL_SUFFIX"
