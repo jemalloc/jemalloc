@@ -131,12 +131,14 @@ abs_objroot="`pwd`/"
 AC_SUBST([abs_objroot])
 
 dnl Munge install path variables.
-if test "x$prefix" = "xNONE" ; then
-  prefix="/usr/local"
-fi
-if test "x$exec_prefix" = "xNONE" ; then
-  exec_prefix=$prefix
-fi
+case "$prefix" in
+   *\ * ) AC_MSG_ERROR([Prefix should not contain spaces]) ;;
+   "NONE" ) prefix="/usr/local" ;;
+esac
+case "$exec_prefix" in
+   *\ * ) AC_MSG_ERROR([Exec prefix should not contain spaces]) ;;
+   "NONE" ) exec_prefix=$prefix ;;
+esac
 PREFIX=$prefix
 AC_SUBST([PREFIX])
 BINDIR=`eval echo $bindir`
