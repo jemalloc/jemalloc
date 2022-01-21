@@ -1579,6 +1579,13 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				CONF_HANDLE_BOOL(opt_prof_final, "prof_final")
 				CONF_HANDLE_BOOL(opt_prof_leak, "prof_leak")
 				CONF_HANDLE_BOOL(opt_prof_leak_error, "prof_leak_error")
+				if (!prof_leak && prof_leak_error) {
+					CONF_ERROR(
+					    "No prof_leak_error support"
+					    " w/o prof_leak",
+					    k, klen, v, vlen);
+				}
+				
 				CONF_HANDLE_BOOL(opt_prof_log, "prof_log")
 				CONF_HANDLE_SSIZE_T(opt_prof_recent_alloc_max,
 				    "prof_recent_alloc_max", -1, SSIZE_MAX)
