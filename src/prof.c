@@ -564,6 +564,9 @@ prof_boot1(void) {
 	 * opt_prof must be in its final state before any arenas are
 	 * initialized, so this function must be executed early.
 	 */
+	if (opt_prof_leak_error && !opt_prof_leak) {
+		opt_prof_leak = true;
+	}
 
 	if (opt_prof_leak && !opt_prof) {
 		/*
