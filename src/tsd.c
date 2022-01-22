@@ -9,9 +9,6 @@
 /******************************************************************************/
 /* Data. */
 
-static unsigned ncleanups;
-static malloc_tsd_cleanup_t cleanups[MALLOC_TSD_CLEANUPS_MAX];
-
 /* TSD_INITIALIZER triggers "-Wmissing-field-initializer" */
 JEMALLOC_DIAGNOSTIC_PUSH
 JEMALLOC_DIAGNOSTIC_IGNORE_MISSING_STRUCT_FIELD_INITIALIZERS
@@ -337,6 +334,9 @@ malloc_tsd_dalloc(void *wrapper) {
 }
 
 #if defined(JEMALLOC_MALLOC_THREAD_CLEANUP) || defined(_WIN32)
+static unsigned ncleanups;
+static malloc_tsd_cleanup_t cleanups[MALLOC_TSD_CLEANUPS_MAX];
+
 #ifndef _WIN32
 JEMALLOC_EXPORT
 #endif
@@ -361,14 +361,18 @@ _malloc_thread_cleanup(void) {
 		}
 	} while (again);
 }
-#endif
 
+#ifndef _WIN32
+JEMALLOC_EXPORT
+#endif
 void
-malloc_tsd_cleanup_register(bool (*f)(void)) {
+_malloc_tsd_cleanup_register(bool (*f)(void)) {
 	assert(ncleanups < MALLOC_TSD_CLEANUPS_MAX);
 	cleanups[ncleanups] = f;
 	ncleanups++;
 }
+
+#endif
 
 static void
 tsd_do_data_cleanup(tsd_t *tsd) {
@@ -429,7 +433,9 @@ tsd_t *
 malloc_tsd_boot0(void) {
 	tsd_t *tsd;
 
+#if defined(JEMALLOC_MALLOC_THREAD_CLEANUP) || defined(_WIN32)
 	ncleanups = 0;
+#endif
 	if (malloc_mutex_init(&tsd_nominal_tsds_lock, "tsd_nominal_tsds_lock",
 	    WITNESS_RANK_OMIT, malloc_mutex_rank_exclusive)) {
 		return NULL;
