@@ -1999,7 +1999,7 @@ AC_CHECK_FUNC([_malloc_thread_cleanup],
              )
 if test "x$have__malloc_thread_cleanup" = "x1" ; then
   AC_DEFINE([JEMALLOC_MALLOC_THREAD_CLEANUP], [ ], [ ])
-  wrap_syms="${wrap_syms} _malloc_thread_cleanup"
+  wrap_syms="${wrap_syms} _malloc_thread_cleanup _malloc_tsd_cleanup_register"
   force_tls="1"
 fi
 
