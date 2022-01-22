@@ -1585,7 +1585,7 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 							    "prof_leak_error is"
 							    " not allowed"
 							    " without"
-							    " prof_leak_final",
+							    " prof_final",
 							    k, klen, v, vlen);
 						} else {
 							opt_prof_leak = true;
