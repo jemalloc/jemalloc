@@ -1578,26 +1578,8 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				CONF_HANDLE_BOOL(opt_prof_gdump, "prof_gdump")
 				CONF_HANDLE_BOOL(opt_prof_final, "prof_final")
 				CONF_HANDLE_BOOL(opt_prof_leak, "prof_leak")
-				if (CONF_MATCH("prof_leak_error")) {
-					if (CONF_MATCH_VALUE("true")) {
-						if (!opt_prof_final) {
-							CONF_ERROR(
-							    "prof_leak_error is"
-							    " not allowed"
-							    " without"
-							    " prof_final",
-							    k, klen, v, vlen);
-						} else {
-							opt_prof_leak = true;
-							opt_prof_leak_error =
-							    true;
-                                                }
-                                        } else if (!CONF_MATCH_VALUE("false")) {
-						CONF_ERROR("Invalid conf value",
-						    k, klen, v, vlen);
-					}
-					CONF_CONTINUE;
-				}
+				CONF_HANDLE_BOOL(opt_prof_leak_error,
+				    "prof_leak_error")
 				CONF_HANDLE_BOOL(opt_prof_log, "prof_log")
 				CONF_HANDLE_SSIZE_T(opt_prof_recent_alloc_max,
 				    "prof_recent_alloc_max", -1, SSIZE_MAX)
@@ -1742,6 +1724,17 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 	atomic_store_b(&log_init_done, true, ATOMIC_RELEASE);
 }
 
+static bool
+malloc_conf_init_check_deps(void) {
+	if (opt_prof_leak_error && !opt_prof_final) {
+		malloc_printf("<jemalloc>: prof_leak_error is set w/o "
+		    "prof_final.\n");
+		return true;
+	}
+
+	return false;
+}
+
 static void
 malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 	const char *opts_cache[MALLOC_CONF_NSOURCES] = {NULL, NULL, NULL, NULL,
@@ -1752,6 +1745,12 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
 	malloc_conf_init_helper(NULL, NULL, true, opts_cache, buf);
 	malloc_conf_init_helper(sc_data, bin_shard_sizes, false, opts_cache,
 	    NULL);
+	if (malloc_conf_init_check_deps()) {
+		/* check_deps does warning msg only; abort below if needed. */
+		if (opt_abort_conf) {
+			malloc_abort_invalid_conf();
+		}
+	}
 }
 
 #undef MALLOC_CONF_NSOURCES
