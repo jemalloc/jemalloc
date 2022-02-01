@@ -55,22 +55,52 @@ extern void sz_boot(const sc_data_t *sc_data, bool cache_oblivious);
 
 JEMALLOC_ALWAYS_INLINE pszind_t
 sz_psz2ind(size_t psz) {
+	assert(psz > 0);
 	if (unlikely(psz > SC_LARGE_MAXCLASS)) {
 		return SC_NPSIZES;
 	}
-	pszind_t x = lg_floor((psz<<1)-1);
-	pszind_t shift = (x < SC_LG_NGROUP + LG_PAGE) ?
+	/* x is the lg of the first base >= psz. */
+	pszind_t x = lg_ceil(psz);
+	/*
+	 * sc.h introduces a lot of size classes. These size classes are divided
+	 * into different size class groups. There is a very special size class
+	 * group, each size class in or after it is an integer multiple of PAGE.
+	 * We call it first_ps_rg. It means first page size regular group. The
+	 * range of first_ps_rg is (base, base * 2], and base == PAGE *
+	 * SC_NGROUP. off_to_first_ps_rg begins from 1, instead of 0. e.g.
+	 * off_to_first_ps_rg is 1 when psz is (PAGE * SC_NGROUP + 1).
+	 */
+	pszind_t off_to_first_ps_rg = (x < SC_LG_NGROUP + LG_PAGE) ?
 	    0 : x - (SC_LG_NGROUP + LG_PAGE);
-	pszind_t grp = shift << SC_LG_NGROUP;
 
-	pszind_t lg_delta = (x < SC_LG_NGROUP + LG_PAGE + 1) ?
-	    LG_PAGE : x - SC_LG_NGROUP - 1;
+	/*
+	 * Same as sc_s::lg_delta.
+	 * Delta for off_to_first_ps_rg == 1 is PAGE,
+	 * for each increase in offset, it's multiplied by two.
+	 * Therefore, lg_delta = LG_PAGE + (off_to_first_ps_rg - 1).
+	 */
+	pszind_t lg_delta = (off_to_first_ps_rg == 0) ?
+	    LG_PAGE : LG_PAGE + (off_to_first_ps_rg - 1);
 
-	size_t delta_inverse_mask = ZU(-1) << lg_delta;
-	pszind_t mod = ((((psz-1) & delta_inverse_mask) >> lg_delta)) &
-	    ((ZU(1) << SC_LG_NGROUP) - 1);
+	/*
+	 * Let's write psz in binary, e.g. 0011 for 0x3, 0111 for 0x7.
+	 * The leftmost bits whose len is lg_base decide the base of psz.
+	 * The rightmost bits whose len is lg_delta decide (pgz % PAGE).
+	 * The middle bits whose len is SC_LG_NGROUP decide ndelta.
+	 * ndelta is offset to the first size class in the size class group,
+	 * starts from 1.
+	 * If you don't know lg_base, ndelta or lg_delta, see sc.h.
+	 * |xxxxxxxxxxxxxxxxxxxx|------------------------|yyyyyyyyyyyyyyyyyyyyy|
+	 * |<-- len: lg_base -->|<-- len: SC_LG_NGROUP-->|<-- len: lg_delta -->|
+	 *                      |<--      ndelta      -->|
+	 * rg_inner_off = ndelta - 1
+	 * Why use (psz - 1)?
+	 * To handle case: psz % (1 << lg_delta) == 0.
+	 */
+	pszind_t rg_inner_off = (((psz - 1)) >> lg_delta) & (SC_NGROUP - 1);
 
-	pszind_t ind = grp + mod;
+	pszind_t base_ind = off_to_first_ps_rg << SC_LG_NGROUP;
+	pszind_t ind = base_ind + rg_inner_off;
 	return ind;
 }
 
