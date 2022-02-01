@@ -13,7 +13,7 @@
  * at least the damage is compartmentalized to this file.
  */
 
-static size_t
+size_t
 reg_size_compute(int lg_base, int lg_delta, int ndelta) {
 	return (ZU(1) << lg_base) + (ZU(ndelta) << lg_delta);
 }

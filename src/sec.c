@@ -24,10 +24,12 @@ bool
 sec_init(tsdn_t *tsdn, sec_t *sec, base_t *base, pai_t *fallback,
     const sec_opts_t *opts) {
 	size_t max_alloc = opts->max_alloc & PAGE_MASK;
-	pszind_t npsizes = sz_psz2ind(max_alloc);
-	if (sz_pind2sz(npsizes) > opts->max_alloc) {
+	pszind_t npsizes = (max_alloc == 0) ? 0 : sz_psz2ind(max_alloc);
+	if (sz_pind2sz(npsizes) > opts->max_alloc && npsizes > 0) {
 		npsizes--;
 	}
+	npsizes = npsizes == 0 ? 1 : npsizes;
+	assert(npsizes > 0);
 	size_t sz_shards = opts->nshards * sizeof(sec_shard_t);
 	size_t sz_bins = opts->nshards * (size_t)npsizes * sizeof(sec_bin_t);
 	size_t sz_alloc = sz_shards + sz_bins;

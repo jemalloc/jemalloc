@@ -344,6 +344,7 @@ struct sc_data_s {
 	sc_t sc[SC_NSIZES];
 };
 
+size_t reg_size_compute(int lg_base, int lg_delta, int ndelta);
 void sc_data_init(sc_data_t *data);
 /*
  * Updates slab sizes in [begin, end] to be pgs pages in length, if possible.
