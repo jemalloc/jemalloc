@@ -27,9 +27,16 @@ task:
         UNCOMMON_CONFIG:
     - env:
         UNCOMMON_CONFIG: --with-lg-page=16 --with-malloc-conf=tcache:false
-  freebsd_instance:
-    matrix:
-      image: freebsd-12-2-release-amd64
+  matrix:
+    - name: 14-CURRENT
+      freebsd_instance:
+        image_family: freebsd-14-0-snap
+    - name: 13.0-RELEASE
+      freebsd_instance:
+        image_family: freebsd-13-0
+    - name: 12.3-RELEASE
+      freebsd_instance:
+        image_family: freebsd-12-3
   install_script:
     - sed -i.bak -e 's,pkg+http://pkg.FreeBSD.org/\${ABI}/quarterly,pkg+http://pkg.FreeBSD.org/\${ABI}/latest,' /etc/pkg/FreeBSD.conf
     - pkg upgrade -y
