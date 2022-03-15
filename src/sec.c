@@ -23,11 +23,11 @@ sec_bin_init(sec_bin_t *bin) {
 bool
 sec_init(tsdn_t *tsdn, sec_t *sec, base_t *base, pai_t *fallback,
     const sec_opts_t *opts) {
-	size_t max_alloc = opts->max_alloc & PAGE_MASK;
-	pszind_t npsizes = sz_psz2ind(max_alloc);
-	if (sz_pind2sz(npsizes) > opts->max_alloc) {
-		npsizes--;
-	}
+	assert(opts->max_alloc > 0);
+
+	size_t max_alloc = opts->max_alloc & ~PAGE_MASK;
+	pszind_t npsizes = sz_psz2ind(max_alloc) + 1;
+
 	size_t sz_shards = opts->nshards * sizeof(sec_shard_t);
 	size_t sz_bins = opts->nshards * (size_t)npsizes * sizeof(sec_bin_t);
 	size_t sz_alloc = sz_shards + sz_bins;
@@ -232,6 +232,8 @@ sec_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
 		    deferred_work_generated);
 	}
 	pszind_t pszind = sz_psz2ind(size);
+	assert(pszind < sec->npsizes);
+
 	sec_shard_t *shard = sec_shard_pick(tsdn, sec);
 	sec_bin_t *bin = &shard->bins[pszind];
 	bool do_batch_fill = false;
@@ -305,6 +307,7 @@ sec_shard_dalloc_and_unlock(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard,
 	assert(shard->bytes_cur <= sec->opts.max_bytes);
 	size_t size = edata_size_get(edata);
 	pszind_t pszind = sz_psz2ind(size);
+	assert(pszind < sec->npsizes);
 	/*
 	 * Prepending here results in LIFO allocation per bin, which seems
 	 * reasonable.
