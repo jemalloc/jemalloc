@@ -10,6 +10,7 @@
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/ticker.h"
+#include "jemalloc/internal/ccache.h"
 
 static inline arena_t *
 arena_get_from_edata(edata_t *edata) {
@@ -155,8 +156,12 @@ arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind, bool zero,
 			return tcache_alloc_large(tsdn_tsd(tsdn), arena,
 			    tcache, size, ind, zero, slow_path);
 		}
-		/* (size > tcache_maxclass) case falls through. */
-		assert(size > tcache_maxclass);
+		if (likely(size <= ccache_maxclass && arena &&
+		    arena_is_auto(arena))) {
+			assert(!tsdn_null(tsdn));
+			return ccache_alloc(tsdn_tsd(tsdn), arena, size, ind,
+			    zero, false);
+		}
 	}
 
 	return arena_malloc_hard(tsdn, arena, size, ind, zero);
@@ -287,6 +292,8 @@ arena_dalloc_large(tsdn_t *tsdn, void *ptr, tcache_t *tcache, szind_t szind,
 			tcache_dalloc_large(tsdn_tsd(tsdn), tcache, ptr, szind,
 			    slow_path);
 		}
+	} else if (config_cpu_cache && szind <= ccache_maxind) {
+		ccache_free(tsdn_tsd(tsdn), ptr, szind, true);
 	} else {
 		edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global,
 		    ptr);
@@ -305,6 +312,7 @@ arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 	assert(ptr != NULL);
 
 	if (unlikely(tcache == NULL)) {
+		/* If we disable tcache, let's disable CPU cache as well */
 		arena_dalloc_no_tcache(tsdn, ptr);
 		return;
 	}

@@ -241,6 +241,9 @@ tsd_data_init(tsd_t *tsd) {
 	tsd_prng_state_init(tsd);
 	tsd_te_init(tsd); /* event_init may use the prng state above. */
 	tsd_san_init(tsd);
+	if (config_cpu_cache) {
+		tsd_ccache_init(tsd);
+	}
 	return tsd_tcache_enabled_data_init(tsd);
 }
 

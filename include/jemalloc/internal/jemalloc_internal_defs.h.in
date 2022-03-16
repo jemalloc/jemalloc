@@ -424,4 +424,7 @@
 /* If defined, realloc(ptr, 0) defaults to "free" instead of "alloc". */
 #undef JEMALLOC_ZERO_REALLOC_DEFAULT_FREE
 
+/* Is jemalloc built with CPU cache support? */
+#undef JEMALLOC_CPU_CACHE
+
 #endif /* JEMALLOC_INTERNAL_DEFS_H_ */

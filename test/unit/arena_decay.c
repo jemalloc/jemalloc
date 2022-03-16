@@ -29,12 +29,22 @@ TEST_BEGIN(test_decay_ticks) {
 
 	ticker_geom_t *decay_ticker;
 	unsigned tick0, tick1, arena_ind;
-	size_t sz, large0;
+	size_t sz, large0, arena_served_sz;
 	void *p;
 
 	sz = sizeof(size_t);
 	expect_d_eq(mallctl("arenas.lextent.0.size", (void *)&large0, &sz, NULL,
 	    0), 0, "Unexpected mallctl failure");
+
+	if (config_cpu_cache) {
+		arena_served_sz = sz_index2size(ccache_maxind + 1);
+	} else {
+		/*
+		 * Large0 is served by arena, because MALLOC_CONF for this test
+		 * limits tcache to 4096 size class.
+		 */
+		arena_served_sz = large0;
+	}
 
 	/* Set up a manually managed arena for test. */
 	arena_ind = do_arena_create(0, 0);
@@ -57,7 +67,7 @@ TEST_BEGIN(test_decay_ticks) {
 
 	/* malloc(). */
 	tick0 = ticker_geom_read(decay_ticker);
-	p = malloc(large0);
+	p = malloc(arena_served_sz);
 	expect_ptr_not_null(p, "Unexpected malloc() failure");
 	tick1 = ticker_geom_read(decay_ticker);
 	expect_u32_ne(tick1, tick0, "Expected ticker to tick during malloc()");
@@ -65,11 +75,13 @@ TEST_BEGIN(test_decay_ticks) {
 	tick0 = ticker_geom_read(decay_ticker);
 	free(p);
 	tick1 = ticker_geom_read(decay_ticker);
+	/* TODO: change the expectation, because these allocs are not handled by
+	 * the arena anymore */
 	expect_u32_ne(tick1, tick0, "Expected ticker to tick during free()");
 
 	/* calloc(). */
 	tick0 = ticker_geom_read(decay_ticker);
-	p = calloc(1, large0);
+	p = calloc(1, arena_served_sz);
 	expect_ptr_not_null(p, "Unexpected calloc() failure");
 	tick1 = ticker_geom_read(decay_ticker);
 	expect_u32_ne(tick1, tick0, "Expected ticker to tick during calloc()");
@@ -77,7 +89,7 @@ TEST_BEGIN(test_decay_ticks) {
 
 	/* posix_memalign(). */
 	tick0 = ticker_geom_read(decay_ticker);
-	expect_d_eq(posix_memalign(&p, sizeof(size_t), large0), 0,
+	expect_d_eq(posix_memalign(&p, sizeof(size_t), arena_served_sz), 0,
 	    "Unexpected posix_memalign() failure");
 	tick1 = ticker_geom_read(decay_ticker);
 	expect_u32_ne(tick1, tick0,
@@ -86,7 +98,7 @@ TEST_BEGIN(test_decay_ticks) {
 
 	/* aligned_alloc(). */
 	tick0 = ticker_geom_read(decay_ticker);
-	p = aligned_alloc(sizeof(size_t), large0);
+	p = aligned_alloc(sizeof(size_t), arena_served_sz);
 	expect_ptr_not_null(p, "Unexpected aligned_alloc() failure");
 	tick1 = ticker_geom_read(decay_ticker);
 	expect_u32_ne(tick1, tick0,
@@ -96,13 +108,13 @@ TEST_BEGIN(test_decay_ticks) {
 	/* realloc(). */
 	/* Allocate. */
 	tick0 = ticker_geom_read(decay_ticker);
-	p = realloc(NULL, large0);
+	p = realloc(NULL, arena_served_sz);
 	expect_ptr_not_null(p, "Unexpected realloc() failure");
 	tick1 = ticker_geom_read(decay_ticker);
 	expect_u32_ne(tick1, tick0, "Expected ticker to tick during realloc()");
 	/* Reallocate. */
 	tick0 = ticker_geom_read(decay_ticker);
-	p = realloc(p, large0);
+	p = realloc(p, arena_served_sz);
 	expect_ptr_not_null(p, "Unexpected realloc() failure");
 	tick1 = ticker_geom_read(decay_ticker);
 	expect_u32_ne(tick1, tick0, "Expected ticker to tick during realloc()");
@@ -114,7 +126,7 @@ TEST_BEGIN(test_decay_ticks) {
 
 	/*
 	 * Test the *allocx() APIs using large and small size classes, with
-	 * tcache explicitly disabled.
+	 * tcache and ccache explicitly disabled.
 	 */
 	{
 		unsigned i;

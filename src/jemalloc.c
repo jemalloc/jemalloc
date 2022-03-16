@@ -662,6 +662,7 @@ stats_print_atexit(void) {
 				    &arena->tcache_ql_mtx);
 			}
 		}
+		ccache_merge_tstats(tsdn);
 	}
 	je_malloc_stats_print(NULL, NULL, opt_stats_print_opts);
 }
@@ -2165,6 +2166,11 @@ malloc_init_hard(void) {
 	malloc_tsd_boot1();
 	/* Update TSD after tsd_boot1. */
 	tsd = tsd_fetch();
+	if (config_cpu_cache) {
+		if (ccache_init(TSDN_NULL, b0get())) {
+			return true;
+		}
+	}
 	if (opt_background_thread) {
 		assert(have_background_thread);
 		/*
@@ -4128,6 +4134,7 @@ batch_alloc_prof_sample_assert(tsd_t *tsd, size_t batch, size_t usize) {
 	assert(surplus < usize);
 }
 
+/* TODO: check if percpu cache affects it */
 size_t
 batch_alloc(void **ptrs, size_t num, size_t size, int flags) {
 	LOG("core.batch_alloc.entry",

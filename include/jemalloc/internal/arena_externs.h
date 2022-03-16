@@ -7,6 +7,7 @@
 #include "jemalloc/internal/hook.h"
 #include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/stats.h"
+#include "jemalloc/internal/ccache.h"
 
 /*
  * When the amount of pages to be purged exceeds this amount, deferred purge
@@ -60,10 +61,9 @@ uint64_t arena_time_until_deferred(tsdn_t *tsdn, arena_t *arena);
 void arena_do_deferred_work(tsdn_t *tsdn, arena_t *arena);
 void arena_reset(tsd_t *tsd, arena_t *arena);
 void arena_destroy(tsd_t *tsd, arena_t *arena);
-void arena_cache_bin_fill_small(tsdn_t *tsdn, arena_t *arena,
-    cache_bin_t *cache_bin, cache_bin_info_t *cache_bin_info, szind_t binind,
-    const unsigned nfill);
-
+void arena_flush(tsd_t *tsd, arena_t *arena, cache_bin_ptr_array_t *ptrs,
+    szind_t binind, unsigned nflush, cache_bin_stats_t *stats, bool small,
+    bool ccache);
 void *arena_malloc_hard(tsdn_t *tsdn, arena_t *arena, size_t size,
     szind_t ind, bool zero);
 void *arena_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize,
@@ -103,6 +103,8 @@ bool arena_is_huge(unsigned arena_ind);
 arena_t *arena_choose_huge(tsd_t *tsd);
 bin_t *arena_bin_choose(tsdn_t *tsdn, arena_t *arena, szind_t binind,
     unsigned *binshard);
+unsigned arena_fill_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, void **ptrs,
+    const unsigned nfill, cache_bin_stats_t *stats);
 size_t arena_fill_small_fresh(tsdn_t *tsdn, arena_t *arena, szind_t binind,
     void **ptrs, size_t nfill, bool zero);
 bool arena_boot(sc_data_t *sc_data, base_t *base, bool hpa);
