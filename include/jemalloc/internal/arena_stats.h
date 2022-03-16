@@ -103,14 +103,27 @@ arena_stats_init(tsdn_t *tsdn, arena_stats_t *arena_stats) {
 }
 
 static inline void
-arena_stats_large_flush_nrequests_add(tsdn_t *tsdn, arena_stats_t *arena_stats,
+arena_stats_large_flush_update_stats(tsdn_t *tsdn, arena_stats_t *arena_stats,
+    szind_t szind, cache_bin_stats_t *tstats, bool add_nrequests) {
+	LOCKEDINT_MTX_LOCK(tsdn, arena_stats->mtx);
+	arena_stats_large_t *lstats = &arena_stats->lstats[szind - SC_NBINS];
+	if (add_nrequests) {
+		assert(tstats);
+		locked_inc_u64(tsdn, LOCKEDINT_MTX(arena_stats->mtx),
+		    &lstats->nrequests, tstats->nrequests);
+	}
+	locked_inc_u64(tsdn, LOCKEDINT_MTX(arena_stats->mtx),
+	    &lstats->nflushes, 1);
+	LOCKEDINT_MTX_UNLOCK(tsdn, arena_stats->mtx);
+}
+
+static inline void
+arena_stats_large_nrequests_add(tsdn_t *tsdn, arena_stats_t *arena_stats,
     szind_t szind, uint64_t nrequests) {
 	LOCKEDINT_MTX_LOCK(tsdn, arena_stats->mtx);
 	arena_stats_large_t *lstats = &arena_stats->lstats[szind - SC_NBINS];
 	locked_inc_u64(tsdn, LOCKEDINT_MTX(arena_stats->mtx),
 	    &lstats->nrequests, nrequests);
-	locked_inc_u64(tsdn, LOCKEDINT_MTX(arena_stats->mtx),
-	    &lstats->nflushes, 1);
 	LOCKEDINT_MTX_UNLOCK(tsdn, arena_stats->mtx);
 }
 

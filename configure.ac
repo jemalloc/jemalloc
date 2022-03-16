@@ -1728,6 +1728,26 @@ else
   AC_DEFINE([JEMALLOC_INTERNAL_UNREACHABLE], [abort], [ ])
 fi
 
+AC_ARG_ENABLE([cpu-cache],
+  [AS_HELP_STRING([--enable-cpu-cache],
+  [Enable per-CPU cache])],
+[if test "x$enable_cpu_cache" = "xyes" ; then
+  if test "x${host_cpu}" != "xx86_64"; then
+    AC_MSG_ERROR([--enable-cpu-cache is only available for x86_64])
+  fi
+  enable_cpu_cache="1"
+else
+  enable_cpu_cache="0"
+fi
+],
+[enable_cpu_cache="0"]
+)
+AC_CHECK_HEADERS([linux/rseq.h], , [enable_cpu_cache="0"])
+if test "x$enable_cpu_cache" = "x1" ; then
+  AC_DEFINE([JEMALLOC_CPU_CACHE], [ ])
+fi
+AC_SUBST([enable_cpu_cache])
+
 dnl ============================================================================
 dnl Check for  __builtin_ffsl(), then ffsl(3), and fail if neither are found.
 dnl One of those two functions should (theoretically) exist on all platforms

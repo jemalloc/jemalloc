@@ -15,7 +15,7 @@ purge(void) {
 
 TEST_BEGIN(test_alignment_errors) {
 	size_t alignment;
-	void *p;
+	volatile void *p;
 
 	alignment = 0;
 	set_errno(0);
@@ -47,7 +47,7 @@ JEMALLOC_DIAGNOSTIC_IGNORE_ALLOC_SIZE_LARGER_THAN
 
 TEST_BEGIN(test_oom_errors) {
 	size_t alignment, size;
-	void *p;
+	volatile void *p;
 
 #if LG_SIZEOF_PTR == 3
 	alignment = UINT64_C(0x8000000000000000);

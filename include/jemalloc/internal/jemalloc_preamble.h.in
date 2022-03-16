@@ -260,4 +260,12 @@ static const bool have_memcntl =
 #endif
     ;
 
+static const bool config_cpu_cache =
+#ifdef JEMALLOC_CPU_CACHE
+    true
+#else
+    false
+#endif
+    ;
+
 #endif /* JEMALLOC_PREAMBLE_H */

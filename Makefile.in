@@ -61,6 +61,7 @@ enable_shared := @enable_shared@
 enable_static := @enable_static@
 enable_prof := @enable_prof@
 enable_zone_allocator := @enable_zone_allocator@
+enable_cpu_cache := @enable_cpu_cache@
 enable_experimental_smallocx := @enable_experimental_smallocx@
 MALLOC_CONF := @JEMALLOC_CPREFIX@MALLOC_CONF
 link_whole_archive := @link_whole_archive@
@@ -157,6 +158,11 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/tsd.c \
 	$(srcroot)src/util.c \
 	$(srcroot)src/witness.c
+ifeq ($(enable_cpu_cache), 1)
+C_SRCS += $(srcroot)src/ccache.c
+else
+C_SRCS += $(srcroot)src/ccache_dummy.c
+endif
 ifeq ($(enable_zone_allocator), 1)
 C_SRCS += $(srcroot)src/zone.c
 endif
@@ -295,6 +301,9 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/zero_realloc_free.c \
 	$(srcroot)test/unit/zero_realloc_alloc.c \
 	$(srcroot)test/unit/zero_reallocs.c
+ifeq ($(enable_cpu_cache), 1)
+TESTS_UNIT += $(srcroot)test/unit/ccache.c
+endif
 ifeq (@enable_prof@, 1)
 TESTS_UNIT += \
 	$(srcroot)test/unit/arena_reset_prof.c \

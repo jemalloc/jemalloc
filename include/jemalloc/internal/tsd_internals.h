@@ -18,6 +18,7 @@
 #include "jemalloc/internal/tsd_types.h"
 #include "jemalloc/internal/util.h"
 #include "jemalloc/internal/witness.h"
+#include "jemalloc/internal/ccache_types.h"
 
 /*
  * Thread-Specific-Data layout
@@ -91,7 +92,8 @@ typedef ql_elm(tsd_t) tsd_link_t;
     O(activity_callback_thunk,	activity_callback_thunk_t,		\
 	activity_callback_thunk_t)					\
     O(tcache_slow,		tcache_slow_t,		tcache_slow_t)	\
-    O(rtree_ctx,		rtree_ctx_t,		rtree_ctx_t)
+    O(rtree_ctx,		rtree_ctx_t,		rtree_ctx_t)	\
+    O(ccache_tdata,		ccache_tdata_t,		ccache_tdata_t)
 
 #define TSD_DATA_SLOW_INITIALIZER					\
     /* tcache_enabled */	TCACHE_ENABLED_ZERO_INITIALIZER,	\
@@ -125,7 +127,8 @@ typedef ql_elm(tsd_t) tsd_link_t;
     /* activity_callback_thunk */					\
 	ACTIVITY_CALLBACK_THUNK_INITIALIZER,				\
     /* tcache_slow */		TCACHE_SLOW_ZERO_INITIALIZER,		\
-    /* rtree_ctx */		RTREE_CTX_INITIALIZER,
+    /* rtree_ctx */		RTREE_CTX_INITIALIZER,			\
+    /* ccache_tdata_t */	CCACHE_TDATA_ZERO_INITIALIZER,
 
 /*  O(name,			type,			nullable type) */
 #define TSD_DATA_FAST							\

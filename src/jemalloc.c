@@ -665,6 +665,7 @@ stats_print_atexit(void) {
 				    &arena->tcache_ql_mtx);
 			}
 		}
+		ccache_merge_tstats(tsdn);
 	}
 	je_malloc_stats_print(NULL, NULL, opt_stats_print_opts);
 }
@@ -1415,6 +1416,10 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				}
 				CONF_CONTINUE;
 			}
+			CONF_HANDLE_BOOL(opt_ccache, "ccache")
+			CONF_HANDLE_SIZE_T(opt_ccache_max, "ccache_max", 0,
+			    CCACHE_MAXCLASS_LIMIT, CONF_DONT_CHECK_MIN,
+			    CONF_CHECK_MAX, /* clip */ true);
 			/*
 			 * Anyone trying to set a value outside -16 to 16 is
 			 * deeply confused.
@@ -1773,6 +1778,24 @@ malloc_conf_init_check_deps(void) {
 	/* To emphasize in the stats output that opt is disabled when !debug. */
 	if (!config_debug) {
 		opt_debug_double_free_max_scan = 0;
+	}
+
+	if (opt_ccache && !config_cpu_cache) {
+		malloc_printf("<jemalloc>: opt_ccache is set while cpu cache "
+		    "is not configured. Ignoring.\n");
+		opt_ccache = false;
+	}
+	if (opt_ccache && !opt_tcache) {
+		malloc_printf("<jemalloc>: opt_ccache is set w/o opt_tcache. "
+		    "Ignoring.\n");
+		opt_ccache = false;
+		return true;
+	}
+	if (opt_ccache && opt_tcache && opt_ccache_max < opt_tcache_max) {
+		malloc_printf("<jemalloc>: opt_ccache_max is less than  "
+		    "opt_tcache_max. Per-CPU cache will be disabled.\n");
+		opt_ccache = false;
+		return true;
 	}
 
 	return false;
@@ -2203,6 +2226,11 @@ malloc_init_hard(void) {
 	malloc_tsd_boot1();
 	/* Update TSD after tsd_boot1. */
 	tsd = tsd_fetch();
+	if (config_cpu_cache) {
+		if (ccache_init(TSDN_NULL, b0get())) {
+			return true;
+		}
+	}
 	if (opt_background_thread) {
 		assert(have_background_thread);
 		/*
@@ -4027,6 +4055,7 @@ batch_alloc_prof_sample_assert(tsd_t *tsd, size_t batch, size_t usize) {
 	assert(surplus < usize);
 }
 
+/* TODO: check if percpu cache affects it */
 size_t
 batch_alloc(void **ptrs, size_t num, size_t size, int flags) {
 	LOG("core.batch_alloc.entry",

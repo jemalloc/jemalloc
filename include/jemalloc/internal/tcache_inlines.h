@@ -12,6 +12,7 @@
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/tcache_externs.h"
 #include "jemalloc/internal/util.h"
+#include "jemalloc/internal/ccache.h"
 
 static inline bool
 tcache_enabled_get(tsd_t *tsd) {
@@ -103,19 +104,24 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
 		if (unlikely(arena == NULL)) {
 			return NULL;
 		}
-		if (unlikely(tcache_bin_disabled(binind, bin,
-		    tcache->tcache_slow))) {
+		if (likely(!tcache_bin_disabled(binind, bin, tcache->tcache_slow))) {
+			tcache_bin_flush_stashed(tsd, tcache, bin, binind,
+			    /* is_small */ true);
+
+			ret = tcache_alloc_small_hard(tsd_tsdn(tsd), arena, tcache,
+			    bin, binind, &tcache_hard_success);
+			if (tcache_hard_success == false) {
+				return NULL;
+			}
+		} else if (config_cpu_cache &&
+		    likely(binind < ccache_maxind && arena_is_auto(arena))) {
+			/* stats and zero and handled by ccache */
+			return ccache_alloc(tsd, arena, size, binind, zero,
+			    true);
+		} else {
 			/* stats and zero are handled directly by the arena. */
 			return arena_malloc_hard(tsd_tsdn(tsd), arena, size,
 			    binind, zero, /* slab */ true);
-		}
-		tcache_bin_flush_stashed(tsd, tcache, bin, binind,
-		    /* is_small */ true);
-
-		ret = tcache_alloc_small_hard(tsd_tsdn(tsd), arena, tcache,
-		    bin, binind, &tcache_hard_success);
-		if (tcache_hard_success == false) {
-			return NULL;
 		}
 	}
 
@@ -194,12 +200,13 @@ tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 		/* Bin full; fall through into the flush branch. */
 	}
 
-	if (unlikely(!cache_bin_dalloc_easy(bin, ptr))) {
-		if (unlikely(tcache_bin_disabled(binind, bin,
+	if (unlikely(tcache_bin_disabled(binind, bin,
 		    tcache->tcache_slow))) {
+		if (!config_cpu_cache || binind >= ccache_maxind ||
+		    ccache_free(tsd, ptr, binind, /* small= */ true)) {
 			arena_dalloc_small(tsd_tsdn(tsd), ptr);
-			return;
 		}
+	} else if (unlikely(!cache_bin_dalloc_easy(bin, ptr))) {
 		cache_bin_sz_t max = cache_bin_ncached_max_get(bin);
 		unsigned remain = max >> opt_lg_tcache_flush_small_div;
 		tcache_bin_flush_small(tsd, tcache, bin, binind, remain);

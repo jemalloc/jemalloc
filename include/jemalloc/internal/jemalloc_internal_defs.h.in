@@ -455,5 +455,7 @@
 #undef JEMALLOC_HAVE_RDTSCP
 
 #include "jemalloc/internal/jemalloc_internal_overrides.h"
+/* Is jemalloc built with CPU cache support? */
+#undef JEMALLOC_CPU_CACHE
 
 #endif /* JEMALLOC_INTERNAL_DEFS_H_ */
