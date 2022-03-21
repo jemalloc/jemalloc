@@ -85,7 +85,9 @@ TEST_BEGIN(test_grow_and_shrink) {
 TEST_END
 
 static bool
-validate_fill(const void *p, uint8_t c, size_t offset, size_t len) {
+validate_fill(const void *p, uint8_t c, size_t offset, size_t input_len) {
+	/* Use volatile to workaround buffer overflow false positives. */
+	volatile size_t len = input_len;
 	bool ret = false;
 	const uint8_t *buf = (const uint8_t *)p;
 	size_t i;
@@ -105,11 +107,13 @@ validate_fill(const void *p, uint8_t c, size_t offset, size_t len) {
 
 TEST_BEGIN(test_zero) {
 	void *p, *q;
-	size_t psz, qsz, i, j;
+	size_t i, j;
 	size_t start_sizes[] = {1, 3*1024, 63*1024, 4095*1024};
 #define FILL_BYTE 0xaaU
 #define RANGE 2048
 
+	/* Use volatile to workaround buffer overflow false positives. */
+	volatile size_t psz, qsz;
 	for (i = 0; i < sizeof(start_sizes)/sizeof(size_t); i++) {
 		size_t start_size = start_sizes[i];
 		p = mallocx(start_size, MALLOCX_ZERO);
@@ -207,7 +211,6 @@ TEST_END
 TEST_BEGIN(test_lg_align_and_zero) {
 	void *p, *q;
 	unsigned lg_align;
-	size_t sz;
 #define MAX_LG_ALIGN 25
 #define MAX_VALIDATE (ZU(1) << 22)
 
@@ -215,6 +218,8 @@ TEST_BEGIN(test_lg_align_and_zero) {
 	p = mallocx(1, MALLOCX_LG_ALIGN(lg_align)|MALLOCX_ZERO);
 	expect_ptr_not_null(p, "Unexpected mallocx() error");
 
+	/* Use volatile to workaround buffer overflow false positives. */
+	volatile size_t sz;
 	for (lg_align++; lg_align <= MAX_LG_ALIGN; lg_align++) {
 		q = rallocx(p, 1, MALLOCX_LG_ALIGN(lg_align)|MALLOCX_ZERO);
 		expect_ptr_not_null(q,
