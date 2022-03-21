@@ -308,16 +308,16 @@ EXTRA_CFLAGS="-Werror -Wno-array-bounds"
 
 def main():
     jobs = '\n'.join((
+        generate_windows(AMD64),
+
+        generate_freebsd(AMD64),
+
         generate_linux(AMD64),
         generate_linux(PPC64LE),
 
         generate_macos(AMD64),
 
-        generate_windows(AMD64),
-
-        generate_freebsd(AMD64),
-
-        get_manual_jobs()
+        get_manual_jobs(),
     ))
 
     print(TRAVIS_TEMPLATE.format(jobs=jobs))
