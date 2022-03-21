@@ -1677,6 +1677,15 @@ fi
 AC_ARG_WITH([lg_page],
   [AS_HELP_STRING([--with-lg-page=<lg-page>], [Base 2 log of system page size])],
   [LG_PAGE="$with_lg_page"], [LG_PAGE="detect"])
+case "${host}" in
+  aarch64-apple-darwin*)
+      dnl When cross-compile for Apple M1 and no page size specified, use the
+      dnl default and skip detecting the page size (which is likely incorrect).
+      if test "x${host}" != "x${build}" -a "x$LG_PAGE" = "xdetect"; then
+        LG_PAGE=14
+      fi
+      ;;
+esac
 if test "x$LG_PAGE" = "xdetect"; then
   AC_CACHE_CHECK([LG_PAGE],
                [je_cv_lg_page],
