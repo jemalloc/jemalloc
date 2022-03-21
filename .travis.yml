@@ -304,6 +304,30 @@ jobs:
     - os: osx
       arch: amd64
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+    - os: windows
+      arch: amd64
+      env: CC=gcc CXX=g++ EXTRA_CFLAGS="-fcommon"
+    - os: windows
+      arch: amd64
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug" EXTRA_CFLAGS="-fcommon"
+    - os: windows
+      arch: amd64
+      env: CC=cl.exe CXX=cl.exe
+    - os: windows
+      arch: amd64
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes EXTRA_CFLAGS="-fcommon"
+    - os: windows
+      arch: amd64
+      env: CC=cl.exe CXX=cl.exe CONFIGURE_FLAGS="--enable-debug"
+    - os: windows
+      arch: amd64
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes CONFIGURE_FLAGS="--enable-debug" EXTRA_CFLAGS="-fcommon"
+    - os: windows
+      arch: amd64
+      env: CC=cl.exe CXX=cl.exe CROSS_COMPILE_32BIT=yes
+    - os: windows
+      arch: amd64
+      env: CC=cl.exe CXX=cl.exe CROSS_COMPILE_32BIT=yes CONFIGURE_FLAGS="--enable-debug"
     - os: freebsd
       arch: amd64
       env: CC=gcc CXX=g++
