@@ -313,7 +313,7 @@ def main():
 
         generate_macos(AMD64),
 
-        #generate_windows(AMD64),
+        generate_windows(AMD64),
 
         generate_freebsd(AMD64),
 
