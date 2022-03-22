@@ -13,6 +13,9 @@
 /* Return the smallest pagesize multiple that is >= s. */
 #define PAGE_CEILING(s)							\
 	(((s) + PAGE_MASK) & ~PAGE_MASK)
+/* Return the largest pagesize multiple that is <=s. */
+#define PAGE_FLOOR(s) 							\
+	((s) & ~PAGE_MASK)
 
 /* Huge page size.  LG_HUGEPAGE is determined by the configure script. */
 #define HUGEPAGE	((size_t)(1U << LG_HUGEPAGE))
