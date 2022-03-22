@@ -25,7 +25,7 @@ sec_init(tsdn_t *tsdn, sec_t *sec, base_t *base, pai_t *fallback,
     const sec_opts_t *opts) {
 	assert(opts->max_alloc > 0);
 
-	size_t max_alloc = opts->max_alloc & ~PAGE_MASK;
+	size_t max_alloc = PAGE_FLOOR(opts->max_alloc);
 	pszind_t npsizes = sz_psz2ind(max_alloc) + 1;
 
 	size_t sz_shards = opts->nshards * sizeof(sec_shard_t);
