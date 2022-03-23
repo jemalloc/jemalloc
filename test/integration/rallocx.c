@@ -41,7 +41,11 @@ get_large_size(size_t ind) {
 }
 
 TEST_BEGIN(test_grow_and_shrink) {
-	void *p, *q;
+	/*
+	 * Use volatile to workaround buffer overflow false positives
+	 * (-D_FORTIFY_SOURCE=3).
+	 */
+	void *volatile p, *volatile q;
 	size_t tsz;
 #define NCYCLES 3
 	unsigned i, j;
@@ -85,9 +89,13 @@ TEST_BEGIN(test_grow_and_shrink) {
 TEST_END
 
 static bool
-validate_fill(const void *p, uint8_t c, size_t offset, size_t len) {
+validate_fill(void *p, uint8_t c, size_t offset, size_t len) {
 	bool ret = false;
-	const uint8_t *buf = (const uint8_t *)p;
+	/*
+	 * Use volatile to workaround buffer overflow false positives
+	 * (-D_FORTIFY_SOURCE=3).
+	 */
+	uint8_t *volatile buf = (uint8_t *)p;
 	size_t i;
 
 	for (i = 0; i < len; i++) {
@@ -104,7 +112,11 @@ validate_fill(const void *p, uint8_t c, size_t offset, size_t len) {
 }
 
 TEST_BEGIN(test_zero) {
-	void *p, *q;
+	/*
+	 * Use volatile to workaround buffer overflow false positives
+	 * (-D_FORTIFY_SOURCE=3).
+	 */
+	void *volatile p, *volatile q;
 	size_t psz, qsz, i, j;
 	size_t start_sizes[] = {1, 3*1024, 63*1024, 4095*1024};
 #define FILL_BYTE 0xaaU
@@ -205,7 +217,11 @@ TEST_BEGIN(test_align_enum) {
 TEST_END
 
 TEST_BEGIN(test_lg_align_and_zero) {
-	void *p, *q;
+	/*
+	 * Use volatile to workaround buffer overflow false positives
+	 * (-D_FORTIFY_SOURCE=3).
+	 */
+	void *volatile p, *volatile q;
 	unsigned lg_align;
 	size_t sz;
 #define MAX_LG_ALIGN 25
