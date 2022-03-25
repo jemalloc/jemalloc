@@ -46,7 +46,7 @@ struct sec_opts_s {
 	/* nshards */							\
 	4,								\
 	/* max_alloc */							\
-	32 * 1024,							\
+	(32 * 1024) < PAGE ? PAGE : (32 * 1024),			\
 	/* max_bytes */							\
 	256 * 1024,							\
 	/* bytes_after_flush */						\

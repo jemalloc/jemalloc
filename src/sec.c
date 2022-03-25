@@ -23,7 +23,7 @@ sec_bin_init(sec_bin_t *bin) {
 bool
 sec_init(tsdn_t *tsdn, sec_t *sec, base_t *base, pai_t *fallback,
     const sec_opts_t *opts) {
-	assert(opts->max_alloc > 0);
+	assert(opts->max_alloc >= PAGE);
 
 	size_t max_alloc = PAGE_FLOOR(opts->max_alloc);
 	pszind_t npsizes = sz_psz2ind(max_alloc) + 1;
