@@ -289,7 +289,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/zero.c \
 	$(srcroot)test/unit/zero_realloc_abort.c \
 	$(srcroot)test/unit/zero_realloc_free.c \
-	$(srcroot)test/unit/zero_realloc_strict.c \
+	$(srcroot)test/unit/zero_realloc_alloc.c \
 	$(srcroot)test/unit/zero_reallocs.c
 ifeq (@enable_prof@, 1)
 TESTS_UNIT += \

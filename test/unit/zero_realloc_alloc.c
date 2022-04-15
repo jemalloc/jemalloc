@@ -24,7 +24,7 @@ deallocated() {
 	return deallocated;
 }
 
-TEST_BEGIN(test_realloc_strict) {
+TEST_BEGIN(test_realloc_alloc) {
 	void *ptr = mallocx(1, 0);
 	expect_ptr_not_null(ptr, "Unexpected mallocx error");
 	uint64_t allocated_before = allocated();
@@ -44,5 +44,5 @@ TEST_END
 int
 main(void) {
 	return test(
-	    test_realloc_strict);
+	    test_realloc_alloc);
 }

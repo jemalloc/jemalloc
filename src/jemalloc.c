@@ -112,12 +112,12 @@ bool opt_cache_oblivious =
     ;
 
 zero_realloc_action_t opt_zero_realloc_action =
-    zero_realloc_action_strict;
+    zero_realloc_action_alloc;
 
 atomic_zu_t zero_realloc_count = ATOMIC_INIT(0);
 
 const char *zero_realloc_mode_names[] = {
-	"strict",
+	"alloc",
 	"free",
 	"abort",
 };
@@ -1649,9 +1649,9 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				CONF_CONTINUE;
 			}
 			if (CONF_MATCH("zero_realloc")) {
-				if (CONF_MATCH_VALUE("strict")) {
+				if (CONF_MATCH_VALUE("alloc")) {
 					opt_zero_realloc_action
-					    = zero_realloc_action_strict;
+					    = zero_realloc_action_alloc;
 				} else if (CONF_MATCH_VALUE("free")) {
 					opt_zero_realloc_action
 					    = zero_realloc_action_free;
@@ -3578,9 +3578,9 @@ do_realloc_nonnull_zero(void *ptr) {
 	if (config_stats) {
 		atomic_fetch_add_zu(&zero_realloc_count, 1, ATOMIC_RELAXED);
 	}
-	if (opt_zero_realloc_action == zero_realloc_action_strict) {
+	if (opt_zero_realloc_action == zero_realloc_action_alloc) {
 		/*
-		 * The user might have gotten a strict setting while expecting a
+		 * The user might have gotten an alloc setting while expecting a
 		 * free setting.  If that's the case, we at least try to
 		 * reduce the harm, and turn off the tcache while allocating, so
 		 * that we'll get a true first fit.
