@@ -1060,6 +1060,9 @@ AC_CHECK_FUNC([memalign],
 AC_CHECK_FUNC([valloc],
 	      [AC_DEFINE([JEMALLOC_OVERRIDE_VALLOC], [ ], [ ])
 	       public_syms="${public_syms} valloc"])
+AC_CHECK_FUNC([pvalloc],
+	      [AC_DEFINE([JEMALLOC_OVERRIDE_PVALLOC], [ ], [ ])
+	       public_syms="${public_syms} pvalloc"])
 AC_CHECK_FUNC([malloc_size],
 	      [AC_DEFINE([JEMALLOC_HAVE_MALLOC_SIZE], [ ], [ ])
 	       public_syms="${public_syms} malloc_size"])
@@ -1085,6 +1088,9 @@ if test "x${JEMALLOC_PREFIX}" = "x" ; then
   AC_CHECK_FUNC([__libc_valloc],
 		[AC_DEFINE([JEMALLOC_OVERRIDE___LIBC_VALLOC], [ ], [ ])
 		 wrap_syms="${wrap_syms} __libc_valloc"])
+  AC_CHECK_FUNC([__libc_pvalloc],
+		[AC_DEFINE([JEMALLOC_OVERRIDE___LIBC_PVALLOC], [ ], [ ])
+		 wrap_syms="${wrap_syms} __libc_pvalloc"])
   AC_CHECK_FUNC([__posix_memalign],
 		[AC_DEFINE([JEMALLOC_OVERRIDE___POSIX_MEMALIGN], [ ], [ ])
 		 wrap_syms="${wrap_syms} __posix_memalign"])

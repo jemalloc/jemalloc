@@ -55,6 +55,7 @@ enum hook_alloc_e {
 	hook_alloc_calloc,
 	hook_alloc_memalign,
 	hook_alloc_valloc,
+	hook_alloc_pvalloc,
 	hook_alloc_mallocx,
 
 	/* The reallocating functions have both alloc and dalloc variants */

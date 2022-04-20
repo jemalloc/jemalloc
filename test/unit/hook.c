@@ -313,6 +313,20 @@ TEST_BEGIN(test_hooks_alloc_simple) {
 	free(ptr);
 #endif /* JEMALLOC_OVERRIDE_VALLOC */
 
+	/* pvalloc */
+#ifdef JEMALLOC_OVERRIDE_PVALLOC
+	reset();
+	ptr = pvalloc(1);
+	expect_d_eq(call_count, 1, "Hook not called");
+	expect_ptr_eq(arg_extra, (void *)123, "Wrong extra");
+	expect_d_eq(arg_type, (int)hook_alloc_pvalloc, "Wrong hook type");
+	expect_ptr_eq(ptr, arg_result, "Wrong result");
+	expect_u64_eq((uintptr_t)ptr, (uintptr_t)arg_result_raw,
+	    "Wrong raw result");
+	expect_u64_eq((uintptr_t)1, arg_args_raw[0], "Wrong argument");
+	free(ptr);
+#endif /* JEMALLOC_OVERRIDE_PVALLOC */
+
 	/* mallocx */
 	reset();
 	ptr = mallocx(1, MALLOCX_LG_ALIGN(10));
