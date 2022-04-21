@@ -14,6 +14,7 @@
 #include "jemalloc/internal/prof_recent.h"
 #include "jemalloc/internal/prof_stats.h"
 #include "jemalloc/internal/prof_sys.h"
+#include "jemalloc/internal/safety_check.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/util.h"
 
@@ -311,6 +312,7 @@ CTL_PROTO(experimental_hooks_install)
 CTL_PROTO(experimental_hooks_remove)
 CTL_PROTO(experimental_hooks_prof_backtrace)
 CTL_PROTO(experimental_hooks_prof_dump)
+CTL_PROTO(experimental_hooks_safety_check_abort)
 CTL_PROTO(experimental_thread_activity_callback)
 CTL_PROTO(experimental_utilization_query)
 CTL_PROTO(experimental_utilization_batch_query)
@@ -849,6 +851,7 @@ static const ctl_named_node_t experimental_hooks_node[] = {
 	{NAME("remove"),	CTL(experimental_hooks_remove)},
 	{NAME("prof_backtrace"),	CTL(experimental_hooks_prof_backtrace)},
 	{NAME("prof_dump"),	CTL(experimental_hooks_prof_dump)},
+	{NAME("safety_check_abort"),	CTL(experimental_hooks_safety_check_abort)},
 };
 
 static const ctl_named_node_t experimental_thread_node[] = {
@@ -3431,6 +3434,27 @@ experimental_hooks_prof_dump_ctl(tsd_t *tsd, const size_t *mib,
 		prof_dump_hook_t new_hook JEMALLOC_CC_SILENCE_INIT(NULL);
 		WRITE(new_hook, prof_dump_hook_t);
 		prof_dump_hook_set(new_hook);
+	}
+	ret = 0;
+label_return:
+	return ret;
+}
+
+/* For integration test purpose only.  No plan to move out of experimental. */
+static int
+experimental_hooks_safety_check_abort_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+
+	WRITEONLY();
+	if (newp != NULL) {
+		if (newlen != sizeof(safety_check_abort_hook_t)) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		safety_check_abort_hook_t hook JEMALLOC_CC_SILENCE_INIT(NULL);
+		WRITE(hook, safety_check_abort_hook_t);
+		safety_check_set_abort(hook);
 	}
 	ret = 0;
 label_return:
