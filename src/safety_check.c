@@ -1,7 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
-static void (*safety_check_abort)(const char *message);
+static safety_check_abort_hook_t safety_check_abort;
 
 void safety_check_fail_sized_dealloc(bool current_dealloc, const void *ptr,
     size_t true_size, size_t input_size) {
@@ -15,7 +15,7 @@ void safety_check_fail_sized_dealloc(bool current_dealloc, const void *ptr,
 	    true_size, input_size, ptr, src);
 }
 
-void safety_check_set_abort(void (*abort_fn)(const char *)) {
+void safety_check_set_abort(safety_check_abort_hook_t abort_fn) {
 	safety_check_abort = abort_fn;
 }
 
