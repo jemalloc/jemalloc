@@ -4,7 +4,7 @@ TEST_BEGIN(test_sz_psz2ind) {
 	/*
 	 * Testing page size classes which reside prior to the regular group
 	 * with all size classes divisible by page size.
-	 * For x86_64 Linux, it's 4096, 8192, 12288, 16384, with correponding
+	 * For x86_64 Linux, it's 4096, 8192, 12288, 16384, with corresponding
 	 * pszind 0, 1, 2 and 3.
 	 */
 	for (size_t i = 0; i < SC_NGROUP; i++) {

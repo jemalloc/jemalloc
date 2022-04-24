@@ -348,7 +348,7 @@ size_t reg_size_compute(int lg_base, int lg_delta, int ndelta);
 void sc_data_init(sc_data_t *data);
 /*
  * Updates slab sizes in [begin, end] to be pgs pages in length, if possible.
- * Otherwise, does its best to accomodate the request.
+ * Otherwise, does its best to accommodate the request.
  */
 void sc_data_update_slab_size(sc_data_t *data, size_t begin, size_t end,
     int pgs);

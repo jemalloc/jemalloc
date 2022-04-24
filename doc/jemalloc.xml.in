@@ -1409,7 +1409,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         set to the empty string, no automatic dumps will occur; this is
         primarily useful for disabling the automatic final heap dump (which
         also disables leak reporting, if enabled).  The default prefix is
-        <filename>jeprof</filename>.  This prefix value can be overriden by
+        <filename>jeprof</filename>.  This prefix value can be overridden by
         <link linkend="prof.prefix"><mallctl>prof.prefix</mallctl></link>.
         </para></listitem>
       </varlistentry>
