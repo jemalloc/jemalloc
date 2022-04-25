@@ -2733,7 +2733,7 @@ struct extent_hooks_s {
         counters</link>.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="stats.mutexes.prof_tdatas">
+      <varlistentry id="stats.mutexes.prof_thds_data">
         <term>
           <mallctl>stats.mutexes.prof_thds_data.{counter}</mallctl>
 	  (<type>counter specific type</type>) <literal>r-</literal>
