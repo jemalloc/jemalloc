@@ -1345,7 +1345,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         maximum, size classes up to 8 MiB can be cached.  The default maximum is
         32 KiB (2^15).  As a convenience, this may also be set by specifying
         lg_tcache_max, which will be taken to be the base-2 logarithm of the
-        setting of tcache_max</para></listitem>
+        setting of tcache_max.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.thp">
