@@ -972,10 +972,9 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
           (<type>bool</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>Do not perform runtime check for MADV_DONTNEED, to
-        check that it actually zeros pages.  The default is
-        <quote>disabled</quote> on linux and <quote>enabled</quote> elsewhere.
-        </para></listitem>
+        <listitem><para>If true, do not perform runtime check for MADV_DONTNEED,
+        to check that it actually zeros pages.  The default is disabled on Linux
+        and enabled elsewhere.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.retain">
