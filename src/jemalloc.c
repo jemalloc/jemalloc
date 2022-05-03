@@ -112,7 +112,12 @@ bool opt_cache_oblivious =
     ;
 
 zero_realloc_action_t opt_zero_realloc_action =
-    zero_realloc_action_alloc;
+#ifdef JEMALLOC_ZERO_REALLOC_DEFAULT_FREE
+    zero_realloc_action_free
+#else
+    zero_realloc_action_alloc
+#endif
+    ;
 
 atomic_zu_t zero_realloc_count = ATOMIC_INIT(0);
 

@@ -421,4 +421,7 @@
 /* Darwin VM_MAKE_TAG support */
 #undef JEMALLOC_HAVE_VM_MAKE_TAG
 
+/* If defined, realloc(ptr, 0) defaults to "free" instead of "alloc". */
+#undef JEMALLOC_ZERO_REALLOC_DEFAULT_FREE
+
 #endif /* JEMALLOC_INTERNAL_DEFS_H_ */
