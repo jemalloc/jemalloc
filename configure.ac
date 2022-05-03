@@ -638,6 +638,7 @@ dnl Define cpp macros in CPPFLAGS, rather than doing AC_DEFINE(macro), since the
 dnl definitions need to be seen before any headers are included, which is a pain
 dnl to make happen otherwise.
 default_retain="0"
+zero_realloc_default_free="0"
 maps_coalesce="1"
 DUMP_SYMS="${NM} -a"
 SYM_PREFIX=""
@@ -684,6 +685,7 @@ case "${host}" in
 	if test "${LG_SIZEOF_PTR}" = "3"; then
 	  default_retain="1"
 	fi
+	zero_realloc_default_free="1"
 	;;
   *-*-linux*)
 	dnl syscall(2) and secure_getenv(3) are exposed by _GNU_SOURCE.
@@ -698,6 +700,7 @@ case "${host}" in
 	if test "${LG_SIZEOF_PTR}" = "3"; then
 	  default_retain="1"
 	fi
+	zero_realloc_default_free="1"
 	;;
   *-*-kfreebsd*)
 	dnl syscall(2) and secure_getenv(3) are exposed by _GNU_SOURCE.
@@ -773,6 +776,7 @@ case "${host}" in
 	if test "${LG_SIZEOF_PTR}" = "3"; then
 	  default_retain="1"
 	fi
+	zero_realloc_default_free="1"
 	;;
   *-*-nto-qnx)
 	abi="elf"
@@ -1393,6 +1397,11 @@ fi
 dnl Indicate whether to retain memory (rather than using munmap()) by default.
 if test "x$default_retain" = "x1" ; then
   AC_DEFINE([JEMALLOC_RETAIN], [ ], [ ])
+fi
+
+dnl Indicate whether realloc(ptr, 0) defaults to the "alloc" behavior.
+if test "x$zero_realloc_default_free" = "x1" ; then
+  AC_DEFINE([JEMALLOC_ZERO_REALLOC_DEFAULT_FREE], [ ], [ ])
 fi
 
 dnl Enable allocation from DSS if supported by the OS.
