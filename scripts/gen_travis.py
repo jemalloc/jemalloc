@@ -125,6 +125,7 @@ configure_flag_unusuals = [Option.as_configure_flag(opt) for opt in (
     '--disable-libdl',
     '--enable-opt-safety-checks',
     '--with-lg-page=16',
+    '--enable-cpu-cache'
 )]
 
 
@@ -225,7 +226,13 @@ def included(combination, exclude):
 
     @param exclude: A list of options to be avoided.
     """
-    return not any(excluded in combination for excluded in exclude)
+    for excluded in exclude:
+        if isinstance(excluded, Option):
+            if excluded in combination:
+                return False
+        elif all(e in combination for e in excluded):
+            return False
+    return True
 
 
 def generate_jobs(os, arch, exclude, max_unusual_opts, unusuals=all_unusuals):
@@ -242,10 +249,15 @@ def generate_linux(arch):
     # Only generate 2 unusual options for AMD64 to reduce matrix size
     max_unusual_opts = MAX_UNUSUAL_OPTIONS if arch == AMD64 else 1
 
-    exclude = []
+    exclude = [
+	(CROSS_COMPILE_32BIT, Option.as_configure_flag('--enable-cpu-cache')),
+    ]
     if arch == PPC64LE:
-        # Avoid 32 bit builds and clang on PowerPC
-        exclude = (CROSS_COMPILE_32BIT, CLANG,)
+        exclude = (
+            CROSS_COMPILE_32BIT,
+            CLANG,
+            Option.as_configure_flag('--enable-cpu-cache'),
+        )
 
     return generate_jobs(os, arch, exclude, max_unusual_opts)
 
@@ -255,12 +267,14 @@ def generate_macos(arch):
 
     max_unusual_opts = 1
 
-    exclude = ([Option.as_malloc_conf(opt) for opt in (
+    exclude = (
+        [Option.as_malloc_conf(opt) for opt in (
             'dss:primary',
             'percpu_arena:percpu',
             'background_thread:true')] +
         [Option.as_configure_flag('--enable-prof')] +
-        [CLANG,])
+        [CLANG,]
+    )
 
     return generate_jobs(os, arch, exclude, max_unusual_opts)
 
@@ -285,6 +299,7 @@ def generate_freebsd(arch):
         Option.as_configure_flag('--enable-debug'),
         Option.as_configure_flag('--enable-prof --enable-prof-libunwind'),
         Option.as_configure_flag('--with-lg-page=16 --with-malloc-conf=tcache:false'),
+        Option.as_configure_flag('--enable-cpu-cache'),
         CROSS_COMPILE_32BIT,
     )
     return generate_jobs(os, arch, (), max_unusual_opts, unusuals)
