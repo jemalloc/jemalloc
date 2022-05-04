@@ -2,12 +2,8 @@
 
 const char *malloc_conf = "background_thread:false,narenas:1,max_background_threads:20";
 
-TEST_BEGIN(test_deferred) {
-	test_skip_if(!have_background_thread);
-
-	unsigned id;
-	size_t sz_u = sizeof(unsigned);
-
+static unsigned
+max_test_narenas(void) {
 	/*
 	 * 10 here is somewhat arbitrary, except insofar as we want to ensure
 	 * that the number of background threads is smaller than the number of
@@ -15,7 +11,22 @@ TEST_BEGIN(test_deferred) {
 	 * cpu to handle background purging, so this is a conservative
 	 * approximation.
 	 */
-	for (unsigned i = 0; i < 10 * ncpus; i++) {
+	unsigned ret = 10 * ncpus;
+	/* Limit the max to avoid VM exhaustion on 32-bit . */
+	if (ret > 512) {
+		ret = 512;
+	}
+
+	return ret;
+}
+
+TEST_BEGIN(test_deferred) {
+	test_skip_if(!have_background_thread);
+
+	unsigned id;
+	size_t sz_u = sizeof(unsigned);
+
+	for (unsigned i = 0; i < max_test_narenas(); i++) {
 		expect_d_eq(mallctl("arenas.create", &id, &sz_u, NULL, 0), 0,
 		    "Failed to create arena");
 	}
@@ -50,7 +61,7 @@ TEST_BEGIN(test_max_background_threads) {
 	unsigned id;
 	size_t sz_u = sizeof(unsigned);
 
-	for (unsigned i = 0; i < 10 * ncpus; i++) {
+	for (unsigned i = 0; i < max_test_narenas(); i++) {
 		expect_d_eq(mallctl("arenas.create", &id, &sz_u, NULL, 0), 0,
 		    "Failed to create arena");
 	}
