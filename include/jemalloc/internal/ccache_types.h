@@ -9,12 +9,9 @@
 #ifdef JEMALLOC_CPU_CACHE
   #include <linux/rseq.h>
   typedef struct rseq rseq_t;
-
-  #define CCACHE_TDATA_ZERO_INITIALIZER {0}
-#else
-  #define CCACHE_TDATA_ZERO_INITIALIZER {}
 #endif
 
+#define CCACHE_TDATA_ZERO_INITIALIZER {0}
 #define CCACHE_BIN_ELEMENTS ((PAGE - sizeof(void **)) / sizeof(void *))
 #define CCACHE_NCLASSES 16
 
@@ -52,6 +49,9 @@ struct ccache_tdata_s {
 	 */
 	cache_bin_stats_t ccache_stats[CCACHE_NCLASSES];
 	rseq_t rseq_abi;
+#else
+	/* C standard doesn't allow empty structs */
+	char dummy_;
 #endif
 };
 #endif /* JEMALLOC_INTERNAL_CCACHE_TYPES_H */
