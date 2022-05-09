@@ -656,8 +656,10 @@ edata_ead_comp(const edata_t *a, const edata_t *b) {
 
 static inline edata_cmp_summary_t
 edata_cmp_summary_get(const edata_t *edata) {
-	return (edata_cmp_summary_t){edata_sn_get(edata),
-		(uintptr_t)edata_addr_get(edata)};
+	edata_cmp_summary_t result;
+	result.sn = edata_sn_get(edata);
+	result.addr = (uintptr_t)edata_addr_get(edata);
+	return result;
 }
 
 static inline int
