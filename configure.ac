@@ -638,6 +638,7 @@ dnl Define cpp macros in CPPFLAGS, rather than doing AC_DEFINE(macro), since the
 dnl definitions need to be seen before any headers are included, which is a pain
 dnl to make happen otherwise.
 default_retain="0"
+zero_realloc_default_free="0"
 maps_coalesce="1"
 DUMP_SYMS="${NM} -a"
 SYM_PREFIX=""
@@ -684,6 +685,7 @@ case "${host}" in
 	if test "${LG_SIZEOF_PTR}" = "3"; then
 	  default_retain="1"
 	fi
+	zero_realloc_default_free="1"
 	;;
   *-*-linux*)
 	dnl syscall(2) and secure_getenv(3) are exposed by _GNU_SOURCE.
@@ -698,6 +700,7 @@ case "${host}" in
 	if test "${LG_SIZEOF_PTR}" = "3"; then
 	  default_retain="1"
 	fi
+	zero_realloc_default_free="1"
 	;;
   *-*-kfreebsd*)
 	dnl syscall(2) and secure_getenv(3) are exposed by _GNU_SOURCE.
@@ -773,6 +776,7 @@ case "${host}" in
 	if test "${LG_SIZEOF_PTR}" = "3"; then
 	  default_retain="1"
 	fi
+	zero_realloc_default_free="1"
 	;;
   *-*-nto-qnx)
 	abi="elf"
@@ -1395,6 +1399,11 @@ if test "x$default_retain" = "x1" ; then
   AC_DEFINE([JEMALLOC_RETAIN], [ ], [ ])
 fi
 
+dnl Indicate whether realloc(ptr, 0) defaults to the "alloc" behavior.
+if test "x$zero_realloc_default_free" = "x1" ; then
+  AC_DEFINE([JEMALLOC_ZERO_REALLOC_DEFAULT_FREE], [ ], [ ])
+fi
+
 dnl Enable allocation from DSS if supported by the OS.
 have_dss="1"
 dnl Check whether the BSD/SUSv1 sbrk() exists.  If not, disable DSS support.
@@ -1677,6 +1686,15 @@ fi
 AC_ARG_WITH([lg_page],
   [AS_HELP_STRING([--with-lg-page=<lg-page>], [Base 2 log of system page size])],
   [LG_PAGE="$with_lg_page"], [LG_PAGE="detect"])
+case "${host}" in
+  aarch64-apple-darwin*)
+      dnl When cross-compile for Apple M1 and no page size specified, use the
+      dnl default and skip detecting the page size (which is likely incorrect).
+      if test "x${host}" != "x${build}" -a "x$LG_PAGE" = "xdetect"; then
+        LG_PAGE=14
+      fi
+      ;;
+esac
 if test "x$LG_PAGE" = "xdetect"; then
   AC_CACHE_CHECK([LG_PAGE],
                [je_cv_lg_page],
@@ -1999,7 +2017,7 @@ AC_CHECK_FUNC([_malloc_thread_cleanup],
              )
 if test "x$have__malloc_thread_cleanup" = "x1" ; then
   AC_DEFINE([JEMALLOC_MALLOC_THREAD_CLEANUP], [ ], [ ])
-  wrap_syms="${wrap_syms} _malloc_thread_cleanup"
+  wrap_syms="${wrap_syms} _malloc_thread_cleanup _malloc_tsd_cleanup_register"
   force_tls="1"
 fi
 
@@ -2394,7 +2412,8 @@ fi
 dnl ============================================================================
 dnl Enable background threads if possible.
 
-if test "x${have_pthread}" = "x1" -a "x${je_cv_os_unfair_lock}" != "xyes" ; then
+if test "x${have_pthread}" = "x1" -a "x${je_cv_os_unfair_lock}" != "xyes" -a \
+       "x${abi}" != "xmacho" ; then
   AC_DEFINE([JEMALLOC_BACKGROUND_THREAD], [ ], [ ])
 fi
 

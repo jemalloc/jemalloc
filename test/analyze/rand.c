@@ -34,7 +34,7 @@
  * (c) Any generated number >= n_bucket * 2^lg_bucket_width will be counted
  *     towards the last bucket; the expected mean and stddev provided should
  *     also reflect that.
- * (d) The number of iterations is adviced to be determined so that the bucket
+ * (d) The number of iterations is advised to be determined so that the bucket
  *     with the minimal expected proportion gets a sufficient count.
  */
 

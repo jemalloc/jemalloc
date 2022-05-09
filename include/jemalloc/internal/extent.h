@@ -104,7 +104,7 @@ extent_can_acquire_neighbor(edata_t *edata, rtree_contents_t contents,
 		    edata_committed_get(neighbor))) {
 			/*
 			 * Some platforms (e.g. Windows) require an explicit
-			 * commit step (and writing to uncomitted memory is not
+			 * commit step (and writing to uncommitted memory is not
 			 * allowed).
 			 */
 			return false;

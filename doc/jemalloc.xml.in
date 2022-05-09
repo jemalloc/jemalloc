@@ -972,10 +972,9 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
           (<type>bool</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>Do not perform runtime check for MADV_DONTNEED, to
-        check that it actually zeros pages.  The default is
-        <quote>disabled</quote> on linux and <quote>enabled</quote> elsewhere.
-        </para></listitem>
+        <listitem><para>If true, do not perform runtime check for MADV_DONTNEED,
+        to check that it actually zeros pages.  The default is disabled on Linux
+        and enabled elsewhere.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.retain">
@@ -1345,7 +1344,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         maximum, size classes up to 8 MiB can be cached.  The default maximum is
         32 KiB (2^15).  As a convenience, this may also be set by specifying
         lg_tcache_max, which will be taken to be the base-2 logarithm of the
-        setting of tcache_max</para></listitem>
+        setting of tcache_max.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.thp">
@@ -1409,7 +1408,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         set to the empty string, no automatic dumps will occur; this is
         primarily useful for disabling the automatic final heap dump (which
         also disables leak reporting, if enabled).  The default prefix is
-        <filename>jeprof</filename>.  This prefix value can be overriden by
+        <filename>jeprof</filename>.  This prefix value can be overridden by
         <link linkend="prof.prefix"><mallctl>prof.prefix</mallctl></link>.
         </para></listitem>
       </varlistentry>
@@ -1579,20 +1578,21 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           <literal>r-</literal>
         </term>
         <listitem><para> Determines the behavior of
-	<function>realloc()</function> when passed a value of zero for the new
-	size.  <quote>strict</quote> treats this as an allocation of size zero
-	(and returns a non-null result except in case of resource exhaustion).
-	<quote>free</quote> treats this as a deallocation of the pointer, and
-	returns <constant>NULL</constant> without setting
-	<varname>errno</varname>.  <quote>abort</quote> aborts the process if
-	zero is passed.  The default is <quote>strict</quote>.</para>
+        <function>realloc()</function> when passed a value of zero for the new
+        size.  <quote>alloc</quote> treats this as an allocation of size zero
+        (and returns a non-null result except in case of resource exhaustion).
+        <quote>free</quote> treats this as a deallocation of the pointer, and
+        returns <constant>NULL</constant> without setting
+        <varname>errno</varname>.  <quote>abort</quote> aborts the process if
+        zero is passed.  The default is <quote>free</quote> on Linux and
+        Windows, and <quote>alloc</quote> elsewhere.</para>
 
 	<para>There is considerable divergence of behaviors across
 	implementations in handling this case. Many have the behavior of
 	<quote>free</quote>. This can introduce security vulnerabilities, since
 	a <constant>NULL</constant> return value indicates failure, and the
 	continued validity of the passed-in pointer (per POSIX and C11).
-	<quote>strict</quote> is safe, but can cause leaks in programs that
+	<quote>alloc</quote> is safe, but can cause leaks in programs that
 	expect the common behavior.  Programs intended to be portable and
 	leak-free cannot assume either behavior, and must therefore never call
 	realloc with a size of 0.  The <quote>abort</quote> option enables these
@@ -2733,7 +2733,7 @@ struct extent_hooks_s {
         counters</link>.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="stats.mutexes.prof_tdatas">
+      <varlistentry id="stats.mutexes.prof_thds_data">
         <term>
           <mallctl>stats.mutexes.prof_thds_data.{counter}</mallctl>
 	  (<type>counter specific type</type>) <literal>r-</literal>

@@ -180,7 +180,7 @@ bool pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
     size_t new_size, szind_t szind, bool *deferred_work_generated);
 /*
  * Frees the given edata back to the pa.  Sets *generated_dirty if we produced
- * new dirty pages (well, we alwyas set it for now; but this need not be the
+ * new dirty pages (well, we always set it for now; but this need not be the
  * case).
  * (We could make generated_dirty the return value of course, but this is more
  * consistent with the shrink pathway and our error codes here).

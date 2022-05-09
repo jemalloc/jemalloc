@@ -46,6 +46,7 @@ test_sec_init(sec_t *sec, pai_t *fallback, size_t nshards, size_t max_alloc,
 
 	bool err = sec_init(TSDN_NULL, sec, base, fallback, &opts);
 	assert_false(err, "Unexpected initialization failure");
+	assert_u_ge(sec->npsizes, 0, "Zero size classes allowed for caching");
 }
 
 static inline edata_t *

@@ -1,55 +1,61 @@
 #include <stdio.h>
 
-/*
- * We can't test C++ in unit tests, and we can't change the safety check failure
- * hook in integration tests.  So we check that we *actually* abort on failure,
- * by forking and checking the child process exit code.
- */
-
-/* It's a unix system? */
-#ifdef __unix__
-/* I know this! */
-#include <sys/types.h>
-#include <unistd.h>
-#include <sys/wait.h>
-static const bool can_fork = true;
-#else
-static const bool can_fork = false;
-#endif
-
 #include "test/jemalloc_test.h"
 
-TEST_BEGIN(test_failing_alloc) {
-	test_skip_if(!can_fork);
-#ifdef __unix__
-	pid_t pid = fork();
-	expect_d_ne(pid, -1, "Unexpected fork failure");
-	if (pid == 0) {
-		/*
-		 * In the child, we'll print an error message to stderr before
-		 * exiting.  Close stderr to avoid spamming output for this
-		 * expected failure.
-		 */
-		fclose(stderr);
-		try {
-			/* Too big of an allocation to succeed. */
-			void *volatile ptr = ::operator new((size_t)-1);
-			(void)ptr;
-		} catch (...) {
-			/*
-			 * Swallow the exception; remember, we expect this to
-			 * fail via an abort within new, not because an
-			 * exception didn't get caught.
-			 */
-		}
-	} else {
-		int status;
-		pid_t err = waitpid(pid, &status, 0);
-		expect_d_ne(-1, err, "waitpid failure");
-		expect_false(WIFEXITED(status),
-		    "Should have seen an abnormal failure");
+/*
+ * We can't test C++ in unit tests.  In order to intercept abort, use a secret
+ * safety check abort hook in integration tests.
+ */
+typedef void (*abort_hook_t)(const char *message);
+bool fake_abort_called;
+void fake_abort(const char *message) {
+	if (strcmp(message, "<jemalloc>: Allocation failed and "
+	    "opt.experimental_infallible_new is true. Aborting.\n") != 0) {
+		abort();
 	}
+	fake_abort_called = true;
+}
+
+static bool
+own_operator_new(void) {
+	uint64_t before, after;
+	size_t sz = sizeof(before);
+
+	/* thread.allocated is always available, even w/o config_stats. */
+	expect_d_eq(mallctl("thread.allocated", (void *)&before, &sz, NULL, 0),
+	    0, "Unexpected mallctl failure reading stats");
+	void *volatile ptr = ::operator new((size_t)8);
+	expect_ptr_not_null(ptr, "Unexpected allocation failure");
+	expect_d_eq(mallctl("thread.allocated", (void *)&after, &sz, NULL, 0),
+	    0, "Unexpected mallctl failure reading stats");
+
+	return (after != before);
+}
+
+TEST_BEGIN(test_failing_alloc) {
+	abort_hook_t abort_hook = &fake_abort;
+	expect_d_eq(mallctl("experimental.hooks.safety_check_abort", NULL, NULL,
+	    (void *)&abort_hook, sizeof(abort_hook)), 0,
+	    "Unexpected mallctl failure setting abort hook");
+
+	/*
+	 * Not owning operator new is only expected to happen on MinGW which
+	 * does not support operator new / delete replacement.
+	 */
+#ifdef _WIN32
+	test_skip_if(!own_operator_new());
+#else
+	expect_true(own_operator_new(), "No operator new overload");
 #endif
+	void *volatile ptr = (void *)1;
+	try {
+		/* Too big of an allocation to succeed. */
+		ptr = ::operator new((size_t)-1);
+	} catch (...) {
+		abort();
+	}
+	expect_ptr_null(ptr, "Allocation should have failed");
+	expect_b_eq(fake_abort_called, true, "Abort hook not invoked");
 }
 TEST_END
 

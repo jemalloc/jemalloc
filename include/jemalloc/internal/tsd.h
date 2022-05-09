@@ -153,9 +153,12 @@ typedef ql_elm(tsd_t) tsd_link_t;
     				TSD_DATA_SLOWER_INITIALIZER		\
 }
 
+#if defined(JEMALLOC_MALLOC_THREAD_CLEANUP) || defined(_WIN32)
+void _malloc_tsd_cleanup_register(bool (*f)(void));
+#endif
+
 void *malloc_tsd_malloc(size_t size);
 void malloc_tsd_dalloc(void *wrapper);
-void malloc_tsd_cleanup_register(bool (*f)(void));
 tsd_t *malloc_tsd_boot0(void);
 void malloc_tsd_boot1(void);
 void tsd_cleanup(void *arg);
