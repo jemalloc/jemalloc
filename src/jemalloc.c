@@ -1390,6 +1390,10 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				}
 				CONF_CONTINUE;
 			}
+			CONF_HANDLE_BOOL(opt_ccache, "ccache")
+			CONF_HANDLE_SIZE_T(opt_ccache_max, "ccache_max", 0,
+			    CCACHE_MAXCLASS_LIMIT, CONF_DONT_CHECK_MIN,
+			    CONF_CHECK_MAX, /* clip */ true);
 			/*
 			 * Anyone trying to set a value outside -16 to 16 is
 			 * deeply confused.
@@ -1735,6 +1739,17 @@ malloc_conf_init_check_deps(void) {
 	if (opt_prof_leak_error && !opt_prof_final) {
 		malloc_printf("<jemalloc>: prof_leak_error is set w/o "
 		    "prof_final.\n");
+		return true;
+	}
+	if (opt_ccache && !opt_tcache) {
+		malloc_printf("<jemalloc>: opt_ccache is set w/o opt_tcache. "
+		    "Ignoring.\n");
+		return true;
+	}
+	if (opt_ccache && opt_tcache && opt_ccache_max < opt_tcache_max) {
+		malloc_printf("<jemalloc>: opt_ccache_max is less than  "
+		    "opt_tcache_max. Per-CPU cache will be disabled.\n");
+		opt_ccache = false;
 		return true;
 	}
 

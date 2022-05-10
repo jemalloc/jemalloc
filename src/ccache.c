@@ -14,25 +14,33 @@
 #define STRINGIFY_HELPER(x) #x
 #define STRINGIFY(x) STRINGIFY_HELPER(x)
 
-/* TODO: Change to configure option */
-static const size_t ccached_nclasses = CCACHE_NCLASSES;
-
 /* Beware of the init order, it must be assigned before ccache_init call */
 extern unsigned ncpus;
 
-szind_t ccache_minind;
-szind_t ccache_maxind;
+/* Ccache is disabled by default */
+bool opt_ccache = false;
+size_t opt_ccache_max = CCACHE_MAXCLASS_LIMIT;
 
-size_t ccache_maxclass;
+/*
+ * Ccache handles sizes [ccache_minind; ccache_maxind).
+ * If ccache is disabled, then ccache_minind = ccache_maxind = 0.
+ */
+szind_t ccache_minind = 0;
+szind_t ccache_maxind = 0;
+size_t ccache_maxclass = 0;
 
-static size_t ccache_bin_size;
-static size_t ccache_size;
-
+static size_t ccache_percpu_size;
 static ccache_t *ccache_base;
 
 static bool
 ccache_handles_szind(szind_t ind) {
-	return ccache_minind <= ind && ind <= ccache_maxind;
+	return ccache_minind <= ind && ind < ccache_maxind;
+}
+
+static inline unsigned
+ccache_nclasses() {
+	assert(ccache_maxind >= ccache_minind);
+	return ccache_maxind - ccache_minind;
 }
 
 static unsigned
@@ -60,7 +68,7 @@ ccache_bin_ncached_elements(ccache_bin_t *bin) {
 
 static ccache_t *
 ccache_get(int cpu) {
-	return &ccache_base[cpu];
+	return (ccache_t*)((uintptr_t)ccache_base + ccache_percpu_size * cpu);
 }
 
 static ccache_bin_t *
@@ -173,19 +181,27 @@ bool
 ccache_init(tsdn_t *tsdn, base_t *base) {
 	assert(ncpus > 0);
 
-	ccache_minind = sz_size2index(tcache_maxclass) + 1;
-	ccache_maxind = ccache_minind + ccached_nclasses - 1;
-	ccache_maxclass = sz_index2size(ccache_maxind);
-	ccache_bin_size = PAGE;
-	ccache_size = sizeof(ccache_t) * ncpus;
-	ccache_base = (ccache_t*)base_alloc(tsdn, base, ccache_size,
-	    PAGE);
+	if (opt_ccache) {
+		ccache_maxclass = sz_s2u(opt_ccache_max);
+
+		ccache_minind = sz_size2index(tcache_maxclass) + 1;
+		ccache_maxind = sz_size2index(ccache_maxclass) + 1;
+	} else {
+		ccache_maxclass = 0;
+	}
+	assert(ccache_nclasses() <= CCACHE_NBINS_LIMIT);
+
+	ccache_percpu_size = sizeof(ccache_t) +
+	    sizeof(ccache_bin_t) * ccache_nclasses();
+	ccache_base = (ccache_t*)base_alloc(tsdn, base,
+	    ccache_percpu_size * ncpus, PAGE);
 	if (ccache_base == NULL) {
 		return true;
 	}
 	for (unsigned i = 0; i < ncpus; ++i) {
-		ccache_t *ith_cache = &ccache_base[i];
-		for (unsigned j = 0; j < ccached_nclasses; ++j) {
+		ccache_t *ith_cache = (ccache_t*)((uintptr_t)ccache_base +
+		    ccache_percpu_size * i);
+		for (unsigned j = 0; j < ccache_nclasses(); ++j) {
 			ccache_bin_t *bin = &ith_cache->bins[j];
 			bin->head = (void **)&bin->head;
 		}
@@ -197,6 +213,8 @@ ccache_init(tsdn_t *tsdn, base_t *base) {
 void*
 ccache_alloc(tsd_t *tsd, arena_t *arena, size_t size, szind_t ind,
     bool zero, bool small) {
+	assert(opt_ccache);
+	assert(ccache_handles_szind(ind));
 	/*
 	 * Ccache is disabled for manual arenas due to difficulties handling
 	 * arena reset.
@@ -220,7 +238,8 @@ ccache_alloc(tsd_t *tsd, arena_t *arena, size_t size, szind_t ind,
 	int spins = 0;
 #endif
 
-	size_t bin_offset = (ind - ccache_minind) * sizeof(ccache_bin_t);
+	size_t bin_offset = (ind - ccache_minind) * sizeof(ccache_bin_t) +
+	    offsetof(ccache_t, bins);
 
 	__asm__ __volatile__(
 	    /* aw == Allocatable and writable section */
@@ -248,7 +267,7 @@ ccache_alloc(tsd_t *tsd, arena_t *arena, size_t size, szind_t ind,
 #ifdef JEMALLOC_DEBUG
 	    "movl %%eax, %[cpu]\n\t"
 #endif
-	    "imulq $%c[sizeof_ccache_t], %%rax, %%rax\n\t"
+	    "imulq %[ccache_percpu_size], %%rax\n\t"
 	    "addq %[ccache_base], %%rax\n\t"
 	    "movq %%rax, %[ccache]\n\t"
 	    "leaq (%%rax, %[bin_offset]), %[bin]\n\t"
@@ -305,10 +324,10 @@ ccache_alloc(tsd_t *tsd, arena_t *arena, size_t size, szind_t ind,
 	      [spins] "=m" (spins)
 #endif
 	    : [bin_offset] "r" (bin_offset),
+	      [ccache_percpu_size] "r" (ccache_percpu_size),
 	      [head_offset] "i" (offsetof(ccache_bin_t, head)),
 	      [cpuid_offset] "i" (offsetof(rseq_t, cpu_id)),
 	      [rseq_cs_offset] "i" (offsetof(rseq_t, rseq_cs)),
-	      [sizeof_ccache_t] "i" (sizeof(ccache_t)),
 	      [rseq_abi] "r" (rseq_abi),
 	      [ccache_base] "rm" (ccache_base)
 	    : "rax", "cc", "memory"
@@ -356,9 +375,9 @@ fallback:
 
 bool
 ccache_free(tsd_t *tsd, void *ptr, szind_t ind, bool small) {
-	if (!ccache_handles_szind(ind)) {
-		return false;
-	}
+	assert(opt_ccache);
+	assert(ccache_handles_szind(ind));
+
 	edata_t *edata = emap_edata_lookup(tsd_tsdn(tsd),
 	    &arena_emap_global, ptr);
 	arena_t *origin_arena = arena_get_from_edata(edata);
@@ -374,7 +393,8 @@ ccache_free(tsd_t *tsd, void *ptr, szind_t ind, bool small) {
 #endif
 	bool fallback_flag, flush_flag;
 
-	size_t bin_offset = (ind - ccache_minind) * sizeof(ccache_bin_t);
+	size_t bin_offset = (ind - ccache_minind) * sizeof(ccache_bin_t) +
+	    offsetof(ccache_t, bins);
 
 	__asm__ __volatile__(
 	    /* aw == Allocatable and writable section */
@@ -402,7 +422,7 @@ ccache_free(tsd_t *tsd, void *ptr, szind_t ind, bool small) {
 #ifdef JEMALLOC_DEBUG
 	    "movl %%eax, %[cpu]\n\t"
 #endif
-	    "imulq $%c[sizeof_ccache_t], %%rax, %%rax\n\t"
+	    "imulq %[ccache_percpu_size], %%rax\n\t"
 	    "addq %[ccache_base], %%rax\n\t"
 	    "movq %%rax, %[ccache]\n\t"
 	    "leaq (%%rax, %[bin_offset]), %[bin]\n\t"
@@ -448,10 +468,10 @@ ccache_free(tsd_t *tsd, void *ptr, szind_t ind, bool small) {
 	      [spins] "=m" (spins)
 #endif
 	    : [bin_offset] "r" (bin_offset),
+	      [ccache_percpu_size] "r" (ccache_percpu_size),
 	      [head_offset] "i" (offsetof(ccache_bin_t, head)),
 	      [cpuid_offset] "i" (offsetof(rseq_t, cpu_id)),
 	      [rseq_cs_offset] "i" (offsetof(rseq_t, rseq_cs)),
-	      [sizeof_ccache_t] "i" (sizeof(ccache_t)),
 	      [rseq_abi] "r" (rseq_abi),
 	      [ccache_base] "rm" (ccache_base),
 	      [ptr] "r" (ptr)
@@ -508,7 +528,7 @@ ccache_visit_bins(ccache_bin_visitor visitor, void *ctx) {
 
 	for (unsigned cpu = 0; cpu < ncpus; ++cpu) {
 		ccache_t *ccache = ccache_get(cpu);
-		for (szind_t ind = ccache_minind; ind <= ccache_maxind; ++ind) {
+		for (szind_t ind = ccache_minind; ind < ccache_maxind; ++ind) {
 			ccache_bin_t *bin = ccache_bin_get(ccache, ind);
 			visitor(bin, cpu, ind, ctx);
 		}
@@ -570,7 +590,7 @@ ccache_merge_tstats(tsdn_t *tsdn) {
 	if (arena == NULL) {
 		return;
 	}
-	for (szind_t binind = ccache_minind; binind <= ccache_maxind; ++binind) {
+	for (szind_t binind = ccache_minind; binind < ccache_maxind; ++binind) {
 		cache_bin_stats_t *stats = ccache_bin_tstats_get(tsdn_tsd(tsdn), binind);
 		assert(stats);
 

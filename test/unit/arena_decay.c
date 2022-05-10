@@ -36,16 +36,7 @@ TEST_BEGIN(test_decay_ticks) {
 	expect_d_eq(mallctl("arenas.lextent.0.size", (void *)&large0, &sz, NULL,
 	    0), 0, "Unexpected mallctl failure");
 
-	if (config_cpu_cache) {
-		arena_served_sz = sz_index2size(ccache_maxind + 1);
-	} else {
-		/*
-		 * Large0 is served by arena, because MALLOC_CONF for this test
-		 * limits tcache to 4096 size class.
-		 */
-		arena_served_sz = large0;
-	}
-
+	arena_served_sz = large0;
 	/* Set up a manually managed arena for test. */
 	arena_ind = do_arena_create(0, 0);
 

@@ -12,13 +12,18 @@
 #endif
 
 #define CCACHE_TDATA_ZERO_INITIALIZER {0}
-#define CCACHE_BIN_ELEMENTS ((PAGE - sizeof(void **)) / sizeof(void *))
-#define CCACHE_NCLASSES 16
 
-typedef struct ccache_bin_s ccache_bin_t;
-struct ccache_bin_s {
-	void *ccache_bin_entry[CCACHE_BIN_ELEMENTS];
-	void **head;
+#define CCACHE_BIN_ELEMENTS ((CACHELINE * 2 - sizeof(void **)) / sizeof(void *))
+#define CCACHE_LG_MAXCLASS_LIMIT 23 /* 8 MiB */
+#define CCACHE_MAXCLASS_LIMIT ((size_t)1 << CCACHE_LG_MAXCLASS_LIMIT)
+#define CCACHE_NBINS_LIMIT                                                     \
+    SC_NBINS + (SC_NGROUP                                                      \
+        * (CCACHE_LG_MAXCLASS_LIMIT - TCACHE_LG_MAXCLASS_LIMIT + 1))
+
+  typedef struct ccache_bin_s ccache_bin_t;
+  struct ccache_bin_s {
+      void *ccache_bin_entry[CCACHE_BIN_ELEMENTS];
+      void **head;
 };
 
 typedef struct ccache_stats_s ccache_stats_t;
@@ -29,9 +34,8 @@ struct ccache_stats_s {
 
 typedef struct ccache_s ccache_t;
 struct ccache_s {
-	/* TODO: make ccache_nclasses a runtime option */
-	ccache_bin_t bins[CCACHE_NCLASSES];
 	ccache_stats_t stats;
+	ccache_bin_t bins[];
 };
 
 /*
@@ -47,7 +51,7 @@ struct ccache_tdata_s {
 	 * flushed periodically to the arenas, to avoid taking lock for every
 	 * request.
 	 */
-	cache_bin_stats_t ccache_stats[CCACHE_NCLASSES];
+	cache_bin_stats_t ccache_stats[CCACHE_NBINS_LIMIT];
 	rseq_t rseq_abi;
 #else
 	/* C standard doesn't allow empty structs */

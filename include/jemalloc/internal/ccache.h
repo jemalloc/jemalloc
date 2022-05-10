@@ -8,8 +8,11 @@
 #include "jemalloc/internal/tsd_types.h"
 #include "jemalloc/internal/base.h"
 
-extern szind_t ccache_maxind;
+extern bool opt_ccache;
+extern size_t opt_ccache_max;
+
 extern szind_t ccache_minind;
+extern szind_t ccache_maxind;
 extern size_t ccache_maxclass;
 
 bool ccache_init(tsdn_t *tsdn, base_t *base);

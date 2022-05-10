@@ -154,7 +154,8 @@ tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 	}
 
 	if (unlikely(tcache_small_bin_disabled(binind, bin))) {
-		if (!config_cpu_cache || !ccache_free(tsd, ptr, binind, true)) {
+		if (!(config_cpu_cache && binind < ccache_maxclass &&
+		    ccache_free(tsd, ptr, binind, /* small */ true))) {
 			arena_dalloc_small(tsd_tsdn(tsd), ptr);
 		}
 	} else if (unlikely(!cache_bin_dalloc_easy(bin, ptr))) {

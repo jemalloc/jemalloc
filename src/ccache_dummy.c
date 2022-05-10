@@ -3,6 +3,9 @@
 
 #include "jemalloc/internal/ccache.h"
 
+bool opt_ccache = false;
+size_t opt_ccache_max = 0;
+
 szind_t ccache_maxind = 0;
 szind_t ccache_minind = 0;
 size_t ccache_maxclass = 0;

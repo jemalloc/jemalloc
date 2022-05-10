@@ -1,3 +1,3 @@
 #!/bin/sh
 
-export MALLOC_CONF="lg_tcache_max:12"
+export MALLOC_CONF="tcache_max:4096,ccache:true,ccache_max:32768"
