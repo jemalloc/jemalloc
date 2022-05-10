@@ -137,7 +137,7 @@ global_stats_active_get() {
  * resulting array and makes them free concurrently.
  */
 TEST_BEGIN(test_ccache_fuzzy) {
-	test_skip_if(!config_cpu_cache);
+	test_skip_if(!config_cpu_cache || !config_stats);
 
 	assert_preconditions();
 
@@ -224,7 +224,7 @@ TEST_BEGIN(test_ccache_fuzzy) {
 TEST_END
 
 TEST_BEGIN(test_ccache_stats) {
-	test_skip_if(!config_cpu_cache);
+	test_skip_if(!config_cpu_cache || !config_stats);
 
 	assert_preconditions();
 

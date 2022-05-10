@@ -213,7 +213,7 @@ tcache_event(tsd_t *tsd) {
 	}
 
 	/* TODO: create a separate event type for it */
-	if (config_cpu_cache) {
+	if (config_stats && config_cpu_cache) {
 		ccache_merge_tstats(tsd_tsdn(tsd));
 	}
 }

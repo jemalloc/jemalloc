@@ -105,8 +105,10 @@ ccache_bin_refill(tsd_t *tsd, ccache_t *ccache, ccache_bin_t *bin,
 	 * on the same CPU go down the slow path.
 	 */
 
-	atomic_fetch_add_u32(&ccache->stats.nfills, 1,
-	    atomic_memory_order_relaxed);
+	if (config_stats) {
+		atomic_fetch_add_u32(&ccache->stats.nfills, 1,
+		    atomic_memory_order_relaxed);
+	}
 
 	CACHE_BIN_PTR_ARRAY_DECLARE(ptrs, nfill);
 	ptrs.ptr = &bin->ccache_bin_entry[CCACHE_BIN_ELEMENTS - nfill];
@@ -123,8 +125,10 @@ ccache_bin_flush(tsd_t *tsd, ccache_t *ccache, ccache_bin_t *bin,
 	const unsigned nflush = CCACHE_BIN_ELEMENTS / 2;
 	assert(ccache_bin_locked(bin));
 
-	atomic_fetch_add_u32(&ccache->stats.nflushes, 1,
-	    atomic_memory_order_relaxed);
+	if (config_stats) {
+		atomic_fetch_add_u32(&ccache->stats.nflushes, 1,
+		    atomic_memory_order_relaxed);
+	}
 
 	CACHE_BIN_PTR_ARRAY_DECLARE(ptrs, nflush);
 	/* 
@@ -225,7 +229,7 @@ ccache_alloc(tsd_t *tsd, arena_t *arena, size_t size, szind_t ind,
 	 * No need to zero initialize these flags.
 	 * If fallback, sete will set 'fallback_flag' to 1, 'refill_flag' is
 	 * never read.
-	 * If refill, sete will set 'fallback_flag' to 0, and setne will set
+	 * If refill, sete will set 'fallback_flag' to 0, and sete will set
 	 * 'refill_flag' to 1.
 	 */
 	bool fallback_flag, refill_flag;
