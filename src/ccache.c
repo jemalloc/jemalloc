@@ -143,11 +143,7 @@ ccache_bin_flush(tsd_t *tsd, ccache_t *ccache, ccache_bin_t *bin,
 	__asm__ __volatile__ ("" ::: "memory" );
 	bin->head = &bin->ccache_bin_entry[nflush - 1];
 
-	/* TODO: re-consider return true or false on success. This caused a bug
-	 * becuase the return value was forwarded by ccache_free, which should
-	 * return true on success, but this was returning 'false'
-	 */
-	return true;
+	return false;
 }
 
 static void
@@ -382,7 +378,7 @@ ccache_free(tsd_t *tsd, void *ptr, szind_t ind, bool small) {
 	    &arena_emap_global, ptr);
 	arena_t *origin_arena = arena_get_from_edata(edata);
 	if (!arena_is_auto(origin_arena)) {
-		return false;
+		return true;
 	}
 	volatile rseq_t *rseq_abi = &tsd_ccache_tdatap_get(tsd)->rseq_abi;
 	ccache_t *ccache;
@@ -483,14 +479,14 @@ ccache_free(tsd_t *tsd, void *ptr, szind_t ind, bool small) {
 	assert(ccache_bin_get(ccache_get(cpu), ind) == bin);
 #endif
 	if (unlikely(fallback_flag)) {
-		return false;
+		return true;
 	}
 	if (unlikely(flush_flag)) {
 		assert(bin->head == NULL);
 		return ccache_bin_flush(tsd, ccache, bin, tsd_arena_get(tsd),
 		    ind, ptr, small);
 	}
-	return true;
+	return false;
 }
 
 uint32_t
