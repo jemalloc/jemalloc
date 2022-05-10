@@ -18,6 +18,7 @@ flush_ccache() {
 
 TEST_BEGIN(test_ccache_alloc_free_noflush) {
 	test_skip_if(!config_cpu_cache);
+	test_skip_if(!opt_ccache);
 
 	assert_preconditions();
 
@@ -46,6 +47,8 @@ TEST_END
 
 TEST_BEGIN(test_ccache_alloc_free_flush) {
 	test_skip_if(!config_cpu_cache);
+	test_skip_if(!opt_ccache);
+	test_skip_if(!config_stats);
 
 	assert_preconditions();
 
@@ -53,15 +56,23 @@ TEST_BEGIN(test_ccache_alloc_free_flush) {
 	const int nallocs = 10000;
 	void *ptr[nallocs];
 
+	uint64_t fills_before = ccache_nfills_get();
 	for (int i = 0; i < nallocs; ++i) {
 		ptr[i] = malloc(alloc_size);
 		expect_ptr_not_null(ptr[i],
 		    "Unable to allocate from cpu cache on step %d", i);
 	}
+	uint64_t fills_after = ccache_nfills_get();
+	expect_u64_gt(fills_after, fills_before,
+	    "Expected at least one refill after %d allocations", nallocs);
 
+	uint64_t flushes_before = ccache_nflushes_get();
 	for (int i = 0; i < nallocs; ++i) {
 		free(ptr[i]);
 	}
+	uint64_t flushes_after = ccache_nflushes_get();
+	expect_u64_gt(flushes_after, flushes_before,
+	    "Expected at least one flush after %d deallocations", nallocs);
 
 	flush_ccache();
 }
@@ -137,7 +148,9 @@ global_stats_active_get() {
  * resulting array and makes them free concurrently.
  */
 TEST_BEGIN(test_ccache_fuzzy) {
-	test_skip_if(!config_cpu_cache || !config_stats);
+	test_skip_if(!config_cpu_cache);
+	test_skip_if(!opt_ccache);
+	test_skip_if(!config_stats);
 
 	assert_preconditions();
 
@@ -224,7 +237,9 @@ TEST_BEGIN(test_ccache_fuzzy) {
 TEST_END
 
 TEST_BEGIN(test_ccache_stats) {
-	test_skip_if(!config_cpu_cache || !config_stats);
+	test_skip_if(!config_cpu_cache);
+	test_skip_if(!opt_ccache);
+	test_skip_if(!config_stats);
 
 	assert_preconditions();
 

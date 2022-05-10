@@ -13,12 +13,12 @@
 
 #define CCACHE_TDATA_ZERO_INITIALIZER {0}
 
-#define CCACHE_BIN_ELEMENTS ((CACHELINE * 2 - sizeof(void **)) / sizeof(void *))
+#define CCACHE_BIN_ELEMENTS ((CACHELINE * 5 - sizeof(void **)) / sizeof(void *))
 #define CCACHE_LG_MAXCLASS_LIMIT 23 /* 8 MiB */
 #define CCACHE_MAXCLASS_LIMIT ((size_t)1 << CCACHE_LG_MAXCLASS_LIMIT)
 #define CCACHE_NBINS_LIMIT                                                     \
     SC_NBINS + (SC_NGROUP                                                      \
-        * (CCACHE_LG_MAXCLASS_LIMIT - TCACHE_LG_MAXCLASS_LIMIT + 1))
+        * (CCACHE_LG_MAXCLASS_LIMIT - SC_LG_LARGE_MINCLASS + 1))
 
   typedef struct ccache_bin_s ccache_bin_t;
   struct ccache_bin_s {
