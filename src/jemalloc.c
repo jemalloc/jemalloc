@@ -1741,9 +1741,15 @@ malloc_conf_init_check_deps(void) {
 		    "prof_final.\n");
 		return true;
 	}
+	if (opt_ccache && !config_cpu_cache) {
+		malloc_printf("<jemalloc>: opt_ccache is set while cpu cache "
+		    "is not configured. Ignoring.\n");
+		opt_ccache = false;
+	}
 	if (opt_ccache && !opt_tcache) {
 		malloc_printf("<jemalloc>: opt_ccache is set w/o opt_tcache. "
 		    "Ignoring.\n");
+		opt_ccache = false;
 		return true;
 	}
 	if (opt_ccache && opt_tcache && opt_ccache_max < opt_tcache_max) {
