@@ -25,7 +25,8 @@ uint32_t ccache_nflushes_get();
 uint32_t ccache_nfills_get();
 
 /* Functions operating on TLS */
-void tsd_ccache_init(tsd_t *tsd);
+bool tsd_ccache_init(tsd_t *tsd);
+bool ccache_cleanup(tsd_t *tsd);
 void ccache_merge_tstats(tsdn_t *tsdn);
 
 /* Non thread-safe functions, use only without contention, e.g. in tests */

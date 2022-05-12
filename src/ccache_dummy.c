@@ -46,9 +46,15 @@ ccache_nfills_get() {
 	return 0;
 }
 
-void
+bool
 tsd_ccache_init(tsd_t *tsd) {
 	assert_unused();
+	return false;
+}
+bool
+ccache_cleanup(tsd_t *tsd) {
+	assert_unused();
+	return false;
 }
 void ccache_merge_tstats(tsdn_t *tsdn) {
 	assert_unused();

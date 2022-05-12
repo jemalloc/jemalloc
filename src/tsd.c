@@ -241,8 +241,8 @@ tsd_data_init(tsd_t *tsd) {
 	tsd_prng_state_init(tsd);
 	tsd_te_init(tsd); /* event_init may use the prng state above. */
 	tsd_san_init(tsd);
-	if (config_cpu_cache) {
-		tsd_ccache_init(tsd);
+	if (config_cpu_cache && tsd_ccache_init(tsd)) {
+		return true;
 	}
 	return tsd_tcache_enabled_data_init(tsd);
 }
@@ -383,6 +383,9 @@ tsd_do_data_cleanup(tsd_t *tsd) {
 	iarena_cleanup(tsd);
 	arena_cleanup(tsd);
 	tcache_cleanup(tsd);
+	if (config_cpu_cache) {
+		ccache_cleanup(tsd);
+	}
 	witnesses_cleanup(tsd_witness_tsdp_get_unsafe(tsd));
 	*tsd_reentrancy_levelp_get(tsd) = 1;
 }

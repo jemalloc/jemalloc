@@ -572,14 +572,26 @@ ccache_ncached_elements_unsafe() {
 	return result;
 }
 
-void
+bool
 tsd_ccache_init(tsd_t *tsd) {
-	rseq_t *rseq_abi = &tsd_ccache_tdatap_get(tsd)->rseq_abi;
-	long rc = syscall(__NR_rseq, rseq_abi, sizeof(rseq_t), 0,
-	    JEMALLOC_RSEQ_SIG);
-	if (rc) {
-		/* TODO: handle failure here */
+	if (opt_ccache) {
+		rseq_t *rseq_abi = &tsd_ccache_tdatap_get(tsd)->rseq_abi;
+		long rc = syscall(__NR_rseq, rseq_abi, sizeof(rseq_t), 0,
+		    JEMALLOC_RSEQ_SIG);
+		return rc;
 	}
+	return false;
+}
+
+bool
+ccache_cleanup(tsd_t *tsd) {
+	if (opt_ccache) {
+		rseq_t *rseq_abi = &tsd_ccache_tdatap_get(tsd)->rseq_abi;
+		long rc = syscall(__NR_rseq, rseq_abi, sizeof(rseq_t),
+		    RSEQ_FLAG_UNREGISTER, JEMALLOC_RSEQ_SIG);
+		return rc;
+	}
+	return false;
 }
 
 void
