@@ -293,7 +293,7 @@ arena_dalloc_large(tsdn_t *tsdn, void *ptr, tcache_t *tcache, szind_t szind,
 			    slow_path);
 		}
 	} else if (config_cpu_cache && szind < ccache_maxind) {
-		ccache_free(tsdn_tsd(tsdn), ptr, szind, /* small= */ true);
+		ccache_free(tsdn_tsd(tsdn), ptr, szind, /* small= */ false);
 	} else {
 		edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global,
 		    ptr);
