@@ -155,7 +155,7 @@ run_fuzzy_test(szind_t szind) {
 
 	const size_t alloc_size = sz_index2size(szind);
 	const unsigned nthreads = ncpus * 4;
-	const unsigned nptrs = 1000000;
+	const unsigned nptrs = 200000;
 	const unsigned jobs_per_thread = nptrs / nthreads;
 
 	void **ptrs = (void **)mallocx(nptrs * sizeof(void *),
@@ -180,12 +180,22 @@ run_fuzzy_test(szind_t szind) {
 	    MALLOCX_TCACHE_NONE);
 
 	uint64_t active_before_alloc = global_stats_active_get();
+	uint64_t fills_before = ccache_nfills_get();
 
 	for (unsigned i = 0; i < nthreads; ++i) {
 		thd_create(&thds[i], thd_alloc_write, (void *)&tctx[i]);
 	}
 	for (unsigned i = 0; i < nthreads; ++i) {
 		thd_join(thds[i], NULL);
+	}
+
+	uint64_t fills_after = ccache_nfills_get();
+	if (szind < SC_NBINS) {
+		expect_u64_gt(fills_after, fills_before,
+		    "Never filled the ccache after the large number of allocs");
+	} else {
+		expect_u64_eq(fills_after, fills_before,
+		    "Refilled ccache bin for a large alloc");
 	}
 
 	uint64_t active_after_alloc = global_stats_active_get();
