@@ -20,8 +20,8 @@
     SC_NBINS + (SC_NGROUP                                                      \
         * (CCACHE_LG_MAXCLASS_LIMIT - SC_LG_LARGE_MINCLASS + 1))
 
-  typedef struct ccache_bin_s ccache_bin_t;
-  struct ccache_bin_s {
+typedef struct ccache_bin_s ccache_bin_t;
+struct ccache_bin_s {
       void *ccache_bin_entry[CCACHE_BIN_ELEMENTS];
       void **head;
 };

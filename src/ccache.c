@@ -215,11 +215,17 @@ ccache_alloc(tsd_t *tsd, arena_t *arena, size_t size, szind_t ind,
     bool zero, bool small) {
 	assert(opt_ccache);
 	assert(ccache_handles_szind(ind));
+
+	arena = arena_choose(tsd, arena);
 	/*
 	 * Ccache is disabled for manual arenas due to difficulties handling
 	 * arena reset.
 	 */
 	assert(arena_is_auto(arena));
+
+	if (unlikely(arena == NULL)) {
+		return NULL;
+	}
 
 	void *ret = NULL;
 	volatile rseq_t *rseq_abi = &tsd_ccache_tdatap_get(tsd)->rseq_abi;

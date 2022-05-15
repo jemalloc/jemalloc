@@ -19,6 +19,12 @@ flush_ccache() {
 TEST_BEGIN(test_ccache_alloc_free_noflush) {
 	test_skip_if(!config_cpu_cache);
 	test_skip_if(!opt_ccache);
+	/*
+	 * If opt_prof is on, it's possible that the allocated pointer is
+	 * sampled, it will come from a different bin and be different from the
+	 * freed pointer.
+	 */
+	test_skip_if(opt_prof);
 
 	assert_preconditions();
 
@@ -97,7 +103,7 @@ thd_alloc_write(void *arg) {
 }
 
 static void *
-thd_free_accumulate(void *arg) {
+thd_accumulate_free(void *arg) {
 	/* Bootstrap tcache, otherwise 'free' would bypass ccache */
 	void *volatile ptr = malloc(1);
 	free(ptr);
@@ -143,18 +149,11 @@ global_stats_active_get() {
 	return res;
 }
 
-/*
- * Fuzzy tests that makes nthreads allocate concurrently, then shuffles the
- * resulting array and makes them free concurrently.
- */
-TEST_BEGIN(test_ccache_fuzzy) {
-	test_skip_if(!config_cpu_cache);
-	test_skip_if(!opt_ccache);
-	test_skip_if(!config_stats);
-
+void
+run_fuzzy_test(szind_t szind) {
 	assert_preconditions();
 
-	const size_t alloc_size = sz_index2size(ccache_minind);
+	const size_t alloc_size = sz_index2size(szind);
 	const unsigned nthreads = ncpus * 4;
 	const unsigned nptrs = 1000000;
 	const unsigned jobs_per_thread = nptrs / nthreads;
@@ -208,7 +207,7 @@ TEST_BEGIN(test_ccache_fuzzy) {
 	uint64_t flushes_before = ccache_nflushes_get();
 	for (unsigned i = 0; i < nthreads; ++i) {
 		tctx[i].accumulated = 0;
-		thd_create(&thds[i], thd_free_accumulate, (void *)&tctx[i]);
+		thd_create(&thds[i], thd_accumulate_free, (void *)&tctx[i]);
 	}
 
 	sum = 0;
@@ -233,6 +232,25 @@ TEST_BEGIN(test_ccache_fuzzy) {
 	dallocx(tctx, MALLOCX_TCACHE_NONE);
 	dallocx(ptrs, MALLOCX_TCACHE_NONE);
 
+}
+
+/*
+ * Fuzzy tests that makes nthreads allocate concurrently, then shuffles the
+ * resulting array and makes them free concurrently.
+ */
+TEST_BEGIN(test_ccache_fuzzy) {
+	test_skip_if(!config_cpu_cache);
+	test_skip_if(!opt_ccache);
+	test_skip_if(!config_stats);
+
+	const szind_t alloc_sizeinds[] = {ccache_minind,
+		(ccache_minind + ccache_maxind) / 2,
+		ccache_maxind - 1};
+	const unsigned nsizes = sizeof(alloc_sizeinds) / sizeof(szind_t);
+
+	for (unsigned run = 0; run < nsizes; ++run) {
+		run_fuzzy_test(alloc_sizeinds[run]);
+	}
 }
 TEST_END
 
@@ -259,8 +277,15 @@ TEST_BEGIN(test_ccache_stats) {
 		free(ptr);
 	}
 	uint64_t flushes_after = ccache_nflushes_get();
-	expect_u64_eq(flushes_after - flushes_before, 1,
-	    "Expected one flush after overflowing the bin with elements");
+	/*
+	 * If opt_prof is on, some allocations could have been promoted to a
+	 * large size class and put into a different bin.
+	 */
+	if (!opt_prof) {
+		expect_u64_eq(flushes_after - flushes_before, 1,
+		    "Expected one flush after overflowing the bin "
+		    "with pointers");
+	}
 
 	flush_ccache();
 }

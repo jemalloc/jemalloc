@@ -1546,10 +1546,12 @@ arena_dalloc_promoted(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 	if (bumped_usize <= tcache_maxclass && tcache != NULL) {
 		tcache_dalloc_large(tsdn_tsd(tsdn), tcache, ptr,
 		    sz_size2index(bumped_usize), slow_path);
-	} else if (config_cpu_cache && bumped_usize < ccache_maxclass
+	} else if (config_cpu_cache && bumped_usize <= ccache_maxclass
 	    && tcache != NULL) {
-		ccache_free(tsdn_tsd(tsdn), ptr, sz_size2index(bumped_usize),
-		    /* small= */ false);
+		if (ccache_free(tsdn_tsd(tsdn), ptr,
+		    sz_size2index(bumped_usize), /* small= */ false)) {
+			large_dalloc(tsdn, edata);
+		}
 	} else {
 		large_dalloc(tsdn, edata);
 	}
