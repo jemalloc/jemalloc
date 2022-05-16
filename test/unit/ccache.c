@@ -275,8 +275,11 @@ TEST_BEGIN(test_ccache_stats) {
 	uint64_t fills_before = ccache_nfills_get();
 	void *ptr = malloc(alloc_size);
 	uint64_t fills_after = ccache_nfills_get();
-	expect_u64_eq(fills_after - fills_before, 1,
-	    "Expected one refill after allocating from an empty ccache");
+	if (!opt_prof) {
+		expect_u64_eq(fills_after - fills_before, 1,
+		    "Expected one refill after allocating from an empty "
+		    "ccache");
+	}
 	free(ptr);
 
 	flush_ccache();
