@@ -68,7 +68,7 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
 				return NULL;
 			}
 		} else if (config_cpu_cache &&
-		    likely(size < ccache_maxclass && arena_is_auto(arena))) {
+		    likely(binind < ccache_maxind && arena_is_auto(arena))) {
 			/* stats and zero and handled by ccache */
 			return ccache_alloc(tsd, arena, size, binind, zero,
 			    true);
