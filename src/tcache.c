@@ -241,7 +241,7 @@ tcache_bin_fill_small(tsdn_t *tsdn, arena_t *arena,
 	    nfill);
 
 	unsigned nfilled = arena_fill_small(tsdn, arena, binind, ptrs.ptr,
-	    nfill, &cache_bin->tstats);
+	    nfill, &cache_bin->tstats, /* ccache= */ false);
 
 	cache_bin_finish_fill(cache_bin, cache_bin_info, &ptrs, nfilled);
 	/* TODO: remove this duplication with ccache's version */

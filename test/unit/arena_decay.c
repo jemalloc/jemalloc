@@ -66,8 +66,6 @@ TEST_BEGIN(test_decay_ticks) {
 	tick0 = ticker_geom_read(decay_ticker);
 	free(p);
 	tick1 = ticker_geom_read(decay_ticker);
-	/* TODO: change the expectation, because these allocs are not handled by
-	 * the arena anymore */
 	expect_u32_ne(tick1, tick0, "Expected ticker to tick during free()");
 
 	/* calloc(). */

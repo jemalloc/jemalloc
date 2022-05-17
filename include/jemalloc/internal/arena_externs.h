@@ -103,8 +103,8 @@ bool arena_is_huge(unsigned arena_ind);
 arena_t *arena_choose_huge(tsd_t *tsd);
 bin_t *arena_bin_choose(tsdn_t *tsdn, arena_t *arena, szind_t binind,
     unsigned *binshard);
-unsigned arena_fill_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, void **ptrs,
-    const unsigned nfill, cache_bin_stats_t *stats);
+unsigned arena_fill_small(tsdn_t *tsdn, arena_t *arena, szind_t binind,
+    void **ptrs, const unsigned nfill, cache_bin_stats_t *stats, bool ccache);
 size_t arena_fill_small_fresh(tsdn_t *tsdn, arena_t *arena, szind_t binind,
     void **ptrs, size_t nfill, bool zero);
 bool arena_boot(sc_data_t *sc_data, base_t *base, bool hpa);

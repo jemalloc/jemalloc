@@ -926,7 +926,8 @@ arena_bin_choose(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 
 unsigned
 arena_fill_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, void **ptrs,
-    const unsigned nfill, cache_bin_stats_t *stats) {
+    const unsigned nfill, cache_bin_stats_t *stats, bool ccache) {
+	assert(ccache || stats != NULL);
 	/*
 	 * Bin-local resources are used first: 1) bin->slabcur, and 2) nonfull
 	 * slabs.  After both are exhausted, new slabs will be allocated through
@@ -1013,11 +1014,9 @@ label_refill:
 		bin->stats.nmalloc += filled;
 		bin->stats.curregs += filled;
 		bin->stats.nfills++;
-		/* We do not flush stats from ccache
-		 * TODO: create a verbose argument to distinguish a call from
-		 * ccache
-		 */
-		if (stats != NULL) {
+		/* Ccache stats are flushed in tcache_event */
+		if (!ccache) {
+			assert(stats);
 			bin->stats.nrequests += stats->nrequests;
 			stats->nrequests = 0;
 		}
@@ -1051,13 +1050,13 @@ label_refill:
 }
 
 static const void *
-tcache_bin_flush_ptr_getter(void *arr_ctx, size_t ind) {
+arena_bin_flush_ptr_getter(void *arr_ctx, size_t ind) {
 	cache_bin_ptr_array_t *arr = (cache_bin_ptr_array_t *)arr_ctx;
 	return arr->ptr[ind];
 }
 
 static void
-tcache_bin_flush_metadata_visitor(void *szind_sum_ctx,
+arena_bin_flush_metadata_visitor(void *szind_sum_ctx,
     emap_full_alloc_ctx_t *alloc_ctx) {
 	size_t *szind_sum = (size_t *)szind_sum_ctx;
 	*szind_sum -= alloc_ctx->szind;
@@ -1065,7 +1064,7 @@ tcache_bin_flush_metadata_visitor(void *szind_sum_ctx,
 }
 
 JEMALLOC_NOINLINE static void
-tcache_bin_flush_size_check_fail(cache_bin_ptr_array_t *arr, szind_t szind,
+arena_bin_flush_size_check_fail(cache_bin_ptr_array_t *arr, szind_t szind,
     size_t nptrs, emap_batch_lookup_result_t *edatas) {
 	bool found_mismatch = false;
 	for (size_t i = 0; i < nptrs; i++) {
@@ -1074,7 +1073,7 @@ tcache_bin_flush_size_check_fail(cache_bin_ptr_array_t *arr, szind_t szind,
 			found_mismatch = true;
 			safety_check_fail_sized_dealloc(
 			    /* current_dealloc */ false,
-			    /* ptr */ tcache_bin_flush_ptr_getter(arr, i),
+			    /* ptr */ arena_bin_flush_ptr_getter(arr, i),
 			    /* true_size */ sz_index2size(true_szind),
 			    /* input_size */ sz_index2size(szind));
 		}
@@ -1083,7 +1082,7 @@ tcache_bin_flush_size_check_fail(cache_bin_ptr_array_t *arr, szind_t szind,
 }
 
 JEMALLOC_ALWAYS_INLINE bool
-tcache_bin_flush_match(edata_t *edata, unsigned cur_arena_ind,
+arena_bin_flush_match(edata_t *edata, unsigned cur_arena_ind,
     unsigned cur_binshard, bool small) {
 	if (small) {
 		return edata_arena_ind_get(edata) == cur_arena_ind
@@ -1094,7 +1093,7 @@ tcache_bin_flush_match(edata_t *edata, unsigned cur_arena_ind,
 }
 
 static void
-tcache_bin_flush_edatas_lookup(tsd_t *tsd, cache_bin_ptr_array_t *arr,
+arena_bin_flush_edatas_lookup(tsd_t *tsd, cache_bin_ptr_array_t *arr,
     szind_t binind, size_t nflush, emap_batch_lookup_result_t *edatas) {
 
 	/*
@@ -1104,11 +1103,35 @@ tcache_bin_flush_edatas_lookup(tsd_t *tsd, cache_bin_ptr_array_t *arr,
 	 */
 	size_t szind_sum = binind * nflush;
 	emap_edata_lookup_batch(tsd, &arena_emap_global, nflush,
-	    &tcache_bin_flush_ptr_getter, (void *)arr,
-	    &tcache_bin_flush_metadata_visitor, (void *)&szind_sum,
+	    &arena_bin_flush_ptr_getter, (void *)arr,
+	    &arena_bin_flush_metadata_visitor, (void *)&szind_sum,
 	    edatas);
 	if (config_opt_safety_checks && unlikely(szind_sum != 0)) {
-		tcache_bin_flush_size_check_fail(arr, binind, nflush, edatas);
+		arena_bin_flush_size_check_fail(arr, binind, nflush, edatas);
+	}
+}
+
+static inline void
+arena_bin_flush_stats_update(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
+    szind_t binind, cache_bin_stats_t *stats, bool small, bool ccache,
+    bool bin_locked) {
+	if (small) {
+		if (!bin_locked) {
+			malloc_mutex_lock(tsdn, &bin->lock);
+		}
+		bin->stats.nflushes++;
+		if (!ccache) {
+			bin->stats.nrequests += stats->nrequests;
+		}
+		if (!bin_locked) {
+			malloc_mutex_unlock(tsdn, &bin->lock);
+		}
+	} else {
+		arena_stats_large_flush_update_stats(tsdn,
+		    &arena->stats, binind, stats, !ccache);
+	}
+	if (!ccache) {
+		stats->nrequests = 0;
 	}
 }
 
@@ -1135,7 +1158,7 @@ arena_flush(tsd_t *tsd, arena_t *arena, cache_bin_ptr_array_t *ptrs,
 	 * touched (it's just included to satisfy the no-zero-length rule).
 	 */
 	VARIABLE_ARRAY(emap_batch_lookup_result_t, item_edata, nflush + 1);
-	tcache_bin_flush_edatas_lookup(tsd, ptrs, binind, nflush, item_edata);
+	arena_bin_flush_edatas_lookup(tsd, ptrs, binind, nflush, item_edata);
 
 	/*
 	 * The slabs where we freed the last remaining object in the slab (and
@@ -1192,19 +1215,9 @@ arena_flush(tsd_t *tsd, arena_t *arena, cache_bin_ptr_array_t *ptrs,
 		 */
 		if (config_stats && arena == cur_arena && !merged_stats) {
 			merged_stats = true;
-			/* TODO: refactor !ccache case */
-			if (small) {
-				cur_bin->stats.nflushes++;
-				if (!ccache) {
-					cur_bin->stats.nrequests += stats->nrequests;
-				}
-			} else {
-				arena_stats_large_flush_update_stats(tsdn,
-				    &arena->stats, binind, stats, !ccache);
-			}
-			if (!ccache) {
-				stats->nrequests = 0;
-			}
+			arena_bin_flush_stats_update(tsdn, arena, cur_bin,
+			    binind, stats, small, ccache,
+			    /* bin_locked= */ true);
 		}
 
 		/*
@@ -1217,7 +1230,7 @@ arena_flush(tsd_t *tsd, arena_t *arena, cache_bin_ptr_array_t *ptrs,
 				edata = item_edata[i].edata;
 				assert(ptr != NULL && edata != NULL);
 
-				if (tcache_bin_flush_match(edata, cur_arena_ind,
+				if (arena_bin_flush_match(edata, cur_arena_ind,
 				    cur_binshard, small)) {
 					large_dalloc_prep_locked(tsdn,
 					    edata);
@@ -1239,7 +1252,7 @@ arena_flush(tsd_t *tsd, arena_t *arena, cache_bin_ptr_array_t *ptrs,
 			void *ptr = ptrs->ptr[i];
 			edata = item_edata[i].edata;
 			assert(ptr != NULL && edata != NULL);
-			if (!tcache_bin_flush_match(edata, cur_arena_ind,
+			if (!arena_bin_flush_match(edata, cur_arena_ind,
 			    cur_binshard, small)) {
 				/*
 				 * The object was allocated either via a
@@ -1292,22 +1305,14 @@ arena_flush(tsd_t *tsd, arena_t *arena, cache_bin_ptr_array_t *ptrs,
 		 * thread's arena, so the stats didn't get merged.
 		 * Manually do so now.
 		 */
+		bin_t *bin;
 		if (small) {
-			bin_t *bin = arena_bin_choose(tsdn, arena,
-			    binind, NULL);
-			malloc_mutex_lock(tsdn, &bin->lock);
-			bin->stats.nflushes++;
-			if (!ccache) {
-				bin->stats.nrequests += stats->nrequests;
-			}
-			malloc_mutex_unlock(tsdn, &bin->lock);
+			bin = arena_bin_choose(tsdn, arena, binind, NULL);
 		} else {
-			arena_stats_large_flush_update_stats(tsdn,
-			    &arena->stats, binind, stats, !ccache);
+			bin = NULL;
 		}
-		if (!ccache) {
-			stats->nrequests = 0;
-		}
+		arena_bin_flush_stats_update(tsdn, arena, bin, binind, stats,
+		    small, ccache, /* bin_locked= */ false);
 	}
 
 }

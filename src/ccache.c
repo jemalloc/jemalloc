@@ -14,7 +14,7 @@
 #define STRINGIFY_HELPER(x) #x
 #define STRINGIFY(x) STRINGIFY_HELPER(x)
 
-/* Beware of the init order, it must be assigned before ccache_init call */
+/* Beware of the init order, 'ncpus' must be assigned before ccache_init call */
 extern unsigned ncpus;
 
 /* Ccache is disabled by default */
@@ -22,7 +22,7 @@ bool opt_ccache = false;
 size_t opt_ccache_max = CCACHE_MAXCLASS_LIMIT;
 
 /*
- * Ccache handles sizes [ccache_minind; ccache_maxind).
+ * Ccache handles bins with indexes [ccache_minind; ccache_maxind).
  * If ccache is disabled, then ccache_minind = ccache_maxind = 0.
  */
 szind_t ccache_minind = 0;
@@ -81,7 +81,7 @@ static void *
 ccache_bin_finish_fill(ccache_bin_t *bin, cache_bin_ptr_array_t *arr,
     cache_bin_sz_t nfilled) {
 	unsigned dest_index = arr->n - nfilled;
-	if (nfilled < arr->n) {
+	if (unlikely(nfilled < arr->n)) {
 		memmove(arr->ptr + dest_index, arr->ptr,
 		    nfilled * sizeof(void *));
 	}
@@ -98,13 +98,6 @@ ccache_bin_refill(tsd_t *tsd, ccache_t *ccache, ccache_bin_t *bin,
 	const unsigned nfill = CCACHE_BIN_ELEMENTS / 2 + 1;
 	assert(ccache_bin_locked(bin));
 	assert(small);
-	/*
-	 * Here we can already be on a different CPU, i.e. rseq_abi->cpu might
-	 * be different from 'cpu' argument. But there's no race, as the
-	 * critical section assigns 0 to head, making all following allocations
-	 * on the same CPU go down the slow path.
-	 */
-
 	if (config_stats) {
 		atomic_fetch_add_u32(&ccache->stats.nfills, 1,
 		    atomic_memory_order_relaxed);
@@ -114,7 +107,7 @@ ccache_bin_refill(tsd_t *tsd, ccache_t *ccache, ccache_bin_t *bin,
 	ptrs.ptr = &bin->ccache_bin_entry[CCACHE_BIN_ELEMENTS - nfill];
 
 	unsigned nfilled = arena_fill_small(tsd_tsdn(tsd), arena, binind,
-	    ptrs.ptr, nfill, NULL);
+	    ptrs.ptr, nfill, NULL, /* ccache= */ true);
 	return ccache_bin_finish_fill(bin, &ptrs, nfilled);
 }
 
@@ -199,8 +192,7 @@ ccache_init(tsdn_t *tsdn, base_t *base) {
 		return true;
 	}
 	for (unsigned i = 0; i < ncpus; ++i) {
-		ccache_t *ith_cache = (ccache_t*)((uintptr_t)ccache_base +
-		    ccache_percpu_size * i);
+		ccache_t *ith_cache = ccache_get(i);;
 		for (unsigned j = 0; j < ccache_nclasses(); ++j) {
 			ccache_bin_t *bin = &ith_cache->bins[j];
 			bin->head = (void **)&bin->head;
