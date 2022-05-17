@@ -363,7 +363,7 @@ fallback:
 	assert(ret != NULL);
 	if (unlikely(zero)) {
 		size_t usize = sz_index2size(ind);
-		assert(tcache_salloc(tsd_tsdn(tsd), ret) == usize);
+		assert(arena_salloc(tsd_tsdn(tsd), ret) == usize);
 		memset(ret, 0, usize);
 	}
 	ccache_bump_tstats(tsd, ind);

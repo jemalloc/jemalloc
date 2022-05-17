@@ -13,7 +13,14 @@
 
 #define CCACHE_TDATA_ZERO_INITIALIZER {0}
 
-#define CCACHE_BIN_ELEMENTS ((CACHELINE * 5 - sizeof(void **)) / sizeof(void *))
+#define CCACHE_BIN_DESIRED_ELEMENTS 200
+
+/* Round up bin size to CACHELINE multiple */
+#define CCACHE_BIN_ELEMENTS                                                    \
+    ((((CCACHE_BIN_DESIRED_ELEMENTS * sizeof(void *) + CACHELINE)              \
+        & ~(CACHELINE - 1))                                                    \
+       - sizeof(void **))                                                      \
+      / sizeof(void *))
 #define CCACHE_LG_MAXCLASS_LIMIT 23 /* 8 MiB */
 #define CCACHE_MAXCLASS_LIMIT ((size_t)1 << CCACHE_LG_MAXCLASS_LIMIT)
 #define CCACHE_NBINS_LIMIT                                                     \
