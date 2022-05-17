@@ -9,8 +9,8 @@
 typedef void (*abort_hook_t)(const char *message);
 bool fake_abort_called;
 void fake_abort(const char *message) {
-	if (strcmp(message, "<jemalloc>: Allocation failed and "
-	    "opt.experimental_infallible_new is true. Aborting.\n") != 0) {
+	const char *expected_start = "<jemalloc>: Allocation of size";
+	if (strncmp(message, expected_start, strlen(expected_start) != 0)) {
 		abort();
 	}
 	fake_abort_called = true;
