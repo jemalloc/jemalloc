@@ -510,6 +510,23 @@ typedef unsigned __int32 uint32_t;
       else
         AC_MSG_ERROR([cannot determine number of significant virtual address bits])
       fi
+      AC_CACHE_CHECK([rdtscp support],
+		     [je_cv_rdtscp],
+		     AC_RUN_IFELSE([AC_LANG_PROGRAM(
+[[
+#include <stdint.h>
+]],
+[[
+      unsigned int dx;
+      asm volatile("rdtscp" : "=d"(dx) ::);
+      return 0;
+]])],
+      [je_cv_rdtscp=yes],
+      [je_cv_rdstcp=no],
+      [je_cv_rdtscp=no]))
+      if test "x${je_cv_rdtscp}" = "xyes"; then
+        AC_DEFINE([HAVE_RDTSCP], 1, [])
+      fi
     fi
     ;;
   *)

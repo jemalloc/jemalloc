@@ -14,6 +14,15 @@ malloc_getcpu(void) {
 	return GetCurrentProcessorNumber();
 #elif defined(JEMALLOC_HAVE_SCHED_GETCPU)
 	return (malloc_cpuid_t)sched_getcpu();
+#elif defined(HAVE_RDTSCP)
+	unsigned int ax, cx, dx;
+	asm volatile("rdtscp" : "=a"(ax), "=d"(dx), "=c"(cx) ::);
+	return (malloc_cpuid_t)(dx & 0xfff);
+#elif defined(__aarch64__) && defined(__APPLE__)
+	/* Other oses most likely use tpidr_el0 instead */
+	uintptr_t c;
+	asm volatile("mrs %x0, tpidrro_el0" : "=r"(c) :: "memory");
+	return (malloc_cpuid_t)(c & (1 << 3) - 1);
 #else
 	not_reached();
 	return -1;
