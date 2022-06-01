@@ -2067,6 +2067,14 @@ if test "x$have_memcntl" = "x1" ; then
   AC_DEFINE([JEMALLOC_HAVE_MEMCNTL], [ ], [ ])
 fi
 
+AC_CHECK_FUNC([prctl],
+	      [have_prctl="1"],
+	      [have_prctl="0"],
+	      )
+if test "x$have_prctl" = "x1" ; then
+  AC_DEFINE([JEMALLOC_HAVE_PRCTL], [ ], [ ])
+fi
+
 dnl Disable lazy locking by default.
 AC_ARG_ENABLE([lazy_lock],
   [AS_HELP_STRING([--enable-lazy-lock],
@@ -2435,6 +2443,22 @@ else
   AC_DEFINE([JEMALLOC_TLS_MODEL], [ ], [ ])
 fi
 
+dnl Do not compile with debugging by default.
+AC_ARG_ENABLE([pageid],
+  [AS_HELP_STRING([--enable-pageid],
+                  [Enable named pages])],
+[if test "x$enable_pageid" = "xno" ; then
+  enable_pageid="0"
+else
+  enable_pageid="1"
+fi
+],
+[enable_pageid="0"]
+)
+if test "x$enable_pageid" = "x1" ; then
+  AC_DEFINE([JEMALLOC_PAGEID], [ ], [ ])
+fi
+
 dnl ============================================================================
 dnl Enable background threads if possible.
 
@@ -2691,5 +2715,6 @@ AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])
 AC_MSG_RESULT([log                : ${enable_log}])
 AC_MSG_RESULT([lazy_lock          : ${enable_lazy_lock}])
 AC_MSG_RESULT([cache-oblivious    : ${enable_cache_oblivious}])
+AC_MSG_RESULT([pageid             : ${enable_pageid}])
 AC_MSG_RESULT([cxx                : ${enable_cxx}])
 AC_MSG_RESULT([===============================================================================])

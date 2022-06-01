@@ -162,6 +162,12 @@
 /* Use gcc intrinsics for profile backtracing if defined. */
 #undef JEMALLOC_PROF_GCC
 
+/* JEMALLOC_PAGEID enabled page id */
+#undef JEMALLOC_PAGEID
+
+/* JEMALLOC_HAVE_PRCTL checks prctl */
+#undef JEMALLOC_HAVE_PRCTL
+
 /*
  * JEMALLOC_DSS enables use of sbrk(2) to allocate extents from the data storage
  * segment (DSS).
