@@ -32,7 +32,7 @@
 #    include <sys/uio.h>
 #  endif
 #  include <pthread.h>
-#  if defined(__FreeBSD__) || defined(__DragonFly__)
+#  if defined(__FreeBSD__) || defined(__DragonFly__) || defined(__OpenBSD__)
 #  include <pthread_np.h>
 #  include <sched.h>
 #  if defined(__FreeBSD__)
