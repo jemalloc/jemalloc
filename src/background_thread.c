@@ -80,6 +80,9 @@ background_thread_info_init(tsdn_t *tsdn, background_thread_info_t *info) {
 
 static inline bool
 set_current_thread_affinity(int cpu) {
+#ifdef __OpenBSD__
+	return false;
+#else
 #if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
 	cpu_set_t cpuset;
 #else
@@ -109,6 +112,7 @@ set_current_thread_affinity(int cpu) {
 	cpuset_destroy(cpuset);
 #  endif
 	return ret != 0;
+#endif
 #endif
 }
 
