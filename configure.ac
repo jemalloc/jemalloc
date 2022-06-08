@@ -671,6 +671,9 @@ case "${host}" in
 	SOREV="${rev}.${so}"
 	sbrk_deprecated="1"
 	SYM_PREFIX="_"
+	if test "${LG_SIZEOF_PTR}" = "3"; then
+	  default_retain="1"
+	fi
 	;;
   *-*-freebsd*)
 	JE_APPEND_VS(CPPFLAGS, -D_BSD_SOURCE)
