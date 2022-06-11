@@ -257,7 +257,6 @@ def generate_macos(arch):
 
     exclude = ([Option.as_malloc_conf(opt) for opt in (
             'dss:primary',
-            'percpu_arena:percpu',
             'background_thread:true')] +
         [Option.as_configure_flag('--enable-prof')] +
         [CLANG,])
