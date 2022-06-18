@@ -29,7 +29,7 @@ task:
         UNCOMMON_CONFIG: --with-lg-page=16 --with-malloc-conf=tcache:false
   freebsd_instance:
     matrix:
-      image: freebsd-12-3-release-amd64
+      image: freebsd-13-0-release-amd64
   install_script:
     - sed -i.bak -e 's,pkg+http://pkg.FreeBSD.org/\${ABI}/quarterly,pkg+http://pkg.FreeBSD.org/\${ABI}/latest,' /etc/pkg/FreeBSD.conf
     - pkg upgrade -y
