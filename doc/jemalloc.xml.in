@@ -1121,9 +1121,7 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         linkend="arena.i.dirty_decay_ms"><mallctl>arena.&lt;i&gt;.dirty_decay_ms</mallctl></link>
         for related dynamic control options.  See <link
         linkend="opt.muzzy_decay_ms"><mallctl>opt.muzzy_decay_ms</mallctl></link>
-        for a description of muzzy pages.for a description of muzzy pages.  Note
-        that when the <link
-        linkend="opt.oversize_threshold"><mallctl>oversize_threshold</mallctl></link>
+        for a description of muzzy pages.  Note that when the <link linkend="opt.oversize_threshold"><mallctl>oversize_threshold</mallctl></link>
         feature is enabled, the arenas reserved for oversize requests may have
         its own default decay settings.</para></listitem>
       </varlistentry>
