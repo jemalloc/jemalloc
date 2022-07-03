@@ -106,17 +106,20 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	astats->metadata_thp += metadata_thp;
 
 	for (szind_t i = 0; i < SC_NSIZES - SC_NBINS; i++) {
-		uint64_t nmalloc = locked_read_u64(tsdn,
-		    LOCKEDINT_MTX(arena->stats.mtx),
-		    &arena->stats.lstats[i].nmalloc);
-		locked_inc_u64_unsynchronized(&lstats[i].nmalloc, nmalloc);
-		astats->nmalloc_large += nmalloc;
-
+		/* ndalloc should be read before nmalloc,
+		 * since otherwise it is possible for ndalloc to be incremented,
+		 * and the following can become true: ndalloc > nmalloc */
 		uint64_t ndalloc = locked_read_u64(tsdn,
 		    LOCKEDINT_MTX(arena->stats.mtx),
 		    &arena->stats.lstats[i].ndalloc);
 		locked_inc_u64_unsynchronized(&lstats[i].ndalloc, ndalloc);
 		astats->ndalloc_large += ndalloc;
+
+		uint64_t nmalloc = locked_read_u64(tsdn,
+		    LOCKEDINT_MTX(arena->stats.mtx),
+		    &arena->stats.lstats[i].nmalloc);
+		locked_inc_u64_unsynchronized(&lstats[i].nmalloc, nmalloc);
+		astats->nmalloc_large += nmalloc;
 
 		uint64_t nrequests = locked_read_u64(tsdn,
 		    LOCKEDINT_MTX(arena->stats.mtx),
