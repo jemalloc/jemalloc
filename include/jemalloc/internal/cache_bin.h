@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_CACHE_BIN_H
 
 #include "jemalloc/internal/ql.h"
+#include "jemalloc/internal/safety_check.h"
 #include "jemalloc/internal/sz.h"
 
 /*
@@ -428,6 +429,35 @@ cache_bin_full(cache_bin_t *bin) {
 }
 
 /*
+ * Scans the allocated area of the cache_bin for the given pointer up to limit.
+ * Fires safety_check_fail if the ptr is found and returns true.
+ */
+JEMALLOC_ALWAYS_INLINE bool
+cache_bin_dalloc_safety_checks(cache_bin_t *bin, void *ptr) {
+	if (!config_debug || opt_debug_double_free_max_scan == 0) {
+		return false;
+	}
+
+	cache_bin_sz_t ncached = cache_bin_ncached_get_internal(bin, false);
+	unsigned max_scan = opt_debug_double_free_max_scan < ncached
+	    ? opt_debug_double_free_max_scan
+	    : ncached;
+
+	void **cur = bin->stack_head;
+	void **limit = cur + max_scan;
+	for (; cur < limit; cur++) {
+		if (*cur == ptr) {
+			safety_check_fail(
+			    "Invalid deallocation detected: double free of "
+			    "pointer %p\n",
+			    ptr);
+			return true;
+		}
+	}
+	return false;
+}
+
+/*
  * Free an object into the given bin.  Fails only if the bin is full.
  */
 JEMALLOC_ALWAYS_INLINE bool
@@ -435,6 +465,10 @@ cache_bin_dalloc_easy(cache_bin_t *bin, void *ptr) {
 	if (unlikely(cache_bin_full(bin))) {
 		return false;
 	}
+
+        if (unlikely(cache_bin_dalloc_safety_checks(bin, ptr))) {
+                return true;
+        }
 
 	bin->stack_head--;
 	*bin->stack_head = ptr;

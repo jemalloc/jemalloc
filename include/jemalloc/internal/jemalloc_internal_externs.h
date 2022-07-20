@@ -34,6 +34,7 @@ extern malloc_init_t malloc_init_state;
 extern const char *zero_realloc_mode_names[];
 extern atomic_zu_t zero_realloc_count;
 extern bool opt_cache_oblivious;
+extern unsigned opt_debug_double_free_max_scan;
 
 /* Escape free-fastpath when ptr & mask == 0 (for sanitization purpose). */
 extern uintptr_t san_cache_bin_nonfast_mask;
