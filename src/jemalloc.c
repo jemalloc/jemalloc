@@ -154,6 +154,9 @@ fxp_t		opt_narenas_ratio = FXP_INIT_INT(4);
 
 unsigned	ncpus;
 
+unsigned opt_debug_double_free_max_scan =
+    SAFETY_CHECK_DOUBLE_FREE_MAX_SCAN_DEFAULT;
+
 /* Protects arenas initialization. */
 malloc_mutex_t arenas_lock;
 
@@ -1420,6 +1423,10 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			CONF_HANDLE_UNSIGNED(opt_lg_tcache_flush_large_div,
 			    "lg_tcache_flush_large_div", 1, 16,
 			    CONF_CHECK_MIN, CONF_CHECK_MAX, /* clip */ true)
+			CONF_HANDLE_UNSIGNED(opt_debug_double_free_max_scan,
+			    "debug_double_free_max_scan", 0, UINT_MAX,
+			    CONF_DONT_CHECK_MIN, CONF_DONT_CHECK_MAX,
+			    /* clip */ false)
 
 			/*
 			 * The runtime option of oversize_threshold remains
@@ -1736,6 +1743,10 @@ malloc_conf_init_check_deps(void) {
 		malloc_printf("<jemalloc>: prof_leak_error is set w/o "
 		    "prof_final.\n");
 		return true;
+	}
+	/* To emphasize in the stats output that opt is disabled when !debug. */
+	if (!config_debug) {
+		opt_debug_double_free_max_scan = 0;
 	}
 
 	return false;

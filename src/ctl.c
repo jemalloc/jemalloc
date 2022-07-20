@@ -92,6 +92,7 @@ CTL_PROTO(config_xmalloc)
 CTL_PROTO(opt_abort)
 CTL_PROTO(opt_abort_conf)
 CTL_PROTO(opt_cache_oblivious)
+CTL_PROTO(opt_debug_double_free_max_scan)
 CTL_PROTO(opt_trust_madvise)
 CTL_PROTO(opt_confirm_conf)
 CTL_PROTO(opt_hpa)
@@ -479,7 +480,9 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("prof_sys_thread_name"),	CTL(opt_prof_sys_thread_name)},
 	{NAME("prof_time_resolution"),	CTL(opt_prof_time_res)},
 	{NAME("lg_san_uaf_align"),	CTL(opt_lg_san_uaf_align)},
-	{NAME("zero_realloc"),	CTL(opt_zero_realloc)}
+	{NAME("zero_realloc"),	CTL(opt_zero_realloc)},
+	{NAME("debug_double_free_max_scan"),
+		CTL(opt_debug_double_free_max_scan)}
 };
 
 static const ctl_named_node_t	tcache_node[] = {
@@ -2128,6 +2131,8 @@ CTL_RO_CONFIG_GEN(config_xmalloc, bool)
 CTL_RO_NL_GEN(opt_abort, opt_abort, bool)
 CTL_RO_NL_GEN(opt_abort_conf, opt_abort_conf, bool)
 CTL_RO_NL_GEN(opt_cache_oblivious, opt_cache_oblivious, bool)
+CTL_RO_NL_GEN(opt_debug_double_free_max_scan,
+    opt_debug_double_free_max_scan, unsigned)
 CTL_RO_NL_GEN(opt_trust_madvise, opt_trust_madvise, bool)
 CTL_RO_NL_GEN(opt_confirm_conf, opt_confirm_conf, bool)
 
