@@ -276,6 +276,7 @@ TEST_BEGIN(test_evict) {
 }
 TEST_END
 
+#ifdef HPA_SUPPORTED
 TEST_BEGIN(test_multi_pageslab) {
 	bool err;
 	hpdata_t *ps;
@@ -338,6 +339,9 @@ TEST_BEGIN(test_multi_pageslab) {
 	expect_false(err, "Allocation should have succeeded");
 }
 TEST_END
+#else
+TEST_SKIP(test_multi_pageslab)
+#endif
 
 static void
 stats_expect_empty(psset_bin_stats_t *stats) {
@@ -427,6 +431,7 @@ TEST_END
  * (There's nothing magic about these numbers; it's just useful to share the
  * setup between the oldest fit and the insert/remove test).
  */
+#ifdef HPA_SUPPORTED
 static void
 init_test_pageslabs(psset_t *psset, hpdata_t *pageslab,
     hpdata_t *worse_pageslab, edata_t *alloc, edata_t *worse_alloc) {
@@ -472,7 +477,9 @@ init_test_pageslabs(psset_t *psset, hpdata_t *pageslab,
 	    &alloc[HUGEPAGE_PAGES - 1]);
 	expect_ptr_null(evicted, "Unexpected eviction");
 }
+#endif
 
+#ifdef HPA_SUPPORTED
 TEST_BEGIN(test_oldest_fit) {
 	bool err;
 	edata_t alloc[HUGEPAGE_PAGES];
@@ -495,7 +502,11 @@ TEST_BEGIN(test_oldest_fit) {
 	    "Allocated from the wrong pageslab");
 }
 TEST_END
+#else
+TEST_SKIP(test_oldest_fit)
+#endif
 
+#ifdef HPA_SUPPORTED
 TEST_BEGIN(test_insert_remove) {
 	bool err;
 	hpdata_t *ps;
@@ -541,6 +552,9 @@ TEST_BEGIN(test_insert_remove) {
 	expect_true(err, "psset should be empty, but an alloc succeeded");
 }
 TEST_END
+#else
+TEST_SKIP(test_insert_remove)
+#endif
 
 TEST_BEGIN(test_purge_prefers_nonhuge) {
 	/*
