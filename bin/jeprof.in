@@ -4698,7 +4698,7 @@ sub ParseLibraries {
       $offset = HexExtend($3);
       $lib = $4;
       $lib =~ s|\\|/|g;     # turn windows-style paths into unix-style paths
-    } elsif ($l =~ /^\s*($h)-($h):\s*(\S+\.so(\.\d+)*)/) {
+    } elsif ($l =~ /^\s*($h)-($h):\s*(.*$)/) {
       # Cooked line from DumpAddressMap.  Example:
       #   40000000-40015000: /lib/ld-2.3.2.so
       $start = HexExtend($1);

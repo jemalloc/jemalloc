@@ -200,6 +200,17 @@ if test "x$GCC" != "xyes" ; then
                                [je_cv_msvc=no])])
 fi
 
+AC_CACHE_CHECK([whether compiler is clang],
+              [je_cv_clang],
+              [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([],
+                                                  [
+#ifndef __clang__
+  int fail[-1];
+#endif
+])],
+                            [je_cv_clang=yes],
+                            [je_cv_clang=no])])
+
 dnl check if a cray prgenv wrapper compiler is being used
 je_cv_cray_prgenv_wrapper=""
 if test "x${PE_ENV}" != "x" ; then
@@ -1369,7 +1380,7 @@ fi
 if test "x$backtrace_method" = "x" -a "x$enable_prof_libgcc" = "x1" \
      -a "x$GCC" = "xyes" ; then
   AC_CHECK_HEADERS([unwind.h], , [enable_prof_libgcc="0"])
-  if test "x${enable_prof_libgcc}" = "x1" ; then
+  if test "x${enable_prof_libgcc}" = "x1" -a "x${je_cv_clang}" != "xyes" ; then
     AC_CHECK_LIB([gcc], [_Unwind_Backtrace], [JE_APPEND_VS(LIBS, -lgcc)], [enable_prof_libgcc="0"])
   fi
   if test "x${enable_prof_libgcc}" = "x1" ; then

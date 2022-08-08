@@ -128,10 +128,12 @@ TEST_BEGIN(test_mdump_output_error) {
 }
 TEST_END
 
+#ifndef __APPLE__
 static int
 prof_dump_open_maps_error() {
 	return -1;
 }
+#endif
 
 static bool started_piping_maps_file;
 
@@ -150,6 +152,7 @@ prof_dump_write_maps_file_error(int fd, const void *s, size_t len) {
 	}
 }
 
+#ifndef __APPLE__
 static void
 expect_maps_write_failure(int count) {
 	int mfd = prof_dump_open_maps();
@@ -162,6 +165,7 @@ expect_maps_write_failure(int count) {
 	expect_write_failure(count);
 	expect_true(started_piping_maps_file, "Should start piping maps");
 }
+#endif
 
 TEST_BEGIN(test_mdump_maps_error) {
 	test_skip_if(!config_prof);
@@ -169,8 +173,9 @@ TEST_BEGIN(test_mdump_maps_error) {
 
 	prof_dump_open_file_t *open_file_orig = prof_dump_open_file;
 	prof_dump_write_file_t *write_file_orig = prof_dump_write_file;
+#ifndef __APPLE__
 	prof_dump_open_maps_t *open_maps_orig = prof_dump_open_maps;
-
+#endif
 	prof_dump_open_file = prof_dump_open_file_intercept;
 	prof_dump_write_file = prof_dump_write_maps_file_error;
 
@@ -181,7 +186,9 @@ TEST_BEGIN(test_mdump_maps_error) {
 	 * When opening the maps file fails, there shouldn't be any maps write,
 	 * and mallctl() should return success.
 	 */
+#ifndef __APPLE__
 	prof_dump_open_maps = prof_dump_open_maps_error;
+#endif
 	started_piping_maps_file = false;
 	prof_dump_write_file_count = 0;
 	expect_d_eq(mallctl("prof.dump", NULL, NULL, (void *)&test_filename,
@@ -196,9 +203,11 @@ TEST_BEGIN(test_mdump_maps_error) {
 	 * maps file), there shouldn't be any more maps write, and mallctl()
 	 * should return failure.
 	 */
+#ifndef __APPLE__
 	prof_dump_open_maps = open_maps_orig;
 	expect_maps_write_failure(1); /* First write fails. */
 	expect_maps_write_failure(2); /* Second write fails. */
+#endif
 
 	dallocx(p, 0);
 

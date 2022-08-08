@@ -7,6 +7,10 @@
 #include "jemalloc/internal/prof_data.h"
 #include "jemalloc/internal/prof_sys.h"
 
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
+
 #ifdef JEMALLOC_PROF_LIBUNWIND
 #define UNW_LOCAL_ONLY
 #include <libunwind.h>
@@ -421,6 +425,7 @@ prof_dump_close(prof_dump_arg_t *arg) {
 	}
 }
 
+#ifndef __APPLE__
 #ifndef _WIN32
 JEMALLOC_FORMAT_PRINTF(1, 2)
 static int
@@ -475,8 +480,73 @@ prof_dump_read_maps_cb(void *read_cbopaque, void *buf, size_t limit) {
 	return malloc_read_fd(mfd, buf, limit);
 }
 
+#else // __APPLE__
+#ifdef __LP64__
+typedef struct mach_header_64 je_dyld_header;
+typedef struct segment_command_64 je_dyld_segment_command;
+
+#define JE_DYLD_IMAGE_MAGIC     MH_MAGIC_64
+#define JE_DYLD_IMAGE_MAGIC_INV MH_CIGAM_64
+#define JE_DYLD_SEGMENT_CMD     LC_SEGMENT_64
+#else // __LP64__
+typedef struct mach_header je_dyld_header;
+typedef struct segment_command je_dyld_segment_command;
+
+#define JE_DYLD_IMAGE_MAGIC     MH_MAGIC
+#define JE_DYLD_IMAGE_MAGIC_INV MH_CIGAM
+#define JE_DYLD_SEGMENT_CMD     LC_SEGMENT
+#endif // __LP64__
+
+static void
+prof_dump_dyld_image_map(buf_writer_t *buf_writer, uint32_t index) {
+	const je_dyld_header *header =
+	  (je_dyld_header *)_dyld_get_image_header(index);
+	if (header == NULL) {
+		return;
+	}
+	if (header->magic != JE_DYLD_IMAGE_MAGIC &&
+	    header->magic != JE_DYLD_IMAGE_MAGIC_INV) {
+		// Header is corrupt
+		return;
+	}
+
+	struct load_command *load_cmd = (struct load_command *)(header + 1);
+	intptr_t slide = _dyld_get_image_vmaddr_slide(index);
+	const char *name = _dyld_get_image_name(index);
+	for (uint32_t cmd_index = 0; load_cmd && (cmd_index < header->ncmds);
+	     cmd_index++) {
+		if (load_cmd->cmd == JE_DYLD_SEGMENT_CMD) {
+			const je_dyld_segment_command *segment_cmd =
+			  (const je_dyld_segment_command *)load_cmd;
+			if (strcmp(segment_cmd->segname, "__TEXT") == 0) {
+				char buffer[PATH_MAX];
+				malloc_snprintf(buffer, sizeof(buffer), "%016llx-%016llx: %s\n",
+				  segment_cmd->vmaddr + slide,
+				  segment_cmd->vmaddr + slide + segment_cmd->vmsize, name);
+				buf_writer_cb(buf_writer, buffer);
+				return;
+			}
+		}
+		load_cmd =
+		  (struct load_command *)((intptr_t)load_cmd + load_cmd->cmdsize);
+	}
+}
+
+static void
+prof_dump_dyld_maps(buf_writer_t *buf_writer) {
+	uint32_t image_count = _dyld_image_count();
+	for (uint32_t image_index = 0; image_index < image_count; ++image_index) {
+		prof_dump_dyld_image_map(buf_writer, image_index);
+	}
+}
+#endif // __APPLE__
+
 static void
 prof_dump_maps(buf_writer_t *buf_writer) {
+#ifdef __APPLE__
+	buf_writer_cb(buf_writer, "\nMAPPED_LIBRARIES:\n");
+	prof_dump_dyld_maps(buf_writer);
+#else // __APPLE__
 	int mfd = prof_dump_open_maps();
 	if (mfd == -1) {
 		return;
@@ -485,6 +555,7 @@ prof_dump_maps(buf_writer_t *buf_writer) {
 	buf_writer_cb(buf_writer, "\nMAPPED_LIBRARIES:\n");
 	buf_writer_pipe(buf_writer, prof_dump_read_maps_cb, &mfd);
 	close(mfd);
+#endif // __APPLE__
 }
 
 static bool

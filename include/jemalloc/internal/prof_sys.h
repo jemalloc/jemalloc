@@ -24,7 +24,9 @@ typedef int (prof_dump_open_file_t)(const char *, int);
 extern prof_dump_open_file_t *JET_MUTABLE prof_dump_open_file;
 typedef ssize_t (prof_dump_write_file_t)(int, const void *, size_t);
 extern prof_dump_write_file_t *JET_MUTABLE prof_dump_write_file;
+#ifndef __APPLE__
 typedef int (prof_dump_open_maps_t)();
 extern prof_dump_open_maps_t *JET_MUTABLE prof_dump_open_maps;
+#endif // __APPLE__
 
 #endif /* JEMALLOC_INTERNAL_PROF_SYS_H */
