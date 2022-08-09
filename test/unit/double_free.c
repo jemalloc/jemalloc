@@ -21,6 +21,15 @@ test_double_free_post() {
 	safety_check_set_abort(NULL);
 }
 
+bool tcache_enabled() {
+	bool enabled;
+	size_t sz = sizeof(enabled);
+	assert_d_eq(
+	    mallctl("thread.tcache.enabled", &enabled, &sz, NULL, 0), 0,
+	    "Unexpected mallctl failure");
+	return enabled;
+}
+
 TEST_BEGIN(test_large_double_free_tcache) {
 	test_skip_if(!config_opt_safety_checks);
 	/*
@@ -72,15 +81,8 @@ TEST_END
 
 TEST_BEGIN(test_small_double_free_tcache) {
 	test_skip_if(!config_debug);
-
 	test_skip_if(opt_debug_double_free_max_scan == 0);
-
-	bool tcache_enabled;
-	size_t sz = sizeof(tcache_enabled);
-	assert_d_eq(
-	    mallctl("thread.tcache.enabled", &tcache_enabled, &sz, NULL, 0), 0,
-	    "Unexpected mallctl failure");
-	test_skip_if(!tcache_enabled);
+	test_skip_if(!tcache_enabled());
 
 	test_double_free_pre();
 	char *ptr = malloc(1);
@@ -101,10 +103,40 @@ TEST_BEGIN(test_small_double_free_tcache) {
 }
 TEST_END
 
+TEST_BEGIN(test_small_double_free_arena) {
+	test_skip_if(!config_debug);
+	test_skip_if(!tcache_enabled());
+
+	test_double_free_pre();
+	/*
+	 * Allocate one more pointer to keep the slab partially used after
+	 * flushing the cache.
+	 */
+	char *ptr1 = malloc(1);
+	char *ptr = malloc(1);
+	bool guarded = extent_is_guarded(tsdn_fetch(), ptr);
+	free(ptr);
+	if (!guarded) {
+		mallctl("thread.tcache.flush", NULL, NULL, NULL, 0);
+		free(ptr);
+	} else {
+		/*
+		 * Skip because guarded extents may unguard immediately on
+		 * deallocation, in which case the second free will crash before
+		 * reaching the intended safety check.
+		 */
+		fake_abort_called = true;
+	}
+	test_double_free_post();
+	free(ptr1);
+}
+TEST_END
+
 int
 main(void) {
 	return test(
 	    test_large_double_free_no_tcache,
 	    test_large_double_free_tcache,
-	    test_small_double_free_tcache);
+	    test_small_double_free_tcache,
+	    test_small_double_free_arena);
 }
