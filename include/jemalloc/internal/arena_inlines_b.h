@@ -298,6 +298,54 @@ arena_dalloc_large(tsdn_t *tsdn, void *ptr, tcache_t *tcache, szind_t szind,
 	}
 }
 
+/* Find the region index of a pointer. */
+JEMALLOC_ALWAYS_INLINE size_t
+arena_slab_regind_impl(div_info_t* div_info, szind_t binind,
+    edata_t *slab, const void *ptr) {
+	size_t diff, regind;
+
+	/* Freeing a pointer outside the slab can cause assertion failure. */
+	assert((uintptr_t)ptr >= (uintptr_t)edata_addr_get(slab));
+	assert((uintptr_t)ptr < (uintptr_t)edata_past_get(slab));
+	/* Freeing an interior pointer can cause assertion failure. */
+	assert(((uintptr_t)ptr - (uintptr_t)edata_addr_get(slab)) %
+	    (uintptr_t)bin_infos[binind].reg_size == 0);
+
+	diff = (size_t)((uintptr_t)ptr - (uintptr_t)edata_addr_get(slab));
+
+	/* Avoid doing division with a variable divisor. */
+	regind = div_compute(div_info, diff);
+	assert(regind < bin_infos[binind].nregs);
+	return regind;
+}
+
+/* Checks whether ptr is currently active in the arena. */
+JEMALLOC_ALWAYS_INLINE bool
+arena_tcache_dalloc_small_safety_check(tsdn_t *tsdn, void *ptr) {
+	if (!config_debug) {
+		return false;
+	}
+	edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global, ptr);
+	szind_t binind = edata_szind_get(edata);
+	div_info_t div_info = arena_binind_div_info[binind];
+	/*
+	 * Calls the internal function arena_slab_regind_impl because the
+	 * safety check does not require a lock.
+	 */
+	size_t regind = arena_slab_regind_impl(&div_info, binind, edata, ptr);
+	slab_data_t *slab_data = edata_slab_data_get(edata);
+	const bin_info_t *bin_info = &bin_infos[binind];
+	assert(edata_nfree_get(edata) < bin_info->nregs);
+	if (unlikely(!bitmap_get(slab_data->bitmap, &bin_info->bitmap_info,
+	    regind))) {
+		safety_check_fail(
+		    "Invalid deallocation detected: the pointer being freed (%p) not "
+		    "currently active, possibly caused by double free bugs.\n", ptr);
+		return true;
+	}
+	return false;
+}
+
 JEMALLOC_ALWAYS_INLINE void
 arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
     emap_alloc_ctx_t *caller_alloc_ctx, bool slow_path) {
@@ -328,6 +376,9 @@ arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 
 	if (likely(alloc_ctx.slab)) {
 		/* Small allocation. */
+		if (arena_tcache_dalloc_small_safety_check(tsdn, ptr)) {
+			return;
+		}
 		tcache_dalloc_small(tsdn_tsd(tsdn), tcache, ptr,
 		    alloc_ctx.szind, slow_path);
 	} else {
@@ -415,6 +466,9 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 
 	if (likely(alloc_ctx.slab)) {
 		/* Small allocation. */
+		if (arena_tcache_dalloc_small_safety_check(tsdn, ptr)) {
+			return;
+		}
 		tcache_dalloc_small(tsdn_tsd(tsdn), tcache, ptr,
 		    alloc_ctx.szind, slow_path);
 	} else {
@@ -465,22 +519,7 @@ struct arena_dalloc_bin_locked_info_s {
 JEMALLOC_ALWAYS_INLINE size_t
 arena_slab_regind(arena_dalloc_bin_locked_info_t *info, szind_t binind,
     edata_t *slab, const void *ptr) {
-	size_t diff, regind;
-
-	/* Freeing a pointer outside the slab can cause assertion failure. */
-	assert((uintptr_t)ptr >= (uintptr_t)edata_addr_get(slab));
-	assert((uintptr_t)ptr < (uintptr_t)edata_past_get(slab));
-	/* Freeing an interior pointer can cause assertion failure. */
-	assert(((uintptr_t)ptr - (uintptr_t)edata_addr_get(slab)) %
-	    (uintptr_t)bin_infos[binind].reg_size == 0);
-
-	diff = (size_t)((uintptr_t)ptr - (uintptr_t)edata_addr_get(slab));
-
-	/* Avoid doing division with a variable divisor. */
-	regind = div_compute(&info->div_info, diff);
-
-	assert(regind < bin_infos[binind].nregs);
-
+	size_t regind = arena_slab_regind_impl(&info->div_info, binind, slab, ptr);
 	return regind;
 }
 
