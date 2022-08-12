@@ -84,8 +84,7 @@ cache_bin_init(cache_bin_t *bin, cache_bin_info_t *info, void *alloc,
 	bin->low_bits_full = (uint16_t)(uintptr_t)full_position;
 	bin->low_bits_empty = (uint16_t)(uintptr_t)empty_position;
 	cache_bin_sz_t free_spots = cache_bin_diff(bin,
-	    bin->low_bits_full, (uint16_t)(uintptr_t)bin->stack_head,
-	    /* racy */ false);
+	    bin->low_bits_full, (uint16_t)(uintptr_t)bin->stack_head);
 	assert(free_spots == bin_stack_size);
 	assert(cache_bin_ncached_get_local(bin, info) == 0);
 	assert(cache_bin_empty_position_get(bin) == empty_position);
