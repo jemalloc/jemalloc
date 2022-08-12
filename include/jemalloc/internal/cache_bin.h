@@ -195,27 +195,18 @@ cache_bin_assert_earlier(cache_bin_t *bin, uint16_t earlier, uint16_t later) {
  * be associated with the position earlier in memory.
  */
 static inline uint16_t
-cache_bin_diff(cache_bin_t *bin, uint16_t earlier, uint16_t later, bool racy) {
-	/*
-	 * When it's racy, bin->low_bits_full can be modified concurrently. It
-	 * can cross the uint16_t max value and become less than
-	 * bin->low_bits_empty at the time of the check.
-	 */
-	if (!racy) {
-		cache_bin_assert_earlier(bin, earlier, later);
-	}
+cache_bin_diff(cache_bin_t *bin, uint16_t earlier, uint16_t later) {
+	cache_bin_assert_earlier(bin, earlier, later);
 	return later - earlier;
 }
 
 /*
  * Number of items currently cached in the bin, without checking ncached_max.
- * We require specifying whether or not the request is racy or not (i.e. whether
- * or not concurrent modifications are possible).
  */
 static inline cache_bin_sz_t
-cache_bin_ncached_get_internal(cache_bin_t *bin, bool racy) {
+cache_bin_ncached_get_internal(cache_bin_t *bin) {
 	cache_bin_sz_t diff = cache_bin_diff(bin,
-	    (uint16_t)(uintptr_t)bin->stack_head, bin->low_bits_empty, racy);
+	    (uint16_t)(uintptr_t)bin->stack_head, bin->low_bits_empty);
 	cache_bin_sz_t n = diff / sizeof(void *);
 	/*
 	 * We have undefined behavior here; if this function is called from the
@@ -226,7 +217,7 @@ cache_bin_ncached_get_internal(cache_bin_t *bin, bool racy) {
 	 * fast paths.  This should still be "safe" in the sense of generating
 	 * the correct assembly for the foreseeable future, though.
 	 */
-	assert(n == 0 || *(bin->stack_head) != NULL || racy);
+	assert(n == 0 || *(bin->stack_head) != NULL);
 	return n;
 }
 
@@ -237,8 +228,7 @@ cache_bin_ncached_get_internal(cache_bin_t *bin, bool racy) {
  */
 static inline cache_bin_sz_t
 cache_bin_ncached_get_local(cache_bin_t *bin, cache_bin_info_t *info) {
-	cache_bin_sz_t n = cache_bin_ncached_get_internal(bin,
-	    /* racy */ false);
+	cache_bin_sz_t n = cache_bin_ncached_get_internal(bin);
 	assert(n <= cache_bin_info_ncached_max(info));
 	return n;
 }
@@ -254,8 +244,7 @@ cache_bin_ncached_get_local(cache_bin_t *bin, cache_bin_info_t *info) {
 static inline void **
 cache_bin_empty_position_get(cache_bin_t *bin) {
 	cache_bin_sz_t diff = cache_bin_diff(bin,
-	    (uint16_t)(uintptr_t)bin->stack_head, bin->low_bits_empty,
-	    /* racy */ false);
+	    (uint16_t)(uintptr_t)bin->stack_head, bin->low_bits_empty);
 	uintptr_t empty_bits = (uintptr_t)bin->stack_head + diff;
 	void **ret = (void **)empty_bits;
 
@@ -312,7 +301,7 @@ cache_bin_assert_empty(cache_bin_t *bin, cache_bin_info_t *info) {
 static inline cache_bin_sz_t
 cache_bin_low_water_get_internal(cache_bin_t *bin) {
 	return cache_bin_diff(bin, bin->low_bits_low_water,
-	    bin->low_bits_empty, /* racy */ false) / sizeof(void *);
+	    bin->low_bits_empty) / sizeof(void *);
 }
 
 /* Returns the numeric value of low water in [0, ncached]. */
@@ -339,7 +328,7 @@ cache_bin_low_water_set(cache_bin_t *bin) {
 
 static inline void
 cache_bin_low_water_adjust(cache_bin_t *bin) {
-	if (cache_bin_ncached_get_internal(bin, /* racy */ false)
+	if (cache_bin_ncached_get_internal(bin)
 	    < cache_bin_low_water_get_internal(bin)) {
 		cache_bin_low_water_set(bin);
 	}
@@ -411,8 +400,7 @@ cache_bin_alloc(cache_bin_t *bin, bool *success) {
 
 JEMALLOC_ALWAYS_INLINE cache_bin_sz_t
 cache_bin_alloc_batch(cache_bin_t *bin, size_t num, void **out) {
-	cache_bin_sz_t n = cache_bin_ncached_get_internal(bin,
-	    /* racy */ false);
+	cache_bin_sz_t n = cache_bin_ncached_get_internal(bin);
 	if (n > num) {
 		n = (cache_bin_sz_t)num;
 	}
@@ -438,7 +426,7 @@ cache_bin_dalloc_safety_checks(cache_bin_t *bin, void *ptr) {
 		return false;
 	}
 
-	cache_bin_sz_t ncached = cache_bin_ncached_get_internal(bin, false);
+	cache_bin_sz_t ncached = cache_bin_ncached_get_internal(bin);
 	unsigned max_scan = opt_debug_double_free_max_scan < ncached
 	    ? opt_debug_double_free_max_scan
 	    : ncached;
@@ -488,8 +476,7 @@ cache_bin_stash(cache_bin_t *bin, void *ptr) {
 	/* Stash at the full position, in the [full, head) range. */
 	uint16_t low_bits_head = (uint16_t)(uintptr_t)bin->stack_head;
 	/* Wraparound handled as well. */
-	uint16_t diff = cache_bin_diff(bin, bin->low_bits_full, low_bits_head,
-	    /* racy */ false);
+	uint16_t diff = cache_bin_diff(bin, bin->low_bits_full, low_bits_head);
 	*(void **)((uintptr_t)bin->stack_head - diff) = ptr;
 
 	assert(!cache_bin_full(bin));
@@ -499,46 +486,35 @@ cache_bin_stash(cache_bin_t *bin, void *ptr) {
 	return true;
 }
 
-/*
- * Get the number of stashed pointers.
- *
- * When called from a thread not owning the TLS (i.e. racy = true), it's
- * important to keep in mind that 'bin->stack_head' and 'bin->low_bits_full' can
- * be modified concurrently and almost none assertions about their values can be
- * made.
- */
+/* Get the number of stashed pointers. */
 JEMALLOC_ALWAYS_INLINE cache_bin_sz_t
-cache_bin_nstashed_get_internal(cache_bin_t *bin, cache_bin_info_t *info,
-    bool racy) {
+cache_bin_nstashed_get_internal(cache_bin_t *bin, cache_bin_info_t *info) {
 	cache_bin_sz_t ncached_max = cache_bin_info_ncached_max(info);
 	uint16_t low_bits_low_bound = cache_bin_low_bits_low_bound_get(bin,
 	    info);
 
 	cache_bin_sz_t n = cache_bin_diff(bin, low_bits_low_bound,
-	    bin->low_bits_full, racy) / sizeof(void *);
+	    bin->low_bits_full) / sizeof(void *);
 	assert(n <= ncached_max);
 
-	if (!racy) {
-		/* Below are for assertions only. */
-		void **low_bound = cache_bin_low_bound_get(bin, info);
+	/* Below are for assertions only. */
+	void **low_bound = cache_bin_low_bound_get(bin, info);
 
-		assert((uint16_t)(uintptr_t)low_bound == low_bits_low_bound);
-		void *stashed = *(low_bound + n - 1);
-		bool aligned = cache_bin_nonfast_aligned(stashed);
+	assert((uint16_t)(uintptr_t)low_bound == low_bits_low_bound);
+	void *stashed = *(low_bound + n - 1);
+	bool aligned = cache_bin_nonfast_aligned(stashed);
 #ifdef JEMALLOC_JET
-		/* Allow arbitrary pointers to be stashed in tests. */
-		aligned = true;
+	/* Allow arbitrary pointers to be stashed in tests. */
+	aligned = true;
 #endif
-		assert(n == 0 || (stashed != NULL && aligned));
-	}
+	assert(n == 0 || (stashed != NULL && aligned));
 
 	return n;
 }
 
 JEMALLOC_ALWAYS_INLINE cache_bin_sz_t
 cache_bin_nstashed_get_local(cache_bin_t *bin, cache_bin_info_t *info) {
-	cache_bin_sz_t n = cache_bin_nstashed_get_internal(bin, info,
-	    /* racy */ false);
+	cache_bin_sz_t n = cache_bin_nstashed_get_internal(bin, info);
 	assert(n <= cache_bin_info_ncached_max(info));
 	return n;
 }
@@ -546,15 +522,39 @@ cache_bin_nstashed_get_local(cache_bin_t *bin, cache_bin_info_t *info) {
 /*
  * Obtain a racy view of the number of items currently in the cache bin, in the
  * presence of possible concurrent modifications.
+ *
+ * Note that this is the only racy function in this header.  Any other functions
+ * are assumed to be non-racy.  The "racy" term here means accessed from another
+ * thread (that is not the owner of the specific cache bin).  This only happens
+ * when gathering stats (read-only).  The only change because of the racy
+ * condition is that assertions based on mutable fields are omitted.
+ *
+ * It's important to keep in mind that 'bin->stack_head' and
+ * 'bin->low_bits_full' can be modified concurrently and almost no assertions
+ * about their values can be made.
+ *
+ * This function should not call other utility functions because the racy
+ * condition may cause unexpected / undefined behaviors in unverified utility
+ * functions.  Currently, this function calls two utility functions
+ * cache_bin_info_ncached_max and cache_bin_low_bits_low_bound_get because they
+ * help access values that will not be concurrently modified.
  */
 static inline void
 cache_bin_nitems_get_remote(cache_bin_t *bin, cache_bin_info_t *info,
     cache_bin_sz_t *ncached, cache_bin_sz_t *nstashed) {
-	cache_bin_sz_t n = cache_bin_ncached_get_internal(bin, /* racy */ true);
+	/* Racy version of cache_bin_ncached_get_internal. */
+	cache_bin_sz_t diff = bin->low_bits_empty -
+	    (uint16_t)(uintptr_t)bin->stack_head;
+	cache_bin_sz_t n = diff / sizeof(void *);
+
 	assert(n <= cache_bin_info_ncached_max(info));
 	*ncached = n;
 
-	n = cache_bin_nstashed_get_internal(bin, info, /* racy */ true);
+	/* Racy version of cache_bin_nstashed_get_internal. */
+	uint16_t low_bits_low_bound = cache_bin_low_bits_low_bound_get(bin,
+	    info);
+	n = (bin->low_bits_full - low_bits_low_bound) / sizeof(void *);
+
 	assert(n <= cache_bin_info_ncached_max(info));
 	*nstashed = n;
 	/* Note that cannot assert ncached + nstashed <= ncached_max (racy). */
