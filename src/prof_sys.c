@@ -55,9 +55,9 @@ prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 	cassert(config_prof);
 	assert(*len == 0);
 	assert(vec != NULL);
-	assert(max_len == PROF_BT_MAX);
+	assert(max_len <= PROF_BT_MAX_LIMIT);
 
-	nframes = unw_backtrace(vec, PROF_BT_MAX);
+	nframes = unw_backtrace(vec, max_len);
 	if (nframes <= 0) {
 		return;
 	}
@@ -97,13 +97,14 @@ prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 
 	cassert(config_prof);
 	assert(vec != NULL);
-	assert(max_len == PROF_BT_MAX);
+	assert(max_len <= PROF_BT_MAX_LIMIT);
 
 	_Unwind_Backtrace(prof_unwind_callback, &data);
 }
 #elif (defined(JEMALLOC_PROF_GCC))
 static void
 prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
+/* The input arg must be a constant for __builtin_return_address. */
 #define BT_FRAME(i)							\
 	if ((i) < max_len) {						\
 		void *p;						\
@@ -122,7 +123,7 @@ prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 
 	cassert(config_prof);
 	assert(vec != NULL);
-	assert(max_len == PROF_BT_MAX);
+	assert(max_len <= PROF_BT_MAX_LIMIT);
 
 	BT_FRAME(0)
 	BT_FRAME(1)
@@ -264,6 +265,147 @@ prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 	BT_FRAME(125)
 	BT_FRAME(126)
 	BT_FRAME(127)
+	BT_FRAME(128)
+	BT_FRAME(129)
+
+	BT_FRAME(130)
+	BT_FRAME(131)
+	BT_FRAME(132)
+	BT_FRAME(133)
+	BT_FRAME(134)
+	BT_FRAME(135)
+	BT_FRAME(136)
+	BT_FRAME(137)
+	BT_FRAME(138)
+	BT_FRAME(139)
+
+	BT_FRAME(140)
+	BT_FRAME(141)
+	BT_FRAME(142)
+	BT_FRAME(143)
+	BT_FRAME(144)
+	BT_FRAME(145)
+	BT_FRAME(146)
+	BT_FRAME(147)
+	BT_FRAME(148)
+	BT_FRAME(149)
+
+	BT_FRAME(150)
+	BT_FRAME(151)
+	BT_FRAME(152)
+	BT_FRAME(153)
+	BT_FRAME(154)
+	BT_FRAME(155)
+	BT_FRAME(156)
+	BT_FRAME(157)
+	BT_FRAME(158)
+	BT_FRAME(159)
+
+	BT_FRAME(160)
+	BT_FRAME(161)
+	BT_FRAME(162)
+	BT_FRAME(163)
+	BT_FRAME(164)
+	BT_FRAME(165)
+	BT_FRAME(166)
+	BT_FRAME(167)
+	BT_FRAME(168)
+	BT_FRAME(169)
+
+	BT_FRAME(170)
+	BT_FRAME(171)
+	BT_FRAME(172)
+	BT_FRAME(173)
+	BT_FRAME(174)
+	BT_FRAME(175)
+	BT_FRAME(176)
+	BT_FRAME(177)
+	BT_FRAME(178)
+	BT_FRAME(179)
+
+	BT_FRAME(180)
+	BT_FRAME(181)
+	BT_FRAME(182)
+	BT_FRAME(183)
+	BT_FRAME(184)
+	BT_FRAME(185)
+	BT_FRAME(186)
+	BT_FRAME(187)
+	BT_FRAME(188)
+	BT_FRAME(189)
+
+	BT_FRAME(190)
+	BT_FRAME(191)
+	BT_FRAME(192)
+	BT_FRAME(193)
+	BT_FRAME(194)
+	BT_FRAME(195)
+	BT_FRAME(196)
+	BT_FRAME(197)
+	BT_FRAME(198)
+	BT_FRAME(199)
+
+	BT_FRAME(200)
+	BT_FRAME(201)
+	BT_FRAME(202)
+	BT_FRAME(203)
+	BT_FRAME(204)
+	BT_FRAME(205)
+	BT_FRAME(206)
+	BT_FRAME(207)
+	BT_FRAME(208)
+	BT_FRAME(209)
+
+	BT_FRAME(210)
+	BT_FRAME(211)
+	BT_FRAME(212)
+	BT_FRAME(213)
+	BT_FRAME(214)
+	BT_FRAME(215)
+	BT_FRAME(216)
+	BT_FRAME(217)
+	BT_FRAME(218)
+	BT_FRAME(219)
+
+	BT_FRAME(220)
+	BT_FRAME(221)
+	BT_FRAME(222)
+	BT_FRAME(223)
+	BT_FRAME(224)
+	BT_FRAME(225)
+	BT_FRAME(226)
+	BT_FRAME(227)
+	BT_FRAME(228)
+	BT_FRAME(229)
+
+	BT_FRAME(230)
+	BT_FRAME(231)
+	BT_FRAME(232)
+	BT_FRAME(233)
+	BT_FRAME(234)
+	BT_FRAME(235)
+	BT_FRAME(236)
+	BT_FRAME(237)
+	BT_FRAME(238)
+	BT_FRAME(239)
+
+	BT_FRAME(240)
+	BT_FRAME(241)
+	BT_FRAME(242)
+	BT_FRAME(243)
+	BT_FRAME(244)
+	BT_FRAME(245)
+	BT_FRAME(246)
+	BT_FRAME(247)
+	BT_FRAME(248)
+	BT_FRAME(249)
+
+	BT_FRAME(250)
+	BT_FRAME(251)
+	BT_FRAME(252)
+	BT_FRAME(253)
+	BT_FRAME(254)
+	BT_FRAME(255)
 #undef BT_FRAME
 }
 #else
@@ -281,7 +423,7 @@ prof_backtrace(tsd_t *tsd, prof_bt_t *bt) {
 	assert(prof_backtrace_hook != NULL);
 
 	pre_reentrancy(tsd, NULL);
-	prof_backtrace_hook(bt->vec, &bt->len, PROF_BT_MAX);
+	prof_backtrace_hook(bt->vec, &bt->len, opt_prof_bt_max);
 	post_reentrancy(tsd);
 }
 

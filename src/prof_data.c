@@ -1167,13 +1167,16 @@ prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim,
 	cassert(config_prof);
 
 	/* Initialize an empty cache for this thread. */
-	tdata = (prof_tdata_t *)iallocztm(tsd_tsdn(tsd), sizeof(prof_tdata_t),
-	    sz_size2index(sizeof(prof_tdata_t)), false, NULL, true,
+	size_t tdata_sz = ALIGNMENT_CEILING(sizeof(prof_tdata_t), QUANTUM);
+	size_t total_sz = tdata_sz + sizeof(void *) * opt_prof_bt_max;
+	tdata = (prof_tdata_t *)iallocztm(tsd_tsdn(tsd),
+	    total_sz, sz_size2index(total_sz), false, NULL, true,
 	    arena_get(TSDN_NULL, 0, true), true);
 	if (tdata == NULL) {
 		return NULL;
 	}
 
+	tdata->vec = (void **)((uintptr_t)tdata + tdata_sz);
 	tdata->lock = prof_tdata_mutex_choose(thr_uid);
 	tdata->thr_uid = thr_uid;
 	tdata->thr_discrim = thr_discrim;

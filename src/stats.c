@@ -1521,6 +1521,7 @@ stats_general_print(emitter_t *emitter) {
 	OPT_WRITE_UNSIGNED("debug_double_free_max_scan")
 	OPT_WRITE_CHAR_P("thp")
 	OPT_WRITE_BOOL("prof")
+	OPT_WRITE_UNSIGNED("prof_bt_max")
 	OPT_WRITE_CHAR_P("prof_prefix")
 	OPT_WRITE_BOOL_MUTABLE("prof_active", "prof.active")
 	OPT_WRITE_BOOL_MUTABLE("prof_thread_active_init",

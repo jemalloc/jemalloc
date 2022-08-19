@@ -7,6 +7,7 @@
 extern bool opt_prof;
 extern bool opt_prof_active;
 extern bool opt_prof_thread_active_init;
+extern unsigned opt_prof_bt_max;
 extern size_t opt_lg_prof_sample;    /* Mean bytes between samples. */
 extern ssize_t opt_lg_prof_interval; /* lg(prof_interval). */
 extern bool opt_prof_gdump;          /* High-water memory dumping. */

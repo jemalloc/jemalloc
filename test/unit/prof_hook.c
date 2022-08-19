@@ -129,6 +129,7 @@ TEST_END
 TEST_BEGIN(test_prof_dump_hook) {
 
 	test_skip_if(!config_prof);
+	expect_u_eq(opt_prof_bt_max, 200, "Unexpected backtrace stack depth");
 
 	mock_dump_hook_called = false;
 
