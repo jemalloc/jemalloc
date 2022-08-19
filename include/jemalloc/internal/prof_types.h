@@ -23,7 +23,12 @@ typedef struct prof_recent_s prof_recent_t;
  * is based on __builtin_return_address() necessarily has a hard-coded number
  * of backtrace frame handlers, and should be kept in sync with this setting.
  */
-#define PROF_BT_MAX			128
+#ifdef JEMALLOC_PROF_GCC
+#  define PROF_BT_MAX_LIMIT 256
+#else
+#  define PROF_BT_MAX_LIMIT UINT_MAX
+#endif
+#define PROF_BT_MAX_DEFAULT			128
 
 /* Initial hash table size. */
 #define PROF_CKH_MINITEMS		64

@@ -26,6 +26,7 @@
 bool opt_prof = false;
 bool opt_prof_active = true;
 bool opt_prof_thread_active_init = true;
+unsigned opt_prof_bt_max = PROF_BT_MAX_DEFAULT;
 size_t opt_lg_prof_sample = LG_PROF_SAMPLE_DEFAULT;
 ssize_t opt_lg_prof_interval = LG_PROF_INTERVAL_DEFAULT;
 bool opt_prof_gdump = false;

@@ -1585,6 +1585,9 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				    - 1, CONF_DONT_CHECK_MIN, CONF_CHECK_MAX,
 				    true)
 				CONF_HANDLE_BOOL(opt_prof_accum, "prof_accum")
+				CONF_HANDLE_UNSIGNED(opt_prof_bt_max, "prof_bt_max",
+				    1, PROF_BT_MAX_LIMIT, CONF_CHECK_MIN, CONF_CHECK_MAX,
+				    /* clip */ true)
 				CONF_HANDLE_SSIZE_T(opt_lg_prof_interval,
 				    "lg_prof_interval", -1,
 				    (sizeof(uint64_t) << 3) - 1)

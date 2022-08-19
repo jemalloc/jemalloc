@@ -202,7 +202,7 @@ struct prof_tdata_s {
 	prof_cnt_t		cnt_summed;
 
 	/* Backtrace vector, used for calls to prof_backtrace(). */
-	void			*vec[PROF_BT_MAX];
+	void 			**vec;
 };
 typedef rb_tree(prof_tdata_t) prof_tdata_tree_t;
 
