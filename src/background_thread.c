@@ -46,6 +46,39 @@ pthread_create_wrapper(pthread_t *__restrict thread, const pthread_attr_t *attr,
 
 	return pthread_create_fptr(thread, attr, start_routine, arg);
 }
+
+#ifdef JEMALLOC_HAVE_DLSYM
+#include <dlfcn.h>
+#endif
+
+static bool
+pthread_create_fptr_init(void) {
+	if (pthread_create_fptr != NULL) {
+		return false;
+	}
+	/*
+	 * Try the next symbol first, because 1) when use lazy_lock we have a
+	 * wrapper for pthread_create; and 2) application may define its own
+	 * wrapper as well (and can call malloc within the wrapper).
+	 */
+#ifdef JEMALLOC_HAVE_DLSYM
+	pthread_create_fptr = dlsym(RTLD_NEXT, "pthread_create");
+#else
+	pthread_create_fptr = NULL;
+#endif
+	if (pthread_create_fptr == NULL) {
+		if (config_lazy_lock) {
+			malloc_write("<jemalloc>: Error in dlsym(RTLD_NEXT, "
+			    "\"pthread_create\")\n");
+			abort();
+		} else {
+			/* Fall back to the default symbol. */
+			pthread_create_fptr = pthread_create;
+		}
+	}
+
+	return false;
+}
 #endif /* JEMALLOC_PTHREAD_CREATE_WRAPPER */
 
 #ifndef JEMALLOC_BACKGROUND_THREAD
@@ -709,39 +742,6 @@ background_thread_stats_read(tsdn_t *tsdn, background_thread_stats_t *stats) {
 #undef BACKGROUND_THREAD_NPAGES_THRESHOLD
 #undef BILLION
 #undef BACKGROUND_THREAD_MIN_INTERVAL_NS
-
-#ifdef JEMALLOC_HAVE_DLSYM
-#include <dlfcn.h>
-#endif
-
-static bool
-pthread_create_fptr_init(void) {
-	if (pthread_create_fptr != NULL) {
-		return false;
-	}
-	/*
-	 * Try the next symbol first, because 1) when use lazy_lock we have a
-	 * wrapper for pthread_create; and 2) application may define its own
-	 * wrapper as well (and can call malloc within the wrapper).
-	 */
-#ifdef JEMALLOC_HAVE_DLSYM
-	pthread_create_fptr = dlsym(RTLD_NEXT, "pthread_create");
-#else
-	pthread_create_fptr = NULL;
-#endif
-	if (pthread_create_fptr == NULL) {
-		if (config_lazy_lock) {
-			malloc_write("<jemalloc>: Error in dlsym(RTLD_NEXT, "
-			    "\"pthread_create\")\n");
-			abort();
-		} else {
-			/* Fall back to the default symbol. */
-			pthread_create_fptr = pthread_create;
-		}
-	}
-
-	return false;
-}
 
 /*
  * When lazy lock is enabled, we need to make sure setting isthreaded before
