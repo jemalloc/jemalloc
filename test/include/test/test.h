@@ -266,7 +266,7 @@
 #define expect_false(a, ...)	expect_b_eq(a, false, __VA_ARGS__)
 
 #define verify_str_eq(may_abort, a, b, ...) do {			\
-	if (strcmp((a), (b))) {						\
+	if (strcmp((a), (b)) != 0) {						\
 		char prefix[ASSERT_BUFSIZE];				\
 		char message[ASSERT_BUFSIZE];				\
 		malloc_snprintf(prefix, sizeof(prefix),			\
@@ -284,7 +284,7 @@
 } while (0)
 
 #define verify_str_ne(may_abort, a, b, ...) do {			\
-	if (!strcmp((a), (b))) {					\
+	if (strcmp((a), (b)) == 0) {					\
 		char prefix[ASSERT_BUFSIZE];				\
 		char message[ASSERT_BUFSIZE];				\
 		malloc_snprintf(prefix, sizeof(prefix),			\

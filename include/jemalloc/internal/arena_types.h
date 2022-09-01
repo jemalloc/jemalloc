@@ -8,6 +8,8 @@
 #define MUZZY_DECAY_MS_DEFAULT	(0)
 /* Number of event ticks between time checks. */
 #define ARENA_DECAY_NTICKS_PER_UPDATE	1000
+/* Maximum length of the arena name. */
+#define ARENA_NAME_LEN 32
 
 typedef struct arena_decay_s arena_decay_t;
 typedef struct arena_s arena_t;
