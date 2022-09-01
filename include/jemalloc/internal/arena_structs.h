@@ -91,6 +91,9 @@ struct arena_s {
 	/* Used to determine uptime.  Read-only after initialization. */
 	nstime_t		create_time;
 
+	/* The name of the arena. */
+	char 			name[ARENA_NAME_LEN];
+
 	/*
 	 * The arena is allocated alongside its bins; really this is a
 	 * dynamically sized array determined by the binshard settings.

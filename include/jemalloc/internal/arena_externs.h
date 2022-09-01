@@ -88,6 +88,8 @@ ehooks_t *arena_get_ehooks(arena_t *arena);
 extent_hooks_t *arena_set_extent_hooks(tsd_t *tsd, arena_t *arena,
     extent_hooks_t *extent_hooks);
 bool arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec);
+void arena_name_get(arena_t *arena, char *name);
+void arena_name_set(arena_t *arena, const char *name);
 ssize_t arena_dirty_decay_ms_default_get(void);
 bool arena_dirty_decay_ms_default_set(ssize_t decay_ms);
 ssize_t arena_muzzy_decay_ms_default_get(void);

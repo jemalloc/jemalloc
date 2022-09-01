@@ -170,6 +170,7 @@ CTL_PROTO(arena_i_dirty_decay_ms)
 CTL_PROTO(arena_i_muzzy_decay_ms)
 CTL_PROTO(arena_i_extent_hooks)
 CTL_PROTO(arena_i_retain_grow_limit)
+CTL_PROTO(arena_i_name)
 INDEX_PROTO(arena_i)
 CTL_PROTO(arenas_bin_i_size)
 CTL_PROTO(arenas_bin_i_nregs)
@@ -504,11 +505,12 @@ static const ctl_named_node_t arena_i_node[] = {
 	 * Undocumented for now, since we anticipate an arena API in flux after
 	 * we cut the last 5-series release.
 	 */
-	{NAME("oversize_threshold"), CTL(arena_i_oversize_threshold)},
-	{NAME("dirty_decay_ms"), CTL(arena_i_dirty_decay_ms)},
-	{NAME("muzzy_decay_ms"), CTL(arena_i_muzzy_decay_ms)},
-	{NAME("extent_hooks"),	CTL(arena_i_extent_hooks)},
-	{NAME("retain_grow_limit"),	CTL(arena_i_retain_grow_limit)}
+	{NAME("oversize_threshold"),	CTL(arena_i_oversize_threshold)},
+	{NAME("dirty_decay_ms"),	CTL(arena_i_dirty_decay_ms)},
+	{NAME("muzzy_decay_ms"),	CTL(arena_i_muzzy_decay_ms)},
+	{NAME("extent_hooks"),		CTL(arena_i_extent_hooks)},
+	{NAME("retain_grow_limit"),	CTL(arena_i_retain_grow_limit)},
+	{NAME("name"),			CTL(arena_i_name)}
 };
 static const ctl_named_node_t super_arena_i_node[] = {
 	{NAME(""),		CHILD(named, arena_i)}
@@ -2978,6 +2980,61 @@ arena_i_retain_grow_limit_ctl(tsd_t *tsd, const size_t *mib,
 	} else {
 		ret = EFAULT;
 	}
+label_return:
+	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
+	return ret;
+}
+
+/*
+ * When writing, newp should point to a char array storing the name to be set.
+ * A name longer than ARENA_NAME_LEN will be arbitrarily cut. When reading,
+ * oldp should point to a char array whose length is no shorter than
+ * ARENA_NAME_LEN or the length of the name when it was set.
+ */
+static int
+arena_i_name_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+	unsigned arena_ind;
+	char *name;
+
+	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
+	MIB_UNSIGNED(arena_ind, 1);
+	if (arena_ind == MALLCTL_ARENAS_ALL || arena_ind >=
+	    ctl_arenas->narenas) {
+		ret = EINVAL;
+		goto label_return;
+	}
+	arena_t *arena = arena_get(tsd_tsdn(tsd), arena_ind, false);
+	if (arena == NULL) {
+		ret = EFAULT;
+		goto label_return;
+	}
+
+	if (oldp != NULL && oldlenp != NULL) {
+		/*
+		 * Read the arena name.  When reading, the input oldp should
+		 * point to an array with a length no shorter than
+		 * ARENA_NAME_LEN or the length when it was set.
+		 */
+		if (*oldlenp != sizeof(char *)) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		name = *(char **)oldp;
+		arena_name_get(arena, name);
+	}
+
+	if (newp != NULL) {
+		/* Write the arena name. */
+		WRITE(name, char *);
+		if (name == NULL) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		arena_name_set(arena, name);
+	}
+	ret = 0;
 label_return:
 	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
 	return ret;
