@@ -155,7 +155,7 @@ def get_extra_cflags(os, compiler):
             return []
 
     # We get some spurious errors when -Warray-bounds is enabled.
-    extra_cflags = ['-Werror', '-Wno-array-bounds']
+    extra_cflags = ['-Wno-array-bounds']
     if compiler == CLANG.value or os == OSX:
         extra_cflags += [
             '-Wno-unknown-warning-option',
@@ -296,12 +296,12 @@ def get_manual_jobs():
     - os: linux
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug \
 --disable-cache-oblivious --enable-stats --enable-log --enable-prof" \
-EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+EXTRA_CFLAGS="-Wno-array-bounds"
     # --enable-expermental-smallocx:
     - os: linux
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug \
 --enable-experimental-smallocx --enable-stats --enable-prof" \
-EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+EXTRA_CFLAGS="-Wno-array-bounds"
 """
 
 
