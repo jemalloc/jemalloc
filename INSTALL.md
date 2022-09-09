@@ -476,6 +476,23 @@ If you're having any issues with the above, ensure the following:
    variables. Otherwise, check the path to the `vcvarsall.bat` in `$vcvarsall`
    script and fix it.
 
+### Building from vcpkg
+
+The jemalloc port in vcpkg is kept up to date by Microsoft team members and
+community contributors. The url of vcpkg is: https://github.com/Microsoft/vcpkg
+. You can download and install jemalloc using the vcpkg dependency manager:
+
+```shell
+git clone https://github.com/Microsoft/vcpkg.git
+cd vcpkg
+./bootstrap-vcpkg.sh  # ./bootstrap-vcpkg.bat for Windows
+./vcpkg integrate install
+./vcpkg install jemalloc
+```
+
+If the version is out of date, please [create an issue or pull
+request](https://github.com/Microsoft/vcpkg) on the vcpkg repository.
+
 ## Development
 
 If you intend to make non-trivial changes to jemalloc, use the 'autogen.sh'
