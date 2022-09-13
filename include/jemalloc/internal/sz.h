@@ -257,52 +257,29 @@ sz_size2index_usize_fastpath(size_t size, szind_t *ind, size_t *usize) {
 	*usize = sz_index2size_lookup_impl(*ind);
 }
 
-JEMALLOC_ALWAYS_INLINE size_t
-sz_s2u_compute(size_t size) {
-	if (unlikely(size > SC_LARGE_MAXCLASS)) {
-		return 0;
-	}
-
-	if (size == 0) {
-		size++;
-	}
-#if (SC_NTINY > 0)
-	if (size <= (ZU(1) << SC_LG_TINY_MAXCLASS)) {
-		size_t lg_tmin = SC_LG_TINY_MAXCLASS - SC_NTINY + 1;
-		size_t lg_ceil = lg_floor(pow2_ceil_zu(size));
-		return (lg_ceil < lg_tmin ? (ZU(1) << lg_tmin) :
-		    (ZU(1) << lg_ceil));
-	}
-#endif
-	{
-		size_t x = lg_floor((size<<1)-1);
-		size_t lg_delta = (x < SC_LG_NGROUP + LG_QUANTUM + 1)
-		    ?  LG_QUANTUM : x - SC_LG_NGROUP - 1;
-		size_t delta = ZU(1) << lg_delta;
-		size_t delta_mask = delta - 1;
-		size_t usize = (size + delta_mask) & ~delta_mask;
-		return usize;
-	}
-}
-
-JEMALLOC_ALWAYS_INLINE size_t
-sz_s2u_lookup(size_t size) {
-	size_t ret = sz_index2size_lookup(sz_size2index_lookup(size));
-
-	assert(ret == sz_s2u_compute(size));
-	return ret;
-}
-
 /*
  * Compute usable size that would result from allocating an object with the
  * specified size.
  */
 JEMALLOC_ALWAYS_INLINE size_t
 sz_s2u(size_t size) {
-	if (likely(size <= SC_LOOKUP_MAXCLASS)) {
-		return sz_s2u_lookup(size);
+	size_t spacing = 0;
+	if (size < SC_NGROUP * (ZU(1) << LG_QUANTUM)) {
+		if (size < (ZU(1) << LG_QUANTUM)) {
+			if (size == 0) {
+				size++;
+			}
+			spacing = ZU(1) << SC_LG_TINY_MIN;
+		} else {
+			spacing = ZU(1) << LG_QUANTUM;
+		}
+	} else {
+		if (unlikely(size > SC_LARGE_MAXCLASS)) {
+			return 0;
+		}
+		spacing = lg_floor(size) >> SC_LG_NGROUP;
 	}
-	return sz_s2u_compute(size);
+	return ALIGNMENT_CEILING(size, spacing);
 }
 
 /*
