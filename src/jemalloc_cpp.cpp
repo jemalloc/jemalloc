@@ -173,21 +173,21 @@ operator new[](std::size_t size, std::align_val_t alignment, const std::nothrow_
 
 void
 operator delete(void *ptr) noexcept {
-	je_free(ptr);
+	je_free_impl(ptr);
 }
 
 void
 operator delete[](void *ptr) noexcept {
-	je_free(ptr);
+	je_free_impl(ptr);
 }
 
 void
 operator delete(void *ptr, const std::nothrow_t &) noexcept {
-	je_free(ptr);
+	je_free_impl(ptr);
 }
 
 void operator delete[](void *ptr, const std::nothrow_t &) noexcept {
-	je_free(ptr);
+	je_free_impl(ptr);
 }
 
 #if __cpp_sized_deallocation >= 201309
@@ -224,27 +224,27 @@ alignedSizedDeleteImpl(void* ptr, std::size_t size, std::align_val_t alignment) 
 	if (unlikely(ptr == nullptr)) {
 		return;
 	}
-	je_sdallocx(ptr, size, MALLOCX_ALIGN(alignment));
+	je_sdallocx_impl(ptr, size, MALLOCX_ALIGN(alignment));
 }
 
 void
 operator delete(void* ptr, std::align_val_t) noexcept {
-	je_free(ptr);
+	je_free_impl(ptr);
 }
 
 void
 operator delete[](void* ptr, std::align_val_t) noexcept {
-	je_free(ptr);
+	je_free_impl(ptr);
 }
 
 void
 operator delete(void* ptr, std::align_val_t, const std::nothrow_t&) noexcept {
-	je_free(ptr);
+	je_free_impl(ptr);
 }
 
 void
 operator delete[](void* ptr, std::align_val_t, const std::nothrow_t&) noexcept {
-	je_free(ptr);
+	je_free_impl(ptr);
 }
 
 void

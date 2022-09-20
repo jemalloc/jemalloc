@@ -4,6 +4,7 @@
 #include "jemalloc/internal/safety_check.h"
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/thread_event.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_c.h"
 
 JEMALLOC_ALWAYS_INLINE void
 prof_active_assert() {
@@ -225,11 +226,6 @@ prof_sample_align(size_t orig_align) {
 	assert(opt_prof);
 	return (opt_cache_oblivious && orig_align < PAGE) ? PAGE :
 	    orig_align;
-}
-
-JEMALLOC_ALWAYS_INLINE bool
-prof_sample_aligned(const void *ptr) {
-	return ((uintptr_t)ptr & PAGE_MASK) == 0;
 }
 
 JEMALLOC_ALWAYS_INLINE bool
