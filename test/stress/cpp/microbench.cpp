@@ -4,7 +4,7 @@
 static void
 malloc_free(void) {
 	void *p = malloc(1);
-	expect_ptr_not_null(p, "Unexpected new failure");
+	expect_ptr_not_null(p, "Unexpected malloc failure");
 	free(p);
 }
 
@@ -18,7 +18,7 @@ new_delete(void) {
 static void
 malloc_free_array(void) {
 	void *p = malloc(sizeof(int)*8);
-	expect_ptr_not_null(p, "Unexpected new[] failure");
+	expect_ptr_not_null(p, "Unexpected malloc failure");
 	free(p);
 }
 
@@ -40,7 +40,7 @@ new_sized_delete(void) {
 static void
 malloc_sdallocx(void) {
 	void *p = malloc(1);
-	expect_ptr_not_null(p, "Unexpected new failure");
+	expect_ptr_not_null(p, "Unexpected malloc failure");
         sdallocx(p, 1, 0);
 }
 #endif
@@ -79,5 +79,4 @@ main() {
 	    test_free_vs_delete,
 	    test_free_array_vs_delete_array,
 	    test_sized_delete_vs_sdallocx);
-	    
 }

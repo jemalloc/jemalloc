@@ -70,7 +70,8 @@ size_t batch_alloc(void **ptrs, size_t num, size_t size, int flags);
 void jemalloc_prefork(void);
 void jemalloc_postfork_parent(void);
 void jemalloc_postfork_child(void);
-void je_sdallocx_noflags(void *ptr, size_t size);
+void sdallocx_default(void *ptr, size_t size, int flags);
+void free_default(void *ptr);
 void *malloc_default(size_t size);
 
 #endif /* JEMALLOC_INTERNAL_EXTERNS_H */
