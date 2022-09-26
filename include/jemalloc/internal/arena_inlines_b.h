@@ -223,10 +223,15 @@ large_dalloc_safety_checks(edata_t *edata, void *ptr, szind_t szind) {
 	 */
 	if (unlikely(edata == NULL ||
 	    edata_state_get(edata) != extent_state_active)) {
-		safety_check_fail("Invalid deallocation detected: "
-		    "pages being freed (%p) not currently active, "
-		    "possibly caused by double free bugs.",
-		    (uintptr_t)edata_addr_get(edata));
+	        if (edata == NULL)
+		    safety_check_fail("Invalid deallocation detected: "
+		        "pages being freed (edata=null) not currently active, "
+		        "possibly caused by double free bugs.");
+		else
+		    safety_check_fail("Invalid deallocation detected: "
+		        "pages being freed (%p) not currently active, "
+		        "possibly caused by double free bugs.",
+		        (uintptr_t)edata_addr_get(edata));
 		return true;
 	}
 	size_t input_size = sz_index2size(szind);
