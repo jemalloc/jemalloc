@@ -225,8 +225,7 @@ large_dalloc_safety_checks(edata_t *edata, void *ptr, szind_t szind) {
 	    edata_state_get(edata) != extent_state_active)) {
 		safety_check_fail("Invalid deallocation detected: "
 		    "pages being freed (%p) not currently active, "
-		    "possibly caused by double free bugs.",
-		    (uintptr_t)edata_addr_get(edata));
+		    "possibly caused by double free bugs.", ptr);
 		return true;
 	}
 	size_t input_size = sz_index2size(szind);
