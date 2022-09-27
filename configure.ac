@@ -723,6 +723,19 @@ case "${host}" in
 	fi
 	zero_realloc_default_free="1"
 	;;
+  *-*-linux-musl*)
+	dnl syscall(2) and secure_getenv(3) are exposed by _GNU_SOURCE.
+	JE_APPEND_VS(CPPFLAGS, -D_GNU_SOURCE)
+	abi="elf"
+	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS], [ ], [ ])
+	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H], [ ], [ ])
+	AC_DEFINE([JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY], [ ], [ ])
+	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ], [ ])
+	if test "${LG_SIZEOF_PTR}" = "3"; then
+	  default_retain="1"
+	fi
+	zero_realloc_default_free="1"
+	;;
   *-*-linux*)
 	dnl syscall(2) and secure_getenv(3) are exposed by _GNU_SOURCE.
 	JE_APPEND_VS(CPPFLAGS, -D_GNU_SOURCE)
