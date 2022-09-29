@@ -99,7 +99,25 @@ Using this approach means that there are a few things users need to be aware of.
 If one stack appears twice as often as another, this by itself does not imply that it allocates twice as often. Consider the case in which there are only two types of allocating call stacks in a program. Stack A allocates 8 bytes, and occurs a million times in a program. Stack B allocates 8 MB, and occurs just once in a program. If our sampling rate $R$ is about 1MB, we expect stack A to show up about 8 times, and stack B to show up once. Stack A isn't 8 times more frequent than stack B, though; it's a million times more frequent.
 
 ### Aggregation must be done after unbiasing samples
-Some tools manually parse heap dump output, and aggregate across stacks (or across program runs) to provide wider-scale data analyses. When doing this aggregation, though, it's important to unbias-and-then-sum, rather than sum-and-then-unbias. Reusing our example from the previous section: suppose we collect heap dumps of the program from a million machines. We then have 8 million occurs of stack A (each of 8 bytes), and a million occurrences of stack B (each of 8 MB). If we sum first, we'll attribute 64 MB to stack A, and 8 TB to stack B. Unbiasing changes these numbers by an infinitesimal amount, so that sum-then-unbias dramatically underreports the amount of memory allocated by stack A.
+Some tools manually parse heap dump output, and aggregate across stacks (or across program runs) to provide wider-scale data analyses. When doing this aggregation, though, it's important to unbias-and-then-sum, rather than sum-and-then-unbias. Reusing our example from the previous section: suppose we collect heap dumps of the program from 1 million machines. We then have 8 million samples of stack A (8 per machine, each of 8 bytes), and 1 million samples of stack B (1 per machine, each of 8 MB).
+
+If we sum first then unbias based on this formula: $1 - e^{-Z/R}$ we get:
+
+$$Z = 8,000,000 * 8 bytes = 64MB$$
+$$64MB / (1 - e^{-64MB/1MB}) \approx 64MB (Stack A)$$
+
+$$Z = 1,000,000 * 8MB = 8TB$$
+$$8TB / (1 - e^{-1TB/1MB}) \approx 8TB (Stack B)$$
+
+Clearly we are unbiasing by an infinitesimal amount, which dramatically underreports the amount of memory allocated by stack A. Whereas if we unbias first and then sum:
+
+$$Z = 8 bytes$$
+$$8 bytes / (1 - e^{-8 bytes/1MB}) \approx 1MB$$
+$$1MB * 8,000,000 = 8TB (Stack A)$$
+
+$$Z = 8MB$$
+$$8MB / (1 - e^{-8MB/1MB})  \approx 8MB$$
+$$8MB * 1,000,000 = 8TB (Stack B)$$
 
 ## An avenue for future exploration
 While the framework we laid out above is pretty general, as an engineering decision we're only interested in fairly simple approaches (i.e. ones for which the chance of an allocation being sampled depends only on its size). Our job is then: for each size class $Z$, pick a probability $p_Z$ that an allocation of that size will be sampled. We made some handwave-y references to statistical distributions to justify our choices, but there's no reason we need to pick them that way. Any set of non-zero probabilities is a valid choice.
