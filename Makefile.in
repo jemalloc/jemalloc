@@ -458,6 +458,8 @@ $(TESTS_OBJS): $(objroot)test/%.$(O): $(srcroot)test/%.c
 $(TESTS_CPP_OBJS): $(objroot)test/%.$(O): $(srcroot)test/%.cpp
 $(TESTS_OBJS): CPPFLAGS += -I$(srcroot)test/include -I$(objroot)test/include
 $(TESTS_CPP_OBJS): CPPFLAGS += -I$(srcroot)test/include -I$(objroot)test/include
+$(TESTS_OBJS): CFLAGS += -fno-builtin
+$(TESTS_CPP_OBJS): CPPFLAGS += -fno-builtin
 ifneq ($(IMPORTLIB),$(SO))
 $(CPP_OBJS) $(C_SYM_OBJS) $(C_OBJS) $(C_JET_SYM_OBJS) $(C_JET_OBJS): CPPFLAGS += -DDLLEXPORT
 endif
