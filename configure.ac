@@ -2024,6 +2024,15 @@ if test "x$have_sched_setaffinity" = "x1" ; then
   AC_DEFINE([JEMALLOC_HAVE_SCHED_SETAFFINITY], [ ], [ ])
 fi
 
+dnl Check if the pthread_setaffinity_np function exists.
+AC_CHECK_FUNC([pthread_setaffinity_np],
+              [have_pthread_setaffinity_np="1"],
+              [have_pthread_setaffinity_np="0"]
+             )
+if test "x$have_pthread_setaffinity_np" = "x1" ; then
+  AC_DEFINE([JEMALLOC_HAVE_PTHREAD_SETAFFINITY_NP], [ ], [ ])
+fi
+
 dnl Check if the Solaris/BSD issetugid function exists.
 AC_CHECK_FUNC([issetugid],
               [have_issetugid="1"],
