@@ -300,9 +300,25 @@ tsd_fetch_slow(tsd_t *tsd, bool minimal) {
 			tsd_state_set(tsd, tsd_state_minimal_initialized);
 			tsd_set(tsd);
 			tsd_data_init_nocleanup(tsd);
+			*tsd_min_init_state_nfetchedp_get(tsd) = 1;
 		}
 	} else if (tsd_state_get(tsd) == tsd_state_minimal_initialized) {
-		if (!minimal) {
+		/*
+		 * If a thread only ever deallocates (e.g. dedicated reclamation
+		 * threads), we want to help it to eventually escape the slow
+		 * path (caused by the minimal initialized state).  The nfetched
+		 * counter tracks the number of times the tsd has been accessed
+		 * under the min init state, and triggers the switch to nominal
+		 * once reached the max allowed count.
+		 *
+		 * This means at most 128 deallocations stay on the slow path.
+		 *
+		 * Also see comments in free_default().
+		 */
+		uint8_t *nfetched = tsd_min_init_state_nfetchedp_get(tsd);
+		assert(*nfetched >= 1);
+		(*nfetched)++;
+		if (!minimal || *nfetched == TSD_MIN_INIT_STATE_MAX_FETCHED) {
 			/* Switch to fully initialized. */
 			tsd_state_set(tsd, tsd_state_nominal);
 			assert(*tsd_reentrancy_levelp_get(tsd) >= 1);

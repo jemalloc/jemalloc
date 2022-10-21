@@ -136,6 +136,61 @@ TEST_BEGIN(test_tsd_reincarnation) {
 }
 TEST_END
 
+static void *
+thd_start_dalloc_only(void *arg) {
+	void **ptrs = (void **)arg;
+
+	tsd_t *tsd = tsd_fetch_min();
+	if (tsd_state_get(tsd) != tsd_state_minimal_initialized) {
+		/* Allocation happened implicitly. */
+		expect_u_eq(tsd_state_get(tsd), tsd_state_nominal,
+		    "TSD state should be nominal");
+		return NULL;
+	}
+
+	void *ptr;
+	for (size_t i = 0; (ptr = ptrs[i]) != NULL; i++) {
+		/* Offset by 1 because of the manual tsd_fetch_min above. */
+		if (i + 1 < TSD_MIN_INIT_STATE_MAX_FETCHED) {
+			expect_u_eq(tsd_state_get(tsd),
+			    tsd_state_minimal_initialized,
+			    "TSD should be minimal initialized");
+		} else {
+			/* State may be nominal or nominal_slow. */
+			expect_true(tsd_nominal(tsd), "TSD should be nominal");
+		}
+		free(ptr);
+	}
+
+	return NULL;
+}
+
+static void
+test_sub_thread_n_dalloc(size_t nptrs) {
+	void **ptrs = (void **)malloc(sizeof(void *) * (nptrs + 1));
+	for (size_t i = 0; i < nptrs; i++) {
+		ptrs[i] = malloc(8);
+	}
+	ptrs[nptrs] = NULL;
+
+	thd_t thd;
+	thd_create(&thd, thd_start_dalloc_only, (void *)ptrs);
+	thd_join(thd, NULL);
+	free(ptrs);
+}
+
+TEST_BEGIN(test_tsd_sub_thread_dalloc_only) {
+	test_sub_thread_n_dalloc(1);
+	test_sub_thread_n_dalloc(16);
+	test_sub_thread_n_dalloc(TSD_MIN_INIT_STATE_MAX_FETCHED - 2);
+	test_sub_thread_n_dalloc(TSD_MIN_INIT_STATE_MAX_FETCHED - 1);
+	test_sub_thread_n_dalloc(TSD_MIN_INIT_STATE_MAX_FETCHED);
+	test_sub_thread_n_dalloc(TSD_MIN_INIT_STATE_MAX_FETCHED + 1);
+	test_sub_thread_n_dalloc(TSD_MIN_INIT_STATE_MAX_FETCHED + 2);
+	test_sub_thread_n_dalloc(TSD_MIN_INIT_STATE_MAX_FETCHED * 2);
+}
+TEST_END
+
 typedef struct {
 	atomic_u32_t phase;
 	atomic_b_t error;
@@ -269,6 +324,7 @@ main(void) {
 	return test_no_reentrancy(
 	    test_tsd_main_thread,
 	    test_tsd_sub_thread,
+	    test_tsd_sub_thread_dalloc_only,
 	    test_tsd_reincarnation,
 	    test_tsd_global_slow);
 }
