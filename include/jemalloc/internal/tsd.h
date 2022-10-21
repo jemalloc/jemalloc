@@ -59,6 +59,7 @@ typedef ql_elm(tsd_t) tsd_link_t;
 #define TSD_DATA_SLOW							\
     O(tcache_enabled,		bool,			bool)		\
     O(reentrancy_level,		int8_t,			int8_t)		\
+    O(min_init_state_nfetched,		uint8_t,	uint8_t)	\
     O(thread_allocated_last_event,	uint64_t,	uint64_t)	\
     O(thread_allocated_next_event,	uint64_t,	uint64_t)	\
     O(thread_deallocated_last_event,	uint64_t,	uint64_t)	\
@@ -91,6 +92,7 @@ typedef ql_elm(tsd_t) tsd_link_t;
 #define TSD_DATA_SLOW_INITIALIZER					\
     /* tcache_enabled */	TCACHE_ENABLED_ZERO_INITIALIZER,	\
     /* reentrancy_level */	0,					\
+    /* min_init_state_nfetched */	0,				\
     /* thread_allocated_last_event */	0,				\
     /* thread_allocated_next_event */	0,				\
     /* thread_deallocated_last_event */	0,				\
@@ -176,6 +178,8 @@ void tsd_postfork_child(tsd_t *tsd);
 void tsd_global_slow_inc(tsdn_t *tsdn);
 void tsd_global_slow_dec(tsdn_t *tsdn);
 bool tsd_global_slow();
+
+#define TSD_MIN_INIT_STATE_MAX_FETCHED (128)
 
 enum {
 	/* Common case --> jnz. */
