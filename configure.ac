@@ -1571,6 +1571,22 @@ if test "x$enable_readlinkat" = "x1" ; then
 fi
 AC_SUBST([enable_readlinkat])
 
+dnl Do not force getenv by default
+AC_ARG_ENABLE([force-getenv],
+  [AS_HELP_STRING([--enable-force-getenv], [Use getenv over secure_getenv])],
+[if test "x$enable_force_getenv" = "xno" ; then
+  enable_force_getenv="0"
+else
+  enable_force_getenv="1"
+fi
+],
+[enable_force_getenv="0"]
+)
+if test "x$enable_force_getenv" = "x1" ; then
+  AC_DEFINE([JEMALLOC_FORCE_GETENV], [ ], [ ])
+fi
+AC_SUBST([force_getenv])
+
 dnl Avoid extra safety checks by default
 AC_ARG_ENABLE([opt-safety-checks],
   [AS_HELP_STRING([--enable-opt-safety-checks],

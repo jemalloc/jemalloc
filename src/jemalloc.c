@@ -703,16 +703,20 @@ check_entry_exit_locking(tsdn_t *tsdn) {
  */
 
 static char *
-jemalloc_secure_getenv(const char *name) {
-#ifdef JEMALLOC_HAVE_SECURE_GETENV
-	return secure_getenv(name);
+jemalloc_getenv(const char *name) {
+#ifdef JEMALLOC_FORCE_GETENV
+	return getenv(name);
 #else
-#  ifdef JEMALLOC_HAVE_ISSETUGID
+#  ifdef JEMALLOC_HAVE_SECURE_GETENV
+	return secure_getenv(name);
+#  else
+#    ifdef JEMALLOC_HAVE_ISSETUGID
 	if (issetugid() != 0) {
 		return NULL;
 	}
-#  endif
+#    endif
 	return getenv(name);
+#  endif
 #endif
 }
 
@@ -1045,7 +1049,7 @@ obtain_malloc_conf(unsigned which_source, char buf[PATH_MAX + 1]) {
 #endif
 		    ;
 
-		if ((ret = jemalloc_secure_getenv(envname)) != NULL) {
+		if ((ret = jemalloc_getenv(envname)) != NULL) {
 			/*
 			 * Do nothing; opts is already initialized to the value
 			 * of the MALLOC_CONF environment variable.

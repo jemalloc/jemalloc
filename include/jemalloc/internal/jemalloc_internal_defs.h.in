@@ -267,6 +267,12 @@
 #undef JEMALLOC_READLINKAT
 
 /*
+ * If defined, use getenv() (instead of secure_getenv() or
+ * alternatives) to access MALLOC_CONF.
+ */
+#undef JEMALLOC_FORCE_GETENV
+
+/*
  * Darwin (OS X) uses zones to work around Mach-O symbol override shortcomings.
  */
 #undef JEMALLOC_ZONE
