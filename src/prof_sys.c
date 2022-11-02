@@ -431,6 +431,8 @@ void
 prof_hooks_init() {
 	prof_backtrace_hook_set(&prof_backtrace_impl);
 	prof_dump_hook_set(NULL);
+	prof_sample_hook_set(NULL);
+	prof_sample_free_hook_set(NULL);
 }
 
 void

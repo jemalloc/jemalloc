@@ -213,7 +213,8 @@ prof_realloc(tsd_t *tsd, const void *ptr, size_t size, size_t usize,
 	 * counters.
 	 */
 	if (unlikely(old_sampled)) {
-		prof_free_sampled_object(tsd, old_usize, old_prof_info);
+		prof_free_sampled_object(tsd, old_ptr, old_usize,
+		    old_prof_info);
 	}
 }
 
@@ -250,7 +251,7 @@ prof_free(tsd_t *tsd, const void *ptr, size_t usize,
 
 	if (unlikely((uintptr_t)prof_info.alloc_tctx > (uintptr_t)1U)) {
 		assert(prof_sample_aligned(ptr));
-		prof_free_sampled_object(tsd, usize, &prof_info);
+		prof_free_sampled_object(tsd, ptr, usize, &prof_info);
 	}
 }
 
