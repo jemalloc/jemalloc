@@ -56,6 +56,12 @@ prof_backtrace_hook_t prof_backtrace_hook_get();
 void prof_dump_hook_set(prof_dump_hook_t hook);
 prof_dump_hook_t prof_dump_hook_get();
 
+void prof_sample_hook_set(prof_sample_hook_t hook);
+prof_sample_hook_t prof_sample_hook_get();
+
+void prof_sample_free_hook_set(prof_sample_free_hook_t hook);
+prof_sample_free_hook_t prof_sample_free_hook_get();
+
 /* Functions only accessed in prof_inlines.h */
 prof_tdata_t *prof_tdata_init(tsd_t *tsd);
 prof_tdata_t *prof_tdata_reinit(tsd_t *tsd, prof_tdata_t *tdata);
@@ -63,7 +69,8 @@ prof_tdata_t *prof_tdata_reinit(tsd_t *tsd, prof_tdata_t *tdata);
 void prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx);
 void prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t size,
     size_t usize, prof_tctx_t *tctx);
-void prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_info_t *prof_info);
+void prof_free_sampled_object(tsd_t *tsd, const void *ptr, size_t usize,
+    prof_info_t *prof_info);
 prof_tctx_t *prof_tctx_create(tsd_t *tsd);
 void prof_idump(tsdn_t *tsdn);
 bool prof_mdump(tsd_t *tsd, const char *filename);

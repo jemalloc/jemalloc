@@ -78,6 +78,12 @@ atomic_p_t prof_backtrace_hook;
 /* Logically a prof_dump_hook_t. */
 atomic_p_t prof_dump_hook;
 
+/* Logically a prof_sample_hook_t. */
+atomic_p_t prof_sample_hook;
+
+/* Logically a prof_sample_free_hook_t. */
+atomic_p_t prof_sample_free_hook;
+
 /******************************************************************************/
 
 void
@@ -145,10 +151,20 @@ prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t size,
 	if (opt_prof_stats) {
 		prof_stats_inc(tsd, szind, size);
 	}
+
+	/* Sample hook. */
+	prof_sample_hook_t prof_sample_hook = prof_sample_hook_get();
+	if (prof_sample_hook != NULL) {
+		prof_bt_t *bt = &tctx->gctx->bt;
+		pre_reentrancy(tsd, NULL);
+		prof_sample_hook(ptr, size, bt->vec, bt->len);
+		post_reentrancy(tsd);
+	}
 }
 
 void
-prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_info_t *prof_info) {
+prof_free_sampled_object(tsd_t *tsd, const void *ptr, size_t usize,
+    prof_info_t *prof_info) {
 	cassert(config_prof);
 
 	assert(prof_info != NULL);
@@ -156,6 +172,16 @@ prof_free_sampled_object(tsd_t *tsd, size_t usize, prof_info_t *prof_info) {
 	assert((uintptr_t)tctx > (uintptr_t)1U);
 
 	szind_t szind = sz_size2index(usize);
+
+	/* Unsample hook. */
+	prof_sample_free_hook_t prof_sample_free_hook =
+	    prof_sample_free_hook_get();
+	if (prof_sample_free_hook != NULL) {
+		pre_reentrancy(tsd, NULL);
+		prof_sample_free_hook(ptr, usize);
+		post_reentrancy(tsd);
+	}
+
 	malloc_mutex_lock(tsd_tsdn(tsd), tctx->tdata->lock);
 
 	assert(tctx->cnts.curobjs > 0);
@@ -546,6 +572,28 @@ prof_dump_hook_set(prof_dump_hook_t hook) {
 prof_dump_hook_t
 prof_dump_hook_get() {
 	return (prof_dump_hook_t)atomic_load_p(&prof_dump_hook,
+	    ATOMIC_ACQUIRE);
+}
+
+void
+prof_sample_hook_set(prof_sample_hook_t hook) {
+	atomic_store_p(&prof_sample_hook, hook, ATOMIC_RELEASE);
+}
+
+prof_sample_hook_t
+prof_sample_hook_get() {
+	return (prof_sample_hook_t)atomic_load_p(&prof_sample_hook,
+	    ATOMIC_ACQUIRE);
+}
+
+void
+prof_sample_free_hook_set(prof_sample_free_hook_t hook) {
+	atomic_store_p(&prof_sample_free_hook, hook, ATOMIC_RELEASE);
+}
+
+prof_sample_free_hook_t
+prof_sample_free_hook_get() {
+	return (prof_sample_free_hook_t)atomic_load_p(&prof_sample_free_hook,
 	    ATOMIC_ACQUIRE);
 }
 
