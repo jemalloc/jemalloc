@@ -88,7 +88,8 @@ static const bool config_debug =
  * public jemalloc interfaces with jet_ prefixes, so that stress tests can use
  * a separate allocator for their internal data structures.
  */
-#elif defined(JEMALLOC_STRESS_TEST)
+#elif defined(JEMALLOC_STRESS_TEST) || \
+    defined(JEMALLOC_STRESS_CPP_TEST)
 #  include "jemalloc/jemalloc@install_suffix@.h"
 
 #  include "jemalloc/jemalloc_protos_jet.h"
