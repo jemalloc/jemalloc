@@ -53,7 +53,7 @@ compare_funcs(uint64_t nwarmup, uint64_t niter, const char *name_a,
 
 	timer_ratio(&timer_a, &timer_b, ratio_buf, sizeof(ratio_buf));
 	malloc_printf("%"FMTu64" iterations, %s=%"FMTu64"us (%s ns/iter), "
-	    "%s=%"FMTu64"us (%s ns/iter), ratio=1:%s\n",
+	    "%s=%"FMTu64"us (%s ns/iter), time consumption ratio=%s:1\n",
 	    niter, name_a, usec_a, buf_a, name_b, usec_b, buf_b, ratio_buf);
 
 	dallocx(p, 0);
