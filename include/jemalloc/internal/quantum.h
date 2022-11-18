@@ -71,6 +71,9 @@
 #  ifdef __arc__
 #    define LG_QUANTUM		3
 #  endif
+#  if (defined(__loongarch64) || defined(__loongarch__))
+#    define LG_QUANTUM		4
+#  endif
 #  ifndef LG_QUANTUM
 #    error "Unknown minimum alignment for architecture; specify via "
 	 "--with-lg-quantum"
