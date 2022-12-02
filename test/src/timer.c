@@ -28,6 +28,17 @@ timer_ratio(timedelta_t *a, timedelta_t *b, char *buf, size_t buflen) {
 	size_t i = 0;
 	size_t j, n;
 
+	/* 
+ 	* The time difference could be 0 if the two clock readings are 
+ 	* identical, either due to the operations being measured in the middle
+ 	* took very little time (or even got optimized away), or the clock 
+ 	* readings are bad / very coarse grained clock.
+ 	* Thus, bump t1 if it is 0 to avoid dividing 0. 
+ 	*/
+	if (t1 == 0) {
+	    t1 = 1;
+	}
+
 	/* Whole. */
 	n = malloc_snprintf(&buf[i], buflen-i, "%"FMTu64, t0 / t1);
 	i += n;
