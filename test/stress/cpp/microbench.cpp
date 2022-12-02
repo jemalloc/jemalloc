@@ -5,44 +5,45 @@
 
 static void
 malloc_free(void) {
-	void *p = malloc(1);
-	expect_ptr_not_null(p, "Unexpected malloc failure");
-	free(p);
+	void* volatile p = malloc(1);
+	expect_ptr_not_null((void *)p, "Unexpected malloc failure");
+	free((void *)p);
 }
 
 static void
 new_delete(void) {
-	auto p = ::operator new(1);
-	expect_ptr_not_null(p, "Unexpected new failure");
-	::operator delete(p);
+	void* volatile p = ::operator new(1);
+	expect_ptr_not_null((void *)p, "Unexpected new failure");
+	::operator delete((void *)p);
 }
 
 static void
 malloc_free_array(void) {
-	void *p = malloc(sizeof(int)*8);
-	expect_ptr_not_null(p, "Unexpected malloc failure");
-	free(p);
+	void* volatile p = malloc(sizeof(int)*8);
+	expect_ptr_not_null((void *)p, "Unexpected malloc failure");
+	free((void *)p);
 }
 
 static void
 new_delete_array(void) {
-	auto p = new int[8];
-	expect_ptr_not_null(p, "Unexpected new[] failure");
-	delete[] p;
+	int* volatile p = new int[8];
+	expect_ptr_not_null((int *)p, "Unexpected new[] failure");
+	delete[] (int *)p;
 }
 
 #if __cpp_sized_deallocation >= 201309
 static void
 new_sized_delete(void) {
-	auto p = ::operator new(1);
-	expect_ptr_not_null(p, "Unexpected new failure");
-	::operator delete(p, 1);
+	void* volatile p = ::operator new(1);
+	expect_ptr_not_null((void *)p, "Unexpected new failure");
+	::operator delete((void *)p, 1);
 }
 
 static void
 malloc_sdallocx(void) {
-	auto sdallocfn = [&](char *p){sdallocx(p, 1, 0);};
-	std::unique_ptr<char, decltype(sdallocfn)> p {(char*)malloc(1), sdallocfn};
+	auto sdallocfn = [&](void *p){sdallocx(p, 1, 0);};
+	void* volatile rp = malloc(1);
+	std::unique_ptr<void, decltype(sdallocfn)> p {rp, sdallocfn};
 	expect_ptr_not_null(p.get(), "Unexpected malloc failure");
 }
 #endif
