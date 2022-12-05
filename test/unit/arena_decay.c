@@ -427,7 +427,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_decay_ticks,
 	    test_decay_ticker,
 	    test_decay_nonmonotonic,

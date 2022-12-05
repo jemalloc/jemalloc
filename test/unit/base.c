@@ -256,7 +256,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_base_hooks_default,
 	    test_base_hooks_null,
 	    test_base_hooks_not_null,

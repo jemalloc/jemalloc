@@ -32,7 +32,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    unhooked_call,
 	    hooked_call);
 }

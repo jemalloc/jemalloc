@@ -235,7 +235,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_nstime_init,
 	    test_nstime_init2,
 	    test_nstime_copy,

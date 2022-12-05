@@ -82,7 +82,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_mq_basic,
 	    test_mq_threaded);
 }

@@ -255,7 +255,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_read_after_free,
 	    test_write_after_free,
 	    test_use_after_free_integration);

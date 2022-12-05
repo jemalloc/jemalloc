@@ -260,7 +260,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_malloc_strtoumax_no_endptr,
 	    test_malloc_strtoumax,
 	    test_malloc_snprintf_truncated,

@@ -304,7 +304,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_ql_empty,
 	    test_ql_tail_insert,
 	    test_ql_tail_remove,

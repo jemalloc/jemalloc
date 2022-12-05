@@ -171,5 +171,5 @@ TEST_END
 
 int
 main(void) {
-	return test(test_tcache_max);
+	return test_nm(test_tcache_max);
 }

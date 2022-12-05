@@ -380,7 +380,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_ln_gamma_factorial,
 	    test_ln_gamma_misc,
 	    test_pt_norm,

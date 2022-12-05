@@ -43,6 +43,6 @@ TEST_BEGIN(test_realloc_alloc) {
 TEST_END
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_realloc_alloc);
 }

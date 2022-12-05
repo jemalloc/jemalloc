@@ -1,6 +1,8 @@
 #include "test/jemalloc_test.h"
 #include "test/bench.h"
 
+#include <memory>
+
 static void
 malloc_free(void) {
 	void *p = malloc(1);
@@ -39,9 +41,9 @@ new_sized_delete(void) {
 
 static void
 malloc_sdallocx(void) {
-	void *p = malloc(1);
-	expect_ptr_not_null(p, "Unexpected malloc failure");
-        sdallocx(p, 1, 0);
+	auto sdallocfn = [&](char *p){sdallocx(p, 1, 0);};
+	std::unique_ptr<char, decltype(sdallocfn)> p {(char*)malloc(1), sdallocfn};
+	expect_ptr_not_null(p.get(), "Unexpected malloc failure");
 }
 #endif
 

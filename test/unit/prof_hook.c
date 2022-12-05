@@ -163,7 +163,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_prof_backtrace_hook_replace,
 	    test_prof_backtrace_hook_augment,
 	    test_prof_dump_hook);

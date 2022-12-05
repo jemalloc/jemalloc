@@ -72,7 +72,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_invalid_size_sdallocx,
 	    test_invalid_size_sdallocx_nonzero_flag,
 	    test_invalid_size_sdallocx_noflags);

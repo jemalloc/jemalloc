@@ -145,7 +145,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_prof_stats,
 	    test_prof_stats_aligned);
 }

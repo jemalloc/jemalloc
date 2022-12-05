@@ -121,7 +121,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_alignment_errors,
 	    test_oom_errors,
 	    test_alignment_and_size);

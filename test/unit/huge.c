@@ -101,7 +101,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    huge_allocation,
 	    huge_mallocx,
 	    huge_bind_thread);

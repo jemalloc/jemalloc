@@ -54,6 +54,6 @@ JEMALLOC_DIAGNOSTIC_POP
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_overflow);
 }

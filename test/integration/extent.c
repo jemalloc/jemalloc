@@ -279,7 +279,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_extent_manual_hook,
 	    test_extent_auto_hook,
 	    test_arenas_create_ext_with_ehooks_no_metadata,

@@ -200,7 +200,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_guarded_small,
 	    test_guarded_large,
 	    test_guarded_decay);

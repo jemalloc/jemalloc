@@ -188,7 +188,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_log_disabled,
 	    test_log_enabled_direct,
 	    test_log_enabled_indirect,

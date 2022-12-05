@@ -116,7 +116,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_prof_thread_name_validation,
 	    test_prof_thread_name_threaded);
 }

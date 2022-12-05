@@ -552,7 +552,7 @@ label_test_end:								\
 	p_test_fini();							\
 }
 
-#define test(...)							\
+#define test_nm(...)							\
 	p_test(__VA_ARGS__, NULL)
 
 #define test_no_reentrancy(...)							\

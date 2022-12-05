@@ -234,7 +234,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_qr_one,
 	    test_qr_after_insert,
 	    test_qr_remove,

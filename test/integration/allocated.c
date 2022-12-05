@@ -115,7 +115,7 @@ TEST_END
 int
 main(void) {
 	/* Run tests multiple times to check for bad interactions. */
-	return test(
+	return test_nm(
 	    test_main_thread,
 	    test_subthread,
 	    test_main_thread,

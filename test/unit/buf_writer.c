@@ -187,7 +187,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_buf_write_static,
 	    test_buf_write_dynamic,
 	    test_buf_write_oom,

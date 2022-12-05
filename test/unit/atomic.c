@@ -219,7 +219,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_atomic_u64,
 	    test_atomic_u32,
 	    test_atomic_p,

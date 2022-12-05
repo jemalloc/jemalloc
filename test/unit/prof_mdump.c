@@ -209,7 +209,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_mdump_normal,
 	    test_mdump_output_error,
 	    test_mdump_maps_error);

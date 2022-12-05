@@ -52,6 +52,6 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_idump);
 }

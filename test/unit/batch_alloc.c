@@ -180,7 +180,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_batch_alloc,
 	    test_batch_alloc_zero,
 	    test_batch_alloc_aligned,

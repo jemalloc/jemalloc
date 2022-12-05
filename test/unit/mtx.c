@@ -51,7 +51,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_mtx_basic,
 	    test_mtx_race);
 }

@@ -333,7 +333,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_bitmap_initializer,
 	    test_bitmap_size,
 	    test_bitmap_init,

@@ -134,7 +134,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_large_double_free_no_tcache,
 	    test_large_double_free_tcache,
 	    test_small_double_free_tcache,

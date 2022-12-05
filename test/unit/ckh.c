@@ -204,7 +204,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_new_delete,
 	    test_count_insert_search_remove,
 	    test_insert_iter_remove);

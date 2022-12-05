@@ -92,7 +92,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_ticker_tick,
 	    test_ticker_ticks,
 	    test_ticker_copy,

@@ -379,6 +379,6 @@ TEST_END
 
 int
 main(void) {
-	return test(test_cache_bin,
+	return test_nm(test_cache_bin,
 		test_cache_bin_stash);
 }

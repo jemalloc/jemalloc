@@ -62,5 +62,5 @@ TEST_END
 
 int
 main(void) {
-	return test(test_sz_psz2ind);
+	return test_nm(test_sz_psz2ind);
 }

@@ -151,7 +151,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_malloc_free_overflow,
 	    test_mallocx_dallocx_overflow,
 	    test_malloc_sdallocx_overflow,

@@ -166,7 +166,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_hash_x86_32,
 	    test_hash_x86_128,
 	    test_hash_x64_128);

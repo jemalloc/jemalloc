@@ -272,7 +272,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_decay_init,
 	    test_decay_ms_valid,
 	    test_decay_npages_purge_in,

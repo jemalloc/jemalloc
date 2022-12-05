@@ -19,6 +19,6 @@ TEST_END
 
 int
 main() {
-	return test(
+	return test_nm(
 	    test_basic);
 }

@@ -34,6 +34,6 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_arena_slab_regind);
 }

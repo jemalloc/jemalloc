@@ -353,7 +353,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_arena_reset,
 	    test_arena_destroy_initial,
 	    test_arena_destroy_hooks_default,

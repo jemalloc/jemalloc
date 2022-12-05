@@ -274,5 +274,5 @@ int
 main(void) {
 	assert_zu_lt(SC_SMALL_MAXCLASS + 100000, TEST_MAX_SIZE,
 	    "Test case cannot cover large classes");
-	return test(test_query, test_batch);
+	return test_nm(test_query, test_batch);
 }

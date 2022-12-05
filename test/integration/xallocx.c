@@ -372,7 +372,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_same_size,
 	    test_extra_no_move,
 	    test_no_move_fail,

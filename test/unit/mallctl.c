@@ -1279,7 +1279,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_mallctl_errors,
 	    test_mallctlnametomib_errors,
 	    test_mallctlbymib_errors,

@@ -270,7 +270,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_witness,
 	    test_witness_comp,
 	    test_witness_reversal,

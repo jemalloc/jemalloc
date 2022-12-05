@@ -668,7 +668,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_confirm_setup,
 	    test_prof_recent_off,
 	    test_prof_recent_on,

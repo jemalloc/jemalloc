@@ -324,7 +324,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_ph_empty,
 	    test_ph_random);
 }

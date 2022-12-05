@@ -121,6 +121,6 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_alloc_free_purge_thds);
 }

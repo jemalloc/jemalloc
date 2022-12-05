@@ -218,7 +218,7 @@ TEST_END
 
 int
 main(void) {
-	return test(
+	return test_nm(
 	    test_edata_cache,
 	    test_edata_cache_fast_simple,
 	    test_edata_cache_fill,
