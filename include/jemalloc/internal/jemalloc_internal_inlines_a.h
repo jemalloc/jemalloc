@@ -14,7 +14,7 @@ malloc_getcpu(void) {
 	return GetCurrentProcessorNumber();
 #elif defined(JEMALLOC_HAVE_SCHED_GETCPU)
 	return (malloc_cpuid_t)sched_getcpu();
-#elif defined(HAVE_RDTSCP)
+#elif defined(JEMALLOC_HAVE_RDTSCP)
 	unsigned int ax, cx, dx;
 	asm volatile("rdtscp" : "=a"(ax), "=d"(dx), "=c"(cx) ::);
 	return (malloc_cpuid_t)(dx & 0xfff);
