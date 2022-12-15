@@ -440,4 +440,7 @@
 /* If defined, realloc(ptr, 0) defaults to "free" instead of "alloc". */
 #undef JEMALLOC_ZERO_REALLOC_DEFAULT_FREE
 
+/* If defined, use volatile asm during benchmarks. */
+#undef JEMALLOC_HAVE_ASM_VOLATILE
+
 #endif /* JEMALLOC_INTERNAL_DEFS_H_ */

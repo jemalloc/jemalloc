@@ -9,6 +9,7 @@ large_mallocx_free(void) {
 	 */
 	void *p = mallocx(SC_LARGE_MINCLASS, MALLOCX_TCACHE_NONE);
 	assert_ptr_not_null(p, "mallocx shouldn't fail");
+	p = no_opt_ptr(p);
 	free(p);
 }
 
@@ -16,6 +17,7 @@ static void
 small_mallocx_free(void) {
 	void *p = mallocx(16, 0);
 	assert_ptr_not_null(p, "mallocx shouldn't fail");
+	p = no_opt_ptr(p);
 	free(p);
 }
 

@@ -58,3 +58,14 @@ compare_funcs(uint64_t nwarmup, uint64_t niter, const char *name_a,
 
 	dallocx(p, 0);
 }
+
+static inline void *
+no_opt_ptr(void *ptr) {
+#ifdef JEMALLOC_HAVE_ASM_VOLATILE
+  asm volatile("" : "+r"(ptr));
+#else
+  void *volatile dup = ptr;
+  ptr = dup;
+#endif
+  return ptr;
+}
