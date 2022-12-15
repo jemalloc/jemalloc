@@ -9,6 +9,7 @@ malloc_free(void) {
 		test_fail("Unexpected malloc() failure");
 		return;
 	}
+	p = no_opt_ptr(p);
 	free(p);
 }
 
@@ -19,6 +20,7 @@ mallocx_free(void) {
 		test_fail("Unexpected mallocx() failure");
 		return;
 	}
+	p = no_opt_ptr(p);
 	free(p);
 }
 
@@ -35,6 +37,7 @@ malloc_dallocx(void) {
 		test_fail("Unexpected malloc() failure");
 		return;
 	}
+	p = no_opt_ptr(p);
 	dallocx(p, 0);
 }
 
@@ -45,6 +48,7 @@ malloc_sdallocx(void) {
 		test_fail("Unexpected malloc() failure");
 		return;
 	}
+	p = no_opt_ptr(p);
 	sdallocx(p, 1, 0);
 }
 
@@ -82,6 +86,7 @@ malloc_sallocx_free(void) {
 		test_fail("Unexpected malloc() failure");
 		return;
 	}
+	p = no_opt_ptr(p);
 	if (sallocx(p, 0) < 1) {
 		test_fail("Unexpected sallocx() failure");
 	}
@@ -103,6 +108,7 @@ malloc_nallocx_free(void) {
 		test_fail("Unexpected malloc() failure");
 		return;
 	}
+	p = no_opt_ptr(p);
 	if (nallocx(1, 0) < 1) {
 		test_fail("Unexpected nallocx() failure");
 	}

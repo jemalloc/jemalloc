@@ -546,6 +546,22 @@ typedef unsigned __int32 uint32_t;
     ;;
 esac
 AC_DEFINE_UNQUOTED([LG_VADDR], [$LG_VADDR], [ ])
+AC_CACHE_CHECK([asm volatile support],
+               [je_cv_asm_volatile],
+               AC_RUN_IFELSE([AC_LANG_PROGRAM(
+[[
+]],
+[[
+      void* ptr;
+      asm volatile("" : "+r"(ptr));
+      return 0;
+]])],
+[je_cv_asm_volatile=yes],
+[je_cv_asm_volatile=no],
+[je_cv_asm_volatile=no]))
+if test "x${je_cv_asm_volatile}" = "xyes"; then
+  AC_DEFINE([JEMALLOC_HAVE_ASM_VOLATILE], [ ], [ ])
+fi
 
 LD_PRELOAD_VAR="LD_PRELOAD"
 so="so"
