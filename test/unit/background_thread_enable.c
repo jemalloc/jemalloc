@@ -1,6 +1,6 @@
 #include "test/jemalloc_test.h"
 
-const char *malloc_conf = "background_thread:false,narenas:1,max_background_threads:20";
+const char *malloc_conf = "background_thread:false,narenas:1,max_background_threads:8";
 
 static unsigned
 max_test_narenas(void) {
@@ -12,12 +12,9 @@ max_test_narenas(void) {
 	 * approximation.
 	 */
 	unsigned ret = 10 * ncpus;
-	/* Limit the max to avoid VM exhaustion on 32-bit . */
-	if (ret > 512) {
-		ret = 512;
-	}
 
-	return ret;
+	/* Limit the max to avoid VM exhaustion on 32-bit . */
+	return ret > 256 ? 256 : ret;
 }
 
 TEST_BEGIN(test_deferred) {
