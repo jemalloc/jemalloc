@@ -522,10 +522,10 @@ typedef unsigned __int32 uint32_t;
       return 0;
 ]])],
       [je_cv_rdtscp=yes],
-      [je_cv_rdstcp=no],
+      [je_cv_rdtscp=no],
       [je_cv_rdtscp=no]))
       if test "x${je_cv_rdtscp}" = "xyes"; then
-        AC_DEFINE([HAVE_RDTSCP], 1, [])
+        AC_DEFINE([JEMALLOC_HAVE_RDTSCP], [ ], [ ])
       fi
     fi
     ;;
