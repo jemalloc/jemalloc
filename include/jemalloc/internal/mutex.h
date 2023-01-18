@@ -175,7 +175,6 @@ malloc_mutex_trylock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 	witness_assert_not_owner(tsdn_witness_tsdp_get(tsdn), &mutex->witness);
 	if (isthreaded) {
 		if (malloc_mutex_trylock_final(mutex)) {
-			atomic_store_b(&mutex->locked, true, ATOMIC_RELAXED);
 			return true;
 		}
 		mutex_owner_stats_update(tsdn, mutex);
