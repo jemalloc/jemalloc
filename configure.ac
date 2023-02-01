@@ -1713,6 +1713,43 @@ if test "x${je_cv_gcc_builtin_popcountl}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_INTERNAL_POPCOUNTLL], [__builtin_popcountll], [ ])
 fi
 
+dnl Configure maximum number of tcaches/arenas
+dnl Some tests assume at least 10 tcaches can be created, so we need at least
+dnl 4-bits to represent the tcache IDs.
+dnl The upper limit of 17 is not a technical limitation, rather, it is what our
+dnl unit tests pass at. Some tests allocate areans and never destroy them, which
+dnl means we run out of areans during tests. But we can't "support" a limit we
+dnl cannot test...
+AC_ARG_WITH([lg_tcache_limit],
+  [AS_HELP_STRING([--with-lg-tcache-limit=<lg-cache-limit>],
+  [Base 2 log of maximum number of tcaches (between 4 and 17). Trade off with number of arenas, which will be 2 ^ (24 - lg-cache-limit).])])
+
+if test "x$with_lg_tcache_limit" = "x"; then
+  # Default is 4096 tcaches, 4096 arenas
+  with_lg_tcache_limit=12
+fi
+
+if ! test "$with_lg_tcache_limit" -ge 4 -a "$with_lg_tcache_limit" -le 17; then
+  AC_MSG_ERROR([lg-cache-limit should be between 4 and 17.])
+fi
+
+dnl Internal macros
+tcache_and_arena_repr_bits=24
+tcache_repr_bits="$with_lg_tcache_limit"
+arena_repr_bits="$(($tcache_and_arena_repr_bits-$tcache_repr_bits))"
+tcache_shift=8
+arena_shift="$((32-$arena_repr_bits))"
+arenas_all="$((1<<$arena_repr_bits))"
+arenas_destroyed="$(($arenas_all+1))"
+AC_SUBST([tcache_repr_bits])
+AC_SUBST([arena_repr_bits])
+
+dnl Public macros
+AC_SUBST([tcache_shift])
+AC_SUBST([arena_shift])
+AC_SUBST([arenas_all])
+AC_SUBST([arenas_destroyed])
+
 AC_ARG_WITH([lg_quantum],
   [AS_HELP_STRING([--with-lg-quantum=<lg-quantum>],
    [Base 2 log of minimum allocation alignment])])
@@ -2725,6 +2762,8 @@ AC_MSG_RESULT([])
 AC_MSG_RESULT([JEMALLOC_PREFIX    : ${JEMALLOC_PREFIX}])
 AC_MSG_RESULT([JEMALLOC_PRIVATE_NAMESPACE])
 AC_MSG_RESULT([                   : ${JEMALLOC_PRIVATE_NAMESPACE}])
+AC_MSG_RESULT([tcache_repr_bits   : ${tcache_repr_bits}])
+AC_MSG_RESULT([arena_repr_bits    : ${arena_repr_bits}])
 AC_MSG_RESULT([install_suffix     : ${install_suffix}])
 AC_MSG_RESULT([malloc_conf        : ${config_malloc_conf}])
 AC_MSG_RESULT([documentation      : ${enable_doc}])
