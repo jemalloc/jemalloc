@@ -451,16 +451,15 @@ prof_thread_name_alloc(tsd_t *tsd, const char *thread_name) {
 	}
 
 	size = strlen(thread_name) + 1;
-	if (size == 1) {
-		return "";
-	}
-
 	ret = iallocztm(tsd_tsdn(tsd), size, sz_size2index(size), false, NULL,
 	    true, arena_get(TSDN_NULL, 0, true), true);
 	if (ret == NULL) {
 		return NULL;
 	}
+
 	memcpy(ret, thread_name, size);
+	ret[size - 1] = '\0';
+
 	return ret;
 }
 
@@ -493,14 +492,14 @@ prof_thread_name_set_impl(tsd_t *tsd, const char *thread_name) {
 		return EAGAIN;
 	}
 
-	if (tdata->thread_name != NULL) {
-		idalloctm(tsd_tsdn(tsd), tdata->thread_name, NULL, NULL, true,
-		    true);
-		tdata->thread_name = NULL;
+	char *old_thread_name = tdata->thread_name;
+	tdata->thread_name = s;
+	if (old_thread_name != NULL) {
+		idalloctm(tsd_tsdn(tsd), old_thread_name, /* tcache */ NULL,
+		    /* alloc_ctx */ NULL, /* is_internal */ true,
+		    /* slow_path */ true);
 	}
-	if (strlen(s) > 0) {
-		tdata->thread_name = s;
-	}
+
 	return 0;
 }
 
