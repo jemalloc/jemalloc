@@ -1746,6 +1746,11 @@ arena_choose_huge(tsd_t *tsd) {
 		if (huge_arena == NULL) {
 			return NULL;
 		}
+
+		char *huge_arena_name = "auto_oversize";
+		strncpy(huge_arena->name, huge_arena_name, ARENA_NAME_LEN);
+		huge_arena->name[ARENA_NAME_LEN - 1] = '\0';
+
 		/*
 		 * Purge eagerly for huge allocations, because: 1) number of
 		 * huge allocations is usually small, which means ticker based
