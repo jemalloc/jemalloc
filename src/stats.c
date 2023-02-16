@@ -910,8 +910,7 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	    "      npageslabs: %zu huge, %zu nonhuge\n"
 	    "      nactive: %zu huge, %zu nonhuge \n"
 	    "      ndirty: %zu huge, %zu nonhuge \n"
-	    "      nretained: 0 huge, %zu nonhuge \n"
-	    "\n",
+	    "      nretained: 0 huge, %zu nonhuge \n",
 	    npageslabs_huge, npageslabs_nonhuge,
 	    nactive_huge, nactive_nonhuge,
 	    ndirty_huge, ndirty_nonhuge,
@@ -932,6 +931,7 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	    &ndirty_nonhuge);
 	emitter_json_object_end(emitter); /* End "empty_slabs" */
 
+	/* Last, nonfull slab stats. */
 	COL_HDR(row, size, NULL, right, 20, size)
 	COL_HDR(row, ind, NULL, right, 4, unsigned)
 	COL_HDR(row, npageslabs_huge, NULL, right, 16, size)
@@ -947,6 +947,7 @@ stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	stats_arenas_mib[2] = i;
 	CTL_LEAF_PREPARE(stats_arenas_mib, 3, "hpa_shard.nonfull_slabs");
 
+	emitter_table_printf(emitter, "  In nonfull slabs:\n");
 	emitter_table_row(emitter, &header_row);
 	emitter_json_array_kv_begin(emitter, "nonfull_slabs");
 	bool in_gap = false;
