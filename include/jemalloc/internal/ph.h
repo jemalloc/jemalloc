@@ -419,11 +419,8 @@ ph_remove(ph_t *ph, void *phn, size_t offset, ph_cmp_t cmp) {
 		}
 	} else {
 		if (parent != NULL) {
-			void *next = phn_next_get(phn, offset);
-			phn_lchild_set(parent, next, offset);
-			if (next != NULL) {
-				phn_prev_set(next, parent, offset);
-			}
+			phn_lchild_set(parent, phn_next_get(phn, offset),
+				offset);
 		} else {
 			assert(phn_prev_get(phn, offset) != NULL);
 			phn_next_set(
