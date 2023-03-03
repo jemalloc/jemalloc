@@ -369,9 +369,6 @@ ph_remove_first(ph_t *ph, size_t offset, ph_cmp_t cmp) {
 
 JEMALLOC_ALWAYS_INLINE void
 ph_remove(ph_t *ph, void *phn, size_t offset, ph_cmp_t cmp) {
-	void *replace;
-	void *parent;
-
 	if (ph->root == phn) {
 		/*
 		 * We can delete from aux list without merging it, but we need
@@ -389,50 +386,29 @@ ph_remove(ph_t *ph, void *phn, size_t offset, ph_cmp_t cmp) {
 		}
 	}
 
-	/* Get parent (if phn is leftmost child) before mutating. */
-	if ((parent = phn_prev_get(phn, offset)) != NULL) {
-		if (phn_lchild_get(parent, offset) != phn) {
-			parent = NULL;
-		}
-	}
-	/* Find a possible replacement node, and link to parent. */
-	replace = ph_merge_children(phn, offset, cmp);
-	/* Set next/prev for sibling linked list. */
+	void* prev = phn_prev_get(phn, offset);
+	void* next = phn_next_get(phn, offset);
+
+	/* If we have children, then we integrate them back in the heap. */
+	void* replace = ph_merge_children(phn, offset, cmp);
 	if (replace != NULL) {
-		if (parent != NULL) {
-			phn_prev_set(replace, parent, offset);
-			phn_lchild_set(parent, replace, offset);
-		} else {
-			phn_prev_set(replace, phn_prev_get(phn, offset),
-			    offset);
-			if (phn_prev_get(phn, offset) != NULL) {
-				phn_next_set(phn_prev_get(phn, offset), replace,
-				    offset);
-			}
+		phn_next_set(replace, next, offset);
+		if (next != NULL) {
+			phn_prev_set(next, replace, offset);
 		}
-		phn_next_set(replace, phn_next_get(phn, offset), offset);
-		if (phn_next_get(phn, offset) != NULL) {
-			phn_prev_set(phn_next_get(phn, offset), replace,
-			    offset);
-		}
+
+		next = replace;
+	}
+
+	if (next != NULL) {
+		phn_prev_set(next, prev, offset);
+	}
+
+	assert(prev != NULL);
+	if (phn_lchild_get(prev, offset) == phn) {
+		phn_lchild_set(prev, next, offset);
 	} else {
-		if (parent != NULL) {
-			void *next = phn_next_get(phn, offset);
-			phn_lchild_set(parent, next, offset);
-			if (next != NULL) {
-				phn_prev_set(next, parent, offset);
-			}
-		} else {
-			assert(phn_prev_get(phn, offset) != NULL);
-			phn_next_set(
-			    phn_prev_get(phn, offset),
-			    phn_next_get(phn, offset), offset);
-		}
-		if (phn_next_get(phn, offset) != NULL) {
-			phn_prev_set(
-			    phn_next_get(phn, offset),
-			    phn_prev_get(phn, offset), offset);
-		}
+		phn_next_set(prev, next, offset);
 	}
 }
 
