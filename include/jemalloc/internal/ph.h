@@ -379,9 +379,6 @@ ph_remove(ph_t *ph, void *phn, size_t offset, ph_cmp_t cmp) {
 		 */
 		if (phn_lchild_get(phn, offset) == NULL) {
 			ph->root = phn_next_get(phn, offset);
-			if (ph->root != NULL) {
-				phn_prev_set(ph->root, NULL, offset);
-			}
 			return;
 		}
 		ph_merge_aux(ph, offset, cmp);
