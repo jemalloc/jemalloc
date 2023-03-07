@@ -10,6 +10,7 @@ that might work is:
 
     ./autogen.sh
     make
+    make dist
     make install
 
 You can uninstall the installed build artifacts like this:
