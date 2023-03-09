@@ -1088,7 +1088,7 @@ AC_SUBST([JEMALLOC_CPREFIX])
 AC_ARG_WITH([export],
   [AS_HELP_STRING([--without-export], [disable exporting jemalloc public APIs])],
   [if test "x$with_export" = "xno"; then
-  AC_DEFINE([JEMALLOC_EXPORT],[], [ ])
+  AC_DEFINE([JEMALLOC_EXPORT], [ ], [ ])
 fi]
 )
 
@@ -1650,7 +1650,7 @@ fi
 [enable_uaf_detection="0"]
 )
 if test "x$enable_uaf_detection" = "x1" ; then
-  AC_DEFINE([JEMALLOC_UAF_DETECTION], [ ])
+  AC_DEFINE([JEMALLOC_UAF_DETECTION], [ ], [ ])
 fi
 AC_SUBST([enable_uaf_detection])
 
