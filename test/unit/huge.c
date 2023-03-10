@@ -82,6 +82,9 @@ TEST_BEGIN(huge_allocation) {
 	expect_u_gt(arena1, 0, "Huge allocation should not come from arena 0");
 	dallocx(ptr, 0);
 
+	test_skip_if(have_percpu_arena &&
+	    PERCPU_ARENA_ENABLED(opt_percpu_arena));
+
 	ptr = mallocx(HUGE_SZ >> 1, 0);
 	expect_ptr_not_null(ptr, "Fail to allocate half huge size");
 	expect_d_eq(mallctl("arenas.lookup", &arena2, &sz, &ptr,
