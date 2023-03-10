@@ -10,11 +10,6 @@
 typedef struct hpa_central_s hpa_central_t;
 struct hpa_central_s {
 	/*
-	 * The mutex guarding most of the operations on the central data
-	 * structure.
-	 */
-	malloc_mutex_t mtx;
-	/*
 	 * Guards expansion of eden.  We separate this from the regular mutex so
 	 * that cheaper operations can still continue while we're doing the OS
 	 * call.

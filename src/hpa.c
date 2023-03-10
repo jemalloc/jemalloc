@@ -68,11 +68,7 @@ hpa_central_init(hpa_central_t *central, base_t *base, const hpa_hooks_t *hooks)
 	if (err) {
 		return true;
 	}
-	err = malloc_mutex_init(&central->mtx, "hpa_central",
-	    WITNESS_RANK_HPA_CENTRAL, malloc_mutex_rank_exclusive);
-	if (err) {
-		return true;
-	}
+
 	central->base = base;
 	central->eden = NULL;
 	central->eden_len = 0;
