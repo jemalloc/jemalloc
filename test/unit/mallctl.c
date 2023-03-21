@@ -1097,8 +1097,12 @@ TEST_BEGIN(test_thread_idle) {
 
 	unsigned arena_ind;
 	sz = sizeof(arena_ind);
-	err = mallctl("thread.arena", &arena_ind, &sz, NULL, 0);
-	expect_d_eq(err, 0, "");
+	expect_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz, NULL, 0),
+	    0, "Unexpected mallctl() failure");
+        err = mallctl("thread.arena", NULL, NULL, &arena_ind, sizeof(arena_ind));
+	expect_d_eq(err, 0, "Unexpected mallctl() failure");
+	err = mallctl("thread.tcache.flush", NULL, NULL, NULL, 0);
+	expect_d_eq(err, 0, "Unexpected mallctl() failure");
 
 	/* We're going to do an allocation of size 1, which we know is small. */
 	size_t mib[5];
@@ -1108,10 +1112,11 @@ TEST_BEGIN(test_thread_idle) {
 	mib[2] = arena_ind;
 
 	/*
-	 * This alloc and dalloc should leave something in the tcache, in a
-	 * small size's cache bin.
+	 * This alloc and dalloc should leave something (from the newly created
+	 * arena) in the tcache, in a small size's cache bin.  Later the stats
+	 * of that arena will be checked to verify if tcache flush happened.
 	 */
-	void *ptr = mallocx(1, 0);
+	void *ptr = mallocx(1, MALLOCX_TCACHE_NONE);
 	dallocx(ptr, 0);
 
 	uint64_t epoch;
