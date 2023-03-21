@@ -157,6 +157,13 @@ TEST_BEGIN(test_tcache_max) {
 	test_skip_if(opt_prof);
 	test_skip_if(san_uaf_detection_enabled());
 
+	unsigned arena_ind;
+	size_t sz = sizeof(arena_ind);
+	expect_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz, NULL, 0),
+	    0, "Unexpected mallctl() failure");
+	expect_d_eq(mallctl("thread.arena", NULL, NULL, &arena_ind,
+	    sizeof(arena_ind)), 0, "Unexpected mallctl() failure");
+
 	for (alloc_option = alloc_option_start;
 	     alloc_option < alloc_option_end;
 	     alloc_option++) {
