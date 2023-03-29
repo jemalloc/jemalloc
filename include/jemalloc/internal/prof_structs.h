@@ -156,9 +156,6 @@ struct prof_tdata_s {
 	 */
 	uint64_t		thr_discrim;
 
-	/* Included in heap profile dumps if non-NULL. */
-	char			*thread_name;
-
 	bool			attached;
 	bool			expired;
 
@@ -178,6 +175,9 @@ struct prof_tdata_s {
 	 * may write to prof_tctx_t contents when freeing associated objects.
 	 */
 	ckh_t			bt2tctx;
+
+	/* Included in heap profile dumps if has content. */
+	char			thread_name[PROF_THREAD_NAME_MAX_LEN];
 
 	/* State used to avoid dumping while operating on prof internals. */
 	bool			enq;

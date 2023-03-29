@@ -2384,13 +2384,13 @@ thread_prof_name_ctl(tsd_t *tsd, const size_t *mib,
 	READ_XOR_WRITE();
 
 	if (newp != NULL) {
-		if (newlen != sizeof(const char *)) {
+		const char *newval = *(const char **)newp;
+		if (newlen != sizeof(const char *) || newval == NULL) {
 			ret = EINVAL;
 			goto label_return;
 		}
 
-		if ((ret = prof_thread_name_set(tsd, *(const char **)newp)) !=
-		    0) {
+		if ((ret = prof_thread_name_set(tsd, newval)) != 0) {
 			goto label_return;
 		}
 	} else {

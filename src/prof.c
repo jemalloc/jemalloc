@@ -415,11 +415,14 @@ prof_tdata_t *
 prof_tdata_reinit(tsd_t *tsd, prof_tdata_t *tdata) {
 	uint64_t thr_uid = tdata->thr_uid;
 	uint64_t thr_discrim = tdata->thr_discrim + 1;
-	char *thread_name = (tdata->thread_name != NULL) ?
-	    prof_thread_name_alloc(tsd, tdata->thread_name) : NULL;
 	bool active = tdata->active;
 
+	/* Keep a local copy of the thread name, before detaching. */
+	prof_thread_name_assert(tdata);
+	char thread_name[PROF_THREAD_NAME_MAX_LEN];
+	strncpy(thread_name, tdata->thread_name, PROF_THREAD_NAME_MAX_LEN);
 	prof_tdata_detach(tsd, tdata);
+
 	return prof_tdata_init_impl(tsd, thr_uid, thr_discrim, thread_name,
 	    active);
 }
@@ -464,15 +467,15 @@ prof_active_set(tsdn_t *tsdn, bool active) {
 
 const char *
 prof_thread_name_get(tsd_t *tsd) {
+	static const char *prof_thread_name_dummy = "";
+
 	assert(tsd_reentrancy_level_get(tsd) == 0);
-
-	prof_tdata_t *tdata;
-
-	tdata = prof_tdata_get(tsd, true);
+	prof_tdata_t *tdata = prof_tdata_get(tsd, true);
 	if (tdata == NULL) {
-		return "";
+		return prof_thread_name_dummy;
 	}
-	return (tdata->thread_name != NULL ? tdata->thread_name : "");
+
+	return tdata->thread_name;
 }
 
 int
