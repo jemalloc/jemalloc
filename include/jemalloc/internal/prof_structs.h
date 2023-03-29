@@ -156,9 +156,6 @@ struct prof_tdata_s {
 	 */
 	uint64_t		thr_discrim;
 
-	bool			attached;
-	bool			expired;
-
 	rb_node(prof_tdata_t)	tdata_link;
 
 	/*
@@ -197,6 +194,9 @@ struct prof_tdata_s {
 	 * (thread.prof.active mallctl).
 	 */
 	bool			active;
+
+	bool			attached;
+	bool			expired;
 
 	/* Temporary storage for summation during dump. */
 	prof_cnt_t		cnt_summed;
