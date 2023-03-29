@@ -462,12 +462,17 @@ prof_sys_thread_name_read_t *JET_MUTABLE prof_sys_thread_name_read =
 
 void
 prof_sys_thread_name_fetch(tsd_t *tsd) {
-#define THREAD_NAME_MAX_LEN 16
-	char buf[THREAD_NAME_MAX_LEN];
-	if (!prof_sys_thread_name_read(buf, THREAD_NAME_MAX_LEN)) {
-		prof_thread_name_set_impl(tsd, buf);
+	prof_tdata_t *tdata = prof_tdata_get(tsd, true);
+	if (tdata == NULL) {
+		return;
 	}
-#undef THREAD_NAME_MAX_LEN
+
+	if (prof_sys_thread_name_read(tdata->thread_name,
+	    PROF_THREAD_NAME_MAX_LEN) != 0) {
+		prof_thread_name_clear(tdata);
+	}
+
+	tdata->thread_name[PROF_THREAD_NAME_MAX_LEN - 1] = '\0';
 }
 
 int

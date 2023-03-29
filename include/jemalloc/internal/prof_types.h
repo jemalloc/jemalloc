@@ -77,4 +77,7 @@ typedef struct prof_recent_s prof_recent_t;
 /* Default number of recent allocations to record. */
 #define PROF_RECENT_ALLOC_MAX_DEFAULT 0
 
+/* Thread name storage size limit. */
+#define PROF_THREAD_NAME_MAX_LEN 16
+
 #endif /* JEMALLOC_INTERNAL_PROF_TYPES_H */

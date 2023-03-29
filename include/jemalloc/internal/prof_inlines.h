@@ -38,6 +38,22 @@ prof_gdump_get_unlocked(void) {
 	return prof_gdump_val;
 }
 
+JEMALLOC_ALWAYS_INLINE void
+prof_thread_name_assert(prof_tdata_t *tdata) {
+	if (!config_debug) {
+		return;
+	}
+	prof_active_assert();
+
+	bool terminated = false;
+	for (unsigned i = 0; i < PROF_THREAD_NAME_MAX_LEN; i++) {
+		if (tdata->thread_name[i] == '\0') {
+			terminated = true;
+		}
+	}
+	assert(terminated);
+}
+
 JEMALLOC_ALWAYS_INLINE prof_tdata_t *
 prof_tdata_get(tsd_t *tsd, bool create) {
 	prof_tdata_t *tdata;
@@ -57,6 +73,10 @@ prof_tdata_get(tsd_t *tsd, bool create) {
 			tsd_prof_tdata_set(tsd, tdata);
 		}
 		assert(tdata == NULL || tdata->attached);
+	}
+
+	if (tdata != NULL) {
+		prof_thread_name_assert(tdata);
 	}
 
 	return tdata;
@@ -253,6 +273,20 @@ prof_free(tsd_t *tsd, const void *ptr, size_t usize,
 		assert(prof_sample_aligned(ptr));
 		prof_free_sampled_object(tsd, ptr, usize, &prof_info);
 	}
+}
+
+JEMALLOC_ALWAYS_INLINE bool
+prof_thread_name_empty(prof_tdata_t *tdata) {
+	prof_active_assert();
+
+	return (tdata->thread_name[0] == '\0');
+}
+
+JEMALLOC_ALWAYS_INLINE void
+prof_thread_name_clear(prof_tdata_t *tdata) {
+	prof_active_assert();
+
+	tdata->thread_name[0] = '\0';
 }
 
 #endif /* JEMALLOC_INTERNAL_PROF_INLINES_H */
