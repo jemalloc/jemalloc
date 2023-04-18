@@ -703,10 +703,10 @@ hpa_alloc_batch_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 
 static hpa_shard_t *
 hpa_from_pai(pai_t *self) {
-	assert(self->alloc = &hpa_alloc);
-	assert(self->expand = &hpa_expand);
-	assert(self->shrink = &hpa_shrink);
-	assert(self->dalloc = &hpa_dalloc);
+	assert(self->alloc == &hpa_alloc);
+	assert(self->expand == &hpa_expand);
+	assert(self->shrink == &hpa_shrink);
+	assert(self->dalloc == &hpa_dalloc);
 	return (hpa_shard_t *)self;
 }
 
