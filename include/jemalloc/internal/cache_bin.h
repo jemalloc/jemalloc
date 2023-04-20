@@ -454,9 +454,9 @@ cache_bin_dalloc_easy(cache_bin_t *bin, void *ptr) {
 		return false;
 	}
 
-        if (unlikely(cache_bin_dalloc_safety_checks(bin, ptr))) {
-                return true;
-        }
+	if (unlikely(cache_bin_dalloc_safety_checks(bin, ptr))) {
+		return true;
+	}
 
 	bin->stack_head--;
 	*bin->stack_head = ptr;
@@ -642,7 +642,7 @@ cache_bin_finish_flush(cache_bin_t *bin, cache_bin_info_t *info,
 	unsigned rem = cache_bin_ncached_get_local(bin, info) - nflushed;
 	memmove(bin->stack_head + nflushed, bin->stack_head,
 	    rem * sizeof(void *));
-	bin->stack_head = bin->stack_head + nflushed;
+	bin->stack_head += nflushed;
 	cache_bin_low_water_adjust(bin);
 }
 
