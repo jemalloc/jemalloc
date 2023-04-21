@@ -340,7 +340,6 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 	    arena_get_ehooks(arena), esize, alignment);
 	edata_t *edata = pa_alloc(tsdn, &arena->pa_shard, esize, alignment,
 	    /* slab */ false, szind, zero, guarded, &deferred_work_generated);
-	assert(deferred_work_generated == false);
 
 	if (edata != NULL) {
 		if (config_stats) {
