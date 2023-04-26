@@ -1803,7 +1803,7 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 		size_t sz;
 		VARIABLE_ARRAY(bool, initialized, narenas);
 		bool destroyed_initialized;
-		unsigned i, j, ninitialized;
+		unsigned i, ninitialized;
 
 		xmallctlnametomib("arena.0.initialized", mib, &miblen);
 		for (i = ninitialized = 0; i < narenas; i++) {
@@ -1843,7 +1843,7 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 
 		/* Unmerged stats. */
 		if (unmerged) {
-			for (i = j = 0; i < narenas; i++) {
+			for (i = 0; i < narenas; i++) {
 				if (initialized[i]) {
 					char arena_ind_str[20];
 					malloc_snprintf(arena_ind_str,

@@ -2745,7 +2745,6 @@ arena_i_dss_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	int ret;
 	const char *dss = NULL;
 	unsigned arena_ind;
-	dss_prec_t dss_prec_old = dss_prec_limit;
 	dss_prec_t dss_prec = dss_prec_limit;
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
@@ -2773,6 +2772,7 @@ arena_i_dss_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	 * Access via index narenas is deprecated, and scheduled for removal in
 	 * 6.0.0.
 	 */
+	dss_prec_t dss_prec_old;
 	if (arena_ind == MALLCTL_ARENAS_ALL || arena_ind ==
 	    ctl_arenas->narenas) {
 		if (dss_prec != dss_prec_limit &&

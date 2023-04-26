@@ -2389,7 +2389,6 @@ imalloc_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
 	 * from the ind_large bucket.
 	 */
 	szind_t ind_large;
-	size_t bumped_usize = usize;
 
 	dopts->alignment = prof_sample_align(dopts->alignment);
 	if (usize <= SC_SMALL_MAXCLASS) {
@@ -2398,7 +2397,7 @@ imalloc_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
 		    sz_sa2u(SC_LARGE_MINCLASS, dopts->alignment))
 			== SC_LARGE_MINCLASS);
 		ind_large = sz_size2index(SC_LARGE_MINCLASS);
-		bumped_usize = sz_s2u(SC_LARGE_MINCLASS);
+		size_t bumped_usize = sz_s2u(SC_LARGE_MINCLASS);
 		ret = imalloc_no_sample(sopts, dopts, tsd, bumped_usize,
 		    bumped_usize, ind_large);
 		if (unlikely(ret == NULL)) {

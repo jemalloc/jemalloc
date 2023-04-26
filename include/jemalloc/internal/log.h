@@ -96,8 +96,7 @@ log_impl_varargs(const char *name, ...) {
 	dst_offset += malloc_snprintf(buf, JEMALLOC_LOG_BUFSIZE, "%s: ", name);
 	dst_offset += malloc_vsnprintf(buf + dst_offset,
 	    JEMALLOC_LOG_BUFSIZE - dst_offset, format, ap);
-	dst_offset += malloc_snprintf(buf + dst_offset,
-	    JEMALLOC_LOG_BUFSIZE - dst_offset, "\n");
+	malloc_snprintf(buf + dst_offset, JEMALLOC_LOG_BUFSIZE - dst_offset, "\n");
 	va_end(ap);
 
 	malloc_write(buf);
