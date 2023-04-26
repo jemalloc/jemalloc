@@ -68,7 +68,6 @@ static int madvise_dont_need_zeros_is_faulty = -1;
  */
 static int madvise_MADV_DONTNEED_zeroes_pages()
 {
-	int works = -1;
 	size_t size = PAGE;
 
 	void * addr = mmap(NULL, size, PROT_READ|PROT_WRITE,
@@ -83,6 +82,7 @@ static int madvise_MADV_DONTNEED_zeroes_pages()
 	}
 
 	memset(addr, 'A', size);
+	int works;
 	if (madvise(addr, size, MADV_DONTNEED) == 0) {
 		works = memchr(addr, 'A', size) == NULL;
 	} else {
