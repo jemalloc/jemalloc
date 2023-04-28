@@ -4500,19 +4500,19 @@ sub FindLibrary {
 # For libc libraries, the copy in /usr/lib/debug contains debugging symbols
 sub DebuggingLibrary {
   my $file = shift;
-      
+
   if ($file !~ m|^/|) {
     return undef;
   }
-      
+
   # Find debug symbol file if it's named after the library's name.
-  
-  if (-f "/usr/lib/debug$file") {                 
+
+  if (-f "/usr/lib/debug$file") {
     if($main::opt_debug) { print STDERR "found debug info for $file in /usr/lib/debug$file\n"; }
     return "/usr/lib/debug$file";
   } elsif (-f "/usr/lib/debug$file.debug") {
     if($main::opt_debug) { print STDERR "found debug info for $file in /usr/lib/debug$file.debug\n"; }
-    return "/usr/lib/debug$file.debug"; 
+    return "/usr/lib/debug$file.debug";
   }
 
   if(!$main::opt_debug_syms_by_id) {
@@ -4521,7 +4521,7 @@ sub DebuggingLibrary {
   }
 
   # Find debug file if it's named after the library's build ID.
-  
+
   my $readelf = '';
   if (!$main::gave_up_on_elfutils) {
     $readelf = qx/eu-readelf -n ${file}/;

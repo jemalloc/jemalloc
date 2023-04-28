@@ -33,8 +33,8 @@
  *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/** 
- * @file SFMT.h 
+/**
+ * @file SFMT.h
  *
  * @brief SIMD oriented Fast Mersenne Twister(SFMT) pseudorandom
  * number generator
@@ -53,7 +53,7 @@
  * and you have to define PRIu64 and PRIx64 in this file as follows:
  * @verbatim
  typedef unsigned int uint32_t
- typedef unsigned long long uint64_t  
+ typedef unsigned long long uint64_t
  #define PRIu64 "llu"
  #define PRIx64 "llx"
 @endverbatim
@@ -84,8 +84,8 @@ int get_min_array_size64(void);
 /* These real versions are due to Isaku Wada */
 /** generates a random number on [0,1]-real-interval */
 static inline double to_real1(uint32_t v) {
-    return v * (1.0/4294967295.0); 
-    /* divided by 2^32-1 */ 
+    return v * (1.0/4294967295.0);
+    /* divided by 2^32-1 */
 }
 
 /** generates a random number on [0,1]-real-interval */
@@ -95,7 +95,7 @@ static inline double genrand_real1(sfmt_t *ctx) {
 
 /** generates a random number on [0,1)-real-interval */
 static inline double to_real2(uint32_t v) {
-    return v * (1.0/4294967296.0); 
+    return v * (1.0/4294967296.0);
     /* divided by 2^32 */
 }
 
@@ -106,7 +106,7 @@ static inline double genrand_real2(sfmt_t *ctx) {
 
 /** generates a random number on (0,1)-real-interval */
 static inline double to_real3(uint32_t v) {
-    return (((double)v) + 0.5)*(1.0/4294967296.0); 
+    return (((double)v) + 0.5)*(1.0/4294967296.0);
     /* divided by 2^32 */
 }
 
