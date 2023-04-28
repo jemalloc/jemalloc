@@ -443,9 +443,9 @@
 /* If defined, use volatile asm during benchmarks. */
 #undef JEMALLOC_HAVE_ASM_VOLATILE
 
-/* 
- * If defined, support the use of rdtscp to get the time stamp counter 
- * and the processor ID. 
+/*
+ * If defined, support the use of rdtscp to get the time stamp counter
+ * and the processor ID.
  */
 #undef JEMALLOC_HAVE_RDTSCP
 
