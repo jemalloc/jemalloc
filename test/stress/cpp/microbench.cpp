@@ -52,15 +52,15 @@ malloc_sdallocx(void) {
 #endif
 
 TEST_BEGIN(test_free_vs_delete) {
-	compare_funcs(10*1000*1000, 100*1000*1000, 
-	    "malloc_free", (void *)malloc_free, 
+	compare_funcs(10*1000*1000, 100*1000*1000,
+	    "malloc_free", (void *)malloc_free,
 	    "new_delete", (void *)new_delete);
 }
 TEST_END
 
 TEST_BEGIN(test_free_array_vs_delete_array) {
-	compare_funcs(10*1000*1000, 100*1000*1000, 
-	    "malloc_free_array", (void *)malloc_free_array, 
+	compare_funcs(10*1000*1000, 100*1000*1000,
+	    "malloc_free_array", (void *)malloc_free_array,
 	    "delete_array", (void *)new_delete_array);
 }
 TEST_END
@@ -68,8 +68,8 @@ TEST_END
 
 TEST_BEGIN(test_sized_delete_vs_sdallocx) {
 #if __cpp_sized_deallocation >= 201309
-	compare_funcs(10*1000*1000, 100*1000*1000, 
-	    "new_size_delete", (void *)new_sized_delete, 
+	compare_funcs(10*1000*1000, 100*1000*1000,
+	    "new_size_delete", (void *)new_sized_delete,
 	    "malloc_sdallocx", (void *)malloc_sdallocx);
 #else
 	malloc_printf("Skipping test_sized_delete_vs_sdallocx since \
