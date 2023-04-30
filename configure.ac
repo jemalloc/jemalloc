@@ -406,7 +406,6 @@ dnl CPU-specific settings.
 CPU_SPINWAIT=""
 case "${host_cpu}" in
   i686|x86_64)
-	HAVE_CPU_SPINWAIT=1
 	if test "x${je_cv_msvc}" = "xyes" ; then
 	    AC_CACHE_VAL([je_cv_pause_msvc],
 	      [JE_COMPILABLE([pause instruction MSVC], [],
@@ -414,6 +413,7 @@ case "${host_cpu}" in
 					[je_cv_pause_msvc])])
 	    if test "x${je_cv_pause_msvc}" = "xyes" ; then
 		CPU_SPINWAIT='_mm_pause()'
+		HAVE_CPU_SPINWAIT=1
 	    fi
 	else
 	    AC_CACHE_VAL([je_cv_pause],
@@ -422,11 +422,11 @@ case "${host_cpu}" in
 					[je_cv_pause])])
 	    if test "x${je_cv_pause}" = "xyes" ; then
 		CPU_SPINWAIT='__asm__ volatile("pause")'
+		HAVE_CPU_SPINWAIT=1
 	    fi
 	fi
 	;;
   aarch64|arm*)
-	HAVE_CPU_SPINWAIT=1
 	dnl isb is a better equivalent to the pause instruction on x86.
 	AC_CACHE_VAL([je_cv_isb],
 	  [JE_COMPILABLE([isb instruction], [],
@@ -434,6 +434,7 @@ case "${host_cpu}" in
 			[je_cv_isb])])
 	if test "x${je_cv_isb}" = "xyes" ; then
 	    CPU_SPINWAIT='__asm__ volatile("isb")'
+	    HAVE_CPU_SPINWAIT=1
 	fi
 	;;
   *)
