@@ -664,13 +664,20 @@ edata_cmp_summary_get(const edata_t *edata) {
 
 static inline int
 edata_cmp_summary_comp(edata_cmp_summary_t a, edata_cmp_summary_t b) {
-	int ret;
-	ret = (a.sn > b.sn) - (a.sn < b.sn);
-	if (ret != 0) {
-		return ret;
-	}
-	ret = (a.addr > b.addr) - (a.addr < b.addr);
-	return ret;
+	/*
+	 * Logically, what we're doing here is comparing based on `.sn`, and
+	 * falling back to comparing on `.addr` in the case that `a.sn == b.sn`.
+	 * We accomplish this by multiplying the result of the `.sn` comparison
+	 * by 2, so that so long as it is not 0, it will dominate the `.addr`
+	 * comparison in determining the sign of the returned result value.
+	 * The justification for doing things this way is that this is
+	 * branchless - all of the branches that would be present in a
+	 * straightforward implementation are common cases, and thus the branch
+	 * prediction accuracy is not great. As a result, this implementation
+	 * is measurably faster (by around 30%).
+	 */
+	return (2 * ((a.sn > b.sn) - (a.sn < b.sn))) +
+	       ((a.addr > b.addr) - (a.addr < b.addr));
 }
 
 static inline int
@@ -683,15 +690,11 @@ edata_snad_comp(const edata_t *a, const edata_t *b) {
 
 static inline int
 edata_esnead_comp(const edata_t *a, const edata_t *b) {
-	int ret;
-
-	ret = edata_esn_comp(a, b);
-	if (ret != 0) {
-		return ret;
-	}
-
-	ret = edata_ead_comp(a, b);
-	return ret;
+	/*
+	 * Similar to `edata_cmp_summary_comp`, we've opted for a
+	 * branchless implementation for the sake of performance.
+	 */
+	return (2 * edata_esn_comp(a, b)) + edata_ead_comp(a, b);
 }
 
 ph_proto(, edata_avail, edata_t)
