@@ -3225,7 +3225,7 @@ arenas_lookup_ctl(tsd_t *tsd, const size_t *mib,
 	WRITE(ptr, void *);
 	ptr_not_present = emap_full_alloc_ctx_try_lookup(tsd_tsdn(tsd), &arena_emap_global, ptr,
 		&alloc_ctx);
-	if (ptr_not_present) {
+	if (ptr_not_present || alloc_ctx.edata == NULL) {
 		goto label_return;
 	}
 
