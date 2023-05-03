@@ -3213,19 +3213,21 @@ arenas_lookup_ctl(tsd_t *tsd, const size_t *mib,
 	int ret;
 	unsigned arena_ind;
 	void *ptr;
-	edata_t *edata;
+	emap_full_alloc_ctx_t alloc_ctx;
+	bool ptr_not_present;
 	arena_t *arena;
 
 	ptr = NULL;
 	ret = EINVAL;
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 	WRITE(ptr, void *);
-	edata = emap_edata_lookup(tsd_tsdn(tsd), &arena_emap_global, ptr);
-	if (edata == NULL) {
+	ptr_not_present = emap_full_alloc_ctx_try_lookup(tsd_tsdn(tsd), &arena_emap_global, ptr,
+		&alloc_ctx);
+	if (ptr_not_present) {
 		goto label_return;
 	}
 
-	arena = arena_get_from_edata(edata);
+	arena = arena_get_from_edata(alloc_ctx.edata);
 	if (arena == NULL) {
 		goto label_return;
 	}
