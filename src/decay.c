@@ -14,7 +14,7 @@ static const uint64_t h_steps[SMOOTHSTEP_NSTEPS] = {
  * Generate a new deadline that is uniformly random within the next epoch after
  * the current one.
  */
-void
+static void
 decay_deadline_init(decay_t *decay) {
 	nstime_copy(&decay->deadline, &decay->epoch);
 	nstime_add(&decay->deadline, &decay->interval);

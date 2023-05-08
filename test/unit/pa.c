@@ -48,7 +48,8 @@ struct test_data_s {
 	extent_hooks_t hooks;
 };
 
-test_data_t *init_test_data(ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms) {
+static test_data_t *
+init_test_data(ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms) {
 	test_data_t *test_data = calloc(1, sizeof(test_data_t));
 	assert_ptr_not_null(test_data, "");
 	init_test_extent_hooks(&test_data->hooks);
