@@ -674,11 +674,11 @@ hpa_alloc_batch_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 	 * deallocations (and allocations of smaller sizes) may still succeed
 	 * while we're doing this potentially expensive system call.
 	 */
-	hpdata_t *ps = hpa_central_extract(tsdn, shard->central, size, &oom);
+	hpdata_t *ps = hpa_central_extract(tsdn, shard->central, size, &oom);   
 	if (ps == NULL) {
 		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
-		return nsuccess;
-	}
+		return nsuccess;  
+	}	
 
 	/*
 	 * We got the pageslab; allocate from it.  This does an unlock followed
