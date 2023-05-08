@@ -48,7 +48,7 @@ TEST_BEGIN(test_pow2_ceil_zu) {
 }
 TEST_END
 
-void
+static void
 expect_lg_ceil_range(size_t input, unsigned answer) {
 	if (input == 1) {
 		expect_u_eq(0, answer, "Got %u as lg_ceil of 1", answer);
@@ -60,7 +60,7 @@ expect_lg_ceil_range(size_t input, unsigned answer) {
 	    "Got %u as lg_ceil of %zu", answer, input);
 }
 
-void
+static void
 expect_lg_floor_range(size_t input, unsigned answer) {
 	if (input == 1) {
 		expect_u_eq(0, answer, "Got %u as lg_floor of 1", answer);

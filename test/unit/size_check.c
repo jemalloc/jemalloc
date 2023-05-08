@@ -14,7 +14,7 @@ void fake_abort(const char *message) {
 #define LARGE_SIZE1 SC_LARGE_MINCLASS
 #define LARGE_SIZE2 (LARGE_SIZE1 * 2)
 
-void *
+static void *
 test_invalid_size_pre(size_t sz) {
 	safety_check_set_abort(&fake_abort);
 
@@ -25,7 +25,7 @@ test_invalid_size_pre(size_t sz) {
 	return ptr;
 }
 
-void
+static void
 test_invalid_size_post(void) {
 	expect_true(fake_abort_called, "Safety check didn't fire");
 	safety_check_set_abort(NULL);

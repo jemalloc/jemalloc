@@ -43,6 +43,8 @@ static edata_t *extent_try_coalesce(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 static edata_t *extent_alloc_retained(tsdn_t *tsdn, pac_t *pac,
     ehooks_t *ehooks, edata_t *expand_edata, size_t size, size_t alignment,
     bool zero, bool *commit, bool guarded);
+static bool extent_decommit_wrapper(tsdn_t *tsdn, ehooks_t *ehooks,
+    edata_t *edata, size_t offset, size_t length);
 
 /******************************************************************************/
 
@@ -1118,7 +1120,7 @@ extent_commit_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
 	    /* growing_retained */ false);
 }
 
-bool
+static bool
 extent_decommit_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
     size_t offset, size_t length) {
 	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),

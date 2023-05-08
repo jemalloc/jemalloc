@@ -83,7 +83,7 @@ hpa_alloc_ps(tsdn_t *tsdn, hpa_central_t *central) {
 	    CACHELINE);
 }
 
-hpdata_t *
+static hpdata_t *
 hpa_central_extract(tsdn_t *tsdn, hpa_central_t *central, size_t size,
     bool *oom) {
 	/* Don't yet support big allocations; these should get filtered out. */

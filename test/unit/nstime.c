@@ -201,7 +201,7 @@ TEST_BEGIN(test_nstime_divide) {
 }
 TEST_END
 
-void
+static void
 test_nstime_since_once(nstime_t *t) {
 	nstime_t old_t;
 	nstime_copy(&old_t, t);
