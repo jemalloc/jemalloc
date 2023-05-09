@@ -822,6 +822,7 @@ static edata_t *
 extent_try_coalesce_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *edata, bool *coalesced) {
 	assert(!edata_guarded_get(edata));
+	assert(coalesced != NULL);
 	/*
 	 * We avoid checking / locking inactive neighbors for large size
 	 * classes, since they are eagerly coalesced on deallocation which can
@@ -928,8 +929,9 @@ extent_record(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 		goto label_skip_coalesce;
 	}
 	if (!ecache->delay_coalesce) {
+		bool coalesced_unused;
 		edata = extent_try_coalesce(tsdn, pac, ehooks, ecache, edata,
-		    NULL);
+		    &coalesced_unused);
 	} else if (edata_size_get(edata) >= SC_LARGE_MINCLASS) {
 		assert(ecache == &pac->ecache_dirty);
 		/* Always coalesce large extents eagerly. */
