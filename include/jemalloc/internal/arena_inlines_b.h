@@ -42,6 +42,34 @@ arena_choose_maybe_huge(tsd_t *tsd, arena_t *arena, size_t size) {
 	return tsd_arena;
 }
 
+JEMALLOC_ALWAYS_INLINE bool
+large_dalloc_safety_checks(edata_t *edata, const void *ptr, szind_t szind) {
+	if (!config_opt_safety_checks) {
+		return false;
+	}
+
+	/*
+	 * Eagerly detect double free and sized dealloc bugs for large sizes.
+	 * The cost is low enough (as edata will be accessed anyway) to be
+	 * enabled all the time.
+	 */
+	if (unlikely(edata == NULL ||
+	    edata_state_get(edata) != extent_state_active)) {
+		safety_check_fail("Invalid deallocation detected: "
+		    "pages being freed (%p) not currently active, "
+		    "possibly caused by double free bugs.", ptr);
+		return true;
+	}
+	size_t input_size = sz_index2size(szind);
+	if (unlikely(input_size != edata_usize_get(edata))) {
+		safety_check_fail_sized_dealloc(/* current_dealloc */ true, ptr,
+		    /* true_size */ edata_usize_get(edata), input_size);
+		return true;
+	}
+
+	return false;
+}
+
 JEMALLOC_ALWAYS_INLINE void
 arena_prof_info_get(tsd_t *tsd, const void *ptr, emap_alloc_ctx_t *alloc_ctx,
     prof_info_t *prof_info, bool reset_recent) {
@@ -65,6 +93,11 @@ arena_prof_info_get(tsd_t *tsd, const void *ptr, emap_alloc_ctx_t *alloc_ctx,
 	if (unlikely(!is_slab)) {
 		/* edata must have been initialized at this point. */
 		assert(edata != NULL);
+		if (reset_recent &&
+		    large_dalloc_safety_checks(edata, ptr,
+		    edata_szind_get(edata))) {
+			return;
+		}
 		large_prof_info_get(tsd, edata, prof_info, reset_recent);
 	} else {
 		prof_info->alloc_tctx = (prof_tctx_t *)(uintptr_t)1U;
@@ -213,34 +246,6 @@ arena_vsalloc(tsdn_t *tsdn, const void *ptr) {
 	assert(full_alloc_ctx.szind != SC_NSIZES);
 
 	return sz_index2size(full_alloc_ctx.szind);
-}
-
-JEMALLOC_ALWAYS_INLINE bool
-large_dalloc_safety_checks(edata_t *edata, void *ptr, szind_t szind) {
-	if (!config_opt_safety_checks) {
-		return false;
-	}
-
-	/*
-	 * Eagerly detect double free and sized dealloc bugs for large sizes.
-	 * The cost is low enough (as edata will be accessed anyway) to be
-	 * enabled all the time.
-	 */
-	if (unlikely(edata == NULL ||
-	    edata_state_get(edata) != extent_state_active)) {
-		safety_check_fail("Invalid deallocation detected: "
-		    "pages being freed (%p) not currently active, "
-		    "possibly caused by double free bugs.", ptr);
-		return true;
-	}
-	size_t input_size = sz_index2size(szind);
-	if (unlikely(input_size != edata_usize_get(edata))) {
-		safety_check_fail_sized_dealloc(/* current_dealloc */ true, ptr,
-		    /* true_size */ edata_usize_get(edata), input_size);
-		return true;
-	}
-
-	return false;
 }
 
 static inline void
