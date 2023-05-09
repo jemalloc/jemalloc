@@ -1816,7 +1816,9 @@ ctl_mtx_assert_held(tsdn_t *tsdn) {
 /* Verify that the space provided is enough. */
 #define VERIFY_READ(t)	do {						\
 	if (oldp == NULL || oldlenp == NULL || *oldlenp != sizeof(t)) {	\
-		*oldlenp = 0;						\
+		if (oldlenp != NULL) {					\
+			*oldlenp = 0;					\
+		}							\
 		ret = EINVAL;						\
 		goto label_return;					\
 	}								\
