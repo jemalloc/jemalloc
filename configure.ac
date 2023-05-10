@@ -1926,6 +1926,16 @@ dnl Check if we have dlsym support.
   if test "x${je_cv_pthread_getname_np}" = "xyes" ; then
     AC_DEFINE([JEMALLOC_HAVE_PTHREAD_GETNAME_NP], [ ], [ ])
   fi
+  dnl Check if pthread_set_name_np is available with the expected API.
+  JE_COMPILABLE([pthread_set_name_np(3)], [
+#include <pthread.h>
+#include <pthread_np.h>
+], [
+  pthread_set_name_np(pthread_self(), "set_name_test");
+], [je_cv_pthread_set_name_np])
+  if test "x${je_cv_pthread_set_name_np}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_HAVE_PTHREAD_SET_NAME_NP], [ ], [ ])
+  fi
   dnl Check if pthread_get_name_np is not necessarily present despite
   dnl the pthread_set_name_np counterpart
   JE_COMPILABLE([pthread_get_name_np(3)], [
