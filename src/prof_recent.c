@@ -496,8 +496,9 @@ prof_recent_alloc_dump_node(emitter_t *emitter, prof_recent_t *node) {
 	prof_tdata_t *alloc_tdata = node->alloc_tctx->tdata;
 	assert(alloc_tdata != NULL);
 	if (!prof_thread_name_empty(alloc_tdata)) {
+		const char *thread_name = alloc_tdata->thread_name;
 		emitter_json_kv(emitter, "alloc_thread_name",
-		    emitter_type_string, &alloc_tdata->thread_name);
+		    emitter_type_string, &thread_name);
 	}
 	uint64_t alloc_time_ns = nstime_ns(&node->alloc_time);
 	emitter_json_kv(emitter, "alloc_time", emitter_type_uint64,
@@ -512,8 +513,9 @@ prof_recent_alloc_dump_node(emitter_t *emitter, prof_recent_t *node) {
 		prof_tdata_t *dalloc_tdata = node->dalloc_tctx->tdata;
 		assert(dalloc_tdata != NULL);
 		if (!prof_thread_name_empty(dalloc_tdata)) {
+			const char *thread_name = dalloc_tdata->thread_name;
 			emitter_json_kv(emitter, "dalloc_thread_name",
-			    emitter_type_string, &dalloc_tdata->thread_name);
+			    emitter_type_string, &thread_name);
 		}
 		assert(!nstime_equals_zero(&node->dalloc_time));
 		uint64_t dalloc_time_ns = nstime_ns(&node->dalloc_time);
