@@ -5,6 +5,8 @@
 /* As specified in the shell script */
 #define OPT_ALLOC_MAX 3
 
+const char *test_thread_name = "test_thread";
+
 /* Invariant before and after every test (when config_prof is on) */
 static void
 confirm_prof_setup() {
@@ -439,16 +441,11 @@ confirm_record(const char *template, const confirm_record_t *records,
 			}
 			ASSERT_CHAR(',');
 
-			if (opt_prof_sys_thread_name) {
+			if (thd_has_setname() && opt_prof_sys_thread_name) {
 				ASSERT_FORMATTED_STR("\"%s_thread_name\"",
 				    *type);
-				ASSERT_CHAR(':');
-				ASSERT_CHAR('"');
-				while (*start != '"') {
-					++start;
-				}
-				ASSERT_CHAR('"');
-				ASSERT_CHAR(',');
+				ASSERT_FORMATTED_STR(":\"%s\",",
+				    test_thread_name);
 			}
 
 			ASSERT_FORMATTED_STR("\"%s_time\"", *type);
@@ -495,6 +492,7 @@ confirm_record(const char *template, const confirm_record_t *records,
 TEST_BEGIN(test_prof_recent_alloc_dump) {
 	test_skip_if(!config_prof);
 
+	thd_setname(test_thread_name);
 	confirm_prof_setup();
 
 	ssize_t future;
