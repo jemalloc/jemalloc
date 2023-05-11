@@ -749,6 +749,9 @@ bool
 prof_prefix_set(tsdn_t *tsdn, const char *prefix) {
 	cassert(config_prof);
 	ctl_mtx_assert_held(tsdn);
+	if (prefix == NULL) {
+		return true;
+	}
 	malloc_mutex_lock(tsdn, &prof_dump_filename_mtx);
 	if (prof_prefix == NULL) {
 		malloc_mutex_unlock(tsdn, &prof_dump_filename_mtx);
