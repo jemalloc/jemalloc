@@ -340,8 +340,9 @@ background_thread_create_signals_masked(pthread_t *thread,
 }
 
 static bool
-check_background_thread_creation(tsd_t *tsd, unsigned *n_created,
-    bool *created_threads) {
+check_background_thread_creation(tsd_t *tsd,
+    const size_t const_max_background_threads,
+    unsigned *n_created, bool *created_threads) {
 	bool ret = false;
 	if (likely(*n_created == n_background_threads)) {
 		return ret;
@@ -349,7 +350,7 @@ check_background_thread_creation(tsd_t *tsd, unsigned *n_created,
 
 	tsdn_t *tsdn = tsd_tsdn(tsd);
 	malloc_mutex_unlock(tsdn, &background_thread_info[0].mtx);
-	for (unsigned i = 1; i < max_background_threads; i++) {
+	for (unsigned i = 1; i < const_max_background_threads; i++) {
 		if (created_threads[i]) {
 			continue;
 		}
@@ -391,10 +392,19 @@ check_background_thread_creation(tsd_t *tsd, unsigned *n_created,
 
 static void
 background_thread0_work(tsd_t *tsd) {
-	/* Thread0 is also responsible for launching / terminating threads. */
-	VARIABLE_ARRAY(bool, created_threads, max_background_threads);
+	/*
+	 * Thread0 is also responsible for launching / terminating threads.
+	 * We are guaranteed that `max_background_threads` will not change
+	 * underneath us. Unfortunately static analysis tools do not understand
+	 * this, so we are extracting `max_background_threads` into a local
+	 * variable solely for the sake of exposing this information to such
+	 * tools.
+	 */
+	const size_t const_max_background_threads = max_background_threads;
+	assert(const_max_background_threads > 0);
+	VARIABLE_ARRAY(bool, created_threads, const_max_background_threads);
 	unsigned i;
-	for (i = 1; i < max_background_threads; i++) {
+	for (i = 1; i < const_max_background_threads; i++) {
 		created_threads[i] = false;
 	}
 	/* Start working, and create more threads when asked. */
@@ -404,8 +414,8 @@ background_thread0_work(tsd_t *tsd) {
 		    &background_thread_info[0])) {
 			continue;
 		}
-		if (check_background_thread_creation(tsd, &n_created,
-		    (bool *)&created_threads)) {
+		if (check_background_thread_creation(tsd, const_max_background_threads,
+		    &n_created, (bool *)&created_threads)) {
 			continue;
 		}
 		background_work_sleep_once(tsd_tsdn(tsd),
@@ -417,7 +427,7 @@ background_thread0_work(tsd_t *tsd) {
 	 * the global background_thread mutex (and is waiting) for us.
 	 */
 	assert(!background_thread_enabled());
-	for (i = 1; i < max_background_threads; i++) {
+	for (i = 1; i < const_max_background_threads; i++) {
 		background_thread_info_t *info = &background_thread_info[i];
 		assert(info->state != background_thread_paused);
 		if (created_threads[i]) {

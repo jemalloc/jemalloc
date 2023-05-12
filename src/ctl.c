@@ -1314,9 +1314,18 @@ ctl_background_thread_stats_read(tsdn_t *tsdn) {
 
 static void
 ctl_refresh(tsdn_t *tsdn) {
-	unsigned i;
+	malloc_mutex_assert_owner(tsdn, &ctl_mtx);
+	/*
+	 * We are guaranteed that `ctl_arenas->narenas` will not change
+	 * underneath us since we hold `ctl_mtx` for the duration of this
+	 * function. Unfortunately static analysis tools do not understand this,
+	 * so we are extracting `narenas` into a local variable solely for the
+	 * sake of exposing this information to such tools.
+	 */
+	const unsigned narenas = ctl_arenas->narenas;
+	assert(narenas > 0);
 	ctl_arena_t *ctl_sarena = arenas_i(MALLCTL_ARENAS_ALL);
-	VARIABLE_ARRAY(arena_t *, tarenas, ctl_arenas->narenas);
+	VARIABLE_ARRAY(arena_t *, tarenas, narenas);
 
 	/*
 	 * Clear sum stats, since they will be merged into by
@@ -1324,11 +1333,11 @@ ctl_refresh(tsdn_t *tsdn) {
 	 */
 	ctl_arena_clear(ctl_sarena);
 
-	for (i = 0; i < ctl_arenas->narenas; i++) {
+	for (unsigned i = 0; i < narenas; i++) {
 		tarenas[i] = arena_get(tsdn, i, false);
 	}
 
-	for (i = 0; i < ctl_arenas->narenas; i++) {
+	for (unsigned i = 0; i < narenas; i++) {
 		ctl_arena_t *ctl_arena = arenas_i(i);
 		bool initialized = (tarenas[i] != NULL);
 

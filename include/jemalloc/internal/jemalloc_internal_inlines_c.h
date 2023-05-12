@@ -325,6 +325,8 @@ imalloc_fastpath(size_t size, void *(fallback_alloc)(size_t)) {
 	tcache_t *tcache = tsd_tcachep_get(tsd);
 	assert(tcache == tcache_get(tsd));
 	cache_bin_t *bin = &tcache->bins[ind];
+	/* Suppress spurious warning from static analysis */
+	assert(bin != NULL);
 	bool tcache_success;
 	void *ret;
 

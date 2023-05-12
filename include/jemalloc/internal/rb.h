@@ -867,6 +867,7 @@ a_prefix##remove(a_rbt_type *rbtree, a_type *node) {			\
 	}								\
     }									\
     rb_remove_safety_checks(nodep, __func__);				\
+    assert(nodep != NULL);                                              \
     assert(nodep->node == node);					\
     pathp--;								\
     if (pathp->node != node) {						\

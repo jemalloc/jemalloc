@@ -341,6 +341,9 @@ witness_lock(witness_tsdn_t *witness_tsdn, witness_t *witness) {
 		witness_lock_error(witnesses, witness);
 	}
 
+	/* Suppress spurious warning from static analysis */
+	assert(ql_empty(witnesses) ||
+	    qr_prev(ql_first(witnesses), link) != NULL);
 	ql_elm_new(witness, link);
 	ql_tail_insert(witnesses, witness, link);
 }

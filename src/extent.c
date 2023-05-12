@@ -407,6 +407,7 @@ extent_recycle_extract(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		edata = emap_try_acquire_edata_neighbor_expand(tsdn, pac->emap,
 		    expand_edata, EXTENT_PAI_PAC, ecache->state);
 		if (edata != NULL) {
+			/* NOLINTNEXTLINE(readability-suspicious-call-argument) */
 			extent_assert_can_expand(expand_edata, edata);
 			if (edata_size_get(edata) < size) {
 				emap_release_edata(tsdn, pac->emap, edata,
