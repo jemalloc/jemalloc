@@ -1,6 +1,7 @@
 Building and installing a packaged release of jemalloc can be as simple as
 typing the following while in the root directory of the source tree:
 
+    autoconf
     ./configure
     make
     make install
