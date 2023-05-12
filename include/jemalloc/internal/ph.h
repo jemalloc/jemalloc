@@ -127,6 +127,7 @@ phn_merge_ordered(void *phn0, void *phn1, size_t offset,
 	phn0child = phn_lchild_get(phn0, offset);
 	phn_next_set(phn1, phn0child, offset);
 	if (phn0child != NULL) {
+		/* NOLINTNEXTLINE(readability-suspicious-call-argument) */
 		phn_prev_set(phn0child, phn1, offset);
 	}
 	phn_lchild_set(phn0, phn1, offset);
@@ -143,6 +144,7 @@ phn_merge(void *phn0, void *phn1, size_t offset, ph_cmp_t cmp) {
 		phn_merge_ordered(phn0, phn1, offset, cmp);
 		result = phn0;
 	} else {
+		/* NOLINTNEXTLINE(readability-suspicious-call-argument) */
 		phn_merge_ordered(phn1, phn0, offset, cmp);
 		result = phn1;
 	}
@@ -188,10 +190,12 @@ phn_merge_siblings(void *phn, size_t offset, ph_cmp_t cmp) {
 				phn_prev_set(phn1, NULL, offset);
 				phn_next_set(phn1, NULL, offset);
 				phn0 = phn_merge(phn0, phn1, offset, cmp);
+				/* NOLINTNEXTLINE(readability-suspicious-call-argument) */
 				phn_next_set(tail, phn0, offset);
 				tail = phn0;
 				phn0 = phnrest;
 			} else {
+				/* NOLINTNEXTLINE(readability-suspicious-call-argument) */
 				phn_next_set(tail, phn0, offset);
 				tail = phn0;
 				phn0 = NULL;
@@ -210,6 +214,7 @@ phn_merge_siblings(void *phn, size_t offset, ph_cmp_t cmp) {
 				if (head == NULL) {
 					break;
 				}
+				/* NOLINTNEXTLINE(readability-suspicious-call-argument) */
 				phn_next_set(tail, phn0, offset);
 				tail = phn0;
 				phn0 = head;
@@ -298,6 +303,7 @@ ph_try_aux_merge_pair(ph_t *ph, size_t offset, ph_cmp_t cmp) {
 	phn0 = phn_merge(phn0, phn1, offset, cmp);
 	phn_next_set(phn0, next_phn1, offset);
 	if (next_phn1 != NULL) {
+		/* NOLINTNEXTLINE(readability-suspicious-call-argument) */
 		phn_prev_set(next_phn1, phn0, offset);
 	}
 	phn_next_set(ph->root, phn0, offset);

@@ -268,6 +268,10 @@ rtree_contents_encode(rtree_contents_t contents, void **bits,
     unsigned *additional) {
 #ifdef RTREE_LEAF_COMPACT
 	*bits = (void *)rtree_leaf_elm_bits_encode(contents);
+	/* Suppress spurious warning from static analysis */
+	if (config_debug) {
+		*additional = 0;
+	}
 #else
 	*additional = (unsigned)contents.metadata.slab
 	    | ((unsigned)contents.metadata.is_head << 1)
@@ -299,7 +303,6 @@ rtree_leaf_elm_write(tsdn_t *tsdn, rtree_t *rtree,
 	assert((uintptr_t)contents.edata % EDATA_ALIGNMENT == 0);
 	void *bits;
 	unsigned additional;
-
 	rtree_contents_encode(contents, &bits, &additional);
 	rtree_leaf_elm_write_commit(tsdn, rtree, elm, bits, additional);
 }

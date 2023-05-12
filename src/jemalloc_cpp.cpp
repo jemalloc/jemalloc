@@ -1,5 +1,6 @@
 #include <mutex>
 #include <new>
+// NOLINTBEGIN(misc-use-anonymous-namespace)
 
 #define JEMALLOC_CPP_CPP_
 #ifdef __cplusplus
@@ -258,3 +259,4 @@ operator delete[](void* ptr, std::size_t size, std::align_val_t alignment) noexc
 }
 
 #endif  // __cpp_aligned_new
+// NOLINTEND(misc-use-anonymous-namespace)

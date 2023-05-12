@@ -316,7 +316,8 @@ x2s(uintmax_t x, bool alt_form, bool uppercase, char *s, size_t *slen_p) {
 	if (alt_form) {
 		s -= 2;
 		(*slen_p) += 2;
-		memcpy(s, uppercase ? "0X" : "0x", 2);
+		s[0] = '0';
+		s[1] = uppercase ? 'X' : 'x';
 	}
 	return s;
 }

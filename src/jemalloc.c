@@ -991,7 +991,8 @@ obtain_malloc_conf(unsigned which_source, char buf[PATH_MAX + 1]) {
 		 * Each source should only be read once, to minimize # of
 		 * syscalls on init.
 		 */
-		assert(read_source++ == which_source);
+		assert(read_source == which_source);
+		read_source++;
 	}
 	assert(which_source < MALLOC_CONF_NSOURCES);
 
