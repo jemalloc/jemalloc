@@ -1963,6 +1963,15 @@ dnl Check if we have dlsym support.
   fi
 fi
 
+dnl Check if pthread_getaffinity_np exists (does not on GNU Hurd)
+AC_CHECK_FUNC([pthread_getaffinity_np],
+              [have_pthread_getaffinity_np="1"],
+              [have_pthread_getaffinity_np="0"]
+             )
+if test "x$have_pthread_getaffinity_np" = "x1" ; then
+  AC_DEFINE([JEMALLOC_HAVE_PTHREAD_GETAFFINITY_NP], [ ])
+fi
+
 JE_APPEND_VS(CPPFLAGS, -D_REENTRANT)
 
 dnl Check whether clock_gettime(2) is in libc or librt.
