@@ -45,12 +45,12 @@ typedef enum malloc_init_e malloc_init_t;
 #define MALLOCX_ARENA_SHIFT	20
 #define MALLOCX_TCACHE_SHIFT	8
 #define MALLOCX_ARENA_MASK \
-    (((1 << MALLOCX_ARENA_BITS) - 1) << MALLOCX_ARENA_SHIFT)
+    ((unsigned)(((1U << MALLOCX_ARENA_BITS) - 1) << MALLOCX_ARENA_SHIFT))
 /* NB: Arena index bias decreases the maximum number of arenas by 1. */
-#define MALLOCX_ARENA_LIMIT	((1 << MALLOCX_ARENA_BITS) - 1)
+#define MALLOCX_ARENA_LIMIT	((unsigned)((1U << MALLOCX_ARENA_BITS) - 1))
 #define MALLOCX_TCACHE_MASK \
-    (((1 << MALLOCX_TCACHE_BITS) - 1) << MALLOCX_TCACHE_SHIFT)
-#define MALLOCX_TCACHE_MAX	((1 << MALLOCX_TCACHE_BITS) - 3)
+    ((unsigned)(((1U << MALLOCX_TCACHE_BITS) - 1) << MALLOCX_TCACHE_SHIFT))
+#define MALLOCX_TCACHE_MAX	((unsigned)((1U << MALLOCX_TCACHE_BITS) - 3))
 #define MALLOCX_LG_ALIGN_MASK	((1 << MALLOCX_LG_ALIGN_BITS) - 1)
 /* Use MALLOCX_ALIGN_GET() if alignment may not be specified in flags. */
 #define MALLOCX_ALIGN_GET_SPECIFIED(flags)				\
