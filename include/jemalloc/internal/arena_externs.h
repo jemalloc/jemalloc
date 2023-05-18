@@ -18,11 +18,10 @@ extern ssize_t opt_dirty_decay_ms;
 extern ssize_t opt_muzzy_decay_ms;
 
 extern percpu_arena_mode_t opt_percpu_arena;
-extern const char *percpu_arena_mode_names[];
+extern const char *const percpu_arena_mode_names[];
 
 extern div_info_t arena_binind_div_info[SC_NBINS];
 
-extern malloc_mutex_t arenas_lock;
 extern emap_t arena_emap_global;
 
 extern size_t opt_oversize_threshold;

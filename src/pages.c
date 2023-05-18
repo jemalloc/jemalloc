@@ -42,7 +42,7 @@ static int	mmap_flags;
 #endif
 static bool	os_overcommits;
 
-const char *thp_mode_names[] = {
+const char *const thp_mode_names[] = {
 	"default",
 	"always",
 	"never",

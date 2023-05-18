@@ -56,7 +56,7 @@ enum prof_time_res_e {
 typedef enum prof_time_res_e prof_time_res_t;
 
 extern prof_time_res_t opt_prof_time_res;
-extern const char *prof_time_res_mode_names[];
+extern const char *const prof_time_res_mode_names[];
 
 JEMALLOC_ALWAYS_INLINE void
 nstime_init_zero(nstime_t *time) {

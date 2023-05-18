@@ -37,7 +37,7 @@ static hpa_shard_opts_t test_hpa_shard_opts_default = {
 };
 
 static hpa_shard_t *
-create_test_data(hpa_hooks_t *hooks, hpa_shard_opts_t *opts) {
+create_test_data(const hpa_hooks_t *hooks, hpa_shard_opts_t *opts) {
 	bool err;
 	base_t *base = base_new(TSDN_NULL, /* ind */ SHARD_IND,
 	    &ehooks_default_extent_hooks, /* metadata_use_hooks */ true);

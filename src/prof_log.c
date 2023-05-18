@@ -25,7 +25,7 @@ enum prof_logging_state_e {
  * - started: log_start called, log_stop not called yet. Allocations are logged.
  * - dumping: log_stop called but not finished; samples are not logged anymore.
  */
-prof_logging_state_t prof_logging_state = prof_logging_state_stopped;
+static prof_logging_state_t prof_logging_state = prof_logging_state_stopped;
 
 /* Used in unit tests. */
 static bool prof_log_dummy = false;

@@ -10,7 +10,7 @@
 
 const char	*opt_dss = DSS_DEFAULT;
 
-const char	*dss_prec_names[] = {
+const char	*const dss_prec_names[] = {
 	"disabled",
 	"primary",
 	"secondary",

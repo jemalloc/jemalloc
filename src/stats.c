@@ -9,13 +9,13 @@
 #include "jemalloc/internal/mutex_prof.h"
 #include "jemalloc/internal/prof_stats.h"
 
-const char *global_mutex_names[mutex_prof_num_global_mutexes] = {
+static const char *const global_mutex_names[mutex_prof_num_global_mutexes] = {
 #define OP(mtx) #mtx,
 	MUTEX_PROF_GLOBAL_MUTEXES
 #undef OP
 };
 
-const char *arena_mutex_names[mutex_prof_num_arena_mutexes] = {
+static const char *const arena_mutex_names[mutex_prof_num_arena_mutexes] = {
 #define OP(mtx) #mtx,
 	MUTEX_PROF_ARENA_MUTEXES
 #undef OP

@@ -12,6 +12,6 @@ struct hpa_hooks_s {
 	uint64_t (*ms_since)(nstime_t *r_time);
 };
 
-extern hpa_hooks_t hpa_hooks_default;
+extern const hpa_hooks_t hpa_hooks_default;
 
 #endif /* JEMALLOC_INTERNAL_HPA_HOOKS_H */

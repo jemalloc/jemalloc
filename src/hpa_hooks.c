@@ -11,7 +11,7 @@ static void hpa_hooks_dehugify(void *ptr, size_t size);
 static void hpa_hooks_curtime(nstime_t *r_nstime, bool first_reading);
 static uint64_t hpa_hooks_ms_since(nstime_t *past_nstime);
 
-hpa_hooks_t hpa_hooks_default = {
+const hpa_hooks_t hpa_hooks_default = {
 	&hpa_hooks_map,
 	&hpa_hooks_unmap,
 	&hpa_hooks_purge,
