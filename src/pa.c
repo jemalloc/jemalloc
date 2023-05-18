@@ -108,7 +108,7 @@ pa_shard_destroy(tsdn_t *tsdn, pa_shard_t *shard) {
 	pac_destroy(tsdn, &shard->pac);
 	if (shard->ever_used_hpa) {
 		sec_flush(tsdn, &shard->hpa_sec);
-		hpa_shard_disable(tsdn, &shard->hpa_shard);
+		hpa_shard_destroy(tsdn, &shard->hpa_shard);
 	}
 }
 
