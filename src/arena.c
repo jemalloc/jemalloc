@@ -21,7 +21,7 @@ JEMALLOC_DIAGNOSTIC_DISABLE_SPURIOUS
  * Define names for both unininitialized and initialized phases, so that
  * options and mallctl processing are straightforward.
  */
-const char *percpu_arena_mode_names[] = {
+const char *const percpu_arena_mode_names[] = {
 	"percpu",
 	"phycpu",
 	"disabled",
@@ -37,7 +37,7 @@ static atomic_zd_t dirty_decay_ms_default;
 static atomic_zd_t muzzy_decay_ms_default;
 
 emap_t arena_emap_global;
-pa_central_t arena_pa_central_global;
+static pa_central_t arena_pa_central_global;
 
 div_info_t arena_binind_div_info[SC_NBINS];
 

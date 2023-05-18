@@ -17,7 +17,7 @@ pa_nactive_sub(pa_shard_t *shard, size_t sub_pages) {
 
 bool
 pa_central_init(pa_central_t *central, base_t *base, bool hpa,
-    hpa_hooks_t *hpa_hooks) {
+    const hpa_hooks_t *hpa_hooks) {
 	bool err;
 	if (hpa) {
 		err = hpa_central_init(&central->hpa, base, hpa_hooks);

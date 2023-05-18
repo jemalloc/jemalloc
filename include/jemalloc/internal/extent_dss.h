@@ -11,7 +11,7 @@ typedef enum {
 #define DSS_PREC_DEFAULT dss_prec_secondary
 #define DSS_DEFAULT "secondary"
 
-extern const char *dss_prec_names[];
+extern const char *const dss_prec_names[];
 
 extern const char *opt_dss;
 

@@ -228,7 +228,7 @@ nstime_monotonic_t *JET_MUTABLE nstime_monotonic = nstime_monotonic_impl;
 prof_time_res_t opt_prof_time_res =
 	prof_time_res_default;
 
-const char *prof_time_res_mode_names[] = {
+const char *const prof_time_res_mode_names[] = {
 	"default",
 	"high",
 };

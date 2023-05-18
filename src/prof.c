@@ -73,16 +73,16 @@ static malloc_mutex_t next_thr_uid_mtx;
 bool prof_booted = false;
 
 /* Logically a prof_backtrace_hook_t. */
-atomic_p_t prof_backtrace_hook;
+static atomic_p_t prof_backtrace_hook;
 
 /* Logically a prof_dump_hook_t. */
-atomic_p_t prof_dump_hook;
+static atomic_p_t prof_dump_hook;
 
 /* Logically a prof_sample_hook_t. */
-atomic_p_t prof_sample_hook;
+static atomic_p_t prof_sample_hook;
 
 /* Logically a prof_sample_free_hook_t. */
-atomic_p_t prof_sample_free_hook;
+static atomic_p_t prof_sample_free_hook;
 
 /******************************************************************************/
 

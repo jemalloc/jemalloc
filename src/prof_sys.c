@@ -27,8 +27,6 @@
 
 malloc_mutex_t prof_dump_filename_mtx;
 
-bool prof_do_mock = false;
-
 static uint64_t prof_dump_seq;
 static uint64_t prof_dump_iseq;
 static uint64_t prof_dump_mseq;

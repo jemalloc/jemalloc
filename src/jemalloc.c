@@ -121,7 +121,7 @@ zero_realloc_action_t opt_zero_realloc_action =
 
 atomic_zu_t zero_realloc_count = ATOMIC_INIT(0);
 
-const char *zero_realloc_mode_names[] = {
+const char *const zero_realloc_mode_names[] = {
 	"alloc",
 	"free",
 	"abort",
@@ -142,8 +142,8 @@ static void default_junk_free(void *ptr, size_t usize) {
 	memset(ptr, junk_free_byte, usize);
 }
 
-void (*junk_alloc_callback)(void *ptr, size_t size) = &default_junk_alloc;
-void (*junk_free_callback)(void *ptr, size_t size) = &default_junk_free;
+void (*JET_MUTABLE junk_alloc_callback)(void *ptr, size_t size) = &default_junk_alloc;
+void (*JET_MUTABLE junk_free_callback)(void *ptr, size_t size) = &default_junk_free;
 
 bool	opt_utrace = false;
 bool	opt_xmalloc = false;
@@ -158,7 +158,7 @@ unsigned opt_debug_double_free_max_scan =
     SAFETY_CHECK_DOUBLE_FREE_MAX_SCAN_DEFAULT;
 
 /* Protects arenas initialization. */
-malloc_mutex_t arenas_lock;
+static malloc_mutex_t arenas_lock;
 
 /* The global hpa, and whether it's on. */
 bool opt_hpa = false;

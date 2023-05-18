@@ -22,7 +22,7 @@ static base_t *b0;
 
 metadata_thp_mode_t opt_metadata_thp = METADATA_THP_DEFAULT;
 
-const char *metadata_thp_mode_names[] = {
+const char *const metadata_thp_mode_names[] = {
 	"disabled",
 	"auto",
 	"always"
