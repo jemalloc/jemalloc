@@ -42,6 +42,7 @@ possible_config_opts = [
     '--disable-stats',
     '--enable-opt-safety-checks',
     '--with-lg-page=16',
+    '--with-lg-tcache-limit=15',
 ]
 if bits_64:
     possible_config_opts.append('--with-lg-vaddr=56')

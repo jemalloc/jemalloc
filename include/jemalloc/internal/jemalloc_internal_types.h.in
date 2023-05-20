@@ -33,17 +33,20 @@ typedef enum malloc_init_e malloc_init_t;
  *
  * a: arena
  * t: tcache
+ * .: configurable, dependent on --with-lg-tcache-limit:
+ *    The higher this value, the more of the configurable bits will be teated as
+ *    tcache bits (the rest are arena bits).
  * 0: unused
  * z: zero
  * n: alignment
  *
- * aaaaaaaa aaaatttt tttttttt 0znnnnnn
+ * aaaaaaa. ........ ....tttt 0znnnnnn
  */
-#define MALLOCX_ARENA_BITS	12
-#define MALLOCX_TCACHE_BITS	12
+#define MALLOCX_ARENA_BITS	@arena_repr_bits@
+#define MALLOCX_TCACHE_BITS	@tcache_repr_bits@
 #define MALLOCX_LG_ALIGN_BITS	6
-#define MALLOCX_ARENA_SHIFT	20
-#define MALLOCX_TCACHE_SHIFT	8
+#define MALLOCX_ARENA_SHIFT	@arena_shift@
+#define MALLOCX_TCACHE_SHIFT	@tcache_shift@
 #define MALLOCX_ARENA_MASK \
     (((1 << MALLOCX_ARENA_BITS) - 1) << MALLOCX_ARENA_SHIFT)
 /* NB: Arena index bias decreases the maximum number of arenas by 1. */
