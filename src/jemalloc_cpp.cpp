@@ -100,7 +100,7 @@ handleOOM(std::size_t size, bool nothrow) {
 template <bool IsNoExcept>
 JEMALLOC_NOINLINE
 static void *
-fallback_impl(std::size_t size) noexcept(IsNoExcept) {
+fallbackNewImpl(std::size_t size) noexcept(IsNoExcept) {
 	void *ptr = malloc_default(size);
 	if (likely(ptr != nullptr)) {
 		return ptr;
@@ -112,7 +112,7 @@ template <bool IsNoExcept>
 JEMALLOC_ALWAYS_INLINE
 void *
 newImpl(std::size_t size) noexcept(IsNoExcept) {
-	return imalloc_fastpath(size, &fallback_impl<IsNoExcept>);
+	return imalloc_fastpath(size, &fallbackNewImpl<IsNoExcept>);
 }
 
 void *
