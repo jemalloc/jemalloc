@@ -2957,6 +2957,8 @@ sub RemoveUninterestingFrames {
                       '@JEMALLOC_PREFIX@malloc',
                       'newImpl',
                       'void* newImpl',
+                      'fallbackNewImpl',
+                      'void* fallbackNewImpl',
                       '@JEMALLOC_PREFIX@free',
                       '@JEMALLOC_PREFIX@memalign',
                       '@JEMALLOC_PREFIX@posix_memalign',
