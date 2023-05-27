@@ -92,8 +92,20 @@ psset_bin_stats_remove(psset_t *psset, psset_bin_stats_t *binstats,
 	psset_bin_stats_insert_remove(psset, binstats, ps, false);
 }
 
+static pszind_t
+psset_hpdata_heap_index(const hpdata_t *ps) {
+	assert(!hpdata_full(ps));
+	assert(!hpdata_empty(ps));
+	size_t longest_free_range = hpdata_longest_free_range_get(ps);
+	pszind_t pind = sz_psz2ind(sz_psz_quantize_floor(
+	    longest_free_range << LG_PAGE));
+	assert(pind < PSSET_NPSIZES);
+	return pind;
+}
+
 static void
-psset_hpdata_heap_remove(psset_t *psset, pszind_t pind, hpdata_t *ps) {
+psset_hpdata_heap_remove(psset_t *psset, hpdata_t *ps) {
+	pszind_t pind = psset_hpdata_heap_index(ps);
 	hpdata_age_heap_remove(&psset->pageslabs[pind], ps);
 	if (hpdata_age_heap_empty(&psset->pageslabs[pind])) {
 		fb_unset(psset->pageslab_bitmap, PSSET_NPSIZES, (size_t)pind);
@@ -101,7 +113,8 @@ psset_hpdata_heap_remove(psset_t *psset, pszind_t pind, hpdata_t *ps) {
 }
 
 static void
-psset_hpdata_heap_insert(psset_t *psset, pszind_t pind, hpdata_t *ps) {
+psset_hpdata_heap_insert(psset_t *psset, hpdata_t *ps) {
+	pszind_t pind = psset_hpdata_heap_index(ps);
 	if (hpdata_age_heap_empty(&psset->pageslabs[pind])) {
 		fb_set(psset->pageslab_bitmap, PSSET_NPSIZES, (size_t)pind);
 	}
@@ -115,12 +128,7 @@ psset_stats_insert(psset_t* psset, hpdata_t *ps) {
 	} else if (hpdata_full(ps)) {
 		psset_bin_stats_insert(psset, psset->stats.full_slabs, ps);
 	} else {
-		size_t longest_free_range = hpdata_longest_free_range_get(ps);
-
-		pszind_t pind = sz_psz2ind(sz_psz_quantize_floor(
-		    longest_free_range << LG_PAGE));
-		assert(pind < PSSET_NPSIZES);
-
+		pszind_t pind = psset_hpdata_heap_index(ps);
 		psset_bin_stats_insert(psset, psset->stats.nonfull_slabs[pind],
 		    ps);
 	}
@@ -133,12 +141,7 @@ psset_stats_remove(psset_t *psset, hpdata_t *ps) {
 	} else if (hpdata_full(ps)) {
 		psset_bin_stats_remove(psset, psset->stats.full_slabs, ps);
 	} else {
-		size_t longest_free_range = hpdata_longest_free_range_get(ps);
-
-		pszind_t pind = sz_psz2ind(sz_psz_quantize_floor(
-		    longest_free_range << LG_PAGE));
-		assert(pind < PSSET_NPSIZES);
-
+		pszind_t pind = psset_hpdata_heap_index(ps);
 		psset_bin_stats_remove(psset, psset->stats.nonfull_slabs[pind],
 		    ps);
 	}
@@ -165,13 +168,7 @@ psset_alloc_container_insert(psset_t *psset, hpdata_t *ps) {
 		 * going to return them from a psset_pick_alloc call.
 		 */
 	} else {
-		size_t longest_free_range = hpdata_longest_free_range_get(ps);
-
-		pszind_t pind = sz_psz2ind(sz_psz_quantize_floor(
-		    longest_free_range << LG_PAGE));
-		assert(pind < PSSET_NPSIZES);
-
-		psset_hpdata_heap_insert(psset, pind, ps);
+		psset_hpdata_heap_insert(psset, ps);
 	}
 }
 
@@ -186,13 +183,7 @@ psset_alloc_container_remove(psset_t *psset, hpdata_t *ps) {
 	} else if (hpdata_full(ps)) {
 		/* Same as above -- do nothing in this case. */
 	} else {
-		size_t longest_free_range = hpdata_longest_free_range_get(ps);
-
-		pszind_t pind = sz_psz2ind(sz_psz_quantize_floor(
-		    longest_free_range << LG_PAGE));
-		assert(pind < PSSET_NPSIZES);
-
-		psset_hpdata_heap_remove(psset, pind, ps);
+		psset_hpdata_heap_remove(psset, ps);
 	}
 }
 
