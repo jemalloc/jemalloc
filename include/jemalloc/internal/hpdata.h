@@ -343,12 +343,12 @@ hpdata_assert_consistent(hpdata_t *hpdata) {
 }
 
 static inline bool
-hpdata_empty(hpdata_t *hpdata) {
+hpdata_empty(const hpdata_t *hpdata) {
 	return hpdata->h_nactive == 0;
 }
 
 static inline bool
-hpdata_full(hpdata_t *hpdata) {
+hpdata_full(const hpdata_t *hpdata) {
 	return hpdata->h_nactive == HUGEPAGE_PAGES;
 }
 
