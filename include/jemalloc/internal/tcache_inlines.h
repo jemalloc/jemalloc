@@ -60,7 +60,7 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
 		if (unlikely(tcache_small_bin_disabled(binind, bin))) {
 			/* stats and zero are handled directly by the arena. */
 			return arena_malloc_hard(tsd_tsdn(tsd), arena, size,
-			    binind, zero);
+			    binind, zero, /* slab */ true);
 		}
 		tcache_bin_flush_stashed(tsd, tcache, bin, binind,
 		    /* is_small */ true);

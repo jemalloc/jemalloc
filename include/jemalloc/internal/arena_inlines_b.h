@@ -182,23 +182,22 @@ arena_decay_tick(tsdn_t *tsdn, arena_t *arena) {
 
 JEMALLOC_ALWAYS_INLINE void *
 arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind, bool zero,
-    tcache_t *tcache, bool slow_path) {
+    bool slab, tcache_t *tcache, bool slow_path) {
 	assert(!tsdn_null(tsdn) || tcache == NULL);
 
 	if (likely(tcache != NULL)) {
-		if (likely(size <= SC_SMALL_MAXCLASS)) {
+		if (likely(slab)) {
+			assert(sz_can_use_slab(size));
 			return tcache_alloc_small(tsdn_tsd(tsdn), arena,
 			    tcache, size, ind, zero, slow_path);
-		}
-		if (likely(size <= tcache_maxclass)) {
+		} else if (likely(size <= tcache_maxclass)) {
 			return tcache_alloc_large(tsdn_tsd(tsdn), arena,
 			    tcache, size, ind, zero, slow_path);
 		}
 		/* (size > tcache_maxclass) case falls through. */
-		assert(size > tcache_maxclass);
 	}
 
-	return arena_malloc_hard(tsdn, arena, size, ind, zero);
+	return arena_malloc_hard(tsdn, arena, size, ind, zero, slab);
 }
 
 JEMALLOC_ALWAYS_INLINE arena_t *

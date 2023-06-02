@@ -1,6 +1,9 @@
 #ifndef JEMALLOC_INTERNAL_PAGES_EXTERNS_H
 #define JEMALLOC_INTERNAL_PAGES_EXTERNS_H
 
+/* Actual operating system page size, detected during bootstrap, <= PAGE. */
+extern size_t	os_page;
+
 /* Page size.  LG_PAGE is determined by the configure script. */
 #ifdef PAGE_MASK
 #  undef PAGE_MASK

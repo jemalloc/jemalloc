@@ -1191,7 +1191,7 @@ arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero) {
 
 void *
 arena_malloc_hard(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind,
-    bool zero) {
+    bool zero, bool slab) {
 	assert(!tsdn_null(tsdn) || arena != NULL);
 
 	if (likely(!tsdn_null(tsdn))) {
@@ -1201,18 +1201,19 @@ arena_malloc_hard(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind,
 		return NULL;
 	}
 
-	if (likely(size <= SC_SMALL_MAXCLASS)) {
+	if (likely(slab)) {
+		assert(sz_can_use_slab(size));
 		return arena_malloc_small(tsdn, arena, ind, zero);
+	} else {
+		return large_malloc(tsdn, arena, sz_index2size(ind), zero);
 	}
-	return large_malloc(tsdn, arena, sz_index2size(ind), zero);
 }
 
 void *
 arena_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
-    bool zero, tcache_t *tcache) {
-	void *ret;
-
-	if (usize <= SC_SMALL_MAXCLASS) {
+    bool zero, bool slab, tcache_t *tcache) {
+	if (slab) {
+		assert(sz_can_use_slab(usize));
 		/* Small; alignment doesn't require special slab placement. */
 
 		/* usize should be a result of sz_sa2u() */
@@ -1223,27 +1224,26 @@ arena_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 		 */
 		assert(alignment <= PAGE);
 
-		ret = arena_malloc(tsdn, arena, usize, sz_size2index(usize),
-		    zero, tcache, true);
+		return arena_malloc(tsdn, arena, usize, sz_size2index(usize),
+		    zero, slab, tcache, true);
 	} else {
 		if (likely(alignment <= CACHELINE)) {
-			ret = large_malloc(tsdn, arena, usize, zero);
+			return large_malloc(tsdn, arena, usize, zero);
 		} else {
-			ret = large_palloc(tsdn, arena, usize, alignment, zero);
+			return large_palloc(tsdn, arena, usize, alignment, zero);
 		}
 	}
-	return ret;
 }
 
 void
-arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize) {
+arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize, size_t bumped_usize) {
 	cassert(config_prof);
 	assert(ptr != NULL);
-	assert(isalloc(tsdn, ptr) == SC_LARGE_MINCLASS);
-	assert(usize <= SC_SMALL_MAXCLASS);
+	assert(isalloc(tsdn, ptr) == bumped_usize);
+	assert(sz_can_use_slab(usize));
 
 	if (config_opt_safety_checks) {
-		safety_check_set_redzone(ptr, usize, SC_LARGE_MINCLASS);
+		safety_check_set_redzone(ptr, usize, bumped_usize);
 	}
 
 	edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global, ptr);
@@ -1259,13 +1259,19 @@ static size_t
 arena_prof_demote(tsdn_t *tsdn, edata_t *edata, const void *ptr) {
 	cassert(config_prof);
 	assert(ptr != NULL);
+	size_t usize = isalloc(tsdn, ptr);
+	size_t bumped_usize = sz_sa2u(usize, PROF_SAMPLE_ALIGNMENT);
+	assert(bumped_usize <= SC_LARGE_MINCLASS &&
+	    PAGE_CEILING(bumped_usize) == bumped_usize);
+	assert(edata_size_get(edata) - bumped_usize <= sz_large_pad);
+	szind_t szind = sz_size2index(bumped_usize);
 
-	edata_szind_set(edata, SC_NBINS);
-	emap_remap(tsdn, &arena_emap_global, edata, SC_NBINS, /* slab */ false);
+	edata_szind_set(edata, szind);
+	emap_remap(tsdn, &arena_emap_global, edata, szind, /* slab */ false);
 
-	assert(isalloc(tsdn, ptr) == SC_LARGE_MINCLASS);
+	assert(isalloc(tsdn, ptr) == bumped_usize);
 
-	return SC_LARGE_MINCLASS;
+	return bumped_usize;
 }
 
 void
@@ -1282,10 +1288,10 @@ arena_dalloc_promoted(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 		 * Currently, we only do redzoning for small sampled
 		 * allocations.
 		 */
-		assert(bumped_usize == SC_LARGE_MINCLASS);
 		safety_check_verify_redzone(ptr, usize, bumped_usize);
 	}
-	if (bumped_usize <= tcache_maxclass && tcache != NULL) {
+	if (bumped_usize >= SC_LARGE_MINCLASS &&
+	    bumped_usize <= tcache_maxclass && tcache != NULL) {
 		tcache_dalloc_large(tsdn_tsd(tsdn), tcache, ptr,
 		    sz_size2index(bumped_usize), slow_path);
 	} else {
@@ -1443,28 +1449,30 @@ done:
 
 static void *
 arena_ralloc_move_helper(tsdn_t *tsdn, arena_t *arena, size_t usize,
-    size_t alignment, bool zero, tcache_t *tcache) {
+    size_t alignment, bool zero, bool slab, tcache_t *tcache) {
 	if (alignment == 0) {
 		return arena_malloc(tsdn, arena, usize, sz_size2index(usize),
-		    zero, tcache, true);
+		    zero, slab, tcache, true);
 	}
 	usize = sz_sa2u(usize, alignment);
 	if (unlikely(usize == 0 || usize > SC_LARGE_MAXCLASS)) {
 		return NULL;
 	}
-	return ipalloct(tsdn, usize, alignment, zero, tcache, arena);
+	return ipalloct_explicit_slab(tsdn, usize, alignment, zero, slab,
+	    tcache, arena);
 }
 
 void *
 arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
-    size_t size, size_t alignment, bool zero, tcache_t *tcache,
+    size_t size, size_t alignment, bool zero, bool slab, tcache_t *tcache,
     hook_ralloc_args_t *hook_args) {
 	size_t usize = alignment == 0 ? sz_s2u(size) : sz_sa2u(size, alignment);
 	if (unlikely(usize == 0 || size > SC_LARGE_MAXCLASS)) {
 		return NULL;
 	}
 
-	if (likely(usize <= SC_SMALL_MAXCLASS)) {
+	if (likely(slab)) {
+		assert(sz_can_use_slab(usize));
 		/* Try to avoid moving the allocation. */
 		UNUSED size_t newsize;
 		if (!arena_ralloc_no_move(tsdn, ptr, oldsize, usize, 0, zero,
@@ -1488,7 +1496,7 @@ arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
 	 * object.  In that case, fall back to allocating new space and copying.
 	 */
 	void *ret = arena_ralloc_move_helper(tsdn, arena, usize, alignment,
-	    zero, tcache);
+	    zero, slab, tcache);
 	if (ret == NULL) {
 		return NULL;
 	}
