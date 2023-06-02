@@ -80,4 +80,12 @@ typedef struct prof_recent_s prof_recent_t;
 /* Thread name storage size limit. */
 #define PROF_THREAD_NAME_MAX_LEN 16
 
+/*
+ * Minimum required alignment for sampled allocations. Over-aligning sampled
+ * allocations allows us to quickly identify them on the dalloc path without
+ * resorting to metadata lookup.
+ */
+#define PROF_SAMPLE_ALIGNMENT PAGE
+#define PROF_SAMPLE_ALIGNMENT_MASK PAGE_MASK
+
 #endif /* JEMALLOC_INTERNAL_PROF_TYPES_H */

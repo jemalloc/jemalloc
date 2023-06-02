@@ -239,14 +239,15 @@ prof_realloc(tsd_t *tsd, const void *ptr, size_t size, size_t usize,
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-prof_sample_align(size_t orig_align) {
+prof_sample_align(size_t usize, size_t orig_align) {
 	/*
-	 * Enforce page alignment, so that sampled allocations can be identified
+	 * Enforce alignment, so that sampled allocations can be identified
 	 * w/o metadata lookup.
 	 */
 	assert(opt_prof);
-	return (opt_cache_oblivious && orig_align < PAGE) ? PAGE :
-	    orig_align;
+	return (orig_align < PROF_SAMPLE_ALIGNMENT &&
+	       (sz_can_use_slab(usize) || opt_cache_oblivious)) ?
+	           PROF_SAMPLE_ALIGNMENT : orig_align;
 }
 
 JEMALLOC_ALWAYS_INLINE bool

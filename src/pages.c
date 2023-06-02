@@ -33,7 +33,7 @@
 /* Data. */
 
 /* Actual operating system page size, detected during bootstrap, <= PAGE. */
-static size_t	os_page;
+size_t	os_page;
 
 #ifndef _WIN32
 #  define PAGES_PROT_COMMIT (PROT_READ | PROT_WRITE)

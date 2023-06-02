@@ -65,10 +65,11 @@ void arena_cache_bin_fill_small(tsdn_t *tsdn, arena_t *arena,
     const unsigned nfill);
 
 void *arena_malloc_hard(tsdn_t *tsdn, arena_t *arena, size_t size,
-    szind_t ind, bool zero);
+    szind_t ind, bool zero, bool slab);
 void *arena_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize,
-    size_t alignment, bool zero, tcache_t *tcache);
-void arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize);
+    size_t alignment, bool zero, bool slab, tcache_t *tcache);
+void arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize,
+    size_t bumped_usize);
 void arena_dalloc_promoted(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
     bool slow_path);
 void arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, edata_t *slab);
@@ -81,7 +82,7 @@ void arena_dalloc_small(tsdn_t *tsdn, void *ptr);
 bool arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
     size_t extra, bool zero, size_t *newsize);
 void *arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
-    size_t size, size_t alignment, bool zero, tcache_t *tcache,
+    size_t size, size_t alignment, bool zero, bool slab, tcache_t *tcache,
     hook_ralloc_args_t *hook_args);
 dss_prec_t arena_dss_prec_get(arena_t *arena);
 ehooks_t *arena_get_ehooks(arena_t *arena);

@@ -2360,7 +2360,7 @@ arena_get_from_ind(tsd_t *tsd, unsigned arena_ind, arena_t **arena_p) {
 /* ind is ignored if dopts->alignment > 0. */
 JEMALLOC_ALWAYS_INLINE void *
 imalloc_no_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
-    size_t size, size_t usize, szind_t ind) {
+    size_t size, size_t usize, szind_t ind, bool slab) {
 	/* Fill in the tcache. */
 	tcache_t *tcache = tcache_get_from_ind(tsd, dopts->tcache_ind,
 	    sopts->slow, /* is_alloc */ true);
@@ -2372,12 +2372,12 @@ imalloc_no_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
 	}
 
 	if (unlikely(dopts->alignment != 0)) {
-		return ipalloct(tsd_tsdn(tsd), usize, dopts->alignment,
-		    dopts->zero, tcache, arena);
+		return ipalloct_explicit_slab(tsd_tsdn(tsd), usize,
+		    dopts->alignment, dopts->zero, slab, tcache, arena);
 	}
 
-	return iallocztm(tsd_tsdn(tsd), size, ind, dopts->zero, tcache, false,
-	    arena, sopts->slow);
+	return iallocztm_explicit_slab(tsd_tsdn(tsd), size, ind, dopts->zero,
+	    slab, tcache, false, arena, sopts->slow);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -2385,28 +2385,26 @@ imalloc_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
     size_t usize, szind_t ind) {
 	void *ret;
 
+	dopts->alignment = prof_sample_align(usize, dopts->alignment);
 	/*
-	 * For small allocations, sampling bumps the usize.  If so, we allocate
-	 * from the ind_large bucket.
+	 * If the allocation is small enough that it would normally be allocated
+	 * on a slab, we need to take additional steps to ensure that it gets
+	 * its own extent instead.
 	 */
-	szind_t ind_large;
-
-	dopts->alignment = prof_sample_align(dopts->alignment);
-	if (usize <= SC_SMALL_MAXCLASS) {
-		assert(((dopts->alignment == 0) ?
-		    sz_s2u(SC_LARGE_MINCLASS) :
-		    sz_sa2u(SC_LARGE_MINCLASS, dopts->alignment))
-			== SC_LARGE_MINCLASS);
-		ind_large = sz_size2index(SC_LARGE_MINCLASS);
-		size_t bumped_usize = sz_s2u(SC_LARGE_MINCLASS);
+	if (sz_can_use_slab(usize)) {
+		assert((dopts->alignment & PROF_SAMPLE_ALIGNMENT_MASK) == 0);
+		size_t bumped_usize = sz_sa2u(usize, dopts->alignment);
+		szind_t bumped_ind = sz_size2index(bumped_usize);
+		dopts->tcache_ind = TCACHE_IND_NONE;
 		ret = imalloc_no_sample(sopts, dopts, tsd, bumped_usize,
-		    bumped_usize, ind_large);
+		    bumped_usize, bumped_ind, /* slab */ false);
 		if (unlikely(ret == NULL)) {
 			return NULL;
 		}
-		arena_prof_promote(tsd_tsdn(tsd), ret, usize);
+		arena_prof_promote(tsd_tsdn(tsd), ret, usize, bumped_usize);
 	} else {
-		ret = imalloc_no_sample(sopts, dopts, tsd, usize, usize, ind);
+		ret = imalloc_no_sample(sopts, dopts, tsd, usize, usize, ind,
+		    /* slab */ false);
 	}
 	assert(prof_sample_aligned(ret));
 
@@ -2532,9 +2530,10 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 
 		emap_alloc_ctx_t alloc_ctx;
 		if (likely((uintptr_t)tctx == (uintptr_t)1U)) {
-			alloc_ctx.slab = (usize <= SC_SMALL_MAXCLASS);
+			alloc_ctx.slab = sz_can_use_slab(usize);
 			allocation = imalloc_no_sample(
-			    sopts, dopts, tsd, usize, usize, ind);
+			    sopts, dopts, tsd, usize, usize, ind,
+			    alloc_ctx.slab);
 		} else if ((uintptr_t)tctx > (uintptr_t)1U) {
 			allocation = imalloc_sample(
 			    sopts, dopts, tsd, usize, ind);
@@ -2551,7 +2550,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	} else {
 		assert(!opt_prof);
 		allocation = imalloc_no_sample(sopts, dopts, tsd, size, usize,
-		    ind);
+		    ind, sz_can_use_slab(usize));
 		if (unlikely(allocation == NULL)) {
 			goto label_oom;
 		}
@@ -3314,18 +3313,25 @@ irallocx_prof_sample(tsdn_t *tsdn, void *old_ptr, size_t old_usize,
 		return NULL;
 	}
 
-	alignment = prof_sample_align(alignment);
-	if (usize <= SC_SMALL_MAXCLASS) {
-		p = iralloct(tsdn, old_ptr, old_usize,
-		    SC_LARGE_MINCLASS, alignment, zero, tcache,
-		    arena, hook_args);
+	alignment = prof_sample_align(usize, alignment);
+	/*
+	 * If the allocation is small enough that it would normally be allocated
+	 * on a slab, we need to take additional steps to ensure that it gets
+	 * its own extent instead.
+	 */
+	if (sz_can_use_slab(usize)) {
+		size_t bumped_usize = sz_sa2u(usize, alignment);
+		p = iralloct_explicit_slab(tsdn, old_ptr, old_usize,
+		    bumped_usize, alignment, zero, /* slab */ false,
+		    tcache, arena, hook_args);
 		if (p == NULL) {
 			return NULL;
 		}
-		arena_prof_promote(tsdn, p, usize);
+		arena_prof_promote(tsdn, p, usize, bumped_usize);
 	} else {
-		p = iralloct(tsdn, old_ptr, old_usize, usize, alignment, zero,
-		    tcache, arena, hook_args);
+		p = iralloct_explicit_slab(tsdn, old_ptr, old_usize, usize,
+		    alignment, zero, /* slab */ false, tcache, arena,
+		    hook_args);
 	}
 	assert(prof_sample_aligned(p));
 
@@ -3348,7 +3354,7 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 		    usize, alignment, zero, tcache, arena, tctx, hook_args);
 	} else {
 		p = iralloct(tsd_tsdn(tsd), old_ptr, old_usize, size, alignment,
-		    zero, tcache, arena, hook_args);
+		    usize, zero, tcache, arena, hook_args);
 	}
 	if (unlikely(p == NULL)) {
 		prof_alloc_rollback(tsd, tctx);
@@ -3407,7 +3413,7 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 		}
 	} else {
 		p = iralloct(tsd_tsdn(tsd), ptr, old_usize, size, alignment,
-		    zero, tcache, arena, &hook_args);
+		    usize, zero, tcache, arena, &hook_args);
 		if (unlikely(p == NULL)) {
 			goto label_oom;
 		}
