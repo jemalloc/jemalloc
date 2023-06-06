@@ -2090,7 +2090,7 @@ malloc_init_narenas(void) {
 		    narenas_auto);
 	}
 	narenas_total_set(narenas_auto);
-	if (arena_init_huge()) {
+	if (arena_init_huge(a0)) {
 		narenas_total_inc();
 	}
 	manual_arena_base = narenas_total_get();
