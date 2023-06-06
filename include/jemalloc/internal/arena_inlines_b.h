@@ -28,14 +28,18 @@ arena_choose_maybe_huge(tsd_t *tsd, arena_t *arena, size_t size) {
 	 * 1) is using auto arena selection (i.e. arena == NULL), and 2) the
 	 * thread is not assigned to a manual arena.
 	 */
-	if (unlikely(size >= oversize_threshold)) {
-		arena_t *tsd_arena = tsd_arena_get(tsd);
-		if (tsd_arena == NULL || arena_is_auto(tsd_arena)) {
-			return arena_choose_huge(tsd);
-		}
+	arena_t *tsd_arena = tsd_arena_get(tsd);
+	if (tsd_arena == NULL) {
+		tsd_arena = arena_choose(tsd, NULL);
 	}
 
-	return arena_choose(tsd, NULL);
+	size_t threshold = atomic_load_zu(
+	    &tsd_arena->pa_shard.pac.oversize_threshold, ATOMIC_RELAXED);
+	if (unlikely(size >= threshold) && arena_is_auto(tsd_arena)) {
+		return arena_choose_huge(tsd);
+	}
+
+	return tsd_arena;
 }
 
 JEMALLOC_ALWAYS_INLINE void

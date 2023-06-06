@@ -1770,7 +1770,7 @@ arena_choose_huge(tsd_t *tsd) {
 }
 
 bool
-arena_init_huge(void) {
+arena_init_huge(arena_t *a0) {
 	bool huge_enabled;
 
 	/* The threshold should be large size class. */
@@ -1783,6 +1783,9 @@ arena_init_huge(void) {
 		/* Reserve the index for the huge arena. */
 		huge_arena_ind = narenas_total_get();
 		oversize_threshold = opt_oversize_threshold;
+		/* a0 init happened before malloc_conf_init. */
+		atomic_store_zu(&a0->pa_shard.pac.oversize_threshold,
+		    oversize_threshold, ATOMIC_RELAXED);
 		huge_enabled = true;
 	}
 
