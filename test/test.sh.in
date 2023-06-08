@@ -63,8 +63,14 @@ for t in $@; do
       fail_count=$((fail_count+1))
       ;;
     *)
-      echo "Test harness error: ${t} w/ MALLOC_CONF=\"${MALLOC_CONF}\"" 1>&2
-      echo "Use prefix to debug, e.g. JEMALLOC_TEST_PREFIX=\"gdb --args\" sh test/test.sh ${t}" 1>&2
+      color_start=''
+      color_end=''
+      if [ -t 2 ] && tput colors >/dev/null 2>&1; then
+        color_start='\033[31m'
+        color_end='\033[0m'
+      fi
+      printf "${color_start}Test harness error: %s w/ MALLOC_CONF=\"%s\"${color_end}\n" "${t}" "${MALLOC_CONF}" 1>&2
+      printf "${color_start}Use prefix to debug, e.g. JEMALLOC_TEST_PREFIX=\"gdb --args\" sh test/test.sh %s${color_end}\n" "${t}" 1>&2
       exit 1
   esac
 done
