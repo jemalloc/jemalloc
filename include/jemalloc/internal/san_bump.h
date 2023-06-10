@@ -1,9 +1,11 @@
 #ifndef JEMALLOC_INTERNAL_SAN_BUMP_H
 #define JEMALLOC_INTERNAL_SAN_BUMP_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/edata.h"
 #include "jemalloc/internal/exp_grow.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/witness.h"
 
 #define SBA_RETAINED_ALLOC_SIZE ((size_t)4 << 20)
 

@@ -3,7 +3,9 @@
 #endif
 #define JEMALLOC_INTERNAL_TSD_WIN_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/tsd_internals.h"
+#include "jemalloc/internal/tsd_types.h"
 
 typedef struct {
 	bool initialized;

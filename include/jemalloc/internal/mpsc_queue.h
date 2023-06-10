@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_MPSC_QUEUE_H
 #define JEMALLOC_INTERNAL_MPSC_QUEUE_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/atomic.h"
 
 /*

@@ -3,6 +3,7 @@
 #endif
 #define JEMALLOC_INTERNAL_TSD_INTERNALS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/activity_callback.h"
 #include "jemalloc/internal/arena_types.h"
 #include "jemalloc/internal/assert.h"
@@ -12,11 +13,11 @@
 #include "jemalloc/internal/prof_types.h"
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/rtree_tsd.h"
-#include "jemalloc/internal/tcache_types.h"
 #include "jemalloc/internal/tcache_structs.h"
+#include "jemalloc/internal/tcache_types.h"
+#include "jemalloc/internal/tsd_types.h"
 #include "jemalloc/internal/util.h"
 #include "jemalloc/internal/witness.h"
-#include "jemalloc/internal/tsd_types.h"
 
 /*
  * Thread-Specific-Data layout

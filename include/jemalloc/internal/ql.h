@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_QL_H
 #define JEMALLOC_INTERNAL_QL_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/qr.h"
 
 /*

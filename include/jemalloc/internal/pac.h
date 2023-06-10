@@ -1,10 +1,14 @@
 #ifndef JEMALLOC_INTERNAL_PAC_H
 #define JEMALLOC_INTERNAL_PAC_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/decay.h"
+#include "jemalloc/internal/ecache.h"
+#include "jemalloc/internal/edata_cache.h"
 #include "jemalloc/internal/exp_grow.h"
+#include "jemalloc/internal/lockedint.h"
 #include "jemalloc/internal/pai.h"
 #include "san_bump.h"
-
 
 /*
  * Page allocator classic; an implementation of the PAI interface that:

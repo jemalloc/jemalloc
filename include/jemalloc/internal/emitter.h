@@ -1,6 +1,10 @@
 #ifndef JEMALLOC_INTERNAL_EMITTER_H
 #define JEMALLOC_INTERNAL_EMITTER_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/jemalloc_internal_types.h"
+#include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/ql.h"
 
 typedef enum emitter_output_e emitter_output_t;

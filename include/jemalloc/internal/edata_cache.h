@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_EDATA_CACHE_H
 #define JEMALLOC_INTERNAL_EDATA_CACHE_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/base.h"
 
 /* For tests only. */

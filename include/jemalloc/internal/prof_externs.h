@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_PROF_EXTERNS_H
 #define JEMALLOC_INTERNAL_PROF_EXTERNS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/base.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/prof_hook.h"
 

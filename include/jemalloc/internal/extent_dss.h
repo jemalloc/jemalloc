@@ -1,6 +1,10 @@
 #ifndef JEMALLOC_INTERNAL_EXTENT_DSS_H
 #define JEMALLOC_INTERNAL_EXTENT_DSS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/arena_types.h"
+#include "jemalloc/internal/tsd_types.h"
+
 typedef enum {
 	dss_prec_disabled  = 0,
 	dss_prec_primary   = 1,

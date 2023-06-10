@@ -1,14 +1,16 @@
 #ifndef JEMALLOC_INTERNAL_INLINES_C_H
 #define JEMALLOC_INTERNAL_INLINES_C_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/arena_externs.h"
+#include "jemalloc/internal/arena_inlines_b.h"
+#include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/hook.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/log.h"
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/thread_event.h"
 #include "jemalloc/internal/witness.h"
-#include "jemalloc/internal/arena_externs.h"
-#include "jemalloc/internal/emap.h"
 
 /*
  * These correspond to the macros in jemalloc/jemalloc_macros.h.  Broadly, we

@@ -1,8 +1,11 @@
 #ifndef JEMALLOC_INTERNAL_GUARD_H
 #define JEMALLOC_INTERNAL_GUARD_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/ehooks.h"
 #include "jemalloc/internal/emap.h"
+#include "jemalloc/internal/jemalloc_internal_externs.h"
+#include "jemalloc/internal/tsd.h"
 
 #define SAN_PAGE_GUARD PAGE
 #define SAN_PAGE_GUARDS_SIZE (SAN_PAGE_GUARD * 2)

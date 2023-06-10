@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_WITNESS_H
 #define JEMALLOC_INTERNAL_WITNESS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/ql.h"
 
 /******************************************************************************/

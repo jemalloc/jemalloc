@@ -1,6 +1,11 @@
 #ifndef JEMALLOC_INTERNAL_BACKGROUND_THREAD_EXTERNS_H
 #define JEMALLOC_INTERNAL_BACKGROUND_THREAD_EXTERNS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/background_thread_structs.h"
+#include "jemalloc/internal/base.h"
+#include "jemalloc/internal/mutex.h"
+
 extern bool opt_background_thread;
 extern size_t opt_max_background_threads;
 extern malloc_mutex_t background_thread_lock;

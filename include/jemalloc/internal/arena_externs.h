@@ -1,8 +1,11 @@
 #ifndef JEMALLOC_INTERNAL_ARENA_EXTERNS_H
 #define JEMALLOC_INTERNAL_ARENA_EXTERNS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/arena_stats.h"
 #include "jemalloc/internal/bin.h"
 #include "jemalloc/internal/div.h"
+#include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/hook.h"
 #include "jemalloc/internal/pages.h"

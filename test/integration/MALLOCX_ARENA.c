@@ -2,14 +2,6 @@
 
 #define NTHREADS 10
 
-static bool have_dss =
-#ifdef JEMALLOC_DSS
-    true
-#else
-    false
-#endif
-    ;
-
 void *
 thd_start(void *arg) {
 	unsigned thread_ind = (unsigned)(uintptr_t)arg;

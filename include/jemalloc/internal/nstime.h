@@ -1,6 +1,9 @@
 #ifndef JEMALLOC_INTERNAL_NSTIME_H
 #define JEMALLOC_INTERNAL_NSTIME_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/assert.h"
+
 /* Maximum supported number of seconds (~584 years). */
 #define NSTIME_SEC_MAX KQU(18446744072)
 

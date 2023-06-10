@@ -1,10 +1,14 @@
 #ifndef JEMALLOC_INTERNAL_PROF_INLINES_H
 #define JEMALLOC_INTERNAL_PROF_INLINES_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/arena_inlines_b.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_c.h"
+#include "jemalloc/internal/prof_externs.h"
+#include "jemalloc/internal/prof_structs.h"
 #include "jemalloc/internal/safety_check.h"
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/thread_event.h"
-#include "jemalloc/internal/jemalloc_internal_inlines_c.h"
 
 JEMALLOC_ALWAYS_INLINE void
 prof_active_assert(void) {

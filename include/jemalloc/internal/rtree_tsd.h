@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_RTREE_CTX_H
 #define JEMALLOC_INTERNAL_RTREE_CTX_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+
 /*
  * Number of leafkey/leaf pairs to cache in L1 and L2 level respectively.  Each
  * entry supports an entire leaf, so the cache hit rate is typically high even

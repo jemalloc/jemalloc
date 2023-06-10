@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_EXP_GROW_H
 #define JEMALLOC_INTERNAL_EXP_GROW_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/sz.h"
 typedef struct exp_grow_s exp_grow_t;
 struct exp_grow_s {
 	/*

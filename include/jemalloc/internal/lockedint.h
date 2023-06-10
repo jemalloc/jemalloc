@@ -1,6 +1,11 @@
 #ifndef JEMALLOC_INTERNAL_LOCKEDINT_H
 #define JEMALLOC_INTERNAL_LOCKEDINT_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/tsd_types.h"
+
 /*
  * In those architectures that support 64-bit atomics, we use atomic updates for
  * our 64-bit values.  Otherwise, we use a plain uint64_t and synchronize

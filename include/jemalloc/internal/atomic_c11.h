@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_ATOMIC_C11_H
 #define JEMALLOC_INTERNAL_ATOMIC_C11_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include <stdatomic.h>
 
 #define ATOMIC_INIT(...) ATOMIC_VAR_INIT(__VA_ARGS__)

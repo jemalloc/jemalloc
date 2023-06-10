@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_ACTIVITY_CALLBACK_H
 #define JEMALLOC_INTERNAL_ACTIVITY_CALLBACK_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+
 /*
  * The callback to be executed "periodically", in response to some amount of
  * allocator activity.

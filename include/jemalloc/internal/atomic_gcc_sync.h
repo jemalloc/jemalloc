@@ -1,6 +1,10 @@
 #ifndef JEMALLOC_INTERNAL_ATOMIC_GCC_SYNC_H
 #define JEMALLOC_INTERNAL_ATOMIC_GCC_SYNC_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+
+#define ATOMIC_INLINE JEMALLOC_ALWAYS_INLINE
+
 #define ATOMIC_INIT(...) {__VA_ARGS__}
 
 typedef enum {
@@ -191,5 +195,7 @@ atomic_fetch_xor_##short_type(atomic_##short_type##_t *a, type val,	\
     atomic_memory_order_t mo) {						\
 	return __sync_fetch_and_xor(&a->repr, val);			\
 }
+
+#undef ATOMIC_INLINE
 
 #endif /* JEMALLOC_INTERNAL_ATOMIC_GCC_SYNC_H */

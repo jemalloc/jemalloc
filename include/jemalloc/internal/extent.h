@@ -1,8 +1,10 @@
 #ifndef JEMALLOC_INTERNAL_EXTENT_H
 #define JEMALLOC_INTERNAL_EXTENT_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/ecache.h"
 #include "jemalloc/internal/ehooks.h"
+#include "jemalloc/internal/pac.h"
 #include "jemalloc/internal/ph.h"
 #include "jemalloc/internal/rtree.h"
 

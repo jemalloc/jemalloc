@@ -1,11 +1,12 @@
 #ifndef JEMALLOC_INTERNAL_TCACHE_STRUCTS_H
 #define JEMALLOC_INTERNAL_TCACHE_STRUCTS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/cache_bin.h"
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/sc.h"
+#include "jemalloc/internal/tcache_types.h"
 #include "jemalloc/internal/ticker.h"
-#include "jemalloc/internal/tsd_types.h"
 
 /*
  * The tcache state is split into the slow and hot path data.  Each has a

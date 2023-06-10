@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_PAGES_EXTERNS_H
 #define JEMALLOC_INTERNAL_PAGES_EXTERNS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+
 /* Actual operating system page size, detected during bootstrap, <= PAGE. */
 extern size_t	os_page;
 

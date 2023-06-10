@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_SPIN_H
 #define JEMALLOC_INTERNAL_SPIN_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+
 #define SPIN_INITIALIZER {0U}
 
 typedef struct {

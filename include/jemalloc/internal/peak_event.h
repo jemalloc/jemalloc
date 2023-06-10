@@ -1,6 +1,9 @@
 #ifndef JEMALLOC_INTERNAL_PEAK_EVENT_H
 #define JEMALLOC_INTERNAL_PEAK_EVENT_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/tsd_types.h"
+
 /*
  * While peak.h contains the simple helper struct that tracks state, this
  * contains the allocator tie-ins (and knows about tsd, the event module, etc.).

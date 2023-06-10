@@ -1,7 +1,10 @@
 #ifndef JEMALLOC_INTERNAL_HPDATA_H
 #define JEMALLOC_INTERNAL_HPDATA_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/fb.h"
+#include "jemalloc/internal/nstime.h"
+#include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/ph.h"
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/typed_list.h"

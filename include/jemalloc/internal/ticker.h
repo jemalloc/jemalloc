@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_TICKER_H
 #define JEMALLOC_INTERNAL_TICKER_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/util.h"
 

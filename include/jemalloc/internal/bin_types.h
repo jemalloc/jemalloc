@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_BIN_TYPES_H
 #define JEMALLOC_INTERNAL_BIN_TYPES_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/sc.h"
 
 #define BIN_SHARDS_MAX (1 << EDATA_BITS_BINSHARD_WIDTH)

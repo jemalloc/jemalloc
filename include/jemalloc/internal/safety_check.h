@@ -1,9 +1,11 @@
 #ifndef JEMALLOC_INTERNAL_SAFETY_CHECK_H
 #define JEMALLOC_INTERNAL_SAFETY_CHECK_H
 
-#define SAFETY_CHECK_DOUBLE_FREE_MAX_SCAN_DEFAULT 32
-
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/pages.h"
+
+#define SAFETY_CHECK_DOUBLE_FREE_MAX_SCAN_DEFAULT 32
 
 void safety_check_fail_sized_dealloc(bool current_dealloc, const void *ptr,
     size_t true_size, size_t input_size);

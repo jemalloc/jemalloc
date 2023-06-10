@@ -1,6 +1,10 @@
 #ifndef JEMALLOC_INTERNAL_BUF_WRITER_H
 #define JEMALLOC_INTERNAL_BUF_WRITER_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/jemalloc_internal_types.h"
+#include "jemalloc/internal/tsd_types.h"
+
 /*
  * Note: when using the buffered writer, cbopaque is passed to write_cb only
  * when the buffer is flushed.  It would make a difference if cbopaque points

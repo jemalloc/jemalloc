@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_PROF_STRUCTS_H
 #define JEMALLOC_INTERNAL_PROF_STRUCTS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/ckh.h"
 #include "jemalloc/internal/edata.h"
 #include "jemalloc/internal/mutex.h"

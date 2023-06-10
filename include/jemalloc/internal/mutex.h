@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_MUTEX_H
 #define JEMALLOC_INTERNAL_MUTEX_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/mutex_prof.h"
 #include "jemalloc/internal/tsd.h"

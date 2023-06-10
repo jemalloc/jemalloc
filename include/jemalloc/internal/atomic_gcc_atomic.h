@@ -1,7 +1,10 @@
 #ifndef JEMALLOC_INTERNAL_ATOMIC_GCC_ATOMIC_H
 #define JEMALLOC_INTERNAL_ATOMIC_GCC_ATOMIC_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/assert.h"
+
+#define ATOMIC_INLINE JEMALLOC_ALWAYS_INLINE
 
 #define ATOMIC_INIT(...) {__VA_ARGS__}
 
@@ -125,5 +128,7 @@ atomic_fetch_xor_##short_type(atomic_##short_type##_t *a, type val,	\
 	return __atomic_fetch_xor(&a->repr, val,			\
 	    atomic_enum_to_builtin(mo));				\
 }
+
+#undef ATOMIC_INLINE
 
 #endif /* JEMALLOC_INTERNAL_ATOMIC_GCC_ATOMIC_H */

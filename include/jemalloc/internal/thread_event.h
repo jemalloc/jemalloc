@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_THREAD_EVENT_H
 #define JEMALLOC_INTERNAL_THREAD_EVENT_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/tsd.h"
 
 /* "te" is short for "thread_event" */

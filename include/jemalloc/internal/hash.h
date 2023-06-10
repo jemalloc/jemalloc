@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_HASH_H
 #define JEMALLOC_INTERNAL_HASH_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/assert.h"
 
 /*

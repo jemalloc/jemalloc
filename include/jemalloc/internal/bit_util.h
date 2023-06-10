@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_BIT_UTIL_H
 #define JEMALLOC_INTERNAL_BIT_UTIL_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/assert.h"
 
 /* Sanity check. */
