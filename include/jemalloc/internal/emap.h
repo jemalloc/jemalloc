@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_EMAP_H
 #define JEMALLOC_INTERNAL_EMAP_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/base.h"
 #include "jemalloc/internal/rtree.h"
 

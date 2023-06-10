@@ -1,8 +1,11 @@
 #ifndef JEMALLOC_INTERNAL_EHOOKS_H
 #define JEMALLOC_INTERNAL_EHOOKS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/extent_mmap.h"
+#include "jemalloc/internal/tsd.h"
+#include "jemalloc/internal/tsd_types.h"
 
 /*
  * This module is the internal interface to the extent hooks (both

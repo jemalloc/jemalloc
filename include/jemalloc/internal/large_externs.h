@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_LARGE_EXTERNS_H
 #define JEMALLOC_INTERNAL_LARGE_EXTERNS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/edata.h"
 #include "jemalloc/internal/hook.h"
 
 void *large_malloc(tsdn_t *tsdn, arena_t *arena, size_t usize, bool zero);

@@ -1,6 +1,11 @@
 #ifndef JEMALLOC_INTERNAL_BACKGROUND_THREAD_INLINES_H
 #define JEMALLOC_INTERNAL_BACKGROUND_THREAD_INLINES_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/arena_inlines_a.h"
+#include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/background_thread_externs.h"
+
 JEMALLOC_ALWAYS_INLINE bool
 background_thread_enabled(void) {
 	return atomic_load_b(&background_thread_enabled_state, ATOMIC_RELAXED);

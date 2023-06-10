@@ -1,9 +1,10 @@
 #ifndef JEMALLOC_INTERNAL_ECACHE_H
 #define JEMALLOC_INTERNAL_ECACHE_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/eset.h"
-#include "jemalloc/internal/san.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/san.h"
 
 typedef struct ecache_s ecache_t;
 struct ecache_s {

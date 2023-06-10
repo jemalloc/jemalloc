@@ -1,10 +1,14 @@
 #ifndef JEMALLOC_INTERNAL_INLINES_A_H
 #define JEMALLOC_INTERNAL_INLINES_A_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/arena_externs.h"
+#include "jemalloc/internal/arena_types.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bit_util.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/sc.h"
+#include "jemalloc/internal/tcache_externs.h"
 #include "jemalloc/internal/ticker.h"
 
 JEMALLOC_ALWAYS_INLINE malloc_cpuid_t

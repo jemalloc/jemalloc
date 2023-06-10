@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_PROF_DATA_H
 #define JEMALLOC_INTERNAL_PROF_DATA_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/mutex.h"
 
 extern malloc_mutex_t bt2gctx_mtx;

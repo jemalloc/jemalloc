@@ -1,6 +1,12 @@
 #ifndef JEMALLOC_INTERNAL_TCACHE_EXTERNS_H
 #define JEMALLOC_INTERNAL_TCACHE_EXTERNS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/base.h"
+#include "jemalloc/internal/cache_bin.h"
+#include "jemalloc/internal/sz.h"
+#include "jemalloc/internal/tcache_types.h"
+
 extern bool opt_tcache;
 extern size_t opt_tcache_max;
 extern ssize_t	opt_lg_tcache_nslots_mul;

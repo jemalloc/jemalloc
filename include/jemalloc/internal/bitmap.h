@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_BITMAP_H
 #define JEMALLOC_INTERNAL_BITMAP_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/bit_util.h"
 #include "jemalloc/internal/sc.h"
 

@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_COUNTER_H
 #define JEMALLOC_INTERNAL_COUNTER_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/lockedint.h"
 #include "jemalloc/internal/mutex.h"
 
 typedef struct counter_accum_s {

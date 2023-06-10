@@ -1,6 +1,10 @@
 #ifndef JEMALLOC_INTERNAL_PROF_SYS_H
 #define JEMALLOC_INTERNAL_PROF_SYS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/base.h"
+#include "jemalloc/internal/mutex.h"
+
 extern malloc_mutex_t prof_dump_filename_mtx;
 extern base_t *prof_base;
 

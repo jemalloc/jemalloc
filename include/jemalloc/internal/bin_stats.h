@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_BIN_STATS_H
 #define JEMALLOC_INTERNAL_BIN_STATS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/mutex_prof.h"
 
 typedef struct bin_stats_s bin_stats_t;

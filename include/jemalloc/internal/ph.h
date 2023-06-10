@@ -1,6 +1,10 @@
 #ifndef JEMALLOC_INTERNAL_PH_H
 #define JEMALLOC_INTERNAL_PH_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/bit_util.h"
+
 /*
  * A Pairing Heap implementation.
  *

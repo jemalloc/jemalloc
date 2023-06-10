@@ -1,7 +1,10 @@
 #ifndef JEMALLOC_INTERNAL_RTREE_H
 #define JEMALLOC_INTERNAL_RTREE_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/base.h"
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/edata.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/rtree_tsd.h"
 #include "jemalloc/internal/sc.h"

@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_ARENA_TYPES_H
 #define JEMALLOC_INTERNAL_ARENA_TYPES_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/sc.h"
 
 /* Default decay times in milliseconds. */

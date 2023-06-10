@@ -1,6 +1,9 @@
 #ifndef JEMALLOC_INTERNAL_INSPECT_H
 #define JEMALLOC_INTERNAL_INSPECT_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/tsd_types.h"
+
 /*
  * This module contains the heap introspection capabilities.  For now they are
  * exposed purely through mallctl APIs in the experimental namespace, but this

@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_LOG_H
 #define JEMALLOC_INTERNAL_LOG_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/mutex.h"

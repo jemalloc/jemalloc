@@ -1,6 +1,9 @@
 #ifndef JEMALLOC_INTERNAL_UTIL_H
 #define JEMALLOC_INTERNAL_UTIL_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/jemalloc_internal_types.h"
+
 #define UTIL_INLINE static inline
 
 /* Junk fill patterns. */

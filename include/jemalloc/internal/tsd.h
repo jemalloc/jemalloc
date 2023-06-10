@@ -7,6 +7,7 @@
  * tsd_boot1, tsd_boot, tsd_booted_get, tsd_get_allocates, tsd_get, and tsd_set.
  */
 #ifdef JEMALLOC_MALLOC_THREAD_CLEANUP
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/tsd_malloc_thread_cleanup.h"
 #elif (defined(JEMALLOC_TLS))
 #include "jemalloc/internal/tsd_tls.h"

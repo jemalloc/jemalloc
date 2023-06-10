@@ -1,7 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_ATOMIC_H
 #define JEMALLOC_INTERNAL_ATOMIC_H
 
-#define ATOMIC_INLINE JEMALLOC_ALWAYS_INLINE
+#include "jemalloc/internal/jemalloc_preamble.h"
 
 #define JEMALLOC_U8_ATOMICS
 #if defined(JEMALLOC_GCC_ATOMIC_ATOMICS)
@@ -21,6 +21,8 @@
 #else
 #  error "Don't have atomics implemented on this platform."
 #endif
+
+#define ATOMIC_INLINE JEMALLOC_ALWAYS_INLINE
 
 /*
  * This header gives more or less a backport of C11 atomics. The user can write

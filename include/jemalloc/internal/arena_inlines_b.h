@@ -1,14 +1,22 @@
 #ifndef JEMALLOC_INTERNAL_ARENA_INLINES_B_H
 #define JEMALLOC_INTERNAL_ARENA_INLINES_B_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/arena_externs.h"
+#include "jemalloc/internal/arena_structs.h"
 #include "jemalloc/internal/div.h"
 #include "jemalloc/internal/emap.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_b.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
+#include "jemalloc/internal/large_externs.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/prof_externs.h"
+#include "jemalloc/internal/prof_structs.h"
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/safety_check.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/sz.h"
+#include "jemalloc/internal/tcache_inlines.h"
 #include "jemalloc/internal/ticker.h"
 
 static inline arena_t *

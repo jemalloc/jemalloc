@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_TCACHE_TYPES_H
 #define JEMALLOC_INTERNAL_TCACHE_TYPES_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/sc.h"
 
 typedef struct tcache_slow_s tcache_slow_t;

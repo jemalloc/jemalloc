@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_EXTENT_MMAP_EXTERNS_H
 #define JEMALLOC_INTERNAL_EXTENT_MMAP_EXTERNS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+
 extern bool opt_retain;
 
 void *extent_alloc_mmap(void *new_addr, size_t size, size_t alignment,

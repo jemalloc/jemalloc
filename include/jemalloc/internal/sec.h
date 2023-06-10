@@ -1,8 +1,12 @@
 #ifndef JEMALLOC_INTERNAL_SEC_H
 #define JEMALLOC_INTERNAL_SEC_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/base.h"
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/pai.h"
+#include "jemalloc/internal/sec_opts.h"
 
 /*
  * Small extent cache.

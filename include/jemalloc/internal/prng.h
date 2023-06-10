@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_PRNG_H
 #define JEMALLOC_INTERNAL_PRNG_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/bit_util.h"
 
 /*

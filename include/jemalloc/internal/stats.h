@@ -1,6 +1,10 @@
 #ifndef JEMALLOC_INTERNAL_STATS_H
 #define JEMALLOC_INTERNAL_STATS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/jemalloc_internal_types.h"
+#include "jemalloc/internal/tsd_types.h"
+
 /*  OPTION(opt,		var_name,	default,	set_value_to) */
 #define STATS_PRINT_OPTIONS						\
     OPTION('J',		json,		false,		true)		\

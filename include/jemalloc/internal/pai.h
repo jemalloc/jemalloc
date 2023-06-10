@@ -1,6 +1,10 @@
 #ifndef JEMALLOC_INTERNAL_PAI_H
 #define JEMALLOC_INTERNAL_PAI_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/edata.h"
+#include "jemalloc/internal/tsd_types.h"
+
 /* An interface for page allocation. */
 
 typedef struct pai_s pai_t;

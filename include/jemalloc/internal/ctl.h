@@ -1,6 +1,10 @@
 #ifndef JEMALLOC_INTERNAL_CTL_H
 #define JEMALLOC_INTERNAL_CTL_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/arena_stats.h"
+#include "jemalloc/internal/background_thread_structs.h"
+#include "jemalloc/internal/bin_stats.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/mutex_prof.h"

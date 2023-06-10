@@ -1,6 +1,10 @@
 #ifndef JEMALLOC_INTERNAL_FB_H
 #define JEMALLOC_INTERNAL_FB_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/bit_util.h"
+
 /*
  * The flat bitmap module.  This has a larger API relative to the bitmap module
  * (supporting things like backwards searches, and searching for both set and

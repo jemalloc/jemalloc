@@ -3,7 +3,10 @@
 #endif
 #define JEMALLOC_INTERNAL_TSD_GENERIC_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/tsd_internals.h"
+#include "jemalloc/internal/tsd_types.h"
 
 typedef struct tsd_init_block_s tsd_init_block_t;
 struct tsd_init_block_s {

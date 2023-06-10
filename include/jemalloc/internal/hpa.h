@@ -1,9 +1,14 @@
 #ifndef JEMALLOC_INTERNAL_HPA_H
 #define JEMALLOC_INTERNAL_HPA_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/base.h"
+#include "jemalloc/internal/edata_cache.h"
+#include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/exp_grow.h"
 #include "jemalloc/internal/hpa_hooks.h"
 #include "jemalloc/internal/hpa_opts.h"
+#include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/pai.h"
 #include "jemalloc/internal/psset.h"
 

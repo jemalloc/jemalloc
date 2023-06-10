@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_PROF_HOOK_H
 #define JEMALLOC_INTERNAL_PROF_HOOK_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+
 /*
  * The hooks types of which are declared in this file are experimental and
  * undocumented, thus the typedefs are located in an 'internal' header.

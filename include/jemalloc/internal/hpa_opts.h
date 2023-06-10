@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_HPA_OPTS_H
 #define JEMALLOC_INTERNAL_HPA_OPTS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/fxp.h"
 
 /*

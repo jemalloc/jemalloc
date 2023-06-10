@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_BIN_INFO_H
 #define JEMALLOC_INTERNAL_BIN_INFO_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/bitmap.h"
 
 /*

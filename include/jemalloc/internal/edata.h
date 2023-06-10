@@ -1,12 +1,14 @@
 #ifndef JEMALLOC_INTERNAL_EDATA_H
 #define JEMALLOC_INTERNAL_EDATA_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bin_info.h"
 #include "jemalloc/internal/bit_util.h"
 #include "jemalloc/internal/hpdata.h"
 #include "jemalloc/internal/nstime.h"
 #include "jemalloc/internal/ph.h"
+#include "jemalloc/internal/prof_types.h"
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/slab_data.h"

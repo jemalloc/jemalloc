@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_BASE_H
 #define JEMALLOC_INTERNAL_BASE_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/edata.h"
 #include "jemalloc/internal/ehooks.h"
 #include "jemalloc/internal/mutex.h"

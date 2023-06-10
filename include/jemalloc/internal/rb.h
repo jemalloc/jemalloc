@@ -1,6 +1,9 @@
 #ifndef JEMALLOC_INTERNAL_RB_H
 #define JEMALLOC_INTERNAL_RB_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/safety_check.h"
+
 /*-
  *******************************************************************************
  *

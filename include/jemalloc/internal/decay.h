@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_DECAY_H
 #define JEMALLOC_INTERNAL_DECAY_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/smoothstep.h"
 
 #define DECAY_UNBOUNDED_TIME_TO_PURGE ((uint64_t)-1)

@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_BIN_H
 #define JEMALLOC_INTERNAL_BIN_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/bin_stats.h"
 #include "jemalloc/internal/bin_types.h"
 #include "jemalloc/internal/edata.h"

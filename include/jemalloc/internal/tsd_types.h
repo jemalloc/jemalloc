@@ -3,6 +3,8 @@
 
 #define MALLOC_TSD_CLEANUPS_MAX	4
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+
 typedef struct tsd_s tsd_t;
 typedef struct tsdn_s tsdn_t;
 typedef bool (*malloc_tsd_cleanup_t)(void);

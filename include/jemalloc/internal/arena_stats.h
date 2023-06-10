@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_ARENA_STATS_H
 #define JEMALLOC_INTERNAL_ARENA_STATS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/lockedint.h"
 #include "jemalloc/internal/mutex.h"

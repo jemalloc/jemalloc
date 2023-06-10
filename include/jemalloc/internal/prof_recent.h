@@ -1,6 +1,10 @@
 #ifndef JEMALLOC_INTERNAL_PROF_RECENT_H
 #define JEMALLOC_INTERNAL_PROF_RECENT_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/edata.h"
+#include "jemalloc/internal/mutex.h"
+
 extern malloc_mutex_t prof_recent_alloc_mtx;
 extern malloc_mutex_t prof_recent_dump_mtx;
 

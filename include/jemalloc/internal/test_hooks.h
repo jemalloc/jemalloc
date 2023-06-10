@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_TEST_HOOKS_H
 #define JEMALLOC_INTERNAL_TEST_HOOKS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+
 extern JEMALLOC_EXPORT void (*test_hooks_arena_new_hook)(void);
 extern JEMALLOC_EXPORT void (*test_hooks_libc_hook)(void);
 

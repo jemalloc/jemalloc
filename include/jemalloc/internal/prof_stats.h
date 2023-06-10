@@ -1,6 +1,9 @@
 #ifndef JEMALLOC_INTERNAL_PROF_STATS_H
 #define JEMALLOC_INTERNAL_PROF_STATS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/mutex.h"
+
 typedef struct prof_stats_s prof_stats_t;
 struct prof_stats_s {
 	uint64_t req_sum;

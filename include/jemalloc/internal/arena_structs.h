@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_ARENA_STRUCTS_H
 #define JEMALLOC_INTERNAL_ARENA_STRUCTS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/arena_stats.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bin.h"
