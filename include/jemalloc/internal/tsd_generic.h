@@ -3,6 +3,8 @@
 #endif
 #define JEMALLOC_INTERNAL_TSD_GENERIC_H
 
+#include "jemalloc/internal/tsd_internals.h"
+
 typedef struct tsd_init_block_s tsd_init_block_t;
 struct tsd_init_block_s {
 	ql_elm(tsd_init_block_t) link;
