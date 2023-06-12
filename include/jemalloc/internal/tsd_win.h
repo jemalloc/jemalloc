@@ -3,6 +3,8 @@
 #endif
 #define JEMALLOC_INTERNAL_TSD_WIN_H
 
+#include "jemalloc/internal/tsd_internals.h"
+
 typedef struct {
 	bool initialized;
 	tsd_t val;
