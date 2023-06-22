@@ -25,12 +25,7 @@ static uint64_t hpa_time_until_deferred_work(tsdn_t *tsdn, pai_t *self);
 
 bool
 hpa_supported() {
-#ifdef _WIN32
-	/*
-	 * At least until the API and implementation is somewhat settled, we
-	 * don't want to try to debug the VM subsystem on the hardest-to-test
-	 * platform.
-	 */
+#ifndef HPA_SUPPORTED
 	return false;
 #endif
 	if (!pages_can_hugify) {

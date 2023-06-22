@@ -546,6 +546,15 @@ static void								\
 f(void) {								\
 	p_test_init(#f);
 
+#define TEST_SKIP(f)							\
+static void									\
+f(void) {									\
+	p_test_init(#f);						\
+	test_skip("%s:%s:%d: Test skipped: ",	\
+		__func__, __FILE__, __LINE__);		\
+	p_test_fini();							\
+}
+
 #define TEST_END							\
 	goto label_test_end;						\
 label_test_end:								\

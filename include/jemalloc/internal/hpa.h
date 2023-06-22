@@ -7,6 +7,33 @@
 #include "jemalloc/internal/pai.h"
 #include "jemalloc/internal/psset.h"
 
+/*
+ * The HPA_SUPPORTED macro is not a technical indicator of whether HPA
+ * theoretically functions on the platform, but rather whether the platform is
+ * tested/supported for using HPA on by the jemalloc developers.
+ */
+#ifdef HPA_SUPPORTED
+#warning "Force-enabling HPA support. Do NOT report issues to jemalloc developers."
+#else
+#define HPA_SUPPORTED 1
+
+/*
+ * At least until the API and implementation is somewhat settled, we
+ * don't want to try to debug the VM subsystem on the hardest-to-test
+ * platform.
+ */
+#ifdef _WIN32
+#undef HPA_SUPPORTED
+#endif
+
+/*
+ * https://github.com/jemalloc/jemalloc/issues/2305#issuecomment-1195917164
+ */
+#if !defined(__x86_64__) && !defined(__i386__)
+#undef HPA_SUPPORTED
+#endif
+#endif
+
 typedef struct hpa_central_s hpa_central_t;
 struct hpa_central_s {
 	/*
