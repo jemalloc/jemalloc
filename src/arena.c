@@ -1730,6 +1730,42 @@ label_error:
 	return NULL;
 }
 
+static arena_t *
+arena_create_huge_arena(tsd_t *tsd, unsigned ind) {
+	assert(ind != 0);
+
+	arena_t *huge_arena = arena_get(tsd_tsdn(tsd), ind, true);
+	if (huge_arena == NULL) {
+		return NULL;
+	}
+
+	char *huge_arena_name = "auto_oversize";
+	strncpy(huge_arena->name, huge_arena_name, ARENA_NAME_LEN);
+	huge_arena->name[ARENA_NAME_LEN - 1] = '\0';
+
+	/*
+	 * Purge eagerly for huge allocations, because: 1) number of huge
+	 * allocations is usually small, which means ticker based decay is not
+	 * reliable; and 2) less immediate reuse is expected for huge
+	 * allocations.
+	 *
+	 * However, with background threads enabled, keep normal purging since
+	 * the purging delay is bounded.
+	 */
+	if (!background_thread_enabled()
+	    && arena_dirty_decay_ms_default_get() > 0) {
+		arena_decay_ms_set(tsd_tsdn(tsd), huge_arena,
+		    extent_state_dirty, 0);
+	}
+	if (!background_thread_enabled()
+	    &&arena_muzzy_decay_ms_default_get() > 0) {
+		arena_decay_ms_set(tsd_tsdn(tsd), huge_arena,
+		    extent_state_muzzy, 0);
+	}
+
+	return huge_arena;
+}
+
 arena_t *
 arena_choose_huge(tsd_t *tsd) {
 	/* huge_arena_ind can be 0 during init (will use a0). */
@@ -1740,30 +1776,7 @@ arena_choose_huge(tsd_t *tsd) {
 	arena_t *huge_arena = arena_get(tsd_tsdn(tsd), huge_arena_ind, false);
 	if (huge_arena == NULL) {
 		/* Create the huge arena on demand. */
-		assert(huge_arena_ind != 0);
-		huge_arena = arena_get(tsd_tsdn(tsd), huge_arena_ind, true);
-		if (huge_arena == NULL) {
-			return NULL;
-		}
-
-		char *huge_arena_name = "auto_oversize";
-		strncpy(huge_arena->name, huge_arena_name, ARENA_NAME_LEN);
-		huge_arena->name[ARENA_NAME_LEN - 1] = '\0';
-
-		/*
-		 * Purge eagerly for huge allocations, because: 1) number of
-		 * huge allocations is usually small, which means ticker based
-		 * decay is not reliable; and 2) less immediate reuse is
-		 * expected for huge allocations.
-		 */
-		if (arena_dirty_decay_ms_default_get() > 0) {
-			arena_decay_ms_set(tsd_tsdn(tsd), huge_arena,
-			    extent_state_dirty, 0);
-		}
-		if (arena_muzzy_decay_ms_default_get() > 0) {
-			arena_decay_ms_set(tsd_tsdn(tsd), huge_arena,
-			    extent_state_muzzy, 0);
-		}
+		huge_arena = arena_create_huge_arena(tsd, huge_arena_ind);
 	}
 
 	return huge_arena;
