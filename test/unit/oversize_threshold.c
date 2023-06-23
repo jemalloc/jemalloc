@@ -120,7 +120,10 @@ TEST_BEGIN(test_oversize_threshold) {
 	 */
 	ptr = mallocx(2 * 1024 * 1024, MALLOCX_ARENA(arena));
 	dallocx(ptr, MALLOCX_TCACHE_NONE);
-	expect_zu_ge(max_purged, 2 * 1024 * 1024, "Expected a 2MB purge");
+	if (!is_background_thread_enabled()) {
+		expect_zu_ge(max_purged, 2 * 1024 * 1024,
+		    "Expected a 2MB purge");
+	}
 }
 TEST_END
 
