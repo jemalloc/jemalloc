@@ -144,7 +144,6 @@ TEST_BEGIN(test_retained) {
 
 		arena_t *arena = arena_get(tsdn_fetch(), arena_ind, false);
 		size_t usable = 0;
-		size_t fragmented = 0;
 		for (pszind_t pind = sz_psz2ind(HUGEPAGE); pind <
 		    arena->pa_shard.pac.exp_grow.next; pind++) {
 			size_t psz = sz_pind2sz(pind);
@@ -158,7 +157,6 @@ TEST_BEGIN(test_retained) {
 				    "Excessive retained memory "
 				    "(%#zx[+%#zx] > %#zx)", usable, psz_usable,
 				    allocated);
-				fragmented += psz_fragmented;
 				usable += psz_usable;
 			}
 		}

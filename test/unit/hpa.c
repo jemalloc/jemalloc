@@ -32,6 +32,8 @@ static hpa_shard_opts_t test_hpa_shard_opts_default = {
 	false,
 	/* hugify_delay_ms */
 	10 * 1000,
+	/* min_purge_interval_ms */
+	5 * 1000,
 };
 
 static hpa_shard_t *
