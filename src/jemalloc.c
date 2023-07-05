@@ -766,7 +766,7 @@ malloc_ncpus(void) {
  * Since otherwise tricky things is possible with percpu arenas in use.
  */
 static bool
-malloc_cpu_count_is_deterministic()
+malloc_cpu_count_is_deterministic(void)
 {
 #ifdef _WIN32
 	return true;
@@ -1807,7 +1807,7 @@ malloc_init_hard_needed(void) {
 }
 
 static bool
-malloc_init_hard_a0_locked() {
+malloc_init_hard_a0_locked(void) {
 	malloc_initializer = INITIALIZER;
 
 	JEMALLOC_DIAGNOSTIC_PUSH

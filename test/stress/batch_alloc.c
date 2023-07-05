@@ -124,12 +124,12 @@ compare_with_free(size_t batch, size_t iter,
 }
 
 static void
-batch_alloc_without_free_tiny() {
+batch_alloc_without_free_tiny(void) {
 	batch_alloc_without_free(TINY_BATCH);
 }
 
 static void
-item_alloc_without_free_tiny() {
+item_alloc_without_free_tiny(void) {
 	item_alloc_without_free(TINY_BATCH);
 }
 
@@ -140,12 +140,12 @@ TEST_BEGIN(test_tiny_batch_without_free) {
 TEST_END
 
 static void
-batch_alloc_with_free_tiny() {
+batch_alloc_with_free_tiny(void) {
 	batch_alloc_with_free(TINY_BATCH);
 }
 
 static void
-item_alloc_with_free_tiny() {
+item_alloc_with_free_tiny(void) {
 	item_alloc_with_free(TINY_BATCH);
 }
 
@@ -156,12 +156,12 @@ TEST_BEGIN(test_tiny_batch_with_free) {
 TEST_END
 
 static void
-batch_alloc_without_free_huge() {
+batch_alloc_without_free_huge(void) {
 	batch_alloc_without_free(HUGE_BATCH);
 }
 
 static void
-item_alloc_without_free_huge() {
+item_alloc_without_free_huge(void) {
 	item_alloc_without_free(HUGE_BATCH);
 }
 
@@ -172,12 +172,12 @@ TEST_BEGIN(test_huge_batch_without_free) {
 TEST_END
 
 static void
-batch_alloc_with_free_huge() {
+batch_alloc_with_free_huge(void) {
 	batch_alloc_with_free(HUGE_BATCH);
 }
 
 static void
-item_alloc_with_free_huge() {
+item_alloc_with_free_huge(void) {
 	item_alloc_with_free(HUGE_BATCH);
 }
 

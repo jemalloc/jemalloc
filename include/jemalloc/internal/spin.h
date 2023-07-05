@@ -8,7 +8,7 @@ typedef struct {
 } spin_t;
 
 static inline void
-spin_cpu_spinwait() {
+spin_cpu_spinwait(void) {
 #  if HAVE_CPU_SPINWAIT
 	CPU_SPINWAIT;
 #  else

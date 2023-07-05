@@ -16,13 +16,13 @@ prof_recent_list_t prof_recent_alloc_list;
 malloc_mutex_t prof_recent_dump_mtx; /* Protects dumping. */
 
 static void
-prof_recent_alloc_max_init() {
+prof_recent_alloc_max_init(void) {
 	atomic_store_zd(&prof_recent_alloc_max, opt_prof_recent_alloc_max,
 	    ATOMIC_RELAXED);
 }
 
 static inline ssize_t
-prof_recent_alloc_max_get_no_lock() {
+prof_recent_alloc_max_get_no_lock(void) {
 	return atomic_load_zd(&prof_recent_alloc_max, ATOMIC_RELAXED);
 }
 
@@ -403,7 +403,7 @@ label_rollback:
 }
 
 ssize_t
-prof_recent_alloc_max_ctl_read() {
+prof_recent_alloc_max_ctl_read(void) {
 	cassert(config_prof);
 	/* Don't bother to acquire the lock. */
 	return prof_recent_alloc_max_get_no_lock();
@@ -582,7 +582,7 @@ prof_recent_alloc_dump(tsd_t *tsd, write_cb_t *write_cb, void *cbopaque) {
 #undef PROF_RECENT_PRINT_BUFSIZE
 
 bool
-prof_recent_init() {
+prof_recent_init(void) {
 	cassert(config_prof);
 	prof_recent_alloc_max_init();
 

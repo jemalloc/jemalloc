@@ -66,7 +66,7 @@ static int madvise_dont_need_zeros_is_faulty = -1;
  *
  *   [1]: https://patchwork.kernel.org/patch/10576637/
  */
-static int madvise_MADV_DONTNEED_zeroes_pages()
+static int madvise_MADV_DONTNEED_zeroes_pages(void)
 {
 	size_t size = PAGE;
 

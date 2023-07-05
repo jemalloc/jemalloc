@@ -569,7 +569,7 @@ label_test_end:								\
 	}								\
 } while (0)
 
-bool test_is_reentrant();
+bool test_is_reentrant(void);
 
 void	test_skip(const char *format, ...) JEMALLOC_FORMAT_PRINTF(1, 2);
 void	test_fail(const char *format, ...) JEMALLOC_FORMAT_PRINTF(1, 2);

@@ -177,7 +177,7 @@ void tsd_postfork_child(tsd_t *tsd);
  */
 void tsd_global_slow_inc(tsdn_t *tsdn);
 void tsd_global_slow_dec(tsdn_t *tsdn);
-bool tsd_global_slow();
+bool tsd_global_slow(void);
 
 #define TSD_MIN_INIT_STATE_MAX_FETCHED (128)
 

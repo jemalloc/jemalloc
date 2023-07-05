@@ -1,7 +1,7 @@
 #include "test/jemalloc_test.h"
 
 static uint64_t
-allocated() {
+allocated(void) {
 	if (!config_stats) {
 		return 0;
 	}
@@ -13,7 +13,7 @@ allocated() {
 }
 
 static uint64_t
-deallocated() {
+deallocated(void) {
 	if (!config_stats) {
 		return 0;
 	}

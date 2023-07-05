@@ -7,7 +7,7 @@ static void *last_junked_ptr;
 static size_t last_junked_usize;
 
 static void
-reset() {
+reset(void) {
 	ptr_ind = 0;
 	last_junked_ptr = NULL;
 	last_junked_usize = 0;

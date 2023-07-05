@@ -3,7 +3,7 @@
 static bool hook_called = false;
 
 static void
-hook() {
+hook(void) {
 	hook_called = true;
 }
 

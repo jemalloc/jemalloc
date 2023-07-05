@@ -2,7 +2,7 @@
 #include "test/sleep.h"
 
 static void
-sleep_for_background_thread_interval() {
+sleep_for_background_thread_interval(void) {
 	/*
 	 * The sleep interval set in our .sh file is 50ms.  So it likely will
 	 * run if we sleep for four times that.
@@ -11,7 +11,7 @@ sleep_for_background_thread_interval() {
 }
 
 static unsigned
-create_arena() {
+create_arena(void) {
 	unsigned arena_ind;
 	size_t sz;
 
