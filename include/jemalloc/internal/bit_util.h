@@ -340,7 +340,6 @@ ffs_u32(uint32_t x) {
 #else
 #error No implementation for 32-bit ffs()
 #endif
-	return ffs_u(x);
 }
 
 static inline unsigned
@@ -350,7 +349,6 @@ fls_u32(uint32_t x) {
 #else
 #error No implementation for 32-bit fls()
 #endif
-	return fls_u(x);
 }
 
 static inline uint64_t
