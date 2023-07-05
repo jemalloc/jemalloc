@@ -9,7 +9,7 @@ const char *test_thread_name = "test_thread";
 
 /* Invariant before and after every test (when config_prof is on) */
 static void
-confirm_prof_setup() {
+confirm_prof_setup(void) {
 	/* Options */
 	assert_true(opt_prof, "opt_prof not on");
 	assert_true(opt_prof_active, "opt_prof_active not on");
@@ -356,7 +356,7 @@ test_dump_write_cb(void *not_used, const char *str) {
 }
 
 static void
-call_dump() {
+call_dump(void) {
 	static void *in[2] = {test_dump_write_cb, NULL};
 	dump_out_len = 0;
 	assert_d_eq(mallctl("experimental.prof_recent.alloc_dump",

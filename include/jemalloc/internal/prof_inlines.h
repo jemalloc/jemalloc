@@ -7,7 +7,7 @@
 #include "jemalloc/internal/jemalloc_internal_inlines_c.h"
 
 JEMALLOC_ALWAYS_INLINE void
-prof_active_assert() {
+prof_active_assert(void) {
 	cassert(config_prof);
 	/*
 	 * If opt_prof is off, then prof_active must always be off, regardless

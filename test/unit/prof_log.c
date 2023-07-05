@@ -4,11 +4,11 @@
 #define N_PARAM 100
 #define N_THREADS 10
 
-static void expect_rep() {
+static void expect_rep(void) {
 	expect_b_eq(prof_log_rep_check(), false, "Rep check failed");
 }
 
-static void expect_log_empty() {
+static void expect_log_empty(void) {
 	expect_zu_eq(prof_log_bt_count(), 0,
 	    "The log has backtraces; it isn't empty");
 	expect_zu_eq(prof_log_thr_count(), 0,
@@ -19,7 +19,7 @@ static void expect_log_empty() {
 
 void *buf[N_PARAM];
 
-static void f() {
+static void f(void) {
 	int i;
 	for (i = 0; i < N_PARAM; i++) {
 		buf[i] = malloc(100);
@@ -91,18 +91,18 @@ TEST_BEGIN(test_prof_log_many_threads) {
 }
 TEST_END
 
-static void f3() {
+static void f3(void) {
 	void *p = malloc(100);
 	free(p);
 }
 
-static void f1() {
+static void f1(void) {
 	void *p = malloc(100);
 	f3();
 	free(p);
 }
 
-static void f2() {
+static void f2(void) {
 	void *p = malloc(100);
 	free(p);
 }

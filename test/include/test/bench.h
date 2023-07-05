@@ -40,8 +40,8 @@ compare_funcs(uint64_t nwarmup, uint64_t niter, const char *name_a,
 		return;
 	}
 
-	time_func(&timer_a, nwarmup, niter, (void (*)())func_a);
-	time_func(&timer_b, nwarmup, niter, (void (*)())func_b);
+	time_func(&timer_a, nwarmup, niter, (void (*)(void))func_a);
+	time_func(&timer_b, nwarmup, niter, (void (*)(void))func_b);
 
 	uint64_t usec_a = timer_usec(&timer_a);
 	char buf_a[FMT_NSECS_BUF_SIZE];

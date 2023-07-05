@@ -1,8 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_TEST_HOOKS_H
 #define JEMALLOC_INTERNAL_TEST_HOOKS_H
 
-extern JEMALLOC_EXPORT void (*test_hooks_arena_new_hook)();
-extern JEMALLOC_EXPORT void (*test_hooks_libc_hook)();
+extern JEMALLOC_EXPORT void (*test_hooks_arena_new_hook)(void);
+extern JEMALLOC_EXPORT void (*test_hooks_libc_hook)(void);
 
 #if defined(JEMALLOC_JET) || defined(JEMALLOC_UNIT_TEST)
 #  define JEMALLOC_TEST_HOOK(fn, hook) ((void)(hook != NULL && (hook(), 0)), fn)

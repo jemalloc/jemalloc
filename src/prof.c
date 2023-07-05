@@ -562,7 +562,7 @@ prof_backtrace_hook_set(prof_backtrace_hook_t hook) {
 }
 
 prof_backtrace_hook_t
-prof_backtrace_hook_get() {
+prof_backtrace_hook_get(void) {
 	return (prof_backtrace_hook_t)atomic_load_p(&prof_backtrace_hook,
 	    ATOMIC_ACQUIRE);
 }
@@ -573,7 +573,7 @@ prof_dump_hook_set(prof_dump_hook_t hook) {
 }
 
 prof_dump_hook_t
-prof_dump_hook_get() {
+prof_dump_hook_get(void) {
 	return (prof_dump_hook_t)atomic_load_p(&prof_dump_hook,
 	    ATOMIC_ACQUIRE);
 }
@@ -584,7 +584,7 @@ prof_sample_hook_set(prof_sample_hook_t hook) {
 }
 
 prof_sample_hook_t
-prof_sample_hook_get() {
+prof_sample_hook_get(void) {
 	return (prof_sample_hook_t)atomic_load_p(&prof_sample_hook,
 	    ATOMIC_ACQUIRE);
 }
@@ -595,7 +595,7 @@ prof_sample_free_hook_set(prof_sample_free_hook_t hook) {
 }
 
 prof_sample_free_hook_t
-prof_sample_free_hook_get() {
+prof_sample_free_hook_get(void) {
 	return (prof_sample_free_hook_t)atomic_load_p(&prof_sample_free_hook,
 	    ATOMIC_ACQUIRE);
 }

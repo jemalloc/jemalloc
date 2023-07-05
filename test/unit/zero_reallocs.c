@@ -1,7 +1,7 @@
 #include "test/jemalloc_test.h"
 
 static size_t
-zero_reallocs() {
+zero_reallocs(void) {
 	if (!config_stats) {
 		return 0;
 	}

@@ -53,7 +53,7 @@ bool ehooks_default_purge_lazy_impl(void *addr, size_t offset, size_t length);
 #ifdef PAGES_CAN_PURGE_FORCED
 bool ehooks_default_purge_forced_impl(void *addr, size_t offset, size_t length);
 #endif
-bool ehooks_default_split_impl();
+bool ehooks_default_split_impl(void);
 /*
  * Merge is the only default extent hook we declare -- see the comment in
  * ehooks_merge.

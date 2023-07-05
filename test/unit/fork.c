@@ -95,7 +95,7 @@ do_fork_thd(void *arg) {
 
 #ifndef _WIN32
 static void
-do_test_fork_multithreaded() {
+do_test_fork_multithreaded(void) {
 	thd_t child;
 	thd_create(&child, do_fork_thd, NULL);
 	do_fork_thd(NULL);

@@ -35,7 +35,7 @@ reentrancy_t_str(reentrancy_t r) {
 }
 
 static void
-do_hook(bool *hook_ran, void (**hook)()) {
+do_hook(bool *hook_ran, void (**hook)(void)) {
 	*hook_ran = true;
 	*hook = NULL;
 
@@ -47,12 +47,12 @@ do_hook(bool *hook_ran, void (**hook)()) {
 }
 
 static void
-libc_reentrancy_hook() {
+libc_reentrancy_hook(void) {
 	do_hook(&libc_hook_ran, &test_hooks_libc_hook);
 }
 
 static void
-arena_new_reentrancy_hook() {
+arena_new_reentrancy_hook(void) {
 	do_hook(&arena_new_hook_ran, &test_hooks_arena_new_hook);
 }
 

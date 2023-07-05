@@ -24,7 +24,7 @@ static void hpa_dalloc_batch(tsdn_t *tsdn, pai_t *self,
 static uint64_t hpa_time_until_deferred_work(tsdn_t *tsdn, pai_t *self);
 
 bool
-hpa_supported() {
+hpa_supported(void) {
 #ifdef _WIN32
 	/*
 	 * At least until the API and implementation is somewhat settled, we

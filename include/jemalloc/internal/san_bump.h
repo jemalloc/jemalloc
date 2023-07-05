@@ -20,7 +20,7 @@ struct san_bump_alloc_s {
 };
 
 static inline bool
-san_bump_enabled() {
+san_bump_enabled(void) {
 	/*
 	 * We enable san_bump allocator only when it's possible to break up a
 	 * mapping and unmap a part of it (maps_coalesce). This is needed to

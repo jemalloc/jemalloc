@@ -16,13 +16,13 @@ test_double_free_pre(void) {
 }
 
 static void
-test_double_free_post() {
+test_double_free_post(void) {
 	expect_b_eq(fake_abort_called, true, "Double-free check didn't fire.");
 	safety_check_set_abort(NULL);
 }
 
 static bool
-tcache_enabled() {
+tcache_enabled(void) {
 	bool enabled;
 	size_t sz = sizeof(enabled);
 	assert_d_eq(

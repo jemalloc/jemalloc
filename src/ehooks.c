@@ -159,7 +159,7 @@ ehooks_default_purge_forced(extent_hooks_t *extent_hooks, void *addr,
 #endif
 
 bool
-ehooks_default_split_impl() {
+ehooks_default_split_impl(void) {
 	if (!maps_coalesce) {
 		/*
 		 * Without retain, only whole regions can be purged (required by

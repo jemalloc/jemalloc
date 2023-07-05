@@ -148,7 +148,7 @@ tsd_local_slow(tsd_t *tsd) {
 }
 
 bool
-tsd_global_slow() {
+tsd_global_slow(void) {
 	return atomic_load_u32(&tsd_global_slow_count, ATOMIC_RELAXED) > 0;
 }
 

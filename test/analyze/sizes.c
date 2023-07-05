@@ -29,7 +29,7 @@ do_print(const char *name, size_t sz_bytes) {
 }
 
 int
-main() {
+main(void) {
 #define P(type)								\
 	do_print(#type, sizeof(type))
 	P(arena_t);

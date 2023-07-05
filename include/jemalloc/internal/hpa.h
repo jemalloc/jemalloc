@@ -143,7 +143,7 @@ struct hpa_shard_s {
  * is not necessarily a guarantee that it backs its allocations by hugepages,
  * just that it can function properly given the system it's running on.
  */
-bool hpa_supported();
+bool hpa_supported(void);
 bool hpa_central_init(hpa_central_t *central, base_t *base, const hpa_hooks_t *hooks);
 bool hpa_shard_init(hpa_shard_t *shard, hpa_central_t *central, emap_t *emap,
     base_t *base, edata_cache_t *edata_cache, unsigned ind,

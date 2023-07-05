@@ -503,7 +503,7 @@ prof_double_uint64_cast(double d) {
 }
 #endif
 
-void prof_unbias_map_init() {
+void prof_unbias_map_init(void) {
 	/* See the comment in prof_sample_new_event_wait */
 #ifdef JEMALLOC_PROF
 	for (szind_t i = 0; i < SC_NSIZES; i++) {
