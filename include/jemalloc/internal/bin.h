@@ -48,7 +48,7 @@ struct bins_s {
 	bin_t *bin_shards;
 };
 
-void bin_shard_sizes_boot(unsigned bin_shards[SC_NBINS]);
+void bin_shard_sizes_boot(unsigned bin_shard_sizes[SC_NBINS]);
 bool bin_update_shard_size(unsigned bin_shards[SC_NBINS], size_t start_size,
     size_t end_size, size_t nshards);
 
