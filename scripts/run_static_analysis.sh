@@ -13,7 +13,7 @@ compile_time_malloc_conf='background_thread:true,'\
 'prof_unbias:false,'\
 'prof_time_resolution:high'
 
-./autogen.sh \
+EXTRA_CFLAGS='-Wstrict-prototypes' EXTRA_CXXFLAGS='-Wstrict-prototypes' ./autogen.sh \
 	--with-private-namespace=jemalloc_ \
 	--disable-cache-oblivious \
 	--enable-prof \
