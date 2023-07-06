@@ -164,7 +164,7 @@ void malloc_tsd_dalloc(void *wrapper);
 tsd_t *malloc_tsd_boot0(void);
 void malloc_tsd_boot1(void);
 void tsd_cleanup(void *arg);
-tsd_t *tsd_fetch_slow(tsd_t *tsd, bool internal);
+tsd_t *tsd_fetch_slow(tsd_t *tsd, bool minimal);
 void tsd_state_set(tsd_t *tsd, uint8_t new_state);
 void tsd_slow_update(tsd_t *tsd);
 void tsd_prefork(tsd_t *tsd);

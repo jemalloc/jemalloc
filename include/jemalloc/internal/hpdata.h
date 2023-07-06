@@ -359,7 +359,7 @@ void hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age);
  * offset within that allocation.
  */
 void *hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz);
-void hpdata_unreserve(hpdata_t *hpdata, void *begin, size_t sz);
+void hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz);
 
 /*
  * The hpdata_purge_prepare_t allows grabbing the metadata required to purge

@@ -47,9 +47,9 @@ edata_t *arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena,
 void arena_extent_dalloc_large_prep(tsdn_t *tsdn, arena_t *arena,
     edata_t *edata);
 void arena_extent_ralloc_large_shrink(tsdn_t *tsdn, arena_t *arena,
-    edata_t *edata, size_t oldsize);
+    edata_t *edata, size_t oldusize);
 void arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena,
-    edata_t *edata, size_t oldsize);
+    edata_t *edata, size_t oldusize);
 bool arena_decay_ms_set(tsdn_t *tsdn, arena_t *arena, extent_state_t state,
     ssize_t decay_ms);
 ssize_t arena_decay_ms_get(arena_t *arena, extent_state_t state);

@@ -146,7 +146,7 @@ struct hook_ralloc_args_s {
  */
 bool hook_boot(void);
 
-void *hook_install(tsdn_t *tsdn, hooks_t *hooks);
+void *hook_install(tsdn_t *tsdn, hooks_t *to_install);
 /* Uninstalls the hook with the handle previously returned from hook_install. */
 void hook_remove(tsdn_t *tsdn, void *opaque);
 
