@@ -1469,6 +1469,18 @@ if test "x$zero_realloc_default_free" = "x1" ; then
   AC_DEFINE([JEMALLOC_ZERO_REALLOC_DEFAULT_FREE], [ ], [ ])
 fi
 
+dnl Support allocation from DSS by default
+AC_ARG_ENABLE([dss],
+  [AS_HELP_STRING([--disable-dss], [Disable usage of sbrk(2)])],
+[if test "x$enable_dss" = "xno" ; then
+  enable_dss="0"
+else
+  enable_dss="1"
+fi
+],
+[enable_dss="1"]
+)
+
 dnl Enable allocation from DSS if supported by the OS.
 have_dss="1"
 dnl Check whether the BSD/SUSv1 sbrk() exists.  If not, disable DSS support.
@@ -1482,7 +1494,7 @@ else
   have_dss="0"
 fi
 
-if test "x$have_dss" = "x1" ; then
+if test "x$have_dss" = "x1" -a "x$enable_dss" = "x1" ; then
   AC_DEFINE([JEMALLOC_DSS], [ ], [ ])
 fi
 
@@ -2791,4 +2803,5 @@ AC_MSG_RESULT([lazy_lock          : ${enable_lazy_lock}])
 AC_MSG_RESULT([cache-oblivious    : ${enable_cache_oblivious}])
 AC_MSG_RESULT([pageid             : ${enable_pageid}])
 AC_MSG_RESULT([cxx                : ${enable_cxx}])
+AC_MSG_RESULT([dss                : ${enable_dss}])
 AC_MSG_RESULT([===============================================================================])
