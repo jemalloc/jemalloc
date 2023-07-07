@@ -49,7 +49,7 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
 
 	assert(binind < SC_NBINS);
 	cache_bin_t *bin = &tcache->bins[binind];
-	ret = cache_bin_alloc(bin, &tcache_success);
+	ret = cache_bin_alloc(bin, &tcache_success, size);
 	assert(tcache_success == (ret != NULL));
 	if (unlikely(!tcache_success)) {
 		bool tcache_hard_success;
@@ -66,7 +66,7 @@ tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache,
 		    /* is_small */ true);
 
 		ret = tcache_alloc_small_hard(tsd_tsdn(tsd), arena, tcache,
-		    bin, binind, &tcache_hard_success);
+		    bin, binind, &tcache_hard_success, size);
 		if (tcache_hard_success == false) {
 			return NULL;
 		}
@@ -92,7 +92,7 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 
 	assert(binind >= SC_NBINS && binind < nhbins);
 	cache_bin_t *bin = &tcache->bins[binind];
-	ret = cache_bin_alloc(bin, &tcache_success);
+	ret = cache_bin_alloc(bin, &tcache_success, size);
 	assert(tcache_success == (ret != NULL));
 	if (unlikely(!tcache_success)) {
 		/*

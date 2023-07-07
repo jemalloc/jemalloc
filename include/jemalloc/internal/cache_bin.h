@@ -335,7 +335,8 @@ cache_bin_low_water_adjust(cache_bin_t *bin) {
 }
 
 JEMALLOC_ALWAYS_INLINE void *
-cache_bin_alloc_impl(cache_bin_t *bin, bool *success, bool adjust_low_water) {
+cache_bin_alloc_impl(cache_bin_t *bin, bool *success, bool adjust_low_water,
+    size_t size) {
 	/*
 	 * success (instead of ret) should be checked upon the return of this
 	 * function.  We avoid checking (ret == NULL) because there is never a
@@ -358,8 +359,7 @@ cache_bin_alloc_impl(cache_bin_t *bin, bool *success, bool adjust_low_water) {
 	 */
 	if (likely(low_bits != bin->low_bits_low_water)) {
 		bin->stack_head = new_head;
-		*success = true;
-		return ret;
+		goto label_return_succ;
 	}
 	if (!adjust_low_water) {
 		*success = false;
@@ -373,20 +373,56 @@ cache_bin_alloc_impl(cache_bin_t *bin, bool *success, bool adjust_low_water) {
 	if (likely(low_bits != bin->low_bits_empty)) {
 		bin->stack_head = new_head;
 		bin->low_bits_low_water = (uint16_t)(uintptr_t)new_head;
-		*success = true;
-		return ret;
+		goto label_return_succ;
 	}
 	*success = false;
 	return NULL;
+
+label_return_succ:
+	*success = true;
+
+#if JEMALLOC_PREFETCH_OBJECTS > 0 && defined(__GNUC__)
+#define PREFETCH_CACHELINE_AT(ptr, i)                                  \
+	__builtin_prefetch((void *)((uintptr_t)ptr + CACHELINE * i))
+
+	if (likely((uint16_t)(uintptr_t)new_head != bin->low_bits_empty)) {
+		/* Prefetch the object that will be returned next. */
+		if (size <= CACHELINE) {
+			PREFETCH_CACHELINE_AT(*new_head, 0);
+#if JEMALLOC_PREFETCH_OBJECTS > 1
+		} else if (size <= CACHELINE * 2) {
+			void *next = *new_head;
+			PREFETCH_CACHELINE_AT(next, 0);
+			PREFETCH_CACHELINE_AT(next, 1);
+#if JEMALLOC_PREFETCH_OBJECTS > 2
+		} else if (size <= CACHELINE * 4) {
+			void *next = *new_head;
+			PREFETCH_CACHELINE_AT(next, 0);
+			PREFETCH_CACHELINE_AT(next, 1);
+			PREFETCH_CACHELINE_AT(next, 2);
+			PREFETCH_CACHELINE_AT(next, 3);
+#if JEMALLOC_PREFETCH_OBJECTS > 4
+		} else if (size <= CACHELINE * JEMALLOC_PREFETCH_OBJECTS) {
+			void *next = *new_head;
+			for (size_t i = 0; i * CACHELINE < size; ++i)
+				PREFETCH_CACHELINE_AT(next, i);
+#endif
+#endif
+#endif
+		}
+	}
+#undef PREFETCH_CACHELINE_AT
+#endif
+	return ret;
 }
 
 /*
  * Allocate an item out of the bin, failing if we're at the low-water mark.
  */
 JEMALLOC_ALWAYS_INLINE void *
-cache_bin_alloc_easy(cache_bin_t *bin, bool *success) {
+cache_bin_alloc_easy(cache_bin_t *bin, bool *success, size_t size) {
 	/* We don't look at info if we're not adjusting low-water. */
-	return cache_bin_alloc_impl(bin, success, false);
+	return cache_bin_alloc_impl(bin, success, false, size);
 }
 
 /*
@@ -394,8 +430,8 @@ cache_bin_alloc_easy(cache_bin_t *bin, bool *success) {
  * mark (and failing only if the bin is empty).
  */
 JEMALLOC_ALWAYS_INLINE void *
-cache_bin_alloc(cache_bin_t *bin, bool *success) {
-	return cache_bin_alloc_impl(bin, success, true);
+cache_bin_alloc(cache_bin_t *bin, bool *success, size_t size) {
+	return cache_bin_alloc_impl(bin, success, true, size);
 }
 
 JEMALLOC_ALWAYS_INLINE cache_bin_sz_t

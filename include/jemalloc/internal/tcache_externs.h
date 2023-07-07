@@ -36,7 +36,7 @@ extern tcaches_t	*tcaches;
 
 size_t tcache_salloc(tsdn_t *tsdn, const void *ptr);
 void *tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
-    cache_bin_t *tbin, szind_t binind, bool *tcache_success);
+    cache_bin_t *tbin, szind_t binind, bool *tcache_success, size_t size);
 
 void tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *tbin,
     szind_t binind, unsigned rem);

@@ -228,7 +228,7 @@ tcache_gc_dalloc_event_handler(tsd_t *tsd, uint64_t elapsed) {
 void *
 tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena,
     tcache_t *tcache, cache_bin_t *cache_bin, szind_t binind,
-    bool *tcache_success) {
+    bool *tcache_success, size_t size) {
 	tcache_slow_t *tcache_slow = tcache->tcache_slow;
 	void *ret;
 
@@ -238,7 +238,7 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena,
 	arena_cache_bin_fill_small(tsdn, arena, cache_bin,
 	    &tcache_bin_info[binind], binind, nfill);
 	tcache_slow->bin_refilled[binind] = true;
-	ret = cache_bin_alloc(cache_bin, tcache_success);
+	ret = cache_bin_alloc(cache_bin, tcache_success, size);
 
 	return ret;
 }

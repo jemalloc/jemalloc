@@ -1,5 +1,8 @@
 #include "test/jemalloc_test.h"
 
+/* Object size is for prefeching, irrelevant with other functionalities. */
+#define OBJ_SIZE 128
+
 static void
 do_fill_test(cache_bin_t *bin, cache_bin_info_t *info, void **ptrs,
     cache_bin_sz_t ncached_max, cache_bin_sz_t nfill_attempt,
@@ -18,7 +21,7 @@ do_fill_test(cache_bin_t *bin, cache_bin_info_t *info, void **ptrs,
 	cache_bin_low_water_set(bin);
 
 	for (cache_bin_sz_t i = 0; i < nfill_succeed; i++) {
-		ptr = cache_bin_alloc(bin, &success);
+		ptr = cache_bin_alloc(bin, &success, OBJ_SIZE);
 		expect_true(success, "");
 		expect_ptr_eq(ptr, (void *)&ptrs[i],
 		    "Should pop in order filled");
@@ -50,7 +53,7 @@ do_flush_test(cache_bin_t *bin, cache_bin_info_t *info, void **ptrs,
 	expect_true(cache_bin_ncached_get_local(bin, info) == nfill - nflush,
 	    "");
 	while (cache_bin_ncached_get_local(bin, info) > 0) {
-		cache_bin_alloc(bin, &success);
+		cache_bin_alloc(bin, &success, OBJ_SIZE);
 	}
 }
 
@@ -77,7 +80,7 @@ do_batch_alloc_test(cache_bin_t *bin, cache_bin_info_t *info, void **ptrs,
 	    (cache_bin_sz_t)n, "");
 	while (cache_bin_ncached_get_local(bin, info) > 0) {
 		bool success;
-		cache_bin_alloc(bin, &success);
+		cache_bin_alloc(bin, &success, OBJ_SIZE);
 	}
 	free(out);
 }
@@ -112,11 +115,11 @@ TEST_BEGIN(test_cache_bin) {
 	expect_true(cache_bin_ncached_get_local(&bin, &info) == 0, "");
 	expect_true(cache_bin_low_water_get(&bin, &info) == 0, "");
 
-	ptr = cache_bin_alloc_easy(&bin, &success);
+	ptr = cache_bin_alloc_easy(&bin, &success, OBJ_SIZE);
 	expect_false(success, "Shouldn't successfully allocate when empty");
 	expect_ptr_null(ptr, "Shouldn't get a non-null pointer on failure");
 
-	ptr = cache_bin_alloc(&bin, &success);
+	ptr = cache_bin_alloc(&bin, &success,OBJ_SIZE);
 	expect_false(success, "Shouldn't successfully allocate when empty");
 	expect_ptr_null(ptr, "Shouldn't get a non-null pointer on failure");
 
@@ -150,7 +153,7 @@ TEST_BEGIN(test_cache_bin) {
 		 * This should fail -- the easy variant can't change the low
 		 * water mark.
 		 */
-		ptr = cache_bin_alloc_easy(&bin, &success);
+		ptr = cache_bin_alloc_easy(&bin, &success, OBJ_SIZE);
 		expect_ptr_null(ptr, "");
 		expect_false(success, "");
 		expect_true(cache_bin_low_water_get(&bin, &info)
@@ -159,7 +162,7 @@ TEST_BEGIN(test_cache_bin) {
 		    == ncached_max - i, "");
 
 		/* This should succeed, though. */
-		ptr = cache_bin_alloc(&bin, &success);
+		ptr = cache_bin_alloc(&bin, &success, OBJ_SIZE);
 		expect_true(success, "");
 		expect_ptr_eq(ptr, &ptrs[ncached_max - i - 1],
 		    "Alloc should pop in stack order");
@@ -170,10 +173,10 @@ TEST_BEGIN(test_cache_bin) {
 	}
 	/* Now we're empty -- all alloc attempts should fail. */
 	expect_true(cache_bin_ncached_get_local(&bin, &info) == 0, "");
-	ptr = cache_bin_alloc_easy(&bin, &success);
+	ptr = cache_bin_alloc_easy(&bin, &success, OBJ_SIZE);
 	expect_ptr_null(ptr, "");
 	expect_false(success, "");
-	ptr = cache_bin_alloc(&bin, &success);
+	ptr = cache_bin_alloc(&bin, &success, OBJ_SIZE);
 	expect_ptr_null(ptr, "");
 	expect_false(success, "");
 
@@ -192,18 +195,18 @@ TEST_BEGIN(test_cache_bin) {
 		 * Size is bigger than low water -- the reduced version should
 		 * succeed.
 		 */
-		ptr = cache_bin_alloc_easy(&bin, &success);
+		ptr = cache_bin_alloc_easy(&bin, &success, OBJ_SIZE);
 		expect_true(success, "");
 		expect_ptr_eq(ptr, &ptrs[i], "");
 	}
 	/* But now, we've hit low-water. */
-	ptr = cache_bin_alloc_easy(&bin, &success);
+	ptr = cache_bin_alloc_easy(&bin, &success, OBJ_SIZE);
 	expect_false(success, "");
 	expect_ptr_null(ptr, "");
 
 	/* We're going to test filling -- we must be empty to start. */
 	while (cache_bin_ncached_get_local(&bin, &info)) {
-		cache_bin_alloc(&bin, &success);
+		cache_bin_alloc(&bin, &success, OBJ_SIZE);
 		expect_true(success, "");
 	}
 
@@ -296,7 +299,7 @@ do_flush_stashed_test(cache_bin_t *bin, cache_bin_info_t *info, void **ptrs,
 
 	/* Alloc filled ones */
 	for (cache_bin_sz_t i = 0; i < nfill; i++) {
-		void *ptr = cache_bin_alloc(bin, &ret);
+		void *ptr = cache_bin_alloc(bin, &ret, OBJ_SIZE);
 		expect_true(ret, "Unexpected alloc failure");
 		/* Verify it's not from the stashed range. */
 		expect_true((uintptr_t)ptr < (uintptr_t)&ptrs[nfill],
@@ -307,7 +310,7 @@ do_flush_stashed_test(cache_bin_t *bin, cache_bin_info_t *info, void **ptrs,
 	expect_true(cache_bin_nstashed_get_local(bin, info) == nstash,
 	    "Wrong stashed count");
 
-	cache_bin_alloc(bin, &ret);
+	cache_bin_alloc(bin, &ret, OBJ_SIZE);
 	expect_false(ret, "Should not alloc stashed");
 
 	/* Clear stashed ones */
@@ -317,7 +320,7 @@ do_flush_stashed_test(cache_bin_t *bin, cache_bin_info_t *info, void **ptrs,
 	expect_true(cache_bin_nstashed_get_local(bin, info) == 0,
 	    "Wrong stashed count");
 
-	cache_bin_alloc(bin, &ret);
+	cache_bin_alloc(bin, &ret, OBJ_SIZE);
 	expect_false(ret, "Should not alloc from empty bin");
 }
 
@@ -354,7 +357,7 @@ TEST_BEGIN(test_cache_bin_stash) {
 	ret = cache_bin_stash(&bin, &ptrs[0]);
 	expect_false(ret, "Should not stash into a full cache bin");
 	for (cache_bin_sz_t i = 0; i < ncached_max; i++) {
-		void *ptr = cache_bin_alloc(&bin, &ret);
+		void *ptr = cache_bin_alloc(&bin, &ret, OBJ_SIZE);
 		if (i < ncached_max / 2) {
 			expect_true(ret, "Should be able to alloc");
 			uintptr_t diff = ((uintptr_t)ptr - (uintptr_t)&ptrs[0])

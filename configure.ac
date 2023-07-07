@@ -1552,6 +1552,16 @@ if test "x$enable_xmalloc" = "x1" ; then
 fi
 AC_SUBST([enable_xmalloc])
 
+dnl Do not enable prefetching objects by default.
+dnl Because __builtin_prefetch() is used, this is also controlled by __GNUC__.
+AC_ARG_WITH([prefetch-objects],
+  [AS_HELP_STRING([--with-prefetch-objects=<prefetch-objects>],
+   [Number of cache lines to prefetch for allocated objects])])
+if test "x$with_prefetch_objects" = "x" ; then
+  with_prefetch_objects="0"
+fi
+AC_DEFINE_UNQUOTED([JEMALLOC_PREFETCH_OBJECTS], [$with_prefetch_objects], [ ])
+
 dnl Support cache-oblivious allocation alignment by default.
 AC_ARG_ENABLE([cache-oblivious],
   [AS_HELP_STRING([--disable-cache-oblivious],

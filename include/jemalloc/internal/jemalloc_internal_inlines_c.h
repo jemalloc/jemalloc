@@ -373,12 +373,12 @@ imalloc_fastpath(size_t size, void *(fallback_alloc)(size_t)) {
 	 * don't touch the low water mark.  The compiler won't do this
 	 * duplication on its own.
 	 */
-	ret = cache_bin_alloc_easy(bin, &tcache_success);
+	ret = cache_bin_alloc_easy(bin, &tcache_success, size);
 	if (tcache_success) {
 		fastpath_success_finish(tsd, allocated_after, bin, ret);
 		return ret;
 	}
-	ret = cache_bin_alloc(bin, &tcache_success);
+	ret = cache_bin_alloc(bin, &tcache_success, size);
 	if (tcache_success) {
 		fastpath_success_finish(tsd, allocated_after, bin, ret);
 		return ret;
