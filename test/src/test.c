@@ -228,7 +228,10 @@ p_test_no_malloc_init(test_t *t, ...) {
 }
 
 void
-p_test_fail(const char *prefix, const char *message) {
+p_test_fail(bool may_abort, const char *prefix, const char *message) {
 	malloc_cprintf(NULL, NULL, "%s%s\n", prefix, message);
 	test_status = test_status_fail;
+	if (may_abort) {
+		abort();
+	}
 }
