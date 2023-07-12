@@ -73,7 +73,7 @@ struct ph_s {
 
 JEMALLOC_ALWAYS_INLINE phn_link_t *
 phn_link_get(void *phn, size_t offset) {
-	return (phn_link_t *)(((uintptr_t)phn) + offset);
+	return (phn_link_t *)(((char *)phn) + offset);
 }
 
 JEMALLOC_ALWAYS_INLINE void
