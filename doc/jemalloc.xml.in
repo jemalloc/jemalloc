@@ -33,6 +33,8 @@
     <refname>aligned_alloc</refname>
     <refname>realloc</refname>
     <refname>free</refname>
+    <refname>free_sized</refname>
+    <refname>free_aligned_sized</refname>
     <refname>mallocx</refname>
     <refname>rallocx</refname>
     <refname>xallocx</refname>
@@ -88,6 +90,17 @@
         <funcprototype>
           <funcdef>void <function>free</function></funcdef>
           <paramdef>void *<parameter>ptr</parameter></paramdef>
+        </funcprototype>
+        <funcprototype>
+          <funcdef>void <function>free_sized</function></funcdef>
+          <paramdef>void *<parameter>ptr</parameter></paramdef>
+          <paramdef>size_t <parameter>size</parameter></paramdef>
+        </funcprototype>
+        <funcprototype>
+          <funcdef>void <function>free_aligned_sized</function></funcdef>
+          <paramdef>void *<parameter>ptr</parameter></paramdef>
+          <paramdef>size_t <parameter>alignment</parameter></paramdef>
+          <paramdef>size_t <parameter>size</parameter></paramdef>
         </funcprototype>
       </refsect2>
       <refsect2>
@@ -227,6 +240,17 @@
       allocated memory referenced by <parameter>ptr</parameter> to be made
       available for future allocations.  If <parameter>ptr</parameter> is
       <constant>NULL</constant>, no action occurs.</para>
+
+      <para>The <function>free_sized()</function> function is an extension of
+      <function>free()</function> with a <parameter>size</parameter> parameter
+      to allow the caller to pass in the allocation size as an optimization.
+      </para>
+
+      <para>The <function>free_aligned_sized()</function> function accepts a
+      <parameter>ptr</parameter> which was allocated with a requested
+      <parameter>size</parameter> and <parameter>alignment</parameter>, causing
+      the allocated memory referenced by <parameter>ptr</parameter> to be made
+      available for future allocations.</para>
     </refsect2>
     <refsect2>
       <title>Non-standard API</title>
@@ -449,6 +473,24 @@ for (i = 0; i < nbins; i++) {
       discrepancy between the requested allocation size and the size reported
       by <function>malloc_usable_size()</function> should not be
       depended on, since such behavior is entirely implementation-dependent.
+      </para>
+    </refsect2>
+    <refsect2>
+      <title>Interactions Between the Standard and Non-standard APIs</title>
+      <para>Generally speaking it is permissible to pass pointers obtained from
+      the standard API to the non-standard API and vice versa (e.g. calling
+      <function>free()</function> with a pointer returned by a call to
+      <function>mallocx()</function>, calling <function>sdallocx()</function>
+      with a pointer returned by a call to <function>calloc()</function>).
+      There are however a few exceptions. In keeping with the C23 standard –
+      which forbids calling <function>free_sized()</function> on a pointer
+      returned by <function>aligned_alloc()</function>, mandating that either
+      <function>free_aligned_sized()</function> or <function>free()</function>
+      be used instead – using any combination of the standard and non-standard
+      APIs in an equivalent fashion (i.e. taking a pointer which was allocated
+      with an explicitly requested alignment and attempting to free it via an
+      API that accepts a size hint, without also providing the alignment hint)
+      is likewise forbidden.
       </para>
     </refsect2>
   </refsect1>
