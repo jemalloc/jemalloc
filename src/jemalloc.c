@@ -2990,6 +2990,16 @@ je_free(void *ptr) {
 	LOG("core.free.exit", "");
 }
 
+JEMALLOC_EXPORT void JEMALLOC_NOTHROW
+je_free_sized(void *ptr, size_t size) {
+	return je_sdallocx_noflags(ptr, size);
+}
+
+JEMALLOC_EXPORT void JEMALLOC_NOTHROW
+je_free_aligned_sized(void *ptr, size_t alignment, size_t size) {
+	return je_sdallocx(ptr, size, /* flags */ MALLOCX_ALIGN(alignment));
+}
+
 /*
  * End malloc(3)-compatible functions.
  */
@@ -3152,6 +3162,13 @@ void *__libc_calloc(size_t n, size_t size) PREALIAS(je_calloc);
 #    endif
 #    ifdef JEMALLOC_OVERRIDE___LIBC_FREE
 void __libc_free(void* ptr) PREALIAS(je_free);
+#    endif
+#    ifdef JEMALLOC_OVERRIDE___LIBC_FREE_SIZED
+void __libc_free_sized(void* ptr, size_t size) PREALIAS(je_free_sized);
+#    endif
+#    ifdef JEMALLOC_OVERRIDE___LIBC_FREE_ALIGNED_SIZED
+void __libc_free_aligned_sized(
+    void* ptr, size_t alignment, size_t size) PREALIAS(je_free_aligned_sized);
 #    endif
 #    ifdef JEMALLOC_OVERRIDE___LIBC_MALLOC
 void *__libc_malloc(size_t size) PREALIAS(je_malloc);
