@@ -25,6 +25,7 @@ extern bool opt_junk_alloc;
 extern bool opt_junk_free;
 extern void (*JET_MUTABLE junk_free_callback)(void *ptr, size_t size);
 extern void (*JET_MUTABLE junk_alloc_callback)(void *ptr, size_t size);
+extern void (*JET_MUTABLE invalid_conf_abort)(void);
 extern bool opt_utrace;
 extern bool opt_xmalloc;
 extern bool opt_experimental_infallible_new;

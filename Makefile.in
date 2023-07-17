@@ -225,6 +225,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/hook.c \
 	$(srcroot)test/unit/hpa.c \
 	$(srcroot)test/unit/hpa_background_thread.c \
+	$(srcroot)test/unit/hpa_validate_conf.c \
 	$(srcroot)test/unit/hpdata.c \
 	$(srcroot)test/unit/huge.c \
 	$(srcroot)test/unit/inspect.c \
