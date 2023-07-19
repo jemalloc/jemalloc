@@ -293,34 +293,48 @@ arena_slab_reg_alloc_batch(edata_t *slab, const bin_info_t *bin_info,
 
 static void
 arena_large_malloc_stats_update(tsdn_t *tsdn, arena_t *arena, size_t usize) {
-	szind_t index, hindex;
-
 	cassert(config_stats);
 
+	szind_t index = sz_size2index(usize);
+	/* This only occurs when we have a sampled small allocation */
 	if (usize < SC_LARGE_MINCLASS) {
-		usize = SC_LARGE_MINCLASS;
+		assert(index < SC_NBINS);
+		assert(usize >= PAGE && usize % PAGE == 0);
+		bin_t *bin = arena_get_bin(arena, index, /* binshard */ 0);
+		malloc_mutex_lock(tsdn, &bin->lock);
+		bin->stats.nmalloc++;
+		malloc_mutex_unlock(tsdn, &bin->lock);
+	} else {
+		assert(index >= SC_NBINS);
+		szind_t hindex = index - SC_NBINS;
+		LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
+		locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
+			&arena->stats.lstats[hindex].nmalloc, 1);
+		LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 	}
-	index = sz_size2index(usize);
-	hindex = (index >= SC_NBINS) ? index - SC_NBINS : 0;
-
-	locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
-	    &arena->stats.lstats[hindex].nmalloc, 1);
 }
 
 static void
 arena_large_dalloc_stats_update(tsdn_t *tsdn, arena_t *arena, size_t usize) {
-	szind_t index, hindex;
-
 	cassert(config_stats);
 
+	szind_t index = sz_size2index(usize);
+	/* This only occurs when we have a sampled small allocation */
 	if (usize < SC_LARGE_MINCLASS) {
-		usize = SC_LARGE_MINCLASS;
+		assert(index < SC_NBINS);
+		assert(usize >= PAGE && usize % PAGE == 0);
+		bin_t *bin = arena_get_bin(arena, index, /* binshard */ 0);
+		malloc_mutex_lock(tsdn, &bin->lock);
+		bin->stats.ndalloc++;
+		malloc_mutex_unlock(tsdn, &bin->lock);
+	} else {
+		assert(index >= SC_NBINS);
+		szind_t hindex = index - SC_NBINS;
+		LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
+		locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
+			&arena->stats.lstats[hindex].ndalloc, 1);
+		LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 	}
-	index = sz_size2index(usize);
-	hindex = (index >= SC_NBINS) ? index - SC_NBINS : 0;
-
-	locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
-	    &arena->stats.lstats[hindex].ndalloc, 1);
 }
 
 static void
@@ -344,9 +358,7 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 
 	if (edata != NULL) {
 		if (config_stats) {
-			LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 			arena_large_malloc_stats_update(tsdn, arena, usize);
-			LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 		}
 	}
 
@@ -360,10 +372,8 @@ arena_extent_alloc_large(tsdn_t *tsdn, arena_t *arena, size_t usize,
 void
 arena_extent_dalloc_large_prep(tsdn_t *tsdn, arena_t *arena, edata_t *edata) {
 	if (config_stats) {
-		LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 		arena_large_dalloc_stats_update(tsdn, arena,
 		    edata_usize_get(edata));
-		LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 	}
 }
 
@@ -373,9 +383,7 @@ arena_extent_ralloc_large_shrink(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
 	size_t usize = edata_usize_get(edata);
 
 	if (config_stats) {
-		LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 		arena_large_ralloc_stats_update(tsdn, arena, oldusize, usize);
-		LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 	}
 }
 
@@ -385,9 +393,7 @@ arena_extent_ralloc_large_expand(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
 	size_t usize = edata_usize_get(edata);
 
 	if (config_stats) {
-		LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 		arena_large_ralloc_stats_update(tsdn, arena, oldusize, usize);
-		LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 	}
 }
 
