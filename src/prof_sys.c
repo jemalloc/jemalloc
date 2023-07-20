@@ -100,6 +100,8 @@ prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 	_Unwind_Backtrace(prof_unwind_callback, &data);
 }
 #elif (defined(JEMALLOC_PROF_GCC))
+JEMALLOC_DIAGNOSTIC_PUSH
+JEMALLOC_DIAGNOSTIC_IGNORE_FRAME_ADDRESS
 static void
 prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 /* The input arg must be a constant for __builtin_return_address. */
@@ -405,6 +407,7 @@ prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 	BT_FRAME(254)
 	BT_FRAME(255)
 #undef BT_FRAME
+JEMALLOC_DIAGNOSTIC_POP
 }
 #else
 static void
