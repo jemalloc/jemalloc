@@ -2529,12 +2529,12 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 		    sample_event);
 
 		emap_alloc_ctx_t alloc_ctx;
-		if (likely((uintptr_t)tctx == (uintptr_t)1U)) {
+		if (likely(tctx == PROF_TCTX_SENTINEL)) {
 			alloc_ctx.slab = sz_can_use_slab(usize);
 			allocation = imalloc_no_sample(
 			    sopts, dopts, tsd, usize, usize, ind,
 			    alloc_ctx.slab);
-		} else if ((uintptr_t)tctx > (uintptr_t)1U) {
+		} else if (tctx != NULL) {
 			allocation = imalloc_sample(
 			    sopts, dopts, tsd, usize, ind);
 			alloc_ctx.slab = false;
@@ -3366,7 +3366,7 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 	bool sample_event = te_prof_sample_event_lookahead(tsd, usize);
 	prof_tctx_t *tctx = prof_alloc_prep(tsd, prof_active, sample_event);
 	void *p;
-	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
+	if (unlikely(tctx != PROF_TCTX_SENTINEL)) {
 		p = irallocx_prof_sample(tsd_tsdn(tsd), old_ptr, old_usize,
 		    usize, alignment, zero, tcache, arena, tctx, hook_args);
 	} else {
@@ -3612,7 +3612,7 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 	prof_tctx_t *tctx = prof_alloc_prep(tsd, prof_active, sample_event);
 
 	size_t usize;
-	if (unlikely((uintptr_t)tctx != (uintptr_t)1U)) {
+	if (unlikely(tctx != PROF_TCTX_SENTINEL)) {
 		usize = ixallocx_prof_sample(tsd_tsdn(tsd), ptr, old_usize,
 		    size, extra, alignment, zero, tctx);
 	} else {

@@ -104,15 +104,15 @@ arena_prof_info_get(tsd_t *tsd, const void *ptr, emap_alloc_ctx_t *alloc_ctx,
 		if (reset_recent &&
 		    large_dalloc_safety_checks(edata, ptr,
 		    edata_szind_get(edata))) {
-			prof_info->alloc_tctx = (prof_tctx_t *)(uintptr_t)1U;
+			prof_info->alloc_tctx = PROF_TCTX_SENTINEL;
 			return;
 		}
 		large_prof_info_get(tsd, edata, prof_info, reset_recent);
 	} else {
-		prof_info->alloc_tctx = (prof_tctx_t *)(uintptr_t)1U;
+		prof_info->alloc_tctx = PROF_TCTX_SENTINEL;
 		/*
 		 * No need to set other fields in prof_info; they will never be
-		 * accessed if (uintptr_t)alloc_tctx == (uintptr_t)1U.
+		 * accessed if alloc_tctx == PROF_TCTX_SENTINEL.
 		 */
 	}
 }
