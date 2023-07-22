@@ -91,11 +91,19 @@ prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx) {
 	cassert(config_prof);
 
 	if (tsd_reentrancy_level_get(tsd) > 0) {
-		assert((uintptr_t)tctx == (uintptr_t)1U);
+		assert(tctx == PROF_TCTX_SENTINEL);
 		return;
 	}
 
-	if ((uintptr_t)tctx > (uintptr_t)1U) {
+	if (prof_tctx_is_valid(tctx)) {
+		/*
+		 * This `assert` really shouldn't be necessary. It's here
+		 * because there's a bug in the clang static analyzer; it
+		 * somehow does not realize that by `prof_tctx_is_valid(tctx)`
+		 * being true that we've already ensured that `tctx` is not
+		 * `NULL`.
+		 */
+		assert(tctx != NULL);
 		malloc_mutex_lock(tsd_tsdn(tsd), tctx->tdata->lock);
 		tctx->prepared = false;
 		prof_tctx_try_destroy(tsd, tctx);
@@ -169,7 +177,7 @@ prof_free_sampled_object(tsd_t *tsd, const void *ptr, size_t usize,
 
 	assert(prof_info != NULL);
 	prof_tctx_t *tctx = prof_info->alloc_tctx;
-	assert((uintptr_t)tctx > (uintptr_t)1U);
+	assert(prof_tctx_is_valid(tctx));
 
 	szind_t szind = sz_size2index(usize);
 
