@@ -8,6 +8,8 @@
 /******************************************************************************/
 /* Data. */
 
+#define SBRK_INVALID ((void *)-1)
+
 const char	*opt_dss = DSS_DEFAULT;
 
 const char	*const dss_prec_names[] = {
@@ -94,7 +96,7 @@ extent_dss_max_update(void *new_addr) {
 	 * up to date.
 	 */
 	void *max_cur = extent_dss_sbrk(0);
-	if (max_cur == (void *)-1) {
+	if (max_cur == SBRK_INVALID) {
 		return NULL;
 	}
 	atomic_store_p(&dss_max, max_cur, ATOMIC_RELEASE);
@@ -220,7 +222,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 			 * Failure, whether due to OOM or a race with a raw
 			 * sbrk() call from outside the allocator.
 			 */
-			if (dss_prev == (void *)-1) {
+			if (dss_prev == SBRK_INVALID) {
 				/* OOM. */
 				atomic_store_b(&dss_exhausted, true,
 				    ATOMIC_RELEASE);
@@ -270,7 +272,7 @@ extent_dss_boot(void) {
 
 	dss_base = extent_dss_sbrk(0);
 	atomic_store_b(&dss_extending, false, ATOMIC_RELAXED);
-	atomic_store_b(&dss_exhausted, dss_base == (void *)-1, ATOMIC_RELAXED);
+	atomic_store_b(&dss_exhausted, dss_base == SBRK_INVALID, ATOMIC_RELAXED);
 	atomic_store_p(&dss_max, dss_base, ATOMIC_RELAXED);
 }
 
