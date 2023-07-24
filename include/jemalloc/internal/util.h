@@ -110,14 +110,14 @@ util_prefetch_write(void *ptr) {
 JEMALLOC_ALWAYS_INLINE void
 util_prefetch_read_range(void *ptr, size_t sz) {
 	for (size_t i = 0; i < sz; i += CACHELINE) {
-		util_prefetch_read((void *)((uintptr_t)ptr + i));
+		util_prefetch_read((void *)((byte_t *)ptr + i));
 	}
 }
 
 JEMALLOC_ALWAYS_INLINE void
 util_prefetch_write_range(void *ptr, size_t sz) {
 	for (size_t i = 0; i < sz; i += CACHELINE) {
-		util_prefetch_write((void *)((uintptr_t)ptr + i));
+		util_prefetch_write((void *)((byte_t *)ptr + i));
 	}
 }
 

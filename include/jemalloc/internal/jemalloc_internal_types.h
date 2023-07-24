@@ -99,7 +99,8 @@ typedef enum malloc_init_e malloc_init_t;
 
 /* Return the nearest aligned address at or below a. */
 #define ALIGNMENT_ADDR2BASE(a, alignment)				\
-	((void *)((uintptr_t)(a) & ((~(alignment)) + 1)))
+	((void *)(((byte_t *)(a)) - (((uintptr_t)(a)) -			\
+	    ((uintptr_t)(a) & ((~(alignment)) + 1)))))
 
 /* Return the offset between a and the nearest aligned address at or below a. */
 #define ALIGNMENT_ADDR2OFFSET(a, alignment)				\
@@ -108,6 +109,19 @@ typedef enum malloc_init_e malloc_init_t;
 /* Return the smallest alignment multiple that is >= s. */
 #define ALIGNMENT_CEILING(s, alignment)					\
 	(((s) + (alignment - 1)) & ((~(alignment)) + 1))
+
+/*
+ * Return the nearest aligned address at or above a.
+ *
+ * While at first glance this would appear to be merely a more complicated
+ * way to perform the same computation as `ALIGNMENT_CEILING`,
+ * this has the important additional property of not concealing pointer
+ * provenance from the compiler. See the block-comment on the
+ * definition of `byte_t` for more details.
+ */
+#define ALIGNMENT_ADDR2CEILING(a, alignment)				\
+	((void *)(((byte_t *)(a)) + (((((uintptr_t)(a)) +		\
+	    (alignment - 1)) & ((~(alignment)) + 1)) - ((uintptr_t)(a)))))
 
 /* Declare a variable-length array. */
 #if __STDC_VERSION__ < 199901L || defined(__STDC_NO_VLA__)

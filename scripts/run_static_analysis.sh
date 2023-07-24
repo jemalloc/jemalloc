@@ -44,7 +44,8 @@ echo '-**/stdlib.h' > "$skipfile"
 CC_ANALYZERS_FROM_PATH=1 CodeChecker analyze compile_commands.json --jobs "$(nproc)" \
 	--ctu --compile-uniqueing strict --output static_analysis_raw_results \
 	--analyzers clangsa clang-tidy --skip "$skipfile" \
-	--enable readability-inconsistent-declaration-parameter-name
+	--enable readability-inconsistent-declaration-parameter-name \
+	--enable performance-no-int-to-ptr
 	# `--enable` is additive, the vast majority of the checks we want are
 	# enabled by default.
 

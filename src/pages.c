@@ -197,7 +197,7 @@ os_pages_map(void *addr, size_t size, size_t alignment, bool *commit) {
 static void *
 os_pages_trim(void *addr, size_t alloc_size, size_t leadsize, size_t size,
     bool *commit) {
-	void *ret = (void *)((uintptr_t)addr + leadsize);
+	void *ret = (void *)((byte_t *)addr + leadsize);
 
 	assert(alloc_size >= leadsize + size);
 #ifdef _WIN32
@@ -217,7 +217,7 @@ os_pages_trim(void *addr, size_t alloc_size, size_t leadsize, size_t size,
 		os_pages_unmap(addr, leadsize);
 	}
 	if (trailsize != 0) {
-		os_pages_unmap((void *)((uintptr_t)ret + size), trailsize);
+		os_pages_unmap((void *)((byte_t *)ret + size), trailsize);
 	}
 	return ret;
 #endif

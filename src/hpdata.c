@@ -130,7 +130,7 @@ hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz) {
 
 	hpdata_assert_consistent(hpdata);
 	return (void *)(
-	    (uintptr_t)hpdata_addr_get(hpdata) + (result << LG_PAGE));
+	    (byte_t *)hpdata_addr_get(hpdata) + (result << LG_PAGE));
 }
 
 void
@@ -277,7 +277,7 @@ hpdata_purge_next(hpdata_t *hpdata, hpdata_purge_state_t *purge_state,
 	}
 
 	*r_purge_addr = (void *)(
-	    (uintptr_t)hpdata_addr_get(hpdata) + purge_begin * PAGE);
+	    (byte_t *)hpdata_addr_get(hpdata) + purge_begin * PAGE);
 	*r_purge_size = purge_len * PAGE;
 
 	purge_state->next_purge_search_begin = purge_begin + purge_len;

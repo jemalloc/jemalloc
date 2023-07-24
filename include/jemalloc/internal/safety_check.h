@@ -31,7 +31,7 @@ compute_redzone_end(const void *_ptr, size_t usize, size_t bumped_usize) {
 	const unsigned char *redzone_end = usize + REDZONE_SIZE < bumped_usize ?
 	    &ptr[usize + REDZONE_SIZE] : &ptr[bumped_usize];
 	const unsigned char *page_end = (const unsigned char *)
-	    ALIGNMENT_CEILING(((uintptr_t) (&ptr[usize])), os_page);
+	    ALIGNMENT_ADDR2CEILING(&ptr[usize], os_page);
 	return redzone_end < page_end ? redzone_end : page_end;
 }
 

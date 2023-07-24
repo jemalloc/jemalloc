@@ -16,6 +16,7 @@ typedef struct tcaches_s tcaches_t;
 #define TCACHE_ENABLED_ZERO_INITIALIZER false
 
 /* Used for explicit tcache only. Means flushed but not destroyed. */
+/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
 #define TCACHES_ELM_NEED_REINIT ((tcache_t *)(uintptr_t)1)
 
 #define TCACHE_LG_MAXCLASS_LIMIT 23 /* tcache_maxclass = 8M */

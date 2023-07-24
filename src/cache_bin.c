@@ -50,7 +50,7 @@ cache_bin_preincrement(cache_bin_info_t *infos, szind_t ninfos, void *alloc,
 		assert(((uintptr_t)alloc & (computed_alignment - 1)) == 0);
 	}
 
-	*(uintptr_t *)((uintptr_t)alloc + *cur_offset) =
+	*(uintptr_t *)((byte_t *)alloc + *cur_offset) =
 	    cache_bin_preceding_junk;
 	*cur_offset += sizeof(void *);
 }
@@ -58,7 +58,7 @@ cache_bin_preincrement(cache_bin_info_t *infos, szind_t ninfos, void *alloc,
 void
 cache_bin_postincrement(cache_bin_info_t *infos, szind_t ninfos, void *alloc,
     size_t *cur_offset) {
-	*(uintptr_t *)((uintptr_t)alloc + *cur_offset) =
+	*(uintptr_t *)((byte_t *)alloc + *cur_offset) =
 	    cache_bin_trailing_junk;
 	*cur_offset += sizeof(void *);
 }
@@ -71,12 +71,12 @@ cache_bin_init(cache_bin_t *bin, cache_bin_info_t *info, void *alloc,
 	 * will access the slots toward higher addresses (for the benefit of
 	 * adjacent prefetch).
 	 */
-	void *stack_cur = (void *)((uintptr_t)alloc + *cur_offset);
+	void *stack_cur = (void *)((byte_t *)alloc + *cur_offset);
 	void *full_position = stack_cur;
 	uint16_t bin_stack_size = info->ncached_max * sizeof(void *);
 
 	*cur_offset += bin_stack_size;
-	void *empty_position = (void *)((uintptr_t)alloc + *cur_offset);
+	void *empty_position = (void *)((byte_t *)alloc + *cur_offset);
 
 	/* Init to the empty position. */
 	bin->stack_head = (void **)empty_position;

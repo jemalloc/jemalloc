@@ -236,7 +236,7 @@ arena_slab_reg_alloc(edata_t *slab, const bin_info_t *bin_info) {
 	assert(!bitmap_full(slab_data->bitmap, &bin_info->bitmap_info));
 
 	regind = bitmap_sfu(slab_data->bitmap, &bin_info->bitmap_info);
-	ret = (void *)((uintptr_t)edata_addr_get(slab) +
+	ret = (void *)((byte_t *)edata_addr_get(slab) +
 	    (uintptr_t)(bin_info->reg_size * regind));
 	edata_nfree_dec(slab);
 	return ret;
@@ -280,6 +280,7 @@ arena_slab_reg_alloc_batch(edata_t *slab, const bin_info_t *bin_info,
 		while (pop--) {
 			size_t bit = cfs_lu(&g);
 			size_t regind = shift + bit;
+			/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
 			*(ptrs + i) = (void *)(base + regsize * regind);
 
 			i++;

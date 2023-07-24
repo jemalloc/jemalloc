@@ -113,10 +113,10 @@ large_ralloc_no_move_expand(tsdn_t *tsdn, edata_t *edata, size_t usize,
 			 * of CACHELINE in [0 .. PAGE).
 			 */
 			void *zbase = (void *)
-			    ((uintptr_t)edata_addr_get(edata) + old_usize);
-			void *zpast = PAGE_ADDR2BASE((void *)((uintptr_t)zbase +
+			    ((byte_t *)edata_addr_get(edata) + old_usize);
+			void *zpast = PAGE_ADDR2BASE((void *)((byte_t *)zbase +
 			    PAGE));
-			size_t nzero = (uintptr_t)zpast - (uintptr_t)zbase;
+			size_t nzero = (byte_t *)zpast - (byte_t *)zbase;
 			assert(nzero > 0);
 			memset(zbase, 0, nzero);
 		}

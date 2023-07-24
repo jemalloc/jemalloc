@@ -181,9 +181,9 @@ base_extent_bump_alloc_helper(edata_t *edata, size_t *gap_size, size_t size,
 
 	*gap_size = ALIGNMENT_CEILING((uintptr_t)edata_addr_get(edata),
 	    alignment) - (uintptr_t)edata_addr_get(edata);
-	ret = (void *)((uintptr_t)edata_addr_get(edata) + *gap_size);
+	ret = (void *)((byte_t *)edata_addr_get(edata) + *gap_size);
 	assert(edata_bsize_get(edata) >= *gap_size + size);
-	edata_binit(edata, (void *)((uintptr_t)edata_addr_get(edata) +
+	edata_binit(edata, (void *)((byte_t *)edata_addr_get(edata) +
 	    *gap_size + size), edata_bsize_get(edata) - *gap_size - size,
 	    edata_sn_get(edata));
 	return ret;
@@ -291,7 +291,7 @@ base_block_alloc(tsdn_t *tsdn, base_t *base, ehooks_t *ehooks, unsigned ind,
 	block->next = NULL;
 	assert(block_size >= header_size);
 	base_edata_init(extent_sn_next, &block->edata,
-	    (void *)((uintptr_t)block + header_size), block_size - header_size);
+	    (void *)((byte_t *)block + header_size), block_size - header_size);
 	return block;
 }
 

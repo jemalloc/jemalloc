@@ -247,7 +247,7 @@ static inline void **
 cache_bin_empty_position_get(cache_bin_t *bin) {
 	cache_bin_sz_t diff = cache_bin_diff(bin,
 	    (uint16_t)(uintptr_t)bin->stack_head, bin->low_bits_empty);
-	uintptr_t empty_bits = (uintptr_t)bin->stack_head + diff;
+	byte_t *empty_bits = (byte_t *)bin->stack_head + diff;
 	void **ret = (void **)empty_bits;
 
 	assert(ret >= bin->stack_head);
@@ -479,7 +479,7 @@ cache_bin_stash(cache_bin_t *bin, void *ptr) {
 	uint16_t low_bits_head = (uint16_t)(uintptr_t)bin->stack_head;
 	/* Wraparound handled as well. */
 	uint16_t diff = cache_bin_diff(bin, bin->low_bits_full, low_bits_head);
-	*(void **)((uintptr_t)bin->stack_head - diff) = ptr;
+	*(void **)((byte_t *)bin->stack_head - diff) = ptr;
 
 	assert(!cache_bin_full(bin));
 	bin->low_bits_full += sizeof(void *);

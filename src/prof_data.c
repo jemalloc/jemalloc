@@ -85,8 +85,10 @@ prof_tctx_comp(const prof_tctx_t *a, const prof_tctx_t *b) {
 	return ret;
 }
 
+/* NOLINTBEGIN(performance-no-int-to-ptr) */
 rb_gen(static UNUSED, tctx_tree_, prof_tctx_tree_t, prof_tctx_t,
     tctx_link, prof_tctx_comp)
+/* NOLINTEND(performance-no-int-to-ptr) */
 
 static int
 prof_gctx_comp(const prof_gctx_t *a, const prof_gctx_t *b) {
@@ -100,8 +102,10 @@ prof_gctx_comp(const prof_gctx_t *a, const prof_gctx_t *b) {
 	return ret;
 }
 
+/* NOLINTBEGIN(performance-no-int-to-ptr) */
 rb_gen(static UNUSED, gctx_tree_, prof_gctx_tree_t, prof_gctx_t, dump_link,
     prof_gctx_comp)
+/* NOLINTEND(performance-no-int-to-ptr) */
 
 static int
 prof_tdata_comp(const prof_tdata_t *a, const prof_tdata_t *b) {
@@ -119,8 +123,10 @@ prof_tdata_comp(const prof_tdata_t *a, const prof_tdata_t *b) {
 	return ret;
 }
 
+/* NOLINTBEGIN(performance-no-int-to-ptr) */
 rb_gen(static UNUSED, tdata_tree_, prof_tdata_tree_t, prof_tdata_t, tdata_link,
     prof_tdata_comp)
+/* NOLINTEND(performance-no-int-to-ptr) */
 
 /******************************************************************************/
 
@@ -1141,7 +1147,7 @@ prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim,
 		return NULL;
 	}
 
-	tdata->vec = (void **)((uintptr_t)tdata + tdata_sz);
+	tdata->vec = (void **)((byte_t *)tdata + tdata_sz);
 	tdata->lock = prof_tdata_mutex_choose(thr_uid);
 	tdata->thr_uid = thr_uid;
 	tdata->thr_discrim = thr_discrim;

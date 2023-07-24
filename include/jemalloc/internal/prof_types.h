@@ -88,6 +88,7 @@ typedef struct prof_recent_s prof_recent_t;
 #define PROF_SAMPLE_ALIGNMENT PAGE
 #define PROF_SAMPLE_ALIGNMENT_MASK PAGE_MASK
 
+/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
 #define PROF_TCTX_SENTINEL ((prof_tctx_t *)((uintptr_t)1U))
 
 #endif /* JEMALLOC_INTERNAL_PROF_TYPES_H */

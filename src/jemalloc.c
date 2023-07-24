@@ -3446,7 +3446,7 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 	if (config_fill && unlikely(opt_junk_alloc) && usize > old_usize
 	    && !zero) {
 		size_t excess_len = usize - old_usize;
-		void *excess_start = (void *)((uintptr_t)p + old_usize);
+		void *excess_start = (void *)((byte_t *)p + old_usize);
 		junk_alloc_callback(excess_start, excess_len);
 	}
 
@@ -3716,7 +3716,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	if (config_fill && unlikely(opt_junk_alloc) && usize > old_usize &&
 	    !zero) {
 		size_t excess_len = usize - old_usize;
-		void *excess_start = (void *)((uintptr_t)ptr + old_usize);
+		void *excess_start = (void *)((byte_t *)ptr + old_usize);
 		junk_alloc_callback(excess_start, excess_len);
 	}
 label_not_resized:

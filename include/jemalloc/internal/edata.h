@@ -377,18 +377,18 @@ edata_ps_get(const edata_t *edata) {
 
 static inline void *
 edata_before_get(const edata_t *edata) {
-	return (void *)((uintptr_t)edata_base_get(edata) - PAGE);
+	return (void *)((byte_t *)edata_base_get(edata) - PAGE);
 }
 
 static inline void *
 edata_last_get(const edata_t *edata) {
-	return (void *)((uintptr_t)edata_base_get(edata) +
+	return (void *)((byte_t *)edata_base_get(edata) +
 	    edata_size_get(edata) - PAGE);
 }
 
 static inline void *
 edata_past_get(const edata_t *edata) {
-	return (void *)((uintptr_t)edata_base_get(edata) +
+	return (void *)((byte_t *)edata_base_get(edata) +
 	    edata_size_get(edata));
 }
 
