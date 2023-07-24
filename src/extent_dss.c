@@ -8,6 +8,7 @@
 /******************************************************************************/
 /* Data. */
 
+/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
 #define SBRK_INVALID ((void *)-1)
 
 const char	*opt_dss = DSS_DEFAULT;
@@ -149,10 +150,10 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 			 * necessary to satisfy alignment.  This space can be
 			 * recycled for later use.
 			 */
-			void *gap_addr_page = (void *)(PAGE_CEILING(
-			    (uintptr_t)max_cur));
-			void *ret = (void *)ALIGNMENT_CEILING(
-			    (uintptr_t)gap_addr_page, alignment);
+			void *gap_addr_page = ALIGNMENT_ADDR2CEILING(max_cur,
+			    PAGE);
+			void *ret = ALIGNMENT_ADDR2CEILING(
+			    gap_addr_page, alignment);
 			size_t gap_size_page = (uintptr_t)ret -
 			    (uintptr_t)gap_addr_page;
 			if (gap_size_page != 0) {
@@ -167,7 +168,7 @@ extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 			 * Compute the address just past the end of the desired
 			 * allocation space.
 			 */
-			void *dss_next = (void *)((uintptr_t)ret + size);
+			void *dss_next = (void *)((byte_t *)ret + size);
 			if ((uintptr_t)ret < (uintptr_t)max_cur ||
 			    (uintptr_t)dss_next < (uintptr_t)max_cur) {
 				goto label_oom; /* Wrap-around. */

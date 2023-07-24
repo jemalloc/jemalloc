@@ -20,43 +20,43 @@ ssize_t opt_lg_san_uaf_align = SAN_LG_UAF_ALIGN_DEFAULT;
 uintptr_t san_cache_bin_nonfast_mask = SAN_CACHE_BIN_NONFAST_MASK_DEFAULT;
 
 static inline void
-san_find_guarded_addr(edata_t *edata, uintptr_t *guard1, uintptr_t *guard2,
-    uintptr_t *addr, size_t size, bool left, bool right) {
+san_find_guarded_addr(edata_t *edata, void **guard1, void **guard2,
+    void **addr, size_t size, bool left, bool right) {
 	assert(!edata_guarded_get(edata));
 	assert(size % PAGE == 0);
-	*addr = (uintptr_t)edata_base_get(edata);
+	*addr = edata_base_get(edata);
 	if (left) {
 		*guard1 = *addr;
-		*addr += SAN_PAGE_GUARD;
+		*addr = ((byte_t *)*addr) + SAN_PAGE_GUARD;
 	} else {
-		*guard1 = 0;
+		*guard1 = NULL;
 	}
 
 	if (right) {
-		*guard2 = *addr + size;
+		*guard2 = ((byte_t *)*addr) + size;
 	} else {
-		*guard2 = 0;
+		*guard2 = NULL;
 	}
 }
 
 static inline void
-san_find_unguarded_addr(edata_t *edata, uintptr_t *guard1, uintptr_t *guard2,
-    uintptr_t *addr, size_t size, bool left, bool right) {
+san_find_unguarded_addr(edata_t *edata, void **guard1, void **guard2,
+    void **addr, size_t size, bool left, bool right) {
 	assert(edata_guarded_get(edata));
 	assert(size % PAGE == 0);
-	*addr = (uintptr_t)edata_base_get(edata);
+	*addr = edata_base_get(edata);
 	if (right) {
-		*guard2 = *addr + size;
+		*guard2 = ((byte_t *)*addr) + size;
 	} else {
-		*guard2 = 0;
+		*guard2 = NULL;
 	}
 
 	if (left) {
-		*guard1 = *addr - SAN_PAGE_GUARD;
-		assert(*guard1 != 0);
+		*guard1 = ((byte_t *)*addr) - SAN_PAGE_GUARD;
+		assert(*guard1 != NULL);
 		*addr = *guard1;
 	} else {
-		*guard1 = 0;
+		*guard1 = NULL;
 	}
 }
 
@@ -73,16 +73,16 @@ san_guard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap,
 	    ? san_two_side_unguarded_sz(size_with_guards)
 	    : san_one_side_unguarded_sz(size_with_guards);
 
-	uintptr_t guard1, guard2, addr;
+	void *guard1, *guard2, *addr;
 	san_find_guarded_addr(edata, &guard1, &guard2, &addr, usize, left,
 	    right);
 
 	assert(edata_state_get(edata) == extent_state_active);
-	ehooks_guard(tsdn, ehooks, (void *)guard1, (void *)guard2);
+	ehooks_guard(tsdn, ehooks, guard1, guard2);
 
 	/* Update the guarded addr and usable size of the edata. */
 	edata_size_set(edata, usize);
-	edata_addr_set(edata, (void *)addr);
+	edata_addr_set(edata, addr);
 	edata_guarded_set(edata, true);
 
 	if (remap) {
@@ -108,7 +108,7 @@ san_unguard_pages_impl(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
 	    ? san_two_side_guarded_sz(size)
 	    : san_one_side_guarded_sz(size);
 
-	uintptr_t guard1, guard2, addr;
+	void *guard1, *guard2, *addr;
 	san_find_unguarded_addr(edata, &guard1, &guard2, &addr, size, left,
 	    right);
 

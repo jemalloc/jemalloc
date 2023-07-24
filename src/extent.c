@@ -743,7 +743,7 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		/* A successful commit should return zeroed memory. */
 		if (config_debug) {
 			void *addr = edata_addr_get(edata);
-			size_t *p = (size_t *)(uintptr_t)addr;
+			size_t *p = (size_t *)addr;
 			/* Check the first page only. */
 			for (size_t i = 0; i < PAGE / sizeof(size_t); i++) {
 				assert(p[i] == 0);
@@ -1199,7 +1199,7 @@ extent_split_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	}
 
 	edata_init(trail, edata_arena_ind_get(edata),
-	    (void *)((uintptr_t)edata_base_get(edata) + size_a), size_b,
+	    (void *)((byte_t *)edata_base_get(edata) + size_a), size_b,
 	    /* slab */ false, SC_NSIZES, edata_sn_get(edata),
 	    edata_state_get(edata), edata_zeroed_get(edata),
 	    edata_committed_get(edata), EXTENT_PAI_PAC, EXTENT_NOT_HEAD);

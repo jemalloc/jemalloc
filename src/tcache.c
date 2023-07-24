@@ -768,9 +768,9 @@ tcache_create_explicit(tsd_t *tsd) {
 	if (mem == NULL) {
 		return NULL;
 	}
-	tcache_t *tcache = (void *)((uintptr_t)mem + tcache_bin_alloc_size);
+	tcache_t *tcache = (void *)((byte_t *)mem + tcache_bin_alloc_size);
 	tcache_slow_t *tcache_slow =
-	    (void *)((uintptr_t)mem + tcache_bin_alloc_size + sizeof(tcache_t));
+	    (void *)((byte_t *)mem + tcache_bin_alloc_size + sizeof(tcache_t));
 	tcache_init(tsd, tcache_slow, tcache, mem);
 
 	tcache_arena_associate(tsd_tsdn(tsd), tcache_slow, tcache,

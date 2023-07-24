@@ -368,6 +368,7 @@ check_background_thread_creation(tsd_t *tsd,
 
 		pre_reentrancy(tsd, NULL);
 		int err = background_thread_create_signals_masked(&info->thread,
+			/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
 		    NULL, background_thread_entry, (void *)(uintptr_t)i);
 		post_reentrancy(tsd);
 
@@ -540,6 +541,7 @@ background_thread_create_locked(tsd_t *tsd, unsigned arena_ind) {
 	 * background threads with the underlying pthread_create.
 	 */
 	int err = background_thread_create_signals_masked(&info->thread, NULL,
+		/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
 	    background_thread_entry, (void *)thread_ind);
 	post_reentrancy(tsd);
 

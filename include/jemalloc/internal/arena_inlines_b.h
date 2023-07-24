@@ -513,7 +513,7 @@ arena_cache_oblivious_randomize(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
 		}
 		uintptr_t random_offset = ((uintptr_t)r) << (LG_PAGE -
 		    lg_range);
-		edata->e_addr = (void *)((uintptr_t)edata->e_addr +
+		edata->e_addr = (void *)((byte_t *)edata->e_addr +
 		    random_offset);
 		assert(ALIGNMENT_ADDR2BASE(edata->e_addr, alignment) ==
 		    edata->e_addr);
@@ -599,7 +599,7 @@ arena_dalloc_bin_locked_finish(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 
 static inline bin_t *
 arena_get_bin(arena_t *arena, szind_t binind, unsigned binshard) {
-	bin_t *shard0 = (bin_t *)((uintptr_t)arena + arena_bin_offsets[binind]);
+	bin_t *shard0 = (bin_t *)((byte_t *)arena + arena_bin_offsets[binind]);
 	return shard0 + binshard;
 }
 

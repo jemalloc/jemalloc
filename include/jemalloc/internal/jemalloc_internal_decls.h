@@ -105,4 +105,21 @@ isblank(int c) {
 #  undef small
 #endif
 
+/*
+ * Oftentimes we'd like to perform some kind of arithmetic to obtain
+ * a pointer from another pointer but with some offset or mask applied.
+ * Naively you would accomplish this by casting the source pointer to
+ * `uintptr_t`, performing all of the relevant arithmetic, and then casting
+ * the result to the desired pointer type. However, this has the unfortunate
+ * side-effect of concealing pointer provenance, hiding useful information for
+ * optimization from the compiler (see here for details:
+ * https://clang.llvm.org/extra/clang-tidy/checks/performance/no-int-to-ptr.html
+ * )
+ * Instead what one should do is cast the source pointer to `char *` and perform
+ * the equivalent arithmetic (since `char` of course represents one byte). But
+ * because `char *` has the semantic meaning of "string", we define this typedef
+ * simply to make it clearer where we are performing such pointer arithmetic.
+ */
+typedef char byte_t;
+
 #endif /* JEMALLOC_INTERNAL_H */
