@@ -1042,23 +1042,7 @@ ctl_arena_clear(ctl_arena_t *ctl_arena) {
 	ctl_arena->pdirty = 0;
 	ctl_arena->pmuzzy = 0;
 	if (config_stats) {
-		memset(&ctl_arena->astats->astats, 0, sizeof(arena_stats_t));
-		ctl_arena->astats->allocated_small = 0;
-		ctl_arena->astats->nmalloc_small = 0;
-		ctl_arena->astats->ndalloc_small = 0;
-		ctl_arena->astats->nrequests_small = 0;
-		ctl_arena->astats->nfills_small = 0;
-		ctl_arena->astats->nflushes_small = 0;
-		memset(ctl_arena->astats->bstats, 0, SC_NBINS *
-		    sizeof(bin_stats_data_t));
-		memset(ctl_arena->astats->lstats, 0, (SC_NSIZES - SC_NBINS) *
-		    sizeof(arena_stats_large_t));
-		memset(ctl_arena->astats->estats, 0, SC_NPSIZES *
-		    sizeof(pac_estats_t));
-		memset(&ctl_arena->astats->hpastats, 0,
-		    sizeof(hpa_shard_stats_t));
-		memset(&ctl_arena->astats->secstats, 0,
-		    sizeof(sec_stats_t));
+		memset(ctl_arena->astats, 0, sizeof(*(ctl_arena->astats)));
 	}
 }
 
