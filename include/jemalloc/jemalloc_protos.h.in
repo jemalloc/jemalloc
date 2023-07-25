@@ -1,6 +1,3 @@
-#include "jemalloc/jemalloc_defs.h"
-#include "jemalloc/jemalloc_macros.h"
-
 /*
  * The @je_@ prefix on the following public symbol declarations is an artifact
  * of namespace management, and should be omitted in application code unless
