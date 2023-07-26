@@ -660,6 +660,76 @@ arena_bin_reset(tsd_t *tsd, arena_t *arena, bin_t *bin) {
 }
 
 void
+arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize, size_t bumped_usize) {
+	cassert(config_prof);
+	assert(ptr != NULL);
+	assert(isalloc(tsdn, ptr) == bumped_usize);
+	assert(sz_can_use_slab(usize));
+
+	if (config_opt_safety_checks) {
+		safety_check_set_redzone(ptr, usize, bumped_usize);
+	}
+
+	edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global, ptr);
+
+	szind_t szind = sz_size2index(usize);
+	edata_szind_set(edata, szind);
+	emap_remap(tsdn, &arena_emap_global, edata, szind, /* slab */ false);
+
+	assert(isalloc(tsdn, ptr) == usize);
+}
+
+static size_t
+arena_prof_demote(tsdn_t *tsdn, edata_t *edata, const void *ptr) {
+	cassert(config_prof);
+	assert(ptr != NULL);
+	size_t usize = isalloc(tsdn, ptr);
+	size_t bumped_usize = sz_sa2u(usize, PROF_SAMPLE_ALIGNMENT);
+	assert(bumped_usize <= SC_LARGE_MINCLASS &&
+	    PAGE_CEILING(bumped_usize) == bumped_usize);
+	assert(edata_size_get(edata) - bumped_usize <= sz_large_pad);
+	szind_t szind = sz_size2index(bumped_usize);
+
+	edata_szind_set(edata, szind);
+	emap_remap(tsdn, &arena_emap_global, edata, szind, /* slab */ false);
+
+	assert(isalloc(tsdn, ptr) == bumped_usize);
+
+	return bumped_usize;
+}
+
+static void
+arena_dalloc_promoted_impl(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
+    bool slow_path, edata_t *edata) {
+	cassert(config_prof);
+	assert(opt_prof);
+
+	size_t usize = edata_usize_get(edata);
+	size_t bumped_usize = arena_prof_demote(tsdn, edata, ptr);
+	if (config_opt_safety_checks && usize < SC_LARGE_MINCLASS) {
+		/*
+		 * Currently, we only do redzoning for small sampled
+		 * allocations.
+		 */
+		safety_check_verify_redzone(ptr, usize, bumped_usize);
+	}
+	if (bumped_usize >= SC_LARGE_MINCLASS &&
+	    bumped_usize <= tcache_maxclass && tcache != NULL) {
+		tcache_dalloc_large(tsdn_tsd(tsdn), tcache, ptr,
+		    sz_size2index(bumped_usize), slow_path);
+	} else {
+		large_dalloc(tsdn, edata);
+	}
+}
+
+void
+arena_dalloc_promoted(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
+    bool slow_path) {
+	edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global, ptr);
+	arena_dalloc_promoted_impl(tsdn, ptr, tcache, slow_path, edata);
+}
+
+void
 arena_reset(tsd_t *tsd, arena_t *arena) {
 	/*
 	 * Locking in this function is unintuitive.  The caller guarantees that
@@ -697,7 +767,12 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 		if (config_prof && opt_prof) {
 			prof_free(tsd, ptr, usize, &alloc_ctx);
 		}
-		large_dalloc(tsd_tsdn(tsd), edata);
+		if (config_prof && opt_prof && alloc_ctx.szind < SC_NBINS) {
+			arena_dalloc_promoted_impl(tsd_tsdn(tsd), ptr,
+			    /* tcache */ NULL, /* slow_path */ true, edata);
+		} else {
+			large_dalloc(tsd_tsdn(tsd), edata);
+		}
 		malloc_mutex_lock(tsd_tsdn(tsd), &arena->large_mtx);
 	}
 	malloc_mutex_unlock(tsd_tsdn(tsd), &arena->large_mtx);
@@ -1233,70 +1308,6 @@ arena_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 		} else {
 			return large_palloc(tsdn, arena, usize, alignment, zero);
 		}
-	}
-}
-
-void
-arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize, size_t bumped_usize) {
-	cassert(config_prof);
-	assert(ptr != NULL);
-	assert(isalloc(tsdn, ptr) == bumped_usize);
-	assert(sz_can_use_slab(usize));
-
-	if (config_opt_safety_checks) {
-		safety_check_set_redzone(ptr, usize, bumped_usize);
-	}
-
-	edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global, ptr);
-
-	szind_t szind = sz_size2index(usize);
-	edata_szind_set(edata, szind);
-	emap_remap(tsdn, &arena_emap_global, edata, szind, /* slab */ false);
-
-	assert(isalloc(tsdn, ptr) == usize);
-}
-
-static size_t
-arena_prof_demote(tsdn_t *tsdn, edata_t *edata, const void *ptr) {
-	cassert(config_prof);
-	assert(ptr != NULL);
-	size_t usize = isalloc(tsdn, ptr);
-	size_t bumped_usize = sz_sa2u(usize, PROF_SAMPLE_ALIGNMENT);
-	assert(bumped_usize <= SC_LARGE_MINCLASS &&
-	    PAGE_CEILING(bumped_usize) == bumped_usize);
-	assert(edata_size_get(edata) - bumped_usize <= sz_large_pad);
-	szind_t szind = sz_size2index(bumped_usize);
-
-	edata_szind_set(edata, szind);
-	emap_remap(tsdn, &arena_emap_global, edata, szind, /* slab */ false);
-
-	assert(isalloc(tsdn, ptr) == bumped_usize);
-
-	return bumped_usize;
-}
-
-void
-arena_dalloc_promoted(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
-    bool slow_path) {
-	cassert(config_prof);
-	assert(opt_prof);
-
-	edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global, ptr);
-	size_t usize = edata_usize_get(edata);
-	size_t bumped_usize = arena_prof_demote(tsdn, edata, ptr);
-	if (config_opt_safety_checks && usize < SC_LARGE_MINCLASS) {
-		/*
-		 * Currently, we only do redzoning for small sampled
-		 * allocations.
-		 */
-		safety_check_verify_redzone(ptr, usize, bumped_usize);
-	}
-	if (bumped_usize >= SC_LARGE_MINCLASS &&
-	    bumped_usize <= tcache_maxclass && tcache != NULL) {
-		tcache_dalloc_large(tsdn_tsd(tsdn), tcache, ptr,
-		    sz_size2index(bumped_usize), slow_path);
-	} else {
-		large_dalloc(tsdn, edata);
 	}
 }
 
