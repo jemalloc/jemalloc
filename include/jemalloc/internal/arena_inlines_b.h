@@ -378,7 +378,7 @@ arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 	if (caller_alloc_ctx != NULL) {
 		alloc_ctx = *caller_alloc_ctx;
 	} else {
-		util_assume(!tsdn_null(tsdn));
+		util_assume(tsdn != NULL);
 		emap_alloc_ctx_lookup(tsdn, &arena_emap_global, ptr,
 		    &alloc_ctx);
 	}
