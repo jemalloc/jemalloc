@@ -313,6 +313,7 @@ def main():
 
         generate_linux(AMD64),
         generate_linux(PPC64LE),
+        generate_linux(ARM64),
 
         generate_macos(AMD64),
 
