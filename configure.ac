@@ -1728,6 +1728,16 @@ else
   AC_DEFINE([JEMALLOC_INTERNAL_UNREACHABLE], [abort], [ ])
 fi
 
+JE_COMPILABLE([a program using _Static_assert], [
+], [
+	{
+		_Static_assert(1 == 1, "Trivially true");
+	}
+], [je_cv_gcc_static_assert])
+if test "x${je_cv_gcc_static_assert}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_INTERNAL_HAS_STATIC_ASSERT], [ ], [ ])
+fi
+
 dnl ============================================================================
 dnl Check for  __builtin_ffsl(), then ffsl(3), and fail if neither are found.
 dnl One of those two functions should (theoretically) exist on all platforms

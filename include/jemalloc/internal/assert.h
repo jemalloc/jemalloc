@@ -1,3 +1,6 @@
+#ifndef JEMALLOC_INTERNAL_ASSERT_H
+#define JEMALLOC_INTERNAL_ASSERT_H
+
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/util.h"
@@ -55,3 +58,15 @@
 	}								\
 } while (0)
 #endif
+
+#if !defined(__cplusplus) && !defined(_MSC_VER) && !defined(static_assert)
+#ifdef JEMALLOC_INTERNAL_HAS_STATIC_ASSERT
+	#define static_assert _Static_assert
+#else
+	#define STATIC_ASSERT_TOKENPASTE_IMPL(a, b) a ## b
+	#define STATIC_ASSERT_TOKENPASTE(a, b) STATIC_ASSERT_TOKENPASTE_IMPL(a, b)
+	#define static_assert(expression, message) enum { STATIC_ASSERT_TOKENPASTE(static_assertion_, __LINE__) = 1 / ((message) && (expression)) }
+#endif
+#endif
+
+#endif /* JEMALLOC_INTERNAL_ASSERT_H */

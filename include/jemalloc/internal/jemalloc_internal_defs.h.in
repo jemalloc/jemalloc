@@ -239,6 +239,9 @@
  */
 #undef JEMALLOC_INTERNAL_UNREACHABLE
 
+/* Defined if the compiler supports C11's `_Static_assert` */
+#undef JEMALLOC_INTERNAL_HAS_STATIC_ASSERT
+
 /*
  * ffs*() functions to use for bitmapping.  Don't use these directly; instead,
  * use ffs_*() from util.h.
