@@ -34,8 +34,16 @@
 #  error Unsupported number of significant virtual address bits
 #endif
 /* Use compact leaf representation if virtual address encoding allows. */
-#if RTREE_NHIB >= LG_CEIL(SC_NSIZES)
+#if RTREE_NHIB >= 16 && LG_CEIL(SC_NSIZES) <= 8
 #  define RTREE_LEAF_COMPACT
+#endif
+
+#ifdef RTREE_LEAF_COMPACT
+typedef uint8_t metadata_szind_t;
+typedef uint16_t metadata_bits_t;
+#else
+typedef uint16_t metadata_szind_t;
+typedef uint32_t metadata_bits_t;
 #endif
 
 typedef struct rtree_node_elm_s rtree_node_elm_t;
@@ -45,43 +53,46 @@ struct rtree_node_elm_s {
 
 typedef struct rtree_metadata_s rtree_metadata_t;
 struct rtree_metadata_s {
-	szind_t szind;
-	extent_state_t state; /* Mirrors edata->state. */
-	bool is_head; /* Mirrors edata->is_head. */
-	bool slab;
+	metadata_szind_t szind;
+	bool slab : 1;
+	bool is_head : 1; /* Mirrors edata->is_head. */
+	extent_state_t state : EDATA_BITS_STATE_WIDTH; /* Mirrors edata->state. */
 };
+
+static_assert(sizeof(metadata_bits_t) == sizeof(rtree_metadata_t),
+              "Encoded metadata has the wrong size");
 
 typedef struct rtree_contents_s rtree_contents_t;
 struct rtree_contents_s {
-	edata_t *edata;
 	rtree_metadata_t metadata;
+	edata_t *edata;
 };
-
-#define RTREE_LEAF_STATE_WIDTH EDATA_BITS_STATE_WIDTH
-#define RTREE_LEAF_STATE_SHIFT 2
-#define RTREE_LEAF_STATE_MASK MASK(RTREE_LEAF_STATE_WIDTH, RTREE_LEAF_STATE_SHIFT)
 
 struct rtree_leaf_elm_s {
 #ifdef RTREE_LEAF_COMPACT
 	/*
-	 * Single pointer-width field containing all three leaf element fields.
+	 * Single pointer-width field containing all five leaf element fields.
 	 * For example, on a 64-bit x64 system with 48 significant virtual
-	 * memory address bits, the index, edata, and slab fields are packed as
-	 * such:
+	 * memory address bits, the fields are packed as such:
 	 *
-	 * x: index
 	 * e: edata
 	 * s: state
 	 * h: is_head
 	 * b: slab
+	 * z: szind
+	 * _: unused
 	 *
-	 *   00000000 xxxxxxxx eeeeeeee [...] eeeeeeee e00ssshb
+	 *   eeeeeeee eeeeeeee [...] eeeeeeee ___ssshb zzzzzzzz
 	 */
 	atomic_p_t	le_bits;
 #else
 	atomic_p_t	le_edata; /* (edata_t *) */
 	/*
-	 * From high to low bits: szind (8 bits), state (4 bits), is_head, slab
+	 * In this case the metadata fields are packed in a very similar
+	 * format as the last 16 bits in the diagram above, with the key
+	 * difference being that szind occupies 16 bits instead of 8,
+	 * with the remaining metadata fields all being shifted left by
+	 * 8 as a result (compared to the diagram).
 	 */
 	atomic_u_t	le_metadata;
 #endif
@@ -167,6 +178,24 @@ rtree_subkey(uintptr_t key, unsigned level) {
 	return ((key >> shiftbits) & mask);
 }
 
+JEMALLOC_ALWAYS_INLINE metadata_bits_t
+rtree_leaf_elm_metadata_bits_encode(rtree_metadata_t metadata) {
+	union {
+		metadata_bits_t bits;
+		rtree_metadata_t metadata;
+	} encoder = {.metadata = metadata};
+	return encoder.bits;
+}
+
+JEMALLOC_ALWAYS_INLINE rtree_metadata_t
+rtree_leaf_elm_metadata_bits_decode(metadata_bits_t bits) {
+	union {
+		metadata_bits_t bits;
+		rtree_metadata_t metadata;
+	} encoder = {.bits = bits};
+	return encoder.metadata;
+}
+
 /*
  * Atomic getters.
  *
@@ -189,51 +218,19 @@ rtree_leaf_elm_bits_read(tsdn_t *tsdn, rtree_t *rtree,
 JEMALLOC_ALWAYS_INLINE uintptr_t
 rtree_leaf_elm_bits_encode(rtree_contents_t contents) {
 	assert((uintptr_t)contents.edata % (uintptr_t)EDATA_ALIGNMENT == 0);
-	uintptr_t edata_bits = (uintptr_t)contents.edata
-	    & (((uintptr_t)1 << LG_VADDR) - 1);
-
-	uintptr_t szind_bits = (uintptr_t)contents.metadata.szind << LG_VADDR;
-	uintptr_t slab_bits = (uintptr_t)contents.metadata.slab;
-	uintptr_t is_head_bits = (uintptr_t)contents.metadata.is_head << 1;
-	uintptr_t state_bits = (uintptr_t)contents.metadata.state <<
-	    RTREE_LEAF_STATE_SHIFT;
-	uintptr_t metadata_bits = szind_bits | state_bits | is_head_bits |
-	    slab_bits;
+	uintptr_t edata_bits = ((uintptr_t)contents.edata) << RTREE_NHIB;
+	uintptr_t metadata_bits =
+	    rtree_leaf_elm_metadata_bits_encode(contents.metadata);
 	assert((edata_bits & metadata_bits) == 0);
-
 	return edata_bits | metadata_bits;
 }
 
 JEMALLOC_ALWAYS_INLINE rtree_contents_t
 rtree_leaf_elm_bits_decode(uintptr_t bits) {
 	rtree_contents_t contents;
-	/* Do the easy things first. */
-	contents.metadata.szind = bits >> LG_VADDR;
-	contents.metadata.slab = (bool)(bits & 1);
-	contents.metadata.is_head = (bool)(bits & (1 << 1));
-
-	uintptr_t state_bits = (bits & RTREE_LEAF_STATE_MASK) >>
-	    RTREE_LEAF_STATE_SHIFT;
-	assert(state_bits <= extent_state_max);
-	contents.metadata.state = (extent_state_t)state_bits;
-
-	uintptr_t low_bit_mask = ~((uintptr_t)EDATA_ALIGNMENT - 1);
-#    ifdef __aarch64__
-	/*
-	 * aarch64 doesn't sign extend the highest virtual address bit to set
-	 * the higher ones.  Instead, the high bits get zeroed.
-	 */
-	uintptr_t high_bit_mask = ((uintptr_t)1 << LG_VADDR) - 1;
-	/* Mask off metadata. */
-	uintptr_t mask = high_bit_mask & low_bit_mask;
 	/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
-	contents.edata = (edata_t *)(bits & mask);
-#    else
-	/* Restore sign-extended high bits, mask metadata bits. */
-	/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
-	contents.edata = (edata_t *)((uintptr_t)((intptr_t)(bits << RTREE_NHIB)
-	    >> RTREE_NHIB) & low_bit_mask);
-#    endif
+	contents.edata = (edata_t *)(bits >> RTREE_NHIB);
+	contents.metadata = rtree_leaf_elm_metadata_bits_decode(bits);
 	assert((uintptr_t)contents.edata % (uintptr_t)EDATA_ALIGNMENT == 0);
 	return contents;
 }
@@ -245,22 +242,13 @@ rtree_leaf_elm_read(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
     bool dependent) {
 #ifdef RTREE_LEAF_COMPACT
 	uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, dependent);
-	rtree_contents_t contents = rtree_leaf_elm_bits_decode(bits);
-	return contents;
+	return rtree_leaf_elm_bits_decode(bits);
 #else
 	rtree_contents_t contents;
-	unsigned metadata_bits = atomic_load_u(&elm->le_metadata, dependent
-	    ? ATOMIC_RELAXED : ATOMIC_ACQUIRE);
-	contents.metadata.slab = (bool)(metadata_bits & 1);
-	contents.metadata.is_head = (bool)(metadata_bits & (1 << 1));
-
-	uintptr_t state_bits = (metadata_bits & RTREE_LEAF_STATE_MASK) >>
-	    RTREE_LEAF_STATE_SHIFT;
-	assert(state_bits <= extent_state_max);
-	contents.metadata.state = (extent_state_t)state_bits;
-	contents.metadata.szind = metadata_bits >> (RTREE_LEAF_STATE_SHIFT +
-	    RTREE_LEAF_STATE_WIDTH);
-
+	metadata_bits_t metadata_bits =
+	    atomic_load_u(&elm->le_metadata, dependent ? ATOMIC_RELAXED
+	    : ATOMIC_ACQUIRE);
+	contents.metadata = rtree_leaf_elm_metadata_bits_decode(metadata_bits);
 	contents.edata = (edata_t *)atomic_load_p(&elm->le_edata, dependent
 	    ? ATOMIC_RELAXED : ATOMIC_ACQUIRE);
 
@@ -270,7 +258,7 @@ rtree_leaf_elm_read(tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm,
 
 JEMALLOC_ALWAYS_INLINE void
 rtree_contents_encode(rtree_contents_t contents, void **bits,
-    unsigned *additional) {
+    metadata_bits_t *additional) {
 #ifdef RTREE_LEAF_COMPACT
 	/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
 	*bits = (void *)rtree_leaf_elm_bits_encode(contents);
@@ -279,18 +267,14 @@ rtree_contents_encode(rtree_contents_t contents, void **bits,
 		*additional = 0;
 	}
 #else
-	*additional = (unsigned)contents.metadata.slab
-	    | ((unsigned)contents.metadata.is_head << 1)
-	    | ((unsigned)contents.metadata.state << RTREE_LEAF_STATE_SHIFT)
-	    | ((unsigned)contents.metadata.szind << (RTREE_LEAF_STATE_SHIFT +
-	    RTREE_LEAF_STATE_WIDTH));
+	*additional = rtree_leaf_elm_metadata_bits_encode(contents.metadata);
 	*bits = contents.edata;
 #endif
 }
 
 JEMALLOC_ALWAYS_INLINE void
 rtree_leaf_elm_write_commit(tsdn_t *tsdn, rtree_t *rtree,
-    rtree_leaf_elm_t *elm, void *bits, unsigned additional) {
+    rtree_leaf_elm_t *elm, void *bits, metadata_bits_t additional) {
 #ifdef RTREE_LEAF_COMPACT
 	atomic_store_p(&elm->le_bits, bits, ATOMIC_RELEASE);
 #else
@@ -308,7 +292,7 @@ rtree_leaf_elm_write(tsdn_t *tsdn, rtree_t *rtree,
     rtree_leaf_elm_t *elm, rtree_contents_t contents) {
 	assert((uintptr_t)contents.edata % EDATA_ALIGNMENT == 0);
 	void *bits;
-	unsigned additional;
+	metadata_bits_t additional;
 	rtree_contents_encode(contents, &bits, &additional);
 	rtree_leaf_elm_write_commit(tsdn, rtree, elm, bits, additional);
 }
@@ -321,8 +305,17 @@ rtree_leaf_elm_state_update(tsdn_t *tsdn, rtree_t *rtree,
 #ifdef RTREE_LEAF_COMPACT
 	uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm1,
 	    /* dependent */ true);
-	bits &= ~RTREE_LEAF_STATE_MASK;
-	bits |= state << RTREE_LEAF_STATE_SHIFT;
+	union {
+		struct {
+			rtree_metadata_t metadata;
+			byte_t _[sizeof(uintptr_t) - sizeof(rtree_metadata_t)];
+		};
+		uintptr_t bits;
+	} encoder = {.bits = bits};
+	static_assert(sizeof(encoder) == sizeof(uintptr_t),
+	              "Encoded contents have the wrong size");
+	encoder.metadata.state = state;
+	bits = encoder.bits;
 	/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
 	atomic_store_p(&elm1->le_bits, (void *)bits, ATOMIC_RELEASE);
 	if (elm2 != NULL) {
@@ -330,9 +323,11 @@ rtree_leaf_elm_state_update(tsdn_t *tsdn, rtree_t *rtree,
 		atomic_store_p(&elm2->le_bits, (void *)bits, ATOMIC_RELEASE);
 	}
 #else
-	unsigned bits = atomic_load_u(&elm1->le_metadata, ATOMIC_RELAXED);
-	bits &= ~RTREE_LEAF_STATE_MASK;
-	bits |= state << RTREE_LEAF_STATE_SHIFT;
+	metadata_bits_t bits =
+	    atomic_load_u(&elm1->le_metadata, ATOMIC_RELAXED);
+	rtree_metadata_t metadata = rtree_leaf_elm_metadata_bits_decode(bits);
+	metadata.state = state;
+	bits = rtree_leaf_elm_metadata_bits_encode(metadata);
 	atomic_store_u(&elm1->le_metadata, bits, ATOMIC_RELEASE);
 	if (elm2 != NULL) {
 		atomic_store_u(&elm2->le_metadata, bits, ATOMIC_RELEASE);
@@ -491,7 +486,7 @@ rtree_write_range_impl(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	 * most 2 rtree leaf nodes (each covers 1 GiB of vaddr).
 	 */
 	void *bits;
-	unsigned additional;
+	metadata_bits_t additional;
 	rtree_contents_encode(contents, &bits, &additional);
 
 	rtree_leaf_elm_t *elm = NULL; /* Dead store. */

@@ -30,7 +30,7 @@ enum extent_state_e {
 	extent_state_merging = 5,
 	extent_state_max = 5 /* Sanity checking only. */
 };
-typedef enum extent_state_e extent_state_t;
+typedef uint8_t extent_state_t;
 
 enum extent_head_state_e {
 	EXTENT_NOT_HEAD,
