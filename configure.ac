@@ -988,6 +988,30 @@ if test "x${je_cv_cold}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_HAVE_ATTR_COLD], [ ], [ ])
 fi
 
+dnl Check for deprecated attribute support.
+JE_CFLAGS_SAVE()
+JE_CFLAGS_ADD([-Wdeprecated-declarations])
+JE_COMPILABLE([deprecated attribute],
+              [#if !__has_attribute(deprecated)
+               #error "deprecated attribute not supported"
+               #endif
+               struct has_deprecated_field {
+                   int good;
+                   int __attribute__((deprecated("Do not use"))) bad;
+               };
+              ],
+              [struct has_deprecated_field instance;
+               instance.good = 0;
+               instance.bad = 1;
+              ],
+              [je_cv_deprecated])
+JE_CFLAGS_RESTORE()
+if test "x${je_cv_deprecated}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_ATTR_DEPRECATED], [ ], [ ])
+  JE_CFLAGS_ADD([-Wdeprecated-declarations])
+  JE_CXXFLAGS_ADD([-Wdeprecated-declarations])
+fi
+
 dnl Check for VM_MAKE_TAG for mmap support.
 JE_COMPILABLE([vm_make_tag],
 	      [#include <sys/mman.h>
