@@ -99,7 +99,9 @@ struct arena_s {
 	 * The arena is allocated alongside its bins; really this is a
 	 * dynamically sized array determined by the binshard settings.
 	 */
-	bin_t			bins[0];
+	JEMALLOC_WARN_ON_USAGE("Do not use this field directly. "
+	                       "Use `arena_get_bin` instead.")
+	bin_t			 all_bins[0];
 };
 
 #endif /* JEMALLOC_INTERNAL_ARENA_STRUCTS_H */
