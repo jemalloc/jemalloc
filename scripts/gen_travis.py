@@ -24,7 +24,7 @@ TRAVIS_TEMPLATE = """\
 # Differences are explained here:
 # https://docs.travis-ci.com/user/languages/minimal-and-generic/
 language: minimal
-dist: focal
+dist: jammy
 
 jobs:
   include:
