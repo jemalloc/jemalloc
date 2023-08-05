@@ -173,13 +173,19 @@ p_test_impl(bool do_malloc_init, bool do_reentrant, test_t *t, va_list ap) {
 		}
 	}
 
-	malloc_printf("--- %s: %u/%u, %s: %u/%u, %s: %u/%u ---\n",
+	bool colored = test_counts[test_status_fail] != 0 &&
+	    isatty(STDERR_FILENO);
+	const char *color_start = colored ? "\033[1;31m" : "";
+	const char *color_end = colored ? "\033[0m" : "";
+	malloc_printf("%s--- %s: %u/%u, %s: %u/%u, %s: %u/%u ---\n%s",
+	    color_start,
 	    test_status_string(test_status_pass),
 	    test_counts[test_status_pass], test_count,
 	    test_status_string(test_status_skip),
 	    test_counts[test_status_skip], test_count,
 	    test_status_string(test_status_fail),
-	    test_counts[test_status_fail], test_count);
+	    test_counts[test_status_fail], test_count,
+	    color_end);
 
 	return ret;
 }
@@ -229,7 +235,12 @@ p_test_no_malloc_init(test_t *t, ...) {
 
 void
 p_test_fail(bool may_abort, const char *prefix, const char *message) {
-	malloc_cprintf(NULL, NULL, "%s%s\n", prefix, message);
+	bool colored = test_counts[test_status_fail] != 0 &&
+	    isatty(STDERR_FILENO);
+	const char *color_start = colored ? "\033[1;31m" : "";
+	const char *color_end = colored ? "\033[0m" : "";
+	malloc_cprintf(NULL, NULL, "%s%s%s\n%s", color_start, prefix, message,
+	    color_end);
 	test_status = test_status_fail;
 	if (may_abort) {
 		abort();
