@@ -66,6 +66,7 @@ CTL_PROTO(epoch)
 CTL_PROTO(background_thread)
 CTL_PROTO(max_background_threads)
 CTL_PROTO(thread_tcache_enabled)
+CTL_PROTO(thread_tcache_max)
 CTL_PROTO(thread_tcache_flush)
 CTL_PROTO(thread_peak_read)
 CTL_PROTO(thread_peak_reset)
@@ -371,6 +372,7 @@ CTL_PROTO(stats_mutexes_reset)
 
 static const ctl_named_node_t	thread_tcache_node[] = {
 	{NAME("enabled"),	CTL(thread_tcache_enabled)},
+	{NAME("max"),		CTL(thread_tcache_max)},
 	{NAME("flush"),		CTL(thread_tcache_flush)}
 };
 
@@ -2290,6 +2292,40 @@ label_return:
 }
 
 static int
+thread_tcache_max_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp,
+    size_t newlen) {
+	int ret;
+	size_t oldval;
+
+	/* pointer to tcache_t always exists even with tcache disabled. */
+	tcache_t *tcache = tsd_tcachep_get(tsd);
+	assert(tcache != NULL);
+	oldval = tcache_max_get(tcache);
+	READ(oldval, size_t);
+
+	if (newp != NULL) {
+		if (newlen != sizeof(size_t)) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		size_t new_tcache_max = oldval;
+		WRITE(new_tcache_max, size_t);
+		if (new_tcache_max > TCACHE_MAXCLASS_LIMIT) {
+			new_tcache_max = TCACHE_MAXCLASS_LIMIT;
+		}
+		new_tcache_max = sz_s2u(new_tcache_max);
+		if(new_tcache_max != oldval) {
+			thread_tcache_max_and_nhbins_set(tsd, new_tcache_max);
+		}
+	}
+
+	ret = 0;
+label_return:
+	return ret;
+}
+
+static int
 thread_tcache_flush_ctl(tsd_t *tsd, const size_t *mib,
     size_t miblen, void *oldp, size_t *oldlenp, void *newp,
     size_t newlen) {
@@ -3101,9 +3137,9 @@ arenas_muzzy_decay_ms_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 
 CTL_RO_NL_GEN(arenas_quantum, QUANTUM, size_t)
 CTL_RO_NL_GEN(arenas_page, PAGE, size_t)
-CTL_RO_NL_GEN(arenas_tcache_max, tcache_maxclass, size_t)
+CTL_RO_NL_GEN(arenas_tcache_max, global_do_not_change_tcache_maxclass, size_t)
 CTL_RO_NL_GEN(arenas_nbins, SC_NBINS, unsigned)
-CTL_RO_NL_GEN(arenas_nhbins, nhbins, unsigned)
+CTL_RO_NL_GEN(arenas_nhbins, global_do_not_change_nhbins, unsigned)
 CTL_RO_NL_GEN(arenas_bin_i_size, bin_infos[mib[2]].reg_size, size_t)
 CTL_RO_NL_GEN(arenas_bin_i_nregs, bin_infos[mib[2]].nregs, uint32_t)
 CTL_RO_NL_GEN(arenas_bin_i_slab_size, bin_infos[mib[2]].slab_size, size_t)

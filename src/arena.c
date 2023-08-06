@@ -157,11 +157,18 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
 	cache_bin_array_descriptor_t *descriptor;
 	ql_foreach(descriptor, &arena->cache_bin_array_descriptor_ql, link) {
-		for (szind_t i = 0; i < nhbins; i++) {
+		for (szind_t i = 0; i < TCACHE_NBINS_MAX; i++) {
 			cache_bin_t *cache_bin = &descriptor->bins[i];
 			cache_bin_sz_t ncached, nstashed;
 			cache_bin_nitems_get_remote(cache_bin,
-			    &tcache_bin_info[i], &ncached, &nstashed);
+			    &cache_bin->bin_info, &ncached, &nstashed);
+
+			if ((i < SC_NBINS &&
+			    tcache_small_bin_disabled(i, cache_bin)) ||
+			    (i >= SC_NBINS &&
+			    tcache_large_bin_disabled(i, cache_bin))) {
+				assert(ncached == 0 && nstashed == 0);
+			}
 
 			astats->tcache_bytes += ncached * sz_index2size(i);
 			astats->tcache_stashed_bytes += nstashed *
@@ -720,7 +727,8 @@ arena_dalloc_promoted_impl(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 		safety_check_verify_redzone(ptr, usize, bumped_usize);
 	}
 	if (bumped_usize >= SC_LARGE_MINCLASS &&
-	    bumped_usize <= tcache_maxclass && tcache != NULL) {
+	    tcache != NULL &&
+	    bumped_usize <= tcache_max_get(tcache)) {
 		tcache_dalloc_large(tsdn_tsd(tsdn), tcache, ptr,
 		    sz_size2index(bumped_usize), slow_path);
 	} else {

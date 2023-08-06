@@ -4136,15 +4136,13 @@ batch_alloc(void **ptrs, size_t num, size_t size, int flags) {
 			filled += n;
 		}
 
-		if (likely(ind < nhbins) && progress < batch) {
+		unsigned tcache_ind = mallocx_tcache_get(flags);
+		tcache_t *tcache = tcache_get_from_ind(tsd, tcache_ind,
+		    /* slow */ true, /* is_alloc */ true);
+		if (likely(tcache != NULL &&
+		    ind < tcache_nhbins_get(tcache)) && progress < batch) {
 			if (bin == NULL) {
-				unsigned tcache_ind = mallocx_tcache_get(flags);
-				tcache_t *tcache = tcache_get_from_ind(tsd,
-				    tcache_ind, /* slow */ true,
-				    /* is_alloc */ true);
-				if (tcache != NULL) {
-					bin = &tcache->bins[ind];
-				}
+				bin = &tcache->bins[ind];
 			}
 			/*
 			 * If we don't have a tcache bin, we don't want to
