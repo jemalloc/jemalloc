@@ -21,14 +21,19 @@ extern unsigned opt_lg_tcache_flush_large_div;
 
 /*
  * Number of tcache bins.  There are SC_NBINS small-object bins, plus 0 or more
- * large-object bins.
+ * large-object bins.  This is only used during threads initialization and
+ * changing it will not reflect on initialized threads as expected.  Thus,
+ * it should not be changed on the fly.  To change the number of tcache bins
+ * in use, refer to tcache_nhbins of each tcache.
  */
-extern unsigned	nhbins;
+extern unsigned	global_do_not_change_nhbins;
 
-/* Maximum cached size class. */
-extern size_t	tcache_maxclass;
-
-extern cache_bin_info_t *tcache_bin_info;
+/*
+ * Maximum cached size class.  Same as above, this is only used during threads
+ * initialization and should not be changed.  To change the maximum cached size
+ * class, refer to tcache_max of each tcache.
+ */
+extern size_t	global_do_not_change_tcache_maxclass;
 
 /*
  * Explicit tcaches, managed via the tcache.{create,flush,destroy} mallctls and
@@ -65,7 +70,7 @@ void tcache_prefork(tsdn_t *tsdn);
 void tcache_postfork_parent(tsdn_t *tsdn);
 void tcache_postfork_child(tsdn_t *tsdn);
 void tcache_flush(tsd_t *tsd);
-bool tsd_tcache_data_init(tsd_t *tsd);
+bool tsd_tcache_data_init(tsd_t *tsd, arena_t *arena);
 bool tsd_tcache_enabled_data_init(tsd_t *tsd);
 
 void tcache_assert_initialized(tcache_t *tcache);

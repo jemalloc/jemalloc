@@ -530,7 +530,7 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
         /*
          * Currently the fastpath only handles small sizes.  The branch on
          * SC_LOOKUP_MAXCLASS makes sure of it.  This lets us avoid checking
-         * tcache szind upper limit (i.e. tcache_maxclass) as well.
+         * tcache szind upper limit (i.e. tcache_max) as well.
          */
         assert(alloc_ctx.slab);
 

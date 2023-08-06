@@ -55,6 +55,8 @@ struct tcache_slow_s {
 
 struct tcache_s {
 	tcache_slow_t	*tcache_slow;
+	unsigned	tcache_nhbins;
+	size_t		tcache_max;
 	cache_bin_t	bins[TCACHE_NBINS_MAX];
 };
 

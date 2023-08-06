@@ -198,11 +198,11 @@ arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind, bool zero,
 			assert(sz_can_use_slab(size));
 			return tcache_alloc_small(tsdn_tsd(tsdn), arena,
 			    tcache, size, ind, zero, slow_path);
-		} else if (likely(size <= tcache_maxclass)) {
+		} else if (likely(size <= tcache_max_get(tcache))) {
 			return tcache_alloc_large(tsdn_tsd(tsdn), arena,
 			    tcache, size, ind, zero, slow_path);
 		}
-		/* (size > tcache_maxclass) case falls through. */
+		/* (size > tcache_max) case falls through. */
 	}
 
 	return arena_malloc_hard(tsdn, arena, size, ind, zero, slab);
@@ -297,7 +297,8 @@ arena_dalloc_no_tcache(tsdn_t *tsdn, void *ptr) {
 JEMALLOC_ALWAYS_INLINE void
 arena_dalloc_large(tsdn_t *tsdn, void *ptr, tcache_t *tcache, szind_t szind,
     bool slow_path) {
-	if (szind < nhbins) {
+	assert (!tsdn_null(tsdn) && tcache != NULL);
+	if (szind < tcache_nhbins_get(tcache)) {
 		if (config_prof && unlikely(szind < SC_NBINS)) {
 			arena_dalloc_promoted(tsdn, ptr, tcache, slow_path);
 		} else {

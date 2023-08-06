@@ -168,7 +168,7 @@ TEST_BEGIN(test_batch_alloc_large) {
 		assert_zu_eq(filled, batch, "");
 		release_batch(global_ptrs, batch, size);
 	}
-	size = tcache_maxclass + 1;
+	size = global_do_not_change_tcache_maxclass + 1;
 	for (size_t batch = 0; batch < 4; ++batch) {
 		assert(batch < BATCH_MAX);
 		size_t filled = batch_alloc(global_ptrs, batch, size, 0);
