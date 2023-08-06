@@ -23,8 +23,14 @@ percpu_arena_update(tsd_t *tsd, unsigned cpu) {
 		tcache_t *tcache = tcache_get(tsd);
 		if (tcache != NULL) {
 			tcache_slow_t *tcache_slow = tsd_tcache_slowp_get(tsd);
-			tcache_arena_reassociate(tsd_tsdn(tsd), tcache_slow,
-			    tcache, newarena);
+			/* tcache may be disassociated when rebooted. */
+			if (tcache_slow->arena == NULL) {
+				tcache_arena_associate(tsd_tsdn(tsd),
+				    tcache_slow, tcache, newarena);
+			} else {
+				tcache_arena_reassociate(tsd_tsdn(tsd),
+				    tcache_slow, tcache, newarena);
+			}
 		}
 	}
 }

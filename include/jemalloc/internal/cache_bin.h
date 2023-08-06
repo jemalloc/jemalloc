@@ -125,6 +125,9 @@ struct cache_bin_s {
 	 * array.  Immutable after initialization.
 	 */
 	uint16_t low_bits_empty;
+
+	/* The maximum number of cached items in the bin. */
+	cache_bin_info_t bin_info;
 };
 
 /*

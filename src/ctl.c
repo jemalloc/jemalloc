@@ -66,6 +66,7 @@ CTL_PROTO(epoch)
 CTL_PROTO(background_thread)
 CTL_PROTO(max_background_threads)
 CTL_PROTO(thread_tcache_enabled)
+CTL_PROTO(thread_tcache_max)
 CTL_PROTO(thread_tcache_flush)
 CTL_PROTO(thread_peak_read)
 CTL_PROTO(thread_peak_reset)
@@ -371,6 +372,7 @@ CTL_PROTO(stats_mutexes_reset)
 
 static const ctl_named_node_t	thread_tcache_node[] = {
 	{NAME("enabled"),	CTL(thread_tcache_enabled)},
+	{NAME("max"),		CTL(thread_tcache_max)},
 	{NAME("flush"),		CTL(thread_tcache_flush)}
 };
 
@@ -2283,6 +2285,29 @@ thread_tcache_enabled_ctl(tsd_t *tsd, const size_t *mib,
 		tcache_enabled_set(tsd, *(bool *)newp);
 	}
 	READ(oldval, bool);
+
+	ret = 0;
+label_return:
+	return ret;
+}
+
+static int
+thread_tcache_max_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp,
+    size_t newlen) {
+	int ret;
+	size_t oldval;
+
+	oldval = thread_tcache_max_get(tsd);
+	READ(oldval, size_t);
+
+	if (newp != NULL) {
+		if (newlen != sizeof(size_t)) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		thread_tcache_max_set(tsd, *(size_t *)newp);
+	}
 
 	ret = 0;
 label_return:

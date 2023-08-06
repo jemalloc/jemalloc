@@ -63,7 +63,9 @@ typedef ql_elm(tsd_t) tsd_link_t;
 #define TSD_DATA_SLOW							\
     O(tcache_enabled,		bool,			bool)		\
     O(reentrancy_level,		int8_t,			int8_t)		\
+    O(thread_tcache_max,	size_t,			size_t)		\
     O(min_init_state_nfetched,		uint8_t,	uint8_t)	\
+    O(thread_nhbins,		uint32_t,		uint32_t)	\
     O(thread_allocated_last_event,	uint64_t,	uint64_t)	\
     O(thread_allocated_next_event,	uint64_t,	uint64_t)	\
     O(thread_deallocated_last_event,	uint64_t,	uint64_t)	\
@@ -96,7 +98,9 @@ typedef ql_elm(tsd_t) tsd_link_t;
 #define TSD_DATA_SLOW_INITIALIZER					\
     /* tcache_enabled */	TCACHE_ENABLED_ZERO_INITIALIZER,	\
     /* reentrancy_level */	0,					\
+    /* thread_tcache_max */	TCACHE_MAXCLASS_LIMIT + 1,		\
     /* min_init_state_nfetched */	0,				\
+    /* thread_nhbins */		TCACHE_NBINS_MAX + 1,			\
     /* thread_allocated_last_event */	0,				\
     /* thread_allocated_next_event */	0,				\
     /* thread_deallocated_last_event */	0,				\
