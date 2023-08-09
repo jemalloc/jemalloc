@@ -800,18 +800,14 @@ tcache_bin_info_compute(cache_bin_info_t *tcache_bin_info,
 	}
 }
 
-/* Initialize auto tcache (embedded in TSD). */
-bool
-tsd_tcache_data_init(tsd_t *tsd) {
+JEMALLOC_ALWAYS_INLINE bool
+tsd_tcache_data_init_impl(tsd_t *tsd, cache_bin_info_t *tcache_bin_info) {
 	tcache_slow_t *tcache_slow = tsd_tcache_slowp_get_unsafe(tsd);
 	tcache_t *tcache = tsd_tcachep_get_unsafe(tsd);
-
 	assert(cache_bin_still_zero_initialized(&tcache->bins[0]));
-	thread_tcache_max_and_nhbins_init(tsd);
+
 	unsigned thread_nhbins = tsd_thread_nhbins_get(tsd);
 	size_t size, alignment;
-	cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX] = {0};
-	tcache_bin_info_compute(tcache_bin_info, thread_nhbins);
 	cache_bin_info_compute_alloc(tcache_bin_info, thread_nhbins,
 	    &size, &alignment);
 	size = sz_sa2u(size, alignment);
@@ -849,6 +845,31 @@ tsd_tcache_data_init(tsd_t *tsd) {
 	assert(arena == tcache_slow->arena);
 
 	return false;
+}
+
+bool
+tsd_tcache_data_init_with_bin_info(tsd_t *tsd,
+    cache_bin_sz_t *ncached_max_arr) {
+	thread_tcache_max_and_nhbins_init(tsd);
+	unsigned thread_nhbins = tsd_thread_nhbins_get(tsd);
+	cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX] = {0};
+	for (size_t i = 0; i < thread_nhbins; i++) {
+		assert(ncached_max_arr[i] <= CACHE_BIN_NCACHED_MAX);
+		cache_bin_info_init(&tcache_bin_info[i], ncached_max_arr[i]);
+	}
+
+	return tsd_tcache_data_init_impl(tsd, tcache_bin_info);
+}
+
+/* Initialize auto tcache (embedded in TSD). */
+bool
+tsd_tcache_data_init(tsd_t *tsd) {
+	thread_tcache_max_and_nhbins_init(tsd);
+	unsigned thread_nhbins = tsd_thread_nhbins_get(tsd);
+	cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX] = {0};
+	tcache_bin_info_compute(tcache_bin_info, thread_nhbins);
+
+	return tsd_tcache_data_init_impl(tsd, tcache_bin_info);;
 }
 
 /* Created manual tcache for tcache.create mallctl. */

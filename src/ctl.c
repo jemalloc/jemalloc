@@ -68,6 +68,7 @@ CTL_PROTO(max_background_threads)
 CTL_PROTO(thread_tcache_enabled)
 CTL_PROTO(thread_tcache_max)
 CTL_PROTO(thread_tcache_flush)
+CTL_PROTO(thread_bin_max)
 CTL_PROTO(thread_peak_read)
 CTL_PROTO(thread_peak_reset)
 CTL_PROTO(thread_prof_name)
@@ -370,6 +371,10 @@ CTL_PROTO(stats_mutexes_reset)
  */
 #define INDEX(i)	{false},	i##_index
 
+static const ctl_named_node_t thread_bin_node[] = {
+	{NAME("max"),		CTL(thread_bin_max)}
+};
+
 static const ctl_named_node_t	thread_tcache_node[] = {
 	{NAME("enabled"),	CTL(thread_tcache_enabled)},
 	{NAME("max"),		CTL(thread_tcache_max)},
@@ -390,6 +395,7 @@ static const ctl_named_node_t	thread_node[] = {
 	{NAME("arena"),		CTL(thread_arena)},
 	{NAME("allocated"),	CTL(thread_allocated)},
 	{NAME("allocatedp"),	CTL(thread_allocatedp)},
+	{NAME("bin"),		CHILD(named, thread_bin)},
 	{NAME("deallocated"),	CTL(thread_deallocated)},
 	{NAME("deallocatedp"),	CTL(thread_deallocatedp)},
 	{NAME("tcache"),	CHILD(named, thread_tcache)},
@@ -2330,6 +2336,53 @@ thread_tcache_flush_ctl(tsd_t *tsd, const size_t *mib,
 	tcache_flush(tsd);
 
 	ret = 0;
+label_return:
+	return ret;
+}
+
+static int
+thread_bin_max_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+
+	unsigned thread_nhbins = thread_nhbins_get(tsd);
+	cache_bin_sz_t *old_arrp = NULL;
+	cache_bin_sz_t old_arr[TCACHE_NBINS_MAX] = {0};
+	if (oldp != NULL && oldlenp != NULL){
+		/*
+		 * Read the bin_info of each bin in the tcache.
+		 * When reading, the input oldp should point to an array
+		 * with a length no shorter than thread_nhbins.
+		 */
+		if (*oldlenp != sizeof(cache_bin_sz_t *)) {
+			ret = EINVAL;
+				goto label_return;
+		}
+		thread_bin_info_get(tsd, *(cache_bin_sz_t **)oldp,
+		    thread_nhbins);
+		old_arrp = *(cache_bin_sz_t **)oldp;
+	}
+
+	if (newp != NULL) {
+		/* Validate the input array length. */
+		size_t arr_len = newlen / sizeof(cache_bin_sz_t);
+		if (newlen % sizeof(cache_bin_sz_t) != 0 ||
+		    arr_len < thread_nhbins) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		/* Read and compare each bin's bin_info before setting. */
+		if (old_arrp == NULL) {
+			old_arrp = old_arr;
+			thread_bin_info_get(tsd, old_arrp, thread_nhbins);
+		}
+		if (!bin_info_equals(old_arrp, thread_nhbins,
+		    *(cache_bin_sz_t **)newp, arr_len)) {
+			thread_bin_info_set(tsd, *(cache_bin_sz_t **)newp,
+			    arr_len);
+		}
+	}
+	return 0;
 label_return:
 	return ret;
 }

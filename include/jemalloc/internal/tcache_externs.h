@@ -64,6 +64,8 @@ void tcache_postfork_parent(tsdn_t *tsdn);
 void tcache_postfork_child(tsdn_t *tsdn);
 void tcache_flush(tsd_t *tsd);
 bool tsd_tcache_data_init(tsd_t *tsd);
+bool tsd_tcache_data_init_with_bin_info(tsd_t *tsd,
+    cache_bin_sz_t *ncached_max_arr);
 bool tsd_tcache_enabled_data_init(tsd_t *tsd);
 
 void tcache_assert_initialized(tcache_t *tcache);

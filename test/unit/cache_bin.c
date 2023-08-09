@@ -377,8 +377,53 @@ TEST_BEGIN(test_cache_bin_stash) {
 }
 TEST_END
 
+TEST_BEGIN(test_ncached_max) {
+	test_skip_if(!opt_tcache);
+	/* test mallctl set and get. */
+	cache_bin_sz_t old_ncached_max[TCACHE_NBINS_MAX] = {0};
+	cache_bin_sz_t new_ncached_max[TCACHE_NBINS_MAX] = {0};
+	cache_bin_sz_t *oldp = old_ncached_max;
+	cache_bin_sz_t *newp = new_ncached_max;
+	size_t sz = sizeof(oldp);
+	tsd_t *tsd = tsd_fetch();
+	size_t max_bin = thread_nhbins_get(tsd);
+	size_t mib[3], miblen;
+	miblen = sizeof(mib)/sizeof(size_t);
+	const char *name = "thread.bin.max";
+	expect_d_eq(mallctlnametomib(name, mib, &miblen), 0,
+	    "Unexpected mallctlnametomib() failure");
+
+	for (szind_t i = 0; i < max_bin; i++) {
+		new_ncached_max[i] = 50;
+	}
+	/* Test the set and get of each bin available. */
+	expect_d_eq(mallctlbymib(mib, miblen, (void *)&oldp, &sz,
+	    &newp, sizeof(cache_bin_sz_t) * max_bin), 0,
+	    "Unexpected mallctlbymib() failure");
+	expect_d_eq(mallctlbymib(mib, miblen, (void *)&oldp, &sz,
+	    NULL, 0), 0, "Unexpected mallctlbymib() failure");
+	expect_true(bin_info_equals(old_ncached_max, max_bin, new_ncached_max,
+	    max_bin), "Unexpected bin_info");
+
+	for (szind_t i = 0; i < max_bin; i++) {
+		new_ncached_max[i] = new_ncached_max[i] / (i + 1);
+	}
+	/* Test the cut off when setting ncached_max. */
+	new_ncached_max[max_bin - 1] = CACHE_BIN_NCACHED_MAX + 1;
+	expect_d_eq(mallctlbymib(mib, miblen, NULL, NULL,
+	    &newp, sizeof(cache_bin_sz_t) * max_bin), 0,
+	    "Unexpected mallctlbymib() failure");
+	expect_d_eq(mallctlbymib(mib, miblen, (void *)&oldp, &sz,
+	    NULL, 0), 0, "Unexpected mallctlbymib() failure");
+	new_ncached_max[max_bin - 1] = CACHE_BIN_NCACHED_MAX;
+	expect_true(bin_info_equals(old_ncached_max, max_bin, new_ncached_max,
+	    max_bin), "Unexpected bin_info");
+}
+TEST_END
+
 int
 main(void) {
 	return test(test_cache_bin,
-		test_cache_bin_stash);
+		test_cache_bin_stash,
+		test_ncached_max);
 }

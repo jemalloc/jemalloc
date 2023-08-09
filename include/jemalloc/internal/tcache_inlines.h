@@ -71,6 +71,50 @@ thread_tcache_max_set(tsd_t *tsd, size_t tcache_max) {
 }
 
 JEMALLOC_ALWAYS_INLINE bool
+bin_info_equals(cache_bin_sz_t *a, size_t a_len, cache_bin_sz_t *b,
+    size_t b_len) {
+	assert(a != NULL && b != NULL);
+	if (a_len != b_len) {
+		return false;
+	}
+	for (size_t i = 0; i < a_len; i++) {
+		if (a[i] != b[i]) {
+			return false;
+		}
+	}
+	return true;
+}
+
+static inline void
+thread_bin_info_get(tsd_t *tsd, cache_bin_sz_t *ncached_max_arr,
+    size_t arr_len) {
+	size_t thread_nhbins = thread_nhbins_get(tsd);
+	assert(ncached_max_arr != NULL);
+	assert(arr_len >= thread_nhbins);
+	tcache_t *tcache = tcache_get(tsd);
+	/* Copy the bin_info into the given array. */
+	for (size_t i = 0; i < thread_nhbins; i++) {
+		ncached_max_arr[i] = tcache->bins[i].bin_info.ncached_max;
+	}
+}
+
+static inline void
+thread_bin_info_set(tsd_t *tsd, cache_bin_sz_t *ncached_max_arr,
+    size_t arr_len) {
+	size_t thread_nhbins = thread_nhbins_get(tsd);
+	assert(ncached_max_arr != NULL);
+	assert(arr_len >= thread_nhbins);
+	for (size_t i = 0; i < thread_nhbins; i++) {
+		if (ncached_max_arr[i] > CACHE_BIN_NCACHED_MAX) {
+			ncached_max_arr[i] = CACHE_BIN_NCACHED_MAX;
+		}
+	}
+	/* restart the tcache for a clean set. */
+	tcache_cleanup(tsd);
+	tsd_tcache_data_init_with_bin_info(tsd, ncached_max_arr);
+}
+
+JEMALLOC_ALWAYS_INLINE bool
 tcache_small_bin_disabled(szind_t ind, cache_bin_t *bin,
     unsigned current_nhbins) {
 	assert(ind < SC_NBINS);
