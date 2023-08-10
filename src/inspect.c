@@ -1,5 +1,6 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/jemalloc_internal_includes.h"
+#include "jemalloc/internal/inspect.h"
 
 void
 inspect_extent_util_stats_get(tsdn_t *tsdn, const void *ptr, size_t *nfree,

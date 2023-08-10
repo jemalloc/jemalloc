@@ -2,7 +2,6 @@
 #include <new>
 // NOLINTBEGIN(misc-use-anonymous-namespace)
 
-#define JEMALLOC_CPP_CPP_
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -21,7 +21,7 @@
 #else
 #define PAGES_FD_TAG -1
 #endif
-#ifdef JEMALLOC_HAVE_PRCTL
+#if defined(JEMALLOC_HAVE_PRCTL) && defined(JEMALLOC_PAGEID)
 #include <sys/prctl.h>
 #ifndef PR_SET_VMA
 #define PR_SET_VMA 0x53564d41
