@@ -221,13 +221,6 @@ pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
 }
 
 bool
-pa_shard_retain_grow_limit_get_set(tsdn_t *tsdn, pa_shard_t *shard,
-    size_t *old_limit, size_t *new_limit) {
-	return pac_retain_grow_limit_get_set(tsdn, &shard->pac, old_limit,
-	    new_limit);
-}
-
-bool
 pa_decay_ms_set(tsdn_t *tsdn, pa_shard_t *shard, extent_state_t state,
     ssize_t decay_ms, pac_purge_eagerness_t eagerness) {
 	return pac_decay_ms_set(tsdn, &shard->pac, state, decay_ms, eagerness);

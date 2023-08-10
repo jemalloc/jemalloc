@@ -5,7 +5,7 @@
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/spin.h"
 
-#ifndef _CRT_SPINCOUNT
+#if defined(_WIN32) && !defined(_CRT_SPINCOUNT)
 #define _CRT_SPINCOUNT 4000
 #endif
 

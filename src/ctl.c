@@ -1861,31 +1861,6 @@ ctl_mtx_assert_held(tsdn_t *tsdn) {
  * There's a lot of code duplication in the following macros due to limitations
  * in how nested cpp macros are expanded.
  */
-#define CTL_RO_CLGEN(c, l, n, v, t)					\
-static int								\
-n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,	\
-    size_t *oldlenp, void *newp, size_t newlen) {			\
-	int ret;							\
-	t oldval;							\
-									\
-	if (!(c)) {							\
-		return ENOENT;						\
-	}								\
-	if (l) {							\
-		malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);		\
-	}								\
-	READONLY();							\
-	oldval = (v);							\
-	READ(oldval, t);						\
-									\
-	ret = 0;							\
-label_return:								\
-	if (l) {							\
-		malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);		\
-	}								\
-	return ret;							\
-}
-
 #define CTL_RO_CGEN(c, n, v, t)						\
 static int								\
 n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,			\

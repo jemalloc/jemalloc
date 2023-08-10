@@ -1,4 +1,3 @@
-#define JEMALLOC_C_
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
@@ -151,7 +150,7 @@ bool	opt_xmalloc = false;
 bool	opt_experimental_infallible_new = false;
 bool	opt_zero = false;
 unsigned	opt_narenas = 0;
-fxp_t		opt_narenas_ratio = FXP_INIT_INT(4);
+static fxp_t		opt_narenas_ratio = FXP_INIT_INT(4);
 
 unsigned	ncpus;
 

@@ -12,8 +12,16 @@ compile_time_malloc_conf='background_thread:true,'\
 'zero_realloc:free,'\
 'prof_unbias:false,'\
 'prof_time_resolution:high'
+extra_flags=(
+	-Wmissing-prototypes
+	-Wmissing-variable-declarations
+	-Wstrict-prototypes
+	-Wunreachable-code
+	-Wunreachable-code-aggressive
+	-Wunused-macros
+)
 
-EXTRA_CFLAGS='-Wstrict-prototypes' EXTRA_CXXFLAGS='-Wstrict-prototypes' ./autogen.sh \
+EXTRA_CFLAGS="${extra_flags[*]}" EXTRA_CXXFLAGS="${extra_flags[*]}" ./autogen.sh \
 	--with-private-namespace=jemalloc_ \
 	--disable-cache-oblivious \
 	--enable-prof \
