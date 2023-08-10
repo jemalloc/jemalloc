@@ -68,7 +68,7 @@ void malloc_cprintf(write_cb_t *write_cb, void *cbopaque, const char *format,
 void malloc_printf(const char *format, ...) JEMALLOC_FORMAT_PRINTF(1, 2);
 
 static inline ssize_t
-malloc_write_fd(int fd, const void *buf, size_t count) {
+malloc_write_fd_syscall(int fd, const void *buf, size_t count) {
 #if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_write)
 	/*
 	 * Use syscall(2) rather than write(2) when possible in order to avoid
@@ -90,7 +90,22 @@ malloc_write_fd(int fd, const void *buf, size_t count) {
 }
 
 static inline ssize_t
-malloc_read_fd(int fd, void *buf, size_t count) {
+malloc_write_fd(int fd, const void *buf, size_t count) {
+	size_t bytes_written = 0;
+	do {
+		ssize_t result = malloc_write_fd_syscall(fd,
+		    &((const byte_t *)buf)[bytes_written],
+		    count - bytes_written);
+		if (result < 0) {
+			return result;
+		}
+		bytes_written += result;
+	} while (bytes_written < count);
+	return bytes_written;
+}
+
+static inline ssize_t
+malloc_read_fd_syscall(int fd, void *buf, size_t count) {
 #if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_read)
 	long result = syscall(SYS_read, fd, buf, count);
 #else
@@ -101,6 +116,22 @@ malloc_read_fd(int fd, void *buf, size_t count) {
 	    count);
 #endif
 	return (ssize_t)result;
+}
+
+static inline ssize_t
+malloc_read_fd(int fd, void *buf, size_t count) {
+	size_t bytes_read = 0;
+	do {
+		ssize_t result = malloc_read_fd_syscall(fd,
+		    &((byte_t *)buf)[bytes_read], count - bytes_read);
+		if (result < 0) {
+			return result;
+		} else if (result == 0) {
+			break;
+		}
+		bytes_read += result;
+	} while (bytes_read < count);
+	return bytes_read;
 }
 
 #endif /* JEMALLOC_INTERNAL_MALLOC_IO_H */
