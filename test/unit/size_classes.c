@@ -24,7 +24,7 @@ get_max_size_class(void) {
 
 TEST_BEGIN(test_size_classes) {
 	size_t size_class, max_size_class;
-	szind_t index, max_index;
+	szind_t index, gen_index, max_index;
 
 	max_size_class = get_max_size_class();
 	max_index = sz_size2index(max_size_class);
@@ -32,6 +32,7 @@ TEST_BEGIN(test_size_classes) {
 	for (index = 0, size_class = sz_index2size(index); index < max_index ||
 	    size_class < max_size_class; index++, size_class =
 	    sz_index2size(index)) {
+		gen_index = sz_size2index(size_class);
 		expect_true(index < max_index,
 		    "Loop conditionals should be equivalent; index=%u, "
 		    "size_class=%zu (%#zx)", index, size_class, size_class);
@@ -39,17 +40,15 @@ TEST_BEGIN(test_size_classes) {
 		    "Loop conditionals should be equivalent; index=%u, "
 		    "size_class=%zu (%#zx)", index, size_class, size_class);
 
-		expect_u_eq(index, sz_size2index(size_class),
+		expect_u_eq(index, gen_index,
 		    "sz_size2index() does not reverse sz_index2size(): index=%u"
 		    " --> size_class=%zu --> index=%u --> size_class=%zu",
-		    index, size_class, sz_size2index(size_class),
-		    sz_index2size(sz_size2index(size_class)));
-		expect_zu_eq(size_class,
-		    sz_index2size(sz_size2index(size_class)),
+		    index, size_class, gen_index, sz_index2size(gen_index));
+
+		expect_zu_eq(size_class, sz_index2size(gen_index),
 		    "sz_index2size() does not reverse sz_size2index(): index=%u"
 		    " --> size_class=%zu --> index=%u --> size_class=%zu",
-		    index, size_class, sz_size2index(size_class),
-		    sz_index2size(sz_size2index(size_class)));
+		    index, size_class, gen_index, sz_index2size(gen_index));
 
 		expect_u_eq(index+1, sz_size2index(size_class+1),
 		    "Next size_class does not round up properly");
