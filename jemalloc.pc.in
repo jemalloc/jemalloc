@@ -3,6 +3,7 @@ exec_prefix=@exec_prefix@
 libdir=@libdir@
 includedir=@includedir@
 install_suffix=@install_suffix@
+jemalloc_prefix=@JEMALLOC_PREFIX@
 
 Name: jemalloc
 Description: A general purpose malloc(3) implementation that emphasizes fragmentation avoidance and scalable concurrency support.
