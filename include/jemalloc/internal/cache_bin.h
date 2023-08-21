@@ -691,8 +691,7 @@ void cache_bin_info_compute_alloc(cache_bin_info_t *infos, szind_t ninfos,
  */
 void cache_bin_preincrement(cache_bin_info_t *infos, szind_t ninfos,
     void *alloc, size_t *cur_offset);
-void cache_bin_postincrement(cache_bin_info_t *infos, szind_t ninfos,
-    void *alloc, size_t *cur_offset);
+void cache_bin_postincrement(void *alloc, size_t *cur_offset);
 void cache_bin_init(cache_bin_t *bin, cache_bin_info_t *info, void *alloc,
     size_t *cur_offset);
 
