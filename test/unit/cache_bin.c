@@ -93,7 +93,7 @@ test_bin_init(cache_bin_t *bin, cache_bin_info_t *info) {
 	size_t cur_offset = 0;
 	cache_bin_preincrement(info, 1, mem, &cur_offset);
 	cache_bin_init(bin, info, mem, &cur_offset);
-	cache_bin_postincrement(info, 1, mem, &cur_offset);
+	cache_bin_postincrement(mem, &cur_offset);
 	assert_zu_eq(cur_offset, size, "Should use all requested memory");
 }
 

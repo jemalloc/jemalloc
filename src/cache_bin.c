@@ -56,8 +56,7 @@ cache_bin_preincrement(cache_bin_info_t *infos, szind_t ninfos, void *alloc,
 }
 
 void
-cache_bin_postincrement(cache_bin_info_t *infos, szind_t ninfos, void *alloc,
-    size_t *cur_offset) {
+cache_bin_postincrement(void *alloc, size_t *cur_offset) {
 	*(uintptr_t *)((byte_t *)alloc + *cur_offset) =
 	    cache_bin_trailing_junk;
 	*cur_offset += sizeof(void *);

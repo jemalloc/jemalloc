@@ -698,8 +698,7 @@ tcache_init(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 		assert(tcache_small_bin_disabled(i, cache_bin));
 	}
 
-	cache_bin_postincrement(tcache_bin_info, nhbins, mem,
-	    &cur_offset);
+	cache_bin_postincrement(mem, &cur_offset);
 	/* Sanity check that the whole stack is used. */
 	assert(cur_offset == tcache_bin_alloc_size);
 }
