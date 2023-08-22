@@ -76,8 +76,11 @@ tcache_bytes_read_local(void) {
 	size_t tcache_bytes = 0;
 	tsd_t *tsd = tsd_fetch();
 	tcache_t *tcache = tcache_get(tsd);
-	for (szind_t i = 0; i < tcache_nhbins_get(tcache); i++) {
+	for (szind_t i = 0; i < tcache_nbins_get(tcache->tcache_slow); i++) {
 		cache_bin_t *cache_bin = &tcache->bins[i];
+		if (tcache_bin_disabled(i, cache_bin, tcache->tcache_slow)) {
+			continue;
+		}
 		cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin,
 		    &cache_bin->bin_info);
 		tcache_bytes += ncached * sz_index2size(i);
@@ -211,7 +214,7 @@ TEST_BEGIN(test_tcache_max) {
 TEST_END
 
 static size_t
-tcache_max2nhbins(size_t tcache_max) {
+tcache_max2nbins(size_t tcache_max) {
 	return sz_size2index(tcache_max) + 1;
 }
 
@@ -241,23 +244,24 @@ validate_tcache_stack(tcache_t *tcache) {
 static void *
 tcache_check(void *arg) {
 	size_t old_tcache_max, new_tcache_max, min_tcache_max, sz;
-	unsigned tcache_nhbins;
+	unsigned tcache_nbins;
 	tsd_t *tsd = tsd_fetch();
 	tcache_t *tcache = tsd_tcachep_get(tsd);
+	tcache_slow_t *tcache_slow = tcache->tcache_slow;
 	sz = sizeof(size_t);
 	new_tcache_max = *(size_t *)arg;
 	min_tcache_max = 1;
 
 	/*
-	 * Check the default tcache_max and tcache_nhbins of each thread's
+	 * Check the default tcache_max and tcache_nbins of each thread's
 	 * auto tcache.
 	 */
-	old_tcache_max = tcache_max_get(tcache);
+	old_tcache_max = tcache_max_get(tcache_slow);
 	expect_zu_eq(old_tcache_max, opt_tcache_max,
 	    "Unexpected default value for tcache_max");
-	tcache_nhbins = tcache_nhbins_get(tcache);
-	expect_zu_eq(tcache_nhbins, (size_t)global_do_not_change_nhbins,
-	    "Unexpected default value for tcache_nhbins");
+	tcache_nbins = tcache_nbins_get(tcache_slow);
+	expect_zu_eq(tcache_nbins, (size_t)global_do_not_change_nbins,
+	    "Unexpected default value for tcache_nbins");
 	validate_tcache_stack(tcache);
 
 	/*
@@ -275,12 +279,12 @@ tcache_check(void *arg) {
 	assert_d_eq(mallctl("thread.tcache.max",
 	    NULL, NULL, (void *)&temp_tcache_max, sz),.0,
 	    "Unexpected.mallctl().failure");
-	old_tcache_max = tcache_max_get(tcache);
+	old_tcache_max = tcache_max_get(tcache_slow);
 	expect_zu_eq(old_tcache_max, TCACHE_MAXCLASS_LIMIT,
 	    "Unexpected value for tcache_max");
-	tcache_nhbins = tcache_nhbins_get(tcache);
-	expect_zu_eq(tcache_nhbins, TCACHE_NBINS_MAX,
-	    "Unexpected value for tcache_nhbins");
+	tcache_nbins = tcache_nbins_get(tcache_slow);
+	expect_zu_eq(tcache_nbins, TCACHE_NBINS_MAX,
+	    "Unexpected value for tcache_nbins");
 	assert_d_eq(mallctl("thread.tcache.max",
 	    (void *)&old_tcache_max, &sz,
 	    (void *)&min_tcache_max, sz),.0,
@@ -294,10 +298,10 @@ tcache_check(void *arg) {
 	    (void *)&e0, bool_sz), 0, "Unexpected mallctl() error");
 	expect_false(e1, "Unexpected previous tcache state");
 	min_tcache_max = sz_s2u(min_tcache_max);
-	expect_zu_eq(tcache_max_get(tcache), min_tcache_max,
+	expect_zu_eq(tcache_max_get(tcache_slow), min_tcache_max,
 	    "Unexpected value for tcache_max");
-	expect_zu_eq(tcache_nhbins_get(tcache),
-	    tcache_max2nhbins(min_tcache_max), "Unexpected value for nhbins");
+	expect_zu_eq(tcache_nbins_get(tcache_slow),
+	    tcache_max2nbins(min_tcache_max), "Unexpected value for nbins");
 	assert_d_eq(mallctl("thread.tcache.max",
 	    (void *)&old_tcache_max, &sz,
 	    (void *)&new_tcache_max, sz),.0,
@@ -307,18 +311,18 @@ tcache_check(void *arg) {
 	validate_tcache_stack(tcache);
 
 	/*
-	 * Check the thread's tcache_max and nhbins both through mallctl
+	 * Check the thread's tcache_max and nbins both through mallctl
 	 * and alloc tests.
 	 */
 	if (new_tcache_max > TCACHE_MAXCLASS_LIMIT) {
 		new_tcache_max = TCACHE_MAXCLASS_LIMIT;
 	}
-	old_tcache_max = tcache_max_get(tcache);
+	old_tcache_max = tcache_max_get(tcache_slow);
 	expect_zu_eq(old_tcache_max, new_tcache_max,
 	    "Unexpected value for tcache_max");
-	tcache_nhbins = tcache_nhbins_get(tcache);
-	expect_zu_eq(tcache_nhbins, tcache_max2nhbins(new_tcache_max),
-	    "Unexpected value for tcache_nhbins");
+	tcache_nbins = tcache_nbins_get(tcache_slow);
+	expect_zu_eq(tcache_nbins, tcache_max2nbins(new_tcache_max),
+	    "Unexpected value for tcache_nbins");
 	for (unsigned alloc_option = alloc_option_start;
 	     alloc_option < alloc_option_end;
 	     alloc_option++) {

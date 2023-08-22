@@ -4140,7 +4140,8 @@ batch_alloc(void **ptrs, size_t num, size_t size, int flags) {
 		tcache_t *tcache = tcache_get_from_ind(tsd, tcache_ind,
 		    /* slow */ true, /* is_alloc */ true);
 		if (likely(tcache != NULL &&
-		    ind < tcache_nhbins_get(tcache)) && progress < batch) {
+		    !tcache_bin_disabled(ind, &tcache->bins[ind],
+		    tcache->tcache_slow)) && progress < batch) {
 			if (bin == NULL) {
 				bin = &tcache->bins[ind];
 			}

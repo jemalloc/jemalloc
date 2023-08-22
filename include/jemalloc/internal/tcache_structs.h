@@ -31,6 +31,8 @@ struct tcache_slow_s {
 
 	/* The arena this tcache is associated with. */
 	arena_t		*arena;
+	/* The number of bins activated in the tcache. */
+	unsigned	tcache_nbins;
 	/* Next bin to GC. */
 	szind_t		next_gc_bin;
 	/* For small bins, fill (ncached_max >> lg_fill_div). */
@@ -55,8 +57,6 @@ struct tcache_slow_s {
 
 struct tcache_s {
 	tcache_slow_t	*tcache_slow;
-	unsigned	tcache_nhbins;
-	size_t		tcache_max;
 	cache_bin_t	bins[TCACHE_NBINS_MAX];
 };
 

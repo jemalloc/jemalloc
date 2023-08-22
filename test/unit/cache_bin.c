@@ -106,11 +106,13 @@ TEST_BEGIN(test_cache_bin) {
 	cache_bin_info_init(&info, ncached_max);
 	cache_bin_t bin;
 	test_bin_init(&bin, &info);
+	cache_bin_info_t *bin_info = &bin.bin_info;
 
 	/* Initialize to empty; should then have 0 elements. */
-	expect_d_eq(ncached_max, cache_bin_info_ncached_max(&info), "");
-	expect_true(cache_bin_ncached_get_local(&bin, &info) == 0, "");
-	expect_true(cache_bin_low_water_get(&bin, &info) == 0, "");
+	expect_d_eq(ncached_max, cache_bin_info_ncached_max_get(&bin,
+	    &bin.bin_info), "");
+	expect_true(cache_bin_ncached_get_local(&bin, bin_info) == 0, "");
+	expect_true(cache_bin_low_water_get(&bin, bin_info) == 0, "");
 
 	ptr = cache_bin_alloc_easy(&bin, &success);
 	expect_false(success, "Shouldn't successfully allocate when empty");
@@ -127,14 +129,14 @@ TEST_BEGIN(test_cache_bin) {
 	void **ptrs = mallocx(sizeof(void *) * (ncached_max + 1), 0);
 	assert_ptr_not_null(ptrs, "Unexpected mallocx failure");
 	for  (cache_bin_sz_t i = 0; i < ncached_max; i++) {
-		expect_true(cache_bin_ncached_get_local(&bin, &info) == i, "");
+		expect_true(cache_bin_ncached_get_local(&bin, bin_info) == i, "");
 		success = cache_bin_dalloc_easy(&bin, &ptrs[i]);
 		expect_true(success,
 		    "Should be able to dalloc into a non-full cache bin.");
-		expect_true(cache_bin_low_water_get(&bin, &info) == 0,
+		expect_true(cache_bin_low_water_get(&bin, bin_info) == 0,
 		    "Pushes and pops shouldn't change low water of zero.");
 	}
-	expect_true(cache_bin_ncached_get_local(&bin, &info) == ncached_max,
+	expect_true(cache_bin_ncached_get_local(&bin, bin_info) == ncached_max,
 	    "");
 	success = cache_bin_dalloc_easy(&bin, &ptrs[ncached_max]);
 	expect_false(success, "Shouldn't be able to dalloc into a full bin.");
@@ -142,9 +144,9 @@ TEST_BEGIN(test_cache_bin) {
 	cache_bin_low_water_set(&bin);
 
 	for (cache_bin_sz_t i = 0; i < ncached_max; i++) {
-		expect_true(cache_bin_low_water_get(&bin, &info)
+		expect_true(cache_bin_low_water_get(&bin, bin_info)
 		    == ncached_max - i, "");
-		expect_true(cache_bin_ncached_get_local(&bin, &info)
+		expect_true(cache_bin_ncached_get_local(&bin, bin_info)
 		    == ncached_max - i, "");
 		/*
 		 * This should fail -- the easy variant can't change the low
@@ -153,9 +155,9 @@ TEST_BEGIN(test_cache_bin) {
 		ptr = cache_bin_alloc_easy(&bin, &success);
 		expect_ptr_null(ptr, "");
 		expect_false(success, "");
-		expect_true(cache_bin_low_water_get(&bin, &info)
+		expect_true(cache_bin_low_water_get(&bin, bin_info)
 		    == ncached_max - i, "");
-		expect_true(cache_bin_ncached_get_local(&bin, &info)
+		expect_true(cache_bin_ncached_get_local(&bin, bin_info)
 		    == ncached_max - i, "");
 
 		/* This should succeed, though. */
@@ -163,13 +165,13 @@ TEST_BEGIN(test_cache_bin) {
 		expect_true(success, "");
 		expect_ptr_eq(ptr, &ptrs[ncached_max - i - 1],
 		    "Alloc should pop in stack order");
-		expect_true(cache_bin_low_water_get(&bin, &info)
+		expect_true(cache_bin_low_water_get(&bin, bin_info)
 		    == ncached_max - i - 1, "");
-		expect_true(cache_bin_ncached_get_local(&bin, &info)
+		expect_true(cache_bin_ncached_get_local(&bin, bin_info)
 		    == ncached_max - i - 1, "");
 	}
 	/* Now we're empty -- all alloc attempts should fail. */
-	expect_true(cache_bin_ncached_get_local(&bin, &info) == 0, "");
+	expect_true(cache_bin_ncached_get_local(&bin, bin_info) == 0, "");
 	ptr = cache_bin_alloc_easy(&bin, &success);
 	expect_ptr_null(ptr, "");
 	expect_false(success, "");
@@ -185,7 +187,7 @@ TEST_BEGIN(test_cache_bin) {
 	for (cache_bin_sz_t i = ncached_max / 2; i < ncached_max; i++) {
 		cache_bin_dalloc_easy(&bin, &ptrs[i]);
 	}
-	expect_true(cache_bin_ncached_get_local(&bin, &info) == ncached_max,
+	expect_true(cache_bin_ncached_get_local(&bin, bin_info) == ncached_max,
 	    "");
 	for (cache_bin_sz_t i = ncached_max - 1; i >= ncached_max / 2; i--) {
 		/*
@@ -202,60 +204,64 @@ TEST_BEGIN(test_cache_bin) {
 	expect_ptr_null(ptr, "");
 
 	/* We're going to test filling -- we must be empty to start. */
-	while (cache_bin_ncached_get_local(&bin, &info)) {
+	while (cache_bin_ncached_get_local(&bin, bin_info)) {
 		cache_bin_alloc(&bin, &success);
 		expect_true(success, "");
 	}
 
 	/* Test fill. */
 	/* Try to fill all, succeed fully. */
-	do_fill_test(&bin, &info, ptrs, ncached_max, ncached_max, ncached_max);
+	do_fill_test(&bin, bin_info, ptrs, ncached_max, ncached_max,
+	    ncached_max);
 	/* Try to fill all, succeed partially. */
-	do_fill_test(&bin, &info, ptrs, ncached_max, ncached_max,
+	do_fill_test(&bin, bin_info, ptrs, ncached_max, ncached_max,
 	    ncached_max / 2);
 	/* Try to fill all, fail completely. */
-	do_fill_test(&bin, &info, ptrs, ncached_max, ncached_max, 0);
+	do_fill_test(&bin, bin_info, ptrs, ncached_max, ncached_max, 0);
 
 	/* Try to fill some, succeed fully. */
-	do_fill_test(&bin, &info, ptrs, ncached_max, ncached_max / 2,
+	do_fill_test(&bin, bin_info, ptrs, ncached_max, ncached_max / 2,
 	    ncached_max / 2);
 	/* Try to fill some, succeed partially. */
-	do_fill_test(&bin, &info, ptrs, ncached_max, ncached_max / 2,
+	do_fill_test(&bin, bin_info, ptrs, ncached_max, ncached_max / 2,
 	    ncached_max / 4);
 	/* Try to fill some, fail completely. */
-	do_fill_test(&bin, &info, ptrs, ncached_max, ncached_max / 2, 0);
+	do_fill_test(&bin, bin_info, ptrs, ncached_max, ncached_max / 2, 0);
 
-	do_flush_test(&bin, &info, ptrs, ncached_max, ncached_max);
-	do_flush_test(&bin, &info, ptrs, ncached_max, ncached_max / 2);
-	do_flush_test(&bin, &info, ptrs, ncached_max, 0);
-	do_flush_test(&bin, &info, ptrs, ncached_max / 2, ncached_max / 2);
-	do_flush_test(&bin, &info, ptrs, ncached_max / 2, ncached_max / 4);
-	do_flush_test(&bin, &info, ptrs, ncached_max / 2, 0);
+	do_flush_test(&bin, bin_info, ptrs, ncached_max, ncached_max);
+	do_flush_test(&bin, bin_info, ptrs, ncached_max, ncached_max / 2);
+	do_flush_test(&bin, bin_info, ptrs, ncached_max, 0);
+	do_flush_test(&bin, bin_info, ptrs, ncached_max / 2, ncached_max / 2);
+	do_flush_test(&bin, bin_info, ptrs, ncached_max / 2, ncached_max / 4);
+	do_flush_test(&bin, bin_info, ptrs, ncached_max / 2, 0);
 
-	do_batch_alloc_test(&bin, &info, ptrs, ncached_max, ncached_max);
-	do_batch_alloc_test(&bin, &info, ptrs, ncached_max, ncached_max * 2);
-	do_batch_alloc_test(&bin, &info, ptrs, ncached_max, ncached_max / 2);
-	do_batch_alloc_test(&bin, &info, ptrs, ncached_max, 2);
-	do_batch_alloc_test(&bin, &info, ptrs, ncached_max, 1);
-	do_batch_alloc_test(&bin, &info, ptrs, ncached_max, 0);
-	do_batch_alloc_test(&bin, &info, ptrs, ncached_max / 2,
+	do_batch_alloc_test(&bin, bin_info, ptrs, ncached_max, ncached_max);
+	do_batch_alloc_test(&bin, bin_info, ptrs, ncached_max,
+	    ncached_max * 2);
+	do_batch_alloc_test(&bin, bin_info, ptrs, ncached_max,
 	    ncached_max / 2);
-	do_batch_alloc_test(&bin, &info, ptrs, ncached_max / 2, ncached_max);
-	do_batch_alloc_test(&bin, &info, ptrs, ncached_max / 2,
+	do_batch_alloc_test(&bin, bin_info, ptrs, ncached_max, 2);
+	do_batch_alloc_test(&bin, bin_info, ptrs, ncached_max, 1);
+	do_batch_alloc_test(&bin, bin_info, ptrs, ncached_max, 0);
+	do_batch_alloc_test(&bin, bin_info, ptrs, ncached_max / 2,
+	    ncached_max / 2);
+	do_batch_alloc_test(&bin, bin_info, ptrs, ncached_max / 2,
+	    ncached_max);
+	do_batch_alloc_test(&bin, bin_info, ptrs, ncached_max / 2,
 	    ncached_max / 4);
-	do_batch_alloc_test(&bin, &info, ptrs, ncached_max / 2, 2);
-	do_batch_alloc_test(&bin, &info, ptrs, ncached_max / 2, 1);
-	do_batch_alloc_test(&bin, &info, ptrs, ncached_max / 2, 0);
-	do_batch_alloc_test(&bin, &info, ptrs, 2, ncached_max);
-	do_batch_alloc_test(&bin, &info, ptrs, 2, 2);
-	do_batch_alloc_test(&bin, &info, ptrs, 2, 1);
-	do_batch_alloc_test(&bin, &info, ptrs, 2, 0);
-	do_batch_alloc_test(&bin, &info, ptrs, 1, 2);
-	do_batch_alloc_test(&bin, &info, ptrs, 1, 1);
-	do_batch_alloc_test(&bin, &info, ptrs, 1, 0);
-	do_batch_alloc_test(&bin, &info, ptrs, 0, 2);
-	do_batch_alloc_test(&bin, &info, ptrs, 0, 1);
-	do_batch_alloc_test(&bin, &info, ptrs, 0, 0);
+	do_batch_alloc_test(&bin, bin_info, ptrs, ncached_max / 2, 2);
+	do_batch_alloc_test(&bin, bin_info, ptrs, ncached_max / 2, 1);
+	do_batch_alloc_test(&bin, bin_info, ptrs, ncached_max / 2, 0);
+	do_batch_alloc_test(&bin, bin_info, ptrs, 2, ncached_max);
+	do_batch_alloc_test(&bin, bin_info, ptrs, 2, 2);
+	do_batch_alloc_test(&bin, bin_info, ptrs, 2, 1);
+	do_batch_alloc_test(&bin, bin_info, ptrs, 2, 0);
+	do_batch_alloc_test(&bin, bin_info, ptrs, 1, 2);
+	do_batch_alloc_test(&bin, bin_info, ptrs, 1, 1);
+	do_batch_alloc_test(&bin, bin_info, ptrs, 1, 0);
+	do_batch_alloc_test(&bin, bin_info, ptrs, 0, 2);
+	do_batch_alloc_test(&bin, bin_info, ptrs, 0, 1);
+	do_batch_alloc_test(&bin, bin_info, ptrs, 0, 0);
 
 	free(ptrs);
 }
@@ -328,6 +334,7 @@ TEST_BEGIN(test_cache_bin_stash) {
 	cache_bin_info_t info;
 	cache_bin_info_init(&info, ncached_max);
 	test_bin_init(&bin, &info);
+	cache_bin_info_t *bin_info = &bin.bin_info;
 
 	/*
 	 * The content of this array is not accessed; instead the interior
@@ -337,10 +344,10 @@ TEST_BEGIN(test_cache_bin_stash) {
 	assert_ptr_not_null(ptrs, "Unexpected mallocx failure");
 	bool ret;
 	for (cache_bin_sz_t i = 0; i < ncached_max; i++) {
-		expect_true(cache_bin_ncached_get_local(&bin, &info) ==
+		expect_true(cache_bin_ncached_get_local(&bin, bin_info) ==
 		    (i / 2 + i % 2), "Wrong ncached value");
-		expect_true(cache_bin_nstashed_get_local(&bin, &info) == i / 2,
-		    "Wrong nstashed value");
+		expect_true(cache_bin_nstashed_get_local(&bin, bin_info) ==
+		    i / 2, "Wrong nstashed value");
 		if (i % 2 == 0) {
 			cache_bin_dalloc_easy(&bin, &ptrs[i]);
 		} else {
@@ -362,18 +369,23 @@ TEST_BEGIN(test_cache_bin_stash) {
 			expect_true(diff % 2 == 0, "Should be able to alloc");
 		} else {
 			expect_false(ret, "Should not alloc stashed");
-			expect_true(cache_bin_nstashed_get_local(&bin, &info) ==
-			    ncached_max / 2, "Wrong nstashed value");
+			expect_true(cache_bin_nstashed_get_local(&bin,
+			    bin_info) == ncached_max / 2,
+			    "Wrong nstashed value");
 		}
 	}
 
 	test_bin_init(&bin, &info);
-	do_flush_stashed_test(&bin, &info, ptrs, ncached_max, 0);
-	do_flush_stashed_test(&bin, &info, ptrs, 0, ncached_max);
-	do_flush_stashed_test(&bin, &info, ptrs, ncached_max / 2, ncached_max / 2);
-	do_flush_stashed_test(&bin, &info, ptrs, ncached_max / 4, ncached_max / 2);
-	do_flush_stashed_test(&bin, &info, ptrs, ncached_max / 2, ncached_max / 4);
-	do_flush_stashed_test(&bin, &info, ptrs, ncached_max / 4, ncached_max / 4);
+	do_flush_stashed_test(&bin, bin_info, ptrs, ncached_max, 0);
+	do_flush_stashed_test(&bin, bin_info, ptrs, 0, ncached_max);
+	do_flush_stashed_test(&bin, bin_info, ptrs, ncached_max / 2,
+	    ncached_max / 2);
+	do_flush_stashed_test(&bin, bin_info, ptrs, ncached_max / 4,
+	    ncached_max / 2);
+	do_flush_stashed_test(&bin, bin_info, ptrs, ncached_max / 2,
+	    ncached_max / 4);
+	do_flush_stashed_test(&bin, bin_info, ptrs, ncached_max / 4,
+	    ncached_max / 4);
 }
 TEST_END
 
