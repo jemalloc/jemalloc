@@ -24,9 +24,9 @@ extern unsigned opt_lg_tcache_flush_large_div;
  * large-object bins.  This is only used during threads initialization and
  * changing it will not reflect on initialized threads as expected.  Thus,
  * it should not be changed on the fly.  To change the number of tcache bins
- * in use, refer to tcache_nhbins of each tcache.
+ * in use, refer to tcache_nbins of each tcache.
  */
-extern unsigned	global_do_not_change_nhbins;
+extern unsigned	global_do_not_change_nbins;
 
 /*
  * Maximum cached size class.  Same as above, this is only used during threads
@@ -58,6 +58,7 @@ void tcache_bin_flush_stashed(tsd_t *tsd, tcache_t *tcache,
 void tcache_arena_reassociate(tsdn_t *tsdn, tcache_slow_t *tcache_slow,
     tcache_t *tcache, arena_t *arena);
 tcache_t *tcache_create_explicit(tsd_t *tsd);
+void thread_tcache_max_set(tsd_t *tsd, size_t tcache_max);
 void tcache_cleanup(tsd_t *tsd);
 void tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena);
 bool tcaches_create(tsd_t *tsd, base_t *base, unsigned *r_ind);
@@ -70,8 +71,8 @@ void tcache_prefork(tsdn_t *tsdn);
 void tcache_postfork_parent(tsdn_t *tsdn);
 void tcache_postfork_child(tsdn_t *tsdn);
 void tcache_flush(tsd_t *tsd);
-bool tsd_tcache_data_init(tsd_t *tsd, arena_t *arena);
 bool tsd_tcache_enabled_data_init(tsd_t *tsd);
+void tcache_enabled_set(tsd_t *tsd, bool enabled);
 
 void tcache_assert_initialized(tcache_t *tcache);
 

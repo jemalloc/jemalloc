@@ -5,10 +5,11 @@
 #include "jemalloc/internal/cache_bin.h"
 #include "jemalloc/internal/safety_check.h"
 
+const uintptr_t disabled_bin = JUNK_ADDR;
+
 void
 cache_bin_info_init(cache_bin_info_t *info,
     cache_bin_sz_t ncached_max) {
-	assert(ncached_max <= CACHE_BIN_NCACHED_MAX);
 	size_t stack_size = (size_t)ncached_max * sizeof(void *);
 	assert(stack_size < ((size_t)1 << (sizeof(cache_bin_sz_t) * 8)));
 	info->ncached_max = (cache_bin_sz_t)ncached_max;
@@ -37,7 +38,6 @@ cache_bin_info_compute_alloc(cache_bin_info_t *infos, szind_t ninfos,
 	 */
 	*size = sizeof(void *) * 2;
 	for (szind_t i = 0; i < ninfos; i++) {
-		assert(infos[i].ncached_max > 0);
 		*size += infos[i].ncached_max * sizeof(void *);
 	}
 
@@ -98,13 +98,21 @@ cache_bin_init(cache_bin_t *bin, cache_bin_info_t *info, void *alloc,
 	cache_bin_sz_t free_spots = cache_bin_diff(bin,
 	    bin->low_bits_full, (uint16_t)(uintptr_t)bin->stack_head);
 	assert(free_spots == bin_stack_size);
-	assert(cache_bin_ncached_get_local(bin, info) == 0);
+	if (!cache_bin_disabled(bin)) {
+		assert(cache_bin_ncached_get_local(bin, &bin->bin_info) == 0);
+	}
 	assert(cache_bin_empty_position_get(bin) == empty_position);
 
 	assert(bin_stack_size > 0 || empty_position == full_position);
 }
 
-bool
-cache_bin_still_zero_initialized(cache_bin_t *bin) {
-	return bin->stack_head == NULL;
+void
+cache_bin_init_disabled(cache_bin_t *bin, cache_bin_sz_t ncached_max) {
+	const void *fake_stack = cache_bin_disabled_bin_stack();
+	size_t fake_offset = 0;
+	cache_bin_info_t fake_info;
+	cache_bin_info_init(&fake_info, 0);
+	cache_bin_init(bin, &fake_info, (void *)fake_stack, &fake_offset);
+	cache_bin_info_init(&bin->bin_info, ncached_max);
+	assert(fake_offset == 0);
 }
