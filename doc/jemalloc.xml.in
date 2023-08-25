@@ -3307,7 +3307,7 @@ struct extent_hooks_s {
         <listitem><para>Current number of nonfull slabs.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="stats.arenas.i.bins.mutex">
+      <varlistentry id="stats.arenas.i.bins.j.mutex">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.bins.&lt;j&gt;.mutex.{counter}</mallctl>
           (<type>counter specific type</type>) <literal>r-</literal>
