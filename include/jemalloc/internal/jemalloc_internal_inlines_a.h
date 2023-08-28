@@ -19,9 +19,9 @@ malloc_getcpu(void) {
 #elif defined(JEMALLOC_HAVE_SCHED_GETCPU)
 	return (malloc_cpuid_t)sched_getcpu();
 #elif defined(JEMALLOC_HAVE_RDTSCP)
-	unsigned int ax, cx, dx;
-	asm volatile("rdtscp" : "=a"(ax), "=d"(dx), "=c"(cx) ::);
-	return (malloc_cpuid_t)(dx & 0xfff);
+	unsigned int ecx;
+	asm volatile("rdtscp" : "=c" (ecx) :: "eax", "edx");
+	return (malloc_cpuid_t)(ecx & 0xfff);
 #elif defined(__aarch64__) && defined(__APPLE__)
 	/* Other oses most likely use tpidr_el0 instead */
 	uintptr_t c;
