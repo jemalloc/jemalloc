@@ -7,12 +7,13 @@ void safety_check_fail_sized_dealloc(bool current_dealloc, const void *ptr,
     size_t true_size, size_t input_size) {
 	char *src = current_dealloc ? "the current pointer being freed" :
 	    "in thread cache, possibly from previous deallocations";
+	char *suggest_debug_build = config_debug ? "" : " --enable-debug or";
 
 	safety_check_fail("<jemalloc>: size mismatch detected (true size %zu "
 	    "vs input size %zu), likely caused by application sized "
-	    "deallocation bugs (source address: %p, %s). Suggest building with "
-	    "--enable-debug or address sanitizer for debugging. Abort.\n",
-	    true_size, input_size, ptr, src);
+	    "deallocation bugs (source address: %p, %s). Suggest building with"
+	    "%s address sanitizer for debugging. Abort.\n",
+	    true_size, input_size, ptr, src, suggest_debug_build);
 }
 
 void safety_check_set_abort(safety_check_abort_hook_t abort_fn) {
