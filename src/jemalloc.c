@@ -632,6 +632,9 @@ arena_cleanup(tsd_t *tsd) {
 	arena = tsd_arena_get(tsd);
 	if (arena != NULL) {
 		arena_unbind(tsd, arena_ind_get(arena), false);
+		if (config_stats) {
+			atomic_fetch_add_u(&arena->stats.nthreads_terminated, 1, ATOMIC_RELAXED);
+		}
 	}
 }
 

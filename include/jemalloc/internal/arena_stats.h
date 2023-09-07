@@ -83,6 +83,9 @@ struct arena_stats_s {
 
 	/* Arena uptime. */
 	nstime_t		uptime;
+
+	/* Number of threads terminated. */
+	atomic_u_t nthreads_terminated;
 };
 
 static inline bool

@@ -2857,6 +2857,16 @@ struct extent_hooks_s {
         arena.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="stats.arenas.i.nthreads_terminated">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.nthreads_terminated</mallctl>
+          (<type>unsigned</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Number of threads terminated by
+        arena.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="stats.arenas.i.uptime">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.uptime</mallctl>

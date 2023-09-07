@@ -1049,6 +1049,7 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	char name[ARENA_NAME_LEN];
 	char *namep = name;
 	unsigned nthreads;
+	unsigned nthreads_terminated;
 	const char *dss;
 	ssize_t dirty_decay_ms, muzzy_decay_ms;
 	size_t page, pactive, pdirty, pmuzzy, mapped, retained;
@@ -1073,6 +1074,10 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	CTL_M2_GET("stats.arenas.0.nthreads", i, &nthreads, unsigned);
 	emitter_kv(emitter, "nthreads", "assigned threads",
 	    emitter_type_unsigned, &nthreads);
+
+	CTL_M2_GET("stats.arenas.0.nthreads_terminated", i, &nthreads, unsigned);
+	emitter_kv(emitter, "nthreads_terminated", "threads terminated",
+		emitter_type_unsigned, &nthreads_terminated);
 
 	CTL_M2_GET("stats.arenas.0.uptime", i, &uptime, uint64_t);
 	emitter_kv(emitter, "uptime_ns", "uptime", emitter_type_uint64,

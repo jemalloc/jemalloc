@@ -275,6 +275,7 @@ CTL_PROTO(stats_arenas_i_hpa_shard_nonfull_slabs_j_ndirty_huge)
 
 INDEX_PROTO(stats_arenas_i_hpa_shard_nonfull_slabs_j)
 CTL_PROTO(stats_arenas_i_nthreads)
+CTL_PROTO(stats_arenas_i_nthreads_terminated)
 CTL_PROTO(stats_arenas_i_uptime)
 CTL_PROTO(stats_arenas_i_dss)
 CTL_PROTO(stats_arenas_i_dirty_decay_ms)
@@ -781,6 +782,7 @@ static const ctl_named_node_t stats_arenas_i_hpa_shard_node[] = {
 
 static const ctl_named_node_t stats_arenas_i_node[] = {
 	{NAME("nthreads"),	CTL(stats_arenas_i_nthreads)},
+	{NAME("nthreads_terminated"),	CTL(stats_arenas_i_nthreads_terminated)},
 	{NAME("uptime"),	CTL(stats_arenas_i_uptime)},
 	{NAME("dss"),		CTL(stats_arenas_i_dss)},
 	{NAME("dirty_decay_ms"), CTL(stats_arenas_i_dirty_decay_ms)},
@@ -3628,6 +3630,8 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_base,
 CTL_RO_CGEN(config_stats, stats_arenas_i_internal,
     atomic_load_zu(&arenas_i(mib[2])->astats->astats.internal, ATOMIC_RELAXED),
     size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_nthreads_terminated,
+ 	atomic_load_u(&arenas_i(mib[2])->astats->astats.nthreads_terminated, ATOMIC_RELAXED), unsigned)
 CTL_RO_CGEN(config_stats, stats_arenas_i_metadata_thp,
     arenas_i(mib[2])->astats->astats.metadata_thp, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_tcache_bytes,
