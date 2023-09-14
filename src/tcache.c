@@ -2,6 +2,7 @@
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/base.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/safety_check.h"
 #include "jemalloc/internal/san.h"
@@ -814,10 +815,17 @@ tsd_tcache_data_init(tsd_t *tsd, arena_t *arena) {
 	tcache_bin_info_compute(tcache_bin_info, tcache_nhbins);
 	cache_bin_info_compute_alloc(tcache_bin_info, tcache_nhbins,
 	    &size, &alignment);
-	size = sz_sa2u(size, alignment);
 
-	void *mem = ipallocztm(tsd_tsdn(tsd), size, alignment, true, NULL,
-	    true, arena_get(TSDN_NULL, 0, true));
+	void *mem;
+	if (cache_bin_stack_use_thp()) {
+		/* Alignment is ignored since it comes from THP. */
+		assert(alignment == QUANTUM);
+		mem = b0_alloc_tcache_stack(tsd_tsdn(tsd), size);
+	} else {
+		size = sz_sa2u(size, alignment);
+		mem = ipallocztm(tsd_tsdn(tsd), size, alignment, true, NULL,
+		    true, arena_get(TSDN_NULL, 0, true));
+	}
 	if (mem == NULL) {
 		return true;
 	}
@@ -925,8 +933,12 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache, bool tsd_tcache) {
 		cache_bin_t *cache_bin = &tcache->bins[0];
 		cache_bin_assert_empty(cache_bin, &cache_bin->bin_info);
 	}
-	idalloctm(tsd_tsdn(tsd), tcache_slow->dyn_alloc, NULL, NULL, true,
-	    true);
+	if (tsd_tcache && cache_bin_stack_use_thp()) {
+		b0_dalloc_tcache_stack(tsd_tsdn(tsd), tcache_slow->dyn_alloc);
+	} else {
+		idalloctm(tsd_tsdn(tsd), tcache_slow->dyn_alloc, NULL, NULL,
+		    true, true);
+	}
 
 	/*
 	 * The deallocation and tcache flush above may not trigger decay since

@@ -621,7 +621,8 @@ edata_init(edata_t *edata, unsigned arena_ind, void *addr, size_t size,
 }
 
 static inline void
-edata_binit(edata_t *edata, void *addr, size_t bsize, uint64_t sn) {
+edata_binit(edata_t *edata, void *addr, size_t bsize, uint64_t sn,
+    bool reused) {
 	edata_arena_ind_set(edata, (1U << MALLOCX_ARENA_BITS) - 1);
 	edata_addr_set(edata, addr);
 	edata_bsize_set(edata, bsize);
@@ -629,7 +630,8 @@ edata_binit(edata_t *edata, void *addr, size_t bsize, uint64_t sn) {
 	edata_szind_set(edata, SC_NSIZES);
 	edata_sn_set(edata, sn);
 	edata_state_set(edata, extent_state_active);
-	edata_guarded_set(edata, false);
+	/* See comments in base_edata_is_reused. */
+	edata_guarded_set(edata, reused);
 	edata_zeroed_set(edata, true);
 	edata_committed_set(edata, true);
 	/*

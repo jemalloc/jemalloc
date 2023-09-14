@@ -14,6 +14,17 @@ cache_bin_info_init(cache_bin_info_t *info,
 	info->ncached_max = (cache_bin_sz_t)ncached_max;
 }
 
+bool
+cache_bin_stack_use_thp(void) {
+	/*
+	 * If metadata_thp is enabled, allocating tcache stack from the base
+	 * allocator for efficiency gains.  The downside, however, is that base
+	 * allocator never purges freed memory, and may cache a fair amount of
+	 * memory after many threads are terminated and not reused.
+	 */
+	return metadata_thp_enabled();
+}
+
 void
 cache_bin_info_compute_alloc(cache_bin_info_t *infos, szind_t ninfos,
     size_t *size, size_t *alignment) {
@@ -31,10 +42,11 @@ cache_bin_info_compute_alloc(cache_bin_info_t *infos, szind_t ninfos,
 	}
 
 	/*
-	 * Align to at least PAGE, to minimize the # of TLBs needed by the
-	 * smaller sizes; also helps if the larger sizes don't get used at all.
+	 * When not using THP, align to at least PAGE, to minimize the # of TLBs
+	 * needed by the smaller sizes; also helps if the larger sizes don't get
+	 * used at all.
 	 */
-	*alignment = PAGE;
+	*alignment = cache_bin_stack_use_thp() ? QUANTUM : PAGE;
 }
 
 void

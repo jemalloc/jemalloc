@@ -215,6 +215,29 @@ tcache_max2nhbins(size_t tcache_max) {
 	return sz_size2index(tcache_max) + 1;
 }
 
+static void
+validate_tcache_stack(tcache_t *tcache) {
+	/* Assume bins[0] is enabled. */
+	void *tcache_stack = tcache->bins[0].stack_head;
+	bool expect_found = cache_bin_stack_use_thp() ? true : false;
+
+	/* Walk through all blocks to see if the stack is within range. */
+	base_t *base = b0get();
+	base_block_t *next = base->blocks;
+	bool found = false;
+	do {
+		base_block_t *block = next;
+		if ((byte_t *)tcache_stack >= (byte_t *)block &&
+		    (byte_t *)tcache_stack < ((byte_t *)block + block->size)) {
+			found = true;
+			break;
+		}
+		next = block->next;
+	} while (next != NULL);
+
+	expect_true(found == expect_found, "Unexpected tcache stack source");
+}
+
 static void *
 tcache_check(void *arg) {
 	size_t old_tcache_max, new_tcache_max, min_tcache_max, sz;
@@ -235,6 +258,7 @@ tcache_check(void *arg) {
 	tcache_nhbins = tcache_nhbins_get(tcache);
 	expect_zu_eq(tcache_nhbins, (size_t)global_do_not_change_nhbins,
 	    "Unexpected default value for tcache_nhbins");
+	validate_tcache_stack(tcache);
 
 	/*
 	 * Close the tcache and test the set.
@@ -280,6 +304,7 @@ tcache_check(void *arg) {
 	    "Unexpected.mallctl().failure");
 	expect_zu_eq(old_tcache_max, min_tcache_max,
 	    "Unexpected value for tcache_max");
+	validate_tcache_stack(tcache);
 
 	/*
 	 * Check the thread's tcache_max and nhbins both through mallctl
@@ -303,6 +328,7 @@ tcache_check(void *arg) {
 			test_tcache_max_impl(new_tcache_max,
 			    alloc_option, dalloc_option);
 		}
+		validate_tcache_stack(tcache);
 	}
 
 	return NULL;

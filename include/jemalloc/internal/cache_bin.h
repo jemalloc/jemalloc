@@ -704,5 +704,6 @@ void cache_bin_init(cache_bin_t *bin, cache_bin_info_t *info, void *alloc,
  * not cache_bin_init was called on it.
  */
 bool cache_bin_still_zero_initialized(cache_bin_t *bin);
+bool cache_bin_stack_use_thp(void);
 
 #endif /* JEMALLOC_INTERNAL_CACHE_BIN_H */
