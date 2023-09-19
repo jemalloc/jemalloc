@@ -130,4 +130,12 @@ util_prefetch_write_range(void *ptr, size_t sz) {
 
 #undef UTIL_INLINE
 
+/*
+ * Reads the settings in the following format:
+ * key1-key2:value|key3-key4:value|...
+ * Note it does not handle the ending '\0'.
+ */
+bool
+multi_setting_parse_next(const char **setting_segment_cur, size_t *len_left,
+    size_t *key_start, size_t *key_end, size_t *value);
 #endif /* JEMALLOC_INTERNAL_UTIL_H */

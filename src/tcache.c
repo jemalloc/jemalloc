@@ -63,7 +63,7 @@ unsigned opt_lg_tcache_flush_large_div = 1;
  * is only used to initialize tcache_nbins in the per-thread tcache.
  * Directly modifying it will not affect threads already launched.
  */
-unsigned		global_do_not_change_nbins;
+unsigned		global_do_not_change_tcache_nbins;
 /*
  * Max size class to be cached (can be small or large). This value is only used
  * to initialize tcache_max in the per-thread tcache.   Directly modifying it
@@ -193,8 +193,7 @@ tcache_event(tsd_t *tsd) {
 		goto label_done;
 	}
 
-	tcache_bin_flush_stashed(tsd, tcache, cache_bin, szind,
-	    is_small);
+	tcache_bin_flush_stashed(tsd, tcache, cache_bin, szind, is_small);
 	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin,
 	    &cache_bin->bin_info);
 	if (low_water > 0) {
@@ -591,6 +590,28 @@ tcache_bin_flush_stashed(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 	assert(head_content == *cache_bin->stack_head);
 }
 
+bool
+tcache_bin_ncached_max_read(tsd_t *tsd, size_t bin_size,
+    cache_bin_sz_t *ncached_max) {
+	if (bin_size > TCACHE_MAXCLASS_LIMIT) {
+		return true;
+	}
+
+	if (!tcache_available(tsd)) {
+		*ncached_max = 0;
+		return false;
+	}
+
+	tcache_t *tcache = tsd_tcachep_get(tsd);
+	assert(tcache != NULL);
+	szind_t bin_ind = sz_size2index(bin_size);
+
+	cache_bin_t *bin = &tcache->bins[bin_ind];
+	*ncached_max = tcache_bin_disabled(bin_ind, bin, tcache->tcache_slow) ?
+	    0: cache_bin_info_ncached_max_get(bin, &bin->bin_info);
+	return false;
+}
+
 void
 tcache_arena_associate(tsdn_t *tsdn, tcache_slow_t *tcache_slow,
     tcache_t *tcache, arena_t *arena) {
@@ -651,8 +672,8 @@ static void
 tcache_default_settings_init(tcache_slow_t *tcache_slow) {
 	assert(tcache_slow != NULL);
 	assert(global_do_not_change_tcache_maxclass != 0);
-	assert(global_do_not_change_nbins != 0);
-	tcache_slow->tcache_nbins = global_do_not_change_nbins;
+	assert(global_do_not_change_tcache_nbins != 0);
+	tcache_slow->tcache_nbins = global_do_not_change_tcache_nbins;
 }
 
 static void
@@ -772,7 +793,7 @@ tcache_ncached_max_compute(szind_t szind) {
 	}
 }
 
-static void
+JET_EXTERN void
 tcache_bin_info_compute(cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX]) {
 	/*
 	 * Compute the values for each bin, but for bins with indices larger
@@ -866,7 +887,7 @@ tcache_create_explicit(tsd_t *tsd) {
 	 * the beginning of the whole allocation (for freeing).  The makes sure
 	 * the cache bins have the requested alignment.
 	 */
-	unsigned tcache_nbins = global_do_not_change_nbins;
+	unsigned tcache_nbins = global_do_not_change_tcache_nbins;
 	size_t tcache_size, alignment;
 	cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX] = {{0}};
 	tcache_bin_info_compute(tcache_bin_info);
@@ -961,6 +982,52 @@ thread_tcache_max_set(tsd_t *tsd, size_t tcache_max) {
 	}
 
 	assert(tcache_nbins_get(tcache_slow) == sz_size2index(tcache_max) + 1);
+}
+
+bool
+tcache_bins_ncached_max_write(tsd_t *tsd, char *settings, size_t len) {
+	assert(tcache_available(tsd));
+	tcache_t *tcache = tsd_tcachep_get(tsd);
+	assert(tcache != NULL);
+	cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX];
+	tcache_bin_settings_backup(tcache, tcache_bin_info);
+	const char *bin_settings_segment_cur = settings;
+	size_t len_left = len;
+	assert(len_left != 0);
+
+	do {
+		size_t size_start, size_end;
+		size_t ncached_max;
+		bool err = multi_setting_parse_next(&bin_settings_segment_cur,
+		    &len_left, &size_start, &size_end, &ncached_max);
+		if (err) {
+			return true;
+		}
+		if (size_end > TCACHE_MAXCLASS_LIMIT) {
+			size_end = TCACHE_MAXCLASS_LIMIT;
+		}
+		if (size_start > TCACHE_MAXCLASS_LIMIT ||
+		    size_start > size_end) {
+			continue;
+		}
+		/* May get called before sz_init (during malloc_conf_init). */
+		szind_t bin_start = sz_size2index_compute(size_start);
+		szind_t bin_end = sz_size2index_compute(size_end);
+		if (ncached_max > CACHE_BIN_NCACHED_MAX) {
+			ncached_max = (size_t)CACHE_BIN_NCACHED_MAX;
+		}
+		for (szind_t i = bin_start; i <= bin_end; i++) {
+			cache_bin_info_init(&tcache_bin_info[i],
+			    (cache_bin_sz_t)ncached_max);
+		}
+	} while (len_left > 0);
+
+	arena_t *assigned_arena = tcache->tcache_slow->arena;
+	tcache_cleanup(tsd);
+	tsd_tcache_data_init_with_bin_settings(tsd, assigned_arena,
+	    tcache_bin_info);
+
+	return false;
 }
 
 static void
@@ -1180,7 +1247,7 @@ bool
 tcache_boot(tsdn_t *tsdn, base_t *base) {
 	global_do_not_change_tcache_maxclass = sz_s2u(opt_tcache_max);
 	assert(global_do_not_change_tcache_maxclass <= TCACHE_MAXCLASS_LIMIT);
-	global_do_not_change_nbins =
+	global_do_not_change_tcache_nbins =
 	    sz_size2index(global_do_not_change_tcache_maxclass) + 1;
 
 	if (malloc_mutex_init(&tcaches_mtx, "tcaches", WITNESS_RANK_TCACHES,

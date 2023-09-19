@@ -68,6 +68,8 @@ CTL_PROTO(max_background_threads)
 CTL_PROTO(thread_tcache_enabled)
 CTL_PROTO(thread_tcache_max)
 CTL_PROTO(thread_tcache_flush)
+CTL_PROTO(thread_tcache_ncached_max_write)
+CTL_PROTO(thread_tcache_ncached_max_read_sizeclass)
 CTL_PROTO(thread_peak_read)
 CTL_PROTO(thread_peak_reset)
 CTL_PROTO(thread_prof_name)
@@ -370,10 +372,17 @@ CTL_PROTO(stats_mutexes_reset)
  */
 #define INDEX(i)	{false},	i##_index
 
+static const ctl_named_node_t	thread_tcache_ncached_max_node[] = {
+	{NAME("read_sizeclass"),
+	    CTL(thread_tcache_ncached_max_read_sizeclass)},
+	{NAME("write"),		CTL(thread_tcache_ncached_max_write)}
+};
+
 static const ctl_named_node_t	thread_tcache_node[] = {
 	{NAME("enabled"),	CTL(thread_tcache_enabled)},
 	{NAME("max"),		CTL(thread_tcache_max)},
-	{NAME("flush"),		CTL(thread_tcache_flush)}
+	{NAME("flush"),		CTL(thread_tcache_flush)},
+	{NAME("ncached_max"),	CHILD(named, thread_tcache_ncached_max)}
 };
 
 static const ctl_named_node_t	thread_peak_node[] = {
@@ -2266,6 +2275,78 @@ label_return:
 
 CTL_RO_NL_GEN(thread_allocated, tsd_thread_allocated_get(tsd), uint64_t)
 CTL_RO_NL_GEN(thread_allocatedp, tsd_thread_allocatedp_get(tsd), uint64_t *)
+
+static int
+thread_tcache_ncached_max_read_sizeclass_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp,
+    size_t newlen) {
+	int ret;
+	size_t bin_size = 0;
+
+	/* Read the bin size from newp. */
+	if (newp == NULL) {
+		ret = EINVAL;
+		goto label_return;
+	}
+	WRITE(bin_size, size_t);
+
+	cache_bin_sz_t ncached_max = 0;
+	if (tcache_bin_ncached_max_read(tsd, bin_size, &ncached_max)) {
+		ret = EINVAL;
+		goto label_return;
+	}
+	size_t result = (size_t)ncached_max;
+	READ(result, size_t);
+	ret = 0;
+label_return:
+	return ret;
+}
+
+static int
+thread_tcache_ncached_max_write_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp,
+    size_t newlen) {
+	int ret;
+	WRITEONLY();
+	if (newp != NULL) {
+		if (!tcache_available(tsd)) {
+			ret = ENOENT;
+			goto label_return;
+		}
+		char *settings = NULL;
+		WRITE(settings, char *);
+		if (settings == NULL) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		/* Get the length of the setting string safely. */
+		char *end = (char *)memchr(settings, '\0',
+		    CTL_MULTI_SETTING_MAX_LEN);
+		if (end == NULL) {
+			ret = EINVAL;
+			goto label_return;
+		}
+		/*
+		 * Exclude the last '\0' for len since it is not handled by
+		 * multi_setting_parse_next.
+		 */
+		size_t len = (uintptr_t)end - (uintptr_t)settings;
+		if (len == 0) {
+			ret = 0;
+			goto label_return;
+		}
+
+		if (tcache_bins_ncached_max_write(tsd, settings, len)) {
+			ret = EINVAL;
+			goto label_return;
+		}
+	}
+
+	ret = 0;
+label_return:
+	return ret;
+}
+
 CTL_RO_NL_GEN(thread_deallocated, tsd_thread_deallocated_get(tsd), uint64_t)
 CTL_RO_NL_GEN(thread_deallocatedp, tsd_thread_deallocatedp_get(tsd), uint64_t *)
 
@@ -3139,7 +3220,7 @@ CTL_RO_NL_GEN(arenas_quantum, QUANTUM, size_t)
 CTL_RO_NL_GEN(arenas_page, PAGE, size_t)
 CTL_RO_NL_GEN(arenas_tcache_max, global_do_not_change_tcache_maxclass, size_t)
 CTL_RO_NL_GEN(arenas_nbins, SC_NBINS, unsigned)
-CTL_RO_NL_GEN(arenas_nhbins, global_do_not_change_nbins, unsigned)
+CTL_RO_NL_GEN(arenas_nhbins, global_do_not_change_tcache_nbins, unsigned)
 CTL_RO_NL_GEN(arenas_bin_i_size, bin_infos[mib[2]].reg_size, size_t)
 CTL_RO_NL_GEN(arenas_bin_i_nregs, bin_infos[mib[2]].nregs, uint32_t)
 CTL_RO_NL_GEN(arenas_bin_i_slab_size, bin_infos[mib[2]].slab_size, size_t)

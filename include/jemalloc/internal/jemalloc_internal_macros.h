@@ -37,8 +37,10 @@
 /* Various function pointers are static and immutable except during testing. */
 #ifdef JEMALLOC_JET
 #  define JET_MUTABLE
+#  define JET_EXTERN extern
 #else
 #  define JET_MUTABLE const
+#  define JET_EXTERN static
 #endif
 
 #define JEMALLOC_VA_ARGS_HEAD(head, ...) head

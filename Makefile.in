@@ -155,6 +155,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/thread_event.c \
 	$(srcroot)src/ticker.c \
 	$(srcroot)src/tsd.c \
+	$(srcroot)src/util.c \
 	$(srcroot)src/witness.c
 ifeq ($(enable_zone_allocator), 1)
 C_SRCS += $(srcroot)src/zone.c
