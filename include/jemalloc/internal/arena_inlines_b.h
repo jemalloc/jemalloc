@@ -198,7 +198,8 @@ arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind, bool zero,
 			assert(sz_can_use_slab(size));
 			return tcache_alloc_small(tsdn_tsd(tsdn), arena,
 			    tcache, size, ind, zero, slow_path);
-		} else if (likely(ind < TCACHE_NBINS_MAX &&
+		} else if (likely(
+		    ind < tcache_nbins_get(tcache->tcache_slow) &&
 		    !tcache_bin_disabled(ind, &tcache->bins[ind],
 		    tcache->tcache_slow))) {
 			return tcache_alloc_large(tsdn_tsd(tsdn), arena,

@@ -210,6 +210,11 @@ cache_bin_info_ncached_max_get(cache_bin_t *bin, cache_bin_info_t *info) {
 	return info->ncached_max;
 }
 
+/* Gets ncached_max without asserting that the bin is enabled. */
+static inline cache_bin_sz_t
+cache_bin_ncached_max_get_unsafe(cache_bin_t *bin) {
+	return bin->bin_info.ncached_max;
+}
 /*
  * Internal.
  *
@@ -229,7 +234,7 @@ cache_bin_assert_earlier(cache_bin_t *bin, uint16_t earlier, uint16_t later) {
  * Does difference calculations that handle wraparound correctly.  Earlier must
  * be associated with the position earlier in memory.
  */
-static inline uint16_t
+static inline cache_bin_sz_t
 cache_bin_diff(cache_bin_t *bin, uint16_t earlier, uint16_t later) {
 	cache_bin_assert_earlier(bin, earlier, later);
 	return later - earlier;
@@ -584,19 +589,17 @@ cache_bin_nitems_get_remote(cache_bin_t *bin, cache_bin_info_t *info,
 	cache_bin_sz_t diff = bin->low_bits_empty -
 	    (uint16_t)(uintptr_t)bin->stack_head;
 	cache_bin_sz_t n = diff / sizeof(void *);
-
-	cache_bin_sz_t ncached_max = cache_bin_info_ncached_max_get(bin, info);
-	assert(n <= ncached_max);
 	*ncached = n;
 
 	/* Racy version of cache_bin_nstashed_get_internal. */
 	uint16_t low_bits_low_bound = cache_bin_low_bits_low_bound_get(bin,
 	    info);
 	n = (bin->low_bits_full - low_bits_low_bound) / sizeof(void *);
-
-	assert(n <= ncached_max);
 	*nstashed = n;
-	/* Note that cannot assert ncached + nstashed <= ncached_max (racy). */
+	/*
+	 * Note that cannot assert anything regarding ncached_max because
+	 * it can be configured on the fly and is thus racy.
+	 */
 }
 
 /*

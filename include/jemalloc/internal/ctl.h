@@ -14,6 +14,7 @@
 
 /* Maximum ctl tree depth. */
 #define CTL_MAX_DEPTH	7
+#define CTL_MULTI_SETTING_MAX_LEN 1000
 
 typedef struct ctl_node_s {
 	bool named;

@@ -46,7 +46,7 @@ tcache_bin_settings_backup(tcache_t *tcache,
     cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX]) {
 	for (unsigned i = 0; i < TCACHE_NBINS_MAX; i++) {
 		cache_bin_info_init(&tcache_bin_info[i],
-		    tcache->bins[i].bin_info.ncached_max);
+		    cache_bin_ncached_max_get_unsafe(&tcache->bins[i]));
 	}
 }
 
@@ -54,6 +54,7 @@ JEMALLOC_ALWAYS_INLINE bool
 tcache_bin_disabled(szind_t ind, cache_bin_t *bin,
     tcache_slow_t *tcache_slow) {
 	assert(bin != NULL);
+	assert(ind < TCACHE_NBINS_MAX);
 	bool disabled = cache_bin_disabled(bin);
 
 	/*
@@ -66,7 +67,7 @@ tcache_bin_disabled(szind_t ind, cache_bin_t *bin,
 	 * ind < nbins and ncached_max > 0.
 	 */
 	unsigned nbins = tcache_nbins_get(tcache_slow);
-	cache_bin_sz_t ncached_max = bin->bin_info.ncached_max;
+	cache_bin_sz_t ncached_max = cache_bin_ncached_max_get_unsafe(bin);
 	if (ind >= nbins) {
 		assert(disabled);
 	} else {
@@ -215,6 +216,8 @@ tcache_dalloc_large(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 	assert(tcache_salloc(tsd_tsdn(tsd), ptr) > SC_SMALL_MAXCLASS);
 	assert(tcache_salloc(tsd_tsdn(tsd), ptr) <=
 	    tcache_max_get(tcache->tcache_slow));
+	assert(!tcache_bin_disabled(binind, &tcache->bins[binind],
+	    tcache->tcache_slow));
 
 	cache_bin_t *bin = &tcache->bins[binind];
 	if (unlikely(!cache_bin_dalloc_easy(bin, ptr))) {

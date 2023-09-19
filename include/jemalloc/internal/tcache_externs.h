@@ -26,7 +26,7 @@ extern unsigned opt_lg_tcache_flush_large_div;
  * it should not be changed on the fly.  To change the number of tcache bins
  * in use, refer to tcache_nbins of each tcache.
  */
-extern unsigned	global_do_not_change_nbins;
+extern unsigned	global_do_not_change_tcache_nbins;
 
 /*
  * Maximum cached size class.  Same as above, this is only used during threads
@@ -55,6 +55,9 @@ void tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache,
     cache_bin_t *cache_bin, szind_t binind, unsigned rem);
 void tcache_bin_flush_stashed(tsd_t *tsd, tcache_t *tcache,
     cache_bin_t *cache_bin, szind_t binind, bool is_small);
+bool tcache_bins_ncached_max_write(tsd_t *tsd, char *settings, size_t len);
+bool tcache_bin_ncached_max_read(tsd_t *tsd, size_t bin_size,
+    cache_bin_sz_t *ncached_max);
 void tcache_arena_reassociate(tsdn_t *tsdn, tcache_slow_t *tcache_slow,
     tcache_t *tcache, arena_t *arena);
 tcache_t *tcache_create_explicit(tsd_t *tsd);

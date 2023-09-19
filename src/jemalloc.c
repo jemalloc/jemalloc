@@ -821,50 +821,6 @@ init_opt_stats_opts(const char *v, size_t vlen, char *dest) {
 	assert(opts_len == strlen(dest));
 }
 
-/* Reads the next size pair in a multi-sized option. */
-static bool
-malloc_conf_multi_sizes_next(const char **slab_size_segment_cur,
-    size_t *vlen_left, size_t *slab_start, size_t *slab_end, size_t *new_size) {
-	const char *cur = *slab_size_segment_cur;
-	char *end;
-	uintmax_t um;
-
-	set_errno(0);
-
-	/* First number, then '-' */
-	um = malloc_strtoumax(cur, &end, 0);
-	if (get_errno() != 0 || *end != '-') {
-		return true;
-	}
-	*slab_start = (size_t)um;
-	cur = end + 1;
-
-	/* Second number, then ':' */
-	um = malloc_strtoumax(cur, &end, 0);
-	if (get_errno() != 0 || *end != ':') {
-		return true;
-	}
-	*slab_end = (size_t)um;
-	cur = end + 1;
-
-	/* Last number */
-	um = malloc_strtoumax(cur, &end, 0);
-	if (get_errno() != 0) {
-		return true;
-	}
-	*new_size = (size_t)um;
-
-	/* Consume the separator if there is one. */
-	if (*end == '|') {
-		end++;
-	}
-
-	*vlen_left -= end - *slab_size_segment_cur;
-	*slab_size_segment_cur = end;
-
-	return false;
-}
-
 static void
 malloc_conf_format_error(const char *msg, const char *begin, const char *end) {
 	size_t len = end - begin + 1;
@@ -1351,7 +1307,7 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 					size_t size_start;
 					size_t size_end;
 					size_t nshards;
-					bool err = malloc_conf_multi_sizes_next(
+					bool err = multi_setting_parse_next(
 					    &bin_shards_segment_cur, &vlen_left,
 					    &size_start, &size_end, &nshards);
 					if (err || bin_update_shard_size(
@@ -1613,7 +1569,7 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 					size_t slab_start;
 					size_t slab_end;
 					size_t pgs;
-					err = malloc_conf_multi_sizes_next(
+					err = multi_setting_parse_next(
 					    &slab_size_segment_cur,
 					    &vlen_left, &slab_start, &slab_end,
 					    &pgs);
@@ -4140,6 +4096,7 @@ batch_alloc(void **ptrs, size_t num, size_t size, int flags) {
 		tcache_t *tcache = tcache_get_from_ind(tsd, tcache_ind,
 		    /* slow */ true, /* is_alloc */ true);
 		if (likely(tcache != NULL &&
+		    ind < tcache_nbins_get(tcache->tcache_slow) &&
 		    !tcache_bin_disabled(ind, &tcache->bins[ind],
 		    tcache->tcache_slow)) && progress < batch) {
 			if (bin == NULL) {
