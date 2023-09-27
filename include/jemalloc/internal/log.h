@@ -27,9 +27,9 @@
  * log("extent.a", "log msg for extent.a"); // 5
  * log("extent.b", "log msg for extent.b"); // 6
  *
- * And your malloc_conf option is "log=arena.a|extent", then lines 2, 4, 5, and
+ * And your malloc_conf option is "log:arena.a|extent", then lines 2, 4, 5, and
  * 6 will print at runtime.  You can enable logging from all log vars by
- * writing "log=.".
+ * writing "log:.".
  *
  * None of this should be regarded as a stable API for right now.  It's intended
  * as a debugging interface, to let us keep around some of our printf-debugging
