@@ -5,6 +5,7 @@ objroot=$1
 cat <<EOF
 #ifndef JEMALLOC_H_
 #define JEMALLOC_H_
+#pragma GCC system_header
 #ifdef __cplusplus
 extern "C" {
 #endif
