@@ -4,7 +4,8 @@
 #define STRINGIFY(x) STRINGIFY_HELPER(x)
 
 TEST_BEGIN(test_stats_summary) {
-	size_t sz, allocated, active, resident, mapped;
+	size_t sz, allocated, active, resident, mapped,
+	    metadata, metadata_edata, metadata_rtree;
 	int expected = config_stats ? 0 : ENOENT;
 
 	sz = sizeof(size_t);
@@ -17,6 +18,13 @@ TEST_BEGIN(test_stats_summary) {
 	expect_d_eq(mallctl("stats.mapped", (void *)&mapped, &sz, NULL, 0),
 	    expected, "Unexpected mallctl() result");
 
+	expect_d_eq(mallctl("stats.metadata", (void *)&metadata, &sz, NULL, 0),
+	    expected, "Unexpected mallctl() result");
+	expect_d_eq(mallctl("stats.metadata_edata", (void *)&metadata_edata,
+	    &sz, NULL, 0), expected, "Unexpected mallctl() result");
+	expect_d_eq(mallctl("stats.metadata_rtree", (void *)&metadata_rtree,
+	    &sz, NULL, 0), expected, "Unexpected mallctl() result");
+
 	if (config_stats) {
 		expect_zu_le(allocated, active,
 		    "allocated should be no larger than active");
@@ -24,6 +32,9 @@ TEST_BEGIN(test_stats_summary) {
 		    "active should be less than resident");
 		expect_zu_lt(active, mapped,
 		    "active should be less than mapped");
+		expect_zu_le(metadata_edata + metadata_rtree, metadata,
+		    "the sum of metadata_edata and metadata_rtree "
+		    "should be no larger than metadata");
 	}
 }
 TEST_END

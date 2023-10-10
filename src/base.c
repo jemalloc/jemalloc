@@ -430,6 +430,8 @@ base_new(tsdn_t *tsdn, unsigned ind, const extent_hooks_t *extent_hooks,
 	edata_avail_new(&base->edata_avail);
 
 	if (config_stats) {
+		base->edata_allocated = 0;
+		base->rtree_allocated = 0;
 		base->allocated = sizeof(base_block_t);
 		base->resident = PAGE_CEILING(sizeof(base_block_t));
 		base->mapped = block->size;
@@ -482,7 +484,7 @@ base_extent_hooks_set(base_t *base, extent_hooks_t *extent_hooks) {
 
 static void *
 base_alloc_impl(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment,
-    size_t *esn) {
+    size_t *esn, size_t *ret_usize) {
 	alignment = QUANTUM_CEILING(alignment);
 	size_t usize = ALIGNMENT_CEILING(size, alignment);
 	size_t asize = usize + alignment - QUANTUM;
@@ -510,6 +512,9 @@ base_alloc_impl(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment,
 	if (esn != NULL) {
 		*esn = (size_t)edata_sn_get(edata);
 	}
+	if (ret_usize != NULL) {
+		*ret_usize = usize;
+	}
 label_return:
 	malloc_mutex_unlock(tsdn, &base->mtx);
 	return ret;
@@ -525,19 +530,36 @@ label_return:
  */
 void *
 base_alloc(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment) {
-	return base_alloc_impl(tsdn, base, size, alignment, NULL);
+	return base_alloc_impl(tsdn, base, size, alignment, NULL, NULL);
 }
 
 edata_t *
 base_alloc_edata(tsdn_t *tsdn, base_t *base) {
-	size_t esn;
+	size_t esn, usize;
 	edata_t *edata = base_alloc_impl(tsdn, base, sizeof(edata_t),
-	    EDATA_ALIGNMENT, &esn);
+	    EDATA_ALIGNMENT, &esn, &usize);
 	if (edata == NULL) {
 		return NULL;
 	}
+	if (config_stats) {
+		base->edata_allocated += usize;
+	}
 	edata_esn_set(edata, esn);
 	return edata;
+}
+
+void *
+base_alloc_rtree(tsdn_t *tsdn, base_t *base, size_t size) {
+	size_t usize;
+	void *rtree = base_alloc_impl(tsdn, base, size, CACHELINE, NULL,
+	    &usize);
+	if (rtree == NULL) {
+		return NULL;
+	}
+	if (config_stats) {
+		base->rtree_allocated += usize;
+	}
+	return rtree;
 }
 
 static inline void
@@ -573,7 +595,8 @@ b0_alloc_tcache_stack(tsdn_t *tsdn, size_t stack_size) {
 	b0_alloc_header_size(&header_size, &alignment);
 
 	size_t alloc_size = sz_s2u(stack_size + header_size);
-	void *addr = base_alloc_impl(tsdn, base, alloc_size, alignment, &esn);
+	void *addr = base_alloc_impl(tsdn, base, alloc_size, alignment, &esn,
+	    NULL);
 	if (addr == NULL) {
 		edata_avail_insert(&base->edata_avail, edata);
 		return NULL;
@@ -609,14 +632,18 @@ b0_dalloc_tcache_stack(tsdn_t *tsdn, void *tcache_stack) {
 }
 
 void
-base_stats_get(tsdn_t *tsdn, base_t *base, size_t *allocated, size_t *resident,
+base_stats_get(tsdn_t *tsdn, base_t *base, size_t *allocated,
+    size_t *edata_allocated, size_t *rtree_allocated, size_t *resident,
     size_t *mapped, size_t *n_thp) {
 	cassert(config_stats);
 
 	malloc_mutex_lock(tsdn, &base->mtx);
 	assert(base->allocated <= base->resident);
 	assert(base->resident <= base->mapped);
+	assert(base->edata_allocated + base->rtree_allocated <= base->allocated);
 	*allocated = base->allocated;
+	*edata_allocated = base->edata_allocated;
+	*rtree_allocated = base->rtree_allocated;
 	*resident = base->resident;
 	*mapped = base->mapped;
 	*n_thp = base->n_thp;

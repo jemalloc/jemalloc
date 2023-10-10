@@ -78,6 +78,8 @@ struct base_s {
 
 	/* Stats, only maintained if config_stats. */
 	size_t allocated;
+	size_t edata_allocated;
+	size_t rtree_allocated;
 	size_t resident;
 	size_t mapped;
 	/* Number of THP regions touched. */
@@ -104,10 +106,12 @@ extent_hooks_t *base_extent_hooks_set(base_t *base,
     extent_hooks_t *extent_hooks);
 void *base_alloc(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment);
 edata_t *base_alloc_edata(tsdn_t *tsdn, base_t *base);
+void *base_alloc_rtree(tsdn_t *tsdn, base_t *base, size_t size);
 void *b0_alloc_tcache_stack(tsdn_t *tsdn, size_t size);
 void b0_dalloc_tcache_stack(tsdn_t *tsdn, void *tcache_stack);
 void base_stats_get(tsdn_t *tsdn, base_t *base, size_t *allocated,
-    size_t *resident, size_t *mapped, size_t *n_thp);
+    size_t *edata_allocated, size_t *rtree_allocated, size_t *resident,
+    size_t *mapped, size_t *n_thp);
 void base_prefork(tsdn_t *tsdn, base_t *base);
 void base_postfork_parent(tsdn_t *tsdn, base_t *base);
 void base_postfork_child(tsdn_t *tsdn, base_t *base);

@@ -29,14 +29,14 @@ rtree_new(rtree_t *rtree, base_t *base, bool zeroed) {
 
 static rtree_node_elm_t *
 rtree_node_alloc(tsdn_t *tsdn, rtree_t *rtree, size_t nelms) {
-	return (rtree_node_elm_t *)base_alloc(tsdn, rtree->base,
-	    nelms * sizeof(rtree_node_elm_t), CACHELINE);
+	return (rtree_node_elm_t *)base_alloc_rtree(tsdn, rtree->base,
+	    nelms * sizeof(rtree_node_elm_t));
 }
 
 static rtree_leaf_elm_t *
 rtree_leaf_alloc(tsdn_t *tsdn, rtree_t *rtree, size_t nelms) {
-	return (rtree_leaf_elm_t *)base_alloc(tsdn, rtree->base,
-	    nelms * sizeof(rtree_leaf_elm_t), CACHELINE);
+	return (rtree_leaf_elm_t *)base_alloc_rtree(tsdn, rtree->base,
+	    nelms * sizeof(rtree_leaf_elm_t));
 }
 
 static rtree_node_elm_t *
