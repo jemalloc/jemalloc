@@ -1052,7 +1052,8 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	const char *dss;
 	ssize_t dirty_decay_ms, muzzy_decay_ms;
 	size_t page, pactive, pdirty, pmuzzy, mapped, retained;
-	size_t base, internal, resident, metadata_thp, extent_avail;
+	size_t base, internal, resident, metadata_edata, metadata_rtree,
+	    metadata_thp, extent_avail;
 	uint64_t dirty_npurge, dirty_nmadvise, dirty_purged;
 	uint64_t muzzy_npurge, muzzy_nmadvise, muzzy_purged;
 	size_t small_allocated;
@@ -1352,6 +1353,8 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	GET_AND_EMIT_MEM_STAT(retained)
 	GET_AND_EMIT_MEM_STAT(base)
 	GET_AND_EMIT_MEM_STAT(internal)
+	GET_AND_EMIT_MEM_STAT(metadata_edata)
+	GET_AND_EMIT_MEM_STAT(metadata_rtree)
 	GET_AND_EMIT_MEM_STAT(metadata_thp)
 	GET_AND_EMIT_MEM_STAT(tcache_bytes)
 	GET_AND_EMIT_MEM_STAT(tcache_stashed_bytes)
@@ -1696,8 +1699,8 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 	 * These should be deleted.  We keep them around for a while, to aid in
 	 * the transition to the emitter code.
 	 */
-	size_t allocated, active, metadata, metadata_thp, resident, mapped,
-	    retained;
+	size_t allocated, active, metadata, metadata_edata, metadata_rtree,
+	    metadata_thp, resident, mapped, retained;
 	size_t num_background_threads;
 	size_t zero_reallocs;
 	uint64_t background_thread_num_runs, background_thread_run_interval;
@@ -1705,6 +1708,8 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 	CTL_GET("stats.allocated", &allocated, size_t);
 	CTL_GET("stats.active", &active, size_t);
 	CTL_GET("stats.metadata", &metadata, size_t);
+	CTL_GET("stats.metadata_edata", &metadata_edata, size_t);
+	CTL_GET("stats.metadata_rtree", &metadata_rtree, size_t);
 	CTL_GET("stats.metadata_thp", &metadata_thp, size_t);
 	CTL_GET("stats.resident", &resident, size_t);
 	CTL_GET("stats.mapped", &mapped, size_t);
@@ -1730,6 +1735,10 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 	emitter_json_kv(emitter, "allocated", emitter_type_size, &allocated);
 	emitter_json_kv(emitter, "active", emitter_type_size, &active);
 	emitter_json_kv(emitter, "metadata", emitter_type_size, &metadata);
+	emitter_json_kv(emitter, "metadata_edata", emitter_type_size,
+	    &metadata_edata);
+	emitter_json_kv(emitter, "metadata_rtree", emitter_type_size,
+	    &metadata_rtree);
 	emitter_json_kv(emitter, "metadata_thp", emitter_type_size,
 	    &metadata_thp);
 	emitter_json_kv(emitter, "resident", emitter_type_size, &resident);
@@ -1739,9 +1748,10 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 	    &zero_reallocs);
 
 	emitter_table_printf(emitter, "Allocated: %zu, active: %zu, "
-	    "metadata: %zu (n_thp %zu), resident: %zu, mapped: %zu, "
-	    "retained: %zu\n", allocated, active, metadata, metadata_thp,
-	    resident, mapped, retained);
+	    "metadata: %zu (n_thp %zu, edata %zu, rtree %zu), resident: %zu, "
+	    "mapped: %zu, retained: %zu\n", allocated, active, metadata,
+		metadata_thp, metadata_edata, metadata_rtree, resident, mapped,
+	    retained);
 
 	/* Strange behaviors */
 	emitter_table_printf(emitter,

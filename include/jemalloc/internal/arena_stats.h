@@ -52,6 +52,8 @@ struct arena_stats_s {
 	 * in pa_shard_stats_t.
 	 */
 	size_t			base; /* Derived. */
+	size_t			metadata_edata; /* Derived. */
+	size_t			metadata_rtree; /* Derived. */
 	size_t			resident; /* Derived. */
 	size_t			metadata_thp; /* Derived. */
 	size_t			mapped; /* Derived. */

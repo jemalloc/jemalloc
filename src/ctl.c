@@ -294,6 +294,8 @@ CTL_PROTO(stats_arenas_i_muzzy_nmadvise)
 CTL_PROTO(stats_arenas_i_muzzy_purged)
 CTL_PROTO(stats_arenas_i_base)
 CTL_PROTO(stats_arenas_i_internal)
+CTL_PROTO(stats_arenas_i_metadata_edata)
+CTL_PROTO(stats_arenas_i_metadata_rtree)
 CTL_PROTO(stats_arenas_i_metadata_thp)
 CTL_PROTO(stats_arenas_i_tcache_bytes)
 CTL_PROTO(stats_arenas_i_tcache_stashed_bytes)
@@ -307,6 +309,8 @@ CTL_PROTO(stats_background_thread_num_threads)
 CTL_PROTO(stats_background_thread_num_runs)
 CTL_PROTO(stats_background_thread_run_interval)
 CTL_PROTO(stats_metadata)
+CTL_PROTO(stats_metadata_edata)
+CTL_PROTO(stats_metadata_rtree)
 CTL_PROTO(stats_metadata_thp)
 CTL_PROTO(stats_resident)
 CTL_PROTO(stats_mapped)
@@ -801,6 +805,8 @@ static const ctl_named_node_t stats_arenas_i_node[] = {
 	{NAME("muzzy_purged"),	CTL(stats_arenas_i_muzzy_purged)},
 	{NAME("base"),		CTL(stats_arenas_i_base)},
 	{NAME("internal"),	CTL(stats_arenas_i_internal)},
+	{NAME("metadata_edata"),	CTL(stats_arenas_i_metadata_edata)},
+	{NAME("metadata_rtree"),	CTL(stats_arenas_i_metadata_rtree)},
 	{NAME("metadata_thp"),	CTL(stats_arenas_i_metadata_thp)},
 	{NAME("tcache_bytes"),	CTL(stats_arenas_i_tcache_bytes)},
 	{NAME("tcache_stashed_bytes"),
@@ -846,6 +852,8 @@ static const ctl_named_node_t stats_node[] = {
 	{NAME("allocated"),	CTL(stats_allocated)},
 	{NAME("active"),	CTL(stats_active)},
 	{NAME("metadata"),	CTL(stats_metadata)},
+	{NAME("metadata_edata"),	CTL(stats_metadata_edata)},
+	{NAME("metadata_rtree"),	CTL(stats_metadata_rtree)},
 	{NAME("metadata_thp"),	CTL(stats_metadata_thp)},
 	{NAME("resident"),	CTL(stats_resident)},
 	{NAME("mapped"),	CTL(stats_mapped)},
@@ -1138,6 +1146,10 @@ MUTEX_PROF_ARENA_MUTEXES
 #undef OP
 		if (!destroyed) {
 			sdstats->astats.base += astats->astats.base;
+			sdstats->astats.metadata_edata += astats->astats
+			    .metadata_edata;
+			sdstats->astats.metadata_rtree += astats->astats
+			    .metadata_rtree;
 			sdstats->astats.resident += astats->astats.resident;
 			sdstats->astats.metadata_thp += astats->astats.metadata_thp;
 			ctl_accum_atomic_zu(&sdstats->astats.internal,
@@ -1341,6 +1353,10 @@ ctl_refresh(tsdn_t *tsdn) {
 		ctl_stats->metadata = ctl_sarena->astats->astats.base +
 		    atomic_load_zu(&ctl_sarena->astats->astats.internal,
 			ATOMIC_RELAXED);
+		ctl_stats->metadata_edata = ctl_sarena->astats->astats
+		    .metadata_edata;
+		ctl_stats->metadata_rtree = ctl_sarena->astats->astats
+		    .metadata_rtree;
 		ctl_stats->resident = ctl_sarena->astats->astats.resident;
 		ctl_stats->metadata_thp =
 		    ctl_sarena->astats->astats.metadata_thp;
@@ -3599,6 +3615,10 @@ label_return:
 CTL_RO_CGEN(config_stats, stats_allocated, ctl_stats->allocated, size_t)
 CTL_RO_CGEN(config_stats, stats_active, ctl_stats->active, size_t)
 CTL_RO_CGEN(config_stats, stats_metadata, ctl_stats->metadata, size_t)
+CTL_RO_CGEN(config_stats, stats_metadata_edata, ctl_stats->metadata_edata,
+    size_t)
+CTL_RO_CGEN(config_stats, stats_metadata_rtree, ctl_stats->metadata_rtree,
+    size_t)
 CTL_RO_CGEN(config_stats, stats_metadata_thp, ctl_stats->metadata_thp, size_t)
 CTL_RO_CGEN(config_stats, stats_resident, ctl_stats->resident, size_t)
 CTL_RO_CGEN(config_stats, stats_mapped, ctl_stats->mapped, size_t)
@@ -3664,6 +3684,10 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_base,
 CTL_RO_CGEN(config_stats, stats_arenas_i_internal,
     atomic_load_zu(&arenas_i(mib[2])->astats->astats.internal, ATOMIC_RELAXED),
     size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_metadata_edata,
+    arenas_i(mib[2])->astats->astats.metadata_edata, size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_metadata_rtree,
+    arenas_i(mib[2])->astats->astats.metadata_rtree, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_metadata_thp,
     arenas_i(mib[2])->astats->astats.metadata_thp, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_tcache_bytes,
