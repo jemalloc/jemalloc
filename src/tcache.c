@@ -71,6 +71,15 @@ unsigned		global_do_not_change_tcache_nbins;
  */
 size_t			global_do_not_change_tcache_maxclass;
 
+/* Default bin info for each bin.  Will be initialized when thread starts. */
+cache_bin_info_t opt_tcache_ncached_max[TCACHE_NBINS_MAX] = {{0}};
+/*
+ * Marks whether a bin's info is set already.  This is used in
+ * tcache_bin_info_compute to avoid overwriting ncached_max specified by
+ * malloc_conf.
+ */
+bool opt_tcache_ncached_max_set[TCACHE_NBINS_MAX] = {0};
+
 tcaches_t		*tcaches;
 
 /* Index of first element within tcaches that has never been used. */
@@ -800,7 +809,9 @@ tcache_bin_info_compute(cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX]) {
 	 * than tcache_nbins, no items will be cached.
 	 */
 	for (szind_t i = 0; i < TCACHE_NBINS_MAX; i++) {
-		unsigned ncached_max = tcache_ncached_max_compute(i);
+		unsigned ncached_max = opt_tcache_ncached_max_set[i] ?
+		    opt_tcache_ncached_max[i].ncached_max:
+		    tcache_ncached_max_compute(i);
 		assert(ncached_max <= CACHE_BIN_NCACHED_MAX);
 		cache_bin_info_init(&tcache_bin_info[i], ncached_max);
 	}
@@ -984,17 +995,9 @@ thread_tcache_max_set(tsd_t *tsd, size_t tcache_max) {
 	assert(tcache_nbins_get(tcache_slow) == sz_size2index(tcache_max) + 1);
 }
 
-bool
-tcache_bins_ncached_max_write(tsd_t *tsd, char *settings, size_t len) {
-	assert(tcache_available(tsd));
-	tcache_t *tcache = tsd_tcachep_get(tsd);
-	assert(tcache != NULL);
-	cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX];
-	tcache_bin_settings_backup(tcache, tcache_bin_info);
-	const char *bin_settings_segment_cur = settings;
-	size_t len_left = len;
-	assert(len_left != 0);
-
+bool tcache_bin_info_settings_parse(const char *bin_settings_segment_cur,
+    size_t len_left, cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX],
+    bool bin_info_is_set[TCACHE_NBINS_MAX]) {
 	do {
 		size_t size_start, size_end;
 		size_t ncached_max;
@@ -1019,8 +1022,28 @@ tcache_bins_ncached_max_write(tsd_t *tsd, char *settings, size_t len) {
 		for (szind_t i = bin_start; i <= bin_end; i++) {
 			cache_bin_info_init(&tcache_bin_info[i],
 			    (cache_bin_sz_t)ncached_max);
+			if (bin_info_is_set != NULL) {
+				bin_info_is_set[i] = true;
+			}
 		}
 	} while (len_left > 0);
+
+	return false;
+}
+
+bool
+tcache_bins_ncached_max_write(tsd_t *tsd, char *settings, size_t len) {
+	assert(tcache_available(tsd));
+	assert(len != 0);
+	tcache_t *tcache = tsd_tcachep_get(tsd);
+	assert(tcache != NULL);
+	cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX];
+	tcache_bin_settings_backup(tcache, tcache_bin_info);
+
+	if(tcache_bin_info_settings_parse(settings, len, tcache_bin_info,
+	    NULL)) {
+		return true;
+	}
 
 	arena_t *assigned_arena = tcache->tcache_slow->arena;
 	tcache_cleanup(tsd);
