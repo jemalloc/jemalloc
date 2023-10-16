@@ -301,23 +301,24 @@ JEMALLOC_ALWAYS_INLINE void
 arena_dalloc_large(tsdn_t *tsdn, void *ptr, tcache_t *tcache, szind_t szind,
     bool slow_path) {
 	assert (!tsdn_null(tsdn) && tcache != NULL);
-	if (szind < TCACHE_NBINS_MAX &&
-	    !tcache_bin_disabled(szind, &tcache->bins[szind],
-	    tcache->tcache_slow)) {
-		if (config_prof && unlikely(szind < SC_NBINS)) {
-			arena_dalloc_promoted(tsdn, ptr, tcache, slow_path);
-		} else {
+	bool is_sample_promoted = config_prof && szind < SC_NBINS;
+	if (unlikely(is_sample_promoted)) {
+		arena_dalloc_promoted(tsdn, ptr, tcache, slow_path);
+	} else {
+		if (szind < tcache_nbins_get(tcache->tcache_slow) &&
+		    !tcache_bin_disabled(szind, &tcache->bins[szind],
+		    tcache->tcache_slow)) {
 			tcache_dalloc_large(tsdn_tsd(tsdn), tcache, ptr, szind,
 			    slow_path);
+		} else {
+			edata_t *edata = emap_edata_lookup(tsdn,
+			    &arena_emap_global, ptr);
+			if (large_dalloc_safety_checks(edata, ptr, szind)) {
+				/* See the comment in isfree. */
+				return;
+			}
+			large_dalloc(tsdn, edata);
 		}
-	} else {
-		edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global,
-		    ptr);
-		if (large_dalloc_safety_checks(edata, ptr, szind)) {
-			/* See the comment in isfree. */
-			return;
-		}
-		large_dalloc(tsdn, edata);
 	}
 }
 
