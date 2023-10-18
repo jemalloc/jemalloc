@@ -96,6 +96,7 @@
     <ClCompile Include="..\..\..\..\src\thread_event.c" />
     <ClCompile Include="..\..\..\..\src\ticker.c" />
     <ClCompile Include="..\..\..\..\src\tsd.c" />
+    <ClCompile Include="..\..\..\..\src\util.c" />
     <ClCompile Include="..\..\..\..\src\witness.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

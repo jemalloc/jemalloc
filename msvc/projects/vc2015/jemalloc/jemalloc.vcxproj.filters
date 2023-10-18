@@ -166,6 +166,9 @@
     <ClCompile Include="..\..\..\..\src\tsd.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\src\util.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\src\witness.c">
       <Filter>Source Files</Filter>
     </ClCompile>
