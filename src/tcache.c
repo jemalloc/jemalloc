@@ -257,6 +257,9 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena,
 	assert(!tcache_bin_disabled(binind, cache_bin, tcache_slow));
 	unsigned nfill = cache_bin_info_ncached_max_get(cache_bin,
 	    &cache_bin->bin_info) >> tcache_slow->lg_fill_div[binind];
+	if (nfill == 0) {
+		nfill = 1;
+	}
 	arena_cache_bin_fill_small(tsdn, arena, cache_bin,
 	    &cache_bin->bin_info, binind, nfill);
 	tcache_slow->bin_refilled[binind] = true;

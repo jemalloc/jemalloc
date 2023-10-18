@@ -1023,6 +1023,7 @@ arena_cache_bin_fill_small(tsdn_t *tsdn, arena_t *arena,
     cache_bin_t *cache_bin, cache_bin_info_t *cache_bin_info, szind_t binind,
     const unsigned nfill) {
 	assert(cache_bin_ncached_get_local(cache_bin, cache_bin_info) == 0);
+	assert(nfill != 0);
 
 	const bin_info_t *bin_info = &bin_infos[binind];
 
