@@ -28,7 +28,7 @@ cache_bin_stack_use_thp(void) {
 }
 
 void
-cache_bin_info_compute_alloc(cache_bin_info_t *infos, szind_t ninfos,
+cache_bin_info_compute_alloc(const cache_bin_info_t *infos, szind_t ninfos,
     size_t *size, size_t *alignment) {
 	/* For the total bin stack region (per tcache), reserve 2 more slots so
 	 * that
@@ -51,7 +51,7 @@ cache_bin_info_compute_alloc(cache_bin_info_t *infos, szind_t ninfos,
 }
 
 void
-cache_bin_preincrement(cache_bin_info_t *infos, szind_t ninfos, void *alloc,
+cache_bin_preincrement(const cache_bin_info_t *infos, szind_t ninfos, void *alloc,
     size_t *cur_offset) {
 	if (config_debug) {
 		size_t computed_size;
@@ -76,7 +76,7 @@ cache_bin_postincrement(void *alloc, size_t *cur_offset) {
 }
 
 void
-cache_bin_init(cache_bin_t *bin, cache_bin_info_t *info, void *alloc,
+cache_bin_init(cache_bin_t *bin, const cache_bin_info_t *info, void *alloc,
     size_t *cur_offset) {
 	/*
 	 * The full_position points to the lowest available space.  Allocations

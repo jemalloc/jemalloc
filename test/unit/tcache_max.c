@@ -2,8 +2,6 @@
 #include "test/san.h"
 
 const char *malloc_conf = TEST_SAN_UAF_ALIGN_DISABLE;
-extern void tcache_bin_info_compute(
-    cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX]);
 
 enum {
 	alloc_option_start = 0,

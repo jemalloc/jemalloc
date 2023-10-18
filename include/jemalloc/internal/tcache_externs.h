@@ -35,11 +35,6 @@ extern unsigned	global_do_not_change_tcache_nbins;
  */
 extern size_t	global_do_not_change_tcache_maxclass;
 
-/* Default bin info for each bin. */
-extern cache_bin_info_t opt_tcache_ncached_max[TCACHE_NBINS_MAX];
-/* Records whether a bin's info is specified by malloc_conf. */
-extern bool opt_tcache_ncached_max_set[TCACHE_NBINS_MAX];
-
 /*
  * Explicit tcaches, managed via the tcache.{create,flush,destroy} mallctls and
  * usable via the MALLOCX_TCACHE() flag.  The automatic per thread tcaches are
@@ -60,9 +55,8 @@ void tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache,
     cache_bin_t *cache_bin, szind_t binind, unsigned rem);
 void tcache_bin_flush_stashed(tsd_t *tsd, tcache_t *tcache,
     cache_bin_t *cache_bin, szind_t binind, bool is_small);
-bool tcache_bin_info_settings_parse(const char *bin_settings_segment_cur,
-    size_t len_left, cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX],
-    bool bin_info_is_set[TCACHE_NBINS_MAX]);
+bool tcache_bin_info_default_init(const char *bin_settings_segment_cur,
+    size_t len_left);
 bool tcache_bins_ncached_max_write(tsd_t *tsd, char *settings, size_t len);
 bool tcache_bin_ncached_max_read(tsd_t *tsd, size_t bin_size,
     cache_bin_sz_t *ncached_max);

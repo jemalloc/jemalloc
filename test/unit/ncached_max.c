@@ -2,9 +2,11 @@
 #include "test/san.h"
 
 const char *malloc_conf =
-"tcache_ncached_max:256-1024:1001|2048-2048:0,tcache_max:4096";
+"tcache_ncached_max:256-1024:1001|2048-2048:0|8192-8192:1,tcache_max:4096";
 extern void tcache_bin_info_compute(
     cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX]);
+extern bool tcache_get_default_ncached_max_set(szind_t ind);
+extern const cache_bin_info_t *tcache_get_default_ncached_max(void);
 
 static void
 check_bins_info(cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX]) {
@@ -54,21 +56,23 @@ ncached_max_check(void* args) {
 		bool first_range = (i >= sz_size2index(256) &&
 		    i <= sz_size2index(1024));
 		bool second_range = (i == sz_size2index(2048));
+		bool third_range = (i == sz_size2index(8192));
 		cache_bin_sz_t target_ncached_max = 0;
-		if (first_range || second_range) {
-			target_ncached_max = first_range ? 1001: 0;
-			expect_true(opt_tcache_ncached_max_set[i],
+		if (first_range || second_range || third_range) {
+			target_ncached_max = first_range ? 1001:
+			    (second_range ? 0: 1);
+			expect_true(tcache_get_default_ncached_max_set(i),
 			    "Unexpected state for bin %u", i);
 			expect_zu_eq(target_ncached_max,
 			    tcache_bin_info[i].ncached_max,
 			    "Unexpected generated ncached_max for bin %u", i);
+			expect_zu_eq(target_ncached_max,
+			    tcache_get_default_ncached_max()[i].ncached_max,
+			    "Unexpected pre-set ncached_max for bin %u", i);
 		} else {
-			expect_false(opt_tcache_ncached_max_set[i],
+			expect_false(tcache_get_default_ncached_max_set(i),
 			    "Unexpected state for bin %u", i);
 		}
-		expect_zu_eq(target_ncached_max,
-		    opt_tcache_ncached_max[i].ncached_max,
-		    "Unexpected pre-set ncached_max for bin %u", i);
 	}
 	unsigned nbins = tcache_nbins_get(tcache_slow);
 	for (szind_t i = nbins; i < TCACHE_NBINS_MAX; i++) {

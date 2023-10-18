@@ -1323,14 +1323,12 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				CONF_CONTINUE;
 			}
 			if (CONF_MATCH("tcache_ncached_max")) {
-				bool err = tcache_bin_info_settings_parse(
-				    v, vlen, opt_tcache_ncached_max,
-				    opt_tcache_ncached_max_set);
+				bool err = tcache_bin_info_default_init(
+				    v, vlen);
 				if (err) {
 					CONF_ERROR("Invalid settings for "
 					    "tcache_ncached_max", k, klen, v,
 					    vlen);
-					break;
 				}
 				CONF_CONTINUE;
 			}
