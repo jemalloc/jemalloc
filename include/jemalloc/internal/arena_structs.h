@@ -98,10 +98,13 @@ struct arena_s {
 	/*
 	 * The arena is allocated alongside its bins; really this is a
 	 * dynamically sized array determined by the binshard settings.
+	 * Enforcing cacheline-alignment to minimize the number of cachelines
+	 * touched on the hot paths.
 	 */
 	JEMALLOC_WARN_ON_USAGE("Do not use this field directly. "
 	                       "Use `arena_get_bin` instead.")
-	bin_t			 all_bins[0];
+	JEMALLOC_ALIGNED(CACHELINE)
+	bin_t			all_bins[0];
 };
 
 #endif /* JEMALLOC_INTERNAL_ARENA_STRUCTS_H */
