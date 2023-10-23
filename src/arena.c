@@ -1666,11 +1666,16 @@ arena_new(tsdn_t *tsdn, unsigned ind, const arena_config_t *config) {
 		}
 	}
 
-	size_t arena_size = sizeof(arena_t) + sizeof(bin_t) * nbins_total;
+	size_t arena_size = ALIGNMENT_CEILING(sizeof(arena_t), CACHELINE) +
+	    sizeof(bin_t) * nbins_total;
 	arena = (arena_t *)base_alloc(tsdn, base, arena_size, CACHELINE);
 	if (arena == NULL) {
 		goto label_error;
 	}
+	JEMALLOC_SUPPRESS_WARN_ON_USAGE(
+	assert((uintptr_t)&arena->all_bins[nbins_total -1] + sizeof(bin_t) <=
+	    (uintptr_t)arena + arena_size);
+	)
 
 	atomic_store_u(&arena->nthreads[0], 0, ATOMIC_RELAXED);
 	atomic_store_u(&arena->nthreads[1], 0, ATOMIC_RELAXED);
