@@ -100,7 +100,7 @@ cache_bin_init(cache_bin_t *bin, const cache_bin_info_t *info, void *alloc,
 	    bin->low_bits_full, (uint16_t)(uintptr_t)bin->stack_head);
 	assert(free_spots == bin_stack_size);
 	if (!cache_bin_disabled(bin)) {
-		assert(cache_bin_ncached_get_local(bin, &bin->bin_info) == 0);
+		assert(cache_bin_ncached_get_local(bin) == 0);
 	}
 	assert(cache_bin_empty_position_get(bin) == empty_position);
 
