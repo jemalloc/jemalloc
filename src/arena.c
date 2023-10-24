@@ -168,8 +168,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 			}
 
 			cache_bin_sz_t ncached, nstashed;
-			cache_bin_nitems_get_remote(cache_bin,
-			    &cache_bin->bin_info, &ncached, &nstashed);
+			cache_bin_nitems_get_remote(cache_bin, &ncached, &nstashed);
 			astats->tcache_bytes += ncached * sz_index2size(i);
 			astats->tcache_stashed_bytes += nstashed *
 			    sz_index2size(i);
@@ -1020,16 +1019,14 @@ arena_bin_choose(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 
 void
 arena_cache_bin_fill_small(tsdn_t *tsdn, arena_t *arena,
-    cache_bin_t *cache_bin, cache_bin_info_t *cache_bin_info, szind_t binind,
-    const unsigned nfill) {
-	assert(cache_bin_ncached_get_local(cache_bin, cache_bin_info) == 0);
+    cache_bin_t *cache_bin, szind_t binind, const unsigned nfill) {
+	assert(cache_bin_ncached_get_local(cache_bin) == 0);
 	assert(nfill != 0);
 
 	const bin_info_t *bin_info = &bin_infos[binind];
 
 	CACHE_BIN_PTR_ARRAY_DECLARE(ptrs, nfill);
-	cache_bin_init_ptr_array_for_fill(cache_bin, cache_bin_info, &ptrs,
-	    nfill);
+	cache_bin_init_ptr_array_for_fill(cache_bin, &ptrs, nfill);
 	/*
 	 * Bin-local resources are used first: 1) bin->slabcur, and 2) nonfull
 	 * slabs.  After both are exhausted, new slabs will be allocated through
@@ -1143,7 +1140,7 @@ label_refill:
 		fresh_slab = NULL;
 	}
 
-	cache_bin_finish_fill(cache_bin, cache_bin_info, &ptrs, filled);
+	cache_bin_finish_fill(cache_bin, &ptrs, filled);
 	arena_decay_tick(tsdn, arena);
 }
 

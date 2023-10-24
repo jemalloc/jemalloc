@@ -81,8 +81,7 @@ tcache_bytes_read_local(void) {
 		if (tcache_bin_disabled(i, cache_bin, tcache->tcache_slow)) {
 			continue;
 		}
-		cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin,
-		    &cache_bin->bin_info);
+		cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin);
 		tcache_bytes += ncached * sz_index2size(i);
 	}
 	return tcache_bytes;
@@ -370,4 +369,3 @@ main(void) {
 	    test_tcache_max,
 	    test_thread_tcache_max);
 }
-

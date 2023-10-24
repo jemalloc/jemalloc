@@ -142,10 +142,8 @@ tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 
 	cache_bin_t *cache_bin = &tcache->bins[szind];
 	assert(!tcache_bin_disabled(szind, cache_bin, tcache->tcache_slow));
-	cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin,
-	    &cache_bin->bin_info);
-	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin,
-	    &cache_bin->bin_info);
+	cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin);
+	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin);
 	assert(!tcache_slow->bin_refilled[szind]);
 
 	size_t nflush = low_water - (low_water >> 2);
@@ -168,8 +166,8 @@ tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	 * Reduce fill count by 2X.  Limit lg_fill_div such that
 	 * the fill count is always at least 1.
 	 */
-	if ((cache_bin_info_ncached_max_get(cache_bin, &cache_bin->bin_info)
-	    >> (tcache_slow->lg_fill_div[szind] + 1)) >= 1) {
+	if ((cache_bin_ncached_max_get(cache_bin) >>
+	    (tcache_slow->lg_fill_div[szind] + 1)) >= 1) {
 		tcache_slow->lg_fill_div[szind]++;
 	}
 }
@@ -181,10 +179,8 @@ tcache_gc_large(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	assert(szind >= SC_NBINS);
 	cache_bin_t *cache_bin = &tcache->bins[szind];
 	assert(!tcache_bin_disabled(szind, cache_bin, tcache->tcache_slow));
-	cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin,
-	    &cache_bin->bin_info);
-	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin,
-	    &cache_bin->bin_info);
+	cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin);
+	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin);
 	tcache_bin_flush_large(tsd, tcache, cache_bin, szind,
 	    (unsigned)(ncached - low_water + (low_water >> 2)));
 }
@@ -206,8 +202,7 @@ tcache_event(tsd_t *tsd) {
 	}
 
 	tcache_bin_flush_stashed(tsd, tcache, cache_bin, szind, is_small);
-	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin,
-	    &cache_bin->bin_info);
+	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin);
 	if (low_water > 0) {
 		if (is_small) {
 			tcache_gc_small(tsd, tcache_slow, tcache, szind);
@@ -255,13 +250,12 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena,
 
 	assert(tcache_slow->arena != NULL);
 	assert(!tcache_bin_disabled(binind, cache_bin, tcache_slow));
-	unsigned nfill = cache_bin_info_ncached_max_get(cache_bin,
-	    &cache_bin->bin_info) >> tcache_slow->lg_fill_div[binind];
+	unsigned nfill = cache_bin_ncached_max_get(cache_bin)
+	    >> tcache_slow->lg_fill_div[binind];
 	if (nfill == 0) {
 		nfill = 1;
 	}
-	arena_cache_bin_fill_small(tsdn, arena, cache_bin,
-	    &cache_bin->bin_info, binind, nfill);
+	arena_cache_bin_fill_small(tsdn, arena, cache_bin, binind, nfill);
 	tcache_slow->bin_refilled[binind] = true;
 	ret = cache_bin_alloc(cache_bin, tcache_success);
 
@@ -533,20 +527,17 @@ tcache_bin_flush_bottom(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 	assert(!tcache_bin_disabled(binind, cache_bin, tcache->tcache_slow));
 	tcache_bin_flush_stashed(tsd, tcache, cache_bin, binind, small);
 
-	cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin,
-	    &cache_bin->bin_info);
+	cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin);
 	assert((cache_bin_sz_t)rem <= ncached);
 	unsigned nflush = ncached - rem;
 
 	CACHE_BIN_PTR_ARRAY_DECLARE(ptrs, nflush);
-	cache_bin_init_ptr_array_for_flush(cache_bin, &cache_bin->bin_info,
-	    &ptrs, nflush);
+	cache_bin_init_ptr_array_for_flush(cache_bin, &ptrs, nflush);
 
 	tcache_bin_flush_impl(tsd, tcache, cache_bin, binind, &ptrs, nflush,
 	    small);
 
-	cache_bin_finish_flush(cache_bin, &cache_bin->bin_info, &ptrs,
-	    ncached - rem);
+	cache_bin_finish_flush(cache_bin, &ptrs, ncached - rem);
 }
 
 void
@@ -575,33 +566,30 @@ void
 tcache_bin_flush_stashed(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
     szind_t binind, bool is_small) {
 	assert(!tcache_bin_disabled(binind, cache_bin, tcache->tcache_slow));
-	cache_bin_info_t *info = &cache_bin->bin_info;
 	/*
 	 * The two below are for assertion only.  The content of original cached
 	 * items remain unchanged -- the stashed items reside on the other end
 	 * of the stack.  Checking the stack head and ncached to verify.
 	 */
 	void *head_content = *cache_bin->stack_head;
-	cache_bin_sz_t orig_cached = cache_bin_ncached_get_local(cache_bin,
-	    info);
+	cache_bin_sz_t orig_cached = cache_bin_ncached_get_local(cache_bin);
 
-	cache_bin_sz_t nstashed = cache_bin_nstashed_get_local(cache_bin, info);
-	assert(orig_cached + nstashed <=
-	    cache_bin_info_ncached_max_get(cache_bin, info));
+	cache_bin_sz_t nstashed = cache_bin_nstashed_get_local(cache_bin);
+	assert(orig_cached + nstashed <= cache_bin_ncached_max_get(cache_bin));
 	if (nstashed == 0) {
 		return;
 	}
 
 	CACHE_BIN_PTR_ARRAY_DECLARE(ptrs, nstashed);
-	cache_bin_init_ptr_array_for_stashed(cache_bin, binind, info, &ptrs,
+	cache_bin_init_ptr_array_for_stashed(cache_bin, binind, &ptrs,
 	    nstashed);
 	san_check_stashed_ptrs(ptrs.ptr, nstashed, sz_index2size(binind));
 	tcache_bin_flush_impl(tsd, tcache, cache_bin, binind, &ptrs, nstashed,
 	    is_small);
-	cache_bin_finish_flush_stashed(cache_bin, info);
+	cache_bin_finish_flush_stashed(cache_bin);
 
-	assert(cache_bin_nstashed_get_local(cache_bin, info) == 0);
-	assert(cache_bin_ncached_get_local(cache_bin, info) == orig_cached);
+	assert(cache_bin_nstashed_get_local(cache_bin) == 0);
+	assert(cache_bin_ncached_get_local(cache_bin) == orig_cached);
 	assert(head_content == *cache_bin->stack_head);
 }
 
@@ -633,7 +621,7 @@ tcache_bin_ncached_max_read(tsd_t *tsd, size_t bin_size,
 
 	cache_bin_t *bin = &tcache->bins[bin_ind];
 	*ncached_max = tcache_bin_disabled(bin_ind, bin, tcache->tcache_slow) ?
-	    0: cache_bin_info_ncached_max_get(bin, &bin->bin_info);
+	    0: cache_bin_ncached_max_get(bin);
 	return false;
 }
 
@@ -1105,7 +1093,7 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache, bool tsd_tcache) {
 
 	if (tsd_tcache) {
 		cache_bin_t *cache_bin = &tcache->bins[0];
-		cache_bin_assert_empty(cache_bin, &cache_bin->bin_info);
+		cache_bin_assert_empty(cache_bin);
 	}
 	if (tsd_tcache && cache_bin_stack_use_thp()) {
 		b0_dalloc_tcache_stack(tsd_tsdn(tsd), tcache_slow->dyn_alloc);
