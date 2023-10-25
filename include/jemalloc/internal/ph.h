@@ -162,6 +162,10 @@ phn_merge_siblings(void *phn, size_t offset, ph_cmp_t cmp) {
 	void *phn0 = phn;
 	void *phn1 = phn_next_get(phn0, offset);
 
+	if (phn1 == NULL) {
+		return phn0;
+	}
+
 	/*
 	 * Multipass merge, wherein the first two elements of a FIFO
 	 * are repeatedly merged, and each result is appended to the
@@ -170,62 +174,61 @@ phn_merge_siblings(void *phn, size_t offset, ph_cmp_t cmp) {
 	 * its tail, so we do a single pass over the sibling list to
 	 * populate the FIFO.
 	 */
-	if (phn1 != NULL) {
-		void *phnrest = phn_next_get(phn1, offset);
-		if (phnrest != NULL) {
-			phn_prev_set(phnrest, NULL, offset);
-		}
-		phn_prev_set(phn0, NULL, offset);
-		phn_next_set(phn0, NULL, offset);
-		phn_prev_set(phn1, NULL, offset);
-		phn_next_set(phn1, NULL, offset);
-		phn0 = phn_merge(phn0, phn1, offset, cmp);
-		head = tail = phn0;
-		phn0 = phnrest;
-		while (phn0 != NULL) {
-			phn1 = phn_next_get(phn0, offset);
-			if (phn1 != NULL) {
-				phnrest = phn_next_get(phn1, offset);
-				if (phnrest != NULL) {
-					phn_prev_set(phnrest, NULL, offset);
-				}
-				phn_prev_set(phn0, NULL, offset);
-				phn_next_set(phn0, NULL, offset);
-				phn_prev_set(phn1, NULL, offset);
-				phn_next_set(phn1, NULL, offset);
-				phn0 = phn_merge(phn0, phn1, offset, cmp);
-				/* NOLINTNEXTLINE(readability-suspicious-call-argument) */
-				phn_next_set(tail, phn0, offset);
-				tail = phn0;
-				phn0 = phnrest;
-			} else {
-				/* NOLINTNEXTLINE(readability-suspicious-call-argument) */
-				phn_next_set(tail, phn0, offset);
-				tail = phn0;
-				phn0 = NULL;
-			}
-		}
-		phn0 = head;
+	void *phnrest = phn_next_get(phn1, offset);
+	if (phnrest != NULL) {
+		phn_prev_set(phnrest, NULL, offset);
+	}
+	phn_prev_set(phn0, NULL, offset);
+	phn_next_set(phn0, NULL, offset);
+	phn_prev_set(phn1, NULL, offset);
+	phn_next_set(phn1, NULL, offset);
+	phn0 = phn_merge(phn0, phn1, offset, cmp);
+	head = tail = phn0;
+	phn0 = phnrest;
+	while (phn0 != NULL) {
 		phn1 = phn_next_get(phn0, offset);
 		if (phn1 != NULL) {
-			while (true) {
-				head = phn_next_get(phn1, offset);
-				assert(phn_prev_get(phn0, offset) == NULL);
-				phn_next_set(phn0, NULL, offset);
-				assert(phn_prev_get(phn1, offset) == NULL);
-				phn_next_set(phn1, NULL, offset);
-				phn0 = phn_merge(phn0, phn1, offset, cmp);
-				if (head == NULL) {
-					break;
-				}
-				/* NOLINTNEXTLINE(readability-suspicious-call-argument) */
-				phn_next_set(tail, phn0, offset);
-				tail = phn0;
-				phn0 = head;
-				phn1 = phn_next_get(phn0, offset);
+			phnrest = phn_next_get(phn1, offset);
+			if (phnrest != NULL) {
+				phn_prev_set(phnrest, NULL, offset);
 			}
+			phn_prev_set(phn0, NULL, offset);
+			phn_next_set(phn0, NULL, offset);
+			phn_prev_set(phn1, NULL, offset);
+			phn_next_set(phn1, NULL, offset);
+			phn0 = phn_merge(phn0, phn1, offset, cmp);
+			/* NOLINTNEXTLINE(readability-suspicious-call-argument) */
+			phn_next_set(tail, phn0, offset);
+			tail = phn0;
+			phn0 = phnrest;
+		} else {
+			/* NOLINTNEXTLINE(readability-suspicious-call-argument) */
+			phn_next_set(tail, phn0, offset);
+			tail = phn0;
+			phn0 = NULL;
 		}
 	}
+	phn0 = head;
+	phn1 = phn_next_get(phn0, offset);
+	if (phn1 != NULL) {
+		while (true) {
+			head = phn_next_get(phn1, offset);
+			assert(phn_prev_get(phn0, offset) == NULL);
+			phn_next_set(phn0, NULL, offset);
+			assert(phn_prev_get(phn1, offset) == NULL);
+			phn_next_set(phn1, NULL, offset);
+			phn0 = phn_merge(phn0, phn1, offset, cmp);
+			if (head == NULL) {
+				break;
+			}
+			/* NOLINTNEXTLINE(readability-suspicious-call-argument) */
+			phn_next_set(tail, phn0, offset);
+			tail = phn0;
+			phn0 = head;
+			phn1 = phn_next_get(phn0, offset);
+		}
+	}
+
 	return phn0;
 }
 
