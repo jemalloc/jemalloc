@@ -239,7 +239,7 @@ ph_merge_aux(ph_t *ph, size_t offset, ph_cmp_t cmp) {
 		phn_prev_set(phn, NULL, offset);
 		phn = phn_merge_siblings(phn, offset, cmp);
 		assert(phn_next_get(phn, offset) == NULL);
-		ph->root = phn_merge(ph->root, phn, offset, cmp);
+		phn_merge_ordered(ph->root, phn, offset, cmp);
 	}
 }
 
@@ -380,20 +380,9 @@ ph_remove_first(ph_t *ph, size_t offset, ph_cmp_t cmp) {
 JEMALLOC_ALWAYS_INLINE void
 ph_remove(ph_t *ph, void *phn, size_t offset, ph_cmp_t cmp) {
 	if (ph->root == phn) {
-		/*
-		 * We can delete from aux list without merging it, but we need
-		 * to merge if we are dealing with the root node and it has
-		 * children.
-		 */
-		if (phn_lchild_get(phn, offset) == NULL) {
-			ph->root = phn_next_get(phn, offset);
-			return;
-		}
 		ph_merge_aux(ph, offset, cmp);
-		if (ph->root == phn) {
-			ph->root = ph_merge_children(ph->root, offset, cmp);
-			return;
-		}
+		ph->root = ph_merge_children(phn, offset, cmp);
+		return;
 	}
 
 	void* prev = phn_prev_get(phn, offset);
