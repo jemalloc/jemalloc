@@ -312,7 +312,7 @@ ph_try_aux_merge_pair(ph_t *ph, size_t offset, ph_cmp_t cmp) {
 	}
 	phn_next_set(ph->root, phn0, offset);
 	phn_prev_set(phn0, ph->root, offset);
-	return next_phn1 == NULL;
+	return false;
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -356,9 +356,21 @@ ph_insert(ph_t *ph, void *phn, size_t offset, ph_cmp_t cmp) {
 
 	ph->auxcount++;
 	unsigned nmerges = ffs_zu(ph->auxcount);
-	bool done = false;
-	for (unsigned i = 0; i < nmerges && !done; i++) {
-		done = ph_try_aux_merge_pair(ph, offset, cmp);
+	for (unsigned i = 0; i < nmerges; i++) {
+		/**
+		 * This might fail some node was removed in the aux list at
+		 * some point. We do not try to keep an accurate value for
+		 * `auxcount` as it would be prohibitively costly to do so.
+		 *
+		 * However, when faced with such contradiction, we shift
+		 * the auxcount right by 1, as we requested at least one
+		 * merge too many, and ensure the count is odd.
+		 */
+		if (ph_try_aux_merge_pair(ph, offset, cmp)) {
+			ph->auxcount >>= 1;
+			ph->auxcount |= 0x01;
+			break;
+		}
 	}
 }
 
