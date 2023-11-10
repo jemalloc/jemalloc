@@ -570,38 +570,38 @@ build_lib: build_lib_static
 endif
 
 install_bin:
-	$(INSTALL) -d $(BINDIR)
+	$(INSTALL) -d '$(BINDIR)'
 	@for b in $(BINS); do \
-	echo "$(INSTALL) -m 755 $$b $(BINDIR)"; \
-	$(INSTALL) -m 755 $$b $(BINDIR); \
+	echo "$(INSTALL) -m 755 $$b '$(BINDIR)'"; \
+	$(INSTALL) -m 755 $$b '$(BINDIR)'; \
 done
 
 install_include:
-	$(INSTALL) -d $(INCLUDEDIR)/jemalloc
+	$(INSTALL) -d '$(INCLUDEDIR)/jemalloc'
 	@for h in $(C_HDRS); do \
-	echo "$(INSTALL) -m 644 $$h $(INCLUDEDIR)/jemalloc"; \
-	$(INSTALL) -m 644 $$h $(INCLUDEDIR)/jemalloc; \
+	echo "$(INSTALL) -m 644 $$h '$(INCLUDEDIR)/jemalloc'"; \
+	$(INSTALL) -m 644 $$h '$(INCLUDEDIR)/jemalloc'; \
 done
 
 install_lib_shared: $(DSOS)
-	$(INSTALL) -d $(LIBDIR)
-	$(INSTALL) -m 755 $(objroot)lib/$(LIBJEMALLOC).$(SOREV) $(LIBDIR)
+	$(INSTALL) -d '$(LIBDIR)'
+	$(INSTALL) -m 755 $(objroot)lib/$(LIBJEMALLOC).$(SOREV) '$(LIBDIR)'
 ifneq ($(SOREV),$(SO))
-	ln -sf $(LIBJEMALLOC).$(SOREV) $(LIBDIR)/$(LIBJEMALLOC).$(SO)
+	ln -sf $(LIBJEMALLOC).$(SOREV) '$(LIBDIR)/$(LIBJEMALLOC).$(SO)'
 endif
 
 install_lib_static: $(STATIC_LIBS)
-	$(INSTALL) -d $(LIBDIR)
+	$(INSTALL) -d '$(LIBDIR)'
 	@for l in $(STATIC_LIBS); do \
-	echo "$(INSTALL) -m 755 $$l $(LIBDIR)"; \
-	$(INSTALL) -m 755 $$l $(LIBDIR); \
+	echo "$(INSTALL) -m 755 $$l '$(LIBDIR)'"; \
+	$(INSTALL) -m 755 $$l '$(LIBDIR)'; \
 done
 
 install_lib_pc: $(PC)
-	$(INSTALL) -d $(LIBDIR)/pkgconfig
+	$(INSTALL) -d '$(LIBDIR)/pkgconfig'
 	@for l in $(PC); do \
-	echo "$(INSTALL) -m 644 $$l $(LIBDIR)/pkgconfig"; \
-	$(INSTALL) -m 644 $$l $(LIBDIR)/pkgconfig; \
+	echo "$(INSTALL) -m 644 $$l '$(LIBDIR)/pkgconfig'"; \
+	$(INSTALL) -m 644 $$l '$(LIBDIR)/pkgconfig'; \
 done
 
 ifeq ($(enable_shared), 1)
@@ -612,18 +612,20 @@ install_lib: install_lib_static
 endif
 install_lib: install_lib_pc
 
+DATADIR := $(subst ",,$(DATADIR))
 install_doc_html: build_doc_html
-	$(INSTALL) -d $(DATADIR)/doc/jemalloc$(install_suffix)
+	$(INSTALL) -d '${DATADIR}/doc/jemalloc$(install_suffix)'
 	@for d in $(DOCS_HTML); do \
-	echo "$(INSTALL) -m 644 $$d $(DATADIR)/doc/jemalloc$(install_suffix)"; \
-	$(INSTALL) -m 644 $$d $(DATADIR)/doc/jemalloc$(install_suffix); \
+	echo "$(INSTALL) -m 644 $$d '$(DATADIR)/doc/jemalloc$(install_suffix)'"; \
+	$(INSTALL) -m 644 $$d '$(DATADIR)/doc/jemalloc$(install_suffix)'; \
 done
 
+MANDIR := $(subst ",,$(MANDIR))
 install_doc_man: build_doc_man
-	$(INSTALL) -d $(MANDIR)/man3
+	$(INSTALL) -d '$(MANDIR)/man3'
 	@for d in $(DOCS_MAN3); do \
-	echo "$(INSTALL) -m 644 $$d $(MANDIR)/man3"; \
-	$(INSTALL) -m 644 $$d $(MANDIR)/man3; \
+	echo "$(INSTALL) -m 644 $$d '$(MANDIR)/man3'"; \
+	$(INSTALL) -m 644 $$d '$(MANDIR)/man3'; \
 done
 
 install_doc: install_doc_html install_doc_man
@@ -635,23 +637,23 @@ install: install_doc
 endif
 
 uninstall_bin:
-	$(RM) -v $(foreach b,$(notdir $(BINS)),$(BINDIR)/$(b))
+	$(RM) -v $(foreach b,$(notdir $(BINS)),'$(BINDIR)/$(b)')
 
 uninstall_include:
-	$(RM) -v $(foreach h,$(notdir $(C_HDRS)),$(INCLUDEDIR)/jemalloc/$(h))
-	rmdir -v $(INCLUDEDIR)/jemalloc
+	$(RM) -v $(foreach h,$(notdir $(C_HDRS)),'$(INCLUDEDIR)/jemalloc/$(h)')
+	rmdir -v '$(INCLUDEDIR)/jemalloc'
 
 uninstall_lib_shared:
-	$(RM) -v $(LIBDIR)/$(LIBJEMALLOC).$(SOREV)
+	$(RM) -v '$(LIBDIR)/$(LIBJEMALLOC).$(SOREV)'
 ifneq ($(SOREV),$(SO))
-	$(RM) -v $(LIBDIR)/$(LIBJEMALLOC).$(SO)
+	$(RM) -v '$(LIBDIR)/$(LIBJEMALLOC).$(SO)'
 endif
 
 uninstall_lib_static:
-	$(RM) -v $(foreach l,$(notdir $(STATIC_LIBS)),$(LIBDIR)/$(l))
+	$(RM) -v $(foreach l,$(notdir $(STATIC_LIBS)),'$(LIBDIR)/$(l)')
 
 uninstall_lib_pc:
-	$(RM) -v $(foreach p,$(notdir $(PC)),$(LIBDIR)/pkgconfig/$(p))
+	$(RM) -v $(foreach p,$(notdir $(PC)),'$(LIBDIR)/pkgconfig/$(p)')
 
 ifeq ($(enable_shared), 1)
 uninstall_lib: uninstall_lib_shared
@@ -662,11 +664,11 @@ endif
 uninstall_lib: uninstall_lib_pc
 
 uninstall_doc_html:
-	$(RM) -v $(foreach d,$(notdir $(DOCS_HTML)),$(DATADIR)/doc/jemalloc$(install_suffix)/$(d))
-	rmdir -v $(DATADIR)/doc/jemalloc$(install_suffix)
+	$(RM) -v $(foreach d,$(notdir $(DOCS_HTML)),'$(DATADIR)/doc/jemalloc$(install_suffix)/$(d)')
+	rmdir -v '$(DATADIR)/doc/jemalloc$(install_suffix)'
 
 uninstall_doc_man:
-	$(RM) -v $(foreach d,$(notdir $(DOCS_MAN3)),$(MANDIR)/man3/$(d))
+	$(RM) -v $(foreach d,$(notdir $(DOCS_MAN3)),'$(MANDIR)/man3/$(d)')
 
 uninstall_doc: uninstall_doc_html uninstall_doc_man
 
