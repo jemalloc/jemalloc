@@ -605,6 +605,72 @@ prof_dump_close(prof_dump_arg_t *arg) {
 	}
 }
 
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+
+#ifdef __LP64__
+typedef struct mach_header_64 mach_header_t;
+typedef struct segment_command_64 segment_command_t;
+#define MH_MAGIC_VALUE MH_MAGIC_64
+#define MH_CIGAM_VALUE MH_CIGAM_64
+#define LC_SEGMENT_VALUE LC_SEGMENT_64
+#else
+typedef struct mach_header mach_header_t;
+typedef struct segment_command segment_command_t;
+#define MH_MAGIC_VALUE MH_MAGIC
+#define MH_CIGAM_VALUE MH_CIGAM
+#define LC_SEGMENT_VALUE LC_SEGMENT
+#endif
+
+static void
+prof_dump_dyld_image_vmaddr(buf_writer_t *buf_writer, uint32_t image_index) {
+	const mach_header_t *header = (const mach_header_t *)
+	    _dyld_get_image_header(image_index);
+	if (header == NULL || (header->magic != MH_MAGIC_VALUE &&
+	    header->magic != MH_CIGAM_VALUE)) {
+		// Invalid header
+		return;
+	}
+
+	intptr_t slide = _dyld_get_image_vmaddr_slide(image_index);
+	const char *name = _dyld_get_image_name(image_index);
+	struct load_command *load_cmd = (struct load_command *)
+	    ((char *)header + sizeof(mach_header_t));
+	for (uint32_t i = 0; load_cmd && (i < header->ncmds); i++) {
+		if (load_cmd->cmd == LC_SEGMENT_VALUE) {
+			const segment_command_t *segment_cmd =
+			    (const segment_command_t *)load_cmd;
+			if (!strcmp(segment_cmd->segname, "__TEXT")) {
+				char buffer[PATH_MAX + 1];
+				malloc_snprintf(buffer, sizeof(buffer),
+				    "%016llx-%016llx: %s\n", segment_cmd->vmaddr + slide,
+				    segment_cmd->vmaddr + slide + segment_cmd->vmsize, name);
+				buf_writer_cb(buf_writer, buffer);
+				return;
+			}
+		}
+		load_cmd =
+		    (struct load_command *)((char *)load_cmd + load_cmd->cmdsize);
+	}
+}
+
+static void
+prof_dump_dyld_maps(buf_writer_t *buf_writer) {
+	uint32_t image_count = _dyld_image_count();
+	for (uint32_t i = 0; i < image_count; i++) {
+		prof_dump_dyld_image_vmaddr(buf_writer, i);
+	}
+}
+
+prof_dump_open_maps_t *JET_MUTABLE prof_dump_open_maps = NULL;
+
+static void
+prof_dump_maps(buf_writer_t *buf_writer) {
+	buf_writer_cb(buf_writer, "\nMAPPED_LIBRARIES:\n");
+	/* No proc map file to read on MacOS, dump dyld maps for backtrace. */
+	prof_dump_dyld_maps(buf_writer);
+}
+#else /* !__APPLE__ */
 #ifndef _WIN32
 JEMALLOC_FORMAT_PRINTF(1, 2)
 static int
@@ -670,6 +736,7 @@ prof_dump_maps(buf_writer_t *buf_writer) {
 	buf_writer_pipe(buf_writer, prof_dump_read_maps_cb, &mfd);
 	close(mfd);
 }
+#endif /* __APPLE__ */
 
 static bool
 prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
