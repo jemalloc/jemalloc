@@ -278,8 +278,6 @@ fastpath_success_finish(tsd_t *tsd, uint64_t allocated_after,
 	if (config_stats) {
 		bin->tstats.nrequests++;
 	}
-
-	LOG("core.malloc.exit", "result: %p", ret);
 }
 
 JEMALLOC_ALWAYS_INLINE bool
@@ -306,7 +304,6 @@ malloc_initialized(void) {
  */
 JEMALLOC_ALWAYS_INLINE void *
 imalloc_fastpath(size_t size, void *(fallback_alloc)(size_t)) {
-	LOG("core.malloc.entry", "size: %zu", size);
 	if (tsd_get_allocates() && unlikely(!malloc_initialized())) {
 		return fallback_alloc(size);
 	}
@@ -578,14 +575,9 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
 
 JEMALLOC_ALWAYS_INLINE void JEMALLOC_NOTHROW
 je_sdallocx_noflags(void *ptr, size_t size) {
-        LOG("core.sdallocx.entry", "ptr: %p, size: %zu, flags: 0", ptr,
-                size);
-
         if (!free_fastpath(ptr, size, true)) {
                 sdallocx_default(ptr, size, 0);
         }
-
-        LOG("core.sdallocx.exit", "");
 }
 
 JEMALLOC_ALWAYS_INLINE void JEMALLOC_NOTHROW

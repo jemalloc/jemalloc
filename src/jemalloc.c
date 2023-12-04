@@ -2730,8 +2730,6 @@ malloc_default(size_t size) {
 		hook_invoke_alloc(hook_alloc_malloc, ret, (uintptr_t)ret, args);
 	}
 
-	LOG("core.malloc.exit", "result: %p", ret);
-
 	return ret;
 }
 
@@ -2744,7 +2742,12 @@ JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
 void JEMALLOC_NOTHROW *
 JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(1)
 je_malloc(size_t size) {
-	return imalloc_fastpath(size, &malloc_default);
+	LOG("core.malloc.entry", "size: %zu", size);
+
+	void * ret = imalloc_fastpath(size, &malloc_default);
+
+	LOG("core.malloc.exit", "result: %p", ret);
+	return ret;
 }
 
 JEMALLOC_EXPORT int JEMALLOC_NOTHROW
@@ -2835,7 +2838,7 @@ je_calloc(size_t num, size_t size) {
 	static_opts_t sopts;
 	dynamic_opts_t dopts;
 
-	LOG("core.calloc.entry", "num: %zu, size: %zu\n", num, size);
+	LOG("core.calloc.entry", "num: %zu, size: %zu", num, size);
 
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
@@ -3014,7 +3017,11 @@ je_free(void *ptr) {
 
 JEMALLOC_EXPORT void JEMALLOC_NOTHROW
 je_free_sized(void *ptr, size_t size) {
-	return je_sdallocx_noflags(ptr, size);
+	LOG("core.free_sized.entry", "ptr: %p, size: %zu", ptr, size);
+
+	je_sdallocx_noflags(ptr, size);
+
+	LOG("core.free_sized.exit", "");
 }
 
 JEMALLOC_EXPORT void JEMALLOC_NOTHROW

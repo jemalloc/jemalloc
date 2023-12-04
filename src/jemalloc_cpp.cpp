@@ -112,7 +112,12 @@ template <bool IsNoExcept>
 JEMALLOC_ALWAYS_INLINE
 void *
 newImpl(std::size_t size) noexcept(IsNoExcept) {
-	return imalloc_fastpath(size, &fallbackNewImpl<IsNoExcept>);
+	LOG("core.operator_new.entry", "size: %zu", size);
+
+	void * ret = imalloc_fastpath(size, &fallbackNewImpl<IsNoExcept>);
+
+	LOG("core.operator_new.exit", "result: %p", ret);
+	return ret;
 }
 
 void *
@@ -173,21 +178,37 @@ operator new[](std::size_t size, std::align_val_t alignment, const std::nothrow_
 
 void
 operator delete(void *ptr) noexcept {
+	LOG("core.operator_delete.entry", "ptr: %p", ptr);
+
 	je_free_impl(ptr);
+
+	LOG("core.operator_delete.exit", "");
 }
 
 void
 operator delete[](void *ptr) noexcept {
+	LOG("core.operator_delete.entry", "ptr: %p", ptr);
+
 	je_free_impl(ptr);
+
+	LOG("core.operator_delete.exit", "");
 }
 
 void
 operator delete(void *ptr, const std::nothrow_t &) noexcept {
+	LOG("core.operator_delete.entry", "ptr: %p", ptr);
+
 	je_free_impl(ptr);
+
+	LOG("core.operator_delete.exit", "");
 }
 
 void operator delete[](void *ptr, const std::nothrow_t &) noexcept {
+	LOG("core.operator_delete.entry", "ptr: %p", ptr);
+
 	je_free_impl(ptr);
+
+	LOG("core.operator_delete.exit", "");
 }
 
 #if __cpp_sized_deallocation >= 201309
@@ -198,7 +219,11 @@ sizedDeleteImpl(void* ptr, std::size_t size) noexcept {
 	if (unlikely(ptr == nullptr)) {
 		return;
 	}
+	LOG("core.operator_delete.entry", "ptr: %p, size: %zu", ptr, size);
+
 	je_sdallocx_noflags(ptr, size);
+
+	LOG("core.operator_delete.exit", "");
 }
 
 void
@@ -217,34 +242,56 @@ operator delete[](void *ptr, std::size_t size) noexcept {
 
 JEMALLOC_ALWAYS_INLINE
 void
-alignedSizedDeleteImpl(void* ptr, std::size_t size, std::align_val_t alignment) noexcept {
+alignedSizedDeleteImpl(void* ptr, std::size_t size, std::align_val_t alignment)
+    noexcept {
 	if (config_debug) {
 		assert(((size_t)alignment & ((size_t)alignment - 1)) == 0);
 	}
 	if (unlikely(ptr == nullptr)) {
 		return;
 	}
+	LOG("core.operator_delete.entry", "ptr: %p, size: %zu, alignment: %zu",
+	    ptr, size, alignment);
+
 	je_sdallocx_impl(ptr, size, MALLOCX_ALIGN(alignment));
+
+	LOG("core.operator_delete.exit", "");
 }
 
 void
 operator delete(void* ptr, std::align_val_t) noexcept {
+	LOG("core.operator_delete.entry", "ptr: %p", ptr);
+
 	je_free_impl(ptr);
+
+	LOG("core.operator_delete.exit", "");
 }
 
 void
 operator delete[](void* ptr, std::align_val_t) noexcept {
+	LOG("core.operator_delete.entry", "ptr: %p", ptr);
+
 	je_free_impl(ptr);
+
+	LOG("core.operator_delete.exit", "");
 }
 
 void
 operator delete(void* ptr, std::align_val_t, const std::nothrow_t&) noexcept {
+	LOG("core.operator_delete.entry", "ptr: %p", ptr);
+
 	je_free_impl(ptr);
+
+	LOG("core.operator_delete.exit", "");
 }
 
 void
 operator delete[](void* ptr, std::align_val_t, const std::nothrow_t&) noexcept {
+	LOG("core.operator_delete.entry", "ptr: %p", ptr);
+
 	je_free_impl(ptr);
+
+	LOG("core.operator_delete.exit", "");
 }
 
 void
