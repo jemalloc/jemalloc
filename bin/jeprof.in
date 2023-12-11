@@ -688,15 +688,15 @@ sub Main() {
   my $symbol_map = {};
 
   # Read one profile, pick the last item on the list
-  my $data = ReadProfile($main::prog, pop(@main::profile_files));
+  my $data = ReadProfile($main::prog, $main::profile_files[0]);
   my $profile = $data->{profile};
   my $pcs = $data->{pcs};
   my $libs = $data->{libs};   # Info about main program and shared libraries
   $symbol_map = MergeSymbols($symbol_map, $data->{symbols});
 
   # Add additional profiles, if available.
-  if (scalar(@main::profile_files) > 0) {
-    foreach my $pname (@main::profile_files) {
+  if (scalar(@main::profile_files) > 1) {
+    foreach my $pname (@main::profile_files[1..$#main::profile_files]) {
       my $data2 = ReadProfile($main::prog, $pname);
       $profile = AddProfile($profile, $data2->{profile});
       $pcs = AddPcs($pcs, $data2->{pcs});
