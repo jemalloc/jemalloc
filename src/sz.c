@@ -100,7 +100,8 @@ sz_boot_size2index_tab(const sc_data_t *sc_data) {
 		size_t max_ind = ((sz + (ZU(1) << SC_LG_TINY_MIN) - 1)
 				   >> SC_LG_TINY_MIN);
 		for (; dst_ind <= max_ind && dst_ind < dst_max; dst_ind++) {
-			sz_size2index_tab[dst_ind] = sc_ind;
+			assert(sc_ind < 1 << (sizeof(uint8_t) * 8));
+			sz_size2index_tab[dst_ind] = (uint8_t)sc_ind;
 		}
 	}
 }

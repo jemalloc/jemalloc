@@ -1019,7 +1019,7 @@ arena_bin_choose(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 
 void
 arena_cache_bin_fill_small(tsdn_t *tsdn, arena_t *arena,
-    cache_bin_t *cache_bin, szind_t binind, const unsigned nfill) {
+    cache_bin_t *cache_bin, szind_t binind, const cache_bin_sz_t nfill) {
 	assert(cache_bin_ncached_get_local(cache_bin) == 0);
 	assert(nfill != 0);
 
@@ -1056,7 +1056,7 @@ arena_cache_bin_fill_small(tsdn_t *tsdn, arena_t *arena,
 	bool made_progress = true;
 	edata_t *fresh_slab = NULL;
 	bool alloc_and_retry = false;
-	unsigned filled = 0;
+	cache_bin_sz_t filled = 0;
 	unsigned binshard;
 	bin_t *bin = arena_bin_choose(tsdn, arena, binind, &binshard);
 

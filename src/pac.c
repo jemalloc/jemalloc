@@ -29,6 +29,10 @@ pac_decay_data_get(pac_t *pac, extent_state_t state,
 		*r_decay_stats = &pac->stats->decay_muzzy;
 		*r_ecache = &pac->ecache_muzzy;
 		return;
+	case extent_state_active:
+	case extent_state_retained:
+	case extent_state_transition:
+	case extent_state_merging:
 	default:
 		unreachable();
 	}
@@ -385,8 +389,6 @@ pac_decay_stashed(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
 		npurged += npages;
 
 		switch (ecache->state) {
-		case extent_state_active:
-			not_reached();
 		case extent_state_dirty:
 			if (try_muzzy) {
 				err = extent_purge_lazy_wrapper(tsdn, ehooks,
@@ -402,7 +404,10 @@ pac_decay_stashed(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
 			extent_dalloc_wrapper(tsdn, pac, ehooks, edata);
 			nunmapped += npages;
 			break;
+		case extent_state_active:
 		case extent_state_retained:
+		case extent_state_transition:
+		case extent_state_merging:
 		default:
 			not_reached();
 		}
