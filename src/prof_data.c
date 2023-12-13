@@ -709,6 +709,7 @@ prof_tctx_merge_iter(prof_tctx_tree_t *tctxs, prof_tctx_t *tctx, void *arg) {
 	case prof_tctx_state_purgatory:
 		prof_tctx_merge_gctx(tsdn, tctx, tctx->gctx);
 		break;
+	case prof_tctx_state_initializing:
 	default:
 		not_reached();
 	}
@@ -764,6 +765,7 @@ prof_tctx_finish_iter(prof_tctx_tree_t *tctxs, prof_tctx_t *tctx, void *arg) {
 	case prof_tctx_state_purgatory:
 		ret = tctx;
 		goto label_return;
+	case prof_tctx_state_initializing:
 	default:
 		not_reached();
 	}
@@ -1393,6 +1395,8 @@ prof_tctx_destroy(tsd_t *tsd, prof_tctx_t *tctx) {
 		destroy_tctx = false;
 		destroy_gctx = false;
 		break;
+	case prof_tctx_state_initializing:
+	case prof_tctx_state_purgatory:
 	default:
 		not_reached();
 		destroy_tctx = false;

@@ -277,7 +277,8 @@ prof_sample_new_event_wait(tsd_t *tsd) {
 	 * otherwise bytes_until_sample would be 0 if u is exactly 1.0.
 	 */
 	uint64_t r = prng_lg_range_u64(tsd_prng_statep_get(tsd), 53);
-	double u = (r == 0U) ? 1.0 : (double)r * (1.0/9007199254740992.0L);
+	double u = (r == 0U) ? 1.0 : (double)((long double)r *
+	    (1.0L/9007199254740992.0L));
 	return (uint64_t)(log(u) /
 	    log(1.0 - (1.0 / (double)((uint64_t)1U << lg_prof_sample))))
 	    + (uint64_t)1U;

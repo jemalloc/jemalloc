@@ -250,7 +250,7 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena,
 
 	assert(tcache_slow->arena != NULL);
 	assert(!tcache_bin_disabled(binind, cache_bin, tcache_slow));
-	unsigned nfill = cache_bin_ncached_max_get(cache_bin)
+	cache_bin_sz_t nfill = cache_bin_ncached_max_get(cache_bin)
 	    >> tcache_slow->lg_fill_div[binind];
 	if (nfill == 0) {
 		nfill = 1;
@@ -529,7 +529,7 @@ tcache_bin_flush_bottom(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 
 	cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin);
 	assert((cache_bin_sz_t)rem <= ncached);
-	unsigned nflush = ncached - rem;
+	cache_bin_sz_t nflush = ncached - (cache_bin_sz_t)rem;
 
 	CACHE_BIN_PTR_ARRAY_DECLARE(ptrs, nflush);
 	cache_bin_init_ptr_array_for_flush(cache_bin, &ptrs, nflush);
@@ -537,7 +537,8 @@ tcache_bin_flush_bottom(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 	tcache_bin_flush_impl(tsd, tcache, cache_bin, binind, &ptrs, nflush,
 	    small);
 
-	cache_bin_finish_flush(cache_bin, &ptrs, ncached - rem);
+	cache_bin_finish_flush(cache_bin, &ptrs,
+	    ncached - (cache_bin_sz_t)rem);
 }
 
 void
@@ -817,7 +818,8 @@ tcache_bin_info_compute(cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX]) {
 		    (unsigned)tcache_get_default_ncached_max()[i].ncached_max:
 		    tcache_ncached_max_compute(i);
 		assert(ncached_max <= CACHE_BIN_NCACHED_MAX);
-		cache_bin_info_init(&tcache_bin_info[i], ncached_max);
+		cache_bin_info_init(&tcache_bin_info[i],
+		    (cache_bin_sz_t)ncached_max);
 	}
 }
 
