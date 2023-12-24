@@ -1514,6 +1514,23 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         by default.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="opt.prof_pid_namespace">
+        <term>
+          <mallctl>opt.prof_pid_namespace</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+          [<option>--enable-prof</option>]
+        </term>
+        <listitem><para>Enable adding the pid namespace to the profile
+        filename. Profiles are dumped to files named according to the pattern
+        <filename>&lt;prefix&gt;.&lt;pid_namespace&gt;.&lt;pid&gt;.&lt;seq&gt;.i&lt;iseq&gt;.heap</filename>,
+        where <literal>&lt;prefix&gt;</literal> is controlled by the <link
+        linkend="opt.prof_prefix"><mallctl>opt.prof_prefix</mallctl></link> and
+        <link linkend="prof.prefix"><mallctl>prof.prefix</mallctl></link>
+        options.
+        </para></listitem>
+      </varlistentry>
+
       <varlistentry id="opt.lg_prof_interval">
         <term>
           <mallctl>opt.lg_prof_interval</mallctl>
