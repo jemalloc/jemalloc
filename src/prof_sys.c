@@ -484,6 +484,41 @@ prof_getpid(void) {
 #endif
 }
 
+long
+prof_get_pid_namespace() {
+	long ret = 0;
+
+#if defined(_WIN32) || defined(__APPLE__)
+	// Not supported, do nothing.
+#else
+	char buf[PATH_MAX];
+	const char* linkname =
+#  if defined(__FreeBSD__) || defined(__DragonFly__)
+	    "/proc/curproc/ns/pid"
+#  else
+	    "/proc/self/ns/pid"
+#  endif
+	    ;
+	ssize_t linklen =
+#  ifndef JEMALLOC_READLINKAT
+	readlink(linkname, buf, PATH_MAX)
+#  else
+	readlinkat(AT_FDCWD, linkname, buf, PATH_MAX)
+#  endif
+	    ;
+
+	// namespace string is expected to be like pid:[4026531836]
+	if (linklen > 0) {
+		// Trim the trailing "]"
+		buf[linklen-1] = '\0';
+		char* index = strtok(buf, "pid:[");
+		ret = atol(index);
+	}
+#endif
+
+  return ret;
+}
+
 /*
  * This buffer is rather large for stack allocation, so use a single buffer for
  * all profile dumps; protected by prof_dump_mtx.
@@ -713,15 +748,30 @@ prof_dump_filename(tsd_t *tsd, char *filename, char v, uint64_t vseq) {
 	const char *prefix = prof_prefix_get(tsd_tsdn(tsd));
 
 	if (vseq != VSEQ_INVALID) {
-	        /* "<prefix>.<pid>.<seq>.v<vseq>.heap" */
-		malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
-		    "%s.%d.%"FMTu64".%c%"FMTu64".heap", prefix, prof_getpid(),
-		    prof_dump_seq, v, vseq);
+		if (opt_prof_pid_namespace) {
+			/* "<prefix>.<pid_namespace>.<pid>.<seq>.v<vseq>.heap" */
+			malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
+			    "%s.%ld.%d.%"FMTu64".%c%"FMTu64".heap", prefix,
+			    prof_get_pid_namespace(), prof_getpid(), prof_dump_seq, v,
+			    vseq);
+		} else {
+			/* "<prefix>.<pid>.<seq>.v<vseq>.heap" */
+			malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
+			    "%s.%d.%"FMTu64".%c%"FMTu64".heap", prefix, prof_getpid(),
+			    prof_dump_seq, v, vseq);
+		}
 	} else {
-	        /* "<prefix>.<pid>.<seq>.<v>.heap" */
-		malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
-		    "%s.%d.%"FMTu64".%c.heap", prefix, prof_getpid(),
-		    prof_dump_seq, v);
+		if (opt_prof_pid_namespace) {
+			/* "<prefix>.<pid_namespace>.<pid>.<seq>.<v>.heap" */
+			malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
+			    "%s.%ld.%d.%"FMTu64".%c.heap", prefix,
+			    prof_get_pid_namespace(), prof_getpid(), prof_dump_seq, v);
+		} else {
+			/* "<prefix>.<pid>.<seq>.<v>.heap" */
+			malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
+			    "%s.%d.%"FMTu64".%c.heap", prefix, prof_getpid(),
+			    prof_dump_seq, v);
+		}
 	}
 	prof_dump_seq++;
 }
@@ -729,8 +779,14 @@ prof_dump_filename(tsd_t *tsd, char *filename, char v, uint64_t vseq) {
 void
 prof_get_default_filename(tsdn_t *tsdn, char *filename, uint64_t ind) {
 	malloc_mutex_lock(tsdn, &prof_dump_filename_mtx);
-	malloc_snprintf(filename, PROF_DUMP_FILENAME_LEN,
-	    "%s.%d.%"FMTu64".json", prof_prefix_get(tsdn), prof_getpid(), ind);
+	if (opt_prof_pid_namespace) {
+		malloc_snprintf(filename, PROF_DUMP_FILENAME_LEN,
+		    "%s.%ld.%d.%"FMTu64".json", prof_prefix_get(tsdn),
+		    prof_get_pid_namespace(), prof_getpid(), ind);
+	} else {
+		malloc_snprintf(filename, PROF_DUMP_FILENAME_LEN,
+		    "%s.%d.%"FMTu64".json", prof_prefix_get(tsdn), prof_getpid(), ind);
+	}
 	malloc_mutex_unlock(tsdn, &prof_dump_filename_mtx);
 }
 
