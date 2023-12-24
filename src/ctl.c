@@ -153,6 +153,7 @@ CTL_PROTO(opt_prof_final)
 CTL_PROTO(opt_prof_leak)
 CTL_PROTO(opt_prof_leak_error)
 CTL_PROTO(opt_prof_accum)
+CTL_PROTO(opt_prof_pid_namespace)
 CTL_PROTO(opt_prof_recent_alloc_max)
 CTL_PROTO(opt_prof_stats)
 CTL_PROTO(opt_prof_sys_thread_name)
@@ -495,6 +496,7 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("prof_leak"),	CTL(opt_prof_leak)},
 	{NAME("prof_leak_error"),	CTL(opt_prof_leak_error)},
 	{NAME("prof_accum"),	CTL(opt_prof_accum)},
+	{NAME("prof_pid_namespace"),	CTL(opt_prof_pid_namespace)},
 	{NAME("prof_recent_alloc_max"),	CTL(opt_prof_recent_alloc_max)},
 	{NAME("prof_stats"),	CTL(opt_prof_stats)},
 	{NAME("prof_sys_thread_name"),	CTL(opt_prof_sys_thread_name)},
@@ -2213,6 +2215,7 @@ CTL_RO_NL_CGEN(config_prof, opt_prof_thread_active_init,
 CTL_RO_NL_CGEN(config_prof, opt_prof_bt_max, opt_prof_bt_max, unsigned)
 CTL_RO_NL_CGEN(config_prof, opt_lg_prof_sample, opt_lg_prof_sample, size_t)
 CTL_RO_NL_CGEN(config_prof, opt_prof_accum, opt_prof_accum, bool)
+CTL_RO_NL_CGEN(config_prof, opt_prof_pid_namespace, opt_prof_pid_namespace, bool)
 CTL_RO_NL_CGEN(config_prof, opt_lg_prof_interval, opt_lg_prof_interval, ssize_t)
 CTL_RO_NL_CGEN(config_prof, opt_prof_gdump, opt_prof_gdump, bool)
 CTL_RO_NL_CGEN(config_prof, opt_prof_final, opt_prof_final, bool)

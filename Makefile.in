@@ -60,6 +60,7 @@ enable_doc := @enable_doc@
 enable_shared := @enable_shared@
 enable_static := @enable_static@
 enable_prof := @enable_prof@
+enable_pid_namespace := @enable_pid_namespace@
 enable_zone_allocator := @enable_zone_allocator@
 enable_experimental_smallocx := @enable_experimental_smallocx@
 MALLOC_CONF := @JEMALLOC_CPREFIX@MALLOC_CONF
@@ -160,6 +161,9 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 ifeq ($(enable_zone_allocator), 1)
 C_SRCS += $(srcroot)src/zone.c
 endif
+ifeq ($(enable_pid_namespace), 1)
+C_SRCS += $(srcroot)src/pid_namespace.c
+endif
 ifeq ($(IMPORTLIB),$(SO))
 STATIC_LIBS := $(objroot)lib/$(LIBJEMALLOC).$(A)
 endif
@@ -257,6 +261,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/prof_idump.c \
 	$(srcroot)test/unit/prof_log.c \
 	$(srcroot)test/unit/prof_mdump.c \
+	$(srcroot)test/unit/prof_pid_namespace.c \
 	$(srcroot)test/unit/prof_recent.c \
 	$(srcroot)test/unit/prof_reset.c \
 	$(srcroot)test/unit/prof_small.c \

@@ -1080,6 +1080,28 @@ enable_shared="1"
 )
 AC_SUBST([enable_shared])
 
+dnl Enable pid namespace support
+AC_CHECK_FUNCS([unshare])
+AC_ARG_ENABLE([pid_namespace],
+  [AS_HELP_STRING([--enable-pid-namespace], [Enable pid namespace support])],
+if test "x$enable_pid_namespace" = "xno" ; then
+  enable_pid_namespace="0"
+else
+  if test "x$ac_cv_func_unshare" != x; then
+    enable_pid_namespace="1"
+  else
+    enable_pid_namespace="0"
+  fi
+fi
+,
+enable_pid_namespace="0"
+)
+AC_SUBST([enable_pid_namespace])
+if test "x$enable_pid_namespace" = "x1"; then
+  AC_DEFINE([JEMALLOC_PID_NAMESPACE], [1], [Enable pid namespace support])
+fi
+
+
 dnl Enable static libs
 AC_ARG_ENABLE([static],
   [AS_HELP_STRING([--enable-static], [Build static libaries])],
@@ -2814,6 +2836,7 @@ AC_MSG_RESULT([static libs        : ${enable_static}])
 AC_MSG_RESULT([autogen            : ${enable_autogen}])
 AC_MSG_RESULT([debug              : ${enable_debug}])
 AC_MSG_RESULT([stats              : ${enable_stats}])
+AC_MSG_RESULT([pid_namespace      : ${enable_pid_namespace}])
 AC_MSG_RESULT([experimental_smallocx : ${enable_experimental_smallocx}])
 AC_MSG_RESULT([prof               : ${enable_prof}])
 AC_MSG_RESULT([prof-libunwind     : ${enable_prof_libunwind}])

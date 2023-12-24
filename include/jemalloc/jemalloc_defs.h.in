@@ -22,6 +22,9 @@
 /* Defined if deprecated attribute is supported. */
 #undef JEMALLOC_HAVE_ATTR_DEPRECATED
 
+/* Defined if pid namespaces are supported */
+#undef JEMALLOC_PID_NAMESPACE
+
 /*
  * Define overrides for non-standard allocator-related functions if they are
  * present on the system.

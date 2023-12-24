@@ -456,4 +456,7 @@
 
 #include "jemalloc/internal/jemalloc_internal_overrides.h"
 
+/* Defined if pid namespaces are supported. */
+#undef JEMALLOC_PID_NAMESPACE
+
 #endif /* JEMALLOC_INTERNAL_DEFS_H_ */
