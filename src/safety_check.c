@@ -20,6 +20,20 @@ void safety_check_set_abort(safety_check_abort_hook_t abort_fn) {
 	safety_check_abort = abort_fn;
 }
 
+/*
+ * In addition to malloc_write, also embed hint msg in the abort function name
+ * because there are cases only logging crash stack traces.
+ */
+static void
+safety_check_detected_heap_corruption___run_address_sanitizer_build_to_debug(const char *buf) {
+	if (safety_check_abort == NULL) {
+		malloc_write(buf);
+		abort();
+	} else {
+		safety_check_abort(buf);
+	}
+}
+
 void safety_check_fail(const char *format, ...) {
 	char buf[MALLOC_PRINTF_BUFSIZE];
 
@@ -28,10 +42,5 @@ void safety_check_fail(const char *format, ...) {
 	malloc_vsnprintf(buf, MALLOC_PRINTF_BUFSIZE, format, ap);
 	va_end(ap);
 
-	if (safety_check_abort == NULL) {
-		malloc_write(buf);
-		abort();
-	} else {
-		safety_check_abort(buf);
-	}
+	safety_check_detected_heap_corruption___run_address_sanitizer_build_to_debug(buf);
 }
