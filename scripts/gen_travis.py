@@ -309,7 +309,11 @@ def main():
     jobs = '\n'.join((
         generate_windows(AMD64),
 
-        generate_freebsd(AMD64),
+        # Travis currently provides only FreeBSD 12.1 which is EOL.  Builds are
+        # not working as of Jan 2024.  Disable the tests for now to avoid the
+        # noise / confusion.
+
+        # generate_freebsd(AMD64),
 
         generate_linux(AMD64),
         generate_linux(PPC64LE),
