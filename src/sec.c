@@ -174,14 +174,15 @@ sec_shard_alloc_locked(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard,
 
 static edata_t *
 sec_batch_fill_and_alloc(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard,
-    sec_bin_t *bin, size_t size) {
+    sec_bin_t *bin, size_t size, bool frequent_reuse) {
 	malloc_mutex_assert_not_owner(tsdn, &shard->mtx);
 
 	edata_list_active_t result;
 	edata_list_active_init(&result);
 	bool deferred_work_generated = false;
 	size_t nalloc = pai_alloc_batch(tsdn, sec->fallback, size,
-	    1 + sec->opts.batch_fill_extra, &result, &deferred_work_generated);
+	    1 + sec->opts.batch_fill_extra, &result, frequent_reuse,
+	    &deferred_work_generated);
 
 	edata_t *ret = edata_list_active_first(&result);
 	if (ret != NULL) {
@@ -251,7 +252,7 @@ sec_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
 	if (edata == NULL) {
 		if (do_batch_fill) {
 			edata = sec_batch_fill_and_alloc(tsdn, sec, shard, bin,
-			    size);
+			    size, frequent_reuse);
 		} else {
 			edata = pai_alloc(tsdn, sec->fallback, size, alignment,
 			    zero, /* guarded */ false, frequent_reuse,

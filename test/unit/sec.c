@@ -73,7 +73,7 @@ pai_test_allocator_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
 
 static inline size_t
 pai_test_allocator_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size,
-    size_t nallocs, edata_list_active_t *results,
+    size_t nallocs, edata_list_active_t *results, bool frequent_reuse,
     bool *deferred_work_generated) {
 	pai_test_allocator_t *ta = (pai_test_allocator_t *)self;
 	if (ta->alloc_fail) {
