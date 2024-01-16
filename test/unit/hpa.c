@@ -84,11 +84,24 @@ TEST_BEGIN(test_alloc_max) {
 	/* Small max */
 	bool deferred_work_generated = false;
 	edata = pai_alloc(tsdn, &shard->pai, ALLOC_MAX, PAGE, false, false,
-	    false, &deferred_work_generated);
+	     /* frequent_reuse */ false, &deferred_work_generated);
 	expect_ptr_not_null(edata, "Allocation of small max failed");
+
 	edata = pai_alloc(tsdn, &shard->pai, ALLOC_MAX + PAGE, PAGE, false,
-	    false, false, &deferred_work_generated);
+	    false, /* frequent_reuse */ false, &deferred_work_generated);
 	expect_ptr_null(edata, "Allocation of larger than small max succeeded");
+
+	edata = pai_alloc(tsdn, &shard->pai, ALLOC_MAX, PAGE, false,
+	    false, /* frequent_reuse */ true, &deferred_work_generated);
+	expect_ptr_not_null(edata, "Allocation of frequent reused failed");
+
+	edata = pai_alloc(tsdn, &shard->pai, HUGEPAGE, PAGE, false,
+	    false, /* frequent_reuse */ true, &deferred_work_generated);
+	expect_ptr_not_null(edata, "Allocation of frequent reused failed");
+
+	edata = pai_alloc(tsdn, &shard->pai, HUGEPAGE + PAGE, PAGE, false,
+	    false, /* frequent_reuse */ true, &deferred_work_generated);
+	expect_ptr_null(edata, "Allocation of larger than hugepage succeeded");
 
 	destroy_test_data(shard);
 }
@@ -273,7 +286,7 @@ TEST_BEGIN(test_alloc_dalloc_batch) {
 	edata_list_active_t allocs_list;
 	edata_list_active_init(&allocs_list);
 	size_t nsuccess = pai_alloc_batch(tsdn, &shard->pai, PAGE, NALLOCS / 2,
-	    &allocs_list, &deferred_work_generated);
+	    &allocs_list, /* frequent_reuse */ false, &deferred_work_generated);
 	expect_zu_eq(NALLOCS / 2, nsuccess, "Unexpected oom");
 	for (size_t i = NALLOCS / 2; i < NALLOCS; i++) {
 		allocs[i] = edata_list_active_first(&allocs_list);

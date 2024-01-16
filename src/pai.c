@@ -3,12 +3,13 @@
 
 size_t
 pai_alloc_batch_default(tsdn_t *tsdn, pai_t *self, size_t size, size_t nallocs,
-    edata_list_active_t *results, bool *deferred_work_generated) {
+    edata_list_active_t *results, bool frequent_reuse,
+    bool *deferred_work_generated) {
 	for (size_t i = 0; i < nallocs; i++) {
 		bool deferred_by_alloc = false;
 		edata_t *edata = pai_alloc(tsdn, self, size, PAGE,
-		    /* zero */ false, /* guarded */ false,
-		    /* frequent_reuse */ false, &deferred_by_alloc);
+		    /* zero */ false, /* guarded */ false, frequent_reuse,
+		    &deferred_by_alloc);
 		*deferred_work_generated |= deferred_by_alloc;
 		if (edata == NULL) {
 			return i;
