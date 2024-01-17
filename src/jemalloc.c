@@ -3870,8 +3870,6 @@ je_nallocx(size_t size, int flags) {
 	size_t usize;
 	tsdn_t *tsdn;
 
-	assert(size != 0);
-
 	if (unlikely(malloc_init())) {
 		LOG("core.nallocx.exit", "result: %zu", ZU(0));
 		return 0;
