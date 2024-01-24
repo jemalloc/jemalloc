@@ -45,6 +45,9 @@
 /src/*.[od]
 /src/*.sym
 
+# These are semantically meaningful for clangd and related tooling.
+/build/
+/.cache/
 compile_commands.json
 /static_analysis_raw_results
 /static_analysis_results
