@@ -22,8 +22,32 @@ TEST_BEGIN(test_malloc_conf_2) {
 }
 TEST_END
 
+TEST_BEGIN(test_mallctl_global_var) {
+#ifdef _WIN32
+	bool windows = true;
+#else
+	bool windows = false;
+#endif
+	/* Windows doesn't support weak symbol linker trickery. */
+	test_skip_if(windows);
+
+	const char *mc;
+	size_t sz = sizeof(mc);
+	expect_d_eq(mallctl("opt.malloc_conf.global_var",
+	    (void *)&mc, &sz, NULL, 0), 0, "Unexpected mallctl() failure");
+	expect_str_eq(mc, malloc_conf, "Unexpected value for the global variable "
+	    "malloc_conf");
+
+	expect_d_eq(mallctl("opt.malloc_conf.global_var_2_conf_harder",
+	    (void *)&mc, &sz, NULL, 0), 0, "Unexpected mallctl() failure");
+	expect_str_eq(mc, malloc_conf_2_conf_harder, "Unexpected value for the "
+	    "global variable malloc_conf_2_conf_harder");
+}
+TEST_END
+
 int
 main(void) {
 	return test(
-	    test_malloc_conf_2);
+	    test_malloc_conf_2,
+	    test_mallctl_global_var);
 }
