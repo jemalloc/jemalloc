@@ -57,6 +57,9 @@ const char	*je_malloc_conf_2_conf_harder
 #endif
     ;
 
+const char *opt_malloc_conf_symlink = NULL;
+const char *opt_malloc_conf_env_var = NULL;
+
 bool	opt_abort =
 #ifdef JEMALLOC_DEBUG
     true
@@ -955,7 +958,7 @@ malloc_slow_flag_init(void) {
 #define MALLOC_CONF_NSOURCES 5
 
 static const char *
-obtain_malloc_conf(unsigned which_source, char buf[PATH_MAX + 1]) {
+obtain_malloc_conf(unsigned which_source, char readlink_buf[PATH_MAX + 1]) {
 	if (config_debug) {
 		static unsigned read_source = 0;
 		/*
@@ -998,9 +1001,9 @@ obtain_malloc_conf(unsigned which_source, char buf[PATH_MAX + 1]) {
 		 * link's name.
 		 */
 #ifndef JEMALLOC_READLINKAT
-		linklen = readlink(linkname, buf, PATH_MAX);
+		linklen = readlink(linkname, readlink_buf, PATH_MAX);
 #else
-		linklen = readlinkat(AT_FDCWD, linkname, buf, PATH_MAX);
+		linklen = readlinkat(AT_FDCWD, linkname, readlink_buf, PATH_MAX);
 #endif
 		if (linklen == -1) {
 			/* No configuration specified. */
@@ -1009,8 +1012,8 @@ obtain_malloc_conf(unsigned which_source, char buf[PATH_MAX + 1]) {
 			set_errno(saved_errno);
 		}
 #endif
-		buf[linklen] = '\0';
-		ret = buf;
+		readlink_buf[linklen] = '\0';
+		ret = readlink_buf;
 		break;
 	} case 3: {
 		const char *envname =
@@ -1022,10 +1025,7 @@ obtain_malloc_conf(unsigned which_source, char buf[PATH_MAX + 1]) {
 		    ;
 
 		if ((ret = jemalloc_getenv(envname)) != NULL) {
-			/*
-			 * Do nothing; opts is already initialized to the value
-			 * of the MALLOC_CONF environment variable.
-			 */
+			opt_malloc_conf_env_var = ret;
 		} else {
 			/* No configuration specified. */
 			ret = NULL;
@@ -1084,7 +1084,7 @@ validate_hpa_settings(void) {
 static void
 malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
     bool initial_call, const char *opts_cache[MALLOC_CONF_NSOURCES],
-    char buf[PATH_MAX + 1]) {
+    char readlink_buf[PATH_MAX + 1]) {
 	static const char *opts_explain[MALLOC_CONF_NSOURCES] = {
 		"string specified via --with-malloc-conf",
 		"string pointed to by the global variable malloc_conf",
@@ -1101,7 +1101,7 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 	for (i = 0; i < MALLOC_CONF_NSOURCES; i++) {
 		/* Get runtime configuration. */
 		if (initial_call) {
-			opts_cache[i] = obtain_malloc_conf(i, buf);
+			opts_cache[i] = obtain_malloc_conf(i, readlink_buf);
 		}
 		opts = opts_cache[i];
 		if (!initial_call && opt_confirm_conf) {
@@ -1783,13 +1783,13 @@ malloc_conf_init_check_deps(void) {
 }
 
 static void
-malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
+malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
+    char readlink_buf[PATH_MAX + 1]) {
 	const char *opts_cache[MALLOC_CONF_NSOURCES] = {NULL, NULL, NULL, NULL,
 		NULL};
-	char buf[PATH_MAX + 1];
 
 	/* The first call only set the confirm_conf option and opts_cache */
-	malloc_conf_init_helper(NULL, NULL, true, opts_cache, buf);
+	malloc_conf_init_helper(NULL, NULL, true, opts_cache, readlink_buf);
 	malloc_conf_init_helper(sc_data, bin_shard_sizes, false, opts_cache,
 	    NULL);
 	if (malloc_conf_init_check_deps()) {
@@ -1855,7 +1855,9 @@ malloc_init_hard_a0_locked(void) {
 	if (config_prof) {
 		prof_boot0();
 	}
-	malloc_conf_init(&sc_data, bin_shard_sizes);
+	char readlink_buf[PATH_MAX + 1];
+	readlink_buf[0] = '\0';
+	malloc_conf_init(&sc_data, bin_shard_sizes, readlink_buf);
 	san_init(opt_lg_san_uaf_align);
 	sz_boot(&sc_data, opt_cache_oblivious);
 	bin_info_boot(&sc_data, bin_shard_sizes);
@@ -1948,6 +1950,15 @@ malloc_init_hard_a0_locked(void) {
 	}
 
 	malloc_init_state = malloc_init_a0_initialized;
+
+	size_t buf_len = strlen(readlink_buf);
+	if (buf_len > 0) {
+		void *readlink_allocated = a0ialloc(buf_len + 1, false, true);
+		if (readlink_allocated != NULL) {
+			memcpy(readlink_allocated, readlink_buf, buf_len + 1);
+			opt_malloc_conf_symlink = readlink_allocated;
+		}
+	}
 
 	return false;
 }

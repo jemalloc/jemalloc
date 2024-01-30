@@ -159,6 +159,10 @@ CTL_PROTO(opt_prof_sys_thread_name)
 CTL_PROTO(opt_prof_time_res)
 CTL_PROTO(opt_lg_san_uaf_align)
 CTL_PROTO(opt_zero_realloc)
+CTL_PROTO(opt_malloc_conf_symlink)
+CTL_PROTO(opt_malloc_conf_env_var)
+CTL_PROTO(opt_malloc_conf_global_var)
+CTL_PROTO(opt_malloc_conf_global_var_2_conf_harder)
 CTL_PROTO(tcache_create)
 CTL_PROTO(tcache_flush)
 CTL_PROTO(tcache_destroy)
@@ -426,6 +430,14 @@ static const ctl_named_node_t	config_node[] = {
 	{NAME("xmalloc"),	CTL(config_xmalloc)}
 };
 
+static const ctl_named_node_t opt_malloc_conf_node[] = {
+	{NAME("symlink"),	CTL(opt_malloc_conf_symlink)},
+	{NAME("env_var"),	CTL(opt_malloc_conf_env_var)},
+	{NAME("global_var"),	CTL(opt_malloc_conf_global_var)},
+	{NAME("global_var_2_conf_harder"),
+	    CTL(opt_malloc_conf_global_var_2_conf_harder)}
+};
+
 static const ctl_named_node_t opt_node[] = {
 	{NAME("abort"),		CTL(opt_abort)},
 	{NAME("abort_conf"),	CTL(opt_abort_conf)},
@@ -502,7 +514,8 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("lg_san_uaf_align"),	CTL(opt_lg_san_uaf_align)},
 	{NAME("zero_realloc"),	CTL(opt_zero_realloc)},
 	{NAME("debug_double_free_max_scan"),
-		CTL(opt_debug_double_free_max_scan)}
+		CTL(opt_debug_double_free_max_scan)},
+	{NAME("malloc_conf"),	CHILD(named, opt_malloc_conf)}
 };
 
 static const ctl_named_node_t	tcache_node[] = {
@@ -2229,6 +2242,17 @@ CTL_RO_NL_CGEN(config_uaf_detection, opt_lg_san_uaf_align,
     opt_lg_san_uaf_align, ssize_t)
 CTL_RO_NL_GEN(opt_zero_realloc,
     zero_realloc_mode_names[opt_zero_realloc_action], const char *)
+
+/* malloc_conf options */
+CTL_RO_NL_CGEN(opt_malloc_conf_symlink, opt_malloc_conf_symlink,
+    opt_malloc_conf_symlink, const char *)
+CTL_RO_NL_CGEN(opt_malloc_conf_env_var, opt_malloc_conf_env_var,
+    opt_malloc_conf_env_var, const char *)
+CTL_RO_NL_CGEN(je_malloc_conf, opt_malloc_conf_global_var, je_malloc_conf,
+    const char *)
+CTL_RO_NL_CGEN(je_malloc_conf_2_conf_harder,
+    opt_malloc_conf_global_var_2_conf_harder, je_malloc_conf_2_conf_harder,
+    const char *)
 
 /******************************************************************************/
 
