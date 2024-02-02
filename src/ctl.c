@@ -129,6 +129,8 @@ CTL_PROTO(opt_zero)
 CTL_PROTO(opt_utrace)
 CTL_PROTO(opt_xmalloc)
 CTL_PROTO(opt_experimental_infallible_new)
+CTL_PROTO(opt_max_batched_size)
+CTL_PROTO(opt_remote_free_max_batch)
 CTL_PROTO(opt_tcache)
 CTL_PROTO(opt_tcache_max)
 CTL_PROTO(opt_tcache_nslots_small_min)
@@ -480,6 +482,8 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("xmalloc"),	CTL(opt_xmalloc)},
 	{NAME("experimental_infallible_new"),
 		CTL(opt_experimental_infallible_new)},
+	{NAME("max_batched_size"),	CTL(opt_max_batched_size)},
+	{NAME("remote_free_max_batch"),	CTL(opt_remote_free_max_batch)},
 	{NAME("tcache"),	CTL(opt_tcache)},
 	{NAME("tcache_max"),	CTL(opt_tcache_max)},
 	{NAME("tcache_nslots_small_min"),
@@ -2203,6 +2207,9 @@ CTL_RO_NL_CGEN(config_utrace, opt_utrace, opt_utrace, bool)
 CTL_RO_NL_CGEN(config_xmalloc, opt_xmalloc, opt_xmalloc, bool)
 CTL_RO_NL_CGEN(config_enable_cxx, opt_experimental_infallible_new,
     opt_experimental_infallible_new, bool)
+CTL_RO_NL_GEN(opt_max_batched_size, opt_bin_info_max_batched_size, size_t)
+CTL_RO_NL_GEN(opt_remote_free_max_batch, opt_bin_info_remote_free_max_batch,
+    size_t)
 CTL_RO_NL_GEN(opt_tcache, opt_tcache, bool)
 CTL_RO_NL_GEN(opt_tcache_max, opt_tcache_max, size_t)
 CTL_RO_NL_GEN(opt_tcache_nslots_small_min, opt_tcache_nslots_small_min,
