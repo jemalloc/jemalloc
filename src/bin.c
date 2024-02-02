@@ -54,16 +54,28 @@ bin_init(bin_t *bin) {
 }
 
 void
-bin_prefork(tsdn_t *tsdn, bin_t *bin) {
+bin_prefork(tsdn_t *tsdn, bin_t *bin, bool has_batch) {
 	malloc_mutex_prefork(tsdn, &bin->lock);
+	if (has_batch) {
+		bin_with_batch_t *batched = (bin_with_batch_t *)bin;
+		batcher_prefork(tsdn, &batched->remote_frees);
+	}
 }
 
 void
-bin_postfork_parent(tsdn_t *tsdn, bin_t *bin) {
+bin_postfork_parent(tsdn_t *tsdn, bin_t *bin, bool has_batch) {
 	malloc_mutex_postfork_parent(tsdn, &bin->lock);
+	if (has_batch) {
+		bin_with_batch_t *batched = (bin_with_batch_t *)bin;
+		batcher_postfork_parent(tsdn, &batched->remote_frees);
+	}
 }
 
 void
-bin_postfork_child(tsdn_t *tsdn, bin_t *bin) {
+bin_postfork_child(tsdn_t *tsdn, bin_t *bin, bool has_batch) {
 	malloc_mutex_postfork_child(tsdn, &bin->lock);
+	if (has_batch) {
+		bin_with_batch_t *batched = (bin_with_batch_t *)bin;
+		batcher_postfork_child(tsdn, &batched->remote_frees);
+	}
 }

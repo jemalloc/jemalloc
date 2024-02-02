@@ -604,10 +604,25 @@ arena_dalloc_bin_locked_finish(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 	}
 }
 
+static inline bool
+arena_bin_has_batch(szind_t binind) {
+	return binind < bin_info_nbatched_sizes;
+}
+
 static inline bin_t *
 arena_get_bin(arena_t *arena, szind_t binind, unsigned binshard) {
 	bin_t *shard0 = (bin_t *)((byte_t *)arena + arena_bin_offsets[binind]);
-	return shard0 + binshard;
+	bin_t *ret;
+	if (arena_bin_has_batch(binind)) {
+		ret = (bin_t *)((bin_with_batch_t *)shard0 + binshard);
+	} else {
+		ret = shard0 + binshard;
+	}
+	assert(binind >= SC_NBINS - 1
+	    || (uintptr_t)ret < (uintptr_t)arena
+	    + arena_bin_offsets[binind + 1]);
+
+	return ret;
 }
 
 #endif /* JEMALLOC_INTERNAL_ARENA_INLINES_B_H */

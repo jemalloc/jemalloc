@@ -1555,6 +1555,8 @@ stats_general_print(emitter_t *emitter) {
 	OPT_WRITE_BOOL("utrace")
 	OPT_WRITE_BOOL("xmalloc")
 	OPT_WRITE_BOOL("experimental_infallible_new")
+	OPT_WRITE_SIZE_T("max_batched_size")
+	OPT_WRITE_SIZE_T("remote_free_max_batch")
 	OPT_WRITE_BOOL("tcache")
 	OPT_WRITE_SIZE_T("tcache_max")
 	OPT_WRITE_UNSIGNED("tcache_nslots_small_min")

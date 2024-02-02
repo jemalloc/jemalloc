@@ -3,7 +3,14 @@
 
 #include "jemalloc/internal/bin_info.h"
 
+size_t opt_bin_info_max_batched_size;
+size_t opt_bin_info_remote_free_max_batch;
+
 bin_info_t bin_infos[SC_NBINS];
+
+szind_t bin_info_nbatched_sizes;
+unsigned bin_info_nbatched_bins;
+unsigned bin_info_nunbatched_bins;
 
 static void
 bin_infos_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
@@ -20,6 +27,12 @@ bin_infos_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 		bitmap_info_t bitmap_info = BITMAP_INFO_INITIALIZER(
 		    bin_info->nregs);
 		bin_info->bitmap_info = bitmap_info;
+		if (bin_info->reg_size <= opt_bin_info_max_batched_size) {
+			bin_info_nbatched_sizes++;
+			bin_info_nbatched_bins += bin_info->n_shards;
+		} else {
+			bin_info_nunbatched_bins += bin_info->n_shards;
+		}
 	}
 }
 
