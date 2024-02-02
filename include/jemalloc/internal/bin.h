@@ -2,11 +2,15 @@
 #define JEMALLOC_INTERNAL_BIN_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/batcher.h"
 #include "jemalloc/internal/bin_stats.h"
 #include "jemalloc/internal/bin_types.h"
 #include "jemalloc/internal/edata.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/sc.h"
+
+#define BIN_MAX_BATCHES 4
+#define BIN_ELEMS_PER_BATCH 4
 
 /*
  * A bin contains a set of extents that are currently being used for slab
@@ -42,6 +46,22 @@ struct bin_s {
 	edata_list_active_t	slabs_full;
 };
 
+typedef struct bin_batch_data_s bin_batch_data_t;
+struct bin_batch_data_s {
+	struct {
+		void *ptr;
+		edata_t *slab;
+	} elems[BIN_ELEMS_PER_BATCH];
+};
+
+typedef struct bin_with_batch_s bin_with_batch_t;
+struct bin_with_batch_s {
+	bin_t bin;
+	batcher_t remote_frees;
+	batcher_elem_t remote_free_elems[BIN_MAX_BATCHES];
+	bin_batch_data_t remote_free_data[BIN_MAX_BATCHES];
+};
+
 /* A set of sharded bins of the same size class. */
 typedef struct bins_s bins_t;
 struct bins_s {
@@ -57,9 +77,9 @@ bool bin_update_shard_size(unsigned bin_shards[SC_NBINS], size_t start_size,
 bool bin_init(bin_t *bin);
 
 /* Forking. */
-void bin_prefork(tsdn_t *tsdn, bin_t *bin);
-void bin_postfork_parent(tsdn_t *tsdn, bin_t *bin);
-void bin_postfork_child(tsdn_t *tsdn, bin_t *bin);
+void bin_prefork(tsdn_t *tsdn, bin_t *bin, bool has_batch);
+void bin_postfork_parent(tsdn_t *tsdn, bin_t *bin, bool has_batch);
+void bin_postfork_child(tsdn_t *tsdn, bin_t *bin, bool has_batch);
 
 /* Stats. */
 static inline void
