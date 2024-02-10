@@ -48,6 +48,8 @@ struct bin_info_s {
 extern size_t opt_bin_info_max_batched_size;
 /* The number of batches per batched size class. */
 extern size_t opt_bin_info_remote_free_max_batch;
+// The max number of pending elems (across all batches)
+extern size_t opt_bin_info_remote_free_max;
 
 extern szind_t bin_info_nbatched_sizes;
 extern unsigned bin_info_nbatched_bins;
