@@ -6,6 +6,14 @@
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/witness.h"
 
+#ifdef JEMALLOC_JET
+unsigned bin_batching_test_ndalloc_slabs_max = (unsigned)-1;
+void (*bin_batching_test_after_push_hook)(int idx);
+void (*bin_batching_test_mid_pop_hook)(bool elems_to_pop);
+void (*bin_batching_test_after_unlock_hook)(unsigned slab_dalloc_count,
+    bool list_empty);
+#endif
+
 bool
 bin_update_shard_size(unsigned bin_shard_sizes[SC_NBINS], size_t start_size,
     size_t end_size, size_t nshards) {
@@ -39,7 +47,7 @@ bin_shard_sizes_boot(unsigned bin_shard_sizes[SC_NBINS]) {
 }
 
 bool
-bin_init(bin_t *bin) {
+bin_init(bin_t *bin, unsigned binind) {
 	if (malloc_mutex_init(&bin->lock, "bin", WITNESS_RANK_BIN,
 	    malloc_mutex_rank_exclusive)) {
 		return true;
@@ -49,6 +57,12 @@ bin_init(bin_t *bin) {
 	edata_list_active_init(&bin->slabs_full);
 	if (config_stats) {
 		memset(&bin->stats, 0, sizeof(bin_stats_t));
+	}
+	if (binind < bin_info_nbatched_sizes) {
+		bin_with_batch_t *batched_bin = (bin_with_batch_t *)bin;
+		batcher_init(&batched_bin->remote_frees,
+		    batched_bin->remote_free_elems,
+		    (int)opt_bin_info_batches_per_bin);
 	}
 	return false;
 }

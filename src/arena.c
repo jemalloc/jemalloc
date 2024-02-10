@@ -640,10 +640,18 @@ arena_bin_slabs_full_remove(arena_t *arena, bin_t *bin, edata_t *slab) {
 }
 
 static void
-arena_bin_reset(tsd_t *tsd, arena_t *arena, bin_t *bin) {
+arena_bin_reset(tsd_t *tsd, arena_t *arena, bin_t *bin, unsigned binind) {
 	edata_t *slab;
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
+
+	if (arena_bin_has_batch(binind)) {
+		bin_with_batch_t *batched_bin = (bin_with_batch_t *)bin;
+		batcher_init(&batched_bin->remote_frees,
+		    batched_bin->remote_free_elems,
+		    batched_bin->remote_frees.nelems);
+	}
+
 	if (bin->slabcur != NULL) {
 		slab = bin->slabcur;
 		bin->slabcur = NULL;
@@ -794,7 +802,8 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 	/* Bins. */
 	for (unsigned i = 0; i < SC_NBINS; i++) {
 		for (unsigned j = 0; j < bin_infos[i].n_shards; j++) {
-			arena_bin_reset(tsd, arena, arena_get_bin(arena, i, j));
+			arena_bin_reset(tsd, arena, arena_get_bin(arena, i, j),
+			    i);
 		}
 	}
 	pa_shard_reset(tsd_tsdn(tsd), &arena->pa_shard);
@@ -1059,8 +1068,10 @@ arena_cache_bin_fill_small(tsdn_t *tsdn, arena_t *arena,
 	unsigned binshard;
 	bin_t *bin = arena_bin_choose(tsdn, arena, binind, &binshard);
 
+	arena_bin_flush_batch_state_t batch_flush_state;
 label_refill:
 	malloc_mutex_lock(tsdn, &bin->lock);
+	arena_bin_flush_batch_after_lock(tsdn, arena, bin, binind, &batch_flush_state);
 
 	while (filled < nfill) {
 		/* Try batch-fill from slabcur first. */
@@ -1115,7 +1126,11 @@ label_refill:
 		cache_bin->tstats.nrequests = 0;
 	}
 
+	arena_bin_flush_batch_before_unlock(tsdn, arena, bin, binind,
+	    &batch_flush_state);
 	malloc_mutex_unlock(tsdn, &bin->lock);
+	arena_bin_flush_batch_after_unlock(tsdn, arena, bin, binind,
+	    &batch_flush_state);
 
 	if (alloc_and_retry) {
 		assert(fresh_slab == NULL);
@@ -1406,12 +1421,16 @@ arena_dalloc_bin(tsdn_t *tsdn, arena_t *arena, edata_t *edata, void *ptr) {
 	malloc_mutex_lock(tsdn, &bin->lock);
 	arena_dalloc_bin_locked_info_t info;
 	arena_dalloc_bin_locked_begin(&info, binind);
-	bool ret = arena_dalloc_bin_locked_step(tsdn, arena, bin,
-	    &info, binind, edata, ptr);
+	edata_t *dalloc_slabs[1];
+	unsigned dalloc_slabs_count = 0;
+	arena_dalloc_bin_locked_step(tsdn, arena, bin, &info, binind, edata,
+	    ptr, dalloc_slabs, /* ndalloc_slabs */ 1, &dalloc_slabs_count,
+	    /* dalloc_slabs_extra */ NULL);
 	arena_dalloc_bin_locked_finish(tsdn, arena, bin, &info);
 	malloc_mutex_unlock(tsdn, &bin->lock);
 
-	if (ret) {
+	if (dalloc_slabs_count != 0) {
+		assert(dalloc_slabs[0] == edata);
 		arena_slab_dalloc(tsdn, arena, edata);
 	}
 }
@@ -1710,7 +1729,7 @@ arena_new(tsdn_t *tsdn, unsigned ind, const arena_config_t *config) {
 	for (unsigned i = 0; i < SC_NBINS; i++) {
 		for (unsigned j = 0; j < bin_infos[i].n_shards; j++) {
 			bin_t *bin = arena_get_bin(arena, i, j);
-			bool err = bin_init(bin);
+			bool err = bin_init(bin, i);
 			if (err) {
 				goto label_error;
 			}
