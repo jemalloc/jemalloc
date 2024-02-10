@@ -11,6 +11,51 @@
 
 #define BIN_REMOTE_FREE_ELEMS_MAX 16
 
+#ifdef JEMALLOC_JET
+extern void (*bin_batching_test_after_push_hook)(size_t idx);
+extern void (*bin_batching_test_mid_pop_hook)(size_t elems_to_pop);
+extern void (*bin_batching_test_after_unlock_hook)(unsigned slab_dalloc_count,
+    bool list_empty);
+#endif
+
+#ifdef JEMALLOC_JET
+extern unsigned bin_batching_test_ndalloc_slabs_max;
+#else
+static const unsigned bin_batching_test_ndalloc_slabs_max = (unsigned)-1;
+#endif
+
+JEMALLOC_ALWAYS_INLINE void
+bin_batching_test_after_push(size_t idx) {
+	(void)idx;
+#ifdef JEMALLOC_JET
+	if (bin_batching_test_after_push_hook != NULL) {
+		bin_batching_test_after_push_hook(idx);
+	}
+#endif
+}
+
+JEMALLOC_ALWAYS_INLINE void
+bin_batching_test_mid_pop(size_t elems_to_pop) {
+	(void)elems_to_pop;
+#ifdef JEMALLOC_JET
+	if (bin_batching_test_mid_pop_hook != NULL) {
+		bin_batching_test_mid_pop_hook(elems_to_pop);
+	}
+#endif
+}
+
+JEMALLOC_ALWAYS_INLINE void
+bin_batching_test_after_unlock(unsigned slab_dalloc_count, bool list_empty) {
+	(void)slab_dalloc_count;
+	(void)list_empty;
+#ifdef JEMALLOC_JET
+	if (bin_batching_test_after_unlock_hook != NULL) {
+		bin_batching_test_after_unlock_hook(slab_dalloc_count,
+		    list_empty);
+	}
+#endif
+}
+
 /*
  * A bin contains a set of extents that are currently being used for slab
  * allocations.
@@ -70,7 +115,7 @@ bool bin_update_shard_size(unsigned bin_shards[SC_NBINS], size_t start_size,
     size_t end_size, size_t nshards);
 
 /* Initializes a bin to empty.  Returns true on error. */
-bool bin_init(bin_t *bin);
+bool bin_init(bin_t *bin, unsigned binind);
 
 /* Forking. */
 void bin_prefork(tsdn_t *tsdn, bin_t *bin, bool has_batch);

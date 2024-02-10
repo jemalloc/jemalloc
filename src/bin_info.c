@@ -3,8 +3,19 @@
 
 #include "jemalloc/internal/bin_info.h"
 
-size_t opt_bin_info_max_batched_size;
-size_t opt_bin_info_remote_free_max_batch;
+/*
+ * We leave bin-batching disabled by default, with other settings chosen mostly
+ * empirically; across the test programs I looked at they provided the most bang
+ * for the buck.  With other default settings, these choices for bin batching
+ * result in them consuming far less memory (even in the worst case) than the
+ * tcaches themselves, the arena, etc.
+ * Note that we always try to pop all bins on every arena cache bin lock
+ * operation, so the typical memory waste is far less than this (and only on
+ * hot bins, which tend to be large anyways).
+ */
+size_t opt_bin_info_max_batched_size = 0; /* 192 is a good default. */
+size_t opt_bin_info_remote_free_max_batch = 4;
+size_t opt_bin_info_remote_free_max = BIN_REMOTE_FREE_ELEMS_MAX;
 
 bin_info_t bin_infos[SC_NBINS];
 
