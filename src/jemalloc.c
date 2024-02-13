@@ -3052,6 +3052,7 @@ je_memalign(size_t alignment, size_t size) {
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
 
+	sopts.bump_empty_aligned_alloc = true;
 	sopts.min_alignment = 1;
 	sopts.oom_string =
 	    "<jemalloc>: Error allocating aligned memory: out of memory\n";
