@@ -358,6 +358,15 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i,
 	COL_HDR(row, nreslabs, NULL, right, 13, uint64)
 	COL_HDR(row, nreslabs_ps, "(#/sec)", right, 8, uint64)
 
+	COL_HDR(row, pops, NULL, right, 10, uint64)
+	COL_HDR(row, pops_ps, "(#/sec)", right, 8, uint64)
+	COL_HDR(row, failed_push, NULL, right, 13, uint64)
+	COL_HDR(row, failed_push_ps, "(#/sec)", right, 8, uint64)
+	COL_HDR(row, push, NULL, right, 7, uint64)
+	COL_HDR(row, push_ps, "(#/sec)", right, 8, uint64)
+	COL_HDR(row, push_elem, NULL, right, 12, uint64)
+	COL_HDR(row, push_elem_ps, "(#/sec)", right, 8, uint64)
+
 	/* Don't want to actually print the name. */
 	header_justify_spacer.str_val = " ";
 	col_justify_spacer.str_val = " ";
@@ -405,6 +414,8 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i,
 		uint32_t nregs, nshards;
 		uint64_t nmalloc, ndalloc, nrequests, nfills, nflushes;
 		uint64_t nreslabs;
+		uint64_t batch_pops, batch_failed_pushes, batch_pushes,
+		    batch_pushed_elems;
 		prof_stats_t prof_live;
 		prof_stats_t prof_accum;
 
@@ -453,6 +464,15 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i,
 		CTL_LEAF(stats_arenas_mib, 5, "nonfull_slabs", &nonfull_slabs,
 		    size_t);
 
+		CTL_LEAF(stats_arenas_mib, 5, "batch_pops", &batch_pops,
+		    uint64_t);
+		CTL_LEAF(stats_arenas_mib, 5, "batch_failed_pushes",
+		    &batch_failed_pushes, uint64_t);
+		CTL_LEAF(stats_arenas_mib, 5, "batch_pushes",
+		    &batch_pushes, uint64_t);
+		CTL_LEAF(stats_arenas_mib, 5, "batch_pushed_elems",
+		    &batch_pushed_elems, uint64_t);
+
 		if (mutex) {
 			mutex_stats_read_arena_bin(stats_arenas_mib, 5,
 			    col_mutex64, col_mutex32, uptime);
@@ -487,6 +507,14 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i,
 		    &curslabs);
 		emitter_json_kv(emitter, "nonfull_slabs", emitter_type_size,
 		    &nonfull_slabs);
+		emitter_json_kv(emitter, "batch_pops",
+		    emitter_type_uint64, &batch_pops);
+		emitter_json_kv(emitter, "batch_failed_pushes",
+		    emitter_type_uint64, &batch_failed_pushes);
+		emitter_json_kv(emitter, "batch_pushes",
+		    emitter_type_uint64, &batch_pushes);
+		emitter_json_kv(emitter, "batch_pushed_elems",
+		    emitter_type_uint64, &batch_pushed_elems);
 		if (mutex) {
 			emitter_json_object_kv_begin(emitter, "mutex");
 			mutex_stats_emit(emitter, NULL, col_mutex64,
@@ -544,6 +572,21 @@ stats_arena_bins_print(emitter_t *emitter, bool mutex, unsigned i,
 		col_nslabs.uint64_val = nslabs;
 		col_nreslabs.uint64_val = nreslabs;
 		col_nreslabs_ps.uint64_val = rate_per_second(nreslabs, uptime);
+
+		col_pops.uint64_val = batch_pops;
+		col_pops_ps.uint64_val
+		    = rate_per_second(batch_pops, uptime);
+
+		col_failed_push.uint64_val = batch_failed_pushes;
+		col_failed_push_ps.uint64_val
+		    = rate_per_second(batch_failed_pushes, uptime);
+		col_push.uint64_val = batch_pushes;
+		col_push_ps.uint64_val
+		    = rate_per_second(batch_pushes, uptime);
+
+		col_push_elem.uint64_val = batch_pushed_elems;
+		col_push_elem_ps.uint64_val
+		    = rate_per_second(batch_pushed_elems, uptime);
 
 		/*
 		 * Note that mutex columns were initialized above, if mutex ==

@@ -16,6 +16,7 @@ struct batcher_s {
 	 */
 	atomic_zu_t nelems;
 	size_t nelems_max;
+	size_t npushes;
 	malloc_mutex_t mtx;
 };
 
@@ -35,6 +36,7 @@ void batcher_push_end(tsdn_t *tsdn, batcher_t *batcher);
  * If the former, must be followed by a call to batcher_pop_end.
  */
 size_t batcher_pop_begin(tsdn_t *tsdn, batcher_t *batcher);
+size_t batcher_pop_get_pushes(tsdn_t *tsdn, batcher_t *batcher);
 void batcher_pop_end(tsdn_t *tsdn, batcher_t *batcher);
 
 void batcher_prefork(tsdn_t *tsdn, batcher_t *batcher);

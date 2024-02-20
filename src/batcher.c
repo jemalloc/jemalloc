@@ -9,6 +9,7 @@ void
 batcher_init(batcher_t *batcher, size_t nelems_max) {
 	atomic_store_zu(&batcher->nelems, 0, ATOMIC_RELAXED);
 	batcher->nelems_max = nelems_max;
+	batcher->npushes = 0;
 	malloc_mutex_init(&batcher->mtx, "batcher", WITNESS_RANK_BATCHER,
 	    malloc_mutex_rank_exclusive);
 }
@@ -37,7 +38,16 @@ size_t batcher_push_begin(tsdn_t *tsdn, batcher_t *batcher,
 	 * acquire a mutex only to discover that there's no space for them.
 	 */
 	atomic_store_zu(&batcher->nelems, nelems + elems_to_push, ATOMIC_RELAXED);
+	batcher->npushes++;
 	return nelems;
+}
+
+size_t
+batcher_pop_get_pushes(tsdn_t *tsdn, batcher_t *batcher) {
+	malloc_mutex_assert_owner(tsdn, &batcher->mtx);
+	size_t npushes = batcher->npushes;
+	batcher->npushes = 0;
+	return npushes;
 }
 
 void

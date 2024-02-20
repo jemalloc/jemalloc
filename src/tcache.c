@@ -482,6 +482,7 @@ tcache_bin_flush_impl_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin
 		 */
 		bool locked = false;
 		bool batched = false;
+		bool batch_failed = false;
 		if (can_batch) {
 			locked = !malloc_mutex_trylock(tsdn, &cur_bin->lock);
 		}
@@ -508,12 +509,24 @@ tcache_bin_flush_impl_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin
 				}
 				batcher_push_end(tsdn,
 				    &batched_bin->remote_frees);
+			} else {
+				batch_failed = true;
 			}
 		}
 		if (!batched) {
 			if (!locked) {
 				malloc_mutex_lock(tsdn, &cur_bin->lock);
 			}
+			/*
+			 * Unlike other stats (which only ever get flushed into
+			 * a tcache's associated arena), batch_failed counts get
+			 * accumulated into the bin where the push attempt
+			 * failed.
+			 */
+			if (config_stats && batch_failed) {
+				cur_bin->stats.batch_failed_pushes++;
+			}
+
 			/*
 			 * Flush stats first, if that was the right lock.  Note
 			 * that we don't actually have to flush stats into the
