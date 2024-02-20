@@ -625,9 +625,13 @@ arena_bin_flush_batch_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 	if (!elems_to_pop) {
 		return;
 	}
+	unsigned num_pushes = 0;
+	unsigned num_pushed_elems = 0;
+
 	int next_elem;
 	while ((next_elem = batcher_pop_next(&batched_bin->remote_frees,
 	    batched_bin->remote_free_elems, &iter)) != BATCHER_NO_IDX) {
+		num_pushes++;
 		bin_batch_data_t *data
 		    = &batched_bin->remote_free_data[next_elem];
 		for (int i = 0; i < BIN_ELEMS_PER_BATCH; i++) {
@@ -637,11 +641,17 @@ arena_bin_flush_batch_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 			if (ptr == NULL) {
 				break;
 			}
+			num_pushed_elems++;
 			arena_dalloc_bin_locked_step(tsdn, arena, bin,
 			    dalloc_bin_info, binind, edata, ptr, dalloc_slabs,
 			    ndalloc_slabs, dalloc_count, dalloc_slabs_extra);
 		}
 	}
+	bin->stats.batch_pop_attempts++;
+	bin->stats.batch_pop_successes += (num_pushes != 0);
+	bin->stats.batch_pushes += num_pushes;
+	bin->stats.batch_pushed_elems += num_pushed_elems;
+
 	batcher_pop_end(&batched_bin->remote_frees,
 	    batched_bin->remote_free_elems, &iter);
 }
