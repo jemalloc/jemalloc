@@ -138,6 +138,11 @@ bin_stats_merge(tsdn_t *tsdn, bin_stats_data_t *dst_bin_stats, bin_t *bin) {
 	stats->reslabs += bin->stats.reslabs;
 	stats->curslabs += bin->stats.curslabs;
 	stats->nonfull_slabs += bin->stats.nonfull_slabs;
+
+	stats->batch_failed_pushes += bin->stats.batch_failed_pushes;
+	stats->batch_pushes += bin->stats.batch_pushes;
+	stats->batch_pushed_elems += bin->stats.batch_pushed_elems;
+
 	malloc_mutex_unlock(tsdn, &bin->lock);
 }
 

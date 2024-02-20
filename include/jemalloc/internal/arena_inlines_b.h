@@ -630,6 +630,8 @@ arena_bin_flush_batch_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 		    &batched_bin->remote_frees.mtx);
 	}
 
+	size_t npushes = batcher_pop_get_pushes(tsdn,
+	    &batched_bin->remote_frees);
 	bin_remote_free_data_t remote_free_data[BIN_REMOTE_FREE_ELEMS_MAX];
 	for (size_t i = 0; i < nelems_to_pop; i++) {
 		remote_free_data[i] = batched_bin->remote_free_data[i];
@@ -642,6 +644,10 @@ arena_bin_flush_batch_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 		    dalloc_slabs, ndalloc_slabs, dalloc_count,
 		    dalloc_slabs_extra);
 	}
+
+	bin->stats.batch_pops++;
+	bin->stats.batch_pushes += npushes;
+	bin->stats.batch_pushed_elems += nelems_to_pop;
 }
 
 typedef struct arena_bin_flush_batch_state_s arena_bin_flush_batch_state_t;
