@@ -580,7 +580,7 @@ background_threads_enable(tsd_t *tsd) {
 
 	VARIABLE_ARRAY(bool, marked, max_background_threads);
 	unsigned nmarked;
-	for (unsigned i = 0; i < max_background_threads; i++) {
+	for (size_t i = 0; i < max_background_threads; i++) {
 		marked[i] = false;
 	}
 	nmarked = 0;
