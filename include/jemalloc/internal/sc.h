@@ -286,6 +286,22 @@
 #  endif
 #endif
 
+/*
+ * When config_limit_usize_gap is enabled, the gaps between two contiguous
+ * size classes should not exceed PAGE.  This means there should be no concept
+ * of size classes for sizes > SC_SMALL_MAXCLASS (or >= SC_LARGE_MINCLASS).
+ * However, between SC_LARGE_MINCLASS (SC_NGROUP * PAGE) and
+ * 2 * SC_NGROUP * PAGE, the size class also happens to be aligned with PAGE.
+ * Since tcache relies on size classes to work and it greatly increases the
+ * perf of allocs & deallocs, we extend the existence of size class to
+ * 2 * SC_NGROUP * PAGE ONLY for the tcache module.  This means for all other
+ * modules, there is no size class for sizes >= SC_LARGE_MINCLASS.  Yet for
+ * tcache, the threshold is moved up to 2 * SC_NGROUP * PAGE, which is
+ * USIZE_GROW_SLOW_THRESHOLD defined below.
+ */
+#define LG_USIZE_GROW_SLOW_THRESHOLD (SC_LG_NGROUP + LG_PAGE + 1)
+#define USIZE_GROW_SLOW_THRESHOLD (1U << LG_USIZE_GROW_SLOW_THRESHOLD)
+
 #define SC_SLAB_MAXREGS (1U << SC_LG_SLAB_MAXREGS)
 
 typedef struct sc_s sc_t;
