@@ -2187,6 +2187,9 @@ static bool
 malloc_init_hard(void) {
 	tsd_t *tsd;
 
+#ifdef LIMIT_USIZE_GAP
+	assert(TCACHE_MAXCLASS_LIMIT <= USIZE_GROW_SLOW_THRESHOLD);
+#endif
 #if defined(_WIN32) && _WIN32_WINNT < 0x0600
 	_init_init_lock();
 #endif

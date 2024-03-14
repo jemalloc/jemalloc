@@ -192,6 +192,22 @@ eset_fit_alignment(eset_t *eset, size_t min_size, size_t max_size,
 	return NULL;
 }
 
+#ifdef LIMIT_USIZE_GAP
+edata_t *
+eset_enumerate_search(eset_t *eset, size_t size, pszind_t bin_ind,
+    edata_cmp_summary_t *ret_summ) {
+	// for now simply search the top one, in the future enumerate to search
+	// specified number of items in the bin.
+	edata_t *edata = edata_heap_empty(&eset->bins[bin_ind].heap) ? NULL :
+	    edata_heap_first(&eset->bins[bin_ind].heap);
+	if (edata == NULL || edata_size_get(edata) < size) {
+		return NULL;
+	}
+	*ret_summ = eset->bins[bin_ind].heap_min;
+	return edata;
+}
+#endif
+
 /*
  * Do first-fit extent selection, i.e. select the oldest/lowest extent that is
  * large enough.
@@ -209,6 +225,13 @@ eset_first_fit(eset_t *eset, size_t size, bool exact_only,
 	edata_cmp_summary_t ret_summ JEMALLOC_CC_SILENCE_INIT({0});
 
 	pszind_t pind = sz_psz2ind(sz_psz_quantize_ceil(size));
+#ifdef LIMIT_USIZE_GAP
+	pszind_t pind_in = sz_psz2ind(sz_psz_quantize_floor(size));
+
+	if (size >= SC_LARGE_MINCLASS && pind != pind_in) {
+		ret = eset_enumerate_search(eset, size, pind_in, &ret_summ);
+	}
+#endif
 
 	if (exact_only) {
 		return edata_heap_empty(&eset->bins[pind].heap) ? NULL :
