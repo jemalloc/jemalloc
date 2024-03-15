@@ -2,11 +2,62 @@
 #define JEMALLOC_INTERNAL_BIN_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/batcher.h"
 #include "jemalloc/internal/bin_stats.h"
 #include "jemalloc/internal/bin_types.h"
 #include "jemalloc/internal/edata.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/sc.h"
+
+#define BIN_MAX_BATCHES 4
+#define BIN_ELEMS_PER_BATCH 4
+
+#ifdef JEMALLOC_JET
+extern void (*bin_batching_test_after_push_hook)(int idx);
+extern void (*bin_batching_test_mid_pop_hook)(bool elems_to_pop);
+extern void (*bin_batching_test_after_unlock_hook)(unsigned slab_dalloc_count,
+    bool list_empty);
+#endif
+
+#ifdef JEMALLOC_JET
+extern unsigned bin_batching_test_ndalloc_slabs_max;
+#else
+static const unsigned bin_batching_test_ndalloc_slabs_max = (unsigned)-1;
+#endif
+
+
+
+JEMALLOC_ALWAYS_INLINE void
+bin_batching_test_after_push(int idx) {
+	(void)idx;
+#ifdef JEMALLOC_JET
+	if (bin_batching_test_after_push_hook != NULL) {
+		bin_batching_test_after_push_hook(idx);
+	}
+#endif
+}
+
+JEMALLOC_ALWAYS_INLINE void
+bin_batching_test_mid_pop(bool elems_to_pop) {
+	(void)elems_to_pop;
+#ifdef JEMALLOC_JET
+	if (bin_batching_test_mid_pop_hook != NULL) {
+		bin_batching_test_mid_pop_hook(elems_to_pop);
+	}
+#endif
+}
+
+JEMALLOC_ALWAYS_INLINE void
+bin_batching_test_after_unlock(unsigned slab_dalloc_count, bool list_empty) {
+	(void)slab_dalloc_count;
+	(void)list_empty;
+#ifdef JEMALLOC_JET
+	if (bin_batching_test_after_unlock_hook != NULL) {
+		bin_batching_test_after_unlock_hook(slab_dalloc_count,
+		    list_empty);
+	}
+#endif
+}
 
 /*
  * A bin contains a set of extents that are currently being used for slab
@@ -42,6 +93,22 @@ struct bin_s {
 	edata_list_active_t	slabs_full;
 };
 
+typedef struct bin_batch_data_s bin_batch_data_t;
+struct bin_batch_data_s {
+	struct {
+		void *ptr;
+		edata_t *slab;
+	} elems[BIN_ELEMS_PER_BATCH];
+};
+
+typedef struct bin_with_batch_s bin_with_batch_t;
+struct bin_with_batch_s {
+	bin_t bin;
+	batcher_t remote_frees;
+	batcher_elem_t remote_free_elems[BIN_MAX_BATCHES];
+	bin_batch_data_t remote_free_data[BIN_MAX_BATCHES];
+};
+
 /* A set of sharded bins of the same size class. */
 typedef struct bins_s bins_t;
 struct bins_s {
@@ -54,12 +121,12 @@ bool bin_update_shard_size(unsigned bin_shards[SC_NBINS], size_t start_size,
     size_t end_size, size_t nshards);
 
 /* Initializes a bin to empty.  Returns true on error. */
-bool bin_init(bin_t *bin);
+bool bin_init(bin_t *bin, unsigned binind);
 
 /* Forking. */
-void bin_prefork(tsdn_t *tsdn, bin_t *bin);
-void bin_postfork_parent(tsdn_t *tsdn, bin_t *bin);
-void bin_postfork_child(tsdn_t *tsdn, bin_t *bin);
+void bin_prefork(tsdn_t *tsdn, bin_t *bin, bool has_batch);
+void bin_postfork_parent(tsdn_t *tsdn, bin_t *bin, bool has_batch);
+void bin_postfork_child(tsdn_t *tsdn, bin_t *bin, bool has_batch);
 
 /* Stats. */
 static inline void
@@ -77,6 +144,13 @@ bin_stats_merge(tsdn_t *tsdn, bin_stats_data_t *dst_bin_stats, bin_t *bin) {
 	stats->reslabs += bin->stats.reslabs;
 	stats->curslabs += bin->stats.curslabs;
 	stats->nonfull_slabs += bin->stats.nonfull_slabs;
+
+	stats->batch_pop_attempts += bin->stats.batch_pop_attempts;
+	stats->batch_pop_successes += bin->stats.batch_pop_successes;
+	stats->batch_failed_push_attempts += bin->stats.batch_failed_push_attempts;
+	stats->batch_pushes += bin->stats.batch_pushes;
+	stats->batch_pushed_elems += bin->stats.batch_pushed_elems;
+
 	malloc_mutex_unlock(tsdn, &bin->lock);
 }
 

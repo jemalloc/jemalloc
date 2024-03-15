@@ -42,7 +42,19 @@ struct bin_info_s {
 	 * bin.
 	 */
 	bitmap_info_t		bitmap_info;
+
+	/* Number of batches to use in the given bin. */
+	unsigned		nbatches;
 };
+
+// The maximum size a size class can be and still get batching behavior.
+extern size_t opt_bin_info_max_batched_size;
+// The number of batches per batched size class.
+extern size_t opt_bin_info_batches_per_bin;
+
+extern szind_t bin_info_nbatched_sizes;
+extern unsigned bin_info_nbatched_bins;
+extern unsigned bin_info_nunbatched_bins;
 
 extern bin_info_t bin_infos[SC_NBINS];
 

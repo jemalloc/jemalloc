@@ -98,6 +98,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/arena.c \
 	$(srcroot)src/background_thread.c \
 	$(srcroot)src/base.c \
+	$(srcroot)src/batcher.c \
 	$(srcroot)src/bin.c \
 	$(srcroot)src/bin_info.c \
 	$(srcroot)src/bitmap.c \
@@ -204,6 +205,8 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/background_thread_enable.c \
 	$(srcroot)test/unit/base.c \
 	$(srcroot)test/unit/batch_alloc.c \
+	$(srcroot)test/unit/batcher.c \
+	$(srcroot)test/unit/bin_batching.c \
 	$(srcroot)test/unit/binshard.c \
 	$(srcroot)test/unit/bitmap.c \
 	$(srcroot)test/unit/bit_util.c \

@@ -563,10 +563,11 @@ arena_dalloc_bin_locked_begin(arena_dalloc_bin_locked_info_t *info,
  * stats updates, which happen during finish (this lets running counts get left
  * in a register).
  */
-JEMALLOC_ALWAYS_INLINE bool
+JEMALLOC_ALWAYS_INLINE void
 arena_dalloc_bin_locked_step(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
     arena_dalloc_bin_locked_info_t *info, szind_t binind, edata_t *slab,
-    void *ptr) {
+    void *ptr, edata_t **dalloc_slabs, unsigned ndalloc_slabs,
+    unsigned *dalloc_slabs_count, edata_list_active_t *dalloc_slabs_extra) {
 	const bin_info_t *bin_info = &bin_infos[binind];
 	size_t regind = arena_slab_regind(info, binind, slab, ptr);
 	slab_data_t *slab_data = edata_slab_data_get(slab);
@@ -586,12 +587,17 @@ arena_dalloc_bin_locked_step(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 	if (nfree == bin_info->nregs) {
 		arena_dalloc_bin_locked_handle_newly_empty(tsdn, arena, slab,
 		    bin);
-		return true;
+
+		if (*dalloc_slabs_count < ndalloc_slabs) {
+			dalloc_slabs[*dalloc_slabs_count] = slab;
+			(*dalloc_slabs_count)++;
+		} else {
+			edata_list_active_append(dalloc_slabs_extra, slab);
+		}
 	} else if (nfree == 1 && slab != bin->slabcur) {
 		arena_dalloc_bin_locked_handle_newly_nonempty(tsdn, arena, slab,
 		    bin);
 	}
-	return false;
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -604,10 +610,126 @@ arena_dalloc_bin_locked_finish(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 	}
 }
 
+JEMALLOC_ALWAYS_INLINE void
+arena_bin_flush_batch_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
+    arena_dalloc_bin_locked_info_t *dalloc_bin_info, unsigned binind,
+    edata_t **dalloc_slabs, unsigned ndalloc_slabs, unsigned *dalloc_count,
+    edata_list_active_t *dalloc_slabs_extra) {
+	assert(binind < bin_info_nbatched_sizes);
+	bin_with_batch_t *batched_bin = (bin_with_batch_t *)bin;
+	batcher_pop_iter_t iter;
+	bool elems_to_pop = batcher_pop_begin(
+	    &batched_bin->remote_frees,
+	    batched_bin->remote_free_elems, &iter);
+	bin_batching_test_mid_pop(elems_to_pop);
+	if (!elems_to_pop) {
+		return;
+	}
+	unsigned num_pushes = 0;
+	unsigned num_pushed_elems = 0;
+
+	int next_elem;
+	while ((next_elem = batcher_pop_next(&batched_bin->remote_frees,
+	    batched_bin->remote_free_elems, &iter)) != BATCHER_NO_IDX) {
+		num_pushes++;
+		bin_batch_data_t *data
+		    = &batched_bin->remote_free_data[next_elem];
+		for (int i = 0; i < BIN_ELEMS_PER_BATCH; i++) {
+			edata_t *edata = data->elems[i].slab;
+			void *ptr = data->elems[i].ptr;
+			assert((ptr == NULL) == (edata == NULL));
+			if (ptr == NULL) {
+				break;
+			}
+			num_pushed_elems++;
+			arena_dalloc_bin_locked_step(tsdn, arena, bin,
+			    dalloc_bin_info, binind, edata, ptr, dalloc_slabs,
+			    ndalloc_slabs, dalloc_count, dalloc_slabs_extra);
+		}
+	}
+	bin->stats.batch_pop_attempts++;
+	bin->stats.batch_pop_successes += (num_pushes != 0);
+	bin->stats.batch_pushes += num_pushes;
+	bin->stats.batch_pushed_elems += num_pushed_elems;
+
+	batcher_pop_end(&batched_bin->remote_frees,
+	    batched_bin->remote_free_elems, &iter);
+}
+
+typedef struct arena_bin_flush_batch_state_s arena_bin_flush_batch_state_t;
+struct arena_bin_flush_batch_state_s {
+	arena_dalloc_bin_locked_info_t info;
+
+	edata_t *dalloc_slabs[8];
+	unsigned dalloc_slab_count;
+	edata_list_active_t dalloc_slabs_extra;
+};
+
+JEMALLOC_ALWAYS_INLINE void
+arena_bin_flush_batch_after_lock(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
+    unsigned binind, arena_bin_flush_batch_state_t *state) {
+	if (binind >= bin_info_nbatched_sizes) {
+		return;
+	}
+
+	arena_dalloc_bin_locked_begin(&state->info, binind);
+	state->dalloc_slab_count = 0;
+	edata_list_active_init(&state->dalloc_slabs_extra);
+
+	unsigned ndalloc_slabs = (unsigned)(sizeof(state->dalloc_slabs)
+	    / sizeof(state->dalloc_slabs[0]));
+	if (ndalloc_slabs > bin_batching_test_ndalloc_slabs_max) {
+		ndalloc_slabs = bin_batching_test_ndalloc_slabs_max;
+	}
+
+	arena_bin_flush_batch_impl(tsdn, arena, bin, &state->info, binind,
+	    state->dalloc_slabs, ndalloc_slabs,
+	    &state->dalloc_slab_count, &state->dalloc_slabs_extra);
+}
+
+JEMALLOC_ALWAYS_INLINE void
+arena_bin_flush_batch_before_unlock(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
+    unsigned binind, arena_bin_flush_batch_state_t *state) {
+	if (binind >= bin_info_nbatched_sizes) {
+		return;
+	}
+
+	arena_dalloc_bin_locked_finish(tsdn, arena, bin, &state->info);
+}
+
+static inline bool
+arena_bin_has_batch(szind_t binind) {
+	return binind < bin_info_nbatched_sizes;
+}
+
+JEMALLOC_ALWAYS_INLINE void
+arena_bin_flush_batch_after_unlock(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
+    unsigned binind, arena_bin_flush_batch_state_t *state) {
+	if (!arena_bin_has_batch(binind)) {
+		return;
+	}
+	bin_batching_test_after_unlock(state->dalloc_slab_count,
+	    edata_list_active_empty(&state->dalloc_slabs_extra));
+	for (unsigned i = 0; i < state->dalloc_slab_count; i++) {
+		edata_t *slab = state->dalloc_slabs[i];
+		arena_slab_dalloc(tsdn, arena_get_from_edata(slab), slab);
+	}
+	while (!edata_list_active_empty(&state->dalloc_slabs_extra)) {
+		edata_t *slab = edata_list_active_first(
+		    &state->dalloc_slabs_extra);
+		edata_list_active_remove(&state->dalloc_slabs_extra, slab);
+		arena_slab_dalloc(tsdn, arena_get_from_edata(slab), slab);
+	}
+}
+
 static inline bin_t *
 arena_get_bin(arena_t *arena, szind_t binind, unsigned binshard) {
 	bin_t *shard0 = (bin_t *)((byte_t *)arena + arena_bin_offsets[binind]);
-	return shard0 + binshard;
+	if (arena_bin_has_batch(binind)) {
+		return (bin_t *)((bin_with_batch_t *)shard0 + binshard);
+	} else {
+		return shard0 + binshard;
+	}
 }
 
 #endif /* JEMALLOC_INTERNAL_ARENA_INLINES_B_H */

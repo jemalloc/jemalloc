@@ -129,6 +129,8 @@ CTL_PROTO(opt_zero)
 CTL_PROTO(opt_utrace)
 CTL_PROTO(opt_xmalloc)
 CTL_PROTO(opt_experimental_infallible_new)
+CTL_PROTO(opt_max_batched_size)
+CTL_PROTO(opt_batches_per_bin)
 CTL_PROTO(opt_tcache)
 CTL_PROTO(opt_tcache_max)
 CTL_PROTO(opt_tcache_nslots_small_min)
@@ -235,6 +237,11 @@ CTL_PROTO(stats_arenas_i_bins_j_nslabs)
 CTL_PROTO(stats_arenas_i_bins_j_nreslabs)
 CTL_PROTO(stats_arenas_i_bins_j_curslabs)
 CTL_PROTO(stats_arenas_i_bins_j_nonfull_slabs)
+CTL_PROTO(stats_arenas_i_bins_j_batch_pop_attempts)
+CTL_PROTO(stats_arenas_i_bins_j_batch_pop_successes)
+CTL_PROTO(stats_arenas_i_bins_j_batch_failed_push_attempts)
+CTL_PROTO(stats_arenas_i_bins_j_batch_pushes)
+CTL_PROTO(stats_arenas_i_bins_j_batch_pushed_elems)
 INDEX_PROTO(stats_arenas_i_bins_j)
 CTL_PROTO(stats_arenas_i_lextents_j_nmalloc)
 CTL_PROTO(stats_arenas_i_lextents_j_ndalloc)
@@ -479,6 +486,8 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("xmalloc"),	CTL(opt_xmalloc)},
 	{NAME("experimental_infallible_new"),
 		CTL(opt_experimental_infallible_new)},
+	{NAME("max_batched_size"),	CTL(opt_max_batched_size)},
+	{NAME("batches_per_bin"),	CTL(opt_batches_per_bin)},
 	{NAME("tcache"),	CTL(opt_tcache)},
 	{NAME("tcache_max"),	CTL(opt_tcache_max)},
 	{NAME("tcache_nslots_small_min"),
@@ -686,6 +695,16 @@ static const ctl_named_node_t stats_arenas_i_bins_j_node[] = {
 	{NAME("nreslabs"),	CTL(stats_arenas_i_bins_j_nreslabs)},
 	{NAME("curslabs"),	CTL(stats_arenas_i_bins_j_curslabs)},
 	{NAME("nonfull_slabs"),	CTL(stats_arenas_i_bins_j_nonfull_slabs)},
+	{NAME("batch_pop_attempts"),
+		CTL(stats_arenas_i_bins_j_batch_pop_attempts)},
+	{NAME("batch_pop_successes"),
+		CTL(stats_arenas_i_bins_j_batch_pop_successes)},
+	{NAME("batch_failed_push_attempts"),
+		CTL(stats_arenas_i_bins_j_batch_failed_push_attempts)},
+	{NAME("batch_pushes"),
+		CTL(stats_arenas_i_bins_j_batch_pushes)},
+	{NAME("batch_pushed_elems"),
+		CTL(stats_arenas_i_bins_j_batch_pushed_elems)},
 	{NAME("mutex"),		CHILD(named, stats_arenas_i_bins_j_mutex)}
 };
 
@@ -1238,6 +1257,17 @@ MUTEX_PROF_ARENA_MUTEXES
 				assert(bstats->curslabs == 0);
 				assert(bstats->nonfull_slabs == 0);
 			}
+
+			merged->batch_pop_attempts
+			    += bstats->batch_pop_attempts;
+			merged->batch_pop_successes
+			    += bstats->batch_pop_successes;
+			merged->batch_failed_push_attempts
+			    += bstats->batch_failed_push_attempts;
+			merged->batch_pushes += bstats->batch_pushes;
+			merged->batch_pushed_elems
+			    += bstats->batch_pushed_elems;
+
 			malloc_mutex_prof_merge(&sdstats->bstats[i].mutex_data,
 			    &astats->bstats[i].mutex_data);
 		}
@@ -2201,6 +2231,8 @@ CTL_RO_NL_CGEN(config_utrace, opt_utrace, opt_utrace, bool)
 CTL_RO_NL_CGEN(config_xmalloc, opt_xmalloc, opt_xmalloc, bool)
 CTL_RO_NL_CGEN(config_enable_cxx, opt_experimental_infallible_new,
     opt_experimental_infallible_new, bool)
+CTL_RO_NL_GEN(opt_max_batched_size, opt_bin_info_max_batched_size, size_t)
+CTL_RO_NL_GEN(opt_batches_per_bin, opt_bin_info_batches_per_bin, size_t)
 CTL_RO_NL_GEN(opt_tcache, opt_tcache, bool)
 CTL_RO_NL_GEN(opt_tcache_max, opt_tcache_max, size_t)
 CTL_RO_NL_GEN(opt_tcache_nslots_small_min, opt_tcache_nslots_small_min,
@@ -3953,6 +3985,16 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_curslabs,
     arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.curslabs, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nonfull_slabs,
     arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.nonfull_slabs, size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_batch_pop_attempts,
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.batch_pop_attempts, uint64_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_batch_pop_successes,
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.batch_pop_successes, uint64_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_batch_failed_push_attempts,
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.batch_failed_push_attempts, uint64_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_batch_pushes,
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.batch_pushes, uint64_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_batch_pushed_elems,
+    arenas_i(mib[2])->astats->bstats[mib[4]].stats_data.batch_pushed_elems, uint64_t)
 
 static const ctl_named_node_t *
 stats_arenas_i_bins_j_index(tsdn_t *tsdn, const size_t *mib,
