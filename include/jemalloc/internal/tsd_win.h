@@ -15,6 +15,11 @@ typedef struct {
 extern DWORD tsd_tsd;
 extern tsd_wrapper_t tsd_boot_wrapper;
 extern bool tsd_booted;
+#ifdef JEMALLOC_WIN32_TLSGETVALUE2
+typedef LPVOID (*TGV2)(DWORD dwTlsIndex);
+extern TGV2 tlsgetvalue2;
+extern HMODULE tgv2_mod;
+#endif
 
 /* Initialization/cleanup. */
 JEMALLOC_ALWAYS_INLINE bool
@@ -49,9 +54,16 @@ tsd_wrapper_set(tsd_wrapper_t *wrapper) {
 
 JEMALLOC_ALWAYS_INLINE tsd_wrapper_t *
 tsd_wrapper_get(bool init) {
-	DWORD error = GetLastError();
-	tsd_wrapper_t *wrapper = (tsd_wrapper_t *) TlsGetValue(tsd_tsd);
-	SetLastError(error);
+#ifdef JEMALLOC_WIN32_TLSGETVALUE2
+	if (tlsgetvalue2 != NULL) {
+		wrapper = (tsd_wrapper_t *) tlsgetvalue2(tsd_tsd);
+	} else
+#endif
+	{
+		DWORD error = GetLastError();
+		wrapper = (tsd_wrapper_t *) TlsGetValue(tsd_tsd);
+		SetLastError(error);
+	}
 
 	if (init && unlikely(wrapper == NULL)) {
 		wrapper = (tsd_wrapper_t *)
@@ -78,6 +90,12 @@ tsd_boot0(void) {
 	}
 	_malloc_tsd_cleanup_register(&tsd_cleanup_wrapper);
 	tsd_wrapper_set(&tsd_boot_wrapper);
+#ifdef JEMALLOC_WIN32_TLSGETVALUE2
+	tgv2_mod = LoadLibraryA("api-ms-win-core-processthreads-l1-1-8.dll");
+	if (tgv2_mod != NULL) {
+		tlsgetvalue2 = (TGV2)GetProcAddress(tgv2_mod, "TlsGetValue2");
+	}
+#endif
 	tsd_booted = true;
 	return false;
 }

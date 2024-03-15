@@ -25,6 +25,10 @@ bool tsd_booted = false;
 DWORD tsd_tsd;
 tsd_wrapper_t tsd_boot_wrapper = {false, TSD_INITIALIZER};
 bool tsd_booted = false;
+#ifdef JEMALLOC_WIN32_TLSGETVALUE2
+extern TGV2 tlsgetvalue2 = NULL;
+extern HMODULE tgv2_mod = NULL;
+#endif
 #else
 
 /*
