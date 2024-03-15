@@ -132,11 +132,11 @@ AC_SUBST([abs_objroot])
 
 dnl Munge install path variables.
 case "$prefix" in
-   *\ * ) AC_MSG_ERROR([Prefix should not contain spaces]) ;;
+   *\ * ) prefix=\"$prefix\" ;;
    "NONE" ) prefix="/usr/local" ;;
 esac
 case "$exec_prefix" in
-   *\ * ) AC_MSG_ERROR([Exec prefix should not contain spaces]) ;;
+   *\ * ) exec_prefix=\"$exec_prefix\" ;;
    "NONE" ) exec_prefix=$prefix ;;
 esac
 PREFIX=$prefix
