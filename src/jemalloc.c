@@ -754,8 +754,11 @@ malloc_ncpus(void) {
 #  endif
 #  if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
 		sched_getaffinity(0, sizeof(set), &set);
-#  else
+#  elif defined(JEMALLOC_HAVE_PTHREAD_GETAFFINITY_NP)
 		pthread_getaffinity_np(pthread_self(), sizeof(set), &set);
+#  else
+		CPU_ZERO(&set);
+		CPU_SET(0, &set);
 #  endif
 		result = CPU_COUNT(&set);
 	}
@@ -791,8 +794,11 @@ malloc_cpu_count_is_deterministic(void)
 #    endif /* __FreeBSD__ */
 #    if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
 	sched_getaffinity(0, sizeof(set), &set);
-#    else /* !JEMALLOC_HAVE_SCHED_SETAFFINITY */
+#    elif defined(JEMALLOC_HAVE_PTHREAD_GETAFFINITY_NP)
 	pthread_getaffinity_np(pthread_self(), sizeof(set), &set);
+#    else
+	CPU_ZERO(&set);
+	CPU_SET(0, &set);
 #    endif /* JEMALLOC_HAVE_SCHED_SETAFFINITY */
 	long cpu_affinity = CPU_COUNT(&set);
 	if (cpu_affinity != cpu_conf) {

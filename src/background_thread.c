@@ -116,7 +116,7 @@ set_current_thread_affinity(int cpu) {
 #if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY) || defined(JEMALLOC_HAVE_PTHREAD_SETAFFINITY_NP)
 #if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
 	cpu_set_t cpuset;
-#else
+#elif defined(JEMALLOC_HAVE_PTHREAD_GETAFFINITY_NP)
 #  ifndef __NetBSD__
 	cpuset_t cpuset;
 #  else
@@ -124,16 +124,20 @@ set_current_thread_affinity(int cpu) {
 #  endif
 #endif
 
+#if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY) || defined(JEMALLOC_HAVE_PTHREAD_GETAFFINITY_NP)
 #ifndef __NetBSD__
 	CPU_ZERO(&cpuset);
 	CPU_SET(cpu, &cpuset);
 #else
 	cpuset = cpuset_create();
 #endif
+#else
+	return 1;
+#endif
 
 #if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
 	return (sched_setaffinity(0, sizeof(cpu_set_t), &cpuset) != 0);
-#else
+#elif defined(JEMALLOC_HAVE_PTHREAD_GETAFFINITY_NP)
 #  ifndef __NetBSD__
 	int ret = pthread_setaffinity_np(pthread_self(), sizeof(cpuset_t),
 	    &cpuset);

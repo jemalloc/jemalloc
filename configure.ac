@@ -760,6 +760,15 @@ case "${host}" in
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ], [ ])
 	AC_DEFINE([JEMALLOC_USE_CXX_THROW], [ ], [ ])
 	;;
+  *-*-gnu*)
+	dnl syscall(2) and secure_getenv(3) are exposed by _GNU_SOURCE.
+	JE_APPEND_VS(CPPFLAGS, -D_GNU_SOURCE)
+	JE_APPEND_VS(CPPFLAGS, -DPATH_MAX=8192)
+	abi="elf"
+	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H])
+	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ])
+	AC_DEFINE([JEMALLOC_USE_CXX_THROW], [ ])
+	;;
   *-*-netbsd*)
 	AC_MSG_CHECKING([ABI])
         AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
@@ -1998,6 +2007,15 @@ dnl Check if we have dlsym support.
   if test "x${je_cv_pthread_get_name_np}" = "xyes" ; then
     AC_DEFINE([JEMALLOC_HAVE_PTHREAD_GET_NAME_NP], [ ], [ ])
   fi
+fi
+
+dnl Check if pthread_getaffinity_np exists (does not on GNU Hurd)
+AC_CHECK_FUNC([pthread_getaffinity_np],
+              [have_pthread_getaffinity_np="1"],
+              [have_pthread_getaffinity_np="0"]
+             )
+if test "x$have_pthread_getaffinity_np" = "x1" ; then
+  AC_DEFINE([JEMALLOC_HAVE_PTHREAD_GETAFFINITY_NP], [ ])
 fi
 
 JE_APPEND_VS(CPPFLAGS, -D_REENTRANT)
