@@ -17,6 +17,7 @@
 #    endif
 #  endif
 #else
+#  include <strings.h>
 #  include <sys/param.h>
 #  include <sys/mman.h>
 #  if !defined(__pnacl__) && !defined(__native_client__)
@@ -72,7 +73,6 @@
 #  define offsetof(type, member)	((size_t)&(((type *)NULL)->member))
 #endif
 #include <string.h>
-#include <strings.h>
 #include <ctype.h>
 #ifdef _MSC_VER
 #  include <io.h>
