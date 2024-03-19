@@ -250,6 +250,7 @@
 /*
  * popcount*() functions to use for bitmapping.
  */
+#undef JEMALLOC_INTERNAL_POPCOUNTLL
 #undef JEMALLOC_INTERNAL_POPCOUNTL
 #undef JEMALLOC_INTERNAL_POPCOUNT
 
