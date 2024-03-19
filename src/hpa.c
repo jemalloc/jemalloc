@@ -540,6 +540,7 @@ hpa_shard_maybe_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard,
 			if (purged) {
 				nops++;
 			}
+			malloc_printf("Looping\n");
 		}
 		hugified = hpa_try_hugify(tsdn, shard);
 		if (hugified) {
