@@ -26,6 +26,9 @@ extern char opt_prof_prefix[
     1];
 extern bool opt_prof_unbias;
 
+/* Include pid namespace in profile file names. */
+extern bool opt_prof_pid_namespace;
+
 /* For recording recent allocations */
 extern ssize_t opt_prof_recent_alloc_max;
 

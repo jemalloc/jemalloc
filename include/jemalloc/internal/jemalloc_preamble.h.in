@@ -260,4 +260,13 @@ static const bool have_memcntl =
 #endif
     ;
 
+/* Whether or not the pid namespaces are enabled. */
+static const bool config_enable_pid_namespace =
+#ifdef JEMALLOC_PID_NAMESPACE
+    true
+#else
+    false
+#endif
+;
+
 #endif /* JEMALLOC_PREAMBLE_H */
