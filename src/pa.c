@@ -11,7 +11,7 @@ pa_nactive_add(pa_shard_t *shard, size_t add_pages) {
 
 static void
 pa_nactive_sub(pa_shard_t *shard, size_t sub_pages) {
-	assert(atomic_load_zu(&shard->nactive, ATOMIC_RELAXED) >= sub_pages);
+	assert(pa_shard_nactive(shard) >= sub_pages);
 	atomic_fetch_sub_zu(&shard->nactive, sub_pages, ATOMIC_RELAXED);
 }
 
