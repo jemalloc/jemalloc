@@ -145,8 +145,22 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 		assert(nmalloc - ndalloc <= SIZE_T_MAX);
 		size_t curlextents = (size_t)(nmalloc - ndalloc);
 		lstats[i].curlextents += curlextents;
+
+#ifdef LIMIT_USIZE_GAP
+		uint64_t dalloc_bytes = locked_read_u64(tsdn,
+		    LOCKEDINT_MTX(arena->stats.mtx),
+		    &arena->stats.lstats[i].dalloc_bytes);
+		locked_inc_u64_unsynchronized(&lstats[i].dalloc_bytes, dalloc_bytes);
+
+		uint64_t malloc_bytes = locked_read_u64(tsdn,
+		    LOCKEDINT_MTX(arena->stats.mtx),
+		    &arena->stats.lstats[i].malloc_bytes);
+		locked_inc_u64_unsynchronized(&lstats[i].malloc_bytes, malloc_bytes);
+		astats->allocated_large += malloc_bytes - dalloc_bytes;
+#else
 		astats->allocated_large +=
 		    curlextents * sz_index2size(SC_NBINS + i);
+#endif
 	}
 
 	pa_shard_stats_merge(tsdn, &arena->pa_shard, &astats->pa_shard_stats,
@@ -315,6 +329,10 @@ arena_large_malloc_stats_update(tsdn_t *tsdn, arena_t *arena, size_t usize) {
 		LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 		locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
 			&arena->stats.lstats[hindex].nmalloc, 1);
+#ifdef LIMIT_USIZE_GAP
+		locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
+			&arena->stats.lstats[hindex].malloc_bytes, usize);
+#endif
 		LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 	}
 }
@@ -338,6 +356,10 @@ arena_large_dalloc_stats_update(tsdn_t *tsdn, arena_t *arena, size_t usize) {
 		LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 		locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
 			&arena->stats.lstats[hindex].ndalloc, 1);
+#ifdef LIMIT_USIZE_GAP
+		locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
+			&arena->stats.lstats[hindex].dalloc_bytes, usize);
+#endif
 		LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 	}
 }
