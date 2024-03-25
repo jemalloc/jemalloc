@@ -74,12 +74,31 @@ pa_shard_postfork_child(tsdn_t *tsdn, pa_shard_t *shard) {
 	}
 }
 
+size_t
+pa_shard_nactive(pa_shard_t *shard) {
+	return atomic_load_zu(&shard->nactive, ATOMIC_RELAXED);
+}
+
+size_t
+pa_shard_ndirty(pa_shard_t *shard) {
+	size_t ndirty = ecache_npages_get(&shard->pac.ecache_dirty);
+	if (shard->ever_used_hpa) {
+		ndirty += psset_ndirty(&shard->hpa_shard.psset);
+	}
+	return ndirty;
+}
+
+size_t
+pa_shard_nmuzzy(pa_shard_t *shard) {
+	return ecache_npages_get(&shard->pac.ecache_muzzy);
+}
+
 void
 pa_shard_basic_stats_merge(pa_shard_t *shard, size_t *nactive, size_t *ndirty,
     size_t *nmuzzy) {
-	*nactive += atomic_load_zu(&shard->nactive, ATOMIC_RELAXED);
-	*ndirty += ecache_npages_get(&shard->pac.ecache_dirty);
-	*nmuzzy += ecache_npages_get(&shard->pac.ecache_muzzy);
+	*nactive += pa_shard_nactive(shard);
+	*ndirty += pa_shard_ndirty(shard);
+	*nmuzzy += pa_shard_nmuzzy(shard);
 }
 
 void
@@ -95,8 +114,8 @@ pa_shard_stats_merge(tsdn_t *tsdn, pa_shard_t *shard,
 	    &shard->edata_cache.count, ATOMIC_RELAXED);
 
 	size_t resident_pgs = 0;
-	resident_pgs += atomic_load_zu(&shard->nactive, ATOMIC_RELAXED);
-	resident_pgs += ecache_npages_get(&shard->pac.ecache_dirty);
+	resident_pgs += pa_shard_nactive(shard);
+	resident_pgs += pa_shard_ndirty(shard);
 	*resident += (resident_pgs << LG_PAGE);
 
 	/* Dirty decay stats */
