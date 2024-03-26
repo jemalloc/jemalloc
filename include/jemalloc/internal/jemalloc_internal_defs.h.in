@@ -454,6 +454,12 @@
  */
 #undef JEMALLOC_HAVE_RDTSCP
 
+/*
+ * If defined, the gap between any two contiguous usizes should not exceed
+ * PAGE.
+ */
+#undef LIMIT_USIZE_GAP
+
 #include "jemalloc/internal/jemalloc_internal_overrides.h"
 
 #endif /* JEMALLOC_INTERNAL_DEFS_H_ */
