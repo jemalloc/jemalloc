@@ -39,6 +39,7 @@ extern atomic_zu_t zero_realloc_count;
 extern bool opt_cache_oblivious;
 extern unsigned opt_debug_double_free_max_scan;
 extern size_t opt_calloc_madvise_threshold;
+extern bool opt_limit_usize_gap;
 
 extern const char *opt_malloc_conf_symlink;
 extern const char *opt_malloc_conf_env_var;

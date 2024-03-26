@@ -168,6 +168,7 @@ CTL_PROTO(opt_prof_sys_thread_name)
 CTL_PROTO(opt_prof_time_res)
 CTL_PROTO(opt_lg_san_uaf_align)
 CTL_PROTO(opt_zero_realloc)
+CTL_PROTO(opt_limit_usize_gap)
 CTL_PROTO(opt_malloc_conf_symlink)
 CTL_PROTO(opt_malloc_conf_env_var)
 CTL_PROTO(opt_malloc_conf_global_var)
@@ -557,6 +558,7 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("zero_realloc"),	CTL(opt_zero_realloc)},
 	{NAME("debug_double_free_max_scan"),
 		CTL(opt_debug_double_free_max_scan)},
+	{NAME("limit_usize_gap"),	CTL(opt_limit_usize_gap)},
 	{NAME("malloc_conf"),	CHILD(named, opt_malloc_conf)}
 };
 
@@ -2341,6 +2343,8 @@ CTL_RO_NL_CGEN(config_uaf_detection, opt_lg_san_uaf_align,
     opt_lg_san_uaf_align, ssize_t)
 CTL_RO_NL_GEN(opt_zero_realloc,
     zero_realloc_mode_names[opt_zero_realloc_action], const char *)
+CTL_RO_NL_CGEN(config_limit_usize_gap, opt_limit_usize_gap, opt_limit_usize_gap,
+    bool)
 
 /* malloc_conf options */
 CTL_RO_NL_CGEN(opt_malloc_conf_symlink, opt_malloc_conf_symlink,

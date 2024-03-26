@@ -54,6 +54,15 @@ extern size_t sz_large_pad;
 
 extern void sz_boot(const sc_data_t *sc_data, bool cache_oblivious);
 
+JEMALLOC_ALWAYS_INLINE bool
+sz_limit_usize_gap_enabled() {
+#ifdef LIMIT_USIZE_GAP
+	return opt_limit_usize_gap;
+#else
+	return false;
+#endif
+}
+
 JEMALLOC_ALWAYS_INLINE pszind_t
 sz_psz2ind(size_t psz) {
 	assert(psz > 0);

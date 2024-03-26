@@ -123,6 +123,13 @@ zero_realloc_action_t opt_zero_realloc_action =
 
 atomic_zu_t zero_realloc_count = ATOMIC_INIT(0);
 
+bool opt_limit_usize_gap =
+#ifdef LIMIT_USIZE_GAP
+    false;
+#else
+    false;
+#endif
+
 const char *const zero_realloc_mode_names[] = {
 	"alloc",
 	"free",
@@ -1762,6 +1769,11 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			CONF_HANDLE_SIZE_T(opt_san_guard_large,
 			    "san_guard_large", 0, SIZE_T_MAX,
 			    CONF_DONT_CHECK_MIN, CONF_DONT_CHECK_MAX, false)
+
+			if (config_limit_usize_gap) {
+				CONF_HANDLE_BOOL(opt_limit_usize_gap,
+				    "limit_usize_gap");
+			}
 
 			CONF_ERROR("Invalid conf pair", k, klen, v, vlen);
 #undef CONF_ERROR
