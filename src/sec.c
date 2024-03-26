@@ -24,6 +24,13 @@ bool
 sec_init(tsdn_t *tsdn, sec_t *sec, base_t *base, pai_t *fallback,
     const sec_opts_t *opts) {
 	assert(opts->max_alloc >= PAGE);
+	/*
+	 * Same as tcache, sec do not cache allocs/dallocs larger than
+	 * USIZE_GROW_SLOW_THRESHOLD because the usize above this increases
+	 * by PAGE and the number of usizes is too large.
+	 */
+	assert(!sz_limit_usize_gap_enabled() ||
+	    opts->max_alloc <= USIZE_GROW_SLOW_THRESHOLD);
 
 	size_t max_alloc = PAGE_FLOOR(opts->max_alloc);
 	pszind_t npsizes = sz_psz2ind(max_alloc) + 1;

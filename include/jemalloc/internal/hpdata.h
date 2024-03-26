@@ -20,8 +20,14 @@
  * an observable property of any given region of address space).  It's just
  * hugepage-sized and hugepage-aligned; it's *potentially* huge.
  */
+
+/*
+ * The max enumeration num should not exceed 2^16 - 1, see comments in edata.h
+ * for ESET_ENUMERATE_MAX_NUM for more details.
+ */
+#define PSSET_ENUMERATE_MAX_NUM 32
 typedef struct hpdata_s hpdata_t;
-ph_structs(hpdata_age_heap, hpdata_t);
+ph_structs(hpdata_age_heap, hpdata_t, PSSET_ENUMERATE_MAX_NUM);
 struct hpdata_s {
 	/*
 	 * We likewise follow the edata convention of mangling names and forcing

@@ -145,8 +145,18 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 		assert(nmalloc - ndalloc <= SIZE_T_MAX);
 		size_t curlextents = (size_t)(nmalloc - ndalloc);
 		lstats[i].curlextents += curlextents;
-		astats->allocated_large +=
-		    curlextents * sz_index2size(SC_NBINS + i);
+
+		if (config_limit_usize_gap) {
+			uint64_t active_bytes = locked_read_u64(tsdn,
+			    LOCKEDINT_MTX(arena->stats.mtx),
+			    &arena->stats.lstats[i].active_bytes);
+			locked_inc_u64_unsynchronized(
+			    &lstats[i].active_bytes, active_bytes);
+			astats->allocated_large += active_bytes;
+		} else {
+			astats->allocated_large +=
+			    curlextents * sz_index2size(SC_NBINS + i);
+		}
 	}
 
 	pa_shard_stats_merge(tsdn, &arena->pa_shard, &astats->pa_shard_stats,
@@ -315,6 +325,11 @@ arena_large_malloc_stats_update(tsdn_t *tsdn, arena_t *arena, size_t usize) {
 		LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 		locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
 			&arena->stats.lstats[hindex].nmalloc, 1);
+		if (config_limit_usize_gap) {
+			locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
+			    &arena->stats.lstats[hindex].active_bytes,
+			    usize);
+		}
 		LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 	}
 }
@@ -338,6 +353,11 @@ arena_large_dalloc_stats_update(tsdn_t *tsdn, arena_t *arena, size_t usize) {
 		LOCKEDINT_MTX_LOCK(tsdn, arena->stats.mtx);
 		locked_inc_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
 			&arena->stats.lstats[hindex].ndalloc, 1);
+		if (config_limit_usize_gap) {
+			locked_dec_u64(tsdn, LOCKEDINT_MTX(arena->stats.mtx),
+			    &arena->stats.lstats[hindex].active_bytes,
+			    usize);
+		}
 		LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 	}
 }
@@ -802,7 +822,7 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 		assert(alloc_ctx.szind != SC_NSIZES);
 
 		if (config_stats || (config_prof && opt_prof)) {
-			usize = sz_index2size(alloc_ctx.szind);
+			usize = emap_alloc_ctx_usize_get(&alloc_ctx);
 			assert(usize == isalloc(tsd_tsdn(tsd), ptr));
 		}
 		/* Remove large allocation from prof sample set. */
@@ -1346,7 +1366,7 @@ arena_malloc_hard(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind,
 		assert(sz_can_use_slab(size));
 		return arena_malloc_small(tsdn, arena, ind, zero);
 	} else {
-		return large_malloc(tsdn, arena, sz_index2size(ind), zero);
+		return large_malloc(tsdn, arena, sz_s2u(size), zero);
 	}
 }
 

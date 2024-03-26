@@ -338,17 +338,49 @@ psset_update_end(psset_t *psset, hpdata_t *ps) {
 }
 
 hpdata_t *
+psset_enumerate_search(psset_t *psset, pszind_t pind, size_t size) {
+	if (hpdata_age_heap_empty(&psset->pageslabs[pind])) {
+		return NULL;
+	}
+
+	hpdata_t *ps = NULL;
+	hpdata_age_heap_enumerate_helper_t helper;
+	hpdata_age_heap_enumerate_prepare(&psset->pageslabs[pind], &helper,
+	    PSSET_ENUMERATE_MAX_NUM, sizeof(helper.bfs_queue) / sizeof(void *));
+
+	while ((ps = hpdata_age_heap_enumerate_next(&psset->pageslabs[pind],
+	    &helper))) {
+		if (hpdata_longest_free_range_get(ps) >= size) {
+			return ps;
+		}
+	}
+
+	return NULL;
+}
+
+hpdata_t *
 psset_pick_alloc(psset_t *psset, size_t size) {
 	assert((size & PAGE_MASK) == 0);
 	assert(size <= HUGEPAGE);
 
 	pszind_t min_pind = sz_psz2ind(sz_psz_quantize_ceil(size));
+	hpdata_t *ps = NULL;
+
+	/* See comments in eset_first_fit for why we enumerate search below. */
+	pszind_t pind_prev = sz_psz2ind(sz_psz_quantize_floor(size));
+	if (sz_limit_usize_gap_enabled() && pind_prev < min_pind) {
+		ps = psset_enumerate_search(psset, pind_prev, size);
+		if (ps != NULL) {
+			return ps;
+		}
+	}
+
 	pszind_t pind = (pszind_t)fb_ffs(psset->pageslab_bitmap, PSSET_NPSIZES,
 	    (size_t)min_pind);
 	if (pind == PSSET_NPSIZES) {
 		return hpdata_empty_list_first(&psset->empty);
 	}
-	hpdata_t *ps = hpdata_age_heap_first(&psset->pageslabs[pind]);
+	ps = hpdata_age_heap_first(&psset->pageslabs[pind]);
 	if (ps == NULL) {
 		return NULL;
 	}

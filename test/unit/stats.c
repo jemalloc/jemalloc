@@ -202,17 +202,22 @@ TEST_END
 
 TEST_BEGIN(test_stats_arenas_large) {
 	void *p;
-	size_t sz, allocated;
+	size_t sz, allocated, allocated_before;
 	uint64_t epoch, nmalloc, ndalloc;
+	size_t malloc_size = (1U << (SC_LG_LARGE_MINCLASS + 1)) + 1;
 	int expected = config_stats ? 0 : ENOENT;
 
-	p = mallocx((1U << SC_LG_LARGE_MINCLASS), MALLOCX_ARENA(0));
+	sz = sizeof(size_t);
+	expect_d_eq(mallctl("stats.arenas.0.large.allocated",
+	    (void *)&allocated_before, &sz, NULL, 0), expected,
+	    "Unexpected mallctl() result");
+
+	p = mallocx(malloc_size, MALLOCX_ARENA(0));
 	expect_ptr_not_null(p, "Unexpected mallocx() failure");
 
 	expect_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sizeof(epoch)),
 	    0, "Unexpected mallctl() failure");
 
-	sz = sizeof(size_t);
 	expect_d_eq(mallctl("stats.arenas.0.large.allocated",
 	    (void *)&allocated, &sz, NULL, 0), expected,
 	    "Unexpected mallctl() result");
@@ -223,8 +228,10 @@ TEST_BEGIN(test_stats_arenas_large) {
 	    &sz, NULL, 0), expected, "Unexpected mallctl() result");
 
 	if (config_stats) {
-		expect_zu_gt(allocated, 0,
+		expect_zu_ge(allocated_before, 0,
 		    "allocated should be greater than zero");
+		expect_zu_ge(allocated - allocated_before, sz_s2u(malloc_size),
+		    "the diff between allocated should be greater than the allocation made");
 		expect_u64_gt(nmalloc, 0,
 		    "nmalloc should be greater than zero");
 		expect_u64_ge(nmalloc, ndalloc,

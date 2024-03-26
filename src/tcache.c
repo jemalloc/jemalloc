@@ -1047,7 +1047,8 @@ tcache_bin_flush_impl_large(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin
 				ndeferred++;
 				continue;
 			}
-			if (large_dalloc_safety_checks(edata, ptr, binind)) {
+			if (large_dalloc_safety_checks(edata, ptr,
+			    sz_index2size(binind))) {
 				/* See the comment in isfree. */
 				continue;
 			}

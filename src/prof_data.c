@@ -513,7 +513,13 @@ void prof_unbias_map_init(void) {
 	/* See the comment in prof_sample_new_event_wait */
 #ifdef JEMALLOC_PROF
 	for (szind_t i = 0; i < SC_NSIZES; i++) {
-		double sz = (double)sz_index2size(i);
+		/*
+		 * When limit_usize_gap is enabled, the unbiased calculation
+		 * here is not as accurate as it was because usize now changes
+		 * in a finer grain while the unbiased_sz is still calculated
+		 * using the old way.
+		 */
+		double sz = (double)sz_index2size_unsafe(i);
 		double rate = (double)(ZU(1) << lg_prof_sample);
 		double div_val = 1.0 - exp(-sz / rate);
 		double unbiased_sz = sz / div_val;

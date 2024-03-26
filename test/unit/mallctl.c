@@ -332,6 +332,7 @@ TEST_BEGIN(test_mallctl_opt) {
 	TEST_MALLCTL_OPT(bool, prof_sys_thread_name, prof);
 	TEST_MALLCTL_OPT(ssize_t, lg_san_uaf_align, uaf_detection);
 	TEST_MALLCTL_OPT(unsigned, debug_double_free_max_scan, always);
+	TEST_MALLCTL_OPT(bool, limit_usize_gap, limit_usize_gap);
 
 #undef TEST_MALLCTL_OPT
 }

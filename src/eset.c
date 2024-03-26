@@ -155,6 +155,71 @@ eset_remove(eset_t *eset, edata_t *edata) {
 	    cur_extents_npages - (size >> LG_PAGE), ATOMIC_RELAXED);
 }
 
+edata_t *
+eset_enumerate_alignment_search(eset_t *eset, size_t size, pszind_t bin_ind,
+    size_t alignment) {
+	if (edata_heap_empty(&eset->bins[bin_ind].heap)) {
+		return NULL;
+	}
+
+	edata_t *edata = NULL;
+	edata_heap_enumerate_helper_t helper;
+	edata_heap_enumerate_prepare(&eset->bins[bin_ind].heap, &helper,
+	    ESET_ENUMERATE_MAX_NUM, sizeof(helper.bfs_queue)/sizeof(void *));
+	while ((edata =
+	    edata_heap_enumerate_next(&eset->bins[bin_ind].heap, &helper)) !=
+	    NULL) {
+		uintptr_t base = (uintptr_t)edata_base_get(edata);
+		size_t candidate_size = edata_size_get(edata);
+		if (candidate_size < size) {
+			continue;
+		}
+
+		uintptr_t next_align = ALIGNMENT_CEILING((uintptr_t)base,
+		    PAGE_CEILING(alignment));
+		if (base > next_align || base + candidate_size <= next_align) {
+			/* Overflow or not crossing the next alignment. */
+			continue;
+		}
+
+		size_t leadsize = next_align - base;
+		if (candidate_size - leadsize >= size) {
+			return edata;
+		}
+	}
+
+	return NULL;
+}
+
+edata_t *
+eset_enumerate_search(eset_t *eset, size_t size, pszind_t bin_ind,
+    bool exact_only, edata_cmp_summary_t *ret_summ) {
+	if (edata_heap_empty(&eset->bins[bin_ind].heap)) {
+		return NULL;
+	}
+
+	edata_t *ret = NULL, *edata = NULL;
+	edata_heap_enumerate_helper_t helper;
+	edata_heap_enumerate_prepare(&eset->bins[bin_ind].heap, &helper,
+	    ESET_ENUMERATE_MAX_NUM, sizeof(helper.bfs_queue)/sizeof(void *));
+	while ((edata =
+	    edata_heap_enumerate_next(&eset->bins[bin_ind].heap, &helper)) !=
+	    NULL) {
+		if ((!exact_only && edata_size_get(edata) >= size) ||
+		    (exact_only && edata_size_get(edata) == size)) {
+			edata_cmp_summary_t temp_summ =
+			    edata_cmp_summary_get(edata);
+			if (ret == NULL || edata_cmp_summary_comp(temp_summ,
+			    *ret_summ) < 0) {
+				ret = edata;
+				*ret_summ = temp_summ;
+			}
+		}
+	}
+
+	return ret;
+}
+
 /*
  * Find an extent with size [min_size, max_size) to satisfy the alignment
  * requirement.  For each size, try only the first extent in the heap.
@@ -162,8 +227,19 @@ eset_remove(eset_t *eset, edata_t *edata) {
 static edata_t *
 eset_fit_alignment(eset_t *eset, size_t min_size, size_t max_size,
     size_t alignment) {
-        pszind_t pind = sz_psz2ind(sz_psz_quantize_ceil(min_size));
-        pszind_t pind_max = sz_psz2ind(sz_psz_quantize_ceil(max_size));
+	pszind_t pind = sz_psz2ind(sz_psz_quantize_ceil(min_size));
+	pszind_t pind_max = sz_psz2ind(sz_psz_quantize_ceil(max_size));
+
+	/* See comments in eset_first_fit for why we enumerate search below. */
+	pszind_t pind_prev = sz_psz2ind(sz_psz_quantize_floor(min_size));
+	if (sz_limit_usize_gap_enabled() && pind != pind_prev) {
+		edata_t *ret = NULL;
+		ret = eset_enumerate_alignment_search(eset, min_size, pind_prev,
+		    alignment);
+		if (ret != NULL) {
+			return ret;
+		}
+	}
 
 	for (pszind_t i =
 	    (pszind_t)fb_ffs(eset->bitmap, ESET_NPSIZES, (size_t)pind);
@@ -211,8 +287,43 @@ eset_first_fit(eset_t *eset, size_t size, bool exact_only,
 	pszind_t pind = sz_psz2ind(sz_psz_quantize_ceil(size));
 
 	if (exact_only) {
-		return edata_heap_empty(&eset->bins[pind].heap) ? NULL :
-		    edata_heap_first(&eset->bins[pind].heap);
+		if (sz_limit_usize_gap_enabled()) {
+			pszind_t pind_prev =
+			    sz_psz2ind(sz_psz_quantize_floor(size));
+			return eset_enumerate_search(eset, size, pind_prev,
+			    /* exact_only */ true, &ret_summ);
+		} else {
+			return edata_heap_empty(&eset->bins[pind].heap) ? NULL:
+			    edata_heap_first(&eset->bins[pind].heap);
+		}
+	}
+
+	/*
+	 * Each element in the eset->bins is a heap corresponding to a size
+	 * class.  When sz_limit_usize_gap_enabled() is false, all heaps after
+	 * pind (including pind itself) will surely satisfy the rquests while
+	 * heaps before pind cannot satisfy the request because usize is
+	 * calculated based on size classes then.  However, when
+	 * sz_limit_usize_gap_enabled() is true, usize is calculated by ceiling
+	 * user requested size to the closest multiple of PAGE.  This means in
+	 * the heap before pind, i.e., pind_prev, there may exist extents able
+	 * to satisfy the request and we should enumerate the heap when
+	 * pind_prev != pind.
+	 *
+	 * For example, when PAGE=4KB and the user requested size is 1MB + 4KB,
+	 * usize would be 1.25MB when sz_limit_usize_gap_enabled() is false.
+	 * pind points to the heap containing extents ranging in
+	 * [1.25MB, 1.5MB).  Thus, searching starting from pind will not miss
+	 * any candidates.  When sz_limit_usize_gap_enabled() is true, the
+	 * usize would be 1MB + 4KB and pind still points to the same heap.
+	 * In this case, the heap pind_prev points to, which contains extents
+	 * in the range [1MB, 1.25MB), may contain candidates satisfying the
+	 * usize and thus should be enumerated.
+	 */
+	pszind_t pind_prev = sz_psz2ind(sz_psz_quantize_floor(size));
+	if (sz_limit_usize_gap_enabled() && pind != pind_prev){
+		ret = eset_enumerate_search(eset, size, pind_prev,
+		    /* exact_only */ false, &ret_summ);
 	}
 
 	for (pszind_t i =

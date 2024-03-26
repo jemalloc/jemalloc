@@ -21,6 +21,14 @@
  */
 #define EDATA_ALIGNMENT 128
 
+/*
+ * Defines how many nodes visited when enumerating the heap to search for
+ * qualifed extents.  More nodes visited may result in better choices at
+ * the cost of longer search time.  This size should not exceed 2^16 - 1
+ * because we use uint16_t for accessing the queue needed for enumeration.
+ */
+#define ESET_ENUMERATE_MAX_NUM 32
+
 enum extent_state_e {
 	extent_state_active   = 0,
 	extent_state_dirty    = 1,
@@ -89,8 +97,8 @@ struct edata_cmp_summary_s {
 
 /* Extent (span of pages).  Use accessor functions for e_* fields. */
 typedef struct edata_s edata_t;
-ph_structs(edata_avail, edata_t);
-ph_structs(edata_heap, edata_t);
+ph_structs(edata_avail, edata_t, ESET_ENUMERATE_MAX_NUM);
+ph_structs(edata_heap, edata_t, ESET_ENUMERATE_MAX_NUM);
 struct edata_s {
 	/*
 	 * Bitfield containing several fields:
@@ -281,7 +289,54 @@ edata_szind_get(const edata_t *edata) {
 
 static inline size_t
 edata_usize_get(const edata_t *edata) {
-	return sz_index2size(edata_szind_get(edata));
+	assert(edata != NULL);
+	/*
+	 * When sz_limit_usize_gap_enabled() is true, two cases:
+	 * 1. if usize_from_ind is not smaller than SC_LARGE_MINCLASS,
+	 * usize_from_size is accurate;
+	 * 2. otherwise, usize_from_ind is accurate.
+	 *
+	 * When sz_limit_usize_gap_enabled() is not true, the two should be the
+	 * same when usize_from_ind is not smaller than SC_LARGE_MINCLASS.
+	 *
+	 * Note sampled small allocs will be promoted.  Their extent size is
+	 * recorded in edata_size_get(edata), while their szind reflects the
+	 * true usize.  Thus, usize retrieved here is still accurate for
+	 * sampled small allocs.
+	 */
+	szind_t szind = edata_szind_get(edata);
+#ifdef JEMALLOC_JET
+	/*
+	 * Double free is invalid and results in undefined behavior.  However,
+	 * for double free tests to end gracefully, return an invalid usize
+	 * when szind shows the edata is not active, i.e., szind == SC_NSIZES.
+	 */
+	if (unlikely(szind == SC_NSIZES)) {
+		return SC_LARGE_MAXCLASS + 1;
+	}
+#endif
+
+	if (!sz_limit_usize_gap_enabled() || szind < SC_NBINS) {
+		size_t usize_from_ind = sz_index2size(szind);
+		if (!sz_limit_usize_gap_enabled() &&
+		    usize_from_ind >= SC_LARGE_MINCLASS) {
+			size_t size = (edata->e_size_esn & EDATA_SIZE_MASK);
+			assert(size > sz_large_pad);
+			size_t usize_from_size = size - sz_large_pad;
+			assert(usize_from_ind == usize_from_size);
+		}
+		return usize_from_ind;
+	}
+
+	size_t size = (edata->e_size_esn & EDATA_SIZE_MASK);
+	assert(size > sz_large_pad);
+	size_t usize_from_size = size - sz_large_pad;
+	/*
+	 * no matter limit-usize-gap enabled or not, usize retrieved from size
+	 * is not accurate when smaller than SC_LARGE_MINCLASS.
+	 */
+	assert(usize_from_size >= SC_LARGE_MINCLASS);
+	return usize_from_size;
 }
 
 static inline unsigned

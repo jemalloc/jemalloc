@@ -5,7 +5,7 @@
 
 #define SHARD_IND 111
 
-#define ALLOC_MAX (HUGEPAGE / 4)
+#define ALLOC_MAX (HUGEPAGE)
 
 typedef struct test_data_s test_data_t;
 struct test_data_s {
