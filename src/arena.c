@@ -822,7 +822,7 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 		assert(alloc_ctx.szind != SC_NSIZES);
 
 		if (config_stats || (config_prof && opt_prof)) {
-			usize = sz_index2size(alloc_ctx.szind);
+			usize = emap_alloc_ctx_usize_get(&alloc_ctx);
 			assert(usize == isalloc(tsd_tsdn(tsd), ptr));
 		}
 		/* Remove large allocation from prof sample set. */
@@ -1366,7 +1366,9 @@ arena_malloc_hard(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind,
 		assert(sz_can_use_slab(size));
 		return arena_malloc_small(tsdn, arena, ind, zero);
 	} else {
-		return large_malloc(tsdn, arena, sz_index2size(ind), zero);
+		size_t usize = sz_limit_usize_gap_enabled()? sz_s2u(size):
+		    sz_index2size(ind);
+		return large_malloc(tsdn, arena, usize, zero);
 	}
 }
 

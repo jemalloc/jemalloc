@@ -288,8 +288,51 @@ edata_szind_get(const edata_t *edata) {
 }
 
 static inline size_t
-edata_usize_get(const edata_t *edata) {
+edata_usize_get_from_ind_unsafe(const edata_t *edata) {
 	return sz_index2size(edata_szind_get(edata));
+}
+
+static inline size_t
+edata_usize_get_from_ind(const edata_t *edata) {
+	size_t usize = edata_usize_get_from_ind_unsafe(edata);
+	assert(!sz_limit_usize_gap_enabled() || usize < SC_LARGE_MINCLASS);
+	return usize;
+}
+
+static inline size_t
+edata_usize_get_from_size(const edata_t *edata) {
+	size_t size = (edata->e_size_esn & EDATA_SIZE_MASK);
+	assert(size > sz_large_pad);
+	size_t usize = size - sz_large_pad;
+	/*
+	 * No matter limit-usize-gap enabled or not, usize retrieved here is
+	 * not accurate when smaller than SC_LAGE_MINCLASS.
+	 */
+	assert(usize >= SC_LARGE_MINCLASS);
+	return usize;
+}
+
+static inline size_t
+edata_usize_get(const edata_t *edata) {
+	/*
+	 * When sz_limit_usize_gap_enabled() is true, two cases:
+	 * 1. if usize_from_ind is not smaller than SC_LARGE_MINCLASS,
+	 * usize_from_size is accurate;
+	 * 2. otherwise, usize_from_ind is accurate.
+	 *
+	 * When sz_limit_usize_gap_enabled() is not true, the two should be the
+	 * same when usize_from_ind is not smaller than SC_LARGE_MINCLASS.
+	 */
+	size_t usize_from_ind = edata_usize_get_from_ind_unsafe(edata);
+	if (!sz_limit_usize_gap_enabled() ||
+	    usize_from_ind < SC_LARGE_MINCLASS) {
+		assert(sz_limit_usize_gap_enabled() ||
+		    usize_from_ind < SC_LARGE_MINCLASS ||
+		    usize_from_ind == edata_usize_get_from_size(edata));
+		return usize_from_ind;
+	}
+
+	return edata_usize_get_from_size(edata);
 }
 
 static inline unsigned

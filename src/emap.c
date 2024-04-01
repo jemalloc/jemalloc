@@ -73,6 +73,11 @@ emap_try_acquire_edata_neighbor_impl(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
 		return NULL;
 	}
 
+	/*
+	 * Info in neighbor_contents may be inaccurate before
+	 * extent_can_acquire_neighbor below confirms the neighbor can be
+	 * acquired.  Set dependent to false to avoid reading usize.
+	 */
 	rtree_contents_t neighbor_contents = rtree_leaf_elm_read(tsdn,
 	    &emap->rtree, elm, /* dependent */ false);
 	if (!extent_can_acquire_neighbor(edata, neighbor_contents, pai,
