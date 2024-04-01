@@ -51,7 +51,7 @@ arena_choose_maybe_huge(tsd_t *tsd, arena_t *arena, size_t size) {
 }
 
 JEMALLOC_ALWAYS_INLINE bool
-large_dalloc_safety_checks(edata_t *edata, const void *ptr, szind_t szind) {
+large_dalloc_safety_checks(edata_t *edata, const void *ptr, size_t input_size) {
 	if (!config_opt_safety_checks) {
 		return false;
 	}
@@ -68,7 +68,6 @@ large_dalloc_safety_checks(edata_t *edata, const void *ptr, szind_t szind) {
 		    "possibly caused by double free bugs.", ptr);
 		return true;
 	}
-	size_t input_size = sz_index2size(szind);
 	if (unlikely(input_size != edata_usize_get(edata))) {
 		safety_check_fail_sized_dealloc(/* current_dealloc */ true, ptr,
 		    /* true_size */ edata_usize_get(edata), input_size);
@@ -101,9 +100,14 @@ arena_prof_info_get(tsd_t *tsd, const void *ptr, emap_alloc_ctx_t *alloc_ctx,
 	if (unlikely(!is_slab)) {
 		/* edata must have been initialized at this point. */
 		assert(edata != NULL);
+		size_t usize =
+#ifdef LIMIT_USIZE_GAP
+		(alloc_ctx == NULL)? edata_usize_get(edata): alloc_ctx->usize;
+#else
+		sz_index2size(edata_szind_get(edata));
+#endif
 		if (reset_recent &&
-		    large_dalloc_safety_checks(edata, ptr,
-		    edata_szind_get(edata))) {
+		    large_dalloc_safety_checks(edata, ptr, usize)) {
 			prof_info->alloc_tctx = PROF_TCTX_SENTINEL;
 			return;
 		}
@@ -225,7 +229,7 @@ arena_salloc(tsdn_t *tsdn, const void *ptr) {
 	emap_alloc_ctx_lookup(tsdn, &arena_emap_global, ptr, &alloc_ctx);
 	assert(alloc_ctx.szind != SC_NSIZES);
 
-	return sz_index2size(alloc_ctx.szind);
+	return emap_alloc_ctx_usize_get(&alloc_ctx);
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
@@ -256,17 +260,19 @@ arena_vsalloc(tsdn_t *tsdn, const void *ptr) {
 
 	assert(full_alloc_ctx.szind != SC_NSIZES);
 
-	return sz_index2size(full_alloc_ctx.szind);
+	return config_limit_usize_gap? edata_usize_get(full_alloc_ctx.edata):
+	    sz_index2size(full_alloc_ctx.szind);
 }
 
 static inline void
-arena_dalloc_large_no_tcache(tsdn_t *tsdn, void *ptr, szind_t szind) {
+arena_dalloc_large_no_tcache(tsdn_t *tsdn, void *ptr, szind_t szind,
+    size_t usize) {
 	if (config_prof && unlikely(szind < SC_NBINS)) {
 		arena_dalloc_promoted(tsdn, ptr, NULL, true);
 	} else {
 		edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global,
 		    ptr);
-		if (large_dalloc_safety_checks(edata, ptr, szind)) {
+		if (large_dalloc_safety_checks(edata, ptr, usize)) {
 			/* See the comment in isfree. */
 			return;
 		}
@@ -287,19 +293,22 @@ arena_dalloc_no_tcache(tsdn_t *tsdn, void *ptr) {
 		assert(alloc_ctx.szind == edata_szind_get(edata));
 		assert(alloc_ctx.szind < SC_NSIZES);
 		assert(alloc_ctx.slab == edata_slab_get(edata));
+		assert(emap_alloc_ctx_usize_get(&alloc_ctx) ==
+		    edata_usize_get(edata));
 	}
 
 	if (likely(alloc_ctx.slab)) {
 		/* Small allocation. */
 		arena_dalloc_small(tsdn, ptr);
 	} else {
-		arena_dalloc_large_no_tcache(tsdn, ptr, alloc_ctx.szind);
+		arena_dalloc_large_no_tcache(tsdn, ptr, alloc_ctx.szind,
+		    emap_alloc_ctx_usize_get(&alloc_ctx));
 	}
 }
 
 JEMALLOC_ALWAYS_INLINE void
 arena_dalloc_large(tsdn_t *tsdn, void *ptr, tcache_t *tcache, szind_t szind,
-    bool slow_path) {
+    size_t usize, bool slow_path) {
 	assert (!tsdn_null(tsdn) && tcache != NULL);
 	bool is_sample_promoted = config_prof && szind < SC_NBINS;
 	if (unlikely(is_sample_promoted)) {
@@ -313,7 +322,7 @@ arena_dalloc_large(tsdn_t *tsdn, void *ptr, tcache_t *tcache, szind_t szind,
 		} else {
 			edata_t *edata = emap_edata_lookup(tsdn,
 			    &arena_emap_global, ptr);
-			if (large_dalloc_safety_checks(edata, ptr, szind)) {
+			if (large_dalloc_safety_checks(edata, ptr, usize)) {
 				/* See the comment in isfree. */
 				return;
 			}
@@ -396,6 +405,8 @@ arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 		assert(alloc_ctx.szind == edata_szind_get(edata));
 		assert(alloc_ctx.szind < SC_NSIZES);
 		assert(alloc_ctx.slab == edata_slab_get(edata));
+		assert(emap_alloc_ctx_usize_get(&alloc_ctx) ==
+		    edata_usize_get(edata));
 	}
 
 	if (likely(alloc_ctx.slab)) {
@@ -407,7 +418,7 @@ arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 		    alloc_ctx.szind, slow_path);
 	} else {
 		arena_dalloc_large(tsdn, ptr, tcache, alloc_ctx.szind,
-		    slow_path);
+		    emap_alloc_ctx_usize_get(&alloc_ctx), slow_path);
 	}
 }
 
@@ -422,8 +433,9 @@ arena_sdalloc_no_tcache(tsdn_t *tsdn, void *ptr, size_t size) {
 		 * There is no risk of being confused by a promoted sampled
 		 * object, so base szind and slab on the given size.
 		 */
-		alloc_ctx.szind = sz_size2index(size);
-		alloc_ctx.slab = (alloc_ctx.szind < SC_NBINS);
+		szind_t szind = sz_size2index(size);
+		emap_alloc_ctx_set(&alloc_ctx, szind, (szind < SC_NBINS),
+		    size);
 	}
 
 	if ((config_prof && opt_prof) || config_debug) {
@@ -446,7 +458,8 @@ arena_sdalloc_no_tcache(tsdn_t *tsdn, void *ptr, size_t size) {
 		/* Small allocation. */
 		arena_dalloc_small(tsdn, ptr);
 	} else {
-		arena_dalloc_large_no_tcache(tsdn, ptr, alloc_ctx.szind);
+		arena_dalloc_large_no_tcache(tsdn, ptr, alloc_ctx.szind,
+		    emap_alloc_ctx_usize_get(&alloc_ctx));
 	}
 }
 
@@ -469,6 +482,7 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 			emap_alloc_ctx_lookup(tsdn, &arena_emap_global, ptr,
 			    &alloc_ctx);
 			assert(alloc_ctx.szind == sz_size2index(size));
+			assert(emap_alloc_ctx_usize_get(&alloc_ctx) == size);
 		} else {
 			alloc_ctx = *caller_alloc_ctx;
 		}
@@ -479,6 +493,9 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 		 */
 		alloc_ctx.szind = sz_size2index(size);
 		alloc_ctx.slab = (alloc_ctx.szind < SC_NBINS);
+#ifdef LIMIT_USIZE_GAP
+		alloc_ctx.usize = sz_s2u(size);
+#endif
 	}
 
 	if (config_debug) {
@@ -486,6 +503,9 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 		    ptr);
 		assert(alloc_ctx.szind == edata_szind_get(edata));
 		assert(alloc_ctx.slab == edata_slab_get(edata));
+#ifdef LIMIT_USIZE_GAP
+		assert(alloc_ctx.usize == edata_usize_get(edata));
+#endif
 	}
 
 	if (likely(alloc_ctx.slab)) {
@@ -497,7 +517,7 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 		    alloc_ctx.szind, slow_path);
 	} else {
 		arena_dalloc_large(tsdn, ptr, tcache, alloc_ctx.szind,
-		    slow_path);
+		    emap_alloc_ctx_usize_get(&alloc_ctx), slow_path);
 	}
 }
 

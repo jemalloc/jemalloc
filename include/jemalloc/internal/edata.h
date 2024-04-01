@@ -280,8 +280,61 @@ edata_szind_get(const edata_t *edata) {
 }
 
 static inline size_t
-edata_usize_get(const edata_t *edata) {
+edata_usize_get_from_ind_unsafe(const edata_t *edata) {
 	return sz_index2size(edata_szind_get(edata));
+}
+
+static inline size_t
+edata_usize_get_from_ind(const edata_t *edata) {
+	size_t usize = edata_usize_get_from_ind_unsafe(edata);
+	if (config_limit_usize_gap) {
+		assert(usize < SC_LARGE_MINCLASS);
+	}
+	return usize;
+}
+
+static inline size_t
+edata_usize_get_from_size_unsafe(const edata_t *edata) {
+	size_t size = (edata->e_size_esn & EDATA_SIZE_MASK);
+	return size - (opt_cache_oblivious? PAGE: 0);
+
+}
+
+static inline size_t
+edata_usize_get_from_size(const edata_t *edata) {
+	size_t usize = edata_usize_get_from_size_unsafe(edata);
+	/*
+	 * No matter limit-usize-gap enabled or not, usize retrieved here is
+	 * not accurate when smaller than SC_LAGE_MINCLASS.
+	 */
+	assert(usize >= SC_LARGE_MINCLASS);
+	return usize;
+}
+
+static inline size_t
+edata_usize_get(const edata_t *edata) {
+	/*
+	 * When config_limit_usize_gap is true, two cases:
+	 * 1. if usize_from_ind is not smaller than SC_LARGE_MINCLASS,
+	 * usize_from_size is accurate;
+	 * 2. if not, usize_from_ind is accurate.
+	 *
+	 * When config_limit_usize_gap is not true, the two should be the
+	 * same when usize_from_ind is not smaller than SC_LARGE_MINCLASS.
+	 */
+	size_t usize_from_size = edata_usize_get_from_size_unsafe(edata);
+	size_t usize_from_ind = edata_usize_get_from_ind_unsafe(edata);
+
+	if (config_limit_usize_gap &&
+	    usize_from_ind >= SC_LARGE_MINCLASS) {
+		return usize_from_size;
+	}
+
+	if (usize_from_ind >= SC_LARGE_MINCLASS) {
+		assert(usize_from_size == usize_from_ind);
+	}
+
+	return usize_from_ind;
 }
 
 static inline unsigned
