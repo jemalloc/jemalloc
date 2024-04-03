@@ -160,6 +160,8 @@ unsigned	ncpus;
 unsigned opt_debug_double_free_max_scan =
     SAFETY_CHECK_DOUBLE_FREE_MAX_SCAN_DEFAULT;
 
+size_t opt_calloc_madvise_threshold = 0;
+
 /* Protects arenas initialization. */
 static malloc_mutex_t arenas_lock;
 
@@ -1453,6 +1455,9 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			    "debug_double_free_max_scan", 0, UINT_MAX,
 			    CONF_DONT_CHECK_MIN, CONF_DONT_CHECK_MAX,
 			    /* clip */ false)
+			CONF_HANDLE_SIZE_T(opt_calloc_madvise_threshold,
+			    "calloc_madvise_threshold", 0, SC_LARGE_MAXCLASS,
+			    CONF_DONT_CHECK_MIN, CONF_CHECK_MAX, /* clip */ false)
 
 			/*
 			 * The runtime option of oversize_threshold remains
