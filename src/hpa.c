@@ -537,9 +537,16 @@ hpa_shard_maybe_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard,
 		purged = false;
 		while (hpa_should_purge(tsdn, shard) && nops < max_ops) {
 			purged = hpa_try_purge(tsdn, shard);
-			if (purged) {
-				nops++;
+			if (!purged) {
+				/*
+				 * It is fine if we couldn't purge as sometimes
+				 * we try to purge just to unblock
+				 * hugification, but there is maybe no dirty
+				 * pages at all at the moment.
+				 */
+				break;
 			}
+			nops++;
 		}
 		hugified = hpa_try_hugify(tsdn, shard);
 		if (hugified) {
