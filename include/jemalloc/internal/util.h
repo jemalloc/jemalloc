@@ -45,6 +45,15 @@
 
 #define unreachable() JEMALLOC_INTERNAL_UNREACHABLE()
 
+#if defined(__has_builtin)
+#  if __has_builtin(__builtin_constant_p)
+#    define util_is_compile_time_constant(x) __builtin_constant_p(x)
+#  endif
+#endif
+#ifndef util_is_compile_time_constant
+#  define util_is_compile_time_constant(x) false
+#endif
+
 /* Set error code. */
 UTIL_INLINE void
 set_errno(int errnum) {
