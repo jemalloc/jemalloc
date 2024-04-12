@@ -524,11 +524,25 @@ tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 JEMALLOC_ALWAYS_INLINE void
 tcache_bin_flush_bottom(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
     szind_t binind, unsigned rem, bool small) {
+	assert(rem <= cache_bin_ncached_max_get(cache_bin));
 	assert(!tcache_bin_disabled(binind, cache_bin, tcache->tcache_slow));
+	cache_bin_sz_t orig_nstashed = cache_bin_nstashed_get_local(cache_bin);
 	tcache_bin_flush_stashed(tsd, tcache, cache_bin, binind, small);
 
 	cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin);
-	assert((cache_bin_sz_t)rem <= ncached);
+	assert((cache_bin_sz_t)rem <= ncached + orig_nstashed);
+	if ((cache_bin_sz_t)rem > ncached) {
+		/*
+		 * The flush_stashed above could have done enough flushing, if
+		 * there were many items stashed.  Validate that: 1) non zero
+		 * stashed, and 2) bin stack has available space now.
+		 */
+		assert(orig_nstashed > 0);
+		assert(ncached + cache_bin_nstashed_get_local(cache_bin)
+		    < cache_bin_ncached_max_get(cache_bin));
+		/* Still go through the flush logic for stats purpose only. */
+		rem = ncached;
+	}
 	cache_bin_sz_t nflush = ncached - (cache_bin_sz_t)rem;
 
 	CACHE_BIN_PTR_ARRAY_DECLARE(ptrs, nflush);
@@ -537,8 +551,7 @@ tcache_bin_flush_bottom(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 	tcache_bin_flush_impl(tsd, tcache, cache_bin, binind, &ptrs, nflush,
 	    small);
 
-	cache_bin_finish_flush(cache_bin, &ptrs,
-	    ncached - (cache_bin_sz_t)rem);
+	cache_bin_finish_flush(cache_bin, &ptrs, nflush);
 }
 
 void
