@@ -2189,7 +2189,8 @@ malloc_init_hard(void) {
 
 #ifdef LIMIT_USIZE_GAP
 	assert(TCACHE_MAXCLASS_LIMIT <= USIZE_GROW_SLOW_THRESHOLD);
-	assert(SC_LOOKUP_MAXCLASS <= USIZE_GROW_SLOW_THRESHOLD);
+	assert(SC_LOOKUP_MAXCLASS <= SC_LARGE_MINCLASS);
+	assert(SC_LG_TINY_MAXCLASS <= SC_LARGE_MINCLASS);
 #endif
 #if defined(_WIN32) && _WIN32_WINNT < 0x0600
 	_init_init_lock();

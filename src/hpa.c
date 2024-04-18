@@ -665,7 +665,7 @@ hpa_alloc_batch_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
     bool *deferred_work_generated) {
 	assert(size <= HUGEPAGE);
 	assert(size <= shard->opts.slab_max_alloc ||
-	    size == sz_index2size(sz_size2index(size)));
+	    size == sz_s2u(size));
 	bool oom = false;
 
 	size_t nsuccess = hpa_try_alloc_batch_no_grow(tsdn, shard, size, &oom,
