@@ -287,9 +287,14 @@ edata_szind_get(const edata_t *edata) {
 	return szind;
 }
 
+/*
+ * Calculating usize based on szind is unsafe because the result can be
+ * inaccurate when sz_limit_usize_gap_enabled() is true.  The result should be
+ * compared against SC_LARGE_MINCLASS before usage.
+ */
 static inline size_t
 edata_usize_get_from_ind_unsafe(const edata_t *edata) {
-	return sz_index2size(edata_szind_get(edata));
+	return sz_index2size_unsafe(edata_szind_get(edata));
 }
 
 static inline size_t
