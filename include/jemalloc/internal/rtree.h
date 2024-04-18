@@ -183,7 +183,7 @@ rtree_read_metadata_usize(rtree_contents_t *contents) {
 	 * emap_register_boundary, the call sites are not using usize anyway.
 	 */
 	size_t usize_from_ind = szind_avail?
-	    sz_index2size(contents->metadata.szind): 0;
+	    sz_index2size_unsafe(contents->metadata.szind): 0;
 	if (config_limit_usize_gap && szind_avail && !edata_avail) {
 		assert(usize_from_ind < SC_LARGE_MINCLASS);
 	}
@@ -365,7 +365,7 @@ rtree_contents_usize_assert(rtree_contents_t *contents) {
 		assert(contents->edata != NULL);
 		assert ((contents->edata->e_size_esn & EDATA_SIZE_MASK) > 0);
 		if (config_limit_usize_gap) {
-			if (sz_index2size(contents->metadata.szind) >=
+			if (sz_index2size_unsafe(contents->metadata.szind) >=
 			    SC_LARGE_MINCLASS) {
 				assert(edata_usize_get_from_size(
 				    contents->edata) >= SC_LARGE_MINCLASS);
