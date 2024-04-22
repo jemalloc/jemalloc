@@ -140,7 +140,10 @@ parser_tokenize(parser_t *parser) {
 	    "Position is past end of buffer");
 
 	while (state != STATE_ACCEPT) {
-		char c = parser->buf[parser->pos];
+		char c;
+		if (state != STATE_EOI) {
+			c = parser->buf[parser->pos];
+		}
 
 		switch (state) {
 		case STATE_START:
