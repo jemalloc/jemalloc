@@ -64,7 +64,7 @@ TEST_BEGIN(test_grow_and_shrink) {
 			    "Unexpected rallocx() error for size=%zu-->%zu",
 			    szs[j-1], szs[j-1]+1);
 			szs[j] = sallocx(q, 0);
-			expect_zu_ne(szs[j], szs[j-1]+1,
+			expect_zu_ge(szs[j], szs[j-1]+1,
 			    "Expected size to be at least: %zu", szs[j-1]+1);
 			p = q;
 		}
