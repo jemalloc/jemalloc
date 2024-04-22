@@ -258,6 +258,12 @@ TEST_BEGIN(test_extra_large) {
 	expect_zu_ge(xallocx(p, large1, 0, flags), large1,
 	    "Unexpected xallocx() behavior");
 	/* Test size increase with non-zero extra. */
+	expect_zu_le(xallocx(p, large2, SIZE_T_MAX - large2, flags), largemax,
+	    "Unexpected xallocx() behavior");
+
+	expect_zu_ge(xallocx(p, large1, 0, flags), large1,
+	    "Unexpected xallocx() behavior");
+	/* Test size increase with non-zero extra. */
 	expect_zu_le(xallocx(p, large1, large3 - large1, flags), large3,
 	    "Unexpected xallocx() behavior");
 
