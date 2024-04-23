@@ -146,7 +146,7 @@ large_ralloc_no_move(tsdn_t *tsdn, edata_t *edata, size_t usize_min,
 		}
 		/* Try again, this time with usize_min. */
 		if (usize_min < usize_max && usize_min > oldusize &&
-		    large_ralloc_no_move_expand(tsdn, edata, usize_min, zero)) {
+		    !large_ralloc_no_move_expand(tsdn, edata, usize_min, zero)) {
 			arena_decay_tick(tsdn, arena_get_from_edata(edata));
 			return false;
 		}
