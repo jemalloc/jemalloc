@@ -1868,14 +1868,6 @@ arena_init_huge(arena_t *a0) {
 }
 
 bool
-arena_is_huge(unsigned arena_ind) {
-	if (huge_arena_ind == 0) {
-		return false;
-	}
-	return (arena_ind == huge_arena_ind);
-}
-
-bool
 arena_boot(sc_data_t *sc_data, base_t *base, bool hpa) {
 	arena_dirty_decay_ms_default_set(opt_dirty_decay_ms);
 	arena_muzzy_decay_ms_default_set(opt_muzzy_decay_ms);
