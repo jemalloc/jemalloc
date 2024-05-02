@@ -430,11 +430,8 @@ arena_new_create_background_thread(tsdn_t *tsdn, unsigned ind) {
 	if (ind == 0) {
 		return;
 	}
-	/*
-	 * Avoid creating a new background thread just for the huge arena, which
-	 * purges eagerly by default.
-	 */
-	if (have_background_thread && !arena_is_huge(ind)) {
+
+	if (have_background_thread) {
 		if (background_thread_create(tsdn_tsd(tsdn), ind)) {
 			malloc_printf("<jemalloc>: error in background thread "
 				      "creation for arena %u. Abort.\n", ind);
