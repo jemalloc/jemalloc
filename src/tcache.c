@@ -154,11 +154,10 @@ tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 		    sizeof(nflush_uint8));
 		tcache_slow->bin_flush_delay_items[szind] -= nflush_uint8;
 		return;
-	} else {
-		tcache_slow->bin_flush_delay_items[szind]
-		    = tcache_gc_item_delay_compute(szind);
 	}
 
+	tcache_slow->bin_flush_delay_items[szind]
+	    = tcache_gc_item_delay_compute(szind);
 	tcache_bin_flush_small(tsd, tcache, cache_bin, szind,
 	    (unsigned)(ncached - nflush));
 
