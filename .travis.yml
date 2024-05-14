@@ -12,325 +12,325 @@ jobs:
   include:
     - os: windows
       arch: amd64
-      env: CC=gcc CXX=g++ EXTRA_CFLAGS="-fcommon"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-limit-usize-gap" EXTRA_CFLAGS="-fcommon"
     - os: windows
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug" EXTRA_CFLAGS="-fcommon"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --enable-limit-usize-gap" EXTRA_CFLAGS="-fcommon"
     - os: windows
       arch: amd64
-      env: CC=cl.exe CXX=cl.exe
+      env: CC=cl.exe CXX=cl.exe CONFIGURE_FLAGS="--enable-limit-usize-gap"
     - os: windows
       arch: amd64
-      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes EXTRA_CFLAGS="-fcommon"
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes CONFIGURE_FLAGS="--enable-limit-usize-gap" EXTRA_CFLAGS="-fcommon"
     - os: windows
       arch: amd64
-      env: CC=cl.exe CXX=cl.exe CONFIGURE_FLAGS="--enable-debug"
+      env: CC=cl.exe CXX=cl.exe CONFIGURE_FLAGS="--enable-debug --enable-limit-usize-gap"
     - os: windows
       arch: amd64
-      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes CONFIGURE_FLAGS="--enable-debug" EXTRA_CFLAGS="-fcommon"
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes CONFIGURE_FLAGS="--enable-debug --enable-limit-usize-gap" EXTRA_CFLAGS="-fcommon"
     - os: windows
       arch: amd64
-      env: CC=cl.exe CXX=cl.exe CROSS_COMPILE_32BIT=yes
+      env: CC=cl.exe CXX=cl.exe CROSS_COMPILE_32BIT=yes CONFIGURE_FLAGS="--enable-limit-usize-gap"
     - os: windows
       arch: amd64
-      env: CC=cl.exe CXX=cl.exe CROSS_COMPILE_32BIT=yes CONFIGURE_FLAGS="--enable-debug"
+      env: CC=cl.exe CXX=cl.exe CROSS_COMPILE_32BIT=yes CONFIGURE_FLAGS="--enable-debug --enable-limit-usize-gap"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
+      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-opt-safety-checks" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-opt-safety-checks --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-lg-page=16" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-lg-page=16 --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=dss:primary" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=dss:primary --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=background_thread:true --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
+      env: CC=clang CXX=clang++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--enable-debug" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
+      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--enable-debug --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
+      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--enable-prof --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--disable-stats" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
+      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--disable-stats --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--disable-libdl" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
+      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--disable-libdl --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--enable-opt-safety-checks" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
+      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--enable-opt-safety-checks --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--with-lg-page=16" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
+      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--with-lg-page=16 --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
+      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--with-malloc-conf=dss:primary" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
+      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--with-malloc-conf=dss:primary --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
+      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
+      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--with-malloc-conf=background_thread:true --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--enable-debug" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--enable-debug --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--enable-prof --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--disable-stats" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--disable-stats --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--disable-libdl" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--disable-libdl --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--enable-opt-safety-checks" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--enable-opt-safety-checks --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--with-lg-page=16" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--with-lg-page=16 --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--with-malloc-conf=dss:primary" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--with-malloc-conf=dss:primary --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--with-malloc-conf=background_thread:true --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --enable-prof --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --disable-stats" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --disable-stats --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --disable-libdl" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --disable-libdl --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --enable-opt-safety-checks" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --enable-opt-safety-checks --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --with-lg-page=16" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --with-lg-page=16 --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --with-malloc-conf=dss:primary" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --with-malloc-conf=dss:primary --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --with-malloc-conf=percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --with-malloc-conf=percpu_arena:percpu --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --with-malloc-conf=background_thread:true --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --disable-stats" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --disable-stats --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --disable-libdl" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --disable-libdl --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --enable-opt-safety-checks" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --enable-opt-safety-checks --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --with-lg-page=16" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --with-lg-page=16 --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --with-malloc-conf=dss:primary" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --with-malloc-conf=dss:primary --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --with-malloc-conf=percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --with-malloc-conf=percpu_arena:percpu --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --with-malloc-conf=background_thread:true --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats --disable-libdl" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats --disable-libdl --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats --enable-opt-safety-checks" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats --enable-opt-safety-checks --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats --with-lg-page=16" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats --with-lg-page=16 --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats --with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats --with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats --with-malloc-conf=dss:primary" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats --with-malloc-conf=dss:primary --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats --with-malloc-conf=percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats --with-malloc-conf=percpu_arena:percpu --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats --with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats --with-malloc-conf=background_thread:true --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl --enable-opt-safety-checks" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl --enable-opt-safety-checks --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl --with-lg-page=16" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl --with-lg-page=16 --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl --with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl --with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl --with-malloc-conf=dss:primary" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl --with-malloc-conf=dss:primary --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl --with-malloc-conf=percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl --with-malloc-conf=percpu_arena:percpu --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl --with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl --with-malloc-conf=background_thread:true --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-opt-safety-checks --with-lg-page=16" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-opt-safety-checks --with-lg-page=16 --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-opt-safety-checks --with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-opt-safety-checks --with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-opt-safety-checks --with-malloc-conf=dss:primary" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-opt-safety-checks --with-malloc-conf=dss:primary --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-opt-safety-checks --with-malloc-conf=percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-opt-safety-checks --with-malloc-conf=percpu_arena:percpu --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-opt-safety-checks --with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-opt-safety-checks --with-malloc-conf=background_thread:true --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-lg-page=16 --with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-lg-page=16 --with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-lg-page=16 --with-malloc-conf=dss:primary" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-lg-page=16 --with-malloc-conf=dss:primary --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-lg-page=16 --with-malloc-conf=percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-lg-page=16 --with-malloc-conf=percpu_arena:percpu --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-lg-page=16 --with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-lg-page=16 --with-malloc-conf=background_thread:true --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=tcache:false,dss:primary" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=tcache:false,dss:primary --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=tcache:false,percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=tcache:false,percpu_arena:percpu --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=tcache:false,background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=tcache:false,background_thread:true --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=dss:primary,percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=dss:primary,percpu_arena:percpu --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=dss:primary,background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=dss:primary,background_thread:true --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu,background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu,background_thread:true --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: ppc64le
-      env: CC=gcc CXX=g++ EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: ppc64le
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: ppc64le
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: ppc64le
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: ppc64le
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: ppc64le
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-opt-safety-checks" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-opt-safety-checks --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: ppc64le
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-lg-page=16" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-lg-page=16 --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: ppc64le
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: ppc64le
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=dss:primary" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=dss:primary --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: ppc64le
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: ppc64le
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=background_thread:true" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=background_thread:true --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: osx
       arch: amd64
-      env: CC=gcc CXX=g++ EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
     - os: osx
       arch: amd64
-      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes CONFIGURE_FLAGS="--enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
     - os: osx
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
     - os: osx
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
     - os: osx
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
     - os: osx
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-opt-safety-checks" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-opt-safety-checks --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
     - os: osx
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-lg-page=16" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-lg-page=16 --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
     - os: osx
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=tcache:false" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
     - os: osx
       arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
     # Development build
     - os: linux
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --disable-cache-oblivious --enable-stats --enable-log --enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
