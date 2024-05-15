@@ -434,6 +434,7 @@ zone_promote(void) {
 }
 
 JEMALLOC_ATTR(constructor)
+JEMALLOC_ATTR(used)
 void
 zone_register(void) {
 	/*
