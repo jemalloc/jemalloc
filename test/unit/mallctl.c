@@ -877,6 +877,7 @@ TEST_BEGIN(test_arenas_constants) {
 
 	TEST_ARENAS_CONSTANT(size_t, quantum, QUANTUM);
 	TEST_ARENAS_CONSTANT(size_t, page, PAGE);
+	TEST_ARENAS_CONSTANT(size_t, hugepage, HUGEPAGE);
 	TEST_ARENAS_CONSTANT(unsigned, nbins, SC_NBINS);
 	TEST_ARENAS_CONSTANT(unsigned, nlextents, SC_NSIZES - SC_NBINS);
 
