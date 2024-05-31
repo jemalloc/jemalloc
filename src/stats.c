@@ -1698,6 +1698,10 @@ stats_general_print(emitter_t *emitter) {
 	CTL_GET("arenas.page", &sv, size_t);
 	emitter_kv(emitter, "page", "Page size", emitter_type_size, &sv);
 
+	CTL_GET("arenas.hugepage", &sv, size_t);
+	emitter_kv(emitter, "hugepage", "Hugepage size", emitter_type_size,
+	    &sv);
+
 	if (je_mallctl("arenas.tcache_max", (void *)&sv, &ssz, NULL, 0) == 0) {
 		emitter_kv(emitter, "tcache_max",
 		    "Maximum thread-cached size class", emitter_type_size, &sv);

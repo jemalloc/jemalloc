@@ -195,6 +195,7 @@ CTL_PROTO(arenas_dirty_decay_ms)
 CTL_PROTO(arenas_muzzy_decay_ms)
 CTL_PROTO(arenas_quantum)
 CTL_PROTO(arenas_page)
+CTL_PROTO(arenas_hugepage)
 CTL_PROTO(arenas_tcache_max)
 CTL_PROTO(arenas_nbins)
 CTL_PROTO(arenas_nhbins)
@@ -593,6 +594,7 @@ static const ctl_named_node_t arenas_node[] = {
 	{NAME("muzzy_decay_ms"), CTL(arenas_muzzy_decay_ms)},
 	{NAME("quantum"),	CTL(arenas_quantum)},
 	{NAME("page"),		CTL(arenas_page)},
+	{NAME("hugepage"),	CTL(arenas_hugepage)},
 	{NAME("tcache_max"),	CTL(arenas_tcache_max)},
 	{NAME("nbins"),		CTL(arenas_nbins)},
 	{NAME("nhbins"),	CTL(arenas_nhbins)},
@@ -3284,6 +3286,7 @@ arenas_muzzy_decay_ms_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 
 CTL_RO_NL_GEN(arenas_quantum, QUANTUM, size_t)
 CTL_RO_NL_GEN(arenas_page, PAGE, size_t)
+CTL_RO_NL_GEN(arenas_hugepage, HUGEPAGE, size_t)
 CTL_RO_NL_GEN(arenas_tcache_max, global_do_not_change_tcache_maxclass, size_t)
 CTL_RO_NL_GEN(arenas_nbins, SC_NBINS, unsigned)
 CTL_RO_NL_GEN(arenas_nhbins, global_do_not_change_tcache_nbins, unsigned)
