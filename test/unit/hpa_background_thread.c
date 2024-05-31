@@ -83,7 +83,36 @@ wait_until_thread_is_enabled(unsigned arena_id) {
 }
 
 static void
-expect_purging(unsigned arena_ind, bool expect_deferred) {
+expect_purging(unsigned arena_ind) {
+	size_t empty_ndirty = get_empty_ndirty(arena_ind);
+	expect_zu_eq(0, empty_ndirty, "Expected arena to start unused.");
+
+	void *ptrs[2];
+	ptrs[0] = mallocx(PAGE,
+	    MALLOCX_TCACHE_NONE | MALLOCX_ARENA(arena_ind));
+	ptrs[1] = mallocx(PAGE,
+	    MALLOCX_TCACHE_NONE | MALLOCX_ARENA(arena_ind));
+
+	empty_ndirty = get_empty_ndirty(arena_ind);
+	expect_zu_eq(0, empty_ndirty, "All pages should be active");
+
+	dallocx(ptrs[0], MALLOCX_TCACHE_NONE);
+	expect_true(empty_ndirty == 0 || empty_ndirty == 1,
+	    "Unexpected extra dirty page count: %zu", empty_ndirty);
+
+	/*
+	 * Wait for at least hpa_min_purge_interval_ms to trigger purge on next
+	 * deallocation.
+	 */
+	sleep_for_background_thread_interval();
+
+	dallocx(ptrs[1], MALLOCX_TCACHE_NONE);
+	empty_ndirty = get_empty_ndirty(arena_ind);
+	expect_zu_eq(0, empty_ndirty, "There are should be no dirty pages");
+}
+
+static void
+expect_deferred_purging(unsigned arena_ind) {
 	size_t empty_ndirty;
 
 	empty_ndirty = get_empty_ndirty(arena_ind);
@@ -103,20 +132,15 @@ expect_purging(unsigned arena_ind, bool expect_deferred) {
 		expect_zu_eq(0, empty_ndirty, "All pages should be active");
 		dallocx(ptr, MALLOCX_TCACHE_NONE);
 		empty_ndirty = get_empty_ndirty(arena_ind);
-		if (expect_deferred) {
-			expect_true(empty_ndirty == 0 || empty_ndirty == 1 ||
-			    opt_prof, "Unexpected extra dirty page count: %zu",
-			    empty_ndirty);
-		} else {
-			assert_zu_eq(0, empty_ndirty,
-			    "Saw dirty pages without deferred purging");
-		}
+		expect_true(empty_ndirty == 0 || empty_ndirty == 1 ||
+		    opt_prof, "Unexpected extra dirty page count: %zu",
+		    empty_ndirty);
 		if (empty_ndirty > 0) {
 			observed_dirty_page = true;
 			break;
 		}
 	}
-	expect_b_eq(expect_deferred, observed_dirty_page, "");
+	expect_true(observed_dirty_page, "");
 
 	/*
 	 * Under high concurrency / heavy test load (e.g. using run_test.sh),
@@ -125,7 +149,7 @@ expect_purging(unsigned arena_ind, bool expect_deferred) {
 	 */
 	unsigned retry = 0;
 	while ((empty_ndirty = get_empty_ndirty(arena_ind)) > 0 &&
-	    expect_deferred && (retry++ < 100)) {
+	    (retry++ < 100)) {
 		sleep_for_background_thread_interval();
 	}
 
@@ -144,7 +168,7 @@ TEST_BEGIN(test_hpa_background_thread_purges) {
 	 * Our .sh sets dirty mult to 0, so all dirty pages should get purged
 	 * any time any thread frees.
 	 */
-	expect_purging(arena_ind, /* expect_deferred */ true);
+	expect_deferred_purging(arena_ind);
 }
 TEST_END
 
@@ -158,11 +182,11 @@ TEST_BEGIN(test_hpa_background_thread_enable_disable) {
 	unsigned arena_ind = create_arena();
 
 	set_background_thread_enabled(false);
-	expect_purging(arena_ind, false);
+	expect_purging(arena_ind);
 
 	set_background_thread_enabled(true);
 	wait_until_thread_is_enabled(arena_ind);
-	expect_purging(arena_ind, true);
+	expect_deferred_purging(arena_ind);
 }
 TEST_END
 
