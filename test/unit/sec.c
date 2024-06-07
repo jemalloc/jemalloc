@@ -412,7 +412,7 @@ TEST_BEGIN(test_expand_shrink_delegate) {
 
 	bool deferred_work_generated = false;
 
-	test_sec_init(&sec, &ta.pai, /* nshards */ 1, /* max_alloc */ 10 * PAGE,
+	test_sec_init(&sec, &ta.pai, /* nshards */ 1, /* max_alloc */ 8 * PAGE,
 	    /* max_bytes */ 1000 * PAGE);
 	edata_t *edata = pai_alloc(tsdn, &sec.pai, PAGE, PAGE,
 	    /* zero */ false, /* guarded */ false, /* frequent_reuse */ false,
