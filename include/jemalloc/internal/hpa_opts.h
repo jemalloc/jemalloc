@@ -61,7 +61,7 @@ struct hpa_shard_opts_s {
 
 #define HPA_SHARD_OPTS_DEFAULT {					\
 	/* slab_max_alloc */						\
-	64 * 1024,							\
+	64 * 1024,						\
 	/* hugification_threshold */					\
 	HUGEPAGE * 95 / 100,						\
 	/* dirty_mult */						\

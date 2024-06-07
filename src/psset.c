@@ -310,6 +310,18 @@ psset_pick_alloc(psset_t *psset, size_t size) {
 	assert(size <= HUGEPAGE);
 
 	pszind_t min_pind = sz_psz2ind(sz_psz_quantize_ceil(size));
+#ifdef LIMIT_USIZE_GAP
+	pszind_t pind_in = sz_psz2ind(sz_psz_quantize_floor(size));
+	if (size >= SC_LARGE_MINCLASS && pind_in < min_pind) {
+		hpdata_t *candidate = hpdata_age_heap_first(
+		    &psset->pageslabs[pind_in]);
+		if (candidate != NULL &&
+		    hpdata_longest_free_range_get(candidate) >= size) {
+			hpdata_assert_consistent(candidate);
+			return candidate;
+		}
+	}
+#endif
 	pszind_t pind = (pszind_t)fb_ffs(psset->pageslab_bitmap, PSSET_NPSIZES,
 	    (size_t)min_pind);
 	if (pind == PSSET_NPSIZES) {
