@@ -1554,6 +1554,10 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			    "hpa_min_purge_interval_ms", 0, 0,
 			    CONF_DONT_CHECK_MIN, CONF_DONT_CHECK_MAX, false);
 
+			CONF_HANDLE_BOOL(
+			    opt_hpa_opts.strict_min_purge_interval,
+			    "hpa_strict_min_purge_interval");
+
 			if (CONF_MATCH("hpa_dirty_mult")) {
 				if (CONF_MATCH_VALUE("-1")) {
 					opt_hpa_opts.dirty_mult = (fxp_t)-1;
