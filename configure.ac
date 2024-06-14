@@ -622,7 +622,7 @@ AC_ARG_WITH([version],
     fi
   ], [
     dnl Set VERSION if source directory is inside a git repository.
-    if test "x`test ! \"${srcroot}\" && cd \"${srcroot}\"; git rev-parse --is-inside-work-tree 2>/dev/null`" = "xtrue" ; then
+    if test "x`test \"${srcroot}\" && cd \"${srcroot}\"; git rev-parse --is-inside-work-tree 2>/dev/null`" = "xtrue" ; then
       dnl Pattern globs aren't powerful enough to match both single- and
       dnl double-digit version numbers, so iterate over patterns to support up
       dnl to version 99.99.99 without any accidental matches.
@@ -631,7 +631,7 @@ AC_ARG_WITH([version],
                      '[0-9][0-9].[0-9].[0-9]' '[0-9][0-9].[0-9].[0-9][0-9]' \
                      '[0-9][0-9].[0-9][0-9].[0-9]' \
                      '[0-9][0-9].[0-9][0-9].[0-9][0-9]']; do
-        (test ! "${srcroot}" && cd "${srcroot}"; git describe --long --abbrev=40 --match="${pattern}") > "${objroot}VERSION.tmp" 2>/dev/null
+        (test "${srcroot}" && cd "${srcroot}"; git describe --long --abbrev=40 --match="${pattern}") > "${objroot}VERSION.tmp" 2>/dev/null
         if test $? -eq 0 ; then
           mv "${objroot}VERSION.tmp" "${objroot}VERSION"
           break
