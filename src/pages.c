@@ -14,7 +14,7 @@
 #endif
 #endif
 #ifdef __NetBSD__
-#include <sys/bitops.h>	/* ilog2 */
+#include <sys/bitops.h>	/* ilog2 dummy change */
 #endif
 #ifdef JEMALLOC_HAVE_VM_MAKE_TAG
 #define PAGES_FD_TAG VM_MAKE_TAG(254U)
