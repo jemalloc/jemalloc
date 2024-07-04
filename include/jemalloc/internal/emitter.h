@@ -129,7 +129,7 @@ static inline void
 emitter_print_value(emitter_t *emitter, emitter_justify_t justify, int width,
     emitter_type_t value_type, const void *value) {
 	size_t str_written;
-#define BUF_SIZE 256
+#define BUF_SIZE 1024
 #define FMT_SIZE 10
 	/*
 	 * We dynamically generate a format string to emit, to let us use the
