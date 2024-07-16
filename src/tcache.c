@@ -286,7 +286,8 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena,
 	if (nfill == 0) {
 		nfill = 1;
 	}
-	arena_cache_bin_fill_small(tsdn, arena, cache_bin, binind, nfill);
+	arena_cache_bin_fill_small(tsdn, arena, cache_bin, binind,
+	    /* nfill_min */ (nfill >> 1) + 1, /* nfill_max */ nfill);
 	ctl->nfill++;
 	ret = cache_bin_alloc(cache_bin, tcache_success);
 
