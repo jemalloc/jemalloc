@@ -35,10 +35,10 @@ struct tcache_slow_s {
 	unsigned	tcache_nbins;
 	/* Next bin to GC. */
 	szind_t		next_gc_bin;
-	/* For small bins, fill (ncached_max >> lg_fill_div). */
-	uint8_t		lg_fill_div[SC_NBINS];
-	/* For small bins, whether has been refilled since last GC. */
-	bool		bin_refilled[SC_NBINS];
+	/* Next time to update lg_fill_div for all small bins */
+	nstime_t	next_fill_div_update_time;
+	/* For small bins, help control how many items to fill at a time. */
+	cache_bin_fill_div_ctl_t	fill_div_ctl[SC_NBINS];
 	/*
 	 * For small bins, the number of items we can pretend to flush before
 	 * actually flushing.

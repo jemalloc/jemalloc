@@ -49,6 +49,22 @@ extern const uintptr_t disabled_bin;
     / sizeof(void *) - 1)
 
 /*
+ * This lives in tcache_slow and only applies for small bins.
+ * It helps adjust how many items to fill at a time.
+ */
+typedef struct cache_bin_fill_div_ctl_s cache_bin_fill_div_ctl_t;
+struct cache_bin_fill_div_ctl_s {
+	/* For small bins, fill (ncached_max >> lg_fill_div). */
+	uint8_t lg_fill_div;
+	/* The smallest lg_fill_div that makes (ncached_max >> lg_fill_div == 1). */
+	uint8_t lg_fill_div_max;
+	/* For a small tcache bin, how many times a bin refill is triggered. */
+	uint16_t nfill;
+	/* For a small tcache bin, how many times a bin flush is triggered. */
+	uint16_t nflush;
+};
+
+/*
  * This lives inside the cache_bin (for locality reasons), and is initialized
  * alongside it, but is otherwise not modified by any cache bin operations.
  * It's logically public and maintained by its callers.
