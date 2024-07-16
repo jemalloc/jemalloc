@@ -121,20 +121,7 @@ tcache_gc_dalloc_postponed_event_wait(tsd_t *tsd) {
 	return TE_MIN_START_WAIT;
 }
 
-static uint8_t
-tcache_gc_item_delay_compute(szind_t szind) {
-	assert(szind < SC_NBINS);
-	size_t sz = sz_index2size(szind);
-	size_t item_delay = opt_tcache_gc_delay_bytes / sz;
-	size_t delay_max = ZU(1)
-	    << (sizeof(((tcache_slow_t *)NULL)->bin_flush_delay_items[0]) * 8);
-	if (item_delay >= delay_max) {
-		item_delay = delay_max - 1;
-	}
-	return (uint8_t)item_delay;
-}
-
-static void
+static bool
 tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
     szind_t szind) {
 	/* Aim to flush 3/4 of items below low-water. */
@@ -143,19 +130,7 @@ tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	cache_bin_t *cache_bin = &tcache->bins[szind];
 	assert(!tcache_bin_disabled(szind, cache_bin, tcache->tcache_slow));
 	cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin);
-	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin);
-	cache_bin_sz_t nflush = low_water - (low_water >> 2);
-	if (nflush < tcache_slow->bin_flush_delay_items[szind]) {
-		/* Workaround for a conversion warning. */
-		uint8_t nflush_uint8 = (uint8_t)nflush;
-		assert(sizeof(tcache_slow->bin_flush_delay_items[0]) ==
-		    sizeof(nflush_uint8));
-		tcache_slow->bin_flush_delay_items[szind] -= nflush_uint8;
-		return;
-	}
-
-	tcache_slow->bin_flush_delay_items[szind]
-	    = tcache_gc_item_delay_compute(szind);
+	if (ncached == 0)       return false;
 
 	// Query arena binshard to get heuristic locality info.
 	tsdn_t *tsdn = tsd_tsdn(tsd);
@@ -184,8 +159,10 @@ tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 
 	// TODO: it can overflow if ncached_max increased to a large value.
 	VARIABLE_ARRAY(void *, tmp_ptrs, ncached);
+	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin);
+	cache_bin_sz_t nflush = low_water - (low_water >> 2);
 	if (addr == NULL) {
-		if (low_water == 0)	return;
+		if (low_water == 0)	return false;
 		goto label_flush;
 	}
 
@@ -217,7 +194,7 @@ tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	nflush = nremote > nflush ? nremote : nflush;
 	if (nflush == 0) {
 		assert(nremote == 0);
-		return;
+		return false;
 	}
 	if (nremote != 0) {
 		cache_bin_sz_t cnt = 0;
@@ -239,19 +216,39 @@ label_flush:
 	tcache_bin_flush_small(tsd, tcache, cache_bin, szind,
 	    (unsigned)(ncached - nflush));
 	(&tcache_slow->fill_div_ctl[szind])->nflush++;
+	return true;
 }
 
-static void
+static bool
 tcache_gc_large(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
     szind_t szind) {
 	/* Like the small GC; flush 3/4 of untouched items. */
 	assert(szind >= SC_NBINS);
 	cache_bin_t *cache_bin = &tcache->bins[szind];
 	assert(!tcache_bin_disabled(szind, cache_bin, tcache->tcache_slow));
-	cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin);
 	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin);
-	tcache_bin_flush_large(tsd, tcache, cache_bin, szind,
-	    (unsigned)(ncached - low_water + (low_water >> 2)));
+	if (low_water == 0)     return false;
+
+	unsigned nrem = (unsigned)(cache_bin_ncached_get_local(cache_bin) -
+	    low_water + (low_water >> 2));
+	tcache_bin_flush_large(tsd, tcache, cache_bin, szind, nrem);
+	return true;
+}
+
+static bool
+tcache_gc(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
+    szind_t szind, bool is_small) {
+	assert(tcache != NULL);
+	bool ret = false;
+	cache_bin_t *cache_bin = &tcache->bins[szind];
+	if (tcache_bin_disabled(szind, cache_bin, tcache_slow)) {
+		return ret;
+	}
+	tcache_bin_flush_stashed(tsd, tcache, cache_bin, szind, is_small);
+	ret = is_small ? tcache_gc_small(tsd, tcache_slow, tcache, szind) :
+	    tcache_gc_large(tsd, tcache_slow, tcache, szind);
+	cache_bin_low_water_set(cache_bin);
+	return ret;
 }
 
 static void
@@ -297,45 +294,57 @@ tcache_event(tsd_t *tsd) {
 
 	tcache_slow_t *tcache_slow = tsd_tcache_slowp_get(tsd);
 	assert(tcache_slow != NULL);
-	unsigned tcache_nbins = tcache_nbins_get(tcache_slow);
-	unsigned small_nbins = tcache_nbins > SC_NBINS ? SC_NBINS : tcache_nbins;
 
 	nstime_t now;
 	nstime_init_update(&now);
-	if (nstime_compare(&tcache_slow->next_fill_div_update_time, &now) <= 0) {
-		for (unsigned i = 0; i < small_nbins; i++) {
-			assert(i < SC_NBINS);
-			tcache_fill_small_div_update(&tcache_slow->fill_div_ctl[i]);
+	// Non monotonic clock, time went backward, calibrate the last gc time.
+	if (unlikely(nstime_compare(&tcache_slow->last_gc_time, &now) > 0)) {
+		assert(!nstime_monotonic());
+		nstime_copy(&tcache_slow->last_gc_time, &now);
+	}
+	assert(nstime_compare(&tcache_slow->last_gc_time, &now) <= 0);
+	uint64_t interval = (uint64_t)10 * KQU(1000000);	// 10ms
+	if (now.ns - tcache_slow->last_gc_time.ns < interval) {
+		// time interval is too short, skip this event.
+		return;
+	}
+	// update last_gc_time to now.
+	nstime_copy(&tcache_slow->last_gc_time, &now);
+
+	unsigned gc_nbins = 0;
+	unsigned tcache_nbins = tcache_nbins_get(tcache_slow);
+	unsigned small_nbins = tcache_nbins > SC_NBINS ? SC_NBINS : tcache_nbins;
+	szind_t ind_update_small = tcache_slow->next_fill_div_ctl_bin;
+	szind_t ind_gc_small = tcache_slow->next_gc_bin_small;
+	szind_t ind_gc_large = tcache_slow->next_gc_bin_large;
+
+	for (unsigned i = 0; i < small_nbins && gc_nbins < 3; i++) {
+		assert(ind_update_small < SC_NBINS);
+		assert(ind_gc_small < SC_NBINS);
+		tcache_fill_small_div_update(
+		    &tcache_slow->fill_div_ctl[ind_update_small]);
+		gc_nbins += tcache_gc(tsd, tcache_slow, tcache, ind_gc_small, true);
+		if (++ind_update_small == small_nbins) {
+			ind_update_small = 0;
 		}
-		nstime_copy(&tcache_slow->next_fill_div_update_time, &now);
-		nstime_iadd(&tcache_slow->next_fill_div_update_time,
-		    (uint64_t)100 * KQU(1000000));      // 100ms
-	}
-
-	szind_t szind = tcache_slow->next_gc_bin;
-	bool is_small = (szind < SC_NBINS);
-	cache_bin_t *cache_bin = &tcache->bins[szind];
-
-	if (tcache_bin_disabled(szind, cache_bin, tcache_slow)) {
-		goto label_done;
-	}
-
-	tcache_bin_flush_stashed(tsd, tcache, cache_bin, szind, is_small);
-	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin);
-	if (low_water > 0) {
-		if (is_small) {
-			tcache_gc_small(tsd, tcache_slow, tcache, szind);
-		} else {
-			tcache_gc_large(tsd, tcache_slow, tcache, szind);
+		if (++ind_gc_small == small_nbins) {
+			ind_gc_small = 0;
 		}
 	}
-	cache_bin_low_water_set(cache_bin);
+	tcache_slow->next_fill_div_ctl_bin = ind_update_small;
+	tcache_slow->next_gc_bin_small = ind_gc_small;
 
-label_done:
-	tcache_slow->next_gc_bin++;
-	if (tcache_slow->next_gc_bin == tcache_nbins_get(tcache_slow)) {
-		tcache_slow->next_gc_bin = 0;
+	if (tcache_nbins <= SC_NBINS)   return;
+
+	gc_nbins = 0;
+	for (unsigned i = SC_NBINS; i < tcache_nbins && gc_nbins < 2; i++) {
+		assert(ind_gc_large >= SC_NBINS && ind_gc_large < tcache_nbins);
+		gc_nbins += tcache_gc(tsd, tcache_slow, tcache, ind_gc_large, false);
+		if (++ind_gc_large == tcache_nbins) {
+			ind_gc_large = SC_NBINS;
+		}
 	}
+	tcache_slow->next_gc_bin_large = ind_gc_large;
 }
 
 void
@@ -1032,9 +1041,13 @@ tcache_init(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	tcache->tcache_slow = tcache_slow;
 	tcache_slow->tcache = tcache;
 
+	unsigned tcache_nbins = tcache_nbins_get(tcache_slow);
 	memset(&tcache_slow->link, 0, sizeof(ql_elm(tcache_t)));
-	nstime_init_zero(&tcache_slow->next_fill_div_update_time);
-	tcache_slow->next_gc_bin = 0;
+	nstime_init_zero(&tcache_slow->last_gc_time);
+	tcache_slow->next_fill_div_ctl_bin =
+	    (tcache_nbins > SC_NBINS ? SC_NBINS : tcache_nbins) >> 1;
+	tcache_slow->next_gc_bin_small = 0;
+	tcache_slow->next_gc_bin_large = SC_NBINS;
 	tcache_slow->arena = NULL;
 	tcache_slow->dyn_alloc = mem;
 
@@ -1044,7 +1057,6 @@ tcache_init(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	 * the fast and common paths to access cache bin metadata safely w/o
 	 * worrying about which ones are disabled.
 	 */
-	unsigned tcache_nbins = tcache_nbins_get(tcache_slow);
 	size_t cur_offset = 0;
 	cache_bin_preincrement(tcache_bin_info, tcache_nbins, mem,
 	    &cur_offset);
@@ -1060,8 +1072,6 @@ tcache_init(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 			assert(ctl->lg_fill_div_max >= ctl->lg_fill_div);
 			ctl->nfill = 0;
 			ctl->nflush = 0;
-			tcache_slow->bin_flush_delay_items[i]
-			    = tcache_gc_item_delay_compute(i);
 		}
 		cache_bin_t *cache_bin = &tcache->bins[i];
 		if (ncached_max > 0) {
