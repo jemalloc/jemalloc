@@ -144,8 +144,7 @@ tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	assert(!tcache_bin_disabled(szind, cache_bin, tcache->tcache_slow));
 	cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin);
 	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin);
-
-	size_t nflush = low_water - (low_water >> 2);
+	cache_bin_sz_t nflush = low_water - (low_water >> 2);
 	if (nflush < tcache_slow->bin_flush_delay_items[szind]) {
 		/* Workaround for a conversion warning. */
 		uint8_t nflush_uint8 = (uint8_t)nflush;
@@ -157,6 +156,90 @@ tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 
 	tcache_slow->bin_flush_delay_items[szind]
 	    = tcache_gc_item_delay_compute(szind);
+
+	// Query arena binshard to get heuristic locality info.
+	tsdn_t *tsdn = tsd_tsdn(tsd);
+	arena_t *arena = tcache->tcache_slow->arena;
+	assert(arena != NULL);
+	bin_t *bin = arena_bin_choose(tsdn, arena, szind, NULL);
+	assert(bin != NULL);
+
+	void *addr = NULL;
+	malloc_mutex_lock(tsdn, &bin->lock);
+	bool reslab_tried = false;
+	if(bin->slabcur == NULL) {
+		bin->slabcur = edata_heap_remove_first(&bin->slabs_nonfull);
+		reslab_tried = true;
+	}
+
+	if (bin->slabcur != NULL) {
+		addr = edata_addr_get(bin->slabcur);
+		if (reslab_tried && config_stats) {
+			bin->stats.reslabs++;
+			bin->stats.nonfull_slabs--;
+		}
+	}
+	assert(bin->slabcur == NULL || addr != NULL);
+	malloc_mutex_unlock(tsdn, &bin->lock);
+
+	if (addr == NULL) {
+		if (low_water == 0)	return;
+		goto label_flush;
+	}
+
+	cache_bin_sz_t nremote = 0;
+	// hardcode for now since ncached < 512, the lower level can overflow
+	// if ncached_max is increased to a high value.
+	VARIABLE_ARRAY(void *, tmp_ptrs, 512);
+	void **head = cache_bin->stack_head, **limit = head + ncached;
+	// exp_grow->next starts from HUGEPAGE.
+	uintptr_t addr_min = 0, addr_max = (uintptr_t)(-1);
+	if ((uintptr_t)addr > HUGEPAGE) {
+		addr_min = (uintptr_t)addr - HUGEPAGE;
+	}
+	if ((uintptr_t)addr < addr_max - HUGEPAGE) {
+		addr_max = (uintptr_t)addr + HUGEPAGE;
+	}
+	for (void **cur = limit - 1; cur >= head; cur--) {
+		assert(*cur != NULL);
+		if ((uintptr_t)(*cur) < addr_min || (uintptr_t)(*cur) >= addr_max) {
+			tmp_ptrs[nremote++] = *cur;
+			*cur = NULL;
+		}
+	}
+	if (nremote < nflush) {
+		addr_min = (uintptr_t)addr;
+		addr_max = (uintptr_t)addr + bin_infos[szind].slab_size;
+		for (void **cur = limit - 1; cur >= head; cur--) {
+			if (*cur != NULL && ((uintptr_t)(*cur) < addr_min ||
+			    (uintptr_t)(*cur) >= addr_max)) {
+				tmp_ptrs[nremote++] = *cur;
+				*cur = NULL;
+			}
+		}
+	}
+	nflush = nremote > nflush ? nremote : nflush;
+	if (nflush == 0) {
+		assert(nremote == 0);
+		return;
+	}
+	if (nremote != 0) {
+		cache_bin_sz_t cnt = 0;
+		for (void **cur = head; cur < limit; cur++) {
+			if (*cur != NULL) {
+				assert((uintptr_t)(*cur) >= addr_min &&
+				    (uintptr_t)(*cur) < addr_max);
+				*(head + cnt) = *cur;
+				cnt++;
+			}
+		}
+		assert(cnt + nremote == ncached);
+		memcpy(head + cnt, &tmp_ptrs, nremote * sizeof(void *));
+	}
+	assert(nflush >= nremote);
+
+label_flush:
+	assert(nflush > 0 && nflush <= ncached);
 	tcache_bin_flush_small(tsd, tcache, cache_bin, szind,
 	    (unsigned)(ncached - nflush));
 	(&tcache_slow->fill_div_ctl[szind])->nflush++;
