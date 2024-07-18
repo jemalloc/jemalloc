@@ -222,6 +222,17 @@ emit_types(emitter_t *emitter) {
 	ssize_t zd = -456;
 	size_t zu = 456;
 	const char *str = "string";
+	const char *long_str =
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz";
 	uint32_t u32 = 789;
 	uint64_t u64 = 10000000000ULL;
 
@@ -232,8 +243,9 @@ emit_types(emitter_t *emitter) {
 	emitter_kv(emitter, "k4", "K4", emitter_type_ssize, &zd);
 	emitter_kv(emitter, "k5", "K5", emitter_type_size, &zu);
 	emitter_kv(emitter, "k6", "K6", emitter_type_string, &str);
-	emitter_kv(emitter, "k7", "K7", emitter_type_uint32, &u32);
-	emitter_kv(emitter, "k8", "K8", emitter_type_uint64, &u64);
+	emitter_kv(emitter, "k7", "K7", emitter_type_string, &long_str);
+	emitter_kv(emitter, "k8", "K8", emitter_type_uint32, &u32);
+	emitter_kv(emitter, "k9", "K9", emitter_type_uint64, &u64);
 	/*
 	 * We don't test the title type, since it's only used for tables.  It's
 	 * tested in the emitter_table_row tests.
@@ -249,8 +261,18 @@ static const char *types_json =
 "\t\"k4\": -456,\n"
 "\t\"k5\": 456,\n"
 "\t\"k6\": \"string\",\n"
-"\t\"k7\": 789,\n"
-"\t\"k8\": 10000000000\n"
+"\t\"k7\": \"abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz\",\n"
+"\t\"k8\": 789,\n"
+"\t\"k9\": 10000000000\n"
 "}\n";
 static const char *types_json_compact =
 "{"
@@ -260,8 +282,18 @@ static const char *types_json_compact =
 	"\"k4\":-456,"
 	"\"k5\":456,"
 	"\"k6\":\"string\","
-	"\"k7\":789,"
-	"\"k8\":10000000000"
+	"\"k7\":\"abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz "
+	    "abcdefghijklmnopqrstuvwxyz\","
+	"\"k8\":789,"
+	"\"k9\":10000000000"
 "}";
 static const char *types_table =
 "K1: false\n"
@@ -270,8 +302,18 @@ static const char *types_table =
 "K4: -456\n"
 "K5: 456\n"
 "K6: \"string\"\n"
-"K7: 789\n"
-"K8: 10000000000\n";
+"K7: \"abcdefghijklmnopqrstuvwxyz "
+    "abcdefghijklmnopqrstuvwxyz "
+    "abcdefghijklmnopqrstuvwxyz "
+    "abcdefghijklmnopqrstuvwxyz "
+    "abcdefghijklmnopqrstuvwxyz "
+    "abcdefghijklmnopqrstuvwxyz "
+    "abcdefghijklmnopqrstuvwxyz "
+    "abcdefghijklmnopqrstuvwxyz "
+    "abcdefghijklmnopqrstuvwxyz "
+    "abcdefghijklmnopqrstuvwxyz\"\n"
+"K8: 789\n"
+"K9: 10000000000\n";
 
 static void
 emit_modal(emitter_t *emitter) {
