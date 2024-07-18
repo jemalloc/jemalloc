@@ -1379,7 +1379,7 @@ ctl_refresh(tsdn_t *tsdn) {
 	const unsigned narenas = ctl_arenas->narenas;
 	assert(narenas > 0);
 	ctl_arena_t *ctl_sarena = arenas_i(MALLCTL_ARENAS_ALL);
-	VARIABLE_ARRAY(arena_t *, tarenas, narenas);
+	VARIABLE_ARRAY_UNSAFE(arena_t *, tarenas, narenas);
 
 	/*
 	 * Clear sum stats, since they will be merged into by
@@ -2726,7 +2726,7 @@ arena_i_decay(tsdn_t *tsdn, unsigned arena_ind, bool all) {
 		 */
 		if (arena_ind == MALLCTL_ARENAS_ALL || arena_ind == narenas) {
 			unsigned i;
-			VARIABLE_ARRAY(arena_t *, tarenas, narenas);
+			VARIABLE_ARRAY_UNSAFE(arena_t *, tarenas, narenas);
 
 			for (i = 0; i < narenas; i++) {
 				tarenas[i] = arena_get(tsdn, i, false);

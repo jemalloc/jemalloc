@@ -1896,7 +1896,7 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 		size_t mib[3];
 		size_t miblen = sizeof(mib) / sizeof(size_t);
 		size_t sz;
-		VARIABLE_ARRAY(bool, initialized, narenas);
+		VARIABLE_ARRAY_UNSAFE(bool, initialized, narenas);
 		bool destroyed_initialized;
 		unsigned i, ninitialized;
 
