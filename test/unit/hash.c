@@ -61,8 +61,8 @@ static void
 hash_variant_verify_key(hash_variant_t variant, uint8_t *key) {
 	const int hashbytes = hash_variant_bits(variant) / 8;
 	const int hashes_size = hashbytes * 256;
-	VARIABLE_ARRAY(uint8_t, hashes, hashes_size);
-	VARIABLE_ARRAY(uint8_t, final, hashbytes);
+	VARIABLE_ARRAY_UNSAFE(uint8_t, hashes, hashes_size);
+	VARIABLE_ARRAY_UNSAFE(uint8_t, final, hashbytes);
 	unsigned i;
 	uint32_t computed, expected;
 
