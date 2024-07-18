@@ -234,7 +234,7 @@ tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 			}
 		}
 		assert(cnt + nremote == ncached);
-		memcpy(head + cnt, &tmp_ptrs, nremote * sizeof(void *));
+		memcpy(head + cnt, tmp_ptrs, nremote * sizeof(void *));
 	}
 	assert(nflush >= nremote);
 
