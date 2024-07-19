@@ -5,6 +5,7 @@
 #define LARGE_ALLOC_SIZE SC_LARGE_MINCLASS
 #define NALLOCS 1000
 
+const char *malloc_conf = "tcache_ncached_max:8-128:1024";
 /*
  * We make this volatile so the 1-at-a-time variants can't leave the allocation
  * in a register, just to try to get the cache behavior closer.
