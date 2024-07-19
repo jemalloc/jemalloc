@@ -712,22 +712,37 @@ tcache_bin_flush_impl_large(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin
 JEMALLOC_ALWAYS_INLINE void
 tcache_bin_flush_impl(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
     szind_t binind, cache_bin_ptr_array_t *ptrs, unsigned nflush, bool small) {
-	/*
-	 * The small/large flush logic is very similar; you might conclude that
-	 * it's a good opportunity to share code.  We've tried this, and by and
-	 * large found this to obscure more than it helps; there are so many
-	 * fiddly bits around things like stats handling, precisely when and
-	 * which mutexes are acquired, etc., that almost all code ends up being
-	 * gated behind 'if (small) { ... } else { ... }'.  Even though the
-	 * '...' is morally equivalent, the code itself needs slight tweaks.
-	 */
-	if (small) {
-		tcache_bin_flush_impl_small(tsd, tcache, cache_bin, binind,
-		    ptrs, nflush);
-	} else {
-		tcache_bin_flush_impl_large(tsd, tcache, cache_bin, binind,
-		    ptrs, nflush);
-	}
+	assert(ptrs != NULL && ptrs->ptr != NULL);
+	unsigned nflush_batch, nflushed = 0;
+	cache_bin_ptr_array_t ptrs_batch;
+	do {
+		nflush_batch = nflush - nflushed;
+		if (nflush_batch > CACHE_BIN_NFLUSH_BATCH_MAX) {
+			nflush_batch = CACHE_BIN_NFLUSH_BATCH_MAX;
+		}
+		assert(nflush_batch <= CACHE_BIN_NFLUSH_BATCH_MAX);
+		(&ptrs_batch)->n = (cache_bin_sz_t)nflush_batch;
+		(&ptrs_batch)->ptr = ptrs->ptr + nflushed;
+		/*
+		 * The small/large flush logic is very similar; you might conclude that
+		 * it's a good opportunity to share code.  We've tried this, and by and
+		 * large found this to obscure more than it helps; there are so many
+		 * fiddly bits around things like stats handling, precisely when and
+		 * which mutexes are acquired, etc., that almost all code ends up being
+		 * gated behind 'if (small) { ... } else { ... }'.  Even though the
+		 * '...' is morally equivalent, the code itself needs slight tweaks.
+		 */
+		if (small) {
+			tcache_bin_flush_impl_small(tsd, tcache, cache_bin, binind,
+			    &ptrs_batch, nflush_batch);
+		} else {
+			tcache_bin_flush_impl_large(tsd, tcache, cache_bin, binind,
+			    &ptrs_batch, nflush_batch);
+		}
+		nflushed += nflush_batch;
+	} while (nflushed < nflush);
+	assert(nflush == nflushed);
+	assert((ptrs->ptr + nflush) == ((&ptrs_batch)->ptr + nflush_batch));
 }
 
 JEMALLOC_ALWAYS_INLINE void
