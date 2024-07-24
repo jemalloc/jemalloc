@@ -4,6 +4,7 @@
 #include "jemalloc/internal/eset.h"
 
 #define ESET_NPSIZES (SC_NPSIZES + 1)
+#define ESET_ENUMERATE_NUM 32
 
 static void
 eset_bin_init(eset_bin_t *bin) {
@@ -196,15 +197,32 @@ eset_fit_alignment(eset_t *eset, size_t min_size, size_t max_size,
 edata_t *
 eset_enumerate_search(eset_t *eset, size_t size, pszind_t bin_ind,
     edata_cmp_summary_t *ret_summ) {
-	// for now simply search the top one, in the future enumerate to search
-	// specified number of items in the bin.
-	edata_t *edata = edata_heap_empty(&eset->bins[bin_ind].heap) ? NULL :
-	    edata_heap_first(&eset->bins[bin_ind].heap);
-	if (edata == NULL || edata_size_get(edata) < size) {
+	if (edata_heap_empty(&eset->bins[bin_ind].heap)) {
 		return NULL;
 	}
-	*ret_summ = eset->bins[bin_ind].heap_min;
-	return edata;
+
+	void *bfs_queue[ESET_ENUMERATE_NUM];
+	uint16_t front, rear;
+	size_t queue_size, visited_num;
+	edata_t *ret = NULL, *edata = NULL;
+	edata_heap_enumerate_prepare(&eset->bins[bin_ind].heap, bfs_queue,
+	    &front, &rear, &queue_size, &visited_num, ESET_ENUMERATE_NUM);
+	while ((edata =
+	    edata_heap_enumerate_next(&eset->bins[bin_ind].heap, bfs_queue,
+	    &front, &rear, &queue_size, &visited_num, ESET_ENUMERATE_NUM,
+	    ESET_ENUMERATE_NUM))) {
+		if (edata_size_get(edata) >= size) {
+			edata_cmp_summary_t temp_summ =
+			    edata_cmp_summary_get(edata);
+			if (ret == NULL || edata_cmp_summary_comp(temp_summ,
+			    *ret_summ) < 0) {
+				ret = edata;
+				*ret_summ = temp_summ;
+			}
+		}
+	}
+
+	return ret;
 }
 #endif
 

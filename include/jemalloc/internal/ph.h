@@ -414,6 +414,72 @@ ph_remove(ph_t *ph, void *phn, size_t offset, ph_cmp_t cmp) {
 	}
 }
 
+JEMALLOC_ALWAYS_INLINE void
+ph_queue_push(void *phn, void **bfs_queue, uint16_t *rear, size_t *queue_size,
+    size_t max_queue_size) {
+	assert(*queue_size < max_queue_size);
+	bfs_queue[*rear] = phn;
+	*rear = (*rear + 1) % max_queue_size;
+	(*queue_size) ++;
+}
+
+JEMALLOC_ALWAYS_INLINE void *
+ph_queue_pop(void **bfs_queue, uint16_t *front, size_t *queue_size,
+    size_t max_queue_size) {
+	assert(*queue_size > 0);
+	void *ret = bfs_queue[*front];
+	*front = (*front + 1) % max_queue_size;
+	(*queue_size) --;
+	return ret;
+}
+
+/*
+ * The two functions below offer a solution to enumerate the pairing heap.
+ * Whe enumerating, always call ph_enumerate_prepare first to prepare the queue
+ * needed for BFS.  Next, call ph_enumerate_next to get the next element in
+ * the enumeration.  When enumeration ends, ph_enumerate_next returns NULL and
+ * should not be called again.  Enumeration ends when all elements in the heap
+ * has been enumerated or the number of visited elements exceed
+ * MAX_ENUMERATE_NUM.
+ */
+JEMALLOC_ALWAYS_INLINE void
+ph_enumerate_prepare(ph_t *ph, void **bfs_queue, uint16_t *front,
+    uint16_t *rear, size_t *queue_size, size_t *visited_num,
+    size_t max_queue_size) {
+	*queue_size = 0;
+	*visited_num = 0;
+	*front = 0;
+	*rear = 0;
+	ph_queue_push(ph->root, bfs_queue, rear, queue_size, max_queue_size);
+}
+
+JEMALLOC_ALWAYS_INLINE void *
+ph_enumerate_next(ph_t *ph, size_t offset, void **bfs_queue, uint16_t *front,
+    uint16_t *rear, size_t *queue_size, size_t *visited_num,
+    size_t max_queue_size, size_t max_visit_num) {
+	if (*queue_size == 0) {
+		return NULL;
+	}
+	(*visited_num) ++;
+	if (*visited_num > max_visit_num) {
+		return NULL;
+	}
+
+	void *ret = ph_queue_pop(bfs_queue, front, queue_size, max_queue_size);
+	assert(ret != NULL);
+	void *left = phn_lchild_get(ret, offset);
+	void *right = phn_next_get(ret, offset);
+	if (left) {
+		ph_queue_push(left, bfs_queue, rear, queue_size,
+		    max_queue_size);
+	}
+	if (right) {
+		ph_queue_push(right, bfs_queue, rear, queue_size,
+		    max_queue_size);
+	}
+	return ret;
+}
+
 #define ph_structs(a_prefix, a_type)					\
 typedef struct {							\
 	phn_link_t link;						\
@@ -436,7 +502,13 @@ a_attr a_type *a_prefix##_any(a_prefix##_t *ph);			\
 a_attr void a_prefix##_insert(a_prefix##_t *ph, a_type *phn);		\
 a_attr a_type *a_prefix##_remove_first(a_prefix##_t *ph);		\
 a_attr void a_prefix##_remove(a_prefix##_t *ph, a_type *phn);		\
-a_attr a_type *a_prefix##_remove_any(a_prefix##_t *ph);
+a_attr a_type *a_prefix##_remove_any(a_prefix##_t *ph);			\
+a_attr void a_prefix##_enumerate_prepare(a_prefix##_t *ph,		\
+void **bfs_queue, uint16_t *front, uint16_t *rear, size_t *queue_size,	\
+size_t *visited_num, size_t max_queue_size);				\
+a_attr a_type *a_prefix##_enumerate_next(a_prefix##_t *ph,		\
+void **bfs_queue, uint16_t *front, uint16_t *rear, size_t *queue_size,	\
+size_t *visited_num, size_t max_queue_size, size_t max_visit_num);
 
 /* The ph_gen() macro generates a type-specific pairing heap implementation. */
 #define ph_gen(a_attr, a_prefix, a_type, a_field, a_cmp)		\
@@ -491,6 +563,23 @@ a_prefix##_remove_any(a_prefix##_t *ph) {				\
 		a_prefix##_remove(ph, ret);				\
 	}								\
 	return ret;							\
+}									\
+									\
+a_attr void								\
+a_prefix##_enumerate_prepare(a_prefix##_t *ph, void **bfs_queue,	\
+    uint16_t *front, uint16_t *rear, size_t *queue_size,		\
+    size_t *visited_num, size_t max_queue_size) {			\
+	ph_enumerate_prepare(&ph->ph, bfs_queue, front, rear,		\
+	    queue_size, visited_num, max_queue_size);			\
+}									\
+									\
+a_attr a_type *								\
+a_prefix##_enumerate_next(a_prefix##_t *ph, void **bfs_queue,		\
+    uint16_t *front, uint16_t *rear, size_t *queue_size,		\
+    size_t *visited_num, size_t max_queue_size, size_t max_visit_num) {	\
+	return ph_enumerate_next(&ph->ph, offsetof(a_type, a_field),	\
+	    bfs_queue, front, rear, queue_size, visited_num,		\
+	    max_queue_size, max_visit_num);				\
 }
 
 #endif /* JEMALLOC_INTERNAL_PH_H */
