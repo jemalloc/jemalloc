@@ -166,7 +166,7 @@ tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	 * the fill count is always at least 1.
 	 */
 	if ((cache_bin_ncached_max_get(cache_bin) >>
-	    (tcache_slow->lg_fill_div[szind] + 1)) >= 1) {
+	     tcache_slow->lg_fill_div[szind]) > 1) {
 		tcache_slow->lg_fill_div[szind]++;
 	}
 }
