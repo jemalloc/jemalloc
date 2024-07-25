@@ -210,14 +210,18 @@ tcache_event(tsd_t *tsd) {
 		}
 	} else if (is_small && tcache_slow->bin_refilled[szind]) {
 		assert(low_water == 0);
-		/*
-		 * Increase fill count by 2X for small bins.  Make sure
-		 * lg_fill_div stays greater than 0.
+
+		/**
+		 * Increase fill count by 2X for small bins. If the bin was flushed
+		 * since the last GC cycle, we make sure to leave room to free items
+		 * by ensuring lg_fill_div stays greater than 0.
 		 */
-		if (tcache_slow->lg_fill_div[szind] > 1) {
+		if (tcache_slow->lg_fill_div[szind] > tcache_slow->bin_flushed[szind]) {
 			tcache_slow->lg_fill_div[szind]--;
 		}
+
 		tcache_slow->bin_refilled[szind] = false;
+		tcache_slow->bin_flushed[szind] = false;
 	}
 	cache_bin_low_water_set(cache_bin);
 
@@ -764,6 +768,28 @@ tcache_bin_flush_bottom(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 }
 
 void
+tcache_bin_dalloc_small_flush(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
+    szind_t binind, unsigned rem) {
+	tcache_slow_t *tcache_slow = tcache->tcache_slow;
+	assert(binind < tcache_nbins_get(tcache_slow));
+
+	/**
+	 * If we need to flush, and lg_fill_div is zero, we probably aren't leaving
+	 * enough room in the bin to free elements. Make sure we leaves at least half
+	 * the bin available for frees going forward.
+	 */
+	if (!tcache_slow->bin_flushed[binind]) {
+		tcache_slow->bin_flushed[binind] = true;
+
+		if (tcache_slow->lg_fill_div[binind] == 0) {
+			tcache_slow->lg_fill_div[binind]++;
+		}
+	}
+
+	tcache_bin_flush_small(tsd, tcache, cache_bin, binind, rem);
+}
+
+void
 tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
     szind_t binind, unsigned rem) {
 	tcache_bin_flush_bottom(tsd, tcache, cache_bin, binind, rem,
@@ -937,8 +963,9 @@ tcache_init(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	    &cur_offset);
 	for (unsigned i = 0; i < tcache_nbins; i++) {
 		if (i < SC_NBINS) {
-			tcache_slow->lg_fill_div[i] = 1;
+			tcache_slow->lg_fill_div[i] = 0;
 			tcache_slow->bin_refilled[i] = false;
+			tcache_slow->bin_flushed[i] = false;
 			tcache_slow->bin_flush_delay_items[i]
 			    = tcache_gc_item_delay_compute(i);
 		}

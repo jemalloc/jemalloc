@@ -49,6 +49,8 @@ size_t tcache_salloc(tsdn_t *tsdn, const void *ptr);
 void *tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
     cache_bin_t *cache_bin, szind_t binind, bool *tcache_success);
 
+void tcache_bin_dalloc_small_flush(tsd_t *tsd, tcache_t *tcache,
+    cache_bin_t *cache_bin, szind_t binind, unsigned rem);
 void tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache,
     cache_bin_t *cache_bin, szind_t binind, unsigned rem);
 void tcache_bin_flush_large(tsd_t *tsd, tcache_t *tcache,

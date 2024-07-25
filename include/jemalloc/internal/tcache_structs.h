@@ -39,6 +39,8 @@ struct tcache_slow_s {
 	uint8_t		lg_fill_div[SC_NBINS];
 	/* For small bins, whether has been refilled since last GC. */
 	bool		bin_refilled[SC_NBINS];
+	/* For small bins, whether has been flushed since last GC. */
+	bool		bin_flushed[SC_NBINS];
 	/*
 	 * For small bins, the number of items we can pretend to flush before
 	 * actually flushing.

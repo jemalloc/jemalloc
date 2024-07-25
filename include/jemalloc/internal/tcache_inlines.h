@@ -202,7 +202,7 @@ tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 		}
 		cache_bin_sz_t max = cache_bin_ncached_max_get(bin);
 		unsigned remain = max >> opt_lg_tcache_flush_small_div;
-		tcache_bin_flush_small(tsd, tcache, bin, binind, remain);
+		tcache_bin_dalloc_small_flush(tsd, tcache, bin, binind, remain);
 		bool ret = cache_bin_dalloc_easy(bin, ptr);
 		assert(ret);
 	}
