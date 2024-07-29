@@ -16,6 +16,7 @@ bool mock_prof_sample_free_hook_called = false;
 
 void *sampled_ptr = NULL;
 size_t sampled_ptr_sz = 0;
+size_t sampled_ptr_usz = 0;
 void *free_sampled_ptr = NULL;
 size_t free_sampled_ptr_sz = 0;
 
@@ -60,10 +61,11 @@ mock_dump_hook(const char *filename) {
 }
 
 void
-mock_prof_sample_hook(const void *ptr, size_t sz, void **vec, unsigned len) {
+mock_prof_sample_hook(const void *ptr, size_t sz, void **vec, unsigned len, size_t usz) {
 	mock_prof_sample_hook_called = true;
 	sampled_ptr = (void *)ptr;
 	sampled_ptr_sz = sz;
+	sampled_ptr_usz = usz;
 	for (unsigned i = 0; i < len; i++) {
 		expect_ptr_not_null((void **)vec[i],
 		    "Backtrace should not contain NULL");
@@ -244,6 +246,7 @@ check_prof_sample_hooks(bool sample_hook_set, bool sample_free_hook_set) {
 	    "Should not have called prof_sample_free hook");
 	expect_ptr_null(sampled_ptr, "Unexpected sampled ptr");
 	expect_zu_eq(sampled_ptr_sz, 0, "Unexpected sampled ptr size");
+	expect_zu_eq(sampled_ptr_usz, 0, "Unexpected sampled ptr usize");
 	expect_ptr_null(free_sampled_ptr, "Unexpected free sampled ptr");
 	expect_zu_eq(free_sampled_ptr_sz, 0,
 	    "Unexpected free sampled ptr size");
@@ -258,6 +261,7 @@ check_prof_sample_hooks(bool sample_hook_set, bool sample_free_hook_set) {
 	    "Unexpected non NULL default hook");
 
 	size_t alloc_sz = 10;
+	size_t alloc_usz = 16;
 	void *p = mallocx(alloc_sz, 0);
 	expect_ptr_not_null(p, "Failed to allocate");
 	expect_true(mock_prof_sample_hook_called == sample_hook_set,
@@ -266,6 +270,7 @@ check_prof_sample_hooks(bool sample_hook_set, bool sample_free_hook_set) {
 		expect_ptr_eq(p, sampled_ptr, "Unexpected sampled ptr");
 		expect_zu_eq(alloc_sz, sampled_ptr_sz,
 		    "Unexpected sampled usize");
+		expect_zu_eq(alloc_usz, sampled_ptr_usz, "Unexpected sampled usize");
 	}
 
 	dallocx(p, 0);
@@ -278,7 +283,7 @@ check_prof_sample_hooks(bool sample_hook_set, bool sample_free_hook_set) {
 	}
 
 	sampled_ptr = free_sampled_ptr = NULL;
-	sampled_ptr_sz = free_sampled_ptr_sz = 0;
+	sampled_ptr_sz = sampled_ptr_usz = free_sampled_ptr_sz = 0;
 	mock_prof_sample_hook_called = false;
 	mock_prof_sample_free_hook_called = false;
 }
