@@ -195,14 +195,15 @@ tcache_dalloc_small(tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind,
 	}
 
 	if (unlikely(!cache_bin_dalloc_easy(bin, ptr))) {
-		if (unlikely(tcache_bin_disabled(binind, bin,
-		    tcache->tcache_slow))) {
+		tcache_slow_t *tcache_slow = tcache->tcache_slow;
+		if (unlikely(tcache_bin_disabled(binind, bin, tcache_slow))) {
 			arena_dalloc_small(tsd_tsdn(tsd), ptr);
 			return;
 		}
 		cache_bin_sz_t max = cache_bin_ncached_max_get(bin);
 		unsigned remain = max >> opt_lg_tcache_flush_small_div;
 		tcache_bin_flush_small(tsd, tcache, bin, binind, remain);
+		(&tcache_slow->fill_div_ctl[binind])->nflush++;
 		bool ret = cache_bin_dalloc_easy(bin, ptr);
 		assert(ret);
 	}

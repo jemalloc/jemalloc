@@ -33,17 +33,15 @@ struct tcache_slow_s {
 	arena_t		*arena;
 	/* The number of bins activated in the tcache. */
 	unsigned	tcache_nbins;
+	/* Next bin to update fill_div_ctl */
+	szind_t		next_fill_div_ctl_bin;
 	/* Next bin to GC. */
-	szind_t		next_gc_bin;
-	/* For small bins, fill (ncached_max >> lg_fill_div). */
-	uint8_t		lg_fill_div[SC_NBINS];
-	/* For small bins, whether has been refilled since last GC. */
-	bool		bin_refilled[SC_NBINS];
-	/*
-	 * For small bins, the number of items we can pretend to flush before
-	 * actually flushing.
-	 */
-	uint8_t		bin_flush_delay_items[SC_NBINS];
+	szind_t		next_gc_bin_small;
+	szind_t		next_gc_bin_large;
+	/* Last time GC has been performed.  */
+	nstime_t	last_gc_time;
+	/* For small bins, help control how many items to fill at a time. */
+	cache_bin_fill_div_ctl_t	fill_div_ctl[SC_NBINS];
 	/*
 	 * The start of the allocation containing the dynamic allocation for
 	 * either the cache bins alone, or the cache bin memory as well as this
