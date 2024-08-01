@@ -33,8 +33,12 @@ struct tcache_slow_s {
 	arena_t		*arena;
 	/* The number of bins activated in the tcache. */
 	unsigned	tcache_nbins;
+	/* Last time GC has been performed.  */
+	nstime_t	last_gc_time;
 	/* Next bin to GC. */
 	szind_t		next_gc_bin;
+	szind_t		next_gc_bin_small;
+	szind_t		next_gc_bin_large;
 	/* For small bins, fill (ncached_max >> lg_fill_div). */
 	uint8_t		lg_fill_div[SC_NBINS];
 	/* For small bins, whether has been refilled since last GC. */
