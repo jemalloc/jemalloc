@@ -23,5 +23,6 @@ typedef struct tcaches_s tcaches_t;
 #define TCACHE_MAXCLASS_LIMIT ((size_t)1 << TCACHE_LG_MAXCLASS_LIMIT)
 #define TCACHE_NBINS_MAX (SC_NBINS + SC_NGROUP *			\
     (TCACHE_LG_MAXCLASS_LIMIT - SC_LG_LARGE_MINCLASS) + 1)
+#define TCACHE_GC_NEIGHBOR_LIMIT ((uintptr_t)1 << 21) /* 2M */
 
 #endif /* JEMALLOC_INTERNAL_TCACHE_TYPES_H */

@@ -134,10 +134,162 @@ tcache_gc_item_delay_compute(szind_t szind) {
 	return (uint8_t)item_delay;
 }
 
+static inline void *
+tcache_gc_small_heuristic_addr_get(tsd_t *tsd, tcache_slow_t *tcache_slow,
+    szind_t szind) {
+	assert(szind < SC_NBINS);
+	tsdn_t *tsdn = tsd_tsdn(tsd);
+	bin_t *bin = arena_bin_choose(tsdn, tcache_slow->arena, szind, NULL);
+	assert(bin != NULL);
+
+	malloc_mutex_lock(tsdn, &bin->lock);
+	edata_t *slab = (bin->slabcur == NULL) ?
+	    edata_heap_first(&bin->slabs_nonfull) : bin->slabcur;
+	assert(slab != NULL || edata_heap_empty(&bin->slabs_nonfull));
+	void *ret = (slab != NULL) ? edata_addr_get(slab) : NULL;
+	assert(ret != NULL || slab == NULL);
+	malloc_mutex_unlock(tsdn, &bin->lock);
+
+	return ret;
+}
+
+static inline bool
+tcache_gc_is_addr_remote(void *addr, uintptr_t min, uintptr_t max) {
+	assert(addr != NULL);
+	return ((uintptr_t)addr < min || (uintptr_t)addr >= max);
+}
+
+static inline cache_bin_sz_t
+tcache_gc_small_nremote_get(cache_bin_t *cache_bin, void *addr,
+    uintptr_t *addr_min, uintptr_t *addr_max, szind_t szind, size_t nflush) {
+	assert(addr != NULL && addr_min != NULL && addr_max != NULL);
+	/* The slab address range that the provided addr belongs to. */
+	uintptr_t slab_min = (uintptr_t)addr;
+	uintptr_t slab_max = slab_min + bin_infos[szind].slab_size;
+	/*
+	 * When growing retained virtual memory, it's increased exponentially,
+	 * starting from 2M, so that the total number of disjoint virtual
+	 * memory ranges retained by each shard is limited.
+	 */
+	uintptr_t neighbor_min = ((uintptr_t)addr > TCACHE_GC_NEIGHBOR_LIMIT) ?
+	    ((uintptr_t)addr - TCACHE_GC_NEIGHBOR_LIMIT) : 0;
+	uintptr_t neighbor_max = ((uintptr_t)addr < (UINTPTR_MAX -
+	    TCACHE_GC_NEIGHBOR_LIMIT)) ? ((uintptr_t)addr +
+	    TCACHE_GC_NEIGHBOR_LIMIT) : UINTPTR_MAX;
+
+	/* Scan the entire bin to count the number of remote pointers. */
+	void **head = cache_bin->stack_head;
+	cache_bin_sz_t n_remote_slab = 0, n_remote_neighbor = 0;
+	cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin);
+	for (void **cur = head; cur < head + ncached; cur++) {
+		n_remote_slab += (cache_bin_sz_t)tcache_gc_is_addr_remote(*cur,
+		    slab_min, slab_max);
+		n_remote_neighbor += (cache_bin_sz_t)tcache_gc_is_addr_remote(*cur,
+		    neighbor_min, neighbor_max);
+	}
+	/*
+	 * Note: since slab size is dynamic and can be larger than 2M, i.e.
+	 * TCACHE_GC_NEIGHBOR_LIMIT, there is no guarantee as to which of
+	 * n_remote_slab and n_remote_neighbor is greater.
+	 */
+	assert(n_remote_slab <= ncached && n_remote_neighbor <= ncached);
+	/*
+	 * We first consider keeping ptrs from the neighboring addr range,
+	 * since in most cases the range is greater than the slab range.
+	 * So if the number of non-neighbor ptrs is more than the intended
+	 * flush amount, we use it as the anchor for flushing.
+	 */
+	if (n_remote_neighbor >= nflush) {
+		*addr_min = neighbor_min;
+		*addr_max = neighbor_max;
+		return n_remote_neighbor;
+	}
+	/*
+	 * We then consider only keeping ptrs from the local slab, and in most
+	 * cases this is stricter, assuming that slab < 2M is the common case.
+	 */
+	*addr_min = slab_min;
+	*addr_max = slab_max;
+	return n_remote_slab;
+}
+
+/* Shuffle the ptrs in the bin to put the remote pointers at the bottom. */
+static inline void
+tcache_gc_small_bin_shuffle(cache_bin_t *cache_bin, cache_bin_sz_t nremote,
+   uintptr_t addr_min, uintptr_t addr_max) {
+	void **swap = NULL;
+	cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin);
+	cache_bin_sz_t ntop = ncached - nremote, cnt = 0;
+	assert(ntop > 0 && ntop < ncached);
+	/*
+	 * Scan the [head, head + ntop) part of the cache bin, during which
+	 * bubbling the non-remote ptrs to the top of the bin.
+	 * After this, the [head, head + cnt) part of the bin contains only
+	 * non-remote ptrs, and they're in the same relative order as before.
+	 * While the [head + cnt, head + ntop) part contains only remote ptrs.
+	 */
+	void **head = cache_bin->stack_head;
+	for (void **cur = head; cur < head + ntop; cur++) {
+		if (!tcache_gc_is_addr_remote(*cur, addr_min, addr_max)) {
+			/* Tracks the number of non-remote ptrs seen so far. */
+			cnt++;
+			/*
+			 * There is remote ptr before the current non-remote ptr,
+			 * swap the current non-remote ptr with the remote ptr,
+			 * and increment the swap pointer so that it's still
+			 * pointing to the top remote ptr in the bin.
+			 */
+			if (swap != NULL) {
+				assert(swap < cur);
+				assert(tcache_gc_is_addr_remote(*swap, addr_min, addr_max));
+				void *tmp = *cur;
+				*cur = *swap;
+				*swap = tmp;
+				swap++;
+				assert(swap <= cur);
+				assert(tcache_gc_is_addr_remote(*swap, addr_min, addr_max));
+			}
+			continue;
+		} else if (swap == NULL) {
+			/* Swap always points to the top remote ptr in the bin. */
+			swap = cur;
+		}
+	}
+	/*
+	 * Scan the [head + ntop, head + ncached) part of the cache bin,
+	 * after which it should only contain remote ptrs.
+	 */
+	for (void **cur = head + ntop; cur < head + ncached; cur++) {
+		/* Early break if all non-remote ptrs have been moved. */
+		if (cnt == ntop) {
+			break;
+		}
+		if (!tcache_gc_is_addr_remote(*cur, addr_min, addr_max)) {
+			assert(tcache_gc_is_addr_remote(*(head + cnt), addr_min,
+			    addr_max));
+			void *tmp = *cur;
+			*cur = *(head + cnt);
+			*(head + cnt) = tmp;
+			cnt++;
+		}
+	}
+	assert(cnt == ntop);
+	/* Sanity check to make sure the shuffle is done correctly. */
+	for (void **cur = head; cur < head + ncached; cur++) {
+		assert(*cur != NULL);
+		assert(((cur < head + ntop) && !tcache_gc_is_addr_remote(
+		    *cur, addr_min, addr_max)) || ((cur >= head + ntop) &&
+		    tcache_gc_is_addr_remote(*cur, addr_min, addr_max)));
+	}
+}
+
 static void
 tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
     szind_t szind) {
-	/* Aim to flush 3/4 of items below low-water. */
+	/*
+	 * Aim to flush 3/4 of items below low-water, with remote pointers being
+	 * prioritized for flushing.
+	 */
 	assert(szind < SC_NBINS);
 
 	cache_bin_t *cache_bin = &tcache->bins[szind];
@@ -158,8 +310,6 @@ tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 
 	tcache_slow->bin_flush_delay_items[szind]
 	    = tcache_gc_item_delay_compute(szind);
-	tcache_bin_flush_small(tsd, tcache, cache_bin, szind,
-	    (unsigned)(ncached - nflush));
 
 	/*
 	 * Reduce fill count by 2X.  Limit lg_fill_div such that
@@ -169,12 +319,70 @@ tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	     tcache_slow->lg_fill_div[szind]) > 1) {
 		tcache_slow->lg_fill_div[szind]++;
 	}
+
+	/*
+	 * When the new tcache gc is not enabled, or simply the entire bin needs
+	 * to be flushed, flush the bottom nflush items directly.
+	 */
+	if (!opt_experimental_tcache_gc || nflush == ncached) {
+		goto label_flush;
+	}
+
+	/* Query arena binshard to get heuristic locality info. */
+	void *addr = tcache_gc_small_heuristic_addr_get(tsd, tcache_slow, szind);
+	if (addr == NULL) {
+		goto label_flush;
+	}
+
+	/*
+	 * Use the queried addr above to get the number of remote ptrs in the
+	 * bin, and the min/max of the local addr range.
+	 */
+	uintptr_t addr_min, addr_max;
+	cache_bin_sz_t nremote = tcache_gc_small_nremote_get(cache_bin, addr,
+	    &addr_min, &addr_max, szind, nflush);
+
+	/*
+	 * Update the nflush to the larger value between the intended flush count
+	 * and the number of remote ptrs.
+	 */
+	if (nremote > nflush) {
+		nflush = nremote;
+	}
+	/*
+	 * When entering the locality check, nflush should be less than ncached,
+	 * otherwise the entire bin should be flushed regardless. The only case
+	 * when nflush gets updated to ncached after locality check is, when all
+	 * the items in the bin are remote, in which case the entire bin should
+	 * also be flushed.
+	 */
+	assert(nflush < ncached || nremote == ncached);
+	if (nremote == 0 || nremote == ncached)	{
+		goto label_flush;
+	}
+
+	/*
+	 * Move the remote points to the bottom of the bin for flushing.
+	 * As long as moved to the bottom, the order of these nremote ptrs
+	 * does not matter, since they are going to be flushed anyway.
+	 * The rest of the ptrs are moved to the top of the bin, and their
+	 * relative order is maintained.
+	 */
+	tcache_gc_small_bin_shuffle(cache_bin, nremote, addr_min, addr_max);
+
+label_flush:
+	assert(nflush > 0 && nflush <= ncached);
+	tcache_bin_flush_small(tsd, tcache, cache_bin, szind,
+	    (unsigned)(ncached - nflush));
 }
 
 static void
 tcache_gc_large(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
     szind_t szind) {
-	/* Like the small GC; flush 3/4 of untouched items. */
+	/*
+	 * Like the small GC, flush 3/4 of untouched items. However, simply flush
+	 * the bottom nflush items, without any locality check.
+	 */
 	assert(szind >= SC_NBINS);
 	cache_bin_t *cache_bin = &tcache->bins[szind];
 	assert(!tcache_bin_disabled(szind, cache_bin, tcache->tcache_slow));
