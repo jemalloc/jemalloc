@@ -283,7 +283,7 @@ tcache_gc_small_bin_shuffle(cache_bin_t *cache_bin, cache_bin_sz_t nremote,
 	}
 }
 
-static void
+static bool
 tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
     szind_t szind) {
 	/*
@@ -296,35 +296,49 @@ tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	assert(!tcache_bin_disabled(szind, cache_bin, tcache->tcache_slow));
 	cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin);
 	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin);
+	if (low_water > 0) {
+		/*
+		 * Reduce fill count by 2X.  Limit lg_fill_div such that
+		 * the fill count is always at least 1.
+		 */
+		if ((cache_bin_ncached_max_get(cache_bin) >>
+		    tcache_slow->lg_fill_div[szind]) > 1) {
+			tcache_slow->lg_fill_div[szind]++;
+		}
+	} else if (tcache_slow->bin_refilled[szind]) {
+		/*
+		 * Increase fill count by 2X for small bins.  Make sure
+		 * lg_fill_div stays greater than 0.
+		 */
+		if (tcache_slow->lg_fill_div[szind] > 1) {
+			tcache_slow->lg_fill_div[szind]--;
+		}
+		tcache_slow->bin_refilled[szind] = false;
+	}
 	assert(!tcache_slow->bin_refilled[szind]);
 
-	size_t nflush = low_water - (low_water >> 2);
-	if (nflush < tcache_slow->bin_flush_delay_items[szind]) {
-		/* Workaround for a conversion warning. */
-		uint8_t nflush_uint8 = (uint8_t)nflush;
-		assert(sizeof(tcache_slow->bin_flush_delay_items[0]) ==
-		    sizeof(nflush_uint8));
-		tcache_slow->bin_flush_delay_items[szind] -= nflush_uint8;
-		return;
+	cache_bin_sz_t nflush = low_water - (low_water >> 2);
+	/*
+	 * When the new tcache gc is not enabled, keep the flush delay logic,
+	 * and directly flush the bottom nflush items if needed.
+	 */
+	if (!opt_experimental_tcache_gc) {
+		if (nflush < tcache_slow->bin_flush_delay_items[szind]) {
+			/* Workaround for a conversion warning. */
+			uint8_t nflush_uint8 = (uint8_t)nflush;
+			assert(sizeof(tcache_slow->bin_flush_delay_items[0]) ==
+			    sizeof(nflush_uint8));
+			tcache_slow->bin_flush_delay_items[szind] -= nflush_uint8;
+			return false;
+		}
+
+		tcache_slow->bin_flush_delay_items[szind]
+		    = tcache_gc_item_delay_compute(szind);
+		goto label_flush;
 	}
 
-	tcache_slow->bin_flush_delay_items[szind]
-	    = tcache_gc_item_delay_compute(szind);
-
-	/*
-	 * Reduce fill count by 2X.  Limit lg_fill_div such that
-	 * the fill count is always at least 1.
-	 */
-	if ((cache_bin_ncached_max_get(cache_bin) >>
-	     tcache_slow->lg_fill_div[szind]) > 1) {
-		tcache_slow->lg_fill_div[szind]++;
-	}
-
-	/*
-	 * When the new tcache gc is not enabled, or simply the entire bin needs
-	 * to be flushed, flush the bottom nflush items directly.
-	 */
-	if (!opt_experimental_tcache_gc || nflush == ncached) {
+	/* Directly goto the flush path when the entire bin needs to be flushed. */
+	if ( nflush == ncached) {
 		goto label_flush;
 	}
 
@@ -371,12 +385,17 @@ tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	tcache_gc_small_bin_shuffle(cache_bin, nremote, addr_min, addr_max);
 
 label_flush:
-	assert(nflush > 0 && nflush <= ncached);
+	if (nflush == 0) {
+		assert(low_water == 0);
+		return false;
+	}
+	assert(nflush <= ncached);
 	tcache_bin_flush_small(tsd, tcache, cache_bin, szind,
 	    (unsigned)(ncached - nflush));
+	return true;
 }
 
-static void
+static bool
 tcache_gc_large(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
     szind_t szind) {
 	/*
@@ -386,10 +405,32 @@ tcache_gc_large(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	assert(szind >= SC_NBINS);
 	cache_bin_t *cache_bin = &tcache->bins[szind];
 	assert(!tcache_bin_disabled(szind, cache_bin, tcache->tcache_slow));
-	cache_bin_sz_t ncached = cache_bin_ncached_get_local(cache_bin);
 	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin);
-	tcache_bin_flush_large(tsd, tcache, cache_bin, szind,
-	    (unsigned)(ncached - low_water + (low_water >> 2)));
+	if (low_water == 0) {
+		return false;
+	}
+	unsigned nrem = (unsigned)(cache_bin_ncached_get_local(cache_bin) -
+	    low_water + (low_water >> 2));
+	tcache_bin_flush_large(tsd, tcache, cache_bin, szind, nrem);
+	return true;
+}
+
+/* Try to gc one bin by szind, return true if there is item flushed. */
+static bool
+tcache_try_gc_bin(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
+    szind_t szind) {
+	assert(tcache != NULL);
+	cache_bin_t *cache_bin = &tcache->bins[szind];
+	if (tcache_bin_disabled(szind, cache_bin, tcache_slow)) {
+		return false;
+	}
+
+	bool is_small = (szind < SC_NBINS);
+	tcache_bin_flush_stashed(tsd, tcache, cache_bin, szind, is_small);
+	bool ret = is_small ? tcache_gc_small(tsd, tcache_slow, tcache, szind) :
+	    tcache_gc_large(tsd, tcache_slow, tcache, szind);
+	cache_bin_low_water_set(cache_bin);
+	return ret;
 }
 
 static void
@@ -400,40 +441,67 @@ tcache_event(tsd_t *tsd) {
 	}
 
 	tcache_slow_t *tcache_slow = tsd_tcache_slowp_get(tsd);
-	szind_t szind = tcache_slow->next_gc_bin;
-	bool is_small = (szind < SC_NBINS);
-	cache_bin_t *cache_bin = &tcache->bins[szind];
+	assert(tcache_slow != NULL);
 
-	if (tcache_bin_disabled(szind, cache_bin, tcache_slow)) {
-		goto label_done;
-	}
-
-	tcache_bin_flush_stashed(tsd, tcache, cache_bin, szind, is_small);
-	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin);
-	if (low_water > 0) {
-		if (is_small) {
-			tcache_gc_small(tsd, tcache_slow, tcache, szind);
-		} else {
-			tcache_gc_large(tsd, tcache_slow, tcache, szind);
+	/* When the new tcache gc is not enabled, GC one bin at a time. */
+	if (!opt_experimental_tcache_gc) {
+		szind_t szind = tcache_slow->next_gc_bin;
+		tcache_try_gc_bin(tsd, tcache_slow, tcache, szind);
+		tcache_slow->next_gc_bin++;
+		if (tcache_slow->next_gc_bin == tcache_nbins_get(tcache_slow)) {
+			tcache_slow->next_gc_bin = 0;
 		}
-	} else if (is_small && tcache_slow->bin_refilled[szind]) {
-		assert(low_water == 0);
-		/*
-		 * Increase fill count by 2X for small bins.  Make sure
-		 * lg_fill_div stays greater than 0.
-		 */
-		if (tcache_slow->lg_fill_div[szind] > 1) {
-			tcache_slow->lg_fill_div[szind]--;
-		}
-		tcache_slow->bin_refilled[szind] = false;
+		return;
 	}
-	cache_bin_low_water_set(cache_bin);
 
-label_done:
-	tcache_slow->next_gc_bin++;
-	if (tcache_slow->next_gc_bin == tcache_nbins_get(tcache_slow)) {
-		tcache_slow->next_gc_bin = 0;
+	nstime_t now;
+	nstime_copy(&now, &tcache_slow->last_gc_time);
+	nstime_update(&now);
+	assert(nstime_compare(&now, &tcache_slow->last_gc_time) >= 0);
+
+	if (nstime_ns(&now) - nstime_ns(&tcache_slow->last_gc_time) <
+	    TCACHE_GC_INTERVAL_NS) {
+		// time interval is too short, skip this event.
+		return;
 	}
+	/* Update last_gc_time to now. */
+	nstime_copy(&tcache_slow->last_gc_time, &now);
+
+	unsigned gc_small_nbins = 0, gc_large_nbins = 0;
+	unsigned tcache_nbins = tcache_nbins_get(tcache_slow);
+	unsigned small_nbins = tcache_nbins > SC_NBINS ? SC_NBINS : tcache_nbins;
+	szind_t szind_small = tcache_slow->next_gc_bin_small;
+	szind_t szind_large = tcache_slow->next_gc_bin_large;
+
+	/* Flush at most TCACHE_GC_SMALL_NBINS_MAX small bins at a time. */
+	for (unsigned i = 0; i < small_nbins && gc_small_nbins <
+	    TCACHE_GC_SMALL_NBINS_MAX; i++) {
+		assert(szind_small < SC_NBINS);
+		if (tcache_try_gc_bin(tsd, tcache_slow, tcache, szind_small)) {
+			gc_small_nbins++;
+		}
+		if (++szind_small == small_nbins) {
+			szind_small = 0;
+		}
+	}
+	tcache_slow->next_gc_bin_small = szind_small;
+
+	if (tcache_nbins <= SC_NBINS) {
+		return;
+	}
+
+	/* Flush at most TCACHE_GC_LARGE_NBINS_MAX large bins at a time. */
+	for (unsigned i = SC_NBINS; i < tcache_nbins && gc_large_nbins <
+	    TCACHE_GC_LARGE_NBINS_MAX; i++) {
+		assert(szind_large >= SC_NBINS && szind_large < tcache_nbins);
+		if (tcache_try_gc_bin(tsd, tcache_slow, tcache, szind_large)) {
+			gc_large_nbins++;
+		}
+		if (++szind_large == tcache_nbins) {
+			szind_large = SC_NBINS;
+		}
+	}
+	tcache_slow->next_gc_bin_large = szind_large;
 }
 
 void
@@ -1146,7 +1214,10 @@ tcache_init(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	tcache_slow->tcache = tcache;
 
 	memset(&tcache_slow->link, 0, sizeof(ql_elm(tcache_t)));
+	nstime_init_zero(&tcache_slow->last_gc_time);
 	tcache_slow->next_gc_bin = 0;
+	tcache_slow->next_gc_bin_small = 0;
+	tcache_slow->next_gc_bin_large = SC_NBINS;
 	tcache_slow->arena = NULL;
 	tcache_slow->dyn_alloc = mem;
 
