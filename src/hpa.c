@@ -565,7 +565,6 @@ hpa_shard_maybe_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard,
 			nops++;
 		}
 		malloc_mutex_assert_owner(tsdn, &shard->mtx);
-		malloc_mutex_assert_owner(tsdn, &shard->mtx);
 	} while ((hugified || purged) && nops < max_ops);
 }
 
