@@ -532,41 +532,41 @@ hpa_shard_maybe_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard,
 	if (!forced && shard->opts.deferral_allowed) {
 		return;
 	}
+
 	/*
 	 * If we're on a background thread, do work so long as there's work to
 	 * be done.  Otherwise, bound latency to not be *too* bad by doing at
 	 * most a small fixed number of operations.
 	 */
-	bool hugified = false;
-	bool purged = false;
 	size_t max_ops = (forced ? (size_t)-1 : 16);
 	size_t nops = 0;
-	do {
-		/*
-		 * Always purge before hugifying, to make sure we get some
-		 * ability to hit our quiescence targets.
-		 */
-		purged = false;
-		while (hpa_should_purge(tsdn, shard) && nops < max_ops) {
-			purged = hpa_try_purge(tsdn, shard);
-			if (!purged) {
-				/*
-				 * It is fine if we couldn't purge as sometimes
-				 * we try to purge just to unblock
-				 * hugification, but there is maybe no dirty
-				 * pages at all at the moment.
-				 */
-				break;
-			}
-			nops++;
-		}
-		hugified = hpa_try_hugify(tsdn, shard);
-		if (hugified) {
-			nops++;
+
+	/*
+	 * Always purge before hugifying, to make sure we get some
+	 * ability to hit our quiescence targets.
+	 */
+	while (hpa_should_purge(tsdn, shard) && nops < max_ops) {
+		if (!hpa_try_purge(tsdn, shard)) {
+			/*
+			 * It is fine if we couldn't purge as sometimes
+			 * we try to purge just to unblock
+			 * hugification, but there is maybe no dirty
+			 * pages at all at the moment.
+			 */
+			break;
 		}
 		malloc_mutex_assert_owner(tsdn, &shard->mtx);
+		nops++;
+	}
+
+	/*
+	 * Try to hugify at least once, even if we out of operations to make at
+	 * least some progress on hugification even at worst case.
+	 */
+	while (hpa_try_hugify(tsdn, shard) && nops < max_ops) {
 		malloc_mutex_assert_owner(tsdn, &shard->mtx);
-	} while ((hugified || purged) && nops < max_ops);
+		nops++;
+	}
 }
 
 static edata_t *
