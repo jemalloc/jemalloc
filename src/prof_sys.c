@@ -6,6 +6,10 @@
 #include "jemalloc/internal/prof_data.h"
 #include "jemalloc/internal/prof_sys.h"
 
+#ifdef JEMALLOC_PROF_MSVC
+#include <WinBase.h>
+#endif
+
 #ifdef JEMALLOC_PROF_LIBUNWIND
 #define UNW_LOCAL_ONLY
 #include <libunwind.h>
@@ -44,7 +48,24 @@ bt_init(prof_bt_t *bt, void **vec) {
 	bt->len = 0;
 }
 
-#ifdef JEMALLOC_PROF_LIBUNWIND
+#ifdef JEMALLOC_PROF_MSVC
+static void
+prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
+	int nframes;
+
+	cassert(config_prof);
+	assert(*len == 0);
+	assert(vec != NULL);
+	assert(max_len == PROF_BT_MAX);
+
+	nframes = CaptureStackBackTrace(0, PROF_BT_MAX, vec, NULL);
+
+	if (nframes <= 0) {
+		return;
+	}
+	*len = nframes;
+}
+#elif (defined(JEMALLOC_PROF_LIBUNWIND))
 static void
 prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 	int nframes;
