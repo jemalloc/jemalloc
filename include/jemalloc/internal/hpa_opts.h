@@ -57,6 +57,11 @@ struct hpa_shard_opts_s {
 	 * purging logic fix.
 	 */
 	bool strict_min_purge_interval;
+
+	/*
+	 * Maximum number of hugepages to purge on each purging attempt.
+	 */
+	ssize_t experimental_max_purge_nhp;
 };
 
 #define HPA_SHARD_OPTS_DEFAULT {					\
@@ -79,7 +84,9 @@ struct hpa_shard_opts_s {
 	/* min_purge_interval_ms */					\
 	5 * 1000,							\
 	/* strict_min_purge_interval */					\
-	false								\
+	false,								\
+	/* experimental_max_purge_nhp */				\
+	-1								\
 }
 
 #endif /* JEMALLOC_INTERNAL_HPA_OPTS_H */
