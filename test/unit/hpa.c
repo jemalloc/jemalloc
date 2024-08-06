@@ -34,6 +34,8 @@ static hpa_shard_opts_t test_hpa_shard_opts_default = {
 	10 * 1000,
 	/* min_purge_interval_ms */
 	5 * 1000,
+	/* strict_min_purge_interval */
+	false
 };
 
 static hpa_shard_opts_t test_hpa_shard_opts_purge = {
@@ -49,6 +51,8 @@ static hpa_shard_opts_t test_hpa_shard_opts_purge = {
 	0,
 	/* min_purge_interval_ms */
 	5 * 1000,
+	/* strict_min_purge_interval */
+	false
 };
 
 static hpa_shard_t *
@@ -358,24 +362,24 @@ defer_test_unmap(void *ptr, size_t size) {
 	(void)size;
 }
 
-static bool defer_purge_called = false;
+static size_t ndefer_purge_calls = 0;
 static void
 defer_test_purge(void *ptr, size_t size) {
 	(void)ptr;
 	(void)size;
-	defer_purge_called = true;
+	++ndefer_purge_calls;
 }
 
-static bool defer_hugify_called = false;
+static size_t ndefer_hugify_calls = 0;
 static void
 defer_test_hugify(void *ptr, size_t size) {
-	defer_hugify_called = true;
+	++ndefer_hugify_calls;
 }
 
-static bool defer_dehugify_called = false;
+static size_t ndefer_dehugify_calls = 0;
 static void
 defer_test_dehugify(void *ptr, size_t size) {
-	defer_dehugify_called = true;
+	++ndefer_dehugify_calls;
 }
 
 static nstime_t defer_curtime;
@@ -417,14 +421,14 @@ TEST_BEGIN(test_defer_time) {
 		expect_ptr_not_null(edatas[i], "Unexpected null edata");
 	}
 	hpa_shard_do_deferred_work(tsdn, shard);
-	expect_false(defer_hugify_called, "Hugified too early");
+	expect_zu_eq(0, ndefer_hugify_calls, "Hugified too early");
 
 	/* Hugification delay is set to 10 seconds in options. */
 	nstime_init2(&defer_curtime, 11, 0);
 	hpa_shard_do_deferred_work(tsdn, shard);
-	expect_true(defer_hugify_called, "Failed to hugify");
+	expect_zu_eq(1, ndefer_hugify_calls, "Failed to hugify");
 
-	defer_hugify_called = false;
+	ndefer_hugify_calls = 0;
 
 	/* Purge.  Recall that dirty_mult is .25. */
 	for (int i = 0; i < (int)HUGEPAGE_PAGES / 2; i++) {
@@ -434,12 +438,12 @@ TEST_BEGIN(test_defer_time) {
 
 	hpa_shard_do_deferred_work(tsdn, shard);
 
-	expect_false(defer_hugify_called, "Hugified too early");
-	expect_true(defer_dehugify_called, "Should have dehugified");
-	expect_true(defer_purge_called, "Should have purged");
-	defer_hugify_called = false;
-	defer_dehugify_called = false;
-	defer_purge_called = false;
+	expect_zu_eq(0, ndefer_hugify_calls, "Hugified too early");
+	expect_zu_eq(1, ndefer_dehugify_calls, "Should have dehugified");
+	expect_zu_eq(1, ndefer_purge_calls, "Should have purged");
+	ndefer_hugify_calls = 0;
+	ndefer_dehugify_calls = 0;
+	ndefer_purge_calls = 0;
 
 	/*
 	 * Refill the page.  We now meet the hugification threshold; we should
@@ -459,9 +463,10 @@ TEST_BEGIN(test_defer_time) {
 	/* Wait for the threshold again. */
 	nstime_init2(&defer_curtime, 22, 0);
 	hpa_shard_do_deferred_work(tsdn, shard);
-	expect_true(defer_hugify_called, "Hugified too early");
-	expect_false(defer_dehugify_called, "Unexpected dehugify");
-	expect_false(defer_purge_called, "Unexpected purge");
+	expect_zu_eq(1, ndefer_hugify_calls, "Failed to hugify");
+	expect_zu_eq(0, ndefer_dehugify_calls, "Unexpected dehugify");
+	expect_zu_eq(0, ndefer_purge_calls, "Unexpected purge");
+	ndefer_hugify_calls = 0;
 
 	destroy_test_data(shard);
 }
@@ -497,6 +502,157 @@ TEST_BEGIN(test_purge_no_infinite_loop) {
 }
 TEST_END
 
+TEST_BEGIN(test_strict_no_min_purge_interval) {
+	test_skip_if(!hpa_supported());
+
+	hpa_hooks_t hooks;
+	hooks.map = &defer_test_map;
+	hooks.unmap = &defer_test_unmap;
+	hooks.purge = &defer_test_purge;
+	hooks.hugify = &defer_test_hugify;
+	hooks.dehugify = &defer_test_dehugify;
+	hooks.curtime = &defer_test_curtime;
+	hooks.ms_since = &defer_test_ms_since;
+
+	hpa_shard_opts_t opts = test_hpa_shard_opts_default;
+	opts.deferral_allowed = true;
+
+	hpa_shard_t *shard = create_test_data(&hooks, &opts);
+
+	bool deferred_work_generated = false;
+
+	nstime_init(&defer_curtime, 0);
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+
+	edata_t *edata = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false,
+	    false, false, &deferred_work_generated);
+	expect_ptr_not_null(edata, "Unexpected null edata");
+	pai_dalloc(tsdn, &shard->pai, edata, &deferred_work_generated);
+	hpa_shard_do_deferred_work(tsdn, shard);
+
+	/*
+	 * Strict minimum purge interval is not set, we should purge as long as
+	 * we have dirty pages.
+	 */
+	expect_zu_eq(0, ndefer_hugify_calls, "Hugified too early");
+	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
+	expect_zu_eq(1, ndefer_purge_calls, "Expect purge");
+	ndefer_purge_calls = 0;
+
+	destroy_test_data(shard);
+}
+TEST_END
+
+TEST_BEGIN(test_strict_min_purge_interval) {
+	test_skip_if(!hpa_supported());
+
+	hpa_hooks_t hooks;
+	hooks.map = &defer_test_map;
+	hooks.unmap = &defer_test_unmap;
+	hooks.purge = &defer_test_purge;
+	hooks.hugify = &defer_test_hugify;
+	hooks.dehugify = &defer_test_dehugify;
+	hooks.curtime = &defer_test_curtime;
+	hooks.ms_since = &defer_test_ms_since;
+
+	hpa_shard_opts_t opts = test_hpa_shard_opts_default;
+	opts.deferral_allowed = true;
+	opts.strict_min_purge_interval = true;
+
+	hpa_shard_t *shard = create_test_data(&hooks, &opts);
+
+	bool deferred_work_generated = false;
+
+	nstime_init(&defer_curtime, 0);
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+
+	edata_t *edata = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false,
+	    false, false, &deferred_work_generated);
+	expect_ptr_not_null(edata, "Unexpected null edata");
+	pai_dalloc(tsdn, &shard->pai, edata, &deferred_work_generated);
+	hpa_shard_do_deferred_work(tsdn, shard);
+
+	/*
+	 * We have a slab with dirty page and no active pages, but
+	 * opt.min_purge_interval_ms didn't pass yet.
+	 */
+	expect_zu_eq(0, ndefer_hugify_calls, "Hugified too early");
+	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
+	expect_zu_eq(0, ndefer_purge_calls, "Purged too early");
+
+	/* Minumum purge interval is set to 5 seconds in options. */
+	nstime_init2(&defer_curtime, 6, 0);
+	hpa_shard_do_deferred_work(tsdn, shard);
+
+	/* Now we should purge, but nothing else. */
+	expect_zu_eq(0, ndefer_hugify_calls, "Hugified too early");
+	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
+	expect_zu_eq(1, ndefer_purge_calls, "Expect purge");
+	ndefer_purge_calls = 0;
+
+	destroy_test_data(shard);
+}
+TEST_END
+
+TEST_BEGIN(test_purge) {
+	test_skip_if(!hpa_supported());
+
+	hpa_hooks_t hooks;
+	hooks.map = &defer_test_map;
+	hooks.unmap = &defer_test_unmap;
+	hooks.purge = &defer_test_purge;
+	hooks.hugify = &defer_test_hugify;
+	hooks.dehugify = &defer_test_dehugify;
+	hooks.curtime = &defer_test_curtime;
+	hooks.ms_since = &defer_test_ms_since;
+
+	hpa_shard_opts_t opts = test_hpa_shard_opts_default;
+	opts.deferral_allowed = true;
+
+	hpa_shard_t *shard = create_test_data(&hooks, &opts);
+
+	bool deferred_work_generated = false;
+
+	nstime_init(&defer_curtime, 0);
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+	enum {NALLOCS = 8 * HUGEPAGE_PAGES};
+	edata_t *edatas[NALLOCS];
+	for (int i = 0; i < NALLOCS; i++) {
+		edatas[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false,
+		    false, false, &deferred_work_generated);
+		expect_ptr_not_null(edatas[i], "Unexpected null edata");
+	}
+	/* Deallocate 3 hugepages out of 8. */
+	for (int i = 0; i < 3 * (int)HUGEPAGE_PAGES; i++) {
+		pai_dalloc(tsdn, &shard->pai, edatas[i],
+		    &deferred_work_generated);
+	}
+	hpa_shard_do_deferred_work(tsdn, shard);
+
+	expect_zu_eq(0, ndefer_hugify_calls, "Hugified too early");
+	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
+	/*
+	 * Expect only 2 purges, because opt.dirty_mult is set to 0.25 and we still
+	 * have 5 active hugepages (1 / 5 = 0.2 < 0.25).
+	 */
+	expect_zu_eq(2, ndefer_purge_calls, "Expect purges");
+	ndefer_purge_calls = 0;
+
+	hpa_shard_do_deferred_work(tsdn, shard);
+
+	expect_zu_eq(0, ndefer_hugify_calls, "Hugified too early");
+	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
+	/*
+	 * We still have completely dirty hugepage, but we are below
+	 * opt.dirty_mult.
+	 */
+	expect_zu_eq(0, ndefer_purge_calls, "Purged too early");
+	ndefer_purge_calls = 0;
+
+	destroy_test_data(shard);
+}
+TEST_END
+
 int
 main(void) {
 	/*
@@ -516,5 +672,8 @@ main(void) {
 	    test_stress,
 	    test_alloc_dalloc_batch,
 	    test_defer_time,
-	    test_purge_no_infinite_loop);
+	    test_purge_no_infinite_loop,
+	    test_strict_no_min_purge_interval,
+	    test_strict_min_purge_interval,
+	    test_purge);
 }
