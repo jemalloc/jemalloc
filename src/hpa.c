@@ -552,7 +552,22 @@ hpa_shard_maybe_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard,
 	 * too frequently.
 	 */
 	if (hpa_min_purge_interval_passed(tsdn, shard)) {
-		while (hpa_should_purge(tsdn, shard) && nops < max_ops) {
+		size_t max_purges = max_ops;
+		/*
+		 * Limit number of hugepages (slabs) to purge.
+		 * When experimental_max_purge_nhp option is used, there is no
+		 * guarantee we'll always respect dirty_mult option.  Option
+		 * experimental_max_purge_nhp provides a way to configure same
+		 * behaviour as was possible before, with buggy implementation
+		 * of purging algorithm.
+		 */
+		ssize_t max_purge_nhp = shard->opts.experimental_max_purge_nhp;
+		if (max_purge_nhp != -1 &&
+		    max_purges > (size_t)max_purge_nhp) {
+			max_purges = max_purge_nhp;
+		}
+
+		while (hpa_should_purge(tsdn, shard) && nops < max_purges) {
 			if (!hpa_try_purge(tsdn, shard)) {
 				/*
 				 * It is fine if we couldn't purge as sometimes
