@@ -2961,6 +2961,20 @@ sub RemoveUninterestingFrames {
                       'void* newImpl',
                       'fallbackNewImpl',
                       'void* fallbackNewImpl',
+                      'fallback_impl',
+                      'void* fallback_impl',
+                      'imalloc',
+                      'int imalloc',
+                      'imalloc_body',
+                      'int imalloc_body',
+                      'prof_alloc_prep',
+                      'prof_tctx_t *prof_alloc_prep',
+                      'prof_backtrace_impl',
+                      'void prof_backtrace_impl',
+                      'je_prof_backtrace',
+                      'void je_prof_backtrace',
+                      'je_prof_tctx_create',
+                      'prof_tctx_t* prof_tctx_create',
                       '@JEMALLOC_PREFIX@free',
                       '@JEMALLOC_PREFIX@memalign',
                       '@JEMALLOC_PREFIX@posix_memalign',
@@ -2969,8 +2983,12 @@ sub RemoveUninterestingFrames {
                       '@JEMALLOC_PREFIX@valloc',
                       '@JEMALLOC_PREFIX@realloc',
                       '@JEMALLOC_PREFIX@mallocx',
+                      'irallocx_prof',
+                      'void *irallocx_prof',
                       '@JEMALLOC_PREFIX@rallocx',
                       'do_rallocx',
+                      'ixallocx_prof',
+                      'size_t ixallocx_prof',
                       '@JEMALLOC_PREFIX@xallocx',
                       '@JEMALLOC_PREFIX@dallocx',
                       '@JEMALLOC_PREFIX@sdallocx',
@@ -3083,6 +3101,8 @@ sub RemoveUninterestingFrames {
     foreach my $a (@addrs) {
       if (exists($symbols->{$a})) {
         my $func = $symbols->{$a}->[0];
+        # Remove suffix in the symbols following space when filtering.
+        $func =~ s/ .*//;
         if ($skip{$func} || ($func =~ m/$skip_regexp/)) {
           # Throw away the portion of the backtrace seen so far, under the
           # assumption that previous frames were for functions internal to the
