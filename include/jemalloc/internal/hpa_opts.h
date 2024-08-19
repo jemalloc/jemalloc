@@ -56,7 +56,7 @@ struct hpa_shard_opts_s {
 	 * This is an option to provide backward compatibility for staged rollout of
 	 * purging logic fix.
 	 */
-	bool strict_min_purge_interval;
+	bool experimental_strict_min_purge_interval;
 
 	/*
 	 * Maximum number of hugepages to purge on each purging attempt.
@@ -83,7 +83,7 @@ struct hpa_shard_opts_s {
 	10 * 1000,							\
 	/* min_purge_interval_ms */					\
 	5 * 1000,							\
-	/* strict_min_purge_interval */					\
+	/* experimental_strict_min_purge_interval */			\
 	false,								\
 	/* experimental_max_purge_nhp */				\
 	-1								\

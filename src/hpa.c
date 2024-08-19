@@ -512,7 +512,7 @@ hpa_try_hugify(tsdn_t *tsdn, hpa_shard_t *shard) {
 static bool
 hpa_min_purge_interval_passed(tsdn_t *tsdn, hpa_shard_t *shard) {
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
-	if (shard->opts.strict_min_purge_interval) {
+	if (shard->opts.experimental_strict_min_purge_interval) {
 		uint64_t since_last_purge_ms = shard->central->hooks.ms_since(
 		    &shard->last_purge);
 		if (since_last_purge_ms < shard->opts.min_purge_interval_ms) {

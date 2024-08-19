@@ -34,7 +34,7 @@ static hpa_shard_opts_t test_hpa_shard_opts_default = {
 	10 * 1000,
 	/* min_purge_interval_ms */
 	5 * 1000,
-	/* strict_min_purge_interval */
+	/* experimental_strict_min_purge_interval */
 	false,
 	/* experimental_max_purge_nhp */
 	-1
@@ -53,7 +53,7 @@ static hpa_shard_opts_t test_hpa_shard_opts_purge = {
 	0,
 	/* min_purge_interval_ms */
 	5 * 1000,
-	/* strict_min_purge_interval */
+	/* experimental_strict_min_purge_interval */
 	false,
 	/* experimental_max_purge_nhp */
 	-1
@@ -506,7 +506,7 @@ TEST_BEGIN(test_purge_no_infinite_loop) {
 }
 TEST_END
 
-TEST_BEGIN(test_strict_no_min_purge_interval) {
+TEST_BEGIN(test_no_experimental_strict_min_purge_interval) {
 	test_skip_if(!hpa_supported());
 
 	hpa_hooks_t hooks;
@@ -547,7 +547,7 @@ TEST_BEGIN(test_strict_no_min_purge_interval) {
 }
 TEST_END
 
-TEST_BEGIN(test_strict_min_purge_interval) {
+TEST_BEGIN(test_experimental_strict_min_purge_interval) {
 	test_skip_if(!hpa_supported());
 
 	hpa_hooks_t hooks;
@@ -561,7 +561,7 @@ TEST_BEGIN(test_strict_min_purge_interval) {
 
 	hpa_shard_opts_t opts = test_hpa_shard_opts_default;
 	opts.deferral_allowed = true;
-	opts.strict_min_purge_interval = true;
+	opts.experimental_strict_min_purge_interval = true;
 
 	hpa_shard_t *shard = create_test_data(&hooks, &opts);
 
@@ -741,8 +741,8 @@ main(void) {
 	    test_alloc_dalloc_batch,
 	    test_defer_time,
 	    test_purge_no_infinite_loop,
-	    test_strict_no_min_purge_interval,
-	    test_strict_min_purge_interval,
+	    test_no_experimental_strict_min_purge_interval,
+	    test_experimental_strict_min_purge_interval,
 	    test_purge,
 	    test_experimental_max_purge_nhp);
 }
