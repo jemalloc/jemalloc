@@ -593,6 +593,16 @@ prof_dump_check_possible_error(prof_dump_arg_t *arg, bool err_cond,
 
 static int
 prof_dump_open_file_impl(const char *filename, int mode) {
+#ifdef _MSC_VER
+	/*
+	* On windows, creat only supports S_IREAD and S_IWRITE. Setting any
+	* other flags in the mode results in raising an assertion, crashing the
+	* program. This is because creat is implemented by (indirectly) calling
+	* sopen_s, which asserts if pmode contains an "invalid mode", AKA a mode
+	* that the CRT does not know how to handle.
+	*/
+	mode &= 0600;
+#endif
 	return creat(filename, mode);
 }
 prof_dump_open_file_t *JET_MUTABLE prof_dump_open_file =
