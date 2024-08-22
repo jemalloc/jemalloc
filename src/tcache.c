@@ -121,6 +121,85 @@ tcache_gc_dalloc_postponed_event_wait(tsd_t *tsd) {
 	return TE_MIN_START_WAIT;
 }
 
+static inline void
+tcache_bin_fill_ctl_init(tcache_slow_t *tcache_slow, szind_t szind) {
+	assert(szind < SC_NBINS);
+	cache_bin_fill_ctl_t *ctl =
+	    &tcache_slow->bin_fill_ctl_do_not_access_directly[szind];
+	ctl->base = 1;
+	ctl->offset = 0;
+}
+
+static inline cache_bin_fill_ctl_t *
+tcache_bin_fill_ctl_get(tcache_slow_t *tcache_slow, szind_t szind) {
+	assert(szind < SC_NBINS);
+	cache_bin_fill_ctl_t *ctl =
+	    &tcache_slow->bin_fill_ctl_do_not_access_directly[szind];
+	assert(ctl->base > ctl->offset);
+	return ctl;
+}
+
+/*
+ * The number of items to be filled at a time for a given small bin is
+ * calculated by (ncached_max >> lg_fill_div).
+ * The actual ctl struct consists of two fields, i.e. base and offset,
+ * and the difference between the two(base - offset) is the final lg_fill_div.
+ * The base is adjusted during GC based on the traffic within a period of time,
+ * while the offset is updated in real time to handle the immediate traffic.
+ */
+static inline uint8_t
+tcache_nfill_small_lg_div_get(tcache_slow_t *tcache_slow, szind_t szind) {
+	cache_bin_fill_ctl_t *ctl = tcache_bin_fill_ctl_get(tcache_slow, szind);
+	return (ctl->base - (opt_experimental_tcache_gc ? ctl->offset : 0));
+}
+
+/*
+ * When we want to fill more items to respond to burst load,
+ * offset is increased so that (base - offset) is decreased,
+ * which in return increases the number of items to be filled.
+ */
+static inline void
+tcache_nfill_small_burst_prepare(tcache_slow_t *tcache_slow, szind_t szind) {
+	cache_bin_fill_ctl_t *ctl = tcache_bin_fill_ctl_get(tcache_slow, szind);
+	if (ctl->offset + 1 < ctl->base) {
+		ctl->offset++;
+	}
+}
+
+static inline void
+tcache_nfill_small_burst_reset(tcache_slow_t *tcache_slow, szind_t szind) {
+	cache_bin_fill_ctl_t *ctl = tcache_bin_fill_ctl_get(tcache_slow, szind);
+	ctl->offset = 0;
+}
+
+/*
+ * limit == 0: indicating that the fill count should be increased,
+ * i.e. lg_div(base) should be decreased.
+ *
+ * limit != 0: limit is set to ncached_max, indicating that the fill
+ * count should be decreased, i.e. lg_div(base) should be increased.
+ */
+static inline void
+tcache_nfill_small_gc_update(tcache_slow_t *tcache_slow, szind_t szind,
+    cache_bin_sz_t limit) {
+	cache_bin_fill_ctl_t *ctl = tcache_bin_fill_ctl_get(tcache_slow, szind);
+	if (!limit && ctl->base > 1) {
+		/*
+		 * Increase fill count by 2X for small bins.  Make sure
+		 * lg_fill_div stays greater than 1.
+		 */
+		ctl->base--;
+	} else if (limit && (limit >> ctl->base) > 1) {
+		/*
+		 * Reduce fill count by 2X.  Limit lg_fill_div such that
+		 * the fill count is always at least 1.
+		 */
+		ctl->base++;
+	}
+	/* Reset the offset for the next GC period. */
+	ctl->offset = 0;
+}
+
 static uint8_t
 tcache_gc_item_delay_compute(szind_t szind) {
 	assert(szind < SC_NBINS);
@@ -298,21 +377,19 @@ tcache_gc_small(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	cache_bin_sz_t low_water = cache_bin_low_water_get(cache_bin);
 	if (low_water > 0) {
 		/*
-		 * Reduce fill count by 2X.  Limit lg_fill_div such that
-		 * the fill count is always at least 1.
+		 * There is unused items within the GC period => reduce fill count.
+		 * limit field != 0 is borrowed to indicate that the fill count
+		 * should be reduced.
 		 */
-		if ((cache_bin_ncached_max_get(cache_bin) >>
-		    tcache_slow->lg_fill_div[szind]) > 1) {
-			tcache_slow->lg_fill_div[szind]++;
-		}
+		tcache_nfill_small_gc_update(tcache_slow, szind,
+		    /* limit */ cache_bin_ncached_max_get(cache_bin));
 	} else if (tcache_slow->bin_refilled[szind]) {
 		/*
-		 * Increase fill count by 2X for small bins.  Make sure
-		 * lg_fill_div stays greater than 0.
+		 * There has been refills within the GC period => increase fill count.
+		 * limit field set to 0 is borrowed to indicate that the fill count
+		 * should be increased.
 		 */
-		if (tcache_slow->lg_fill_div[szind] > 1) {
-			tcache_slow->lg_fill_div[szind]--;
-		}
+		tcache_nfill_small_gc_update(tcache_slow, szind, /* limit */ 0);
 		tcache_slow->bin_refilled[szind] = false;
 	}
 	assert(!tcache_slow->bin_refilled[szind]);
@@ -526,7 +603,7 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena,
 	assert(tcache_slow->arena != NULL);
 	assert(!tcache_bin_disabled(binind, cache_bin, tcache_slow));
 	cache_bin_sz_t nfill = cache_bin_ncached_max_get(cache_bin)
-	    >> tcache_slow->lg_fill_div[binind];
+	    >> tcache_nfill_small_lg_div_get(tcache_slow, binind);
 	if (nfill == 0) {
 		nfill = 1;
 	}
@@ -534,6 +611,7 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena,
 	    /* nfill_min */ opt_experimental_tcache_gc ?
 	    ((nfill >> 1) + 1) : nfill, /* nfill_max */ nfill);
 	tcache_slow->bin_refilled[binind] = true;
+	tcache_nfill_small_burst_prepare(tcache_slow, binind);
 	ret = cache_bin_alloc(cache_bin, tcache_success);
 
 	return ret;
@@ -1059,6 +1137,7 @@ tcache_bin_flush_bottom(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
 void
 tcache_bin_flush_small(tsd_t *tsd, tcache_t *tcache, cache_bin_t *cache_bin,
     szind_t binind, unsigned rem) {
+	tcache_nfill_small_burst_reset(tcache->tcache_slow, binind);
 	tcache_bin_flush_bottom(tsd, tcache, cache_bin, binind, rem,
 	    /* small */ true);
 }
@@ -1233,7 +1312,7 @@ tcache_init(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 	    &cur_offset);
 	for (unsigned i = 0; i < tcache_nbins; i++) {
 		if (i < SC_NBINS) {
-			tcache_slow->lg_fill_div[i] = 1;
+			tcache_bin_fill_ctl_init(tcache_slow, i);
 			tcache_slow->bin_refilled[i] = false;
 			tcache_slow->bin_flush_delay_items[i]
 			    = tcache_gc_item_delay_compute(i);

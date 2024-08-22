@@ -39,8 +39,8 @@ struct tcache_slow_s {
 	szind_t		next_gc_bin;
 	szind_t		next_gc_bin_small;
 	szind_t		next_gc_bin_large;
-	/* For small bins, fill (ncached_max >> lg_fill_div). */
-	uint8_t		lg_fill_div[SC_NBINS];
+	/* For small bins, help determine how many items to fill at a time. */
+	cache_bin_fill_ctl_t	bin_fill_ctl_do_not_access_directly[SC_NBINS];
 	/* For small bins, whether has been refilled since last GC. */
 	bool		bin_refilled[SC_NBINS];
 	/*
