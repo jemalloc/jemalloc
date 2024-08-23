@@ -316,7 +316,8 @@ def main():
         # generate_freebsd(AMD64),
 
         generate_linux(AMD64),
-        generate_linux(PPC64LE),
+        # PPC tests on travis has been down for a while, disable it for now.
+        # generate_linux(PPC64LE),
 
         generate_macos(AMD64),
 
