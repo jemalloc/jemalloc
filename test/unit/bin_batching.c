@@ -45,9 +45,16 @@ increment_push_failure(size_t push_idx) {
 		atomic_fetch_add_zu(&push_failure_count, 1, ATOMIC_RELAXED);
 	} else {
 		assert_zu_lt(push_idx, 4, "Only 4 elems");
-		volatile int x = 10000;
+		volatile size_t x = 10000;
 		while (--x) {
 			/* Spin for a while, to try to provoke a failure. */
+			if (x == push_idx) {
+#ifdef _WIN32
+				SwitchToThread();
+#else
+				sched_yield();
+#endif
+			}
 		}
 	}
 }
