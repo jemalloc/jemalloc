@@ -180,6 +180,7 @@ def format_job(os, arch, combination):
     if len(malloc_conf) > 0:
         configure_flags.append('--with-malloc-conf=' + ','.join(malloc_conf))
 
+    configure_flags.append('--enable-limit-usize-gap')
     if not compilers:
         compiler = GCC.value
     else:

@@ -185,6 +185,7 @@ TEST_BEGIN(test_ph_random) {
 #define NNODES 25
 #define NBAGS 250
 #define SEED 42
+#define BFS_ENUMERATE_MAX NNODES
 	sfmt_t *sfmt;
 	uint64_t bag[NNODES];
 	heap_t heap;
@@ -238,6 +239,21 @@ TEST_BEGIN(test_ph_random) {
 
 			expect_false(heap_empty(&heap),
 			    "Heap should not be empty");
+
+			/* Enumerate nodes. */
+			void *bfs_queue[BFS_ENUMERATE_MAX];
+			uint16_t front, rear;
+			size_t queue_size, visited_num;
+			heap_enumerate_prepare(&heap, bfs_queue, &front, &rear,
+			    &queue_size, &visited_num, BFS_ENUMERATE_MAX);
+			size_t node_count = 0;
+			while(heap_enumerate_next(&heap, bfs_queue, &front,
+			    &rear, &queue_size, &visited_num,
+			    BFS_ENUMERATE_MAX, BFS_ENUMERATE_MAX)) {
+				node_count ++;
+			}
+			expect_u_eq(node_count, j,
+			    "Unexpected enumeration results.");
 
 			/* Remove nodes. */
 			switch (i % 6) {
@@ -319,6 +335,7 @@ TEST_BEGIN(test_ph_random) {
 	fini_gen_rand(sfmt);
 #undef NNODES
 #undef SEED
+#undef BFS_ENUMERATE_MAX
 }
 TEST_END
 

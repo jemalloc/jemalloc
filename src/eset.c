@@ -4,6 +4,7 @@
 #include "jemalloc/internal/eset.h"
 
 #define ESET_NPSIZES (SC_NPSIZES + 1)
+#define ESET_ENUMERATE_NUM 32
 
 static void
 eset_bin_init(eset_bin_t *bin) {
@@ -192,6 +193,39 @@ eset_fit_alignment(eset_t *eset, size_t min_size, size_t max_size,
 	return NULL;
 }
 
+#ifdef LIMIT_USIZE_GAP
+edata_t *
+eset_enumerate_search(eset_t *eset, size_t size, pszind_t bin_ind,
+    edata_cmp_summary_t *ret_summ) {
+	if (edata_heap_empty(&eset->bins[bin_ind].heap)) {
+		return NULL;
+	}
+
+	void *bfs_queue[ESET_ENUMERATE_NUM];
+	uint16_t front, rear;
+	size_t queue_size, visited_num;
+	edata_t *ret = NULL, *edata = NULL;
+	edata_heap_enumerate_prepare(&eset->bins[bin_ind].heap, bfs_queue,
+	    &front, &rear, &queue_size, &visited_num, ESET_ENUMERATE_NUM);
+	while ((edata =
+	    edata_heap_enumerate_next(&eset->bins[bin_ind].heap, bfs_queue,
+	    &front, &rear, &queue_size, &visited_num, ESET_ENUMERATE_NUM,
+	    ESET_ENUMERATE_NUM))) {
+		if (edata_size_get(edata) >= size) {
+			edata_cmp_summary_t temp_summ =
+			    edata_cmp_summary_get(edata);
+			if (ret == NULL || edata_cmp_summary_comp(temp_summ,
+			    *ret_summ) < 0) {
+				ret = edata;
+				*ret_summ = temp_summ;
+			}
+		}
+	}
+
+	return ret;
+}
+#endif
+
 /*
  * Do first-fit extent selection, i.e. select the oldest/lowest extent that is
  * large enough.
@@ -209,6 +243,13 @@ eset_first_fit(eset_t *eset, size_t size, bool exact_only,
 	edata_cmp_summary_t ret_summ JEMALLOC_CC_SILENCE_INIT({0});
 
 	pszind_t pind = sz_psz2ind(sz_psz_quantize_ceil(size));
+#ifdef LIMIT_USIZE_GAP
+	pszind_t pind_in = sz_psz2ind(sz_psz_quantize_floor(size));
+
+	if (size >= SC_LARGE_MINCLASS && pind != pind_in) {
+		ret = eset_enumerate_search(eset, size, pind_in, &ret_summ);
+	}
+#endif
 
 	if (exact_only) {
 		return edata_heap_empty(&eset->bins[pind].heap) ? NULL :

@@ -26,7 +26,8 @@ TEST_BEGIN(test_size_classes) {
 	size_t size_class, max_size_class;
 	szind_t index, gen_index, max_index;
 
-	max_size_class = get_max_size_class();
+	max_size_class = config_limit_usize_gap? SC_SMALL_MAXCLASS:
+	    get_max_size_class();
 	max_index = sz_size2index(max_size_class);
 
 	for (index = 0, size_class = sz_index2size(index); index < max_index ||
@@ -76,6 +77,39 @@ TEST_BEGIN(test_size_classes) {
 	    "sz_s2u() does not round up to size class");
 	expect_zu_eq(size_class, sz_s2u(size_class),
 	    "sz_s2u() does not compute same size class");
+}
+TEST_END
+
+TEST_BEGIN(test_grow_slow_size_classes) {
+	test_skip_if(!config_limit_usize_gap);
+	size_t size = SC_LARGE_MINCLASS;
+	size_t target_usize = SC_LARGE_MINCLASS;
+	size_t max_size = get_max_size_class();
+	size_t increase[3] = {PAGE - 1, 1, 1};
+	while (size <= max_size) {
+		size_t usize = sz_s2u(size);
+		expect_zu_eq(usize, target_usize,
+		    "sz_s2u() does not generate usize as expected.");
+		size += increase[0];
+		usize = sz_s2u(size);
+		target_usize += PAGE;
+		expect_zu_eq(usize, target_usize,
+		    "sz_s2u() does not generate usize as expected.");
+		size += increase[1];
+		usize = sz_s2u(size);
+		expect_zu_eq(usize, target_usize,
+		    "sz_s2u() does not generate usize as expected.");
+		size += increase[2];
+		usize = sz_s2u(size);
+		target_usize += PAGE;
+		expect_zu_eq(usize, target_usize,
+		    "sz_s2u() does not generate usize as expected.");
+		if (target_usize << 1 < target_usize) {
+			break;
+		}
+		target_usize = target_usize << 1;
+		size = target_usize;
+	}
 }
 TEST_END
 
@@ -182,6 +216,7 @@ int
 main(void) {
 	return test(
 	    test_size_classes,
+	    test_grow_slow_size_classes,
 	    test_psize_classes,
 	    test_overflow);
 }

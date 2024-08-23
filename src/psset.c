@@ -5,6 +5,7 @@
 
 #include "jemalloc/internal/fb.h"
 
+#define PSSET_BFS_ENUMERATE_MAX_NUM 32
 void
 psset_init(psset_t *psset) {
 	for (unsigned i = 0; i < PSSET_NPSIZES; i++) {
@@ -304,18 +305,55 @@ psset_update_end(psset_t *psset, hpdata_t *ps) {
 	hpdata_assert_consistent(ps);
 }
 
+#ifdef LIMIT_USIZE_GAP
+hpdata_t *
+psset_enumerate_search(psset_t *psset, pszind_t pind, size_t size) {
+	if (hpdata_age_heap_empty(&psset->pageslabs[pind])) {
+		return NULL;
+	}
+
+	void *bfs_queue[PSSET_BFS_ENUMERATE_MAX_NUM];
+	uint16_t front, rear;
+	size_t queue_size, visited_num;
+	hpdata_t *ps = NULL;
+	hpdata_age_heap_enumerate_prepare(&psset->pageslabs[pind], bfs_queue,
+	    &front, &rear, &queue_size, &visited_num,
+	    PSSET_BFS_ENUMERATE_MAX_NUM);
+
+	while ((ps = hpdata_age_heap_enumerate_next(&psset->pageslabs[pind],
+	    bfs_queue, &front, &rear, &queue_size, &visited_num,
+	    PSSET_BFS_ENUMERATE_MAX_NUM, PSSET_BFS_ENUMERATE_MAX_NUM))) {
+		if (hpdata_longest_free_range_get(ps) >= size) {
+			return ps;
+		}
+	}
+
+	return NULL;
+}
+#endif
+
 hpdata_t *
 psset_pick_alloc(psset_t *psset, size_t size) {
 	assert((size & PAGE_MASK) == 0);
 	assert(size <= HUGEPAGE);
 
 	pszind_t min_pind = sz_psz2ind(sz_psz_quantize_ceil(size));
+	hpdata_t *ps = NULL;
+#ifdef LIMIT_USIZE_GAP
+	pszind_t pind_in = sz_psz2ind(sz_psz_quantize_floor(size));
+	if (size >= SC_LARGE_MINCLASS && pind_in < min_pind) {
+		ps = psset_enumerate_search(psset, pind_in, size);
+		if (ps != NULL) {
+			return ps;
+		}
+	}
+#endif
 	pszind_t pind = (pszind_t)fb_ffs(psset->pageslab_bitmap, PSSET_NPSIZES,
 	    (size_t)min_pind);
 	if (pind == PSSET_NPSIZES) {
 		return hpdata_empty_list_first(&psset->empty);
 	}
-	hpdata_t *ps = hpdata_age_heap_first(&psset->pageslabs[pind]);
+	ps = hpdata_age_heap_first(&psset->pageslabs[pind]);
 	if (ps == NULL) {
 		return NULL;
 	}
