@@ -34,12 +34,6 @@ task:
      - name: 14-STABLE
        freebsd_instance:
          image_family: freebsd-14-0-snap
-     - name: 14.0-RELEASE
-       freebsd_instance:
-         image_family: freebsd-14-0
-     - name: 13-STABLE
-       freebsd_instance:
-         image_family: freebsd-13-2-snap
   install_script:
     - sed -i.bak -e 's,pkg+http://pkg.FreeBSD.org/\${ABI}/quarterly,pkg+http://pkg.FreeBSD.org/\${ABI}/latest,' /etc/pkg/FreeBSD.conf
     - pkg upgrade -y
