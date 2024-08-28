@@ -18,7 +18,7 @@ nstime_monotonic_mock(void) {
 static void
 nstime_update_mock(nstime_t *time) {
 	nupdates_mock++;
-	if (monotonic_mock) {
+	if (monotonic_mock && nstime_compare(&time_mock, time) > 0) {
 		nstime_copy(time, &time_mock);
 	}
 }
