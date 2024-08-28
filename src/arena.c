@@ -473,7 +473,7 @@ arena_decay_impl(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 	    arena_decide_unforced_purge_eagerness(is_background_thread);
 	bool epoch_advanced = pac_maybe_decay_purge(tsdn, &arena->pa_shard.pac,
 	    decay, decay_stats, ecache, eagerness);
-	size_t npages_new;
+	size_t npages_new JEMALLOC_CLANG_ANALYZER_SILENCE_INIT(0);
 	if (epoch_advanced) {
 		/* Backlog is updated on epoch advance. */
 		npages_new = decay_epoch_npages_delta(decay);

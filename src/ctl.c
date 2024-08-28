@@ -3165,7 +3165,7 @@ arena_i_name_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
 	int ret;
 	unsigned arena_ind;
-	char *name;
+	char *name JEMALLOC_CLANG_ANALYZER_SILENCE_INIT(NULL);
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 	MIB_UNSIGNED(arena_ind, 1);
