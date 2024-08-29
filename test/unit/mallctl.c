@@ -292,8 +292,6 @@ TEST_BEGIN(test_mallctl_opt) {
 	TEST_MALLCTL_OPT(size_t, hpa_sec_max_bytes, always);
 	TEST_MALLCTL_OPT(size_t, hpa_sec_bytes_after_flush, always);
 	TEST_MALLCTL_OPT(size_t, hpa_sec_batch_fill_extra, always);
-	TEST_MALLCTL_OPT(bool, experimental_hpa_strict_min_purge_interval,
-	    always);
 	TEST_MALLCTL_OPT(ssize_t, experimental_hpa_max_purge_nhp, always);
 	TEST_MALLCTL_OPT(unsigned, narenas, always);
 	TEST_MALLCTL_OPT(const char *, percpu_arena, always);
