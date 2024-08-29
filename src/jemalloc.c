@@ -1571,10 +1571,6 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			    "hpa_min_purge_interval_ms", 0, 0,
 			    CONF_DONT_CHECK_MIN, CONF_DONT_CHECK_MAX, false);
 
-			CONF_HANDLE_BOOL(
-			    opt_hpa_opts.experimental_strict_min_purge_interval,
-			    "experimental_hpa_strict_min_purge_interval");
-
 			CONF_HANDLE_SSIZE_T(
 			    opt_hpa_opts.experimental_max_purge_nhp,
 			    "experimental_hpa_max_purge_nhp", -1, SSIZE_MAX);
