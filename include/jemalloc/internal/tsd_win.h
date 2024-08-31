@@ -7,10 +7,16 @@
 #include "jemalloc/internal/tsd_internals.h"
 #include "jemalloc/internal/tsd_types.h"
 
+/* val should always be the first field of tsd_wrapper_t since accessing
+   val is the common path and having val as the first field makes it possible
+   that converting a pointer to tsd_wrapper_t to a pointer to val is no more
+   than a type cast. */
 typedef struct {
-	bool initialized;
 	tsd_t val;
+	bool initialized;
 } tsd_wrapper_t;
+
+#if defined(JEMALLOC_LEGACY_WINDOWS_SUPPORT) || !defined(_MSC_VER)
 
 extern DWORD tsd_tsd;
 extern tsd_wrapper_t tsd_boot_wrapper;
@@ -165,3 +171,69 @@ tsd_set(tsd_t *val) {
 	}
 	wrapper->initialized = true;
 }
+
+#else // defined(JEMALLOC_LEGACY_WINDOWS_SUPPORT) || !defined(_MSC_VER)
+
+#define JEMALLOC_TSD_TYPE_ATTR(type) __declspec(thread) type
+
+extern JEMALLOC_TSD_TYPE_ATTR(tsd_wrapper_t) tsd_wrapper_tls;
+extern bool tsd_booted;
+
+/* Initialization/cleanup. */
+JEMALLOC_ALWAYS_INLINE bool
+tsd_cleanup_wrapper(void) {
+	if (tsd_wrapper_tls.initialized) {
+		tsd_wrapper_tls.initialized = false;
+		tsd_cleanup(&tsd_wrapper_tls.val);
+		if (tsd_wrapper_tls.initialized) {
+			/* Trigger another cleanup round. */
+			return true;
+		}
+	}
+	return false;
+}
+
+/* Initialization/cleanup. */
+JEMALLOC_ALWAYS_INLINE bool
+tsd_boot0(void) {
+	_malloc_tsd_cleanup_register(tsd_cleanup_wrapper);
+	tsd_booted = true;
+	return false;
+}
+
+JEMALLOC_ALWAYS_INLINE void
+tsd_boot1(void) {
+	/* Do nothing. */
+}
+
+JEMALLOC_ALWAYS_INLINE bool
+tsd_boot(void) {
+	return tsd_boot0();
+}
+
+JEMALLOC_ALWAYS_INLINE bool
+tsd_booted_get(void) {
+	return tsd_booted;
+}
+
+JEMALLOC_ALWAYS_INLINE bool
+tsd_get_allocates(void) {
+	return false;
+}
+
+/* Get/set. */
+JEMALLOC_ALWAYS_INLINE tsd_t *
+tsd_get(bool init) {
+	return &(tsd_wrapper_tls.val);
+}
+
+JEMALLOC_ALWAYS_INLINE void
+tsd_set(tsd_t *val) {
+	assert(tsd_booted);
+	if (likely(&(tsd_wrapper_tls.val) != val)) {
+		tsd_wrapper_tls.val = (*val);
+	}
+	tsd_wrapper_tls.initialized = true;
+}
+
+#endif // defined(JEMALLOC_LEGACY_WINDOWS_SUPPORT) || !defined(_MSC_VER)
