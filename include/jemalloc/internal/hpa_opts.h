@@ -63,10 +63,14 @@ struct hpa_shard_opts_s {
 	 */
 	ssize_t experimental_max_purge_nhp;
 };
-
+#ifdef LIMIT_USIZE_GAP
+	#define SLAB_MAX_ALLOC_DEFAULT HUGEPAGE
+#else
+	#define SLAB_MAX_ALLOC_DEFAULT 64 * 1024
+#endif
 #define HPA_SHARD_OPTS_DEFAULT {					\
 	/* slab_max_alloc */						\
-	64 * 1024,							\
+	SLAB_MAX_ALLOC_DEFAULT,						\
 	/* hugification_threshold */					\
 	HUGEPAGE * 95 / 100,						\
 	/* dirty_mult */						\

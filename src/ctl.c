@@ -3318,8 +3318,8 @@ arenas_bin_i_index(tsdn_t *tsdn, const size_t *mib,
 }
 
 CTL_RO_NL_GEN(arenas_nlextents, SC_NSIZES - SC_NBINS, unsigned)
-CTL_RO_NL_GEN(arenas_lextent_i_size, sz_index2size(SC_NBINS+(szind_t)mib[2]),
-    size_t)
+CTL_RO_NL_GEN(arenas_lextent_i_size,
+    sz_index2size_unsafe(SC_NBINS+(szind_t)mib[2]), size_t)
 static const ctl_named_node_t *
 arenas_lextent_i_index(tsdn_t *tsdn, const size_t *mib,
     size_t miblen, size_t i) {

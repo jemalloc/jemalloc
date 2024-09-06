@@ -14,11 +14,20 @@ JEMALLOC_DIAGNOSTIC_DISABLE_SPURIOUS
 typedef struct arena_stats_large_s arena_stats_large_t;
 struct arena_stats_large_s {
 	/*
-	 * Total number of allocation/deallocation requests served directly by
-	 * the arena.
+	 * Total number of large allocation/deallocation requests served directly
+	 * by the arena.
 	 */
 	locked_u64_t	nmalloc;
 	locked_u64_t	ndalloc;
+
+#ifdef LIMIT_USIZE_GAP
+	/*
+	 * Total large allocation/deallocation bytes served directly by the
+	 * arena.
+	 */
+	locked_u64_t	malloc_bytes;
+	locked_u64_t	dalloc_bytes;
+#endif
 
 	/*
 	 * Number of allocation requests that correspond to this size class.

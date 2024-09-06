@@ -2578,6 +2578,24 @@ if test "x${have_pthread}" = "x1" -a "x${je_cv_os_unfair_lock}" != "xyes" -a \
 fi
 
 dnl ============================================================================
+dnl Limit the gap between two contiguous usizes to be at most PAGE.
+AC_ARG_ENABLE([limit_usize_gap],
+  [AS_HELP_STRING([--enable-limit-usize-gap],
+                  [Limit the gap between two contiguous usizes])],
+[if test "x$limit_usize_gap" = "xno" ; then
+  limit_usize_gap="0"
+else
+  limit_usize_gap="1"
+fi
+],
+[limit_usize_gap="0"]
+)
+if test "x$limit_usize_gap" = "x1" ; then
+  AC_DEFINE([LIMIT_USIZE_GAP], [ ])
+fi
+AC_SUBST([limit_usize_gap])
+
+dnl ============================================================================
 dnl Check for glibc malloc hooks
 
 if test "x$glibc" = "x1" ; then
@@ -2828,4 +2846,5 @@ AC_MSG_RESULT([cache-oblivious    : ${enable_cache_oblivious}])
 AC_MSG_RESULT([pageid             : ${enable_pageid}])
 AC_MSG_RESULT([cxx                : ${enable_cxx}])
 AC_MSG_RESULT([dss                : ${enable_dss}])
+AC_MSG_RESULT([limit-usize-gap    : ${limit_usize_gap}])
 AC_MSG_RESULT([===============================================================================])

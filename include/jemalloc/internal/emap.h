@@ -20,10 +20,13 @@ struct emap_s {
 };
 
 /* Used to pass rtree lookup context down the path. */
-typedef struct emap_alloc_ctx_t emap_alloc_ctx_t;
-struct emap_alloc_ctx_t {
+typedef struct emap_alloc_ctx_s emap_alloc_ctx_t;
+struct emap_alloc_ctx_s {
 	szind_t szind;
 	bool slab;
+#ifdef LIMIT_USIZE_GAP
+	size_t usize;
+#endif
 };
 
 typedef struct emap_full_alloc_ctx_s emap_full_alloc_ctx_t;
@@ -230,6 +233,26 @@ emap_edata_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr) {
 	return rtree_read(tsdn, &emap->rtree, rtree_ctx, (uintptr_t)ptr).edata;
 }
 
+JEMALLOC_ALWAYS_INLINE void
+emap_alloc_ctx_set(emap_alloc_ctx_t *alloc_ctx, szind_t szind, bool slab,
+    size_t usize) {
+	alloc_ctx->szind = szind;
+	alloc_ctx->slab = slab;
+#ifdef LIMIT_USIZE_GAP
+	alloc_ctx->usize = usize;
+#endif
+}
+
+JEMALLOC_ALWAYS_INLINE size_t
+emap_alloc_ctx_usize_get(emap_alloc_ctx_t *alloc_ctx) {
+	return
+#ifdef LIMIT_USIZE_GAP
+	    alloc_ctx->usize;
+#else
+	    sz_index2size(alloc_ctx->szind);
+#endif
+}
+
 /* Fills in alloc_ctx with the info in the map. */
 JEMALLOC_ALWAYS_INLINE void
 emap_alloc_ctx_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr,
@@ -240,6 +263,9 @@ emap_alloc_ctx_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr,
 	    rtree_ctx, (uintptr_t)ptr);
 	alloc_ctx->szind = metadata.szind;
 	alloc_ctx->slab = metadata.slab;
+#ifdef LIMIT_USIZE_GAP
+	alloc_ctx->usize = metadata.usize;
+#endif
 }
 
 /* The pointer must be mapped. */
@@ -295,6 +321,9 @@ emap_alloc_ctx_try_lookup_fast(tsd_t *tsd, emap_t *emap, const void *ptr,
 	}
 	alloc_ctx->szind = metadata.szind;
 	alloc_ctx->slab = metadata.slab;
+#ifdef LIMIT_USIZE_GAP
+	alloc_ctx->usize = metadata.usize;
+#endif
 	return false;
 }
 

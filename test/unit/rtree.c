@@ -41,15 +41,26 @@ alloc_edata(void) {
 	return ret;
 }
 
+static void
+init_edata_for_test(edata_t *e, size_t sz) {
+	/*
+	 * Since edata is now used for deriving the actual usize, need to
+	 * make sure it is properly set as in reality.
+	 */
+	if (sz >= SC_LARGE_MINCLASS) {
+		sz += sz_large_pad;
+	}
+	szind_t ind = (sz == 0)? SC_NSIZES: sz_size2index(sz);
+	edata_init(e, INVALID_ARENA_IND, NULL, sz, false, ind, 0,
+	    extent_state_active, false, false, EXTENT_PAI_PAC, EXTENT_NOT_HEAD);
+}
+
 TEST_BEGIN(test_rtree_extrema) {
 	edata_t *edata_a, *edata_b;
 	edata_a = alloc_edata();
 	edata_b = alloc_edata();
-	edata_init(edata_a, INVALID_ARENA_IND, NULL, SC_LARGE_MINCLASS,
-	    false, sz_size2index(SC_LARGE_MINCLASS), 0,
-	    extent_state_active, false, false, EXTENT_PAI_PAC, EXTENT_NOT_HEAD);
-	edata_init(edata_b, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
-	    extent_state_active, false, false, EXTENT_PAI_PAC, EXTENT_NOT_HEAD);
+	init_edata_for_test(edata_a, SC_LARGE_MINCLASS);
+	init_edata_for_test(edata_b, 0);
 
 	tsdn_t *tsdn = tsdn_fetch();
 
@@ -69,6 +80,9 @@ TEST_BEGIN(test_rtree_extrema) {
 	contents_a.metadata.slab = edata_slab_get(edata_a);
 	contents_a.metadata.is_head = edata_is_head_get(edata_a);
 	contents_a.metadata.state = edata_state_get(edata_a);
+#ifdef LIMIT_USIZE_GAP
+	contents_a.metadata.usize = edata_usize_get(edata_a);
+#endif
 	expect_false(rtree_write(tsdn, rtree, &rtree_ctx, PAGE, contents_a),
 	    "Unexpected rtree_write() failure");
 	expect_false(rtree_write(tsdn, rtree, &rtree_ctx, PAGE, contents_a),
@@ -81,6 +95,10 @@ TEST_BEGIN(test_rtree_extrema) {
 	    && contents_a.metadata.is_head == read_contents_a.metadata.is_head
 	    && contents_a.metadata.state == read_contents_a.metadata.state,
 	    "rtree_read() should return previously set value");
+#ifdef LIMIT_USIZE_GAP
+	expect_true(contents_a.metadata.usize == read_contents_a.metadata.usize,
+	    "rtree_read() should return previously set usize");
+#endif
 
 	rtree_contents_t contents_b;
 	contents_b.edata = edata_b;
@@ -112,8 +130,7 @@ TEST_BEGIN(test_rtree_bits) {
 	uintptr_t keys[] = {PAGE, PAGE + 1,
 	    PAGE + (((uintptr_t)1) << LG_PAGE) - 1};
 	edata_t *edata_c = alloc_edata();
-	edata_init(edata_c, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
-	    extent_state_active, false, false, EXTENT_PAI_PAC, EXTENT_NOT_HEAD);
+	init_edata_for_test(edata_c, 0);
 
 	rtree_t *rtree = &test_rtree;
 	rtree_ctx_t rtree_ctx;
@@ -165,8 +182,7 @@ TEST_BEGIN(test_rtree_random) {
 	rtree_ctx_data_init(&rtree_ctx);
 
 	edata_t *edata_d = alloc_edata();
-	edata_init(edata_d, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
-	    extent_state_active, false, false, EXTENT_PAI_PAC, EXTENT_NOT_HEAD);
+	init_edata_for_test(edata_d, 0);
 
 	expect_false(rtree_new(rtree, base, false),
 	    "Unexpected rtree_new() failure");
@@ -221,8 +237,7 @@ test_rtree_range_write(tsdn_t *tsdn, rtree_t *rtree, uintptr_t start,
 	rtree_ctx_data_init(&rtree_ctx);
 
 	edata_t *edata_e = alloc_edata();
-	edata_init(edata_e, INVALID_ARENA_IND, NULL, 0, false, SC_NSIZES, 0,
-	    extent_state_active, false, false, EXTENT_PAI_PAC, EXTENT_NOT_HEAD);
+	init_edata_for_test(edata_e, 0);
 	rtree_contents_t contents;
 	contents.edata = edata_e;
 	contents.metadata.szind = SC_NSIZES;
