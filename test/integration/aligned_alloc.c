@@ -13,7 +13,7 @@ purge(void) {
 	    "Unexpected mallctl error");
 }
 
-TEST_BEGIN(test_alignment_errors) {
+__attribute__((optnone)) TEST_BEGIN(test_alignment_errors) {
 	size_t alignment;
 	void *p;
 
@@ -45,7 +45,7 @@ TEST_END
 JEMALLOC_DIAGNOSTIC_PUSH
 JEMALLOC_DIAGNOSTIC_IGNORE_ALLOC_SIZE_LARGER_THAN
 
-TEST_BEGIN(test_oom_errors) {
+__attribute__((optnone)) TEST_BEGIN(test_oom_errors) {
 	size_t alignment, size;
 	void *p;
 
