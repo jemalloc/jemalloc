@@ -651,36 +651,13 @@ os_overcommits_proc(void) {
 	int fd;
 	char buf[1];
 
-#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_open)
-	#if defined(O_CLOEXEC)
-		fd = (int)syscall(SYS_open, "/proc/sys/vm/overcommit_memory", O_RDONLY |
-			O_CLOEXEC);
-	#else
-		fd = (int)syscall(SYS_open, "/proc/sys/vm/overcommit_memory", O_RDONLY);
-		if (fd != -1) {
-			fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
-		}
-	#endif
-#elif defined(JEMALLOC_USE_SYSCALL) && defined(SYS_openat)
-	#if defined(O_CLOEXEC)
-		fd = (int)syscall(SYS_openat,
-			AT_FDCWD, "/proc/sys/vm/overcommit_memory", O_RDONLY | O_CLOEXEC);
-	#else
-		fd = (int)syscall(SYS_openat,
-			AT_FDCWD, "/proc/sys/vm/overcommit_memory", O_RDONLY);
-		if (fd != -1) {
-			fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
-		}
-	#endif
+#if defined(O_CLOEXEC)
+	fd = malloc_open("/proc/sys/vm/overcommit_memory", O_RDONLY | O_CLOEXEC);
 #else
-	#if defined(O_CLOEXEC)
-		fd = open("/proc/sys/vm/overcommit_memory", O_RDONLY | O_CLOEXEC);
-	#else
-		fd = open("/proc/sys/vm/overcommit_memory", O_RDONLY);
-		if (fd != -1) {
-			fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
-		}
-	#endif
+	fd = malloc_open("/proc/sys/vm/overcommit_memory", O_RDONLY);
+	if (fd != -1) {
+		fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
+	}
 #endif
 
 	if (fd == -1) {
@@ -688,11 +665,7 @@ os_overcommits_proc(void) {
 	}
 
 	ssize_t nread = malloc_read_fd(fd, &buf, sizeof(buf));
-#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_close)
-	syscall(SYS_close, fd);
-#else
-	close(fd);
-#endif
+	malloc_close(fd);
 
 	if (nread < 1) {
 		return false; /* Error. */
@@ -741,29 +714,17 @@ init_thp_state(void) {
 	static const char sys_state_never[] = "always madvise [never]\n";
 	char buf[sizeof(sys_state_madvise)];
 
-#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_open)
-	int fd = (int)syscall(SYS_open,
+	int fd = malloc_open(
 	    "/sys/kernel/mm/transparent_hugepage/enabled", O_RDONLY);
-#elif defined(JEMALLOC_USE_SYSCALL) && defined(SYS_openat)
-	int fd = (int)syscall(SYS_openat,
-		    AT_FDCWD, "/sys/kernel/mm/transparent_hugepage/enabled", O_RDONLY);
-#else
-	int fd = open("/sys/kernel/mm/transparent_hugepage/enabled", O_RDONLY);
-#endif
 	if (fd == -1) {
 		goto label_error;
 	}
 
 	ssize_t nread = malloc_read_fd(fd, &buf, sizeof(buf));
-#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_close)
-	syscall(SYS_close, fd);
-#else
-	close(fd);
-#endif
-
-        if (nread < 0) {
+	malloc_close(fd);
+	if (nread < 0) {
 		goto label_error;
-        }
+	}
 
 	if (strncmp(buf, sys_state_madvise, (size_t)nread) == 0) {
 		init_system_thp_mode = thp_mode_default;
