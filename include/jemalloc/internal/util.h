@@ -79,6 +79,16 @@ get_errno(void) {
 	} while(0)
 #endif
 
+/* Allows compiler constant folding on inlined paths. */
+#if defined(__has_builtin)
+#  if __has_builtin(__builtin_constant_p)
+#    define util_compile_time_const(x) __builtin_constant_p(x)
+#  endif
+#endif
+#ifndef util_compile_time_const
+#  define util_compile_time_const(x) (false)
+#endif
+
 /* ptr should be valid. */
 JEMALLOC_ALWAYS_INLINE void
 util_prefetch_read(void *ptr) {

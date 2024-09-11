@@ -496,6 +496,7 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
             *tsd_thread_deallocated_next_event_fastp_get_unsafe(tsd) == 0);
 
         emap_alloc_ctx_t alloc_ctx;
+	size_t usize;
         if (!size_hint) {
                 bool err = emap_alloc_ctx_try_lookup_fast(tsd,
                     &arena_emap_global, ptr, &alloc_ctx);
@@ -507,6 +508,7 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
                         return false;
                 }
                 assert(alloc_ctx.szind != SC_NSIZES);
+		usize = sz_index2size(alloc_ctx.szind);
         } else {
                 /*
                  * Check for both sizes that are too large, and for sampled /
@@ -518,7 +520,7 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
                     /* check_prof */ true))) {
                         return false;
                 }
-                alloc_ctx.szind = sz_size2index_lookup(size);
+		sz_size2index_usize_fastpath(size, &alloc_ctx.szind, &usize);
                 /* Max lookup class must be small. */
                 assert(alloc_ctx.szind < SC_NBINS);
                 /* This is a dead store, except when opt size checking is on. */
@@ -534,7 +536,6 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
         uint64_t deallocated, threshold;
         te_free_fastpath_ctx(tsd, &deallocated, &threshold);
 
-        size_t usize = sz_index2size(alloc_ctx.szind);
         uint64_t deallocated_after = deallocated + usize;
         /*
          * Check for events and tsd non-nominal (fast_threshold will be set to
