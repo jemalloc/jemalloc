@@ -118,7 +118,8 @@ stress_run(void (*main_thread_fn)(), int nruns) {
 	bin_batching_test_after_unlock_hook = &increment_slab_dalloc_count;
 
 	atomic_store_zu(&push_failure_count, 0, ATOMIC_RELAXED);
-	atomic_store_zu(&pop_attempt_results[2], 0, ATOMIC_RELAXED);
+	atomic_store_zu(&pop_attempt_results[0], 0, ATOMIC_RELAXED);
+	atomic_store_zu(&pop_attempt_results[1], 0, ATOMIC_RELAXED);
 	atomic_store_zu(&dalloc_zero_slab_count, 0, ATOMIC_RELAXED);
 	atomic_store_zu(&dalloc_nonzero_slab_count, 0, ATOMIC_RELAXED);
 	atomic_store_zu(&dalloc_nonempty_list_count, 0, ATOMIC_RELAXED);
