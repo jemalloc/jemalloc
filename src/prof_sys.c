@@ -701,8 +701,47 @@ prof_dump_maps(buf_writer_t *buf_writer) {
 	/* No proc map file to read on MacOS, dump dyld maps for backtrace. */
 	prof_dump_dyld_maps(buf_writer);
 }
-#else /* !__APPLE__ */
-#ifndef _WIN32
+#elif defined(_WIN32)
+#include <tlhelp32.h>
+
+static void
+prof_dump_maps_win32(buf_writer_t *buf_writer) {
+	HANDLE snapshot;
+	MODULEENTRY32 module;
+	char buffer[PATH_MAX + 1];
+
+	module.dwSize = sizeof(module);
+	snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, 0);
+	if (snapshot == INVALID_HANDLE_VALUE) {
+		return;
+	}
+
+	if (Module32First(snapshot, &module) == FALSE) {
+		goto label_error;
+	}
+
+	do {
+		malloc_snprintf(buffer, sizeof(buffer),
+		    "%016llx-%016llx: %s\n", module.modBaseAddr,
+		    module.modBaseAddr + module.modBaseSize,
+		    module.szExePath);
+		buf_writer_cb(buf_writer, buffer);
+	} while (Module32Next(snapshot, &module) == TRUE);
+
+label_error:
+	CloseHandle(snapshot);
+}
+
+prof_dump_open_maps_t *JET_MUTABLE prof_dump_open_maps = NULL;
+
+static void
+prof_dump_maps(buf_writer_t *buf_writer) {
+	buf_writer_cb(buf_writer, "\nMAPPED_LIBRARIES:\n");
+	/* No proc map file to read on win32, use CreateToolhelp32 to get mapping. */
+	prof_dump_maps_win32(buf_writer);
+}
+
+#else
 JEMALLOC_FORMAT_PRINTF(1, 2)
 static int
 prof_open_maps_internal(const char *format, ...) {
@@ -725,7 +764,6 @@ prof_open_maps_internal(const char *format, ...) {
 
 	return mfd;
 }
-#endif
 
 static int
 prof_dump_open_maps_impl(void) {
@@ -734,8 +772,6 @@ prof_dump_open_maps_impl(void) {
 	cassert(config_prof);
 #if defined(__FreeBSD__) || defined(__DragonFly__)
 	mfd = prof_open_maps_internal("/proc/curproc/map");
-#elif defined(_WIN32)
-	mfd = -1; // Not implemented
 #else
 	int pid = prof_getpid();
 
@@ -767,7 +803,7 @@ prof_dump_maps(buf_writer_t *buf_writer) {
 	buf_writer_pipe(buf_writer, prof_dump_read_maps_cb, &mfd);
 	close(mfd);
 }
-#endif /* __APPLE__ */
+#endif
 
 static bool
 prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
