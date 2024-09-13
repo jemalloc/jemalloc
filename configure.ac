@@ -562,6 +562,21 @@ AC_CACHE_CHECK([asm volatile support],
 if test "x${je_cv_asm_volatile}" = "xyes"; then
   AC_DEFINE([JEMALLOC_HAVE_ASM_VOLATILE], [ ], [ ])
 fi
+AC_CACHE_CHECK([__int128 support],
+               [je_cv_int128],
+               AC_RUN_IFELSE([AC_LANG_PROGRAM(
+[[
+]],
+[[
+      __int128 temp = 0;
+      return temp;
+]])],
+[je_cv_int128=yes],
+[je_cv_int128=no],
+[je_cv_int128=no]))
+if test "x${je_cv_int128}" = "xyes"; then
+  AC_DEFINE([JEMALLOC_HAVE_INT128], [ ], [ ])
+fi
 
 LD_PRELOAD_VAR="LD_PRELOAD"
 so="so"

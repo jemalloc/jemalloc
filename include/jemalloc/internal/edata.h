@@ -666,6 +666,21 @@ edata_cmp_summary_get(const edata_t *edata) {
 	return result;
 }
 
+#ifdef JEMALLOC_HAVE_INT128
+JEMALLOC_ALWAYS_INLINE unsigned __int128
+edata_cmp_summary_encode(edata_cmp_summary_t src) {
+	return ((unsigned __int128)src.sn << 64) | src.addr;
+}
+
+static inline int
+edata_cmp_summary_comp(edata_cmp_summary_t a, edata_cmp_summary_t b) {
+    unsigned __int128 a_encoded = edata_cmp_summary_encode(a);
+    unsigned __int128 b_encoded = edata_cmp_summary_encode(b);
+    if (a_encoded < b_encoded) return -1;
+    if (a_encoded == b_encoded) return 0;
+    return 1;
+}
+#else
 static inline int
 edata_cmp_summary_comp(edata_cmp_summary_t a, edata_cmp_summary_t b) {
 	/*
@@ -683,6 +698,7 @@ edata_cmp_summary_comp(edata_cmp_summary_t a, edata_cmp_summary_t b) {
 	return (2 * ((a.sn > b.sn) - (a.sn < b.sn))) +
 	       ((a.addr > b.addr) - (a.addr < b.addr));
 }
+#endif
 
 static inline int
 edata_snad_comp(const edata_t *a, const edata_t *b) {
