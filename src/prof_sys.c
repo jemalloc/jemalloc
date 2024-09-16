@@ -3,6 +3,7 @@
 
 #include "jemalloc/internal/buf_writer.h"
 #include "jemalloc/internal/ctl.h"
+#include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/prof_data.h"
 #include "jemalloc/internal/prof_sys.h"
 
@@ -98,6 +99,45 @@ prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 
 	_Unwind_Backtrace(prof_unwind_callback, &data);
 }
+#elif (defined(JEMALLOC_PROF_FRAME_POINTER))
+JEMALLOC_DIAGNOSTIC_PUSH
+JEMALLOC_DIAGNOSTIC_IGNORE_FRAME_ADDRESS
+static void
+prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
+  // stack_start - highest possible valid stack address (assumption: stacks grow downward)
+  //   stack_end - current stack frame and lowest possible valid stack address
+  //               (all earlier frames will be at higher addresses than this)
+
+  // always safe to get the current stack frame address
+  void** stack_end = (void**)__builtin_frame_address(0);
+  if (stack_end == NULL) {
+    *len = 0;
+    return;
+  }
+
+  static __thread void **stack_start = (void **)0;  // thread local
+  if (stack_start == 0 || stack_end >= stack_start) {
+    stack_start = (void**)prof_thread_stack_start((uintptr_t)stack_end);
+  }
+
+  if (stack_start == 0 || stack_end >= stack_start) {
+    *len = 0;
+    return;
+  }
+
+  unsigned ii = 0;
+  void** fp = (void**)stack_end;
+  while (fp < stack_start && ii < max_len) {
+    vec[ii++] = fp[1];
+    void** fp_prev = fp;
+    fp = fp[0];
+    if (unlikely(fp <= fp_prev)) { // sanity check forward progress
+      break;
+    }
+  }
+  *len = ii;
+}
+JEMALLOC_DIAGNOSTIC_POP
 #elif (defined(JEMALLOC_PROF_GCC))
 JEMALLOC_DIAGNOSTIC_PUSH
 JEMALLOC_DIAGNOSTIC_IGNORE_FRAME_ADDRESS
@@ -484,7 +524,7 @@ prof_getpid(void) {
 #endif
 }
 
-long
+static long
 prof_get_pid_namespace() {
 	long ret = 0;
 

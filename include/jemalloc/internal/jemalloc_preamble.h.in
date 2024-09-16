@@ -114,6 +114,13 @@ static const bool config_prof_libunwind =
     false
 #endif
     ;
+static const bool config_prof_frameptr =
+#ifdef JEMALLOC_PROF_FRAME_POINTER
+    true
+#else
+    false
+#endif
+    ;
 static const bool maps_coalesce =
 #ifdef JEMALLOC_MAPS_COALESCE
     true

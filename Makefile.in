@@ -142,6 +142,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/prof_data.c \
 	$(srcroot)src/prof_log.c \
 	$(srcroot)src/prof_recent.c \
+	$(srcroot)src/prof_stack_range.c \
 	$(srcroot)src/prof_stats.c \
 	$(srcroot)src/prof_sys.c \
 	$(srcroot)src/psset.c \

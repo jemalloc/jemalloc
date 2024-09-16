@@ -154,5 +154,12 @@ static inline int malloc_close(int fd) {
 #endif
 }
 
+static inline off_t malloc_lseek(int fd, off_t offset, int whence) {
+#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_lseek)
+  return (off_t)syscall(SYS_lseek, fd, offset, whence);
+#else
+  return lseek(fd, offset, whence);
+#endif
+}
 
 #endif /* JEMALLOC_INTERNAL_MALLOC_IO_H */
