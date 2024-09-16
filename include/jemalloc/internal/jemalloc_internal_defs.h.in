@@ -167,6 +167,9 @@
 /* Use gcc intrinsics for profile backtracing if defined. */
 #undef JEMALLOC_PROF_GCC
 
+/* Use frame pointer for profile backtracing if defined. Linux only. */
+#undef JEMALLOC_PROF_FRAME_POINTER
+
 /* JEMALLOC_PAGEID enabled page id */
 #undef JEMALLOC_PAGEID
 

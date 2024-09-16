@@ -139,6 +139,7 @@ any of the following arguments (not a definitive list) to 'configure':
     in the following list that appears to function correctly:
 
     + libunwind      (requires --enable-prof-libunwind)
+    + frame pointer  (requires --enable-prof-frameptr)
     + libgcc         (unless --disable-prof-libgcc)
     + gcc intrinsics (unless --disable-prof-gcc)
 
@@ -146,6 +147,12 @@ any of the following arguments (not a definitive list) to 'configure':
 
     Use the libunwind library (http://www.nongnu.org/libunwind/) for stack
     backtracing.
+
+* `--enable-prof-frameptr`
+
+    Use the optimized frame pointer unwinder for stack backtracing. Safe
+    to use in mixed code (with and without frame pointers) - but requires
+    frame pointers to produce meaningful stacks. Linux only.
 
 * `--disable-prof-libgcc`
 

@@ -1467,6 +1467,7 @@ stats_general_print(emitter_t *emitter) {
 	CONFIG_WRITE_BOOL(prof);
 	CONFIG_WRITE_BOOL(prof_libgcc);
 	CONFIG_WRITE_BOOL(prof_libunwind);
+	CONFIG_WRITE_BOOL(prof_frameptr);
 	CONFIG_WRITE_BOOL(stats);
 	CONFIG_WRITE_BOOL(utrace);
 	CONFIG_WRITE_BOOL(xmalloc);

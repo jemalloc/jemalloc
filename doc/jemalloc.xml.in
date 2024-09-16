@@ -897,6 +897,16 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         during build configuration.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="config.prof_frameptr">
+        <term>
+          <mallctl>config.prof_frameptr</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para><option>--enable-prof-frameptr</option> was specified
+        during build configuration.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="config.stats">
         <term>
           <mallctl>config.stats</mallctl>
