@@ -36,6 +36,8 @@ struct malloc_mutex_s {
 			 * Hint flag to avoid exclusive cache line contention
 			 * during spin waiting.  Placed along with prof_data
 			 * since it's always modified even with no contention.
+			 * Modified by the lock owner only (after acquired, and
+			 * before release), and may be read by other threads.
 			 */
 			atomic_b_t		locked;
 #ifdef _WIN32
@@ -156,7 +158,12 @@ malloc_mutex_lock_final(malloc_mutex_t *mutex) {
 
 static inline bool
 malloc_mutex_trylock_final(malloc_mutex_t *mutex) {
-	return MALLOC_MUTEX_TRYLOCK(mutex);
+	bool failed = MALLOC_MUTEX_TRYLOCK(mutex);
+	if (!failed) {
+		atomic_store_b(&mutex->locked, true, ATOMIC_RELAXED);
+	}
+
+	return failed;
 }
 
 static inline void
@@ -216,7 +223,6 @@ malloc_mutex_lock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 	if (isthreaded) {
 		if (malloc_mutex_trylock_final(mutex)) {
 			malloc_mutex_lock_slow(mutex);
-			atomic_store_b(&mutex->locked, true, ATOMIC_RELAXED);
 		}
 		mutex_owner_stats_update(tsdn, mutex);
 	}
