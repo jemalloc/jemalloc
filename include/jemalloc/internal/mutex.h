@@ -178,6 +178,12 @@ mutex_owner_stats_update(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 	}
 }
 
+static inline bool
+malloc_mutex_is_locked(malloc_mutex_t *mutex) {
+	/* Used for sanity checking only. */
+	return atomic_load_b(&mutex->locked, ATOMIC_RELAXED);
+}
+
 /* Trylock: return false if the lock is successfully acquired. */
 static inline bool
 malloc_mutex_trylock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
@@ -186,6 +192,7 @@ malloc_mutex_trylock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 		if (malloc_mutex_trylock_final(mutex)) {
 			return true;
 		}
+		assert(malloc_mutex_is_locked(mutex));
 		mutex_owner_stats_update(tsdn, mutex);
 	}
 	witness_lock(tsdn_witness_tsdp_get(tsdn), &mutex->witness);
@@ -224,6 +231,7 @@ malloc_mutex_lock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 		if (malloc_mutex_trylock_final(mutex)) {
 			malloc_mutex_lock_slow(mutex);
 		}
+		assert(malloc_mutex_is_locked(mutex));
 		mutex_owner_stats_update(tsdn, mutex);
 	}
 	witness_lock(tsdn_witness_tsdp_get(tsdn), &mutex->witness);
@@ -231,9 +239,10 @@ malloc_mutex_lock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 
 static inline void
 malloc_mutex_unlock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
-	atomic_store_b(&mutex->locked, false, ATOMIC_RELAXED);
 	witness_unlock(tsdn_witness_tsdp_get(tsdn), &mutex->witness);
 	if (isthreaded) {
+		assert(malloc_mutex_is_locked(mutex));
+		atomic_store_b(&mutex->locked, false, ATOMIC_RELAXED);
 		MALLOC_MUTEX_UNLOCK(mutex);
 	}
 }
