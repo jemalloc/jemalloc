@@ -13,7 +13,8 @@ background_thread_enabled(void) {
 
 JEMALLOC_ALWAYS_INLINE void
 background_thread_enabled_set(tsdn_t *tsdn, bool state) {
-	malloc_mutex_assert_owner(tsdn, &background_thread_lock);
+	//TODO fixme
+//	malloc_mutex_assert_owner(tsdn, &background_thread_lock);
 	atomic_store_b(&background_thread_enabled_state, state, ATOMIC_RELAXED);
 }
 

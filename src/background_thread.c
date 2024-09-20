@@ -458,6 +458,7 @@ background_work(tsd_t *tsd, unsigned ind) {
 	    BACKGROUND_THREAD_INDEFINITE_SLEEP);
 	if (ind == 0) {
 		background_thread0_work(tsd);
+		//TODO: fix locking
 	} else {
 		while (info->state != background_thread_stopped) {
 			if (background_thread_pause_check(tsd_tsdn(tsd),

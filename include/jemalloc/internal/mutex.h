@@ -156,7 +156,12 @@ malloc_mutex_lock_final(malloc_mutex_t *mutex) {
 
 static inline bool
 malloc_mutex_trylock_final(malloc_mutex_t *mutex) {
-	return MALLOC_MUTEX_TRYLOCK(mutex);
+	bool failed = MALLOC_MUTEX_TRYLOCK(mutex);
+	if (!failed) {
+		atomic_store_b(&mutex->locked, true, ATOMIC_RELAXED);
+	}
+
+	return failed;
 }
 
 static inline void
@@ -216,7 +221,6 @@ malloc_mutex_lock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 	if (isthreaded) {
 		if (malloc_mutex_trylock_final(mutex)) {
 			malloc_mutex_lock_slow(mutex);
-			atomic_store_b(&mutex->locked, true, ATOMIC_RELAXED);
 		}
 		mutex_owner_stats_update(tsdn, mutex);
 	}
