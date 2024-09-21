@@ -819,7 +819,6 @@ background_thread_boot1(tsdn_t *tsdn, base_t *base) {
 	}
 	max_background_threads = opt_max_background_threads;
 
-	background_thread_enabled_set(tsdn, opt_background_thread);
 	if (malloc_mutex_init(&background_thread_lock,
 	    "background_thread_global",
 	    WITNESS_RANK_BACKGROUND_THREAD_GLOBAL,
@@ -850,7 +849,8 @@ background_thread_boot1(tsdn_t *tsdn, base_t *base) {
 		background_thread_info_init(tsdn, info);
 		malloc_mutex_unlock(tsdn, &info->mtx);
 	}
+	/* Using _impl to bypass the locking check during init. */
+	background_thread_enabled_set_impl(opt_background_thread);
 #endif
-
 	return false;
 }
