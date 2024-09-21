@@ -250,6 +250,9 @@ malloc_mutex_unlock(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 static inline void
 malloc_mutex_assert_owner(tsdn_t *tsdn, malloc_mutex_t *mutex) {
 	witness_assert_owner(tsdn_witness_tsdp_get(tsdn), &mutex->witness);
+	if (isthreaded) {
+		assert(malloc_mutex_is_locked(mutex));
+	}
 }
 
 static inline void
