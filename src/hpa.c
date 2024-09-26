@@ -51,6 +51,10 @@ hpa_supported(void) {
 	if (HUGEPAGE_PAGES == 1) {
 		return false;
 	}
+	/* As mentioned in pages.h, do not support If HUGEPAGE is too large. */
+	if (HUGEPAGE > HUGEPAGE_MAX_EXPECTED_SIZE) {
+		return false;
+	}
 	return true;
 }
 
