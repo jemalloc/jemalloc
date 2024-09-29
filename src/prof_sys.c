@@ -11,6 +11,11 @@
 #include <libunwind.h>
 #endif
 
+#ifdef  __FreeBSD__
+#include <sys/sysctl.h>
+#include <sys/user.h>
+#endif
+
 #ifdef JEMALLOC_PROF_LIBGCC
 /*
  * We have a circular dependency -- jemalloc_internal.h tells us if we should
@@ -701,7 +706,7 @@ prof_dump_open_maps_impl(void) {
 	int mfd;
 
 	cassert(config_prof);
-#if defined(__FreeBSD__) || defined(__DragonFly__)
+#if defined(__DragonFly__)
 	mfd = prof_open_maps_internal("/proc/curproc/map");
 #elif defined(_WIN32)
 	mfd = -1; // Not implemented
@@ -718,15 +723,55 @@ prof_dump_open_maps_impl(void) {
 prof_dump_open_maps_t *JET_MUTABLE prof_dump_open_maps =
     prof_dump_open_maps_impl;
 
+#if defined(__linux__)
 static ssize_t
 prof_dump_read_maps_cb(void *read_cbopaque, void *buf, size_t limit) {
 	int mfd = *(int *)read_cbopaque;
 	assert(mfd != -1);
 	return malloc_read_fd(mfd, buf, limit);
 }
+#endif
+
+#if defined(__FreeBSD__)
+static void
+prof_dump_sysctl_maps(buf_writer_t *buf_writer) {
+	size_t len;
+	char *p, *start, *end;
+	int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_VMMAP, getpid()};
+
+	if (sysctl(mib, 4, NULL, &len, NULL, 0) != 0)
+		return;
+
+	len = len * 4 / 3;
+	start = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+
+	if (start == MAP_FAILED || !start)
+		return;
+	p = start;
+
+	if (sysctl(mib, 4, start, &len, NULL, 0) != 0)
+		goto end;
+
+	end = start + len;
+	while (start < end) {
+		char buffer[PATH_MAX];
+		struct kinfo_vmentry *entry = (struct kinfo_vmentry *)start;
+		if (!entry->kve_structsize)
+			break;
+
+		malloc_snprintf(buffer, sizeof(buffer), "%016"FMTu64"-%016"FMTu64": %s\n",
+				entry->kve_start, entry->kve_end, entry->kve_path);
+		buf_writer_cb(buf_writer, buffer);
+		start += entry->kve_structsize;
+	}
+end:
+	munmap(p, len);
+}
+#endif
 
 static void
 prof_dump_maps(buf_writer_t *buf_writer) {
+#if defined(__linux__)
 	int mfd = prof_dump_open_maps();
 	if (mfd == -1) {
 		return;
@@ -735,6 +780,10 @@ prof_dump_maps(buf_writer_t *buf_writer) {
 	buf_writer_cb(buf_writer, "\nMAPPED_LIBRARIES:\n");
 	buf_writer_pipe(buf_writer, prof_dump_read_maps_cb, &mfd);
 	close(mfd);
+#elif defined(__FreeBSD__)
+	buf_writer_cb(buf_writer, "\nMAPPED_LIBRARIES:\n");
+	prof_dump_sysctl_maps(buf_writer);
+#endif
 }
 #endif /* __APPLE__ */
 
