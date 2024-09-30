@@ -68,8 +68,8 @@ typedef enum malloc_init_e malloc_init_t;
 /* Smallest size class to support. */
 #define TINY_MIN		(1U << LG_TINY_MIN)
 
-#define LONG			((size_t)(1U << LG_SIZEOF_LONG))
-#define LONG_MASK		(LONG - 1)
+#define SIZEOF_LONG			((size_t)(1U << LG_SIZEOF_LONG))
+#define LONG_MASK		(SIZEOF_LONG - 1)
 
 /* Return the smallest long multiple that is >= a. */
 #define LONG_CEILING(a)							\

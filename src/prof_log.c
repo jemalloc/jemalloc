@@ -641,7 +641,18 @@ prof_log_stop(tsdn_t *tsdn) {
 	if (prof_log_dummy) {
 		fd = 0;
 	} else {
-		fd = creat(log_filename, 0644);
+		int mode = 0644;
+#ifdef _MSC_VER
+		/*
+		* On windows, creat only supports S_IREAD and S_IWRITE. Setting any
+		* other flags in the mode results in raising an assertion, crashing the
+		* program. This is because creat is implemented by (indirectly) calling
+		* sopen_s, which asserts if pmode contains an "invalid mode", AKA a mode
+		* that the CRT does not know how to handle.
+		*/
+		mode &= 0600;
+#endif
+		fd = creat(log_filename, mode);
 	}
 
 	if (fd == -1) {

@@ -1493,6 +1493,35 @@ else
   enable_prof_gcc="0"
 fi
 
+AC_ARG_ENABLE([prof-msvc],
+  [AS_HELP_STRING([--disable-prof-msvc],
+  [Do not use MSVC for backtracing])],
+[if test "x$enable_prof_msvc" = "xno" ; then
+  enable_prof_msvc="0"
+else
+  enable_prof_msvc="1"
+fi
+],
+[enable_prof_msvc="1"]
+)
+if test "x$backtrace_method" = "x" -a "x$enable_prof_msvc" = "x1" \
+     -a "x$je_cv_msvc" = "xyes" ; then
+  JE_COMPILABLE([RtlCaptureStackBackTrace], [
+  #include <WinBase.h>
+  ], [
+	    CaptureStackBackTrace(0, 0, NULL, NULL);
+  ], [je_cv_rtlcapturestackbacktrace])
+  if test "x${je_cv_rtlcapturestackbacktrace}" = "xyes" ; then
+    enable_prof_msvc="1"
+  fi
+  if test "x${enable_prof_msvc}" = "x1" ; then
+    backtrace_method="msvc"
+    AC_DEFINE([JEMALLOC_PROF_MSVC], [ ], [ ])
+  fi
+else
+  enable_prof_msvc="0"
+fi
+
 if test "x$backtrace_method" = "x" ; then
   backtrace_method="none (disabling profiling)"
   enable_prof="0"
@@ -2849,6 +2878,7 @@ AC_MSG_RESULT([prof               : ${enable_prof}])
 AC_MSG_RESULT([prof-libunwind     : ${enable_prof_libunwind}])
 AC_MSG_RESULT([prof-libgcc        : ${enable_prof_libgcc}])
 AC_MSG_RESULT([prof-gcc           : ${enable_prof_gcc}])
+AC_MSG_RESULT([prof-msvc          : ${enable_prof_msvc}])
 AC_MSG_RESULT([fill               : ${enable_fill}])
 AC_MSG_RESULT([utrace             : ${enable_utrace}])
 AC_MSG_RESULT([xmalloc            : ${enable_xmalloc}])
