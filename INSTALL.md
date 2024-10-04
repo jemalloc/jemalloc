@@ -322,13 +322,13 @@ behavior:
     'configure' uses this to find programs.
 
 In some cases it may be necessary to work around configuration results that do
-not match reality.  For example, Linux 4.5 added support for the MADV_FREE flag
-to madvise(2), which can cause problems if building on a host with MADV_FREE
-support and deploying to a target without.  To work around this, use a cache
-file to override the relevant configuration variable defined in configure.ac,
-e.g.:
+not match reality.  For example, Linux 3.4 added support for the MADV_DONTDUMP
+flag to madvise(2), which can cause problems if building on a host with
+MADV_DONTDUMP support and deploying to a target without.  To work around this,
+use a cache file to override the relevant configuration variable defined in
+configure.ac, e.g.:
 
-    echo "je_cv_madv_free=no" > config.cache && ./configure -C
+    echo "je_cv_madv_dontdump=no" > config.cache && ./configure -C
 
 
 ## Advanced compilation
