@@ -1195,7 +1195,7 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         purged according to a sigmoidal decay curve that starts and ends with
         zero purge rate.  A decay time of 0 causes all unused muzzy pages to be
         purged immediately upon creation.  A decay time of -1 disables purging.
-        The default decay time is 10 seconds.  See <link
+        Muzzy decay is disabled by default (with decay time 0).  See <link
         linkend="arenas.muzzy_decay_ms"><mallctl>arenas.muzzy_decay_ms</mallctl></link>
         and <link
         linkend="arena.i.muzzy_decay_ms"><mallctl>arena.&lt;i&gt;.muzzy_decay_ms</mallctl></link>
