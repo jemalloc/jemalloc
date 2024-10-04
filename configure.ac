@@ -2126,6 +2126,16 @@ if test "x${je_cv_clock_realtime}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_HAVE_CLOCK_REALTIME], [ ], [ ])
 fi
 
+dnl Check for clock_gettime_nsec_np().
+JE_COMPILABLE([clock_gettime_nsec_np()], [
+#include <time.h>
+], [
+	clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+], [je_cv_clock_gettime_nsec_np])
+if test "x${je_cv_clock_gettime_nsec_np}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_CLOCK_GETTIME_NSEC_NP], [ ], [ ])
+fi
+
 dnl Use syscall(2) (if available) by default.
 AC_ARG_ENABLE([syscall],
   [AS_HELP_STRING([--disable-syscall], [Disable use of syscall(2)])],

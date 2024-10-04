@@ -201,11 +201,22 @@ nstime_get(nstime_t *time) {
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	nstime_init2(time, ts.tv_sec, ts.tv_nsec);
 }
+#elif defined(JEMALLOC_HAVE_CLOCK_GETTIME_NSEC_NP)
+#  define NSTIME_MONOTONIC true
+static void
+nstime_get(nstime_t *time) {
+	nstime_init(time, clock_gettime_nsec_np(CLOCK_UPTIME_RAW));
+}
 #elif defined(JEMALLOC_HAVE_MACH_ABSOLUTE_TIME)
 #  define NSTIME_MONOTONIC true
 static void
 nstime_get(nstime_t *time) {
-	nstime_init(time, mach_absolute_time());
+	static mach_timebase_info_data_t sTimebaseInfo;
+	if (sTimebaseInfo.denom == 0) {
+		(void) mach_timebase_info(&sTimebaseInfo);
+	}
+	nstime_init(time, mach_absolute_time() * sTimebaseInfo.numer
+	    / sTimebaseInfo.denom);
 }
 #else
 #  define NSTIME_MONOTONIC false
