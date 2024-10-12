@@ -985,44 +985,53 @@ obtain_malloc_conf(unsigned which_source, char readlink_buf[PATH_MAX + 1]) {
 		}
 		break;
 	case 2: {
+#ifndef JEMALLOC_CONFIG_FILE
+		ret = NULL;
+		break;
+#else
 		ssize_t linklen = 0;
-#ifndef _WIN32
+#  ifndef _WIN32
 		int saved_errno = errno;
 		const char *linkname =
-#  ifdef JEMALLOC_PREFIX
+#    ifdef JEMALLOC_PREFIX
 		    "/etc/"JEMALLOC_PREFIX"malloc.conf"
-#  else
+#    else
 		    "/etc/malloc.conf"
-#  endif
+#    endif
 		    ;
 
 		/*
 		 * Try to use the contents of the "/etc/malloc.conf" symbolic
 		 * link's name.
 		 */
-#ifndef JEMALLOC_READLINKAT
+#    ifndef JEMALLOC_READLINKAT
 		linklen = readlink(linkname, readlink_buf, PATH_MAX);
-#else
+#    else
 		linklen = readlinkat(AT_FDCWD, linkname, readlink_buf, PATH_MAX);
-#endif
+#    endif
 		if (linklen == -1) {
 			/* No configuration specified. */
 			linklen = 0;
 			/* Restore errno. */
 			set_errno(saved_errno);
 		}
-#endif
+#  endif
 		readlink_buf[linklen] = '\0';
 		ret = readlink_buf;
 		break;
-	} case 3: {
-		const char *envname =
-#ifdef JEMALLOC_PREFIX
-		    JEMALLOC_CPREFIX"MALLOC_CONF"
-#else
-		    "MALLOC_CONF"
 #endif
-		    ;
+	} case 3: {
+#ifndef JEMALLOC_CONFIG_ENV
+		ret = NULL;
+		break;
+#else
+		const char *envname =
+#  ifdef JEMALLOC_PREFIX
+			JEMALLOC_CPREFIX"MALLOC_CONF"
+#  else
+			"MALLOC_CONF"
+#  endif
+			;
 
 		if ((ret = jemalloc_getenv(envname)) != NULL) {
 			opt_malloc_conf_env_var = ret;
@@ -1031,6 +1040,7 @@ obtain_malloc_conf(unsigned which_source, char readlink_buf[PATH_MAX + 1]) {
 			ret = NULL;
 		}
 		break;
+#endif
 	} case 4: {
 		ret = je_malloc_conf_2_conf_harder;
 		break;

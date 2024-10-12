@@ -1375,6 +1375,23 @@ if test "x$enable_stats" = "x1" ; then
 fi
 AC_SUBST([enable_stats])
 
+dnl Disable reading configuration from file and environment variable
+AC_ARG_ENABLE([user_config],
+  [AS_HELP_STRING([--disable-user-config],
+  [Do not read malloc config from /etc/malloc.conf or MALLOC_CONF])],
+[if test "x$enable_user_config" = "xno" ; then
+  enable_user_config="0"
+else
+  enable_user_config="1"
+fi
+],
+[enable_user_config="1"]
+)
+if test "x$enable_user_config" = "x1" ; then
+  AC_DEFINE([JEMALLOC_CONFIG_ENV], [ ], [ ])
+  AC_DEFINE([JEMALLOC_CONFIG_FILE], [ ], [ ])
+fi
+
 dnl Do not enable smallocx by default.
 AC_ARG_ENABLE([experimental_smallocx],
   [AS_HELP_STRING([--enable-experimental-smallocx], [Enable experimental smallocx API])],
@@ -2871,6 +2888,7 @@ AC_MSG_RESULT([static libs        : ${enable_static}])
 AC_MSG_RESULT([autogen            : ${enable_autogen}])
 AC_MSG_RESULT([debug              : ${enable_debug}])
 AC_MSG_RESULT([stats              : ${enable_stats}])
+AC_MSG_RESULT([user_config        : ${enable_user_config}])
 AC_MSG_RESULT([experimental_smallocx : ${enable_experimental_smallocx}])
 AC_MSG_RESULT([prof               : ${enable_prof}])
 AC_MSG_RESULT([prof-libunwind     : ${enable_prof_libunwind}])
