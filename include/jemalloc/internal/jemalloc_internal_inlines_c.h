@@ -425,8 +425,8 @@ maybe_check_alloc_ctx(tsd_t *tsd, void *ptr, emap_alloc_ctx_t *alloc_ctx) {
                 if (alloc_ctx->szind != dbg_ctx.szind) {
                         safety_check_fail_sized_dealloc(
                             /* current_dealloc */ true, ptr,
-                            /* true_size */ sz_size2index(dbg_ctx.szind),
-                            /* input_size */ sz_size2index(alloc_ctx->szind));
+                            /* true_size */ sz_index2size(dbg_ctx.szind),
+                            /* input_size */ sz_index2size(alloc_ctx->szind));
                         return true;
                 }
                 if (alloc_ctx->slab != dbg_ctx.slab) {
