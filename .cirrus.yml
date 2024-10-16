@@ -48,3 +48,4 @@ task:
     - gmake -j${JFLAG}
     - gmake -j${JFLAG} tests
     - gmake check
+
