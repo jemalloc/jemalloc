@@ -30,7 +30,7 @@ reentrancy_t_str(reentrancy_t r) {
 	case arena_new_reentrant:
 		return "arena_new-reentrant";
 	default:
-		unreachable();
+		JEMALLOC_INTERNAL_UNREACHABLE();
 	}
 }
 
