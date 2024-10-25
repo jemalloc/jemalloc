@@ -208,7 +208,7 @@ emitter_print_value(emitter_t *emitter, emitter_justify_t justify, int width,
 		EMIT_SIMPLE(char *const, "%s");
 		break;
 	default:
-		unreachable();
+		JEMALLOC_INTERNAL_UNREACHABLE();
 	}
 #undef FMT_SIZE
 }
