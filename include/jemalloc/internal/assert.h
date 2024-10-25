@@ -25,7 +25,7 @@
 		    __FILE__, __LINE__);				\
 		abort();						\
 	}								\
-	unreachable();							\
+	JEMALLOC_INTERNAL_UNREACHABLE();				\
 } while (0)
 #endif
 
