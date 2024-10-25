@@ -589,7 +589,7 @@ extent_recycle_split(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		}
 		return NULL;
 	}
-	unreachable();
+	JEMALLOC_INTERNAL_UNREACHABLE();
 }
 
 /*
