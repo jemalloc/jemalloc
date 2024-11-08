@@ -4,7 +4,7 @@
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/prof_sys.h"
 
-#if defined (__linux__)
+#if defined (__linux__) && defined(JE_HAVE_GETTID)
 
 #include <errno.h>
 #include <fcntl.h>

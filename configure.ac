@@ -2695,6 +2695,15 @@ if test "x${je_cv_pthread_mutex_adaptive_np}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_HAVE_PTHREAD_MUTEX_ADAPTIVE_NP], [ ], [ ])
 fi
 
+JE_COMPILABLE([gettid], [
+#include <unistd.h>
+], [
+  int tid = gettid();
+], [je_cv_gettid])
+if test "x${je_cv_gettid}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_HAVE_GETTID], [ ], [ ])
+fi
+
 JE_CFLAGS_SAVE()
 JE_CFLAGS_ADD([-D_GNU_SOURCE])
 JE_CFLAGS_ADD([-Werror])
