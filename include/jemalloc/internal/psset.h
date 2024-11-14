@@ -22,6 +22,12 @@
 #define PSSET_NPSIZES 64
 
 /*
+ * We store non-hugefied and hugified pageslabs metadata separately.
+ * [0] corresponds to non-hugified and [1] to hugified pageslabs.
+ */
+#define PSSET_NHUGE 2
+
+/*
  * We keep two purge lists per page size class; one for hugified hpdatas (at
  * index 2*pszind), and one for the non-hugified hpdatas (at index 2*pszind +
  * 1).  This lets us implement a preference for purging non-hugified hpdatas
@@ -45,20 +51,35 @@ struct psset_bin_stats_s {
 typedef struct psset_stats_s psset_stats_t;
 struct psset_stats_s {
 	/*
+	 * Merged stats for all pageslabs in psset.  This lets us quickly
+	 * answer queries for the number of dirty and active pages in the
+	 * entire set.
+	 */
+	psset_bin_stats_t merged;
+
+	/*
+	 * Below are the same stats, but aggregated by different
+	 * properties of pageslabs: huginess or fullness.
+	 */
+
+	/* Non-huge and huge slabs. */
+	psset_bin_stats_t slabs[PSSET_NHUGE];
+
+	/*
 	 * The second index is huge stats; nonfull_slabs[pszind][0] contains
 	 * stats for the non-huge slabs in bucket pszind, while
 	 * nonfull_slabs[pszind][1] contains stats for the huge slabs.
 	 */
-	psset_bin_stats_t nonfull_slabs[PSSET_NPSIZES][2];
+	psset_bin_stats_t nonfull_slabs[PSSET_NPSIZES][PSSET_NHUGE];
 
 	/*
 	 * Full slabs don't live in any edata heap, but we still track their
 	 * stats.
 	 */
-	psset_bin_stats_t full_slabs[2];
+	psset_bin_stats_t full_slabs[PSSET_NHUGE];
 
 	/* Empty slabs are similar. */
-	psset_bin_stats_t empty_slabs[2];
+	psset_bin_stats_t empty_slabs[PSSET_NHUGE];
 };
 
 typedef struct psset_s psset_t;
@@ -70,12 +91,6 @@ struct psset_s {
 	hpdata_age_heap_t pageslabs[PSSET_NPSIZES];
 	/* Bitmap for which set bits correspond to non-empty heaps. */
 	fb_group_t pageslab_bitmap[FB_NGROUPS(PSSET_NPSIZES)];
-	/*
-	 * The sum of all bin stats in stats.  This lets us quickly answer
-	 * queries for the number of dirty, active, and retained pages in the
-	 * entire set.
-	 */
-	psset_bin_stats_t merged_stats;
 	psset_stats_t stats;
 	/*
 	 * Slabs with no active allocations, but which are allowed to serve new
@@ -116,17 +131,17 @@ void psset_remove(psset_t *psset, hpdata_t *ps);
 
 static inline size_t
 psset_npageslabs(psset_t *psset) {
-	return psset->merged_stats.npageslabs;
+	return psset->stats.merged.npageslabs;
 }
 
 static inline size_t
 psset_nactive(psset_t *psset) {
-	return psset->merged_stats.nactive;
+	return psset->stats.merged.nactive;
 }
 
 static inline size_t
 psset_ndirty(psset_t *psset) {
-	return psset->merged_stats.ndirty;
+	return psset->stats.merged.ndirty;
 }
 
 #endif /* JEMALLOC_INTERNAL_PSSET_H */

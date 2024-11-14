@@ -11,7 +11,6 @@ psset_init(psset_t *psset) {
 		hpdata_age_heap_new(&psset->pageslabs[i]);
 	}
 	fb_init(psset->pageslab_bitmap, PSSET_NPSIZES);
-	memset(&psset->merged_stats, 0, sizeof(psset->merged_stats));
 	memset(&psset->stats, 0, sizeof(psset->stats));
 	hpdata_empty_list_init(&psset->empty);
 	for (int i = 0; i < PSSET_NPURGE_LISTS; i++) {
@@ -30,10 +29,14 @@ psset_bin_stats_accum(psset_bin_stats_t *dst, psset_bin_stats_t *src) {
 
 void
 psset_stats_accum(psset_stats_t *dst, psset_stats_t *src) {
-	psset_bin_stats_accum(&dst->full_slabs[0], &src->full_slabs[0]);
-	psset_bin_stats_accum(&dst->full_slabs[1], &src->full_slabs[1]);
-	psset_bin_stats_accum(&dst->empty_slabs[0], &src->empty_slabs[0]);
-	psset_bin_stats_accum(&dst->empty_slabs[1], &src->empty_slabs[1]);
+	psset_bin_stats_accum(&dst->merged, &src->merged);
+	for (int huge = 0; huge < PSSET_NHUGE; huge++) {
+		psset_bin_stats_accum(&dst->slabs[huge], &src->slabs[huge]);
+		psset_bin_stats_accum(&dst->full_slabs[huge],
+		    &src->full_slabs[huge]);
+		psset_bin_stats_accum(&dst->empty_slabs[huge],
+		    &src->empty_slabs[huge]);
+	}
 	for (pszind_t i = 0; i < PSSET_NPSIZES; i++) {
 		psset_bin_stats_accum(&dst->nonfull_slabs[i][0],
 		    &src->nonfull_slabs[i][0]);
@@ -48,48 +51,76 @@ psset_stats_accum(psset_stats_t *dst, psset_stats_t *src) {
  * bin) when we call psset_update_end.
  */
 JEMALLOC_ALWAYS_INLINE void
-psset_bin_stats_insert_remove(psset_t *psset, psset_bin_stats_t *binstats,
-    hpdata_t *ps, bool insert) {
+psset_slab_stats_insert_remove(psset_stats_t *stats,
+    psset_bin_stats_t *binstats, hpdata_t *ps, bool insert) {
 	size_t mul = insert ? (size_t)1 : (size_t)-1;
+	size_t nactive = hpdata_nactive_get(ps);
+	size_t ndirty = hpdata_ndirty_get(ps);
+
+	stats->merged.npageslabs += mul * 1;
+	stats->merged.nactive += mul * nactive;
+	stats->merged.ndirty += mul * ndirty;
+
+	/*
+	 * Stats above are necessary for purging logic to work, everything
+	 * below is to improve observability, thense is optional, so we don't
+	 * update it, when stats disabled.
+	 */
+	if (!config_stats) {
+		return;
+	}
+
 	size_t huge_idx = (size_t)hpdata_huge_get(ps);
 
-	binstats[huge_idx].npageslabs += mul * 1;
-	binstats[huge_idx].nactive += mul * hpdata_nactive_get(ps);
-	binstats[huge_idx].ndirty += mul * hpdata_ndirty_get(ps);
+	stats->slabs[huge_idx].npageslabs += mul * 1;
+	stats->slabs[huge_idx].nactive += mul * nactive;
+	stats->slabs[huge_idx].ndirty += mul * ndirty;
 
-	psset->merged_stats.npageslabs += mul * 1;
-	psset->merged_stats.nactive += mul * hpdata_nactive_get(ps);
-	psset->merged_stats.ndirty += mul * hpdata_ndirty_get(ps);
+	binstats[huge_idx].npageslabs += mul * 1;
+	binstats[huge_idx].nactive += mul * nactive;
+	binstats[huge_idx].ndirty += mul * ndirty;
 
 	if (config_debug) {
-		psset_bin_stats_t check_stats = {0};
-		for (size_t huge = 0; huge <= 1; huge++) {
-			psset_bin_stats_accum(&check_stats,
-			    &psset->stats.full_slabs[huge]);
-			psset_bin_stats_accum(&check_stats,
-			    &psset->stats.empty_slabs[huge]);
+		psset_bin_stats_t check_stats[PSSET_NHUGE] = {{0}};
+		for (int huge = 0; huge < PSSET_NHUGE; huge++) {
+			psset_bin_stats_accum(&check_stats[huge],
+			    &stats->full_slabs[huge]);
+			psset_bin_stats_accum(&check_stats[huge],
+			    &stats->empty_slabs[huge]);
 			for (pszind_t pind = 0; pind < PSSET_NPSIZES; pind++) {
-				psset_bin_stats_accum(&check_stats,
-				    &psset->stats.nonfull_slabs[pind][huge]);
+				psset_bin_stats_accum(&check_stats[huge],
+				    &stats->nonfull_slabs[pind][huge]);
 			}
 		}
-		assert(psset->merged_stats.npageslabs
-		    == check_stats.npageslabs);
-		assert(psset->merged_stats.nactive == check_stats.nactive);
-		assert(psset->merged_stats.ndirty == check_stats.ndirty);
+
+		assert(stats->merged.npageslabs
+		    == check_stats[0].npageslabs + check_stats[1].npageslabs);
+		assert(stats->merged.nactive
+		    == check_stats[0].nactive + check_stats[1].nactive);
+		assert(stats->merged.ndirty
+		    == check_stats[0].ndirty + check_stats[1].ndirty);
+
+		for (int huge = 0; huge < PSSET_NHUGE; huge++) {
+			assert(stats->slabs[huge].npageslabs
+			    == check_stats[huge].npageslabs);
+			assert(stats->slabs[huge].nactive
+			    == check_stats[huge].nactive);
+			assert(stats->slabs[huge].ndirty
+			    == check_stats[huge].ndirty);
+		}
 	}
 }
 
 static void
-psset_bin_stats_insert(psset_t *psset, psset_bin_stats_t *binstats,
+psset_slab_stats_insert(psset_stats_t *stats, psset_bin_stats_t *binstats,
     hpdata_t *ps) {
-	psset_bin_stats_insert_remove(psset, binstats, ps, true);
+	psset_slab_stats_insert_remove(stats, binstats, ps, true);
 }
 
 static void
-psset_bin_stats_remove(psset_t *psset, psset_bin_stats_t *binstats,
+psset_slab_stats_remove(psset_stats_t *stats, psset_bin_stats_t *binstats,
     hpdata_t *ps) {
-	psset_bin_stats_insert_remove(psset, binstats, ps, false);
+	psset_slab_stats_insert_remove(stats, binstats, ps, false);
 }
 
 static pszind_t
@@ -122,27 +153,29 @@ psset_hpdata_heap_insert(psset_t *psset, hpdata_t *ps) {
 }
 
 static void
-psset_stats_insert(psset_t* psset, hpdata_t *ps) {
+psset_stats_insert(psset_t *psset, hpdata_t *ps) {
+	psset_stats_t *stats = &psset->stats;
 	if (hpdata_empty(ps)) {
-		psset_bin_stats_insert(psset, psset->stats.empty_slabs, ps);
+		psset_slab_stats_insert(stats, psset->stats.empty_slabs, ps);
 	} else if (hpdata_full(ps)) {
-		psset_bin_stats_insert(psset, psset->stats.full_slabs, ps);
+		psset_slab_stats_insert(stats, psset->stats.full_slabs, ps);
 	} else {
 		pszind_t pind = psset_hpdata_heap_index(ps);
-		psset_bin_stats_insert(psset, psset->stats.nonfull_slabs[pind],
+		psset_slab_stats_insert(stats, psset->stats.nonfull_slabs[pind],
 		    ps);
 	}
 }
 
 static void
 psset_stats_remove(psset_t *psset, hpdata_t *ps) {
+	psset_stats_t *stats = &psset->stats;
 	if (hpdata_empty(ps)) {
-		psset_bin_stats_remove(psset, psset->stats.empty_slabs, ps);
+		psset_slab_stats_remove(stats, psset->stats.empty_slabs, ps);
 	} else if (hpdata_full(ps)) {
-		psset_bin_stats_remove(psset, psset->stats.full_slabs, ps);
+		psset_slab_stats_remove(stats, psset->stats.full_slabs, ps);
 	} else {
 		pszind_t pind = psset_hpdata_heap_index(ps);
-		psset_bin_stats_remove(psset, psset->stats.nonfull_slabs[pind],
+		psset_slab_stats_remove(stats, psset->stats.nonfull_slabs[pind],
 		    ps);
 	}
 }
