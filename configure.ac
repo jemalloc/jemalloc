@@ -92,6 +92,32 @@ AC_LANG_POP([C++])
 JE_CONCAT_VVV(CXXFLAGS, CONFIGURE_CXXFLAGS, SPECIFIED_CXXFLAGS)
 ])
 
+CONFIGURE_LDFLAGS=
+SPECIFIED_LDFLAGS="${LDFLAGS}"
+dnl JE_LDFLAGS_ADD(ldflag)
+dnl
+dnl LDFLAGS is the concatenation of CONFIGURE_LDFLAGS and SPECIFIED_LDFLAGS
+dnl This macro appends to CONFIGURE_LDFLAGS and regenerates LDFLAGS.
+AC_DEFUN([JE_LDFLAGS_ADD],
+[
+AC_MSG_CHECKING([whether linker supports $1])
+T_CONFIGURE_LDFLAGS="${CONFIGURE_LDFLAGS}"
+JE_APPEND_VS(CONFIGURE_LDFLAGS, $1)
+JE_CONCAT_VVV(LDFLAGS, CONFIGURE_LDFLAGS, SPECIFIED_LDFLAGS)
+AC_LINK_IFELSE([AC_LANG_PROGRAM(
+[[
+]], [[
+    return 0;
+]])],
+              [je_cv_ldflags_added=$1]
+              AC_MSG_RESULT([yes]),
+              [je_cv_ldflags_added=]
+              AC_MSG_RESULT([no])
+              [CONFIGURE_LDFLAGS="${T_CONFIGURE_LDFLAGS}"]
+)
+JE_CONCAT_VVV(LDFLAGS, CONFIGURE_LDFLAGS, SPECIFIED_LDFLAGS)
+])
+
 dnl JE_COMPILABLE(label, hcode, mcode, rvar)
 dnl
 dnl Use AC_LINK_IFELSE() rather than AC_COMPILE_IFELSE() so that linker errors
@@ -2647,6 +2673,40 @@ if test "x$enable_pageid" = "x1" ; then
   AC_DEFINE([JEMALLOC_PAGEID], [ ], [ ])
 fi
 
+AC_ARG_ENABLE([tsan],
+  [AS_HELP_STRING([--enable-tsan],
+                  [Enable thread sanitizer])],
+[if test "x$enable_tsan" = "xno" ; then
+  enable_tsan="0"
+else
+  enable_tsan="1"
+fi
+],
+[enable_tsan="0"]
+)
+if test "x$enable_tsan" = "x1" ; then
+  JE_CFLAGS_ADD([-fsanitize=thread])
+  JE_CXXFLAGS_ADD([-fsanitize=thread])
+  JE_LDFLAGS_ADD([-fsanitize=thread])
+fi
+
+AC_ARG_ENABLE([ubsan],
+  [AS_HELP_STRING([--enable-ubsan],
+                  [Enable undefined behavior sanitizer])],
+[if test "x$enable_ubsan" = "xno" ; then
+  enable_ubsan="0"
+else
+  enable_ubsan="1"
+fi
+],
+[enable_ubsan="0"]
+)
+if test "x$enable_ubsan" = "x1" ; then
+  JE_CFLAGS_ADD([-fsanitize=undefined])
+  JE_CXXFLAGS_ADD([-fsanitize=undefined])
+  JE_LDFLAGS_ADD([-fsanitize=undefined])
+fi
+
 dnl ============================================================================
 dnl Enable background threads if possible.
 
@@ -2869,7 +2929,8 @@ AC_MSG_RESULT([CXX                : ${CXX}])
 AC_MSG_RESULT([CONFIGURE_CXXFLAGS : ${CONFIGURE_CXXFLAGS}])
 AC_MSG_RESULT([SPECIFIED_CXXFLAGS : ${SPECIFIED_CXXFLAGS}])
 AC_MSG_RESULT([EXTRA_CXXFLAGS     : ${EXTRA_CXXFLAGS}])
-AC_MSG_RESULT([LDFLAGS            : ${LDFLAGS}])
+AC_MSG_RESULT([CONFIGURE_LDFLAGS  : ${CONFIGURE_LDFLAGS}])
+AC_MSG_RESULT([SPECIFIED_LDFLAGS  : ${SPECIFIED_LDFLAGS}])
 AC_MSG_RESULT([EXTRA_LDFLAGS      : ${EXTRA_LDFLAGS}])
 AC_MSG_RESULT([DSO_LDFLAGS        : ${DSO_LDFLAGS}])
 AC_MSG_RESULT([LIBS               : ${LIBS}])
@@ -2916,4 +2977,6 @@ AC_MSG_RESULT([cache-oblivious    : ${enable_cache_oblivious}])
 AC_MSG_RESULT([pageid             : ${enable_pageid}])
 AC_MSG_RESULT([cxx                : ${enable_cxx}])
 AC_MSG_RESULT([dss                : ${enable_dss}])
+AC_MSG_RESULT([tsan               : ${enable_tsan}])
+AC_MSG_RESULT([ubsan              : ${enable_ubsan}])
 AC_MSG_RESULT([===============================================================================])
