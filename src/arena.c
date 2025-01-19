@@ -12,6 +12,10 @@
 #include "jemalloc/internal/safety_check.h"
 #include "jemalloc/internal/util.h"
 
+#ifdef __x86_64__
+#include <immintrin.h>
+#endif
+
 JEMALLOC_DIAGNOSTIC_DISABLE_SPURIOUS
 
 /******************************************************************************/
@@ -254,14 +258,78 @@ arena_slab_reg_alloc_batch(edata_t *slab, const bin_info_t *bin_info,
 
 	assert(edata_nfree_get(slab) >= cnt);
 	assert(!bitmap_full(slab_data->bitmap, &bin_info->bitmap_info));
+#if defined(__AVX512VBMI2__) && LG_SIZEOF_BITMAP == 3
+#define MAY_USE_AVX 1
+#else
+#define MAY_USE_AVX 0
+#endif
 
-#if (! defined JEMALLOC_INTERNAL_POPCOUNTL) || (defined BITMAP_USE_TREE)
+#if defined(BITMAP_USE_TREE) || \
+	(MAY_USE_AVX == 0 && !defined(JEMALLOC_INTERNAL_POPCOUNTL))
 	for (unsigned i = 0; i < cnt; i++) {
 		size_t regind = bitmap_sfu(slab_data->bitmap,
 					   &bin_info->bitmap_info);
 		*(ptrs + i) = (void *)((uintptr_t)edata_addr_get(slab) +
 		    (uintptr_t)(bin_info->reg_size * regind));
 	}
+#elif MAY_USE_AVX == 1
+    __m512i bases = _mm512_set1_epi64((uintptr_t)edata_addr_get(slab));
+    __m512i regsizes = _mm512_set1_epi64(bin_info->reg_size);
+    bitmap_t* bm = slab_data->bitmap;
+    unsigned i = 0;
+    while (i != cnt) {
+      unsigned j = i;
+      unsigned n = _mm_popcnt_u64(*bm);
+      if ((cnt - i) < n) {
+        n = cnt - i;
+      }
+
+      __m512i shifts =
+          _mm512_set1_epi64((bm - slab_data->bitmap) << LG_BITMAP_GROUP_NBITS);
+
+      __m512i idxs = _mm512_mask_compress_epi8(
+          _mm512_set1_epi8(0x40),
+          *bm,
+          _mm512_set_epi64(
+              0x3f3e3d3c3b3a3938,
+              0x3736353433323130,
+              0x2f2e2d2c2b2a2928,
+              0x2726252423222120,
+              0x1f1e1d1c1b1a1918,
+              0x1716151413121110,
+              0x0f0e0d0c0b0a0908,
+              0x0706050403020100));
+
+      for (; n >= 8; n -= 8, i += 8) {
+        __m512i bits = _mm512_cvtepu8_epi64(_mm512_castsi512_si128(
+            _mm512_maskz_compress_epi8(0xff << (i - j), idxs)));
+
+        __m512i reginds = _mm512_add_epi64(shifts, bits);
+        _mm512_storeu_epi64(
+            ptrs[i],
+            _mm512_add_epi64(bases, _mm512_mullox_epi64(regsizes, reginds)));
+      }
+
+      if (n) {
+        __m512i bits = _mm512_cvtepu8_epi64(_mm512_castsi512_si128(
+            _mm512_maskz_compress_epi8(0xff << (i - j), idxs)));
+
+        __m512i reginds = _mm512_add_epi64(shifts, bits);
+        _mm512_mask_storeu_epi64(
+            ptrs[i],
+            (1 << n) - 1,
+            _mm512_add_epi64(bases, _mm512_mullox_epi64(regsizes, reginds)));
+
+        i += n;
+      }
+
+      __m512i bits =
+          _mm512_cvtepu8_epi64(_mm512_castsi512_si128(_mm512_mask_compress_epi8(
+              _mm512_set1_epi8(0x40), 1 << (i - j), idxs)));
+
+      *bm++ &= 0xffffffffffffffff
+          << _mm_cvtsi128_si64(_mm512_castsi512_si128(bits));
+    }
 #else
 	unsigned group = 0;
 	bitmap_t g = slab_data->bitmap[group];
@@ -293,6 +361,8 @@ arena_slab_reg_alloc_batch(edata_t *slab, const bin_info_t *bin_info,
 		slab_data->bitmap[group] = g;
 	}
 #endif
+
+#undef MAY_USE_AVX
 	edata_nfree_sub(slab, cnt);
 }
 
