@@ -10,6 +10,7 @@
 #include "jemalloc/internal/hpa_opts.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/pai.h"
+#include "jemalloc/internal/peak_demand.h"
 #include "jemalloc/internal/psset.h"
 
 typedef struct hpa_central_s hpa_central_t;
@@ -147,6 +148,9 @@ struct hpa_shard_s {
 	 * Last time we performed purge on this shard.
 	 */
 	nstime_t last_purge;
+
+	/* Peak active memory sliding window statistics. */
+	peak_demand_t peak_demand;
 };
 
 bool hpa_hugepage_size_exceeds_limit();

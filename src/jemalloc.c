@@ -1556,6 +1556,11 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			    opt_hpa_opts.experimental_max_purge_nhp,
 			    "experimental_hpa_max_purge_nhp", -1, SSIZE_MAX);
 
+			CONF_HANDLE_UINT64_T(
+			    opt_hpa_opts.peak_demand_window_ms,
+			    "hpa_peak_demand_window_ms", 0, 0,
+			    CONF_DONT_CHECK_MIN, CONF_DONT_CHECK_MAX, false);
+
 			if (CONF_MATCH("hpa_dirty_mult")) {
 				if (CONF_MATCH_VALUE("-1")) {
 					opt_hpa_opts.dirty_mult = (fxp_t)-1;

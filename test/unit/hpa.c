@@ -37,26 +37,9 @@ static hpa_shard_opts_t test_hpa_shard_opts_default = {
 	/* min_purge_interval_ms */
 	5 * 1000,
 	/* experimental_max_purge_nhp */
-	-1
-};
-
-static hpa_shard_opts_t test_hpa_shard_opts_purge = {
-	/* slab_max_alloc */
-	HUGEPAGE,
-	/* hugification_threshold */
-	0.9 * HUGEPAGE,
-	/* dirty_mult */
-	FXP_INIT_PERCENT(11),
-	/* deferral_allowed */
-	true,
-	/* hugify_delay_ms */
-	0,
-	/* hugify_sync */
-	false,
-	/* min_purge_interval_ms */
-	5 * 1000,
-	/* experimental_max_purge_nhp */
-	-1
+	-1,
+	/* peak_demand_window_ms */
+	0
 };
 
 static hpa_shard_t *
@@ -480,8 +463,14 @@ TEST_END
 TEST_BEGIN(test_purge_no_infinite_loop) {
 	test_skip_if(!hpa_supported());
 
-	hpa_shard_t *shard = create_test_data(&hpa_hooks_default,
-	    &test_hpa_shard_opts_purge);
+	hpa_shard_opts_t opts = test_hpa_shard_opts_default;
+	opts.slab_max_alloc = HUGEPAGE;
+	opts.hugification_threshold = 0.9 * HUGEPAGE;
+	opts.dirty_mult = FXP_INIT_PERCENT(11);
+	opts.deferral_allowed = true;
+	opts.hugify_delay_ms = 0;
+
+	hpa_shard_t *shard = create_test_data(&hpa_hooks_default, &opts);
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 
 	/*
@@ -489,8 +478,7 @@ TEST_BEGIN(test_purge_no_infinite_loop) {
 	 * criteria for huge page and at the same time do not allow hugify page
 	 * without triggering a purge.
 	 */
-	const size_t npages =
-	    test_hpa_shard_opts_purge.hugification_threshold / PAGE + 1;
+	const size_t npages = opts.hugification_threshold / PAGE + 1;
 	const size_t size = npages * PAGE;
 
 	bool deferred_work_generated = false;
@@ -733,6 +721,140 @@ TEST_BEGIN(test_experimental_max_purge_nhp) {
 }
 TEST_END
 
+TEST_BEGIN(test_demand_purge_slack) {
+	test_skip_if(!hpa_supported());
+
+	hpa_hooks_t hooks;
+	hooks.map = &defer_test_map;
+	hooks.unmap = &defer_test_unmap;
+	hooks.purge = &defer_test_purge;
+	hooks.hugify = &defer_test_hugify;
+	hooks.dehugify = &defer_test_dehugify;
+	hooks.curtime = &defer_test_curtime;
+	hooks.ms_since = &defer_test_ms_since;
+
+	hpa_shard_opts_t opts = test_hpa_shard_opts_default;
+	opts.deferral_allowed = true;
+	/* Allow 10% of slack. */
+	opts.dirty_mult = FXP_INIT_PERCENT(10);
+	/* Peak demand sliding window duration is 10 seconds. */
+	opts.peak_demand_window_ms = 10 * 1000;
+
+	hpa_shard_t *shard = create_test_data(&hooks, &opts);
+
+	bool deferred_work_generated = false;
+
+	nstime_init(&defer_curtime, 0);
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+	enum {NALLOCS = 16 * HUGEPAGE_PAGES};
+	edata_t *edatas[NALLOCS];
+	for (int i = 0; i < NALLOCS; i++) {
+		edatas[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false,
+		    false, false, &deferred_work_generated);
+		expect_ptr_not_null(edatas[i], "Unexpected null edata");
+	}
+
+	/* Deallocate 5 hugepages out of 16. */
+	for (int i = 0; i < 5 * (int)HUGEPAGE_PAGES; i++) {
+		pai_dalloc(tsdn, &shard->pai, edatas[i],
+		    &deferred_work_generated);
+	}
+	nstime_init2(&defer_curtime, 6, 0);
+	hpa_shard_do_deferred_work(tsdn, shard);
+
+	expect_zu_eq(0, ndefer_hugify_calls, "Hugified too early");
+	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
+	/*
+	 * Peak demand within sliding window is 16 hugepages, so we don't need
+	 * to purge anything just yet.
+	 */
+	expect_zu_eq(0, ndefer_purge_calls, "Purged too early");
+
+	nstime_init2(&defer_curtime, 12, 0);
+	hpa_shard_do_deferred_work(tsdn, shard);
+
+	expect_zu_eq(11, ndefer_hugify_calls, "Expect hugification");
+	ndefer_hugify_calls = 0;
+	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
+	/*
+	 * 12 seconds passed now, peak demand is 11 hugepages, we allowed to
+	 * keep 11 * 0.1 (hpa_dirty_mult) = 1.1 dirty hugepages, but we
+	 * have 5 dirty hugepages, so we should purge 4 of them.
+	 */
+	expect_zu_eq(4, ndefer_purge_calls, "Expect purges");
+	ndefer_purge_calls = 0;
+
+	destroy_test_data(shard);
+}
+TEST_END
+
+TEST_BEGIN(test_demand_purge_tight) {
+	test_skip_if(!hpa_supported());
+
+	hpa_hooks_t hooks;
+	hooks.map = &defer_test_map;
+	hooks.unmap = &defer_test_unmap;
+	hooks.purge = &defer_test_purge;
+	hooks.hugify = &defer_test_hugify;
+	hooks.dehugify = &defer_test_dehugify;
+	hooks.curtime = &defer_test_curtime;
+	hooks.ms_since = &defer_test_ms_since;
+
+	hpa_shard_opts_t opts = test_hpa_shard_opts_default;
+	opts.deferral_allowed = true;
+	/* No slack allowed. */
+	opts.dirty_mult = FXP_INIT_PERCENT(0);
+	/* Peak demand sliding window duration is 10 seconds. */
+	opts.peak_demand_window_ms = 10 * 1000;
+
+	hpa_shard_t *shard = create_test_data(&hooks, &opts);
+
+	bool deferred_work_generated = false;
+
+	nstime_init(&defer_curtime, 0);
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+	enum {NALLOCS = 16 * HUGEPAGE_PAGES};
+	edata_t *edatas[NALLOCS];
+	for (int i = 0; i < NALLOCS; i++) {
+		edatas[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false,
+		    false, false, &deferred_work_generated);
+		expect_ptr_not_null(edatas[i], "Unexpected null edata");
+	}
+
+	/* Deallocate 5 hugepages out of 16. */
+	for (int i = 0; i < 5 * (int)HUGEPAGE_PAGES; i++) {
+		pai_dalloc(tsdn, &shard->pai, edatas[i],
+		    &deferred_work_generated);
+	}
+	nstime_init2(&defer_curtime, 6, 0);
+	hpa_shard_do_deferred_work(tsdn, shard);
+
+	expect_zu_eq(0, ndefer_hugify_calls, "Hugified too early");
+	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
+	/*
+	 * Peak demand within sliding window is 16 hugepages, to purge anything
+	 * just yet.
+	 */
+	expect_zu_eq(0, ndefer_purge_calls, "Purged too early");
+
+	nstime_init2(&defer_curtime, 12, 0);
+	hpa_shard_do_deferred_work(tsdn, shard);
+
+	expect_zu_eq(11, ndefer_hugify_calls, "Expect hugification");
+	ndefer_hugify_calls = 0;
+	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
+	/*
+	 * 12 seconds passed now, peak demand is 11 hugepages.  We have
+	 * hpa_dirty_mult = 0, so we allowed to keep 11 * 0 = 0 dirty
+	 * hugepages, but we have 5, all of them should be purged.
+	 */
+	expect_zu_eq(5, ndefer_purge_calls, "Expect purges");
+	ndefer_purge_calls = 0;
+
+	destroy_test_data(shard);
+}
+TEST_END
+
 int
 main(void) {
 	/*
@@ -756,5 +878,7 @@ main(void) {
 	    test_no_min_purge_interval,
 	    test_min_purge_interval,
 	    test_purge,
-	    test_experimental_max_purge_nhp);
+	    test_experimental_max_purge_nhp,
+	    test_demand_purge_slack,
+	    test_demand_purge_tight);
 }

@@ -63,6 +63,11 @@ hpa_supported(void) {
 	return true;
 }
 
+static bool
+hpa_peak_demand_tracking_enabled(hpa_shard_t *shard) {
+	return shard->opts.peak_demand_window_ms > 0;
+}
+
 static void
 hpa_do_consistency_checks(hpa_shard_t *shard) {
 	assert(shard->base != NULL);
@@ -217,6 +222,11 @@ hpa_shard_init(hpa_shard_t *shard, hpa_central_t *central, emap_t *emap,
 	shard->stats.nhugify_failures = 0;
 	shard->stats.ndehugifies = 0;
 
+	if (hpa_peak_demand_tracking_enabled(shard)) {
+		peak_demand_init(&shard->peak_demand,
+		    shard->opts.peak_demand_window_ms);
+	}
+
 	/*
 	 * Fill these in last, so that if an hpa_shard gets used despite
 	 * initialization failing, we'll at least crash instead of just
@@ -294,8 +304,37 @@ hpa_ndirty_max(tsdn_t *tsdn, hpa_shard_t *shard) {
 	if (shard->opts.dirty_mult == (fxp_t)-1) {
 		return (size_t)-1;
 	}
-	return fxp_mul_frac(psset_nactive(&shard->psset),
-	    shard->opts.dirty_mult);
+	/*
+	 * We are trying to estimate maximum amount of active memory we'll
+	 * need in the near future.  We do so by projecting future active
+	 * memory demand (based on peak active memory usage we observed in the
+	 * past within sliding window) and adding slack on top of it (an
+	 * overhead is reasonable to have in exchange of higher hugepages
+	 * coverage).  When peak demand tracking is off, projection of future
+	 * active memory is active memory we are having right now.
+	 *
+	 * Estimation is essentially the same as nactive_max * (1 +
+	 * dirty_mult), but expressed differently to factor in necessary
+	 * implementation details.
+	 */
+	size_t nactive = psset_nactive(&shard->psset);
+	size_t nactive_max = nactive;
+	if (hpa_peak_demand_tracking_enabled(shard)) {
+		/*
+		 * We release shard->mtx, when we do a syscall to purge dirty
+		 * memory, so someone might grab shard->mtx, allocate memory
+		 * from this shard and update psset's nactive counter, before
+		 * peak_demand_update(...) was called and we'll get
+		 * peak_demand_nactive_max(...) <= nactive as a result.
+		 */
+		size_t peak = peak_demand_nactive_max(&shard->peak_demand);
+		if (peak > nactive_max) {
+			nactive_max = peak;
+		}
+	}
+	size_t slack = fxp_mul_frac(nactive_max, shard->opts.dirty_mult);
+	size_t estimation = nactive_max + slack;
+	return estimation - nactive;
 }
 
 static bool
@@ -548,6 +587,16 @@ static void
 hpa_shard_maybe_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard,
     bool forced) {
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
+
+	/* Update active memory demand statistics. */
+	if (hpa_peak_demand_tracking_enabled(shard)) {
+		nstime_t now;
+		shard->central->hooks.curtime(&now,
+		    /* first_reading */ true);
+		peak_demand_update(&shard->peak_demand, &now,
+		    psset_nactive(&shard->psset));
+	}
+
 	if (!forced && shard->opts.deferral_allowed) {
 		return;
 	}

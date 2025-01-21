@@ -76,6 +76,7 @@
     <ClCompile Include="..\..\..\..\src\pai.c" />
     <ClCompile Include="..\..\..\..\src\pac.c" />
     <ClCompile Include="..\..\..\..\src\pages.c" />
+    <ClCompile Include="..\..\..\..\src\peak_demand.c" />
     <ClCompile Include="..\..\..\..\src\peak_event.c" />
     <ClCompile Include="..\..\..\..\src\prof.c" />
     <ClCompile Include="..\..\..\..\src\prof_data.c" />
