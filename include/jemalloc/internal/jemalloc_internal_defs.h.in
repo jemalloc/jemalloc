@@ -411,6 +411,9 @@
 /* Adaptive mutex support in pthreads. */
 #undef JEMALLOC_HAVE_PTHREAD_MUTEX_ADAPTIVE_NP
 
+/* gettid() support */
+#undef JEMALLOC_HAVE_GETTID
+
 /* GNU specific sched_getcpu support */
 #undef JEMALLOC_HAVE_SCHED_GETCPU
 
