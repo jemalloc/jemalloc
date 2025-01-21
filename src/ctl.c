@@ -2181,7 +2181,8 @@ max_background_threads_ctl(tsd_t *tsd, const size_t *mib,
 			ret = 0;
 			goto label_return;
 		}
-		if (newval > opt_max_background_threads) {
+		if (newval > opt_max_background_threads ||
+		    newval == 0) {
 			ret = EINVAL;
 			goto label_return;
 		}

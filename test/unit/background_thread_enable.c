@@ -54,6 +54,9 @@ TEST_BEGIN(test_max_background_threads) {
 	    "opt.max_background_threads should match");
 	expect_d_eq(mallctl("max_background_threads", NULL, NULL, &max_n_thds,
 	    sz_m), 0, "Failed to set max background threads");
+	size_t size_zero = 0;
+	expect_d_ne(mallctl("max_background_threads", NULL, NULL, &size_zero,
+	    sz_m), 0, "Should not allow zero background threads");
 
 	unsigned id;
 	size_t sz_u = sizeof(unsigned);
@@ -80,6 +83,8 @@ TEST_BEGIN(test_max_background_threads) {
 	new_max_thds = 1;
 	expect_d_eq(mallctl("max_background_threads", NULL, NULL, &new_max_thds,
 	    sz_m), 0, "Failed to set max background threads");
+	expect_d_ne(mallctl("max_background_threads", NULL, NULL, &size_zero,
+	    sz_m), 0, "Should not allow zero background threads");
 	expect_zu_eq(n_background_threads, new_max_thds,
 	    "Number of background threads should be 1.\n");
 }
