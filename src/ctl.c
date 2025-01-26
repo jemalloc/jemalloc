@@ -351,6 +351,12 @@ CTL_PROTO(stats_resident)
 CTL_PROTO(stats_mapped)
 CTL_PROTO(stats_retained)
 CTL_PROTO(stats_zero_reallocs)
+CTL_PROTO(stats_prof_backtrace_count)
+CTL_PROTO(stats_prof_backtrace_time_ns)
+#ifdef JEMALLOC_PROF_FRAME_POINTER
+CTL_PROTO(stats_prof_stack_range_count)
+CTL_PROTO(stats_prof_stack_range_time_ns)
+#endif
 CTL_PROTO(experimental_hooks_install)
 CTL_PROTO(experimental_hooks_remove)
 CTL_PROTO(experimental_hooks_prof_backtrace)
@@ -956,6 +962,12 @@ static const ctl_named_node_t stats_node[] = {
 	{NAME("mutexes"),	CHILD(named, stats_mutexes)},
 	{NAME("arenas"),	CHILD(indexed, stats_arenas)},
 	{NAME("zero_reallocs"),	CTL(stats_zero_reallocs)},
+	{NAME("prof_backtrace_count"), CTL(stats_prof_backtrace_count)},
+	{NAME("prof_backtrace_time_ns"), CTL(stats_prof_backtrace_time_ns)},
+#ifdef JEMALLOC_PROF_FRAME_POINTER
+	{NAME("prof_stack_range_count"), CTL(stats_prof_stack_range_count)},
+	{NAME("prof_stack_range_time_ns"), CTL(stats_prof_stack_range_time_ns)},
+#endif
 };
 
 static const ctl_named_node_t experimental_hooks_node[] = {
@@ -3821,6 +3833,20 @@ CTL_RO_CGEN(config_stats, stats_background_thread_run_interval,
 
 CTL_RO_CGEN(config_stats, stats_zero_reallocs,
     atomic_load_zu(&zero_realloc_count, ATOMIC_RELAXED), size_t)
+
+CTL_RO_CGEN(config_stats, stats_prof_backtrace_count,
+    atomic_load_u64(&prof_backtrace_count, ATOMIC_RELAXED), uint64_t)
+
+CTL_RO_CGEN(config_stats, stats_prof_backtrace_time_ns,
+    atomic_load_u64(&prof_backtrace_time_ns, ATOMIC_RELAXED), uint64_t)
+
+#ifdef JEMALLOC_PROF_FRAME_POINTER
+CTL_RO_CGEN(config_stats, stats_prof_stack_range_count,
+    atomic_load_u64(&prof_stack_range_count, ATOMIC_RELAXED), uint64_t)
+
+CTL_RO_CGEN(config_stats, stats_prof_stack_range_time_ns,
+    atomic_load_u64(&prof_stack_range_time_ns, ATOMIC_RELAXED), uint64_t)
+#endif
 
 CTL_RO_GEN(stats_arenas_i_dss, arenas_i(mib[2])->dss, const char *)
 CTL_RO_GEN(stats_arenas_i_dirty_decay_ms, arenas_i(mib[2])->dirty_decay_ms,

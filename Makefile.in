@@ -266,6 +266,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/prof_stats.c \
 	$(srcroot)test/unit/prof_tctx.c \
 	$(srcroot)test/unit/prof_thread_name.c \
+	$(srcroot)test/unit/prof_sys_backtrace.c \
 	$(srcroot)test/unit/prof_sys_thread_name.c \
 	$(srcroot)test/unit/psset.c \
 	$(srcroot)test/unit/ql.c \

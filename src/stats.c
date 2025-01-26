@@ -1763,6 +1763,58 @@ stats_general_print(emitter_t *emitter) {
 		emitter_kv(emitter, "lg_sample", "prof.lg_sample",
 		    emitter_type_ssize, &ssv);
 
+		uint64_t backtrace_count, backtrace_time_ns;
+		CTL_GET("stats.prof_backtrace_count", &backtrace_count, uint64_t);
+		CTL_GET("stats.prof_backtrace_time_ns", &backtrace_time_ns, uint64_t);
+		uint64_t backtrace_avg_time_ns = backtrace_count > 0
+			? backtrace_time_ns / backtrace_count
+			: 0;
+#ifdef JEMALLOC_PROF_FRAME_POINTER
+		uint64_t fp_stack_range_count, fp_stack_range_time_ns;
+		CTL_GET("stats.prof_stack_range_count", &fp_stack_range_count, uint64_t);
+		CTL_GET("stats.prof_stack_range_time_ns", &fp_stack_range_time_ns, uint64_t);
+		uint64_t fp_avg_stack_range_time_ns = fp_stack_range_count > 0
+			? fp_stack_range_time_ns / fp_stack_range_count
+			: 0;
+#endif
+		uint64_t uptime;
+		CTL_M2_GET("stats.arenas.0.uptime", 0, &uptime, uint64_t);
+
+		emitter_table_printf(emitter,
+			"Profiling stats:\n"
+			"  Backtrace Count: %" FMTu64 " (%" FMTu64 " / sec)\n"
+			"  Backtrace Time (ns): %" FMTu64 " total (%" FMTu64 " avg)\n",
+			backtrace_count, rate_per_second(backtrace_count, uptime),
+			backtrace_time_ns, backtrace_avg_time_ns);
+#ifdef JEMALLOC_PROF_FRAME_POINTER
+		emitter_table_printf(emitter,
+			"  FP Stack Range Count: %" FMTu64 " (%" FMTu64 " / sec)\n"
+			"  FP Stack Range Time (ns): %" FMTu64 " total (%" FMTu64 " avg)\n",
+			fp_stack_range_count, rate_per_second(fp_stack_range_count, uptime),
+			fp_stack_range_time_ns, fp_avg_stack_range_time_ns);
+#endif
+		emitter_table_printf(emitter, "\n");
+
+		emitter_json_object_kv_begin(emitter, "backtrace");
+		emitter_json_kv(emitter, "backtrace_count", emitter_type_uint64,
+			&backtrace_count);
+		emitter_json_kv(emitter, "backtrace_total_time_ns",
+			emitter_type_uint64, &backtrace_time_ns);
+		emitter_json_kv(emitter, "backtrace_avg_time_ns",
+			emitter_type_uint64, &backtrace_avg_time_ns);
+		emitter_json_object_end(emitter); /* Close "backtrace". */
+
+#ifdef JEMALLOC_PROF_FRAME_POINTER
+		emitter_json_object_kv_begin(emitter, "backtrace_fp");
+		emitter_json_kv(emitter, "stack_range_count", emitter_type_uint64,
+			&fp_stack_range_count);
+		emitter_json_kv(emitter, "stack_range_total_time_ns", emitter_type_uint64,
+			&fp_stack_range_time_ns);
+		emitter_json_kv(emitter, "stack_range_avg_time_ns", emitter_type_uint64,
+			&fp_avg_stack_range_time_ns);
+		emitter_json_object_end(emitter); /* Close "backtrace_fp". */
+#endif
+
 		emitter_dict_end(emitter); /* Close "prof". */
 	}
 

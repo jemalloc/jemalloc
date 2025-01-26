@@ -13,6 +13,9 @@
 #include <string.h>
 #include <unistd.h>
 
+atomic_u64_t prof_stack_range_count = ATOMIC_INIT(0);
+atomic_u64_t prof_stack_range_time_ns = ATOMIC_INIT(0);
+
 static int prof_mapping_containing_addr(
     uintptr_t addr,
     const char* maps_path,
@@ -129,10 +132,17 @@ static uintptr_t prof_main_thread_stack_start(const char* stat_path) {
 uintptr_t prof_thread_stack_start(uintptr_t stack_end) {
   pid_t pid = getpid();
   pid_t tid = gettid();
+
+  nstime_t ts_begin;
+  if (config_stats) {
+    nstime_init_update(&ts_begin);
+  }
+
+  uintptr_t stack_start = 0;
   if (pid == tid) {
     char stat_path[32]; // "/proc/<pid>/stat"
     malloc_snprintf(stat_path, sizeof(stat_path), "/proc/%d/stat", pid);
-    return prof_main_thread_stack_start(stat_path);
+    stack_start = prof_main_thread_stack_start(stat_path);
   } else {
     // NOTE: Prior to kernel 4.5 an entry for every thread stack was included in
     // /proc/<pid>/maps as [STACK:<tid>]. Starting with kernel 4.5 only the main
@@ -145,11 +155,19 @@ uintptr_t prof_thread_stack_start(uintptr_t stack_end) {
 
     uintptr_t mm_start, mm_end;
     if (prof_mapping_containing_addr(
-            stack_end, maps_path, &mm_start, &mm_end) != 0) {
-      return 0;
+            stack_end, maps_path, &mm_start, &mm_end) == 0) {
+      stack_start = mm_end;
     }
-    return mm_end;
   }
+
+  if (config_stats) {
+    nstime_t ts_end;
+    nstime_init_update(&ts_end);
+    atomic_fetch_add_u64(&prof_stack_range_time_ns,
+      nstime_ns(&ts_end) - nstime_ns(&ts_begin), ATOMIC_RELAXED);
+    atomic_fetch_add_u64(&prof_stack_range_count, 1, ATOMIC_RELAXED);
+  }
+  return stack_start;
 }
 
 #else

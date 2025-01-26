@@ -23,6 +23,9 @@
 #define _Unwind_Backtrace JEMALLOC_TEST_HOOK(_Unwind_Backtrace, test_hooks_libc_hook)
 #endif
 
+atomic_u64_t prof_backtrace_count = ATOMIC_INIT(0);
+atomic_u64_t prof_backtrace_time_ns = ATOMIC_INIT(0);
+
 /******************************************************************************/
 
 malloc_mutex_t prof_dump_filename_mtx;
@@ -458,6 +461,11 @@ prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 
 void
 prof_backtrace(tsd_t *tsd, prof_bt_t *bt) {
+	nstime_t ts_begin;
+	if (config_stats) {
+		nstime_init_update(&ts_begin);
+	}
+
 	cassert(config_prof);
 	prof_backtrace_hook_t prof_backtrace_hook = prof_backtrace_hook_get();
 	assert(prof_backtrace_hook != NULL);
@@ -465,6 +473,14 @@ prof_backtrace(tsd_t *tsd, prof_bt_t *bt) {
 	pre_reentrancy(tsd, NULL);
 	prof_backtrace_hook(bt->vec, &bt->len, opt_prof_bt_max);
 	post_reentrancy(tsd);
+
+	if (config_stats) {
+		nstime_t ts_end;
+		nstime_init_update(&ts_end);
+		atomic_fetch_add_u64(&prof_backtrace_time_ns,
+			nstime_ns(&ts_end) - nstime_ns(&ts_begin), ATOMIC_RELAXED);
+		atomic_fetch_add_u64(&prof_backtrace_count, 1, ATOMIC_RELAXED);
+	}
 }
 
 void

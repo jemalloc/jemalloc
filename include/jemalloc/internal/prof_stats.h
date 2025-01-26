@@ -17,4 +17,11 @@ void prof_stats_dec(tsd_t *tsd, szind_t ind, size_t size);
 void prof_stats_get_live(tsd_t *tsd, szind_t ind, prof_stats_t *stats);
 void prof_stats_get_accum(tsd_t *tsd, szind_t ind, prof_stats_t *stats);
 
+extern atomic_u64_t prof_backtrace_count;
+extern atomic_u64_t prof_backtrace_time_ns;
+#ifdef JEMALLOC_PROF_FRAME_POINTER
+extern atomic_u64_t prof_stack_range_count;
+extern atomic_u64_t prof_stack_range_time_ns;
+#endif
+
 #endif /* JEMALLOC_INTERNAL_PROF_STATS_H */
