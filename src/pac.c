@@ -112,10 +112,27 @@ pac_may_have_muzzy(pac_t *pac) {
 	return pac_decay_ms_get(pac, extent_state_muzzy) != 0;
 }
 
+size_t pac_alloc_retained_batched_size(size_t size) {
+	if (size > SC_LARGE_MAXCLASS) {
+		/*
+		 * A valid input with usize SC_LARGE_MAXCLASS could still
+		 * reach here because of sz_large_pad.  Such a request is valid
+		 * but we should not further increase it.  Thus, directly
+		 * return size for such cases.
+		 */
+		return size;
+	}
+	size_t batched_size = sz_s2u_compute_using_delta(size);
+	size_t next_hugepage_size = HUGEPAGE_CEILING(size);
+	return batched_size > next_hugepage_size? next_hugepage_size:
+	    batched_size;
+}
+
 static edata_t *
 pac_alloc_real(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
     size_t alignment, bool zero, bool guarded) {
 	assert(!guarded || alignment <= PAGE);
+	size_t newly_mapped_size = 0;
 
 	edata_t *edata = ecache_alloc(tsdn, pac, ehooks, &pac->ecache_dirty,
 	    NULL, size, alignment, zero, guarded);
@@ -124,14 +141,69 @@ pac_alloc_real(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 		edata = ecache_alloc(tsdn, pac, ehooks, &pac->ecache_muzzy,
 		    NULL, size, alignment, zero, guarded);
 	}
+
+	/*
+	 * We batched allocate a larger extent when limit_usize_gap is enabled
+	 * because the reuse of extents in the dirty pool is worse without size
+	 * classes for large allocs.  For instance, when limit_usize_gap is not
+	 * enabled, 1.1MB, 1.15MB, and 1.2MB allocs will all be ceiled to
+	 * 1.25MB and can reuse the same buffer if they are alloc & dalloc
+	 * sequentially.  However, with limit_usize_gap enabled, they cannot
+	 * reuse the same buffer and their sequential allocs & dallocs will
+	 * result in three different extents.  Thus, we cache extra mergeable
+	 * extents in the dirty pool to improve the reuse.  We skip this
+	 * optimization if both maps_coalesce and opt_retain are disabled
+	 * because VM is not cheap enough to be used aggressively and extents
+	 * cannot be merged at will (only extents from the same VirtualAlloc
+	 * can be merged).  Note that it could still be risky to cache more
+	 * extents when either mpas_coalesce or opt_retain is enabled.  Yet
+	 * doing so is still beneficial in improving the reuse of extents
+	 * with some limits.  This choice should be reevaluated if
+	 * pac_alloc_retained_batched_size is changed to be more aggressive.
+	 */
+	if (sz_limit_usize_gap_enabled() && edata == NULL &&
+	    (maps_coalesce || opt_retain)) {
+		size_t batched_size = pac_alloc_retained_batched_size(size);
+		/*
+		 * Note that ecache_alloc_grow will try to retrieve virtual
+		 * memory from both retained pool and directly from OS through
+		 * extent_alloc_wrapper if the retained pool has no qualified
+		 * extents.  This is also why the overcaching still works even
+		 * with opt_retain off.
+		 */
+		edata = ecache_alloc_grow(tsdn, pac, ehooks,
+		    &pac->ecache_retained, NULL, batched_size,
+		    alignment, zero, guarded);
+
+		if (edata != NULL && batched_size > size) {
+			edata_t *trail = extent_split_wrapper(tsdn, pac,
+			    ehooks, edata, size, batched_size - size,
+			    /* holding_core_locks */ false);
+			if (trail == NULL) {
+				ecache_dalloc(tsdn, pac, ehooks,
+				    &pac->ecache_retained, edata);
+				edata = NULL;
+			} else {
+				ecache_dalloc(tsdn, pac, ehooks,
+				    &pac->ecache_dirty, trail);
+			}
+		}
+
+		if (edata != NULL) {
+			newly_mapped_size = batched_size;
+		}
+	}
+
 	if (edata == NULL) {
 		edata = ecache_alloc_grow(tsdn, pac, ehooks,
 		    &pac->ecache_retained, NULL, size, alignment, zero,
 		    guarded);
-		if (config_stats && edata != NULL) {
-			atomic_fetch_add_zu(&pac->stats->pac_mapped, size,
-			    ATOMIC_RELAXED);
-		}
+		newly_mapped_size = size;
+	}
+
+	if (config_stats && newly_mapped_size != 0) {
+		atomic_fetch_add_zu(&pac->stats->pac_mapped,
+		    newly_mapped_size, ATOMIC_RELAXED);
 	}
 
 	return edata;
