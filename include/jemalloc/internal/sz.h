@@ -311,6 +311,17 @@ sz_size2index_usize_fastpath(size_t size, szind_t *ind, size_t *usize) {
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
+sz_s2u_size_class_compute(size_t size) {
+	size_t x = lg_floor((size<<1)-1);
+	size_t lg_delta = (x < SC_LG_NGROUP + LG_QUANTUM + 1)
+	    ?  LG_QUANTUM : x - SC_LG_NGROUP - 1;
+	size_t delta = ZU(1) << lg_delta;
+	size_t delta_mask = delta - 1;
+	size_t usize = (size + delta_mask) & ~delta_mask;
+	return usize;
+}
+
+JEMALLOC_ALWAYS_INLINE size_t
 sz_s2u_compute(size_t size) {
 	if (unlikely(size > SC_LARGE_MAXCLASS)) {
 		return 0;
@@ -328,13 +339,7 @@ sz_s2u_compute(size_t size) {
 	}
 #endif
 	if (!sz_limit_usize_gap_enabled() || size <= SC_SMALL_MAXCLASS) {
-		size_t x = lg_floor((size<<1)-1);
-		size_t lg_delta = (x < SC_LG_NGROUP + LG_QUANTUM + 1)
-		    ?  LG_QUANTUM : x - SC_LG_NGROUP - 1;
-		size_t delta = ZU(1) << lg_delta;
-		size_t delta_mask = delta - 1;
-		size_t usize = (size + delta_mask) & ~delta_mask;
-		return usize;
+		return sz_s2u_size_class_compute(size);
 	} else {
 		size_t usize = ((size + PAGE - 1) >> LG_PAGE) << LG_PAGE;
 		assert(usize - size < PAGE);
