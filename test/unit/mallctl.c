@@ -319,6 +319,7 @@ TEST_BEGIN(test_mallctl_opt) {
 	TEST_MALLCTL_OPT(bool, prof_active, prof);
 	TEST_MALLCTL_OPT(unsigned, prof_bt_max, prof);
 	TEST_MALLCTL_OPT(ssize_t, lg_prof_sample, prof);
+	TEST_MALLCTL_OPT(ssize_t, experimental_lg_prof_threshold, prof);
 	TEST_MALLCTL_OPT(bool, prof_accum, prof);
 	TEST_MALLCTL_OPT(bool, prof_pid_namespace, prof);
 	TEST_MALLCTL_OPT(ssize_t, lg_prof_interval, prof);

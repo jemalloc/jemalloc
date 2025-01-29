@@ -154,6 +154,7 @@ CTL_PROTO(opt_prof_active)
 CTL_PROTO(opt_prof_thread_active_init)
 CTL_PROTO(opt_prof_bt_max)
 CTL_PROTO(opt_lg_prof_sample)
+CTL_PROTO(opt_experimental_lg_prof_threshold)
 CTL_PROTO(opt_lg_prof_interval)
 CTL_PROTO(opt_prof_gdump)
 CTL_PROTO(opt_prof_final)
@@ -357,6 +358,7 @@ CTL_PROTO(experimental_hooks_prof_backtrace)
 CTL_PROTO(experimental_hooks_prof_dump)
 CTL_PROTO(experimental_hooks_prof_sample)
 CTL_PROTO(experimental_hooks_prof_sample_free)
+CTL_PROTO(experimental_hooks_prof_threshold)
 CTL_PROTO(experimental_hooks_safety_check_abort)
 CTL_PROTO(experimental_thread_activity_callback)
 CTL_PROTO(experimental_utilization_query)
@@ -539,6 +541,7 @@ static const ctl_named_node_t opt_node[] = {
 	{NAME("prof_thread_active_init"), CTL(opt_prof_thread_active_init)},
 	{NAME("prof_bt_max"), CTL(opt_prof_bt_max)},
 	{NAME("lg_prof_sample"), CTL(opt_lg_prof_sample)},
+	{NAME("experimental_lg_prof_threshold"), CTL(opt_experimental_lg_prof_threshold)},
 	{NAME("lg_prof_interval"), CTL(opt_lg_prof_interval)},
 	{NAME("prof_gdump"),	CTL(opt_prof_gdump)},
 	{NAME("prof_final"),	CTL(opt_prof_final)},
@@ -965,6 +968,7 @@ static const ctl_named_node_t experimental_hooks_node[] = {
 	{NAME("prof_dump"),	CTL(experimental_hooks_prof_dump)},
 	{NAME("prof_sample"),	CTL(experimental_hooks_prof_sample)},
 	{NAME("prof_sample_free"),	CTL(experimental_hooks_prof_sample_free)},
+	{NAME("prof_threshold"),	CTL(experimental_hooks_prof_threshold)},
 	{NAME("safety_check_abort"),	CTL(experimental_hooks_safety_check_abort)},
 };
 
@@ -2316,6 +2320,7 @@ CTL_RO_NL_CGEN(config_prof, opt_prof_thread_active_init,
     opt_prof_thread_active_init, bool)
 CTL_RO_NL_CGEN(config_prof, opt_prof_bt_max, opt_prof_bt_max, unsigned)
 CTL_RO_NL_CGEN(config_prof, opt_lg_prof_sample, opt_lg_prof_sample, size_t)
+CTL_RO_NL_CGEN(config_prof, opt_experimental_lg_prof_threshold, opt_experimental_lg_prof_threshold, size_t)
 CTL_RO_NL_CGEN(config_prof, opt_prof_accum, opt_prof_accum, bool)
 CTL_RO_NL_CGEN(config_prof, opt_prof_pid_namespace, opt_prof_pid_namespace,
     bool)
@@ -3776,6 +3781,32 @@ experimental_hooks_prof_sample_free_ctl(tsd_t *tsd, const size_t *mib,
 label_return:
 	return ret;
 }
+
+
+static int
+experimental_hooks_prof_threshold_ctl(tsd_t *tsd, const size_t *mib,
+    size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+
+	if (oldp == NULL && newp == NULL) {
+		ret = EINVAL;
+		goto label_return;
+	}
+	if (oldp != NULL) {
+		prof_threshold_hook_t old_hook =
+		    prof_threshold_hook_get();
+		READ(old_hook, prof_threshold_hook_t);
+	}
+	if (newp != NULL) {
+		prof_threshold_hook_t new_hook JEMALLOC_CC_SILENCE_INIT(NULL);
+		WRITE(new_hook, prof_threshold_hook_t);
+		prof_threshold_hook_set(new_hook);
+	}
+	ret = 0;
+label_return:
+	return ret;
+}
+
 
 /* For integration test purpose only.  No plan to move out of experimental. */
 static int

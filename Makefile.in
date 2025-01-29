@@ -145,6 +145,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/prof_stack_range.c \
 	$(srcroot)src/prof_stats.c \
 	$(srcroot)src/prof_sys.c \
+	$(srcroot)src/prof_threshold.c \
 	$(srcroot)src/psset.c \
 	$(srcroot)src/rtree.c \
 	$(srcroot)src/safety_check.c \
@@ -266,6 +267,8 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/prof_stats.c \
 	$(srcroot)test/unit/prof_tctx.c \
 	$(srcroot)test/unit/prof_thread_name.c \
+	$(srcroot)test/unit/prof_threshold.c \
+	$(srcroot)test/unit/prof_threshold_small.c \
 	$(srcroot)test/unit/prof_sys_thread_name.c \
 	$(srcroot)test/unit/psset.c \
 	$(srcroot)test/unit/ql.c \

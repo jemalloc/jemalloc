@@ -56,6 +56,7 @@ void tsd_te_init(tsd_t *tsd);
 #define ITERATE_OVER_ALL_EVENTS						\
     E(tcache_gc,		(opt_tcache_gc_incr_bytes > 0), true)	\
     E(prof_sample,		(config_prof && opt_prof), true)  	\
+    E(prof_threshold,		config_stats, true)  			\
     E(stats_interval,		(opt_stats_interval >= 0), true)   	\
     E(tcache_gc_dalloc,		(opt_tcache_gc_incr_bytes > 0), false)	\
     E(peak_alloc,		config_stats, true)			\

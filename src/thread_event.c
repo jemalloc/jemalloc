@@ -69,6 +69,11 @@ peak_dalloc_fetch_elapsed(tsd_t *tsd) {
 	return TE_INVALID_ELAPSED;
 }
 
+static uint64_t
+prof_threshold_fetch_elapsed(tsd_t *tsd) {
+	return TE_INVALID_ELAPSED;
+}
+
 /* Per event facilities done. */
 
 static bool

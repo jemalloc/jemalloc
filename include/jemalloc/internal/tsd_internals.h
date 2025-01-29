@@ -72,6 +72,7 @@ typedef ql_elm(tsd_t) tsd_link_t;
     O(tcache_gc_dalloc_event_wait,	uint64_t,	uint64_t)	\
     O(prof_sample_event_wait,	uint64_t,		uint64_t)	\
     O(prof_sample_last_event,	uint64_t,		uint64_t)	\
+    O(prof_threshold_event_wait,	uint64_t,	uint64_t)	\
     O(stats_interval_event_wait,	uint64_t,	uint64_t)	\
     O(stats_interval_last_event,	uint64_t,	uint64_t)	\
     O(peak_alloc_event_wait,	uint64_t,		uint64_t)	\
@@ -105,6 +106,7 @@ typedef ql_elm(tsd_t) tsd_link_t;
     /* tcache_gc_dalloc_event_wait */	0,				\
     /* prof_sample_event_wait */	0,				\
     /* prof_sample_last_event */	0,				\
+    /* prof_threshold_event_wait */	0,				\
     /* stats_interval_event_wait */	0,				\
     /* stats_interval_last_event */	0,				\
     /* peak_alloc_event_wait */		0,				\

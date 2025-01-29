@@ -11,6 +11,7 @@ extern bool opt_prof_active;
 extern bool opt_prof_thread_active_init;
 extern unsigned opt_prof_bt_max;
 extern size_t opt_lg_prof_sample;    /* Mean bytes between samples. */
+extern size_t opt_experimental_lg_prof_threshold;    /* Mean bytes between thresholds. */
 extern ssize_t opt_lg_prof_interval; /* lg(prof_interval). */
 extern bool opt_prof_gdump;          /* High-water memory dumping. */
 extern bool opt_prof_final;          /* Final profile dumping. */
@@ -66,6 +67,9 @@ prof_sample_hook_t prof_sample_hook_get(void);
 
 void prof_sample_free_hook_set(prof_sample_free_hook_t hook);
 prof_sample_free_hook_t prof_sample_free_hook_get(void);
+
+void prof_threshold_hook_set(prof_threshold_hook_t hook);
+prof_threshold_hook_t prof_threshold_hook_get(void);
 
 /* Functions only accessed in prof_inlines.h */
 prof_tdata_t *prof_tdata_init(tsd_t *tsd);
