@@ -64,6 +64,8 @@ static void allocate_chunks(int chunks) {
 }
 
 TEST_BEGIN(test_prof_threshold_hook) {
+	test_skip_if(!config_stats);
+
 	/* Test setting and reading the hook (both value and null) */
 	write_prof_threshold_hook(mock_prof_threshold_hook);
 	expect_ptr_eq(read_prof_threshold_hook(), mock_prof_threshold_hook, "Unexpected hook");
