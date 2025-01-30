@@ -50,14 +50,14 @@ static void reset_test_config() {
 }
 
 static void expect_threshold_calls(int calls) {
-	expect_zu_eq(hook_calls, calls, "Hook called the right amount of times");
+	expect_u64_eq(hook_calls, calls, "Hook called the right amount of times");
 	expect_u64_lt(last_peak, chunk_size * 2, "We allocate chunk_size at a time");
 	expect_u64_ge(last_alloc, threshold_bytes * calls + alloc_baseline, "Crosses");
 }
 
 static void allocate_chunks(int chunks) {
 	for (int i = 0; i < chunks; i++) {
-		void* p = mallocx(chunk_size, 0);
+		void* p = mallocx((size_t)chunk_size, 0);
 		expect_ptr_not_null(p, "Failed to allocate");
 		free(p);
 	}
@@ -86,7 +86,7 @@ TEST_BEGIN(test_prof_threshold_hook) {
 
 	/* A simple small allocation is not enough to trigger the callback */
 	allocate_chunks(1);
-	expect_zu_eq(hook_calls, 0, "Hook not called yet");
+	expect_u64_eq(hook_calls, 0, "Hook not called yet");
 
 	/* Enough allocations to trigger the callback */
 	allocate_chunks(ALLOC_ITERATIONS_IN_THRESHOLD);
