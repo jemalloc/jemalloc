@@ -21,6 +21,14 @@
  */
 #define EDATA_ALIGNMENT 128
 
+/*
+ * Defines how many nodes visited when enumerating the heap to search for
+ * qualifed extents.  More nodes visited may result in better choices at
+ * the cost of longer search time.  This size should not exceed 2^16 - 1
+ * because we use uint16_t for accessing the queue needed for enumeration.
+ */
+#define ESET_ENUMERATE_MAX_NUM 32
+
 enum extent_state_e {
 	extent_state_active   = 0,
 	extent_state_dirty    = 1,
@@ -89,8 +97,8 @@ struct edata_cmp_summary_s {
 
 /* Extent (span of pages).  Use accessor functions for e_* fields. */
 typedef struct edata_s edata_t;
-ph_structs(edata_avail, edata_t);
-ph_structs(edata_heap, edata_t);
+ph_structs(edata_avail, edata_t, ESET_ENUMERATE_MAX_NUM);
+ph_structs(edata_heap, edata_t, ESET_ENUMERATE_MAX_NUM);
 struct edata_s {
 	/*
 	 * Bitfield containing several fields:

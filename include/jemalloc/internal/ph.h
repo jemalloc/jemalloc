@@ -75,6 +75,16 @@ struct ph_s {
 	size_t auxcount;
 };
 
+typedef struct ph_enumerate_vars_s ph_enumerate_vars_t;
+struct ph_enumerate_vars_s {
+	uint16_t front;
+	uint16_t rear;
+	uint16_t queue_size;
+	uint16_t visited_num;
+	uint16_t max_visit_num;
+	uint16_t max_queue_size;
+};
+
 JEMALLOC_ALWAYS_INLINE phn_link_t *
 phn_link_get(void *phn, size_t offset) {
 	return (phn_link_t *)(((char *)phn) + offset);
@@ -414,14 +424,98 @@ ph_remove(ph_t *ph, void *phn, size_t offset, ph_cmp_t cmp) {
 	}
 }
 
-#define ph_structs(a_prefix, a_type)					\
+JEMALLOC_ALWAYS_INLINE void
+ph_enumerate_vars_init(ph_enumerate_vars_t *vars, uint16_t max_visit_num,
+    uint16_t max_queue_size) {
+	vars->queue_size = 0;
+	vars->visited_num = 0;
+	vars->front = 0;
+	vars->rear = 0;
+	vars->max_visit_num = max_visit_num;
+	vars->max_queue_size = max_queue_size;
+	assert(vars->max_visit_num > 0);
+	/*
+	 * max_queue_size must be able to support max_visit_num, which means
+	 * the queue will not overflow before reaching max_visit_num.
+	 */
+	assert(vars->max_queue_size >= (vars->max_visit_num + 1)/2);
+}
+
+JEMALLOC_ALWAYS_INLINE void
+ph_enumerate_queue_push(void *phn, void **bfs_queue,
+    ph_enumerate_vars_t *vars) {
+	assert(vars->queue_size < vars->max_queue_size);
+	bfs_queue[vars->rear] = phn;
+	vars->rear = (vars->rear + 1) % vars->max_queue_size;
+	(vars->queue_size) ++;
+}
+
+JEMALLOC_ALWAYS_INLINE void *
+ph_enumerate_queue_pop(void **bfs_queue, ph_enumerate_vars_t *vars) {
+	assert(vars->queue_size > 0);
+	assert(vars->queue_size <= vars->max_queue_size);
+	void *ret = bfs_queue[vars->front];
+	vars->front = (vars->front + 1) % vars->max_queue_size;
+	(vars->queue_size) --;
+	return ret;
+}
+
+
+/*
+ * The two functions below offer a solution to enumerate the pairing heap.
+ * Whe enumerating, always call ph_enumerate_prepare first to prepare the queue
+ * needed for BFS.  Next, call ph_enumerate_next to get the next element in
+ * the enumeration.  When enumeration ends, ph_enumerate_next returns NULL and
+ * should not be called again.  Enumeration ends when all elements in the heap
+ * has been enumerated or the number of visited elements exceed
+ * max_visit_num.
+ */
+JEMALLOC_ALWAYS_INLINE void
+ph_enumerate_prepare(ph_t *ph, void **bfs_queue, ph_enumerate_vars_t *vars,
+    uint16_t max_visit_num, uint16_t max_queue_size) {
+	ph_enumerate_vars_init(vars, max_visit_num, max_queue_size);
+	ph_enumerate_queue_push(ph->root, bfs_queue, vars);
+}
+
+JEMALLOC_ALWAYS_INLINE void *
+ph_enumerate_next(ph_t *ph, size_t offset, void **bfs_queue,
+    ph_enumerate_vars_t *vars) {
+	if (vars->queue_size == 0) {
+		return NULL;
+	}
+
+	(vars->visited_num) ++;
+	if (vars->visited_num > vars->max_visit_num) {
+		return NULL;
+	}
+
+	void *ret = ph_enumerate_queue_pop(bfs_queue, vars);
+	assert(ret != NULL);
+	void *left = phn_lchild_get(ret, offset);
+	void *right = phn_next_get(ret, offset);
+	if (left) {
+		ph_enumerate_queue_push(left, bfs_queue, vars);
+	}
+	if (right) {
+		ph_enumerate_queue_push(right, bfs_queue, vars);
+	}
+	return ret;
+}
+
+#define ph_structs(a_prefix, a_type, a_max_queue_size)			\
 typedef struct {							\
 	phn_link_t link;						\
 } a_prefix##_link_t;							\
 									\
 typedef struct {							\
 	ph_t ph;							\
-} a_prefix##_t;
+} a_prefix##_t;								\
+									\
+typedef struct {							\
+	void *bfs_queue[a_max_queue_size];				\
+	ph_enumerate_vars_t vars;					\
+} a_prefix##_enumerate_helper_t;
+
 
 /*
  * The ph_proto() macro generates function prototypes that correspond to the
@@ -436,7 +530,12 @@ a_attr a_type *a_prefix##_any(a_prefix##_t *ph);			\
 a_attr void a_prefix##_insert(a_prefix##_t *ph, a_type *phn);		\
 a_attr a_type *a_prefix##_remove_first(a_prefix##_t *ph);		\
 a_attr void a_prefix##_remove(a_prefix##_t *ph, a_type *phn);		\
-a_attr a_type *a_prefix##_remove_any(a_prefix##_t *ph);
+a_attr a_type *a_prefix##_remove_any(a_prefix##_t *ph);			\
+a_attr void a_prefix##_enumerate_prepare(a_prefix##_t *ph,		\
+    a_prefix##_enumerate_helper_t *helper, uint16_t max_visit_num,	\
+    uint16_t max_queue_size);						\
+a_attr a_type *a_prefix##_enumerate_next(a_prefix##_t *ph,		\
+    a_prefix##_enumerate_helper_t *helper);
 
 /* The ph_gen() macro generates a type-specific pairing heap implementation. */
 #define ph_gen(a_attr, a_prefix, a_type, a_field, a_cmp)		\
@@ -491,6 +590,21 @@ a_prefix##_remove_any(a_prefix##_t *ph) {				\
 		a_prefix##_remove(ph, ret);				\
 	}								\
 	return ret;							\
+}									\
+									\
+a_attr void								\
+a_prefix##_enumerate_prepare(a_prefix##_t *ph,				\
+    a_prefix##_enumerate_helper_t *helper, uint16_t max_visit_num,	\
+    uint16_t max_queue_size) {						\
+	ph_enumerate_prepare(&ph->ph, helper->bfs_queue, &helper->vars,	\
+	    max_visit_num, max_queue_size);				\
+}									\
+									\
+a_attr a_type *								\
+a_prefix##_enumerate_next(a_prefix##_t *ph,				\
+    a_prefix##_enumerate_helper_t *helper) {				\
+	return ph_enumerate_next(&ph->ph, offsetof(a_type, a_field),	\
+	    helper->bfs_queue, &helper->vars);				\
 }
 
 #endif /* JEMALLOC_INTERNAL_PH_H */

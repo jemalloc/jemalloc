@@ -2,8 +2,9 @@
 
 #include "jemalloc/internal/ph.h"
 
+#define BFS_ENUMERATE_MAX 30
 typedef struct node_s node_t;
-ph_structs(heap, node_t);
+ph_structs(heap, node_t, BFS_ENUMERATE_MAX);
 
 struct node_s {
 #define NODE_MAGIC 0x9823af7e
@@ -238,6 +239,22 @@ TEST_BEGIN(test_ph_random) {
 
 			expect_false(heap_empty(&heap),
 			    "Heap should not be empty");
+
+			/* Enumerate nodes. */
+			heap_enumerate_helper_t helper;
+			uint16_t max_queue_size = sizeof(helper.bfs_queue)
+			    / sizeof(void *);
+			expect_u_eq(max_queue_size, BFS_ENUMERATE_MAX,
+			    "Incorrect bfs queue length initialized");
+			assert(max_queue_size == BFS_ENUMERATE_MAX);
+			heap_enumerate_prepare(&heap, &helper,
+			    BFS_ENUMERATE_MAX, max_queue_size);
+			size_t node_count = 0;
+			while(heap_enumerate_next(&heap, &helper)) {
+				node_count ++;
+			}
+			expect_lu_eq(node_count, j,
+			    "Unexpected enumeration results.");
 
 			/* Remove nodes. */
 			switch (i % 6) {
