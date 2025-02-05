@@ -31,8 +31,6 @@ struct hpa_central_s {
 	size_t eden_len;
 	/* Source for metadata. */
 	base_t *base;
-	/* Number of grow operations done on this hpa_central_t. */
-	uint64_t age_counter;
 
 	/* The HPA hooks. */
 	hpa_hooks_t hooks;
