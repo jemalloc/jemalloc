@@ -435,6 +435,44 @@ pac_stash_decayed(tsdn_t *tsdn, pac_t *pac, ecache_t *ecache,
 	return nstashed;
 }
 
+static bool
+decay_with_process_madvise(edata_list_inactive_t *decay_extents) {
+	cassert(have_process_madvise);
+	assert(opt_process_madvise_max_batch > 0);
+#ifndef JEMALLOC_HAVE_PROCESS_MADVISE
+	return true;
+#else
+	assert(opt_process_madvise_max_batch <=
+	    PROCESS_MADVISE_MAX_BATCH_LIMIT);
+	size_t len = opt_process_madvise_max_batch;
+	VARIABLE_ARRAY(struct iovec, vec, len);
+
+	size_t cur = 0, total_bytes = 0;
+	for (edata_t *edata = edata_list_inactive_first(decay_extents);
+	     edata != NULL;
+	     edata = edata_list_inactive_next(decay_extents, edata)) {
+		size_t pages_bytes = edata_size_get(edata);
+		vec[cur].iov_base = edata_base_get(edata);
+		vec[cur].iov_len = pages_bytes;
+		total_bytes += pages_bytes;
+		cur++;
+		if (cur == len) {
+			bool err = pages_purge_process_madvise(vec, len,
+			    total_bytes);
+			if (err) {
+				return true;
+			}
+			cur = 0;
+			total_bytes = 0;
+		}
+	}
+	if (cur > 0) {
+		return pages_purge_process_madvise(vec, cur, total_bytes);
+	}
+	return false;
+#endif
+}
+
 static size_t
 pac_decay_stashed(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
     pac_decay_stats_t *decay_stats, ecache_t *ecache, bool fully_decay,
@@ -449,6 +487,28 @@ pac_decay_stashed(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
 
 	bool try_muzzy = !fully_decay
 	    && pac_decay_ms_get(pac, extent_state_muzzy) != 0;
+
+	bool purge_to_retained = !try_muzzy ||
+	    ecache->state == extent_state_muzzy;
+	/*
+	 * Attempt process_madvise only if 1) enabled, 2) purging to retained,
+	 * and 3) not using custom hooks.
+	 */
+	bool try_process_madvise = (opt_process_madvise_max_batch > 0) &&
+	    purge_to_retained && ehooks_dalloc_will_fail(ehooks);
+
+	bool already_purged;
+	if (try_process_madvise) {
+		/*
+		 * If anything unexpected happened during process_madvise
+		 * (e.g. not supporting MADV_DONTNEED, or partial success for
+		 * some reason), we will consider nothing is purged and fallback
+		 * to the regular madvise.
+		 */
+		already_purged = !decay_with_process_madvise(decay_extents);
+	} else {
+		already_purged = false;
+	}
 
 	for (edata_t *edata = edata_list_inactive_first(decay_extents); edata !=
 	    NULL; edata = edata_list_inactive_first(decay_extents)) {
@@ -473,7 +533,12 @@ pac_decay_stashed(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
 			}
 			JEMALLOC_FALLTHROUGH;
 		case extent_state_muzzy:
-			extent_dalloc_wrapper(tsdn, pac, ehooks, edata);
+			if (already_purged) {
+				extent_dalloc_wrapper_purged(tsdn, pac, ehooks,
+				    edata);
+			} else {
+				extent_dalloc_wrapper(tsdn, pac, ehooks, edata);
+			}
 			nunmapped += npages;
 			break;
 		case extent_state_active:

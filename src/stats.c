@@ -1727,6 +1727,7 @@ stats_general_print(emitter_t *emitter) {
 	OPT_WRITE_INT64("stats_interval")
 	OPT_WRITE_CHAR_P("stats_interval_opts")
 	OPT_WRITE_CHAR_P("zero_realloc")
+	OPT_WRITE_SIZE_T("process_madvise_max_batch")
 
 	emitter_dict_end(emitter); /* Close "opt". */
 

@@ -12,6 +12,13 @@
 /* Data. */
 
 size_t opt_lg_extent_max_active_fit = LG_EXTENT_MAX_ACTIVE_FIT_DEFAULT;
+size_t opt_process_madvise_max_batch =
+#ifdef JEMALLOC_HAVE_PROCESS_MADVISE
+    PROCESS_MADVISE_MAX_BATCH_DEFAULT;
+#else
+    0
+#endif
+    ;
 
 static bool extent_commit_impl(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
     size_t offset, size_t length, bool growing_retained);
@@ -1032,6 +1039,29 @@ extent_alloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	return edata;
 }
 
+static void
+extent_dalloc_wrapper_finish(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
+    edata_t *edata) {
+	if (config_prof) {
+		extent_gdump_sub(tsdn, edata);
+	}
+	extent_record(tsdn, pac, ehooks, &pac->ecache_retained, edata);
+}
+
+void
+extent_dalloc_wrapper_purged(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
+    edata_t *edata) {
+	assert(edata_pai_get(edata) == EXTENT_PAI_PAC);
+	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
+	    WITNESS_RANK_CORE, 0);
+
+	/* Verify that will not go down the dalloc / munmap route. */
+	assert(ehooks_dalloc_will_fail(ehooks));
+
+	edata_zeroed_set(edata, true);
+	extent_dalloc_wrapper_finish(tsdn, pac, ehooks, edata);
+}
+
 void
 extent_dalloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     edata_t *edata) {
@@ -1077,11 +1107,7 @@ extent_dalloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	}
 	edata_zeroed_set(edata, zeroed);
 
-	if (config_prof) {
-		extent_gdump_sub(tsdn, edata);
-	}
-
-	extent_record(tsdn, pac, ehooks, &pac->ecache_retained, edata);
+	extent_dalloc_wrapper_finish(tsdn, pac, ehooks, edata);
 }
 
 void

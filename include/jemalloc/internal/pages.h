@@ -121,6 +121,7 @@ bool pages_commit(void *addr, size_t size);
 bool pages_decommit(void *addr, size_t size);
 bool pages_purge_lazy(void *addr, size_t size);
 bool pages_purge_forced(void *addr, size_t size);
+bool pages_purge_process_madvise(void *vec, size_t ven_len, size_t total_bytes);
 bool pages_huge(void *addr, size_t size);
 bool pages_nohuge(void *addr, size_t size);
 bool pages_collapse(void *addr, size_t size);

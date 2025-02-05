@@ -22,6 +22,10 @@ static inline el_type *							\
 list_type##_last(const list_type##_t *list) {				\
 	return ql_last(&list->head, linkage);				\
 }									\
+static inline el_type *							\
+list_type##_next(const list_type##_t *list, el_type *item) {		\
+	return ql_next(&list->head, item, linkage);			\
+}									\
 static inline void							\
 list_type##_append(list_type##_t *list, el_type *item) {		\
 	ql_elm_new(item, linkage);					\

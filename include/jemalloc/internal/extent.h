@@ -21,6 +21,16 @@
 #define LG_EXTENT_MAX_ACTIVE_FIT_DEFAULT 6
 extern size_t opt_lg_extent_max_active_fit;
 
+#define PROCESS_MADVISE_MAX_BATCH_DEFAULT 0
+extern size_t opt_process_madvise_max_batch;
+
+#ifdef JEMALLOC_HAVE_PROCESS_MADVISE
+/* The iovec is on stack.  Limit the max batch to avoid stack overflow. */
+#define PROCESS_MADVISE_MAX_BATCH_LIMIT (VARIABLE_ARRAY_SIZE_MAX / sizeof(struct iovec))
+#else
+#define PROCESS_MADVISE_MAX_BATCH_LIMIT 0
+#endif
+
 edata_t *ecache_alloc(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *expand_edata, size_t size, size_t alignment,
     bool zero, bool guarded);
@@ -41,6 +51,8 @@ edata_t *extent_alloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     void *new_addr, size_t size, size_t alignment, bool zero, bool *commit,
     bool growing_retained);
 void extent_dalloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
+    edata_t *edata);
+void extent_dalloc_wrapper_purged(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     edata_t *edata);
 void extent_destroy_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     edata_t *edata);

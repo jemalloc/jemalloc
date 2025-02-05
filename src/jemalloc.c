@@ -1361,6 +1361,11 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			    "muzzy_decay_ms", -1, NSTIME_SEC_MAX * KQU(1000) <
 			    QU(SSIZE_MAX) ? NSTIME_SEC_MAX * KQU(1000) :
 			    SSIZE_MAX);
+			CONF_HANDLE_SIZE_T(opt_process_madvise_max_batch,
+			    "process_madvise_max_batch", 0,
+			    PROCESS_MADVISE_MAX_BATCH_LIMIT,
+			    CONF_DONT_CHECK_MIN, CONF_CHECK_MAX,
+			    /* clip */ true)
 			CONF_HANDLE_BOOL(opt_stats_print, "stats_print")
 			if (CONF_MATCH("stats_print_opts")) {
 				init_opt_stats_opts(v, vlen,

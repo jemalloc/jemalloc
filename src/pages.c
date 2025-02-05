@@ -617,6 +617,58 @@ pages_dodump(void *addr, size_t size) {
 #endif
 }
 
+#ifdef JEMALLOC_HAVE_PROCESS_MADVISE
+#include <sys/mman.h>
+#include <sys/syscall.h>
+static int pidfd;
+
+static bool
+init_process_madvise(void) {
+	if (opt_process_madvise_max_batch == 0) {
+		return false;
+	}
+
+	if (opt_process_madvise_max_batch > PROCESS_MADVISE_MAX_BATCH_LIMIT) {
+		opt_process_madvise_max_batch = PROCESS_MADVISE_MAX_BATCH_LIMIT;
+	}
+	pid_t pid = getpid();
+	pidfd = syscall(SYS_pidfd_open, pid, 0);
+	if (pidfd == -1) {
+		return true;
+	}
+
+	return false;
+}
+
+static bool
+pages_purge_process_madvise_impl(void *vec, size_t vec_len,
+    size_t total_bytes) {
+	size_t purged_bytes = (size_t)syscall(SYS_process_madvise, pidfd,
+	    (struct iovec *)vec, vec_len, MADV_DONTNEED, 0);
+
+	return purged_bytes != total_bytes;
+}
+
+#else
+
+static bool
+init_process_madvise(void) {
+	return false;
+}
+
+static bool
+pages_purge_process_madvise_impl(void *vec, size_t vec_len,
+    size_t total_bytes) {
+	not_reached();
+	return true;
+}
+
+#endif
+
+bool
+pages_purge_process_madvise(void *vec, size_t vec_len, size_t total_bytes) {
+	return pages_purge_process_madvise_impl(vec, vec_len, total_bytes);
+}
 
 static size_t
 os_page_detect(void) {
@@ -833,6 +885,12 @@ pages_boot(void) {
 		os_pages_unmap(madv_free_page, PAGE);
 	}
 #endif
+	if (init_process_madvise()) {
+		if (opt_abort) {
+			abort();
+		}
+		return true;
+	}
 
 	return false;
 }
