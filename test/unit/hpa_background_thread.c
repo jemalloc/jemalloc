@@ -1,6 +1,31 @@
 #include "test/jemalloc_test.h"
 #include "test/sleep.h"
 
+TEST_BEGIN(test_hpa_background_thread_a0_initialized) {
+	/*
+	 * Arena 0 has dedicated initialization path.  We'd like to make sure
+	 * deferral_allowed value initialized correctly from the start of the
+	 * application.
+	 */
+	test_skip_if(!config_stats);
+	test_skip_if(!hpa_supported());
+	test_skip_if(!have_background_thread);
+	test_skip_if(san_guard_enabled());
+
+	bool enabled = false;
+	size_t sz = sizeof(enabled);
+	int err = mallctl("background_thread", (void *)&enabled, &sz, NULL, 0);
+	expect_d_eq(err, 0, "Unexpected mallctl() failure");
+	expect_true(enabled, "Background thread should be enabled");
+
+	arena_t *a0 = arena_get(TSDN_NULL, 0, false);
+	expect_ptr_ne(a0, NULL, "");
+	bool deferral_allowed = a0->pa_shard.hpa_shard.opts.deferral_allowed;
+	expect_true(deferral_allowed,
+	    "Should have deferral_allowed option enabled for arena #0");
+}
+TEST_END
+
 static void
 sleep_for_background_thread_interval(void) {
 	/*
@@ -207,6 +232,12 @@ main(void) {
 		opt_background_thread = true;
 	}
 	return test_no_reentrancy(
+	    /*
+	     * Unfortunately, order of tests is important here.  We need to
+	     * make sure arena #0 initialized correctly, before we start
+	     * turning background thread on and off in other tests.
+	     */
+	    test_hpa_background_thread_a0_initialized,
 	    test_hpa_background_thread_purges,
 	    test_hpa_background_thread_enable_disable);
 }

@@ -1789,8 +1789,8 @@ arena_new(tsdn_t *tsdn, unsigned ind, const arena_config_t *config) {
 	 * We turn on the HPA if set to.  There are two exceptions:
 	 * - Custom extent hooks (we should only return memory allocated from
 	 *   them in that case).
-	 * - Arena 0 initialization.  In this case, we're mid-bootstrapping, and
-	 *   so arena_hpa_global is not yet initialized.
+	 * - Arena 0 initialization.  In this case, we're mid-bootstrapping,
+	 *   and so background_thread_enabled is not yet initialized.
 	 */
 	if (opt_hpa && ehooks_are_default(base_ehooks_get(base)) && ind != 0) {
 		hpa_shard_opts_t hpa_shard_opts = opt_hpa_opts;
