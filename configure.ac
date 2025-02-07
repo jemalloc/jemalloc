@@ -2806,9 +2806,19 @@ JE_COMPILABLE([strerror_r returns char with gnu source], [
   char *error = strerror_r(EINVAL, buffer, 100);
   printf("%s\n", error);
 ], [je_cv_strerror_r_returns_char_with_gnu_source])
+if test "x${je_cv_strerror_r_returns_char_with_gnu_source}" = "xno" ; then
+  JE_COMPILABLE([strerror_r header only], [
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+], [], [je_cv_strerror_r_header_pass])
+fi
 JE_CFLAGS_RESTORE()
 if test "x${je_cv_strerror_r_returns_char_with_gnu_source}" = "xyes" ; then
   AC_DEFINE([JEMALLOC_STRERROR_R_RETURNS_CHAR_WITH_GNU_SOURCE], [ ], [ ])
+elif test "x${je_cv_strerror_r_header_pass}" = "xno" ; then
+  AC_MSG_ERROR([cannot determine return type of strerror_r])
 fi
 
 dnl ============================================================================
