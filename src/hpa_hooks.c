@@ -53,7 +53,15 @@ hpa_hooks_hugify(void *ptr, size_t size, bool sync) {
 	 * hints, when EINVAL is returned it is likely that khugepaged won't be
 	 * able to collapse memory range into hugepage either).
 	 */
-	bool err = pages_huge(ptr, size);
+	bool err = false;
+	/*
+	 * It doesn't make much sense to call madvise(..., MADV_HUGEPAGE), when
+	 * transparent_hugepage option is never or always, we'll just waste CPU
+	 * cycles on system call without any effect.
+	 */
+	if (init_system_thp_mode == thp_mode_default) {
+		err = pages_huge(ptr, size);
+	}
 	if (sync) {
 		err = pages_collapse(ptr, size);
 	}
@@ -62,6 +70,9 @@ hpa_hooks_hugify(void *ptr, size_t size, bool sync) {
 
 static void
 hpa_hooks_dehugify(void *ptr, size_t size) {
+	if (init_system_thp_mode != thp_mode_default) {
+		return;
+	}
 	bool err = pages_nohuge(ptr, size);
 	(void)err;
 }
