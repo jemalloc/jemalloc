@@ -98,3 +98,5 @@ test/include/test/jemalloc_test_defs.h
 /msvc/projects/*/*/Release*/
 /msvc/projects/*/*/Win32/
 /msvc/projects/*/*/x64/
+
+bazel-*

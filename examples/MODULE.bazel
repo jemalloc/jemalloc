@@ -1,0 +1,12 @@
+module(
+    name = "jemalloc_examples",
+)
+
+bazel_dep(name = "jemalloc")
+local_path_override(
+    module_name = "jemalloc",
+    path = "..",
+)
+
+bazel_dep(name = "platforms", version = "0.0.10", dev_dependency = True)
+bazel_dep(name = "rules_cc", version = "0.0.17", dev_dependency = True)

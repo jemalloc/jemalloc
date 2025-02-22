@@ -1,0 +1,44 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+load("@jemalloc//settings:config.bzl", "jemalloc")
+
+# Case 1: Test libc malloc can be replaced
+cc_test(
+    name = "test_1_basic",
+    size = "small",
+    srcs = ["test_basic.c"],
+    malloc = "@jemalloc",
+)
+
+# Case 2: Test that the jemalloc API can be used
+cc_test(
+    name = "test_2_api",
+    size = "small",
+    srcs = ["test_api.c"],
+    malloc = "@jemalloc",
+)
+
+# Case 3: Test convenience rule can modify the library build settings
+jemalloc(
+    name = "jemalloc_custom",
+    cache_oblivious = "False",
+    cxx = "False",
+    log = "True",
+    stats = "False",
+    without_export = "False",
+)
+
+cc_test(
+    name = "test_3_config",
+    size = "small",
+    srcs = ["test_basic.c"],
+    malloc = ":jemalloc_custom",
+)
+
+# Case 4: Optional features are gated by config settings
+cc_test(
+    name = "test_4_requires_stats",
+    size = "small",
+    srcs = ["test_api.c"],
+    args = ["--expect-stats-unavailable"],
+    malloc = ":jemalloc_custom",
+)

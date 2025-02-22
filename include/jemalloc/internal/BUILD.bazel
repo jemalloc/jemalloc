@@ -1,0 +1,638 @@
+load("@aspect_bazel_lib//lib:expand_template.bzl", "expand_template")
+load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("//:tools/autoconf.bzl", "configure_header", "define_macro_if", "define_macro_if_any", "define_macro_if_with", "define_macro", "define_macro_with", "undefine_macro")
+load("//:tools/version.bzl", "parse_version")
+load(":private_namespace.bzl", "private_namespace")
+load(":public_symbols.bzl", "public_symbols")
+
+version = parse_version(module_version())
+
+cc_library(
+    name = "internal",
+    hdrs = [
+        "activity_callback.h",
+        "arena_externs.h",
+        "arena_inlines_a.h",
+        "arena_inlines_b.h",
+        "arena_stats.h",
+        "arena_structs.h",
+        "arena_types.h",
+        "assert.h",
+        "atomic.h",
+        "atomic_c11.h",
+        "atomic_gcc_atomic.h",
+        "atomic_gcc_sync.h",
+        "atomic_msvc.h",
+        "background_thread_externs.h",
+        "background_thread_inlines.h",
+        "background_thread_structs.h",
+        "base.h",
+        "bin.h",
+        "bin_info.h",
+        "bin_stats.h",
+        "bin_types.h",
+        "bit_util.h",
+        "bitmap.h",
+        "buf_writer.h",
+        "cache_bin.h",
+        "ckh.h",
+        "counter.h",
+        "ctl.h",
+        "decay.h",
+        "div.h",
+        "ecache.h",
+        "edata.h",
+        "edata_cache.h",
+        "ehooks.h",
+        "emap.h",
+        "emitter.h",
+        "eset.h",
+        "exp_grow.h",
+        "extent.h",
+        "extent_dss.h",
+        "extent_mmap.h",
+        "fb.h",
+        "fxp.h",
+        "hash.h",
+        "hook.h",
+        "hpa.h",
+        "hpa_hooks.h",
+        "hpa_opts.h",
+        "hpdata.h",
+        "inspect.h",
+        "jemalloc_internal_decls.h",
+        "jemalloc_internal_externs.h",
+        "jemalloc_internal_includes.h",
+        "jemalloc_internal_inlines_a.h",
+        "jemalloc_internal_inlines_b.h",
+        "jemalloc_internal_inlines_c.h",
+        "jemalloc_internal_macros.h",
+        "jemalloc_internal_types.h",
+        "large_externs.h",
+        "lockedint.h",
+        "log.h",
+        "malloc_io.h",
+        "mpsc_queue.h",
+        "mutex.h",
+        "mutex_prof.h",
+        "nstime.h",
+        "pa.h",
+        "pac.h",
+        "pages.h",
+        "pai.h",
+        "peak.h",
+        "peak_event.h",
+        "ph.h",
+        "prng.h",
+        "prof_data.h",
+        "prof_externs.h",
+        "prof_hook.h",
+        "prof_inlines.h",
+        "prof_log.h",
+        "prof_recent.h",
+        "prof_stats.h",
+        "prof_structs.h",
+        "prof_sys.h",
+        "prof_types.h",
+        "psset.h",
+        "ql.h",
+        "qr.h",
+        "quantum.h",
+        "rb.h",
+        "rtree.h",
+        "rtree_tsd.h",
+        "safety_check.h",
+        "san.h",
+        "san_bump.h",
+        "sc.h",
+        "sec.h",
+        "sec_opts.h",
+        "seq.h",
+        "slab_data.h",
+        "smoothstep.h",
+        "spin.h",
+        "stats.h",
+        "sz.h",
+        "tcache_externs.h",
+        "tcache_inlines.h",
+        "tcache_structs.h",
+        "tcache_types.h",
+        "test_hooks.h",
+        "thread_event.h",
+        "ticker.h",
+        "tsd.h",
+        "tsd_generic.h",
+        "tsd_malloc_thread_cleanup.h",
+        "tsd_tls.h",
+        "tsd_types.h",
+        "tsd_win.h",
+        "typed_list.h",
+        "util.h",
+        "witness.h",
+    ] + [
+        ":jemalloc_internal_defs",
+        ":jemalloc_preamble",
+        ":public_namespace",
+    ] + select({
+        "//settings:no_private_namespace": [],
+        "//conditions:default": [
+            ":private_namespace",
+            ":private_namespace_jet",
+        ],
+    }),
+    tags = ["manual"],
+    visibility = ["//:__subpackages__"],
+)
+
+expand_template(
+    name = "jemalloc_preamble",
+    out = "jemalloc_preamble.h",
+    substitutions = {
+        "@install_suffix@": "",
+        "@private_namespace@": "je_",
+    },
+    template = "jemalloc_preamble.h.in",
+)
+
+# jemalloc is built to be the default allocator
+selects.config_setting_group(
+    name = "override_glibc_allocator",
+    match_all = [
+        "//settings/platform:has_glibc_overrides",
+        "//settings/flags:no_jemalloc_prefix",
+    ],
+)
+
+selects.config_setting_group(
+    name = "aarch_clang-cl",
+    match_all = [
+        "//settings/platform:aarch",
+        "@rules_cc//cc/compiler:clang-cl",
+    ],
+)
+
+selects.config_setting_group(
+    name = "aarch_gcc",
+    match_all = [
+        "//settings/platform:aarch",
+        "//settings/compiler:gcc_native",
+    ],
+)
+
+selects.config_setting_group(
+    name = "x86_gcc",
+    match_all = [
+        "//settings/platform:x86",
+        "//settings/compiler:gcc_native",
+    ],
+)
+
+selects.config_setting_group(
+    name = "x86_msvc",
+    match_all = [
+        "//settings/platform:x86",
+        "//settings/compiler:msvc_compatible",
+    ],
+)
+
+selects.config_setting_group(
+    name = "jemalloc_retain_cpu",
+    match_any = [
+        "@platforms//cpu:aarch64",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+selects.config_setting_group(
+    name = "jemalloc_retain_os",
+    match_any = [
+        "@platforms//os:android",
+        "@platforms//os:linux",
+        "@platforms//os:windows",
+    ],
+)
+
+selects.config_setting_group(
+    name = "jemalloc_retain",
+    match_all = [
+        ":jemalloc_retain_cpu",
+        ":jemalloc_retain_os",
+    ],
+)
+
+configure_header(
+    name = "jemalloc_internal_defs",
+    out = "jemalloc_internal_defs.h",
+    substitutions =
+        select({
+            "//settings/flags:no_jemalloc_prefix": undefine_macro("JEMALLOC_PREFIX") |
+                                                   undefine_macro("JEMALLOC_CPREFIX"),
+            "//conditions:default": define_macro_with("JEMALLOC_PREFIX", "\"$(JEMALLOC_PREFIX)\"") |
+                                    define_macro_with("JEMALLOC_CPREFIX", "\"$(JEMALLOC_CPREFIX)\""),
+        }) |
+        # JEMALLOC_OVERRIDE___LIBC_*: Only relevant when JEMALLOC_PREFIX is empty and overriding libc
+        define_macro_if("JEMALLOC_OVERRIDE___LIBC_CALLOC", ":override_glibc_allocator") |
+        define_macro_if("JEMALLOC_OVERRIDE___LIBC_FREE", ":override_glibc_allocator") |
+        define_macro_if("JEMALLOC_OVERRIDE___LIBC_MALLOC", ":override_glibc_allocator") |
+        define_macro_if("JEMALLOC_OVERRIDE___LIBC_MEMALIGN", ":override_glibc_allocator") |
+        define_macro_if("JEMALLOC_OVERRIDE___LIBC_REALLOC", ":override_glibc_allocator") |
+        define_macro_if("JEMALLOC_OVERRIDE___LIBC_VALLOC", ":override_glibc_allocator") |
+        # Internal symbol that no longer appears to exist or be public on modern linux + glibc
+        undefine_macro("JEMALLOC_OVERRIDE___POSIX_MEMALIGN") |
+        # JEMALLOC_PRIVATE_NAMESPACE: Default to "je_" as in autoconf
+        define_macro_with("JEMALLOC_PRIVATE_NAMESPACE", "je_") |
+        # CPU_SPINWAIT and HAVE_CPU_SPINWAIT: Platform-specific spin wait instructions, depends on compiler
+        select({
+            "@platforms//cpu:x86_32": define_macro_with("HAVE_CPU_SPINWAIT", "1"),
+            "@platforms//cpu:x86_64": define_macro_with("HAVE_CPU_SPINWAIT", "1"),
+            "@platforms//cpu:aarch32": define_macro_with("HAVE_CPU_SPINWAIT", "1"),
+            "@platforms//cpu:aarch64": define_macro_with("HAVE_CPU_SPINWAIT", "1"),
+            "//conditions:default": define_macro_with("HAVE_CPU_SPINWAIT", "0"),
+        }) |
+        select({
+            # configure.ac doesn't test aarch for msvc mm_pause
+            ":aarch_clang-cl": define_macro_with("CPU_SPINWAIT", "__asm__ volatile(\"isb\")"),
+            ":aarch_gcc": define_macro_with("CPU_SPINWAIT", "__asm__ volatile(\"isb\")"),
+            ":x86_gcc": define_macro_with("CPU_SPINWAIT", "__asm__ volatile(\"pause\")"),
+            ":x86_msvc": define_macro_with("CPU_SPINWAIT", "_mm_pause()"),
+            "//conditions:default": define_macro_with("CPU_SPINWAIT", ""),
+        }) |
+        # LG_VADDR: Virtual address bits
+        define_macro_with("LG_VADDR", "$(LG_VADDR)") |
+        # JEMALLOC_C11_ATOMICS: Assume available on modern compilers (C11 standard)
+        define_macro("JEMALLOC_C11_ATOMICS") |
+        # JEMALLOC_GCC_ATOMIC_ATOMICS and U8 variant: Assume GCC-style atomics on non-MSVC
+        define_macro_if("JEMALLOC_GCC_ATOMIC_ATOMICS", "//settings/compiler:gcc_compatible") |
+        define_macro_if("JEMALLOC_GCC_U8_ATOMIC_ATOMICS", "//settings/compiler:gcc_compatible") |
+        # JEMALLOC_GCC_SYNC_ATOMICS and U8 variant: Older GCC atomics, assume supported
+        define_macro_if("JEMALLOC_GCC_SYNC_ATOMICS", "//settings/compiler:gcc_compatible") |
+        define_macro_if("JEMALLOC_GCC_U8_SYNC_ATOMICS", "//settings/compiler:gcc_compatible") |
+        # JEMALLOC_HAVE_BUILTIN_CLZ: Assume available on modern GCC/Clang
+        define_macro_if("JEMALLOC_HAVE_BUILTIN_CLZ", "//settings/compiler:gcc_compatible") |
+        # JEMALLOC_OS_UNFAIR_LOCK: Darwin-specific
+        define_macro_if("JEMALLOC_OS_UNFAIR_LOCK", "//settings/platform:darwin") |
+        # JEMALLOC_USE_SYSCALL: Assume syscall(2) is usable on POSIX systems except for modern MacOS
+        define_macro_if_any(
+            "JEMALLOC_USE_SYSCALL",
+            [
+                "@platforms//os:android",
+                "@platforms//os:freebsd",
+                "@platforms//os:linux",
+                "@platforms//os:openbsd",
+            ],
+        ) |
+        # JEMALLOC_HAVE_SECURE_GETENV: GNU-specific, available on Linux/Android
+        define_macro_if("JEMALLOC_HAVE_SECURE_GETENV", "//settings/platform:gnu") |
+        # JEMALLOC_HAVE_ISSETUGID: BSD-specific, assume on macOS
+        define_macro_if("JEMALLOC_HAVE_ISSETUGID", "//settings/platform:bsd") |
+        # Pthread features: POSIX systems
+        define_macro_if("JEMALLOC_HAVE_PTHREAD_ATFORK", "//settings/platform:posix") |
+        # MacOS takes a different setname signature
+        define_macro_if("JEMALLOC_HAVE_PTHREAD_SETNAME_NP", "//settings/platform:gnu") |
+        define_macro_if("JEMALLOC_HAVE_PTHREAD_GETNAME_NP", "//settings/platform:gnu") |
+        define_macro_if("JEMALLOC_HAVE_PTHREAD_GET_NAME_NP", "@platforms//os:freebsd") |
+        # Clock features: POSIX systems
+        define_macro_if("JEMALLOC_HAVE_CLOCK_MONOTONIC_COARSE", "//settings/platform:gnu") |
+        # Despite POSIX compliance modern macs appear to not support this
+        define_macro_if_any(
+            "JEMALLOC_HAVE_CLOCK_MONOTONIC",
+            [
+                "@platforms//os:android",
+                "@platforms//os:freebsd",
+                "@platforms//os:linux",
+                "@platforms//os:openbsd",
+            ],
+        ) |
+        define_macro_if("JEMALLOC_HAVE_MACH_ABSOLUTE_TIME", "//settings/platform:darwin") |
+        define_macro_if("JEMALLOC_HAVE_CLOCK_REALTIME", "//settings/platform:posix") |
+        # JEMALLOC_MUTEX_INIT_CB: FreeBSD-specific
+        define_macro_if("JEMALLOC_MUTEX_INIT_CB", "@platforms//os:freebsd") |
+        # JEMALLOC_MALLOC_THREAD_CLEANUP: BSD specific
+        define_macro_if("JEMALLOC_MALLOC_THREAD_CLEANUP", "@platforms//os:freebsd") |
+        # JEMALLOC_THREADED_INIT: GNU systems
+        define_macro_if("JEMALLOC_THREADED_INIT", "//settings/platform:gnu") |
+        # JEMALLOC_TLS_MODEL: Assume initial-exec TLS on modern systems
+        define_macro_if_with("JEMALLOC_TLS_MODEL", "//settings/platform:posix", "__attribute__((tls_model(\"initial-exec\")))") |
+        # JEMALLOC_DEBUG: Configurable flag
+        define_macro_if("JEMALLOC_DEBUG", "//settings/flags:debug") |
+        # JEMALLOC_STATS: Configurable flag
+        define_macro_if("JEMALLOC_STATS", "//settings/flags:stats") |
+        # JEMALLOC_EXPERIMENTAL_SMALLOCX_API: Configurable flag
+        define_macro_if("JEMALLOC_EXPERIMENTAL_SMALLOCX_API", "//settings/flags:experimental_smallocx_api") |
+        # JEMALLOC_PROF and related: Assume off by default, not critical for core functionality
+        undefine_macro("JEMALLOC_PROF_LIBUNWIND") |
+        undefine_macro("JEMALLOC_PROF_LIBGCC") |
+        undefine_macro("JEMALLOC_PROF_GCC") |
+        undefine_macro("JEMALLOC_PROF") |
+        # JEMALLOC_DSS: sbrk(2) deprecated on macOS, disable
+        define_macro_if_any(
+            "JEMALLOC_DSS",
+            [
+                "@platforms//os:android",
+                "@platforms//os:freebsd",
+                "@platforms//os:linux",
+            ],
+        ) |
+        # JEMALLOC_FILL: Configurable flag
+        define_macro_if("JEMALLOC_FILL", "//settings/flags:fill") |
+        # JEMALLOC_UTRACE and LABEL: Disabled by default
+        undefine_macro("JEMALLOC_UTRACE_LABEL") |
+        undefine_macro("JEMALLOC_UTRACE") |
+        # JEMALLOC_XMALLOC: Configurable flag
+        define_macro_if("JEMALLOC_XMALLOC", "//settings/flags:xmalloc") |
+        # JEMALLOC_LAZY_LOCK: Configurable flag
+        # TODO: This is forced for freeBSD
+        define_macro_if("JEMALLOC_LAZY_LOCK", "//settings/flags:lazy_lock") |
+        # LG_QUANTUM: Only set with configure flag, disabled by default
+        select({
+            "//settings/flags:no_lg_quantum": undefine_macro("LG_QUANTUM"),
+            "//conditions:default": define_macro_with("LG_QUANTUM", "$(LG_QUANTUM)"),
+        }) |
+        # LG_PAGE: Configured explicitly
+        define_macro_with("LG_PAGE", "$(LG_PAGE)") |
+        # CONFIG_LG_SLAB_MAXREGS: Optional tuning, leave undefined unless specified
+        undefine_macro("CONFIG_LG_SLAB_MAXREGS") |
+        # LG_HUGEPAGE: Configured explicitly
+        define_macro_with("LG_HUGEPAGE", "$(LG_HUGEPAGE)") |
+        # JEMALLOC_MAPS_COALESCE: Hardcoded via configure.ac host check
+        select({
+            "@platforms//os:windows": undefine_macro("JEMALLOC_MAPS_COALESCE"),
+            "//conditions:default": define_macro("JEMALLOC_MAPS_COALESCE"),
+        }) |
+        # JEMALLOC_RETAIN: Specific 64-bit systems
+        define_macro_if("JEMALLOC_RETAIN", ":jemalloc_retain") |
+        # JEMALLOC_TLS: One of the more complicated settings, explicitly disabled on darwin and windows,
+        # forced on FreeBSD, detected on the others
+        define_macro_if_any(
+            "JEMALLOC_TLS",
+            [
+                "@platforms//os:android",
+                "@platforms//os:freebsd",
+                "@platforms//os:linux",
+            ],
+        ) |
+        # JEMALLOC_INTERNAL_UNREACHABLE: Assume __builtin_unreachable on modern compilers, autoconf doesn't handle MSVC failure
+        define_macro_if_with("JEMALLOC_INTERNAL_UNREACHABLE", "//settings/compiler:gcc_compatible", "__builtin_unreachable") |
+        # JEMALLOC_INTERNAL_FFS*: Assume builtins on modern compilers
+        define_macro_if_with("JEMALLOC_INTERNAL_FFSLL", "//settings/compiler:gcc_compatible", "__builtin_ffsll") |
+        define_macro_if_with("JEMALLOC_INTERNAL_FFSL", "//settings/compiler:gcc_compatible", "__builtin_ffsl") |
+        define_macro_if_with("JEMALLOC_INTERNAL_FFS", "//settings/compiler:gcc_compatible", "__builtin_ffs") |
+        # JEMALLOC_INTERNAL_POPCOUNT*: Assume builtins on modern compilers
+        define_macro_if_with("JEMALLOC_INTERNAL_POPCOUNTL", "//settings/compiler:gcc_compatible", "__builtin_popcountl") |
+        define_macro_if_with("JEMALLOC_INTERNAL_POPCOUNT", "//settings/compiler:gcc_compatible", "__builtin_popcount") |
+        # JEMALLOC_CACHE_OBLIVIOUS: Configurable flag
+        define_macro_if("JEMALLOC_CACHE_OBLIVIOUS", "//settings/flags:cache_oblivious") |
+        # JEMALLOC_LOG: Configurable flag
+        define_macro_if("JEMALLOC_LOG", "//settings/flags:log") |
+        # JEMALLOC_READLINKAT: Assume off by default
+        undefine_macro("JEMALLOC_READLINKAT") |
+        # JEMALLOC_ZONE: Darwin-specific, configurable
+        define_macro_if("JEMALLOC_ZONE", "//settings/flags:zone_allocator") |
+        # Overcommit methods: Platform-specific
+        define_macro_if("JEMALLOC_SYSCTL_VM_OVERCOMMIT", "@platforms//os:freebsd") |
+        define_macro_if("JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY", "//settings/platform:gnu") |
+        # JEMALLOC_HAVE_MADVISE_HUGE: Assume THP support on modern Linux
+        define_macro_if("JEMALLOC_HAVE_MADVISE_HUGE", "@platforms//os:linux") |
+        # JEMALLOC_HAVE_MADVISE: Assume available on modern POSIX systems
+        define_macro_if("JEMALLOC_HAVE_MADVISE", "//settings/platform:posix") |
+        # Purge methods: Platform-specific
+        define_macro_if_any(
+            "JEMALLOC_PURGE_MADVISE_FREE",
+            [
+                "@platforms//os:android",
+                "@platforms//os:freebsd",
+                "@platforms//os:linux",
+                "@platforms//os:macos",
+                "@platforms//os:openbsd",
+            ],
+        ) |
+        define_macro_if("JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS", "//settings/platform:gnu") |
+        define_macro_if_any(
+            "JEMALLOC_PURGE_MADVISE_DONTNEED",
+            [
+                "@platforms//os:android",
+                "@platforms//os:freebsd",
+                "@platforms//os:linux",
+                "@platforms//os:macos",
+            ],
+        ) |
+        # JEMALLOC_DEFINE_MADVISE_FREE: Only for older x86 Linux without MADV_FREE, assume not needed
+        undefine_macro("JEMALLOC_DEFINE_MADVISE_FREE") |
+        # JEMALLOC_MADVISE_DONTDUMP: Assume on Linux
+        define_macro_if("JEMALLOC_MADVISE_DONTDUMP", "//settings/platform:gnu") |
+        # JEMALLOC_MADVISE_NOCORE
+        define_macro_if("JEMALLOC_MADVISE_NOCORE", "@platforms//os:freebsd") |
+        # JEMALLOC_HAVE_MPROTECT: Assume on modern POSIX systems
+        define_macro_if("JEMALLOC_HAVE_MPROTECT", "//settings/platform:posix") |
+        # JEMALLOC_THP: Missing from configure detection
+        undefine_macro("JEMALLOC_THP") |
+        # JEMALLOC_HAVE_POSIX_MADVISE: Undefined in configure.ac if madvise is available, only possible on some BSD
+        # variants or embedded systems
+        undefine_macro("JEMALLOC_HAVE_POSIX_MADVISE") |
+        # JEMALLOC_PURGE_POSIX_MADVISE_DONTNEED_ZEROS: Unconfigurable but present in template
+        undefine_macro("JEMALLOC_PURGE_POSIX_MADVISE_DONTNEED_ZEROS") |
+        # JEMALLOC_PURGE_POSIX_MADVISE_DONTNEED: Obscure fallback, assume unneeded
+        undefine_macro("JEMALLOC_PURGE_POSIX_MADVISE_DONTNEED") |
+        # JEMALLOC_HAVE_MEMCNTL: Solaris-specific, assume off
+        undefine_macro("JEMALLOC_HAVE_MEMCNTL") |
+        # JEMALLOC_HAVE_MALLOC_SIZE: Darwin-specific
+        define_macro_if("JEMALLOC_HAVE_MALLOC_SIZE", "//settings/platform:darwin") |
+        # JEMALLOC_HAS_ALLOCA_H: Hardcoded via configure.ac host check
+        define_macro_if("JEMALLOC_HAS_ALLOCA_H", "//settings/platform:gnu") |
+        # JEMALLOC_HAS_RESTRICT: Assume C99-compliant compilers
+        define_macro_if("JEMALLOC_HAS_RESTRICT", "//settings/compiler:gcc_compatible") |
+        # JEMALLOC_BIG_ENDIAN: Assume little-endian for modern systems
+        undefine_macro("JEMALLOC_BIG_ENDIAN") |
+        # Size definitions: Function of ABI but can assume defaults
+        define_macro_with("LG_SIZEOF_INTMAX_T", "3") |
+        define_macro_with("LG_SIZEOF_INT", "2") |
+        define_macro_with("LG_SIZEOF_LONG_LONG", "3") |
+        select(
+            {
+                "@platforms//os:windows": define_macro_with("LG_SIZEOF_LONG", "2"),
+                "@platforms//cpu:aarch32": define_macro_with("LG_SIZEOF_LONG", "2"),
+                "@platforms//cpu:aarch64": define_macro_with("LG_SIZEOF_LONG", "3"),
+                "@platforms//cpu:x86_32": define_macro_with("LG_SIZEOF_LONG", "2"),
+                "@platforms//cpu:x86_64": define_macro_with("LG_SIZEOF_LONG", "3"),
+            },
+            no_match_error = "Determined by ABI, support for less common target cpus not yet implemented",
+        ) |
+        # GLIBC hooks: Assume glibc > 2.34 after which these were deprecated
+        undefine_macro("JEMALLOC_GLIBC_MALLOC_HOOK") |
+        undefine_macro("JEMALLOC_GLIBC_MEMALIGN_HOOK") |
+        # JEMALLOC_HAVE_PTHREAD_MUTEX_ADAPTIVE_NP: Linux-specific
+        define_macro_if("JEMALLOC_HAVE_PTHREAD_MUTEX_ADAPTIVE_NP", "@platforms//os:linux") |
+        # JEMALLOC_HAVE_PTHREAD: Assume on POSIX systems
+        define_macro_if("JEMALLOC_HAVE_PTHREAD", "//settings/platform:posix") |
+        # JEMALLOC_HAVE_DLSYM: Assume on POSIX systems
+        define_macro_if("JEMALLOC_HAVE_DLSYM", "//settings/platform:posix") |
+        # JEMALLOC_HAVE_SCHED_GETCPU: GNU-specific
+        define_macro_if("JEMALLOC_HAVE_SCHED_GETCPU", "//settings/platform:gnu") |
+        # JEMALLOC_HAVE_SCHED_SETAFFINITY: GNU-specific
+        define_macro_if("JEMALLOC_HAVE_SCHED_SETAFFINITY", "//settings/platform:gnu") |
+        # JEMALLOC_BACKGROUND_THREAD: Assume on POSIX systems without os_unfair_lock
+        define_macro_if_any(
+            "JEMALLOC_BACKGROUND_THREAD",
+            [
+                "@platforms//os:android",
+                "@platforms//os:freebsd",
+                "@platforms//os:linux",
+                "@platforms//os:openbsd",
+            ],
+        ) |
+        # JEMALLOC_EXPORT: Controlled via flag to disable exporting public API
+        define_macro_if("JEMALLOC_EXPORT", "//settings/flags:export") |
+        # JEMALLOC_CONFIG_MALLOC_CONF: Leave empty
+        define_macro_with("JEMALLOC_CONFIG_MALLOC_CONF", "\"\"") |
+        # JEMALLOC_IS_MALLOC: Defined if no prefix
+        define_macro_if("JEMALLOC_IS_MALLOC", "//settings/flags:no_jemalloc_prefix") |
+        # JEMALLOC_STRERROR_R_RETURNS_CHAR_WITH_GNU_SOURCE: Linux/Android
+        define_macro_if("JEMALLOC_STRERROR_R_RETURNS_CHAR_WITH_GNU_SOURCE", "//settings/platform:gnu") |
+        # JEMALLOC_OPT_SAFETY_CHECKS: Configurable, off by default
+        undefine_macro("JEMALLOC_OPT_SAFETY_CHECKS") |
+        # JEMALLOC_ENABLE_CXX: Configurable flag
+        define_macro_if("JEMALLOC_ENABLE_CXX", "//settings/flags:cxx") |
+        # JEMALLOC_OPT_SIZE_CHECKS: Configurable, off by default
+        undefine_macro("JEMALLOC_OPT_SIZE_CHECKS") |
+        # JEMALLOC_UAF_DETECTION: Configurable flag
+        define_macro_if("JEMALLOC_UAF_DETECTION", "//settings/flags:uaf_detection") |
+        # JEMALLOC_HAVE_VM_MAKE_TAG: Darwin-specific
+        define_macro_if("JEMALLOC_HAVE_VM_MAKE_TAG", "//settings/platform:darwin") |
+        # JEMALLOC_ZERO_REALLOC_DEFAULT_FREE: Hardcoded in configure.ac
+        define_macro_if_any(
+            "JEMALLOC_ZERO_REALLOC_DEFAULT_FREE",
+            [
+                "@platforms//os:android",
+                "@platforms//os:linux",
+                "@platforms//os:windows",
+            ],
+        ),
+    tags = ["manual"],
+    template = "jemalloc_internal_defs.h.in",
+    toolchains = [
+        "//settings/flags:jemalloc_prefix",
+        "//settings/flags:jemalloc_cprefix",
+        "//settings/flags:lg_quantum",
+        "//settings/platform:lg_hugepage",
+        "//settings/platform:lg_page",
+        "//settings/platform:lg_vaddr",
+    ],
+)
+
+PUBLIC_SYMBOLS = [
+    "aligned_alloc",
+    "calloc",
+    "dallocx",
+    "free",
+    "mallctl",
+    "mallctlbymib",
+    "mallctlnametomib",
+    "malloc",
+    "malloc_conf",
+    "malloc_conf_2_conf_harder",
+    "malloc_message",
+    "malloc_stats_print",
+    "malloc_usable_size",
+    "mallocx",
+    "smallocx_%s" % version.gid,
+    "nallocx",
+    "posix_memalign",
+    "rallocx",
+    "realloc",
+    "sallocx",
+    "sdallocx",
+    "xallocx",
+] + select(
+    {
+        "//settings/platform:has_memalign": ["memalign"],
+        "//settings/platform:no_memalign": [],
+    },
+    no_match_error = "Availability of memalign must explicitly be declared via //settings/platform:memalign_support",
+) + select(
+    {
+        "//settings/platform:has_valloc": ["valloc"],
+        "//settings/platform:no_valloc": [],
+    },
+    no_match_error = "Availability of valloc must explicitly be declared via //settings/platform:valloc_support",
+) + select(
+    {
+        "//settings/platform:has_malloc_size": ["malloc_size"],
+        "//settings/platform:no_malloc_size": [],
+    },
+    no_match_error = "Availability of malloc_size must explicitly be declared via //settings/platform:malloc_size_support",
+)
+
+public_symbols(
+    name = "public_symbols",
+    out = "public_symbols.txt",
+    symbols = PUBLIC_SYMBOLS,
+    tags = ["manual"],
+    visibility = ["//:__subpackages__"],
+)
+
+WRAP_SYMBOLS = select({
+    "@platforms//os:windows": ["tls_callback"],
+    "@platforms//os:freebsd": [
+        "pthread_create",
+        "_malloc_thread_cleanup",
+        "_malloc_tsd_cleanup_register",
+        "_malloc_prefork",
+        "_malloc_postfork",
+    ],
+    "//conditions:default": ["pthread_create"],
+}) + select({
+    ":override_glibc_allocator": [
+        "__libc_calloc",
+        "__libc_free",
+        "__libc_malloc",
+        "__libc_memalign",
+        "__libc_realloc",
+        "__libc_valloc",
+    ],
+    "//conditions:default": [],
+})
+
+private_namespace(
+    name = "private_namespace",
+    out = "private_namespace.h",
+    input = "//:jemalloc_core",
+    public_symbols = PUBLIC_SYMBOLS,
+    tags = ["manual"],
+    wrap_symbols = WRAP_SYMBOLS,
+)
+
+private_namespace(
+    name = "private_namespace_jet",
+    out = "private_namespace_jet.h",
+    enable_jet = True,
+    input = "//:jemalloc_core",
+    prefix = "jet_",
+    public_symbols = PUBLIC_SYMBOLS,
+    tags = ["manual"],
+    wrap_symbols = WRAP_SYMBOLS,
+)
+
+genrule(
+    name = "public_namespace",
+    srcs = [
+        "public_namespace.sh",
+        ":public_symbols",
+    ],
+    outs = ["public_namespace.h"],
+    cmd = "$(location public_namespace.sh) $(location :public_symbols) > $@",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)
+
+genrule(
+    name = "public_unnamespace",
+    srcs = [
+        "public_unnamespace.sh",
+        ":public_symbols",
+    ],
+    outs = ["public_unnamespace.h"],
+    cmd = "$(location public_unnamespace.sh) $(location :public_symbols) > $@",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)

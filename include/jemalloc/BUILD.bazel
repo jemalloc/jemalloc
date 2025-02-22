@@ -1,0 +1,145 @@
+load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("//:tools/autoconf.bzl", "configure_header", "define_macro_if", "define_macro_with")
+load("//:tools/version.bzl", "parse_version")
+
+version = parse_version(module_version())
+
+configure_header(
+    name = "jemalloc_defs",
+    out = "jemalloc_defs.h",
+    substitutions =
+        define_macro_if("JEMALLOC_HAVE_ATTR_ALLOC_SIZE", "//settings/compiler:gcc_compatible") |
+        define_macro_if("JEMALLOC_HAVE_ATTR_FORMAT_ARG", "//settings/compiler:gcc_compatible") |
+        define_macro_if("JEMALLOC_HAVE_ATTR_FORMAT_GNU_PRINTF", "//settings/compiler:gcc_core") |
+        define_macro_if("JEMALLOC_HAVE_ATTR_FORMAT_PRINTF", "//settings/compiler:gcc_compatible") |
+        define_macro_if("JEMALLOC_HAVE_ATTR_FALLTHROUGH", "//settings/compiler:gcc_compatible") |
+        define_macro_if("JEMALLOC_HAVE_ATTR_COLD", "//settings/compiler:gcc_compatible") |
+        define_macro_if("JEMALLOC_HAVE_ATTR", "//settings/compiler:gcc_compatible") |
+        define_macro_if("JEMALLOC_OVERRIDE_MEMALIGN", "//settings/platform:has_memalign") |
+        define_macro_if("JEMALLOC_OVERRIDE_VALLOC", "//settings/platform:has_valloc") |
+        define_macro_with("JEMALLOC_USABLE_SIZE_CONST", "$(JEMALLOC_USABLE_SIZE_CONST)") |
+        define_macro_if("JEMALLOC_USE_CXX_THROW", "@platforms//os:linux") |
+        selects.with_or(
+            {
+                "//settings/compiler:msvc_compatible": define_macro_with("LG_SIZEOF_PTR", "LG_SIZEOF_PTR_WIN"),
+                ("@platforms//cpu:aarch32", "@platforms//cpu:x86_32"): define_macro_with("LG_SIZEOF_PTR", "2"),
+                ("@platforms//cpu:aarch64", "@platforms//cpu:x86_64"): define_macro_with("LG_SIZEOF_PTR", "3"),
+            },
+            no_match_error = "Cannot determine LG_SIZEOF_PTR value, missing support for platform.",
+        ),
+    tags = ["manual"],
+    template = "jemalloc_defs.h.in",
+    toolchains = ["//settings/platform:usable_size_const"],
+)
+
+expand_template(
+    name = "jemalloc_macros",
+    out = "jemalloc_macros.h",
+    substitutions = {
+        "@jemalloc_version@": version.full,
+        "@jemalloc_version_major@": version.major,
+        "@jemalloc_version_minor@": version.minor,
+        "@jemalloc_version_bugfix@": version.bugfix,
+        "@jemalloc_version_nrev@": version.nrev,
+        "@jemalloc_version_gid@": version.gid,
+    },
+    template = "jemalloc_macros.h.in",
+)
+
+genrule(
+    name = "jemalloc_mangle",
+    srcs = [
+        "jemalloc_mangle.sh",
+        "//include/jemalloc/internal:public_symbols",
+    ],
+    outs = ["jemalloc_mangle.h"],
+    cmd = "$(location jemalloc_mangle.sh) $(location //include/jemalloc/internal:public_symbols) je_ > $@",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)
+
+genrule(
+    name = "jemalloc_mangle_jet",
+    srcs = [
+        "jemalloc_mangle.sh",
+        "//include/jemalloc/internal:public_symbols",
+    ],
+    outs = ["jemalloc_mangle_jet.h"],
+    cmd = "$(location jemalloc_mangle.sh) $(location //include/jemalloc/internal:public_symbols) jet_ > $@",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)
+
+expand_template(
+    name = "jemalloc_protos",
+    out = "jemalloc_protos.h",
+    substitutions = {
+        "@je_@": "je_",
+        "@install_suffix@": "",
+    },
+    template = "jemalloc_protos.h.in",
+)
+
+expand_template(
+    name = "jemalloc_protos_jet",
+    out = "jemalloc_protos_jet.h",
+    substitutions = {
+        "@je_@": "jet_",
+        "@install_suffix@": "",
+    },
+    template = "jemalloc_protos.h.in",
+)
+
+# Invoke jemalloc_rename.sh to generate jemalloc_rename.h
+genrule(
+    name = "jemalloc_rename",
+    srcs = [
+        "jemalloc_rename.sh",
+        "//include/jemalloc/internal:public_symbols",
+    ],
+    outs = ["jemalloc_rename.h"],
+    cmd = "$(location jemalloc_rename.sh) $(location //include/jemalloc/internal:public_symbols) > $@",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)
+
+expand_template(
+    name = "jemalloc_typedefs",
+    out = "jemalloc_typedefs.h",
+    substitutions = {},
+    template = "jemalloc_typedefs.h.in",
+)
+
+# jemalloc.sh generates the public jemalloc.h header file. Equivalent logic is replicated to handle pathing.
+# Not fully hermetic but assumes no more about the host system than the Makefile does.
+genrule(
+    name = "jemalloc",
+    srcs = [
+        ":jemalloc_defs",
+        ":jemalloc_rename",
+        ":jemalloc_macros",
+        ":jemalloc_protos",
+        ":jemalloc_typedefs",
+        ":jemalloc_mangle",
+    ],
+    outs = ["jemalloc.h"],
+    cmd = """
+        echo '#ifndef JEMALLOC_H_' > $@
+        echo '#define JEMALLOC_H_' >> $@
+        echo '#ifdef __cplusplus' >> $@
+        echo 'extern "C" {' >> $@
+        echo '#endif' >> $@
+        echo '' >> $@
+        for f in $(SRCS); do
+            grep -v 'Generated from .* by configure' $$f | sed 's/ $$//g' >> $@
+            echo '' >> $@
+        done
+        echo '#ifdef __cplusplus' >> $@
+        echo '}' >> $@
+        echo '#endif' >> $@
+        echo '#endif /* JEMALLOC_H_ */' >> $@
+    """,
+    tags = ["manual"],
+    visibility = ["//:__subpackages__"],
+)

@@ -1,0 +1,182 @@
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "int_flag", "string_flag", "string_setting")
+
+### Bazel-ification of optional flags accepted by ./configure ###
+
+# JEMALLOC_CACHE_OBLIVIOUS
+bool_flag(
+    name = "enable_cache_oblivious",
+    build_setting_default = True,
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "cache_oblivious",
+    flag_values = {":enable_cache_oblivious": "True"},
+)
+
+# JEMALLOC_ENABLE_CXX
+bool_flag(
+    name = "enable_cxx",
+    build_setting_default = True,
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "cxx",
+    flag_values = {":enable_cxx": "True"},
+)
+
+# JEMALLOC_DEBUG
+config_setting(
+    name = "debug",
+    values = {"compilation_mode": "dbg"},
+)
+
+# JEMALLOC_EXPERIMENTAL_SMALLOCX_API
+bool_flag(
+    name = "enable_experimental_smallocx",
+    build_setting_default = False,
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "experimental_smallocx_api",
+    flag_values = {":enable_experimental_smallocx": "True"},
+)
+
+# JEMALLOC_FILL (support for junk/zero filling)
+bool_flag(
+    name = "enable_fill",
+    build_setting_default = True,
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "fill",
+    flag_values = {":enable_fill": "True"},
+)
+
+# JEMALLOC_LAZY_LOCK
+bool_flag(
+    name = "enable_lazy_lock",
+    build_setting_default = False,
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "lazy_lock",
+    flag_values = {":enable_lazy_lock": "True"},
+)
+
+# JEMALLOC_LOG
+bool_flag(
+    name = "enable_log",
+    build_setting_default = False,
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "log",
+    flag_values = {":enable_log": "True"},
+)
+
+# JEMALLOC_STATS
+bool_flag(
+    name = "enable_stats",
+    build_setting_default = True,
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "stats",
+    flag_values = {":enable_stats": "True"},
+)
+
+# JEMALLOC_UAF_DETECTION
+bool_flag(
+    name = "enable_uaf_detection",
+    build_setting_default = False,
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "uaf_detection",
+    flag_values = {":enable_uaf_detection": "True"},
+)
+
+# JEMALLOC_XMALLOC
+bool_flag(
+    name = "enable_xmalloc",
+    build_setting_default = False,
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "xmalloc",
+    flag_values = {":enable_xmalloc": "True"},
+)
+
+# JEMALLOC_PREFIX optionally set via --with-jemalloc-prefix
+string_flag(
+    name = "jemalloc_prefix",
+    build_setting_default = "",
+    make_variable = "JEMALLOC_PREFIX",
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "no_jemalloc_prefix",
+    flag_values = {":jemalloc_prefix": ""},
+)
+
+# JEMALLOC_CPREFIX Uppercase version of JEMALLOC_PREFIX but can't easily be set during templating so uses a separate
+# setting to handle it so string manipulation can be stored when the configurable prefix is processed.
+string_setting(
+    name = "jemalloc_cprefix",
+    build_setting_default = "",
+    make_variable = "JEMALLOC_CPREFIX",
+    visibility = ["//:__subpackages__"],
+)
+
+# LG_QUANTUM Base 2 log of minimum allocation alignment (--with-lg-quantum), -1 is undefined for resolution internal
+# to the headers
+int_flag(
+    name = "lg_quantum",
+    build_setting_default = -1,
+    make_variable = "LG_QUANTUM",
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "no_lg_quantum",
+    flag_values = {":lg_quantum": "-1"},
+)
+
+# JEMALLOC_EXPORT via --without-export which disables the export of the jemalloc API
+bool_flag(
+    name = "without_export",
+    build_setting_default = False,
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "export",
+    flag_values = {":without_export": "True"},
+)
+
+# JEMALLOC_ZONE Enable/Disable zone allocator for Darwin
+string_flag(
+    name = "enable_zone_allocator",
+    build_setting_default = "__auto__",
+    values = [
+        "yes",
+        "no",
+        "__auto__",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "zone_allocator",
+    flag_values = {":enable_zone_allocator": "yes"},
+)

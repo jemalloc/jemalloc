@@ -1,0 +1,57 @@
+load("@bazel_skylib//rules:common_settings.bzl", "bool_setting", "string_setting")
+
+# JEMALLOC_JET - Explicitly used for testing
+bool_setting(
+    name = "enable_jet",
+    build_setting_default = False,
+    visibility = ["//:__subpackages__"],
+)
+
+config_setting(
+    name = "jet",
+    flag_values = {":enable_jet": "True"},
+)
+
+# JEMALLOC_NO_PRIVATE_NAMESPACE - To create a private namespace, jemalloc first has to compile without one and
+# identify all of the exported symbols.
+bool_setting(
+    name = "enable_no_private_namespace",
+    build_setting_default = False,
+    visibility = ["//:__subpackages__"],
+)
+
+config_setting(
+    name = "no_private_namespace",
+    flag_values = {":enable_no_private_namespace": "True"},
+)
+
+# Control defines for compilation under different testing scenarios
+string_setting(
+    name = "with_test",
+    build_setting_default = "False",
+    values = [
+        "False",
+        "unit",
+        "integration",
+        "integration_cpp",
+    ],
+    visibility = ["//:__subpackages__"],
+)
+
+# JEMALLOC_UNIT_TEST
+config_setting(
+    name = "unit_test",
+    flag_values = {":with_test": "unit"},
+)
+
+# JEMALLOC_INTEGRATION_TEST
+config_setting(
+    name = "integration_test",
+    flag_values = {":with_test": "integration"},
+)
+
+# JEMALLOC_INTEGRATION_CPP_TEST
+config_setting(
+    name = "integration_cpp_test",
+    flag_values = {":with_test": "integration_cpp"},
+)

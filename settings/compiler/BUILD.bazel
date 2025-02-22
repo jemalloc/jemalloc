@@ -1,0 +1,44 @@
+load("@bazel_skylib//lib:selects.bzl", "selects")
+
+selects.config_setting_group(
+    name = "gcc_compatible",
+    match_any = [
+        "@rules_cc//cc/compiler:clang",
+        "@rules_cc//cc/compiler:clang-cl",
+        "@rules_cc//cc/compiler:gcc",
+        "@rules_cc//cc/compiler:mingw-gcc",
+        "@rules_cc//cc/compiler:emscripten",
+    ],
+    visibility = ["//:__subpackages__"],
+)
+
+selects.config_setting_group(
+    name = "gcc_core",
+    match_any = [
+        "@rules_cc//cc/compiler:gcc",
+        "@rules_cc//cc/compiler:mingw-gcc",
+    ],
+    visibility = ["//:__subpackages__"],
+)
+
+# GCC-like and target native CPU architectures
+# Equivalent of configure.ac "x$GCC" != "xyes"
+selects.config_setting_group(
+    name = "gcc_native",
+    match_any = [
+        "@rules_cc//cc/compiler:clang",
+        "@rules_cc//cc/compiler:gcc",
+        "@rules_cc//cc/compiler:mingw-gcc",
+    ],
+    visibility = ["//:__subpackages__"],
+)
+
+# Compatibility with MSVC’s conventions (intrinsics, frontend).
+selects.config_setting_group(
+    name = "msvc_compatible",
+    match_any = [
+        "@rules_cc//cc/compiler:clang-cl",
+        "@rules_cc//cc/compiler:msvc-cl",
+    ],
+    visibility = ["//:__subpackages__"],
+)

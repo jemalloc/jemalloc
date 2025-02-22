@@ -1,0 +1,118 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+load("//:tools/cc.bzl", "COPTS")
+load("//:tools/transition.bzl", "PLATFORM", "transition_default_constraints")
+
+INTEGRATION_TESTS = [
+    {"src": "allocated.c"},
+    {
+        "src": "extent.c",
+        "conf": "junk:false",
+    },
+    {"src": "malloc.c"},
+    {
+        "src": "mallocx.c",
+        "conf": "junk:false",
+    },
+    {"src": "MALLOCX_ARENA.c"},
+    {"src": "overflow.c"},
+    {"src": "posix_memalign.c"},
+    {"src": "rallocx.c"},
+    {"src": "sdallocx.c"},
+    {
+        "src": "slab_sizes.c",
+        "conf": "slab_sizes:1-4096:17|100-200:1|128-128:2",
+    },
+    {"src": "thread_arena.c"},
+    {"src": "thread_tcache_enabled.c"},
+    {
+        "src": "xallocx.c",
+        "conf": "junk:false",
+    },
+]
+
+INTEGRATION_DECAY_TESTS = [
+    {
+        "name": "%s_%s" % (
+            test["name"] if "name" in test else test["src"].removesuffix(".c").replace("/", "_"),
+            config["suffix"],
+        ),
+        "src": test["src"],
+        "conf": "%s,%s" % (
+            test["conf"],
+            config["conf"],
+        ) if "conf" in test else config["conf"],
+    }
+    for config in [
+        {
+            "suffix": "decay_minus_one",
+            "conf": "dirty_decay_ms:-1,muzzy_decay_ms:-1",
+        },
+        {
+            "suffix": "decay_zero",
+            "conf": "dirty_decay_ms:0,muzzy_decay_ms:0",
+        },
+    ]
+    for test in INTEGRATION_TESTS
+]
+
+transition_default_constraints(
+    name = "testlib",
+    testonly = True,
+    src = "//test:testlib",
+    platform = PLATFORM,
+    settings = {
+        "//settings:with_test": "integration",
+        "//settings/flags:enable_fill": "True",
+        # This needs to be pinned for testing. The MALLOC_CONF ENV depends on it. The make build allows for it to be
+        # set dynamically via templating and generates a test harness around it. By requiring a value that cannot be
+        # set internally by accident, this exercises the same functionality.
+        "//settings/flags:jemalloc_prefix": "je_test_",
+    },
+    visibility = ["//:__subpackages__"],
+)
+
+[cc_test(
+    name = test["name"] if "name" in test else test["src"].removesuffix(".c").replace("/", "_"),
+    srcs = [test["src"]],
+    copts = COPTS,
+    env = {"JE_TEST_MALLOC_CONF": test.get("conf", "")},
+    local_defines = ["JEMALLOC_INTEGRATION_TEST"],
+    deps = [":testlib"],
+) for test in INTEGRATION_TESTS + INTEGRATION_DECAY_TESTS]
+
+INTEGRATION_CPP_TESTS = [
+    {"src": "cpp/basic.cpp"},
+    {
+        "src": "cpp/infallible_new_true.cpp",
+        "conf": "experimental_infallible_new:true",
+    },
+    {
+        "src": "cpp/infallible_new_false.cpp",
+        "conf": "experimental_infallible_new:false",
+    },
+]
+
+transition_default_constraints(
+    name = "testlib_cpp",
+    testonly = True,
+    src = "//test:testlib",
+    platform = PLATFORM,
+    settings = {
+        "//settings:with_test": "integration_cpp",
+        "//settings/flags:enable_fill": "True",
+        # This needs to be pinned for testing. The MALLOC_CONF ENV depends on it. The make build allows for it to be
+        # set dynamically via templating and generates a test harness around it. By requiring a value that cannot be
+        # set internally by accident, this exercises the same functionality.
+        "//settings/flags:jemalloc_prefix": "je_test_",
+    },
+    visibility = ["//:__subpackages__"],
+)
+
+[cc_test(
+    name = test["name"] if "name" in test else test["src"].removesuffix(".cpp").replace("/", "_"),
+    srcs = [test["src"]],
+    copts = COPTS,
+    env = {"JE_TEST_MALLOC_CONF": test.get("conf", "")},
+    local_defines = ["JEMALLOC_INTEGRATION_CPP_TEST"],
+    deps = [":testlib_cpp"],
+) for test in INTEGRATION_CPP_TESTS]

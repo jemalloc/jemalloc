@@ -1,0 +1,214 @@
+load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@bazel_skylib//rules:common_settings.bzl", "int_flag", "string_flag")
+
+### Bazel-ification of platform feature detection performed by ./configure ###
+
+# If "yes", the glibc hooks __libc_calloc, __libc_free, __libc_malloc, etc are available for override
+string_flag(
+    name = "glibc_overrides_support",
+    build_setting_default = "__auto__",
+    values = [
+        "yes",
+        "no",
+        "__auto__",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "has_glibc_overrides",
+    flag_values = {":glibc_overrides_support": "yes"},
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "no_glibc_overrides",
+    flag_values = {":glibc_overrides_support": "no"},
+    visibility = ["//visibility:public"],
+)
+
+# Whether the target libc has `malloc_size` available for linking
+string_flag(
+    name = "malloc_size_support",
+    build_setting_default = "__auto__",
+    values = [
+        "yes",
+        "no",
+        "__auto__",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "has_malloc_size",
+    flag_values = {":malloc_size_support": "yes"},
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "no_malloc_size",
+    flag_values = {":malloc_size_support": "no"},
+    visibility = ["//visibility:public"],
+)
+
+# JEMALLOC_USABLE_SIZE_CONST: Whether malloc_usable_size can accepts const, glibc on linux apparently omits it
+string_flag(
+    name = "usable_size_const",
+    build_setting_default = "__auto__",
+    make_variable = "JEMALLOC_USABLE_SIZE_CONST",
+    values = [
+        "",
+        "const",
+        "__auto__",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+string_flag(
+    name = "memalign_support",
+    build_setting_default = "__auto__",
+    values = [
+        "yes",
+        "no",
+        "__auto__",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "has_memalign",
+    flag_values = {":memalign_support": "yes"},
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "no_memalign",
+    flag_values = {":memalign_support": "no"},
+    visibility = ["//visibility:public"],
+)
+
+# LG_HUGEPAGE Base 2 log of system huge page size, can be explicitly set --with-lg-hugepage
+# The correct setting depends on the kernel. configure defaults to 21 (2 MiB) when detection fails and
+# there is runtime detection to gracefully handle a misconfigure value
+int_flag(
+    name = "lg_hugepage",
+    build_setting_default = 21,
+    make_variable = "LG_HUGEPAGE",
+    visibility = ["//visibility:public"],
+)
+
+# LG_PAGE Base 2 log of system page size, can be explicitly set --with-lg-page
+string_flag(
+    name = "lg_page",
+    build_setting_default = "__auto__",
+    make_variable = "LG_PAGE",
+    visibility = ["//visibility:public"],
+)
+
+# LLG_VADDR Number of significant virtual address bits, can be explicitly set --with-lg-vaddr
+# The configure cross compilation fallback is the default. This should be safe for any 64-bit target even if the OS
+# doesn't allow it because of runtime checks. However, 32-bit architectures should explicitly declare this
+# need to declare
+int_flag(
+    name = "lg_vaddr",
+    build_setting_default = 57,
+    make_variable = "LG_VADDR",
+    visibility = ["//visibility:public"],
+)
+
+string_flag(
+    name = "valloc_support",
+    build_setting_default = "__auto__",
+    values = [
+        "yes",
+        "no",
+        "__auto__",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "has_valloc",
+    flag_values = {":valloc_support": "yes"},
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "no_valloc",
+    flag_values = {":valloc_support": "no"},
+    visibility = ["//visibility:public"],
+)
+
+### Convenience settings groups ###
+
+# ARM
+selects.config_setting_group(
+    name = "aarch",
+    match_any = [
+        "@platforms//cpu:aarch32",
+        "@platforms//cpu:aarch64",
+    ],
+    visibility = ["//:__subpackages__"],
+)
+
+# X86
+selects.config_setting_group(
+    name = "x86",
+    match_any = [
+        "@platforms//cpu:x86_32",
+        "@platforms//cpu:x86_64",
+    ],
+    visibility = ["//:__subpackages__"],
+)
+
+# BSD systems
+selects.config_setting_group(
+    name = "bsd",
+    match_any = [
+        "@platforms//os:freebsd",
+        "@platforms//os:ios",
+        "@platforms//os:macos",
+        "@platforms//os:openbsd",
+        "@platforms//os:tvos",
+        "@platforms//os:watchos",
+    ],
+    visibility = ["//:__subpackages__"],
+)
+
+# Darwin systems
+selects.config_setting_group(
+    name = "darwin",
+    match_any = [
+        "@platforms//os:ios",
+        "@platforms//os:macos",
+        "@platforms//os:tvos",
+        "@platforms//os:watchos",
+    ],
+    visibility = ["//:__subpackages__"],
+)
+
+# GNU systems
+selects.config_setting_group(
+    name = "gnu",
+    match_any = [
+        "@platforms//os:android",
+        "@platforms//os:linux",
+    ],
+    visibility = ["//:__subpackages__"],
+)
+
+# POSIX systems
+selects.config_setting_group(
+    name = "posix",
+    match_any = [
+        "@platforms//os:android",
+        "@platforms//os:freebsd",
+        "@platforms//os:ios",
+        "@platforms//os:linux",
+        "@platforms//os:macos",
+        "@platforms//os:openbsd",
+        "@platforms//os:tvos",
+        "@platforms//os:watchos",
+    ],
+    visibility = ["//:__subpackages__"],
+)
