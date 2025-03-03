@@ -3708,7 +3708,15 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 		prof_info_get(tsd, ptr, alloc_ctx, &prof_info);
 		prof_alloc_rollback(tsd, tctx);
 	} else {
-		prof_info_get_and_reset_recent(tsd, ptr, alloc_ctx, &prof_info);
+		/*
+		 * Need to retrieve the new alloc_ctx since the modification
+		 * to edata has already been done.
+		 */
+		emap_alloc_ctx_t new_alloc_ctx;
+		emap_alloc_ctx_lookup(tsd_tsdn(tsd), &arena_emap_global, ptr,
+		    &new_alloc_ctx);
+		prof_info_get_and_reset_recent(tsd, ptr, &new_alloc_ctx,
+		    &prof_info);
 		assert(usize <= usize_max);
 		sample_event = te_prof_sample_event_lookahead(tsd, usize);
 		prof_realloc(tsd, ptr, size, usize, tctx, prof_active, ptr,

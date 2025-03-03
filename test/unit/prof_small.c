@@ -31,13 +31,39 @@ TEST_BEGIN(test_profile_small_allocations) {
 }
 TEST_END
 
+TEST_BEGIN(test_profile_small_allocations_sdallocx) {
+	test_skip_if(!config_prof);
+
+	for (szind_t index = 0; index < SC_NBINS; index++) {
+		size_t size = sz_index2size(index);
+		void *ptr = malloc(size);
+		assert_small_allocation_sampled(ptr, size);
+		/*
+		 * While free calls into ifree, sdallocx calls into isfree,
+		 * This test covers the isfree path to make sure promoted small
+		 * allocs are handled properly.
+		 */
+		sdallocx(ptr, size, 0);
+	}
+}
+TEST_END
+
 TEST_BEGIN(test_profile_small_reallocations_growing) {
 	test_skip_if(!config_prof);
 
 	void *ptr = NULL;
-	for (szind_t index = 0; index < SC_NBINS; index++) {
+	for (szind_t index = 0; index <= SC_NBINS; index++) {
 		size_t size = sz_index2size(index);
 		ptr = realloc(ptr, size);
+		/*
+		 * When index reaches SC_NBINS, it is no longer a small alloc,
+		 * we still want to test the realloc from a small alloc to a
+		 * large one, but we should not assert_small_allocation_sampled
+		 * on it.
+		 */
+		if (index == SC_NBINS) {
+			break;
+		}
 		assert_small_allocation_sampled(ptr, size);
 	}
 }
@@ -72,6 +98,7 @@ TEST_END
 int
 main(void) {
 	return test(test_profile_small_allocations,
+	    test_profile_small_allocations_sdallocx,
 	    test_profile_small_reallocations_growing,
 	    test_profile_small_reallocations_shrinking,
 	    test_profile_small_reallocations_same_size_class);
