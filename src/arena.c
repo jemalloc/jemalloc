@@ -46,7 +46,15 @@ size_t oversize_threshold = OVERSIZE_THRESHOLD_DEFAULT;
 
 uint32_t arena_bin_offsets[SC_NBINS];
 
-static unsigned huge_arena_ind;
+/*
+ * a0 is used to handle huge requests before malloc init completes. After
+ * that,the huge_arena_ind is updated to point to the actual huge arena,
+ * which is the last one of the auto arenas.
+ */
+unsigned huge_arena_ind = 0;
+bool opt_huge_arena_pac_thp = false;
+pac_thp_t huge_arena_pac_thp = {.thp_madvise = false,
+    .auto_thp_switched = false, .n_thp_lazy = ATOMIC_INIT(0)};
 
 const arena_config_t arena_config_default = {
 	/* .extent_hooks = */ (extent_hooks_t *)&ehooks_default_extent_hooks,
@@ -1898,6 +1906,7 @@ arena_choose_huge(tsd_t *tsd) {
 bool
 arena_init_huge(arena_t *a0) {
 	bool huge_enabled;
+	assert(huge_arena_ind == 0);
 
 	/* The threshold should be large size class. */
 	if (opt_oversize_threshold > SC_LARGE_MAXCLASS ||
@@ -1908,10 +1917,18 @@ arena_init_huge(arena_t *a0) {
 	} else {
 		/* Reserve the index for the huge arena. */
 		huge_arena_ind = narenas_total_get();
+		assert(huge_arena_ind != 0);
 		oversize_threshold = opt_oversize_threshold;
 		/* a0 init happened before malloc_conf_init. */
 		atomic_store_zu(&a0->pa_shard.pac.oversize_threshold,
 		    oversize_threshold, ATOMIC_RELAXED);
+		/* Initialize huge arena THP settings for PAC. */
+		(&huge_arena_pac_thp)->thp_madvise = opt_huge_arena_pac_thp &&
+		    metadata_thp_enabled() && (opt_thp == thp_mode_default) &&
+		    (init_system_thp_mode == thp_mode_default);
+		malloc_mutex_init(&(&huge_arena_pac_thp)->lock, "pac_thp",
+		    WITNESS_RANK_LEAF, malloc_mutex_rank_exclusive);
+		edata_list_active_init(&(&huge_arena_pac_thp)->thp_lazy_list);
 		huge_enabled = true;
 	}
 

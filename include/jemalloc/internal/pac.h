@@ -125,6 +125,31 @@ struct pac_s {
 	atomic_zu_t extent_sn_next;
 };
 
+typedef struct pac_thp_s pac_thp_t;
+struct pac_thp_s {
+	/*
+	 * opt_thp controls THP for user requested allocations. Settings
+	 * "always", "never" and "default" are available if THP is supported
+	 * by the OS and the default extent hooks are used:
+	 * - "always" and "never" are convered by pages_set_thp_state() in
+	 *   ehooks_default_alloc_impl().
+	 * - "default" makes no change for all the other auto arenas except
+	 *   the huge arena. For the huge arena, we might also look at
+	 *   opt_metadata_thp to decide whether to use THP or not.
+	 *   This is a temporary remedy before HPA is fully supported.
+	 */
+	bool thp_madvise;
+	/* Below fields are protected by the lock. */
+	malloc_mutex_t lock;
+	bool auto_thp_switched;
+	atomic_u_t n_thp_lazy;
+	/*
+	 * List that tracks HUGEPAGE aligned regions that're lazily hugified
+	 * in auto thp mode.
+	 */
+	edata_list_active_t thp_lazy_list;
+};
+
 bool pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
     edata_cache_t *edata_cache, nstime_t *cur_time, size_t oversize_threshold,
     ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms, pac_stats_t *pac_stats,

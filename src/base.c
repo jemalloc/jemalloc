@@ -55,9 +55,6 @@ base_map(tsdn_t *tsdn, ehooks_t *ehooks, unsigned ind, size_t size) {
 	}
 	if (ehooks_are_default(ehooks)) {
 		addr = extent_alloc_mmap(NULL, size, alignment, &zero, &commit);
-		if (have_madvise_huge && addr) {
-			pages_set_thp_state(addr, size);
-		}
 	} else {
 		addr = ehooks_alloc(tsdn, ehooks, NULL, size, alignment, &zero,
 		    &commit);
@@ -154,6 +151,40 @@ base_get_num_blocks(base_t *base, bool with_new_block) {
 }
 
 static void
+huge_arena_auto_thp_switch(tsdn_t *tsdn, pac_thp_t *pac_thp) {
+	assert(opt_huge_arena_pac_thp);
+	assert(!pac_thp->auto_thp_switched);
+
+	arena_t *huge_arena;
+	if (huge_arena_ind == 0 || (huge_arena = arena_get(tsdn, huge_arena_ind,
+	    false)) == NULL) {
+		/* Huge arena hasn't been init yet, simply turn the switch on. */
+		pac_thp->auto_thp_switched = true;
+		return;
+	}
+
+	assert(huge_arena != NULL);
+	edata_list_active_t *pending_list;
+	malloc_mutex_lock(tsdn, &pac_thp->lock);
+	pending_list = &pac_thp->thp_lazy_list;
+	pac_thp->auto_thp_switched = true;
+	malloc_mutex_unlock(tsdn, &pac_thp->lock);
+
+	unsigned cnt = 0;
+	edata_t *edata;
+	ql_foreach(edata, &pending_list->head, ql_link_active) {
+		assert(edata != NULL);
+		void *addr = edata_addr_get(edata);
+		size_t size = edata_size_get(edata);
+		assert(HUGEPAGE_ADDR2BASE(addr) == addr);
+		assert(HUGEPAGE_CEILING(size) == size && size != 0);
+		pages_huge(addr, size);
+		cnt++;
+	}
+	assert(cnt == atomic_load_u(&pac_thp->n_thp_lazy, ATOMIC_RELAXED));
+}
+
+static void
 base_auto_thp_switch(tsdn_t *tsdn, base_t *base) {
 	assert(opt_metadata_thp == metadata_thp_auto);
 	malloc_mutex_assert_owner(tsdn, &base->mtx);
@@ -187,6 +218,15 @@ base_auto_thp_switch(tsdn_t *tsdn, base_t *base) {
 		block = block->next;
 		assert(block == NULL || (base_ind_get(base) == 0));
 	}
+
+	/* Handle the THP auto switch for the huge arena. */
+	if (!huge_arena_pac_thp.thp_madvise || base_ind_get(base) != 0) {
+		/* Only b0 metadata auto thp switch do the trigger. */
+		return;
+	}
+	malloc_mutex_unlock(tsdn, &base->mtx);
+	huge_arena_auto_thp_switch(tsdn, &huge_arena_pac_thp);
+	malloc_mutex_lock(tsdn, &base->mtx);
 }
 
 static void *

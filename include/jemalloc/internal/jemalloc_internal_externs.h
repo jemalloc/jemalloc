@@ -62,6 +62,8 @@ extern unsigned manual_arena_base;
  */
 extern atomic_p_t arenas[];
 
+extern unsigned huge_arena_ind;
+
 void *a0malloc(size_t size);
 void a0dalloc(void *ptr);
 void *bootstrap_malloc(size_t size);

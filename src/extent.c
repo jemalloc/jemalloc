@@ -646,6 +646,55 @@ extent_recycle(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 	return edata;
 }
 
+static void
+extent_handle_huge_arena_thp(tsdn_t *tsdn, pac_thp_t *pac_thp,
+    edata_cache_t *edata_cache, void *addr, size_t size) {
+	assert(opt_huge_arena_pac_thp);
+	assert(opt_metadata_thp != metadata_thp_disabled);
+	/*
+	 * With rounding up the given memory region [addr, addr + size) to
+	 * the huge page region that it crosses boundaries with,
+	 * essentially we're aligning the start addr down and the end addr
+	 * up to the nearest HUGEPAGE boundaries. The memory overhead can
+	 * be within the range of [0, 2 * (HUGEPAGE - 1)].
+	 */
+	void *huge_addr = HUGEPAGE_ADDR2BASE(addr);
+	void *huge_end = HUGEPAGE_ADDR2BASE((void *)((byte_t *)addr +
+	    (uintptr_t)(size + HUGEPAGE - 1)));
+	assert((uintptr_t)huge_end > (uintptr_t)huge_addr);
+
+	size_t huge_size = (uintptr_t)huge_end - (uintptr_t)huge_addr;
+	assert(huge_size <= (size + ((HUGEPAGE - 1) << 1)) &&
+		    huge_size >= size);
+
+	if (opt_metadata_thp == metadata_thp_always ||
+	    pac_thp->auto_thp_switched) {
+		pages_huge(huge_addr, huge_size);
+	} else {
+		assert(opt_metadata_thp == metadata_thp_auto);
+		edata_t *edata = edata_cache_get(tsdn, edata_cache);
+
+		malloc_mutex_lock(tsdn, &pac_thp->lock);
+		/* Can happen if the switch is turned on during edata retrieval. */
+		if (pac_thp->auto_thp_switched) {
+			malloc_mutex_unlock(tsdn, &pac_thp->lock);
+			pages_huge(huge_addr, huge_size);
+			if (edata != NULL) {
+				edata_cache_put(tsdn, edata_cache, edata);
+			}
+		} else {
+			if (edata != NULL) {
+				edata_addr_set(edata, huge_addr);
+				edata_size_set(edata, huge_size);
+				edata_list_active_append(&pac_thp->thp_lazy_list, edata);
+				atomic_fetch_add_u(&pac_thp->n_thp_lazy, 1, ATOMIC_RELAXED);
+			}
+			malloc_mutex_unlock(tsdn, &pac_thp->lock);
+		}
+		malloc_mutex_assert_not_owner(tsdn, &pac_thp->lock);
+	}
+}
+
 /*
  * If virtual memory is retained, create increasingly larger extents from which
  * to split requested extents in order to limit the total number of disjoint
@@ -688,10 +737,10 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		goto label_err;
 	}
 
-	edata_init(edata, ecache_ind_get(&pac->ecache_retained), ptr,
-	    alloc_size, false, SC_NSIZES, extent_sn_next(pac),
-	    extent_state_active, zeroed, committed, EXTENT_PAI_PAC,
-	    EXTENT_IS_HEAD);
+	unsigned ind = ecache_ind_get(&pac->ecache_retained);
+	edata_init(edata, ind, ptr, alloc_size, false, SC_NSIZES,
+	    extent_sn_next(pac), extent_state_active, zeroed, committed,
+	    EXTENT_PAI_PAC, EXTENT_IS_HEAD);
 
 	if (extent_register_no_gdump_add(tsdn, pac, edata)) {
 		edata_cache_put(tsdn, pac->edata_cache, edata);
@@ -766,6 +815,15 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 	/* All opportunities for failure are past. */
 	exp_grow_size_commit(&pac->exp_grow, exp_grow_skip);
 	malloc_mutex_unlock(tsdn, &pac->grow_mtx);
+
+	if (huge_arena_pac_thp.thp_madvise) {
+		/* Avoid using HUGEPAGE when the grow size is less than HUGEPAGE. */
+		if (ind != 0 && ind == huge_arena_ind && ehooks_are_default(ehooks) &&
+		    likely(alloc_size >= HUGEPAGE)) {
+			extent_handle_huge_arena_thp(tsdn, &huge_arena_pac_thp,
+			    pac->edata_cache, ptr, alloc_size);
+		}
+	}
 
 	if (config_prof) {
 		/* Adjust gdump stats now that extent is final size. */
