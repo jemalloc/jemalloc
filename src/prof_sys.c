@@ -23,6 +23,11 @@
 #define _Unwind_Backtrace JEMALLOC_TEST_HOOK(_Unwind_Backtrace, test_hooks_libc_hook)
 #endif
 
+#ifdef JEMALLOC_PROF_FRAME_POINTER
+// execinfo backtrace() as fallback unwinder
+#include <execinfo.h>
+#endif
+
 /******************************************************************************/
 
 malloc_mutex_t prof_dump_filename_mtx;
@@ -102,41 +107,97 @@ prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 #elif (defined(JEMALLOC_PROF_FRAME_POINTER))
 JEMALLOC_DIAGNOSTIC_PUSH
 JEMALLOC_DIAGNOSTIC_IGNORE_FRAME_ADDRESS
+
+struct stack_range {
+	uintptr_t start;
+	uintptr_t end;
+};
+
+struct thread_unwind_info {
+	struct stack_range stack_range;
+	bool fallback;
+};
+static __thread struct thread_unwind_info unwind_info = {
+	.stack_range = {
+		.start = 0,
+		.end = 0,
+	},
+	.fallback = false,
+}; /* thread local */
+
 static void
 prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
-  // stack_start - highest possible valid stack address (assumption: stacks grow downward)
-  //   stack_end - current stack frame and lowest possible valid stack address
-  //               (all earlier frames will be at higher addresses than this)
+	/* fp: 		current stack frame pointer
+	 *
+	 * stack_range:	readable stack memory range for the current thread.
+	 *		Used to validate frame addresses during stack unwinding.
+	 *		For most threads there is a single valid stack range
+	 *		that is fixed at thread creation time.  This may not be
+	 *		the case when folly fibers or boost contexts are used.
+	 *		In those cases fall back to using execinfo backtrace()
+	 *		(DWARF unwind).
+	 */
 
-  // always safe to get the current stack frame address
-  void** stack_end = (void**)__builtin_frame_address(0);
-  if (stack_end == NULL) {
-    *len = 0;
-    return;
-  }
+	/* always safe to get the current stack frame address */
+	uintptr_t fp = (uintptr_t)__builtin_frame_address(0);
 
-  static __thread void **stack_start = (void **)0;  // thread local
-  if (stack_start == 0 || stack_end >= stack_start) {
-    stack_start = (void**)prof_thread_stack_start((uintptr_t)stack_end);
-  }
+	/* new thread - get the stack range */
+	if (!unwind_info.fallback &&
+	    unwind_info.stack_range.start == unwind_info.stack_range.end) {
+		if (prof_thread_stack_range(fp, &unwind_info.stack_range.start,
+		    &unwind_info.stack_range.end) != 0) {
+			unwind_info.fallback = true;
+		} else {
+			assert(fp >= unwind_info.stack_range.start
+			    && fp < unwind_info.stack_range.end);
+		}
+	}
 
-  if (stack_start == 0 || stack_end >= stack_start) {
-    *len = 0;
-    return;
-  }
+	if (unwind_info.fallback) {
+		goto label_fallback;
+	}
 
-  unsigned ii = 0;
-  void** fp = (void**)stack_end;
-  while (fp < stack_start && ii < max_len) {
-    vec[ii++] = fp[1];
-    void** fp_prev = fp;
-    fp = fp[0];
-    if (unlikely(fp <= fp_prev)) { // sanity check forward progress
-      break;
-    }
-  }
-  *len = ii;
+	unsigned ii = 0;
+	while (ii < max_len && fp != 0) {
+		if (fp < unwind_info.stack_range.start ||
+		    fp >= unwind_info.stack_range.end) {
+			/*
+			 * Determining the stack range from procfs can be
+			 * relatively expensive especially for programs with
+			 * many threads / shared libraries.  If the stack
+			 * range has changed, it is likely to change again
+			 * in the future (fibers or some other stack
+			 * manipulation).  So fall back to backtrace for this
+			 * thread.
+			 */
+			unwind_info.fallback = true;
+			goto label_fallback;
+		}
+		void* ip = ((void **)fp)[1];
+		if (ip == 0) {
+			break;
+		}
+		vec[ii++] = ip;
+		fp = ((uintptr_t *)fp)[0];
+	}
+	*len = ii;
+	return;
+
+label_fallback:
+	/*
+	 * Using the backtrace from execinfo.h here.  Note that it may get
+	 * redirected to libunwind when a libunwind not built with build-time
+	 * flag --disable-weak-backtrace is linked.
+	 */
+	assert(unwind_info.fallback);
+	int nframes = backtrace(vec, max_len);
+	if (nframes > 0) {
+		*len = nframes;
+	} else {
+		*len = 0;
+	}
 }
+
 JEMALLOC_DIAGNOSTIC_POP
 #elif (defined(JEMALLOC_PROF_GCC))
 JEMALLOC_DIAGNOSTIC_PUSH

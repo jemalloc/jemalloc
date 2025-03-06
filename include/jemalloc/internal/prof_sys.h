@@ -20,7 +20,7 @@ void prof_fdump_impl(tsd_t *tsd);
 void prof_idump_impl(tsd_t *tsd);
 bool prof_mdump_impl(tsd_t *tsd, const char *filename);
 void prof_gdump_impl(tsd_t *tsd);
-uintptr_t prof_thread_stack_start(uintptr_t stack_end);
+int prof_thread_stack_range(uintptr_t fp, uintptr_t *low, uintptr_t *high);
 
 /* Used in unit tests. */
 typedef int (prof_sys_thread_name_read_t)(char *buf, size_t limit);
