@@ -63,6 +63,9 @@ jobs:
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-lg-page=16 --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --enable-prof-frameptr --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
+      arch: amd64
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
@@ -96,6 +99,9 @@ jobs:
       env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--with-lg-page=16 --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
+      env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--enable-prof --enable-prof-frameptr --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
+    - os: linux
+      arch: amd64
       env: CC=clang CXX=clang++ CONFIGURE_FLAGS="--with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
     - os: linux
       arch: amd64
@@ -126,6 +132,9 @@ jobs:
       env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--with-lg-page=16 --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
+      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--enable-prof --enable-prof-frameptr --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
+      arch: amd64
       env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes COMPILER_FLAGS="-m32" CONFIGURE_FLAGS="--with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
@@ -153,6 +162,9 @@ jobs:
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --with-lg-page=16 --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --enable-prof --enable-prof-frameptr --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
+      arch: amd64
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
@@ -177,6 +189,9 @@ jobs:
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --with-lg-page=16 --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --enable-prof --enable-prof-frameptr --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
+      arch: amd64
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
@@ -198,6 +213,9 @@ jobs:
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats --with-lg-page=16 --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats --enable-prof --enable-prof-frameptr --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
+      arch: amd64
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats --with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
@@ -216,6 +234,9 @@ jobs:
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl --with-lg-page=16 --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl --enable-prof --enable-prof-frameptr --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
+      arch: amd64
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl --with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
@@ -231,6 +252,9 @@ jobs:
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-opt-safety-checks --with-lg-page=16 --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-opt-safety-checks --enable-prof --enable-prof-frameptr --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
+      arch: amd64
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-opt-safety-checks --with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
@@ -243,6 +267,9 @@ jobs:
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-opt-safety-checks --with-malloc-conf=background_thread:true --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-lg-page=16 --enable-prof --enable-prof-frameptr --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
+      arch: amd64
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-lg-page=16 --with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
@@ -253,6 +280,18 @@ jobs:
     - os: linux
       arch: amd64
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-lg-page=16 --with-malloc-conf=background_thread:true --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
+      arch: amd64
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --enable-prof-frameptr --with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
+      arch: amd64
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --enable-prof-frameptr --with-malloc-conf=dss:primary --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
+      arch: amd64
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --enable-prof-frameptr --with-malloc-conf=percpu_arena:percpu --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
+      arch: amd64
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --enable-prof-frameptr --with-malloc-conf=background_thread:true --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: amd64
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=tcache:false,dss:primary --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
@@ -298,6 +337,9 @@ jobs:
     - os: linux
       arch: arm64
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-lg-page=16 --with-lg-hugepage=29 --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+    - os: linux
+      arch: arm64
+      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-prof --enable-prof-frameptr --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
     - os: linux
       arch: arm64
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
