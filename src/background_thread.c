@@ -63,6 +63,9 @@ pthread_create_fptr_init(void) {
 	 */
 #ifdef JEMALLOC_HAVE_DLSYM
 	pthread_create_fptr = dlsym(RTLD_NEXT, "pthread_create");
+	if (pthread_create_fptr == NULL) {
+		pthread_create_fptr = dlsym(RTLD_DEFAULT, "pthread_create");
+	}
 #else
 	pthread_create_fptr = NULL;
 #endif
