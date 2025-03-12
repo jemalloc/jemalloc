@@ -8,6 +8,16 @@
 
 #define HPA_EDEN_SIZE (128 * HUGEPAGE)
 
+#define HPA_MIN_VAR_VEC_SIZE 8
+#ifdef JEMALLOC_HAVE_PROCESS_MADVISE
+typedef struct iovec hpa_io_vector_t;
+#else
+typedef struct {
+	void *iov_base;
+	size_t iov_len;
+} hpa_io_vector_t;
+#endif
+
 static edata_t *hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
     size_t alignment, bool zero, bool guarded, bool frequent_reuse,
     bool *deferred_work_generated);
@@ -422,6 +432,24 @@ hpa_shard_has_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard) {
 	return to_hugify != NULL || hpa_should_purge(tsdn, shard);
 }
 
+/* If we fail vectorized purge, we will do single */
+static void
+hpa_try_vectorized_purge(hpa_shard_t *shard, hpa_io_vector_t *vec,
+	size_t vlen, size_t nbytes) {
+	bool success = opt_process_madvise_max_batch > 0
+		&& !shard->central->hooks.vectorized_purge(vec, vlen, nbytes);
+	if (!success) {
+		/* On failure, it is safe to purge again (potential perf
+		 * penalty) If kernel can tell exactly which regions
+		 * failed, we could avoid that penalty.
+		 */
+		for (size_t i = 0; i < vlen; ++i) {
+			shard->central->hooks.purge(vec[i].iov_base,
+				vec[i].iov_len);
+		}
+	}
+}
+
 /* Returns whether or not we purged anything. */
 static bool
 hpa_try_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
@@ -470,14 +498,37 @@ hpa_try_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
 	}
 	size_t total_purged = 0;
 	uint64_t purges_this_pass = 0;
+
+	assert(opt_process_madvise_max_batch <=
+		PROCESS_MADVISE_MAX_BATCH_LIMIT);
+	size_t len = opt_process_madvise_max_batch == 0 ?
+		HPA_MIN_VAR_VEC_SIZE : opt_process_madvise_max_batch;
+	VARIABLE_ARRAY(hpa_io_vector_t, vec, len);
+
 	void *purge_addr;
 	size_t purge_size;
+	size_t cur = 0;
+	size_t total_batch_bytes = 0;
 	while (hpdata_purge_next(to_purge, &purge_state, &purge_addr,
 	    &purge_size)) {
+		vec[cur].iov_base = purge_addr;
+		vec[cur].iov_len = purge_size;
 		total_purged += purge_size;
 		assert(total_purged <= HUGEPAGE);
 		purges_this_pass++;
-		shard->central->hooks.purge(purge_addr, purge_size);
+		total_batch_bytes += purge_size;
+		cur++;
+		if (cur == len) {
+			hpa_try_vectorized_purge(shard, vec, len, total_batch_bytes);
+			assert(total_batch_bytes > 0);
+			cur = 0;
+			total_batch_bytes = 0;
+		}
+	}
+
+	/* Batch was not full */
+	if (cur > 0) {
+		hpa_try_vectorized_purge(shard, vec, cur, total_batch_bytes);
 	}
 
 	malloc_mutex_lock(tsdn, &shard->mtx);
