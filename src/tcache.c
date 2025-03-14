@@ -511,7 +511,7 @@ tcache_try_gc_bin(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache,
 }
 
 static void
-tcache_event(tsd_t *tsd) {
+tcache_gc_event(tsd_t *tsd) {
 	tcache_t *tcache = tcache_get(tsd);
 	if (tcache == NULL) {
 		return;
@@ -579,18 +579,6 @@ tcache_event(tsd_t *tsd) {
 		}
 	}
 	tcache_slow->next_gc_bin_large = szind_large;
-}
-
-void
-tcache_gc_event_handler(tsd_t *tsd, uint64_t elapsed) {
-	assert(elapsed == TE_INVALID_ELAPSED);
-	tcache_event(tsd);
-}
-
-void
-tcache_gc_dalloc_event_handler(tsd_t *tsd, uint64_t elapsed) {
-	assert(elapsed == TE_INVALID_ELAPSED);
-	tcache_event(tsd);
 }
 
 void *
@@ -1912,3 +1900,16 @@ tcache_postfork_child(tsdn_t *tsdn) {
 void tcache_assert_initialized(tcache_t *tcache) {
 	assert(!cache_bin_still_zero_initialized(&tcache->bins[0]));
 }
+
+static bool
+tcache_gc_enabled(void) {
+    return (opt_tcache_gc_incr_bytes > 0);
+}
+
+/* Handles alloc and dalloc the same way */
+te_base_cb_t tcache_gc_te_handler = {
+	.enabled = &tcache_gc_enabled,
+	.new_event_wait = &tcache_gc_new_event_wait,
+	.postponed_event_wait = &tcache_gc_postponed_event_wait,
+	.event_handler = &tcache_gc_event,
+};

@@ -65,7 +65,7 @@ char opt_stats_interval_opts[stats_print_tot_num_options+1] = "";
 
 static counter_accum_t stats_interval_accumulated;
 /* Per thread batch accum size for stats_interval. */
-static uint64_t stats_interval_accum_batch;
+uint64_t stats_interval_accum_batch;
 
 /******************************************************************************/
 
@@ -2128,13 +2128,31 @@ stats_interval_postponed_event_wait(tsd_t *tsd) {
 }
 
 void
-stats_interval_event_handler(tsd_t *tsd, uint64_t elapsed) {
+stats_interval_event_handler(tsd_t *tsd) {
+	uint64_t last_event = thread_allocated_last_event_get(tsd);
+	uint64_t last_sample_event = tsd_stats_interval_last_event_get(tsd);
+	tsd_stats_interval_last_event_set(tsd, last_event);
+	uint64_t elapsed = last_event - last_sample_event;
+
 	assert(elapsed > 0 && elapsed != TE_INVALID_ELAPSED);
 	if (counter_accum(tsd_tsdn(tsd), &stats_interval_accumulated,
 	    elapsed)) {
 		je_malloc_stats_print(NULL, NULL, opt_stats_interval_opts);
 	}
 }
+
+static bool
+stats_interval_enabled(void) {
+	return opt_stats_interval >= 0;
+}
+
+te_base_cb_t stats_interval_te_handler = {
+	.enabled = &stats_interval_enabled,
+	.new_event_wait = &stats_interval_new_event_wait,
+	.postponed_event_wait = &stats_interval_postponed_event_wait,
+	.event_handler = &stats_interval_event_handler,
+};
+
 
 bool
 stats_boot(void) {
