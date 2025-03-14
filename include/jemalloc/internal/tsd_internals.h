@@ -15,6 +15,7 @@
 #include "jemalloc/internal/rtree_tsd.h"
 #include "jemalloc/internal/tcache_structs.h"
 #include "jemalloc/internal/tcache_types.h"
+#include "jemalloc/internal/thread_event_registry.h"
 #include "jemalloc/internal/tsd_types.h"
 #include "jemalloc/internal/util.h"
 #include "jemalloc/internal/witness.h"
@@ -68,15 +69,9 @@ typedef ql_elm(tsd_t) tsd_link_t;
     O(thread_allocated_next_event,	uint64_t,	uint64_t)	\
     O(thread_deallocated_last_event,	uint64_t,	uint64_t)	\
     O(thread_deallocated_next_event,	uint64_t,	uint64_t)	\
-    O(tcache_gc_event_wait,	uint64_t,		uint64_t)	\
-    O(tcache_gc_dalloc_event_wait,	uint64_t,	uint64_t)	\
-    O(prof_sample_event_wait,	uint64_t,		uint64_t)	\
+    O(te_data, 			te_data_t,		te_data_t)	\
     O(prof_sample_last_event,	uint64_t,		uint64_t)	\
-    O(prof_threshold_event_wait,	uint64_t,	uint64_t)	\
-    O(stats_interval_event_wait,	uint64_t,	uint64_t)	\
-    O(stats_interval_last_event,	uint64_t,	uint64_t)	\
-    O(peak_alloc_event_wait,	uint64_t,		uint64_t)	\
-    O(peak_dalloc_event_wait,	uint64_t,	uint64_t)		\
+    O(stats_interval_last_event, uint64_t, 		uint64_t)	\
     O(prof_tdata,		prof_tdata_t *,		prof_tdata_t *)	\
     O(prng_state,		uint64_t,		uint64_t)	\
     O(san_extents_until_guard_small,	uint64_t,	uint64_t)	\
@@ -102,15 +97,9 @@ typedef ql_elm(tsd_t) tsd_link_t;
     /* thread_allocated_next_event */	0,				\
     /* thread_deallocated_last_event */	0,				\
     /* thread_deallocated_next_event */	0,				\
-    /* tcache_gc_event_wait */		0,				\
-    /* tcache_gc_dalloc_event_wait */	0,				\
-    /* prof_sample_event_wait */	0,				\
+    /* te_data */			TE_DATA_INITIALIZER,   		\
     /* prof_sample_last_event */	0,				\
-    /* prof_threshold_event_wait */	0,				\
-    /* stats_interval_event_wait */	0,				\
     /* stats_interval_last_event */	0,				\
-    /* peak_alloc_event_wait */		0,				\
-    /* peak_dalloc_event_wait */	0,				\
     /* prof_tdata */		NULL,					\
     /* prng_state */		0,					\
     /* san_extents_until_guard_small */	0,				\

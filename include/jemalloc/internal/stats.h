@@ -3,6 +3,7 @@
 
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
+#include "jemalloc/internal/thread_event_registry.h"
 #include "jemalloc/internal/tsd_types.h"
 
 /*  OPTION(opt,		var_name,	default,	set_value_to) */
@@ -43,9 +44,7 @@ extern char opt_stats_interval_opts[stats_print_tot_num_options+1];
 #define STATS_INTERVAL_ACCUM_BATCH_MAX (4 << 20)
 
 /* Only accessed by thread event. */
-uint64_t stats_interval_new_event_wait(tsd_t *tsd);
-uint64_t stats_interval_postponed_event_wait(tsd_t *tsd);
-void stats_interval_event_handler(tsd_t *tsd, uint64_t elapsed);
+extern te_base_cb_t stats_interval_te_handler;
 
 /* Implements je_malloc_stats_print. */
 void stats_print(write_cb_t *write_cb, void *cbopaque, const char *opts);

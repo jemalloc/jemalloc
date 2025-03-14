@@ -6,6 +6,7 @@
 #include "jemalloc/internal/cache_bin.h"
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/tcache_types.h"
+#include "jemalloc/internal/thread_event_registry.h"
 
 extern bool opt_tcache;
 extern size_t opt_tcache_max;
@@ -88,5 +89,7 @@ void tcache_gc_event_handler(tsd_t *tsd, uint64_t elapsed);
 uint64_t tcache_gc_dalloc_new_event_wait(tsd_t *tsd);
 uint64_t tcache_gc_dalloc_postponed_event_wait(tsd_t *tsd);
 void tcache_gc_dalloc_event_handler(tsd_t *tsd, uint64_t elapsed);
+
+extern te_base_cb_t tcache_gc_te_handler;
 
 #endif /* JEMALLOC_INTERNAL_TCACHE_EXTERNS_H */

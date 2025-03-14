@@ -5,6 +5,7 @@
 #include "jemalloc/internal/base.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/prof_hook.h"
+#include "jemalloc/internal/thread_event_registry.h"
 
 extern bool opt_prof;
 extern bool opt_prof_active;
@@ -104,9 +105,65 @@ void prof_prefork1(tsdn_t *tsdn);
 void prof_postfork_parent(tsdn_t *tsdn);
 void prof_postfork_child(tsdn_t *tsdn);
 
-/* Only accessed by thread event. */
 uint64_t prof_sample_new_event_wait(tsd_t *tsd);
-uint64_t prof_sample_postponed_event_wait(tsd_t *tsd);
-void prof_sample_event_handler(tsd_t *tsd, uint64_t elapsed);
+uint64_t tsd_prof_sample_event_wait_get(tsd_t *tsd);
+
+/*
+ * The lookahead functionality facilitates events to be able to lookahead, i.e.
+ * without touching the event counters, to determine whether an event would be
+ * triggered.  The event counters are not advanced until the end of the
+ * allocation / deallocation calls, so the lookahead can be useful if some
+ * preparation work for some event must be done early in the allocation /
+ * deallocation calls.
+ *
+ * Currently only the profiling sampling event needs the lookahead
+ * functionality, so we don't yet define general purpose lookahead functions.
+ *
+ * Surplus is a terminology referring to the amount of bytes beyond what's
+ * needed for triggering an event, which can be a useful quantity to have in
+ * general when lookahead is being called.
+ *
+ * This function returns true if allocation of usize would go above the next
+ * trigger for prof event, and false otherwise.
+ * If function returns true surplus will contain number of bytes beyond that
+ * trigger.
+ */
+
+JEMALLOC_ALWAYS_INLINE bool
+te_prof_sample_event_lookahead_surplus(tsd_t *tsd, size_t usize,
+    size_t *surplus) {
+	if (surplus != NULL) {
+		/*
+		 * This is a dead store: the surplus will be overwritten before
+		 * any read.  The initialization suppresses compiler warnings.
+		 * Meanwhile, using SIZE_MAX to initialize is good for
+		 * debugging purpose, because a valid surplus value is strictly
+		 * less than usize, which is at most SIZE_MAX.
+		 */
+		*surplus = SIZE_MAX;
+	}
+	if (unlikely(!tsd_nominal(tsd) || tsd_reentrancy_level_get(tsd) > 0)) {
+		return false;
+	}
+	/* The subtraction is intentionally susceptible to underflow. */
+	uint64_t accumbytes = tsd_thread_allocated_get(tsd) + usize -
+	    tsd_thread_allocated_last_event_get(tsd);
+	uint64_t sample_wait = tsd_prof_sample_event_wait_get(tsd);
+	if (accumbytes < sample_wait) {
+		return false;
+	}
+	assert(accumbytes - sample_wait < (uint64_t)usize);
+	if (surplus != NULL) {
+		*surplus = (size_t)(accumbytes - sample_wait);
+	}
+	return true;
+}
+
+JEMALLOC_ALWAYS_INLINE bool
+te_prof_sample_event_lookahead(tsd_t *tsd, size_t usize) {
+	return te_prof_sample_event_lookahead_surplus(tsd, usize, NULL);
+}
+
+extern te_base_cb_t prof_sample_te_handler;
 
 #endif /* JEMALLOC_INTERNAL_PROF_EXTERNS_H */

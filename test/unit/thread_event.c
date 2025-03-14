@@ -8,12 +8,11 @@ TEST_BEGIN(test_next_event_fast) {
 	te_ctx_last_event_set(&ctx, 0);
 	te_ctx_current_bytes_set(&ctx, TE_NEXT_EVENT_FAST_MAX - 8U);
 	te_ctx_next_event_set(tsd, &ctx, TE_NEXT_EVENT_FAST_MAX);
-#define E(event, condition, is_alloc)					\
-	if (is_alloc && condition) {					\
-		event##_event_wait_set(tsd, TE_NEXT_EVENT_FAST_MAX);	\
+
+	uint64_t *waits = tsd_te_datap_get_unsafe(tsd)->alloc_wait;
+	for (size_t i = 0; i < te_alloc_count; i++) {
+		waits[i] = TE_NEXT_EVENT_FAST_MAX;
 	}
-	ITERATE_OVER_ALL_EVENTS
-#undef E
 
 	/* Test next_event_fast rolling back to 0. */
 	void *p = malloc(16U);
