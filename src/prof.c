@@ -12,6 +12,7 @@
 #include "jemalloc/internal/prof_sys.h"
 #include "jemalloc/internal/prof_hook.h"
 #include "jemalloc/internal/thread_event.h"
+#include "jemalloc/internal/thread_event_registry.h"
 
 /*
  * This file implements the profiling "APIs" needed by other parts of jemalloc,
@@ -289,8 +290,40 @@ prof_sample_new_event_wait(tsd_t *tsd) {
 #endif
 }
 
+void
+prof_sample_event_handler(tsd_t *tsd) {
+	cassert(config_prof);
+	if (prof_interval == 0 || !prof_active_get_unlocked()) {
+		return;
+	}
+	uint64_t last_event = thread_allocated_last_event_get(tsd);
+	uint64_t last_sample_event = tsd_prof_sample_last_event_get(tsd);
+	tsd_prof_sample_last_event_set(tsd, last_event);
+	uint64_t elapsed = last_event - last_sample_event;
+	assert(elapsed > 0 && elapsed != TE_INVALID_ELAPSED);
+	if (counter_accum(tsd_tsdn(tsd), &prof_idump_accumulated, elapsed)) {
+		prof_idump(tsd_tsdn(tsd));
+	}
+}
+
+static bool
+prof_sample_enabled(void) {
+	return config_prof && opt_prof;
+}
+
 uint64_t
-prof_sample_postponed_event_wait(tsd_t *tsd) {
+tsd_prof_sample_event_wait_get(tsd_t *tsd) {
+#ifdef JEMALLOC_PROF
+	return tsd_te_datap_get_unsafe(tsd)->alloc_wait[te_alloc_prof_sample];
+#else
+	not_reached();
+	return TE_MAX_START_WAIT;
+#endif
+}
+
+te_base_cb_t prof_sample_te_handler = {
+	.enabled = &prof_sample_enabled,
+	.new_event_wait = &prof_sample_new_event_wait,
 	/*
 	 * The postponed wait time for prof sample event is computed as if we
 	 * want a new wait time (i.e. as if the event were triggered).  If we
@@ -298,21 +331,10 @@ prof_sample_postponed_event_wait(tsd_t *tsd) {
 	 * handling the other events, then we can have sampling bias, if e.g.
 	 * the allocation immediately following a reentrancy always comes from
 	 * the same stack trace.
-	 */
-	return prof_sample_new_event_wait(tsd);
-}
-
-void
-prof_sample_event_handler(tsd_t *tsd, uint64_t elapsed) {
-	cassert(config_prof);
-	assert(elapsed > 0 && elapsed != TE_INVALID_ELAPSED);
-	if (prof_interval == 0 || !prof_active_get_unlocked()) {
-		return;
-	}
-	if (counter_accum(tsd_tsdn(tsd), &prof_idump_accumulated, elapsed)) {
-		prof_idump(tsd_tsdn(tsd));
-	}
-}
+	*/
+	.postponed_event_wait = &prof_sample_new_event_wait,
+	.event_handler = &prof_sample_event_handler,
+};
 
 static void
 prof_fdump(void) {

@@ -5,14 +5,7 @@
 
 #include "jemalloc/internal/activity_callback.h"
 #include "jemalloc/internal/peak.h"
-
-/*
- * Update every 64K by default.  We're not exposing this as a configuration
- * option for now; we don't want to bind ourselves too tightly to any particular
- * performance requirements for small values, or guarantee that we'll even be
- * able to provide fine-grained accuracy.
- */
-#define PEAK_EVENT_WAIT (64 * 1024)
+#include "jemalloc/internal/thread_event_registry.h"
 
 /* Update the peak with current tsd state. */
 void
@@ -49,34 +42,31 @@ peak_event_max(tsd_t *tsd) {
 	return peak_max(peak);
 }
 
-uint64_t
-peak_alloc_new_event_wait(tsd_t *tsd) {
+static uint64_t
+peak_event_new_event_wait(tsd_t *tsd) {
 	return PEAK_EVENT_WAIT;
 }
 
-uint64_t
-peak_alloc_postponed_event_wait(tsd_t *tsd) {
+static uint64_t
+peak_event_postponed_event_wait(tsd_t *tsd) {
 	return TE_MIN_START_WAIT;
 }
 
-void
-peak_alloc_event_handler(tsd_t *tsd, uint64_t elapsed) {
+static void
+peak_event_handler(tsd_t *tsd) {
 	peak_event_update(tsd);
 	peak_event_activity_callback(tsd);
 }
 
-uint64_t
-peak_dalloc_new_event_wait(tsd_t *tsd) {
-	return PEAK_EVENT_WAIT;
+static bool
+peak_event_enabled(void) {
+	return config_stats;
 }
 
-uint64_t
-peak_dalloc_postponed_event_wait(tsd_t *tsd) {
-	return TE_MIN_START_WAIT;
-}
-
-void
-peak_dalloc_event_handler(tsd_t *tsd, uint64_t elapsed) {
-	peak_event_update(tsd);
-	peak_event_activity_callback(tsd);
-}
+/* Handles alloc and dalloc */
+te_base_cb_t peak_te_handler = {
+	.enabled = &peak_event_enabled,
+	.new_event_wait = &peak_event_new_event_wait,
+	.postponed_event_wait = &peak_event_postponed_event_wait,
+	.event_handler = &peak_event_handler,
+};

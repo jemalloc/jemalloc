@@ -52,6 +52,18 @@ prof_threshold_postponed_event_wait(tsd_t *tsd) {
 }
 
 void
-prof_threshold_event_handler(tsd_t *tsd, uint64_t elapsed) {
+prof_threshold_event_handler(tsd_t *tsd) {
 	prof_threshold_update(tsd);
 }
+
+static bool
+prof_threshold_enabled(void) {
+	return config_stats;
+}
+
+te_base_cb_t prof_threshold_te_handler = {
+	.enabled = &prof_threshold_enabled,
+	.new_event_wait = &prof_threshold_new_event_wait,
+	.postponed_event_wait = &prof_threshold_postponed_event_wait,
+	.event_handler = &prof_threshold_event_handler,
+};
