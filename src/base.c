@@ -153,17 +153,19 @@ base_get_num_blocks(base_t *base, bool with_new_block) {
 static void
 huge_arena_auto_thp_switch(tsdn_t *tsdn, pac_thp_t *pac_thp) {
 	assert(opt_huge_arena_pac_thp);
-	assert(!pac_thp->auto_thp_switched);
-
-	arena_t *huge_arena;
-	if (huge_arena_ind == 0 || (huge_arena = arena_get(tsdn, huge_arena_ind,
-	    false)) == NULL) {
-		/* Huge arena hasn't been init yet, simply turn the switch on. */
-		pac_thp->auto_thp_switched = true;
+#ifdef JEMALLOC_JET
+	if (pac_thp->auto_thp_switched) {
 		return;
 	}
+#else
+	/*
+	 * The switch should be turned on only once when the b0 auto thp switch is
+	 * turned on, unless it's a unit test where b0 gets deleted and then
+	 * recreated.
+	 */
+	assert(!pac_thp->auto_thp_switched);
+#endif
 
-	assert(huge_arena != NULL);
 	edata_list_active_t *pending_list;
 	malloc_mutex_lock(tsdn, &pac_thp->lock);
 	pending_list = &pac_thp->thp_lazy_list;
@@ -221,9 +223,19 @@ base_auto_thp_switch(tsdn_t *tsdn, base_t *base) {
 
 	/* Handle the THP auto switch for the huge arena. */
 	if (!huge_arena_pac_thp.thp_madvise || base_ind_get(base) != 0) {
-		/* Only b0 metadata auto thp switch do the trigger. */
+		/*
+		 * The huge arena THP auto-switch is triggered only by b0 switch,
+		 * provided that the huge arena is initialized. If b0 switch is enabled
+		 * before huge arena is ready, the huge arena switch will be enabled
+		 * during huge_arena_pac_thp initialization.
+		 */
 		return;
 	}
+	/*
+	 * thp_madvise above is by default false and set in arena_init_huge() with
+	 * b0 mtx held. So if we reach here, it means the entire huge_arena_pac_thp
+	 * is initialized and we can safely switch the THP.
+	 */
 	malloc_mutex_unlock(tsdn, &base->mtx);
 	huge_arena_auto_thp_switch(tsdn, &huge_arena_pac_thp);
 	malloc_mutex_lock(tsdn, &base->mtx);

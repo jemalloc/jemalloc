@@ -1904,7 +1904,7 @@ arena_choose_huge(tsd_t *tsd) {
 }
 
 bool
-arena_init_huge(arena_t *a0) {
+arena_init_huge(tsdn_t *tsdn, arena_t *a0) {
 	bool huge_enabled;
 	assert(huge_arena_ind == 0);
 
@@ -1922,13 +1922,18 @@ arena_init_huge(arena_t *a0) {
 		/* a0 init happened before malloc_conf_init. */
 		atomic_store_zu(&a0->pa_shard.pac.oversize_threshold,
 		    oversize_threshold, ATOMIC_RELAXED);
-		/* Initialize huge arena THP settings for PAC. */
+		/* Initialize huge_arena_pac_thp fields. */
+		base_t *b0 = a0->base;
+		/* Make sure that b0 thp auto-switch won't happen concurrently here. */
+		malloc_mutex_lock(tsdn, &b0->mtx);
 		(&huge_arena_pac_thp)->thp_madvise = opt_huge_arena_pac_thp &&
 		    metadata_thp_enabled() && (opt_thp == thp_mode_default) &&
 		    (init_system_thp_mode == thp_mode_default);
+		(&huge_arena_pac_thp)->auto_thp_switched = b0->auto_thp_switched;
 		malloc_mutex_init(&(&huge_arena_pac_thp)->lock, "pac_thp",
 		    WITNESS_RANK_LEAF, malloc_mutex_rank_exclusive);
 		edata_list_active_init(&(&huge_arena_pac_thp)->thp_lazy_list);
+		malloc_mutex_unlock(tsdn, &b0->mtx);
 		huge_enabled = true;
 	}
 

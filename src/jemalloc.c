@@ -2097,7 +2097,7 @@ percpu_arena_as_initialized(percpu_arena_mode_t mode) {
 }
 
 static bool
-malloc_init_narenas(void) {
+malloc_init_narenas(tsdn_t *tsdn) {
 	assert(ncpus > 0);
 
 	if (opt_percpu_arena != percpu_arena_disabled) {
@@ -2164,7 +2164,7 @@ malloc_init_narenas(void) {
 		    narenas_auto);
 	}
 	narenas_total_set(narenas_auto);
-	if (arena_init_huge(a0)) {
+	if (arena_init_huge(tsdn, a0)) {
 		narenas_total_inc();
 	}
 	manual_arena_base = narenas_total_get();
@@ -2248,7 +2248,7 @@ malloc_init_hard(void) {
 	/* Set reentrancy level to 1 during init. */
 	pre_reentrancy(tsd, NULL);
 	/* Initialize narenas before prof_boot2 (for allocation). */
-	if (malloc_init_narenas()
+	if (malloc_init_narenas(tsd_tsdn(tsd))
 	    || background_thread_boot1(tsd_tsdn(tsd), b0get())) {
 		UNLOCK_RETURN(tsd_tsdn(tsd), true, true)
 	}
