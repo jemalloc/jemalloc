@@ -362,6 +362,7 @@ CTL_PROTO(experimental_hooks_prof_dump)
 CTL_PROTO(experimental_hooks_prof_sample)
 CTL_PROTO(experimental_hooks_prof_sample_free)
 CTL_PROTO(experimental_hooks_prof_threshold)
+CTL_PROTO(experimental_hooks_thread_event)
 CTL_PROTO(experimental_hooks_safety_check_abort)
 CTL_PROTO(experimental_thread_activity_callback)
 CTL_PROTO(experimental_utilization_query)
@@ -976,6 +977,7 @@ static const ctl_named_node_t experimental_hooks_node[] = {
 	{NAME("prof_sample_free"),	CTL(experimental_hooks_prof_sample_free)},
 	{NAME("prof_threshold"),	CTL(experimental_hooks_prof_threshold)},
 	{NAME("safety_check_abort"),	CTL(experimental_hooks_safety_check_abort)},
+	{NAME("thread_event"),	CTL(experimental_hooks_thread_event)},
 };
 
 static const ctl_named_node_t experimental_thread_node[] = {
@@ -3818,6 +3820,23 @@ label_return:
 	return ret;
 }
 
+static int
+experimental_hooks_thread_event_ctl(tsd_t *tsd, const size_t *mib,
+	size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+
+	if (newp == NULL) {
+		ret = EINVAL;
+		goto label_return;
+	}
+
+	user_hook_object_t t_new = {NULL, 0, false};
+	WRITE(t_new, user_hook_object_t);
+	ret = te_register_user_handler(tsd_tsdn(tsd), &t_new);
+
+label_return:
+	return ret;
+}
 
 /* For integration test purpose only.  No plan to move out of experimental. */
 static int
