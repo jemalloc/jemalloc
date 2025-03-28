@@ -1347,6 +1347,43 @@ TEST_BEGIN(test_thread_activity_callback) {
 }
 TEST_END
 
+
+
+static unsigned nuser_thread_event_cb_calls;
+static void
+user_thread_event_cb(bool is_alloc, uint64_t tallocated, uint64_t tdallocated) {
+	(void)tdallocated;
+	(void)tallocated;
+	++nuser_thread_event_cb_calls;
+}
+static user_hook_object_t user_te_obj = {
+	.callback = user_thread_event_cb,
+	.interval = 100,
+	.is_alloc_only = false,
+};
+
+TEST_BEGIN(test_thread_event_hook) {
+	const size_t big_size = 10 * 1024 * 1024;
+	void *ptr;
+	int err;
+
+	unsigned current_calls = nuser_thread_event_cb_calls;
+	err = mallctl("experimental.hooks.thread_event", NULL, 0,
+	    &user_te_obj, sizeof(user_te_obj));
+	assert_d_eq(0, err, "");
+
+	err = mallctl("experimental.hooks.thread_event", NULL, 0,
+	    &user_te_obj, sizeof(user_te_obj));
+	assert_d_eq(0, err, "Not an error to provide object with same interval and cb");
+
+
+	ptr = mallocx(big_size, 0);
+	free(ptr);
+	expect_u64_lt(current_calls, nuser_thread_event_cb_calls, "");
+}
+TEST_END
+
+
 int
 main(void) {
 	return test(
@@ -1387,5 +1424,6 @@ main(void) {
 	    test_hooks_exhaustion,
 	    test_thread_idle,
 	    test_thread_peak,
-	    test_thread_activity_callback);
+	    test_thread_activity_callback,
+	    test_thread_event_hook);
 }

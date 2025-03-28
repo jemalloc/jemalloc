@@ -1901,9 +1901,9 @@ void tcache_assert_initialized(tcache_t *tcache) {
 	assert(!cache_bin_still_zero_initialized(&tcache->bins[0]));
 }
 
-static bool
+static te_enabled_t
 tcache_gc_enabled(void) {
-    return (opt_tcache_gc_incr_bytes > 0);
+	return (opt_tcache_gc_incr_bytes > 0) ? te_enabled_yes : te_enabled_no;
 }
 
 /* Handles alloc and dalloc the same way */

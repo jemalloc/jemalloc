@@ -58,9 +58,9 @@ peak_event_handler(tsd_t *tsd) {
 	peak_event_activity_callback(tsd);
 }
 
-static bool
+static te_enabled_t
 peak_event_enabled(void) {
-	return config_stats;
+	return config_stats ? te_enabled_yes : te_enabled_no;
 }
 
 /* Handles alloc and dalloc */

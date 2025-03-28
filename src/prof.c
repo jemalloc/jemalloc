@@ -306,11 +306,6 @@ prof_sample_event_handler(tsd_t *tsd) {
 	}
 }
 
-static bool
-prof_sample_enabled(void) {
-	return config_prof && opt_prof;
-}
-
 uint64_t
 tsd_prof_sample_event_wait_get(tsd_t *tsd) {
 #ifdef JEMALLOC_PROF
@@ -319,6 +314,11 @@ tsd_prof_sample_event_wait_get(tsd_t *tsd) {
 	not_reached();
 	return TE_MAX_START_WAIT;
 #endif
+}
+
+static te_enabled_t
+prof_sample_enabled(void) {
+	return config_prof && opt_prof ? te_enabled_yes : te_enabled_no;
 }
 
 te_base_cb_t prof_sample_te_handler = {
