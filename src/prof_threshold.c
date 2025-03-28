@@ -27,7 +27,7 @@ prof_threshold_hook_get(void) {
 }
 
 /* Invoke callback for threshold reached */
-static void
+static inline void
 prof_threshold_update(tsd_t *tsd) {
 	prof_threshold_hook_t prof_threshold_hook = prof_threshold_hook_get();
 	if (prof_threshold_hook == NULL) {
@@ -56,9 +56,9 @@ prof_threshold_event_handler(tsd_t *tsd) {
 	prof_threshold_update(tsd);
 }
 
-static bool
+static te_enabled_t
 prof_threshold_enabled(void) {
-	return config_stats;
+	return config_stats ? te_enabled_yes : te_enabled_no;
 }
 
 te_base_cb_t prof_threshold_te_handler = {

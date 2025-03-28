@@ -10,13 +10,13 @@ te_ctx_has_active_events(te_ctx_t *ctx) {
 	assert(config_debug);
 	if (ctx->is_alloc) {
 		for (int i = 0; i < te_alloc_count; ++i) {
-			if (te_alloc_handlers[i]->enabled()) {
+			if (te_enabled_yes == te_alloc_handlers[i]->enabled()) {
 				return true;
 			}
 		}
 	} else {
 		for (int i = 0; i < te_dalloc_count; ++i) {
-			if (te_dalloc_handlers[i]->enabled()) {
+			if (te_enabled_yes == te_dalloc_handlers[i]->enabled()) {
 				return true;
 			}
 		}
@@ -26,14 +26,17 @@ te_ctx_has_active_events(te_ctx_t *ctx) {
 
 static uint64_t
 te_next_event_compute(tsd_t *tsd, bool is_alloc) {
-	te_base_cb_t **handlers = is_alloc ? te_alloc_handlers : te_dalloc_handlers;
-	uint64_t *waits = is_alloc ? tsd_te_datap_get_unsafe(tsd)->alloc_wait : tsd_te_datap_get_unsafe(tsd)->dalloc_wait;
+	te_base_cb_t **handlers = is_alloc ?
+	    te_alloc_handlers : te_dalloc_handlers;
+	uint64_t *waits = is_alloc ?
+	    tsd_te_datap_get_unsafe(tsd)->alloc_wait :
+	    tsd_te_datap_get_unsafe(tsd)->dalloc_wait;
 	int count = is_alloc ? te_alloc_count : te_dalloc_count;
-	
+
 	uint64_t wait = TE_MAX_START_WAIT;
 
 	for (int i = 0; i < count; i++) {
-		if (handlers[i]->enabled()) {
+		if (te_enabled_yes == handlers[i]->enabled()) {
 			uint64_t ev_wait = waits[i];
 			assert(ev_wait <= TE_MAX_START_WAIT);
 			if (ev_wait > 0U && ev_wait < wait) {
@@ -41,7 +44,6 @@ te_next_event_compute(tsd_t *tsd, bool is_alloc) {
 			}
 		}
 	}
-
 	return wait;
 }
 
@@ -64,6 +66,19 @@ te_assert_invariants_impl(tsd_t *tsd, te_ctx_t *ctx) {
 
 	/* The subtraction is intentionally susceptible to underflow. */
 	assert(current_bytes - last_event < interval);
+
+	/* This computation assumes that event did not become active in the
+	 * time since the last trigger. This works fine if waits for inactive
+	 * events are initialized with 0 as those are ignored
+	 * If we wanted to initialize user events to anything other than
+	 * zero, computation would take it into account and min_wait could
+	 * be smaller than interval (as it was not part of the calc setting
+	 * next_event).
+	 *
+	 * If we ever wanted to unregister the events assert would also
+	 * need to account for the possibility that next_event was set, by
+	 * event that is now gone
+	 */
 	uint64_t min_wait = te_next_event_compute(tsd, te_ctx_is_alloc(ctx));
 	/*
 	 * next_event should have been pushed up only except when no event is
@@ -161,8 +176,8 @@ te_recompute_fast_threshold(tsd_t *tsd) {
 	}
 }
 
-static void
-te_adjust_thresholds_helper(tsd_t *tsd, te_ctx_t *ctx,
+static inline void
+te_adjust_thresholds_impl(tsd_t *tsd, te_ctx_t *ctx,
     uint64_t wait) {
 	/*
 	 * The next threshold based on future events can only be adjusted after
@@ -175,14 +190,21 @@ te_adjust_thresholds_helper(tsd_t *tsd, te_ctx_t *ctx,
 	    TE_MAX_INTERVAL ? wait : TE_MAX_INTERVAL);
 	te_ctx_next_event_set(tsd, ctx, next_event);
 }
+void
+te_adjust_thresholds_helper(tsd_t *tsd, te_ctx_t *ctx,
+    uint64_t wait) {
+	te_adjust_thresholds_impl(tsd, ctx, wait);
+}
 
 static void
 te_init_waits(tsd_t *tsd, uint64_t *wait, bool is_alloc) {
 	te_base_cb_t **handlers = is_alloc ? te_alloc_handlers : te_dalloc_handlers;
-	uint64_t *waits = is_alloc ? tsd_te_datap_get_unsafe(tsd)->alloc_wait : tsd_te_datap_get_unsafe(tsd)->dalloc_wait;
+	uint64_t *waits = is_alloc ?
+	    tsd_te_datap_get_unsafe(tsd)->alloc_wait :
+	    tsd_te_datap_get_unsafe(tsd)->dalloc_wait;
 	int count = is_alloc ? te_alloc_count : te_dalloc_count;
 	for (int i = 0; i < count; i++) {
-		if (handlers[i]->enabled()) {
+		if (te_enabled_yes == handlers[i]->enabled()) {
 			uint64_t ev_wait = handlers[i]->new_event_wait(tsd);
 			assert(ev_wait > 0);
 			waits[i] = ev_wait;
@@ -229,7 +251,8 @@ te_update_alloc_events(tsd_t *tsd, te_base_cb_t **to_trigger,
 	size_t nto_trigger = 0;
 	uint64_t *waits = tsd_te_datap_get_unsafe(tsd)->alloc_wait;
 	if (opt_tcache_gc_incr_bytes > 0) {
-		assert(te_alloc_handlers[te_alloc_tcache_gc]->enabled());
+		assert(te_enabled_yes ==
+		       te_alloc_handlers[te_alloc_tcache_gc]->enabled());
 		if (te_update_wait(tsd, accumbytes, allow,
 				   &waits[te_alloc_tcache_gc], wait,
 				   te_alloc_handlers[te_alloc_tcache_gc],
@@ -240,7 +263,8 @@ te_update_alloc_events(tsd_t *tsd, te_base_cb_t **to_trigger,
 	}
 #ifdef JEMALLOC_PROF
         if (opt_prof) {
-		assert(te_alloc_handlers[te_alloc_prof_sample]->enabled());
+		assert(te_enabled_yes ==
+		       te_alloc_handlers[te_alloc_prof_sample]->enabled());
 		if(te_update_wait(tsd, accumbytes, allow,
 				  &waits[te_alloc_prof_sample], wait,
 				  te_alloc_handlers[te_alloc_prof_sample], 0)) {
@@ -255,27 +279,44 @@ te_update_alloc_events(tsd_t *tsd, te_base_cb_t **to_trigger,
 				   wait,
 				   te_alloc_handlers[te_alloc_stats_interval],
 				   stats_interval_accum_batch)) {
-			assert(te_alloc_handlers[te_alloc_stats_interval]->enabled());
+			assert(te_enabled_yes ==
+			       te_alloc_handlers[te_alloc_stats_interval]->enabled());
 			to_trigger[nto_trigger++] =
 			    te_alloc_handlers[te_alloc_stats_interval];
 		}
 	}
 
 #ifdef JEMALLOC_STATS
-	assert(te_alloc_handlers[te_alloc_peak]->enabled());
+	assert(te_enabled_yes == te_alloc_handlers[te_alloc_peak]->enabled());
  	if(te_update_wait(tsd, accumbytes, allow, &waits[te_alloc_peak], wait,
 			  te_alloc_handlers[te_alloc_peak], PEAK_EVENT_WAIT)) {
 		to_trigger[nto_trigger++] = te_alloc_handlers[te_alloc_peak];
  	}
 
-        assert(te_alloc_handlers[te_alloc_prof_threshold]->enabled());
+        assert(te_enabled_yes ==
+	       te_alloc_handlers[te_alloc_prof_threshold]->enabled());
         if(te_update_wait(tsd, accumbytes, allow,
 			  &waits[te_alloc_prof_threshold], wait,
 			  te_alloc_handlers[te_alloc_prof_threshold],
 			  1 << opt_experimental_lg_prof_threshold)) {
-		to_trigger[nto_trigger++] = te_alloc_handlers[te_alloc_prof_threshold];
+		to_trigger[nto_trigger++] =
+		    te_alloc_handlers[te_alloc_prof_threshold];
  	}
 #endif
+
+	for (te_alloc_t ue = te_alloc_user0; ue <= te_alloc_user3; ue++) {
+		te_enabled_t status =
+		    te_user_event_enabled(ue - te_alloc_user0, true);
+		if (status == te_enabled_not_installed) {
+			break;
+		} else if (status == te_enabled_yes) {
+			if (te_update_wait(tsd, accumbytes, allow, &waits[ue],
+					   wait, te_alloc_handlers[ue], 0)) {
+				to_trigger[nto_trigger++] =
+				    te_alloc_handlers[ue];
+			}
+		}
+	}
 	return nto_trigger;
 }
 
@@ -285,7 +326,8 @@ te_update_dalloc_events(tsd_t *tsd, te_base_cb_t **to_trigger, uint64_t accumbyt
 	size_t nto_trigger = 0;
 	uint64_t *waits = tsd_te_datap_get_unsafe(tsd)->dalloc_wait;
 	if (opt_tcache_gc_incr_bytes > 0) {
-		assert(te_dalloc_handlers[te_dalloc_tcache_gc]->enabled());
+		assert(te_enabled_yes ==
+		       te_dalloc_handlers[te_dalloc_tcache_gc]->enabled());
 		if (te_update_wait(tsd, accumbytes, allow,
 				   &waits[te_dalloc_tcache_gc], wait,
 				   te_dalloc_handlers[te_dalloc_tcache_gc],
@@ -295,12 +337,26 @@ te_update_dalloc_events(tsd_t *tsd, te_base_cb_t **to_trigger, uint64_t accumbyt
 		}
         }
 #ifdef JEMALLOC_STATS
-	assert(te_dalloc_handlers[te_dalloc_peak]->enabled());
+	assert(te_enabled_yes == te_dalloc_handlers[te_dalloc_peak]->enabled());
         if(te_update_wait(tsd, accumbytes, allow, &waits[te_dalloc_peak], wait,
-			  te_dalloc_handlers[te_dalloc_peak], PEAK_EVENT_WAIT)) {
+			  te_dalloc_handlers[te_dalloc_peak],
+			  PEAK_EVENT_WAIT)) {
 		to_trigger[nto_trigger++] = te_dalloc_handlers[te_dalloc_peak];
  	}
 #endif
+	for (te_dalloc_t ue = te_dalloc_user0; ue <= te_dalloc_user3; ue++) {
+		te_enabled_t status =
+		    te_user_event_enabled(ue - te_dalloc_user0, false);
+		if (status == te_enabled_not_installed) {
+			break;
+		} else if (status == te_enabled_yes) {
+			if (te_update_wait(tsd, accumbytes, allow, &waits[ue],
+					   wait, te_dalloc_handlers[ue], 0)) {
+				to_trigger[nto_trigger++] =
+				    te_dalloc_handlers[ue];
+			}
+		}
+	}
 	return nto_trigger;
 }
 
@@ -362,7 +418,7 @@ te_init(tsd_t *tsd, bool is_alloc) {
 	uint64_t wait = TE_MAX_START_WAIT;
 	te_init_waits(tsd, &wait, is_alloc);
 
-	te_adjust_thresholds_helper(tsd, &ctx, wait);
+	te_adjust_thresholds_impl(tsd, &ctx, wait);
 }
 
 void

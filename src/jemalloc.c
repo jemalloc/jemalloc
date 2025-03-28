@@ -1970,6 +1970,7 @@ malloc_init_hard_a0_locked(void) {
 		return true;
 	}
 	hook_boot();
+	experimental_thread_events_boot();
 	/*
 	 * Create enough scaffolding to allow recursive allocation in
 	 * malloc_ncpus().

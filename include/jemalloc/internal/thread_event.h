@@ -48,10 +48,12 @@ void te_assert_invariants_debug(tsd_t *tsd);
 void te_event_trigger(tsd_t *tsd, te_ctx_t *ctx);
 void te_recompute_fast_threshold(tsd_t *tsd);
 void tsd_te_init(tsd_t *tsd);
+void te_adjust_thresholds_helper(tsd_t *tsd, te_ctx_t *ctx,
+    uint64_t wait);
 
 /* List of all thread event counters. */
-#define ITERATE_OVER_ALL_COUNTERS                                       \
-        C(thread_allocated)						\
+#define ITERATE_OVER_ALL_COUNTERS					\
+	C(thread_allocated)						\
 	C(thread_allocated_last_event)					\
 	C(prof_sample_last_event)					\
 	C(stats_interval_last_event)

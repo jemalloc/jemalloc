@@ -82,14 +82,6 @@ void tcache_enabled_set(tsd_t *tsd, bool enabled);
 
 void tcache_assert_initialized(tcache_t *tcache);
 
-/* Only accessed by thread event. */
-uint64_t tcache_gc_new_event_wait(tsd_t *tsd);
-uint64_t tcache_gc_postponed_event_wait(tsd_t *tsd);
-void tcache_gc_event_handler(tsd_t *tsd, uint64_t elapsed);
-uint64_t tcache_gc_dalloc_new_event_wait(tsd_t *tsd);
-uint64_t tcache_gc_dalloc_postponed_event_wait(tsd_t *tsd);
-void tcache_gc_dalloc_event_handler(tsd_t *tsd, uint64_t elapsed);
-
 extern te_base_cb_t tcache_gc_te_handler;
 
 #endif /* JEMALLOC_INTERNAL_TCACHE_EXTERNS_H */

@@ -2142,9 +2142,9 @@ stats_interval_event_handler(tsd_t *tsd) {
 	}
 }
 
-static bool
+static te_enabled_t
 stats_interval_enabled(void) {
-	return opt_stats_interval >= 0;
+	return opt_stats_interval >= 0 ? te_enabled_yes : te_enabled_no;
 }
 
 te_base_cb_t stats_interval_te_handler = {
@@ -2153,7 +2153,6 @@ te_base_cb_t stats_interval_te_handler = {
 	.postponed_event_wait = &stats_interval_postponed_event_wait,
 	.event_handler = &stats_interval_event_handler,
 };
-
 
 bool
 stats_boot(void) {
