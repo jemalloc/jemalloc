@@ -12,6 +12,7 @@
 /* Data. */
 
 size_t opt_lg_extent_max_active_fit = LG_EXTENT_MAX_ACTIVE_FIT_DEFAULT;
+/* This option is intended for kernel tuning, not app tuning. */
 size_t opt_process_madvise_max_batch =
 #ifdef JEMALLOC_HAVE_PROCESS_MADVISE
     PROCESS_MADVISE_MAX_BATCH_DEFAULT;

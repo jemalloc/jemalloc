@@ -237,14 +237,85 @@ TEST_BEGIN(test_more_regions_purged_from_one_page) {
 	expect_zu_eq(0, ndefer_hugify_calls, "Hugified too early");
 	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
 
-	/* We purge from 2 huge pages, each one 3 segments. That's 6 non
-	 * vectorized calls, or 2 <= vc <=6 vectorized calls
-	 * (depending on batch size).
+	/* We purge from 2 huge pages, each one 3 dirty continous segments.
+	 * For opt_process_madvise_max_batch = 2, that is
+	 * 2 calls for first page, and 2 calls for second as we don't
+	 * want to hold the lock on the second page while vectorized batch
+	 * of size 2 is already filled with the first one.
 	 */
-	size_t nexpected = 2 * (1 + (3 - 1) / opt_process_madvise_max_batch);
+	expect_zu_eq(4, ndefer_vec_purge_calls, "Expect purge");
+	expect_zu_eq(0, ndefer_purge_calls, "Expect no non-vec purge");
+	ndefer_vec_purge_calls = 0;
+
+	destroy_test_data(shard);
+}
+TEST_END
+
+size_t
+hpa_purge_max_batch_size_for_test_set(size_t new_size);
+TEST_BEGIN(test_more_pages_than_batch_page_size) {
+	test_skip_if(!hpa_supported() ||
+		(opt_process_madvise_max_batch == 0) ||
+		HUGEPAGE_PAGES <= 4);
+
+	size_t old_page_batch = hpa_purge_max_batch_size_for_test_set(1);
+
+	hpa_hooks_t hooks;
+	hooks.map = &defer_test_map;
+	hooks.unmap = &defer_test_unmap;
+	hooks.purge = &defer_test_purge;
+	hooks.hugify = &defer_test_hugify;
+	hooks.dehugify = &defer_test_dehugify;
+	hooks.curtime = &defer_test_curtime;
+	hooks.ms_since = &defer_test_ms_since;
+	hooks.vectorized_purge = &defer_vectorized_purge;
+
+	hpa_shard_opts_t opts = test_hpa_shard_opts_default;
+	opts.deferral_allowed = true;
+	opts.min_purge_interval_ms = 0;
+	ndefer_vec_purge_calls = 0;
+	ndefer_purge_calls = 0;
+
+	hpa_shard_t *shard = create_test_data(&hooks, &opts);
+
+	bool deferred_work_generated = false;
+
+	nstime_init(&defer_curtime, 0);
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+
+	enum {NALLOCS = 8 * HUGEPAGE_PAGES};
+	edata_t *edatas[NALLOCS];
+	for (int i = 0; i < NALLOCS; i++) {
+		edatas[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false,
+		    false, false, &deferred_work_generated);
+		expect_ptr_not_null(edatas[i], "Unexpected null edata");
+	}
+	for (int i = 0; i < 3 * (int)HUGEPAGE_PAGES; i++) {
+		pai_dalloc(tsdn, &shard->pai, edatas[i],
+			&deferred_work_generated);
+	}
+
+	hpa_shard_do_deferred_work(tsdn, shard);
+
+	/*
+	 * Strict minimum purge interval is not set, we should purge as long as
+	 * we have dirty pages.
+	 */
+	expect_zu_eq(0, ndefer_hugify_calls, "Hugified too early");
+	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
+
+	/* We have page batch size = 1.
+	 * we have 5 * HP active pages, 3 * HP dirty pages
+	 * To achieve the balance of 25% max dirty we need to
+	 * purge 2 pages. Since batch is 1 that must be 2 calls
+	 * no matter what opt_process_madvise_max_batch is
+	 */
+	size_t nexpected = 2;
 	expect_zu_eq(nexpected, ndefer_vec_purge_calls, "Expect purge");
 	expect_zu_eq(0, ndefer_purge_calls, "Expect no non-vec purge");
 	ndefer_vec_purge_calls = 0;
+
+	hpa_purge_max_batch_size_for_test_set(old_page_batch);
 
 	destroy_test_data(shard);
 }
@@ -254,5 +325,6 @@ int
 main(void) {
 	return test_no_reentrancy(
 	    test_vectorized_failure_fallback,
-	    test_more_regions_purged_from_one_page);
+	    test_more_regions_purged_from_one_page,
+	    test_more_pages_than_batch_page_size);
 }

@@ -79,4 +79,38 @@ hpa_range_accum_finish(hpa_range_accum_t *ra, hpa_shard_t *shard) {
     }
 }
 
+/*
+ * For purging more than one page we use batch of these items
+ */
+typedef struct {
+	hpdata_purge_state_t state;
+	hpdata_t *hp;
+	bool dehugify;
+} hpa_purge_item_t;
+
+typedef struct hpa_purge_batch_s hpa_purge_batch_t;
+struct hpa_purge_batch_s {
+	hpa_purge_item_t *items;
+	size_t items_capacity;
+	/* Number of huge pages to purge in current batch */
+	size_t item_cnt;
+	/* Number of ranges to purge in current batch */
+	size_t nranges;
+	/* Total number of dirty pages in current batch*/
+	size_t ndirty_in_batch;
+
+	/* Max number of huge pages to purge */
+	size_t max_hp;
+	/*
+	 * Once we are above this watermark we should not add more pages
+	 * to the same batch. This is because while we want to minimize
+	 * number of madvise calls we also do not want to be preventing
+	 * allocations from too many huge pages (which we have to do
+	 * while they are being purged)
+	 */
+	size_t range_watermark;
+
+	size_t npurged_hp_total;
+};
+
 #endif /* JEMALLOC_INTERNAL_HPA_UTILS_H */
