@@ -19,7 +19,9 @@ static void
 test_psset_fake_purge(hpdata_t *ps) {
 	hpdata_purge_state_t purge_state;
 	hpdata_alloc_allowed_set(ps, false);
-	hpdata_purge_begin(ps, &purge_state);
+	size_t nranges;
+	hpdata_purge_begin(ps, &purge_state, &nranges);
+	(void) nranges;
 	void *addr;
 	size_t size;
 	while (hpdata_purge_next(ps, &purge_state, &addr, &size)) {

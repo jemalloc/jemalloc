@@ -164,7 +164,8 @@ hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz) {
 }
 
 size_t
-hpdata_purge_begin(hpdata_t *hpdata, hpdata_purge_state_t *purge_state) {
+hpdata_purge_begin(hpdata_t *hpdata, hpdata_purge_state_t *purge_state,
+	size_t *nranges) {
 	hpdata_assert_consistent(hpdata);
 	/*
 	 * See the comment below; we might purge any inactive extent, so it's
@@ -216,6 +217,7 @@ hpdata_purge_begin(hpdata_t *hpdata, hpdata_purge_state_t *purge_state) {
 
 	fb_init(purge_state->to_purge, HUGEPAGE_PAGES);
 	size_t next_bit = 0;
+	*nranges = 0;
 	while (next_bit < HUGEPAGE_PAGES) {
 		size_t next_dirty = fb_ffs(dirty_pages, HUGEPAGE_PAGES,
 		    next_bit);
@@ -239,6 +241,7 @@ hpdata_purge_begin(hpdata_t *hpdata, hpdata_purge_state_t *purge_state) {
 
 		fb_set_range(purge_state->to_purge, HUGEPAGE_PAGES, next_dirty,
 		    last_dirty - next_dirty + 1);
+		(*nranges)++;
 		next_bit = next_active + 1;
 	}
 
@@ -249,6 +252,8 @@ hpdata_purge_begin(hpdata_t *hpdata, hpdata_purge_state_t *purge_state) {
 	    purge_state->to_purge, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES));
 	assert(ndirty == fb_scount(dirty_pages, HUGEPAGE_PAGES, 0,
 	    HUGEPAGE_PAGES));
+	assert(*nranges <= ndirty);
+	assert(ndirty == 0 || *nranges > 0);
 
 	hpdata_assert_consistent(hpdata);
 

@@ -395,9 +395,11 @@ struct hpdata_purge_state_s {
  * until you're done, and then end.  Allocating out of an hpdata undergoing
  * purging is not allowed.
  *
- * Returns the number of dirty pages that will be purged.
+ * Returns the number of dirty pages that will be purged and sets nranges
+ * to number of ranges with dirty pages that will be purged.
  */
-size_t hpdata_purge_begin(hpdata_t *hpdata, hpdata_purge_state_t *purge_state);
+size_t hpdata_purge_begin(hpdata_t *hpdata, hpdata_purge_state_t *purge_state,
+    size_t *nranges);
 
 /*
  * If there are more extents to purge, sets *r_purge_addr and *r_purge_size to

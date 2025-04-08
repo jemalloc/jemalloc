@@ -69,8 +69,10 @@ TEST_BEGIN(test_purge_simple) {
 
 	hpdata_alloc_allowed_set(&hpdata, false);
 	hpdata_purge_state_t purge_state;
-	size_t to_purge = hpdata_purge_begin(&hpdata, &purge_state);
+	size_t nranges;
+	size_t to_purge = hpdata_purge_begin(&hpdata, &purge_state, &nranges);
 	expect_zu_eq(HUGEPAGE_PAGES / 4, to_purge, "");
+	expect_zu_eq(1, nranges, "All dirty pages in a single range");
 
 	void *purge_addr;
 	size_t purge_size;
@@ -113,8 +115,10 @@ TEST_BEGIN(test_purge_intervening_dalloc) {
 
 	hpdata_alloc_allowed_set(&hpdata, false);
 	hpdata_purge_state_t purge_state;
-	size_t to_purge = hpdata_purge_begin(&hpdata, &purge_state);
+	size_t nranges;
+	size_t to_purge = hpdata_purge_begin(&hpdata, &purge_state, &nranges);
 	expect_zu_eq(HUGEPAGE_PAGES / 2, to_purge, "");
+	expect_zu_eq(2, nranges, "First quarter and last half");
 
 	void *purge_addr;
 	size_t purge_size;
@@ -171,8 +175,10 @@ TEST_BEGIN(test_purge_over_retained) {
 	/* Purge the second quarter. */
 	hpdata_alloc_allowed_set(&hpdata, false);
 	hpdata_purge_state_t purge_state;
-	size_t to_purge_dirty = hpdata_purge_begin(&hpdata, &purge_state);
+	size_t nranges;
+	size_t to_purge_dirty = hpdata_purge_begin(&hpdata, &purge_state, &nranges);
 	expect_zu_eq(HUGEPAGE_PAGES / 4, to_purge_dirty, "");
+	expect_zu_eq(1, nranges, "Second quarter only");
 
 	bool got_result = hpdata_purge_next(&hpdata, &purge_state, &purge_addr,
 	    &purge_size);
@@ -199,8 +205,9 @@ TEST_BEGIN(test_purge_over_retained) {
 	 * re-purge it.  We expect a single purge of 3/4 of the hugepage,
 	 * purging half its pages.
 	 */
-	to_purge_dirty = hpdata_purge_begin(&hpdata, &purge_state);
+	to_purge_dirty = hpdata_purge_begin(&hpdata, &purge_state, &nranges);
 	expect_zu_eq(HUGEPAGE_PAGES / 2, to_purge_dirty, "");
+	expect_zu_eq(1, nranges, "Single range expected");
 
 	got_result = hpdata_purge_next(&hpdata, &purge_state, &purge_addr,
 	    &purge_size);

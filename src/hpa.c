@@ -465,8 +465,10 @@ hpa_try_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
 
 	/* Gather all the metadata we'll need during the purge. */
 	bool dehugify = hpdata_huge_get(to_purge);
+	size_t nranges;
 	hpdata_purge_state_t purge_state;
-	size_t num_to_purge = hpdata_purge_begin(to_purge, &purge_state);
+	size_t num_to_purge = hpdata_purge_begin(to_purge, &purge_state, &nranges);
+	(void) nranges; /*not used yet */
 
 	shard->npending_purge += num_to_purge;
 
