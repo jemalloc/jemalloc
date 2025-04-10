@@ -496,7 +496,7 @@ bool free_fastpath(void *ptr, size_t size, bool size_hint) {
         assert(tsd_fast(tsd) ||
             *tsd_thread_deallocated_next_event_fastp_get_unsafe(tsd) == 0);
 
-        emap_alloc_ctx_t alloc_ctx;
+        emap_alloc_ctx_t alloc_ctx JEMALLOC_CC_SILENCE_INIT({0, 0, false});
 	size_t usize;
         if (!size_hint) {
                 bool err = emap_alloc_ctx_try_lookup_fast(tsd,
