@@ -352,33 +352,6 @@ jobs:
     - os: linux
       arch: arm64
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=background_thread:true --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds"
-    - os: osx
-      arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
-    - os: osx
-      arch: amd64
-      env: CC=gcc CXX=g++ CROSS_COMPILE_32BIT=yes CONFIGURE_FLAGS="--enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
-    - os: osx
-      arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
-    - os: osx
-      arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-stats --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
-    - os: osx
-      arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--disable-libdl --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
-    - os: osx
-      arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-opt-safety-checks --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
-    - os: osx
-      arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-lg-page=16 --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
-    - os: osx
-      arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=tcache:false --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
-    - os: osx
-      arch: amd64
-      env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--with-malloc-conf=percpu_arena:percpu --enable-limit-usize-gap" EXTRA_CFLAGS="-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
     # Development build
     - os: linux
       env: CC=gcc CXX=g++ CONFIGURE_FLAGS="--enable-debug --disable-cache-oblivious --enable-stats --enable-log --enable-prof" EXTRA_CFLAGS="-Werror -Wno-array-bounds"

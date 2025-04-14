@@ -347,7 +347,8 @@ def main():
         # generate_linux(PPC64LE),
         generate_linux(ARM64),
 
-        generate_macos(AMD64),
+        # Starting April 1st, 2025, Travis no longer supports OSx/macOS builds
+        # generate_macos(AMD64),
 
         get_manual_jobs(),
     ))
