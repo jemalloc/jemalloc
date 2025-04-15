@@ -1,13 +1,14 @@
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
-load("//:tools/autoconf.bzl", "configure_header", "define_macro_if", "define_macro_with")
-load("//:tools/version.bzl", "parse_version")
+load("//tools:autoconf.bzl", "configure_header", "define_macro_if", "define_macro_with")
+load("//tools:version.bzl", "parse_version")
 
 version = parse_version(module_version())
 
 configure_header(
     name = "jemalloc_defs",
     out = "jemalloc_defs.h",
+    stamp = 0,
     substitutions =
         define_macro_if("JEMALLOC_HAVE_ATTR_ALLOC_SIZE", "//settings/compiler:gcc_compatible") |
         define_macro_if("JEMALLOC_HAVE_ATTR_FORMAT_ARG", "//settings/compiler:gcc_compatible") |

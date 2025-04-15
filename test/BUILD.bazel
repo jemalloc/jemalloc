@@ -1,6 +1,6 @@
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:defs.bzl", "cc_library")
-load("//:tools/cc.bzl", "COPTS")
+load("//tools:cc.bzl", "COPTS")
 
 expand_template(
     name = "jemalloc_test",

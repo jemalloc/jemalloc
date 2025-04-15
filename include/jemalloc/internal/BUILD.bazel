@@ -1,8 +1,8 @@
 load("@aspect_bazel_lib//lib:expand_template.bzl", "expand_template")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@rules_cc//cc:defs.bzl", "cc_library")
-load("//:tools/autoconf.bzl", "configure_header", "define_macro_if", "define_macro_if_any", "define_macro_if_with", "define_macro", "define_macro_with", "undefine_macro")
-load("//:tools/version.bzl", "parse_version")
+load("//tools:autoconf.bzl", "configure_header", "define_macro", "define_macro_if", "define_macro_if_any", "define_macro_if_with", "define_macro_with", "undefine_macro")
+load("//tools:version.bzl", "parse_version")
 load(":private_namespace.bzl", "private_namespace")
 load(":public_symbols.bzl", "public_symbols")
 
@@ -148,6 +148,7 @@ cc_library(
 expand_template(
     name = "jemalloc_preamble",
     out = "jemalloc_preamble.h",
+    stamp = 0,
     substitutions = {
         "@install_suffix@": "",
         "@private_namespace@": "je_",
@@ -224,6 +225,7 @@ selects.config_setting_group(
 configure_header(
     name = "jemalloc_internal_defs",
     out = "jemalloc_internal_defs.h",
+    stamp = 0,
     substitutions =
         select({
             "//settings/flags:no_jemalloc_prefix": undefine_macro("JEMALLOC_PREFIX") |
