@@ -2355,8 +2355,7 @@ CTL_RO_NL_CGEN(config_uaf_detection, opt_lg_san_uaf_align,
     opt_lg_san_uaf_align, ssize_t)
 CTL_RO_NL_GEN(opt_zero_realloc,
     zero_realloc_mode_names[opt_zero_realloc_action], const char *)
-CTL_RO_NL_CGEN(config_limit_usize_gap, opt_limit_usize_gap, opt_limit_usize_gap,
-    bool)
+CTL_RO_NL_GEN(opt_limit_usize_gap, opt_limit_usize_gap, bool)
 
 /* malloc_conf options */
 CTL_RO_NL_CGEN(opt_malloc_conf_symlink, opt_malloc_conf_symlink,

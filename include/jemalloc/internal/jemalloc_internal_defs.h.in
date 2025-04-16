@@ -480,12 +480,6 @@
 /* If defined, use __int128 for optimization. */
 #undef JEMALLOC_HAVE_INT128
 
-/*
- * If defined, the gap between any two contiguous usizes should not exceed
- * PAGE.
- */
-#undef LIMIT_USIZE_GAP
-
 #include "jemalloc/internal/jemalloc_internal_overrides.h"
 
 #endif /* JEMALLOC_INTERNAL_DEFS_H_ */

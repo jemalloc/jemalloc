@@ -236,25 +236,16 @@ emap_alloc_ctx_init(emap_alloc_ctx_t *alloc_ctx, szind_t szind, bool slab,
     size_t usize) {
 	alloc_ctx->szind = szind;
 	alloc_ctx->slab = slab;
-	/*
-	 * When config_limit_usize_gap disabled, alloc_ctx->usize
-	 * should not be accessed.
-	 */
-	if (config_limit_usize_gap) {
-		alloc_ctx->usize = usize;
-		assert(sz_limit_usize_gap_enabled() ||
-		    usize == sz_index2size(szind));
-	} else if (config_debug) {
-		alloc_ctx->usize = SC_LARGE_MAXCLASS + 1;
-	}
+	alloc_ctx->usize = usize;
+	assert(sz_limit_usize_gap_enabled() ||
+	    usize == sz_index2size(szind));
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
 emap_alloc_ctx_usize_get(emap_alloc_ctx_t *alloc_ctx) {
 	assert(alloc_ctx->szind < SC_NSIZES);
-	if (!config_limit_usize_gap || alloc_ctx->slab) {
-		assert(!config_limit_usize_gap ||
-		    alloc_ctx->usize == sz_index2size(alloc_ctx->szind));
+	if (alloc_ctx->slab) {
+		assert(alloc_ctx->usize == sz_index2size(alloc_ctx->szind));
 		return sz_index2size(alloc_ctx->szind);
 	}
 	assert(sz_limit_usize_gap_enabled() ||
@@ -269,28 +260,15 @@ emap_alloc_ctx_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr,
     emap_alloc_ctx_t *alloc_ctx) {
 	EMAP_DECLARE_RTREE_CTX;
 
-	if (config_limit_usize_gap) {
-		rtree_contents_t contents = rtree_read(tsdn, &emap->rtree,
-		    rtree_ctx, (uintptr_t)ptr);
-		/*
-		 * If the alloc is invalid, do not calculate usize since edata
-		 * could be corrupted.
-		 */
-		if (contents.metadata.szind == SC_NSIZES ||
-		    contents.edata == NULL) {
-			emap_alloc_ctx_init(alloc_ctx, contents.metadata.szind,
-			    contents.metadata.slab, 0);
-			return;
-		}
-		emap_alloc_ctx_init(alloc_ctx, contents.metadata.szind,
-		    contents.metadata.slab, edata_usize_get(contents.edata));
-	} else {
-		rtree_metadata_t metadata = rtree_metadata_read(tsdn,
-		    &emap->rtree, rtree_ctx, (uintptr_t)ptr);
-		/* alloc_ctx->usize will not be read/write in this case. */
-		emap_alloc_ctx_init(alloc_ctx, metadata.szind, metadata.slab,
-		    SC_LARGE_MAXCLASS + 1);
-	}
+	rtree_contents_t contents = rtree_read(tsdn, &emap->rtree,
+	    rtree_ctx, (uintptr_t)ptr);
+	/*
+	 * If the alloc is invalid, do not calculate usize since edata
+	 * could be corrupted.
+	 */
+	emap_alloc_ctx_init(alloc_ctx, contents.metadata.szind,
+	    contents.metadata.slab, (contents.metadata.szind == SC_NSIZES
+	    || contents.edata == NULL)? 0: edata_usize_get(contents.edata));
 }
 
 /* The pointer must be mapped. */

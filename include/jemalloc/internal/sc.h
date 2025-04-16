@@ -287,7 +287,7 @@
 #endif
 
 /*
- * When config_limit_usize_gap is enabled, the gaps between two contiguous
+ * When limit_usize_gap is enabled, the gaps between two contiguous
  * size classes should not exceed PAGE.  This means there should be no concept
  * of size classes for sizes > SC_SMALL_MAXCLASS (or >= SC_LARGE_MINCLASS).
  * However, between SC_LARGE_MINCLASS (SC_NGROUP * PAGE) and

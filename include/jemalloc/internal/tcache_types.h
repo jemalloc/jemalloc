@@ -19,11 +19,7 @@ typedef struct tcaches_s tcaches_t;
 /* NOLINTNEXTLINE(performance-no-int-to-ptr) */
 #define TCACHES_ELM_NEED_REINIT ((tcache_t *)(uintptr_t)1)
 
-#ifdef LIMIT_USIZE_GAP
-    #define TCACHE_LG_MAXCLASS_LIMIT LG_USIZE_GROW_SLOW_THRESHOLD
-#else
-    #define TCACHE_LG_MAXCLASS_LIMIT 23 /* tcache_max = 8M */
-#endif
+#define TCACHE_LG_MAXCLASS_LIMIT LG_USIZE_GROW_SLOW_THRESHOLD
 #define TCACHE_MAXCLASS_LIMIT ((size_t)1 << TCACHE_LG_MAXCLASS_LIMIT)
 #define TCACHE_NBINS_MAX (SC_NBINS + SC_NGROUP *			\
     (TCACHE_LG_MAXCLASS_LIMIT - SC_LG_LARGE_MINCLASS) + 1)

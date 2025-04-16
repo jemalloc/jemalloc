@@ -503,8 +503,7 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 		assert(alloc_ctx.slab == edata_slab_get(edata));
 		emap_alloc_ctx_init(&alloc_ctx, alloc_ctx.szind, alloc_ctx.slab,
 		    sz_s2u(size));
-		assert(!config_limit_usize_gap ||
-		    emap_alloc_ctx_usize_get(&alloc_ctx) ==
+		assert(emap_alloc_ctx_usize_get(&alloc_ctx) ==
 		    edata_usize_get(edata));
 	}
 

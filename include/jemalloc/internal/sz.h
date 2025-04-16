@@ -56,11 +56,7 @@ extern void sz_boot(const sc_data_t *sc_data, bool cache_oblivious);
 
 JEMALLOC_ALWAYS_INLINE bool
 sz_limit_usize_gap_enabled() {
-#ifdef LIMIT_USIZE_GAP
 	return opt_limit_usize_gap;
-#else
-	return false;
-#endif
 }
 
 JEMALLOC_ALWAYS_INLINE pszind_t
@@ -356,7 +352,7 @@ sz_s2u_compute(size_t size) {
 
 JEMALLOC_ALWAYS_INLINE size_t
 sz_s2u_lookup(size_t size) {
-	assert(!config_limit_usize_gap || size < SC_LARGE_MINCLASS);
+	assert(size < SC_LARGE_MINCLASS);
 	size_t ret = sz_index2size_lookup(sz_size2index_lookup(size));
 
 	assert(ret == sz_s2u_compute(size));

@@ -283,12 +283,4 @@ static const bool have_memcntl =
 #endif
     ;
 
-static const bool config_limit_usize_gap =
-#ifdef LIMIT_USIZE_GAP
-    true
-#else
-    false
-#endif
-    ;
-
 #endif /* JEMALLOC_PREAMBLE_H */
