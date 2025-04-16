@@ -55,8 +55,8 @@ extern size_t sz_large_pad;
 extern void sz_boot(const sc_data_t *sc_data, bool cache_oblivious);
 
 JEMALLOC_ALWAYS_INLINE bool
-sz_limit_usize_gap_enabled() {
-	return opt_limit_usize_gap;
+sz_large_size_classes_disabled() {
+	return opt_disable_large_size_classes;
 }
 
 JEMALLOC_ALWAYS_INLINE pszind_t
@@ -269,11 +269,11 @@ sz_index2size_unsafe(szind_t index) {
 
 JEMALLOC_ALWAYS_INLINE size_t
 sz_index2size(szind_t index) {
-	assert(!sz_limit_usize_gap_enabled() ||
+	assert(!sz_large_size_classes_disabled() ||
 	    index <= sz_size2index(USIZE_GROW_SLOW_THRESHOLD));
 	size_t size = sz_index2size_unsafe(index);
 	/*
-	 * With limit_usize_gap enabled, the usize above
+	 * With large size classes disabled, the usize above
 	 * SC_LARGE_MINCLASS should grow by PAGE.  However, for sizes
 	 * in [SC_LARGE_MINCLASS, USIZE_GROW_SLOW_THRESHOLD], the
 	 * usize would not change because the size class gap in this
@@ -285,7 +285,7 @@ sz_index2size(szind_t index) {
 	 * the size is no larger than USIZE_GROW_SLOW_THRESHOLD here
 	 * instead of SC_LARGE_MINCLASS.
 	 */
-	assert(!sz_limit_usize_gap_enabled() ||
+	assert(!sz_large_size_classes_disabled() ||
 	    size <= USIZE_GROW_SLOW_THRESHOLD);
 	return size;
 }
@@ -335,11 +335,11 @@ sz_s2u_compute(size_t size) {
 		    (ZU(1) << lg_ceil));
 	}
 #endif
-	if (size <= SC_SMALL_MAXCLASS || !sz_limit_usize_gap_enabled()) {
+	if (size <= SC_SMALL_MAXCLASS || !sz_large_size_classes_disabled()) {
 		return sz_s2u_compute_using_delta(size);
 	} else {
 		/*
-		 * With sz_limit_usize_gap_enabled() == true, usize of a large
+		 * With sz_large_size_classes_disabled() == true, usize of a large
 		 * allocation is calculated by ceiling size to the smallest
 		 * multiple of PAGE to minimize the memory overhead, especially
 		 * when using hugepages.

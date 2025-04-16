@@ -514,7 +514,7 @@ void prof_unbias_map_init(void) {
 #ifdef JEMALLOC_PROF
 	for (szind_t i = 0; i < SC_NSIZES; i++) {
 		/*
-		 * When limit_usize_gap is enabled, the unbiased calculation
+		 * With large size classes disabled, the unbiased calculation
 		 * here is not as accurate as it was because usize now changes
 		 * in a finer grain while the unbiased_sz is still calculated
 		 * using the old way.

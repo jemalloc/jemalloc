@@ -123,7 +123,12 @@ zero_realloc_action_t opt_zero_realloc_action =
 
 atomic_zu_t zero_realloc_count = ATOMIC_INIT(0);
 
-bool opt_limit_usize_gap = true;
+/*
+ * Disable large size classes is now the default behavior in jemalloc.
+ * Although it is configurable in MALLOC_CONF, this is mainly for debugging
+ * purposes and should not be tuned.
+ */
+bool opt_disable_large_size_classes = true;
 
 const char *const zero_realloc_mode_names[] = {
 	"alloc",
@@ -1780,8 +1785,14 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			    "san_guard_large", 0, SIZE_T_MAX,
 			    CONF_DONT_CHECK_MIN, CONF_DONT_CHECK_MAX, false)
 
-			CONF_HANDLE_BOOL(opt_limit_usize_gap,
-			    "limit_usize_gap");
+			/*
+			 * Disable large size classes is now the default
+			 * behavior in jemalloc.  Although it is configurable
+			 * in MALLOC_CONF, this is mainly for debugging
+			 * purposes and should not be tuned.
+			 */
+			CONF_HANDLE_BOOL(opt_disable_large_size_classes,
+			    "disable_large_size_classes");
 
 			CONF_ERROR("Invalid conf pair", k, klen, v, vlen);
 #undef CONF_ERROR
@@ -2406,7 +2417,7 @@ aligned_usize_get(size_t size, size_t alignment, size_t *usize, szind_t *ind,
 			if (unlikely(*ind >= SC_NSIZES)) {
 				return true;
 			}
-			*usize = sz_limit_usize_gap_enabled()? sz_s2u(size):
+			*usize = sz_large_size_classes_disabled()? sz_s2u(size):
 			    sz_index2size(*ind);
 			assert(*usize > 0 && *usize <= SC_LARGE_MAXCLASS);
 			return false;

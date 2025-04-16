@@ -26,7 +26,7 @@ TEST_BEGIN(test_size_classes) {
 	size_t size_class, max_size_class;
 	szind_t index, gen_index, max_index;
 
-	max_size_class = sz_limit_usize_gap_enabled()? SC_SMALL_MAXCLASS:
+	max_size_class = sz_large_size_classes_disabled()? SC_SMALL_MAXCLASS:
 	    get_max_size_class();
 	max_index = sz_size2index(max_size_class);
 
@@ -81,7 +81,7 @@ TEST_BEGIN(test_size_classes) {
 TEST_END
 
 TEST_BEGIN(test_grow_slow_size_classes) {
-	test_skip_if(!sz_limit_usize_gap_enabled());
+	test_skip_if(!sz_large_size_classes_disabled());
 
 	size_t size = SC_LARGE_MINCLASS;
 	size_t target_usize = SC_LARGE_MINCLASS;

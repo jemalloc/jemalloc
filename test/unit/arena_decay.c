@@ -411,11 +411,11 @@ TEST_BEGIN(test_decay_never) {
 	size_t pdirty_prev = get_arena_pdirty(arena_ind);
 	size_t pmuzzy_prev = get_arena_pmuzzy(arena_ind);
 	/*
-	 * With limit_usize_gap enabled, some more extents
+	 * With sz_large_size_classes_disabled() = true, some more extents
 	 * are cached in the dirty pool, making the assumption below
 	 * not true.
 	 */
-	if (!sz_limit_usize_gap_enabled()) {
+	if (!sz_large_size_classes_disabled()) {
 		expect_zu_eq(pdirty_prev, 0, "Unexpected dirty pages");
 	}
 	expect_zu_eq(pmuzzy_prev, 0, "Unexpected muzzy pages");

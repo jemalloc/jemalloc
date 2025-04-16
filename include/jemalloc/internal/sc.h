@@ -287,11 +287,11 @@
 #endif
 
 /*
- * When limit_usize_gap is enabled, the gaps between two contiguous
- * size classes should not exceed PAGE.  This means there should be no concept
- * of size classes for sizes > SC_SMALL_MAXCLASS (or >= SC_LARGE_MINCLASS).
- * However, between SC_LARGE_MINCLASS (SC_NGROUP * PAGE) and
- * 2 * SC_NGROUP * PAGE, the size class also happens to be aligned with PAGE.
+ * When large size classes are disabled, there is no concept of size classes
+ * for sizes > SC_SMALLMAXCLASS (or >= SC_LARGE_MINCLASS).  This ensures that
+ * the overhead between the usable size and the user request size will not
+ * exceed PAGE.  Between SC_LARGE_MINCLASS (SC_NGROUP * PAGE) and
+ * 2 * SC_NGROUP * PAGE, the size classes also happen to be aligned with PAGE.
  * Since tcache relies on size classes to work and it greatly increases the
  * perf of allocs & deallocs, we extend the existence of size class to
  * 2 * SC_NGROUP * PAGE ONLY for the tcache module.  This means for all other

@@ -237,7 +237,7 @@ emap_alloc_ctx_init(emap_alloc_ctx_t *alloc_ctx, szind_t szind, bool slab,
 	alloc_ctx->szind = szind;
 	alloc_ctx->slab = slab;
 	alloc_ctx->usize = usize;
-	assert(sz_limit_usize_gap_enabled() ||
+	assert(sz_large_size_classes_disabled() ||
 	    usize == sz_index2size(szind));
 }
 
@@ -248,7 +248,7 @@ emap_alloc_ctx_usize_get(emap_alloc_ctx_t *alloc_ctx) {
 		assert(alloc_ctx->usize == sz_index2size(alloc_ctx->szind));
 		return sz_index2size(alloc_ctx->szind);
 	}
-	assert(sz_limit_usize_gap_enabled() ||
+	assert(sz_large_size_classes_disabled() ||
 	    alloc_ctx->usize == sz_index2size(alloc_ctx->szind));
 	assert(alloc_ctx->usize <= SC_LARGE_MAXCLASS);
 	return alloc_ctx->usize;

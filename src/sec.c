@@ -29,7 +29,7 @@ sec_init(tsdn_t *tsdn, sec_t *sec, base_t *base, pai_t *fallback,
 	 * USIZE_GROW_SLOW_THRESHOLD because the usize above this increases
 	 * by PAGE and the number of usizes is too large.
 	 */
-	assert(!sz_limit_usize_gap_enabled() ||
+	assert(!sz_large_size_classes_disabled() ||
 	    opts->max_alloc <= USIZE_GROW_SLOW_THRESHOLD);
 
 	size_t max_alloc = PAGE_FLOOR(opts->max_alloc);

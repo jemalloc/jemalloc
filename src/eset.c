@@ -232,7 +232,7 @@ eset_fit_alignment(eset_t *eset, size_t min_size, size_t max_size,
 
 	/* See comments in eset_first_fit for why we enumerate search below. */
 	pszind_t pind_prev = sz_psz2ind(sz_psz_quantize_floor(min_size));
-	if (sz_limit_usize_gap_enabled() && pind != pind_prev) {
+	if (sz_large_size_classes_disabled() && pind != pind_prev) {
 		edata_t *ret = NULL;
 		ret = eset_enumerate_alignment_search(eset, min_size, pind_prev,
 		    alignment);
@@ -287,7 +287,7 @@ eset_first_fit(eset_t *eset, size_t size, bool exact_only,
 	pszind_t pind = sz_psz2ind(sz_psz_quantize_ceil(size));
 
 	if (exact_only) {
-		if (sz_limit_usize_gap_enabled()) {
+		if (sz_large_size_classes_disabled()) {
 			pszind_t pind_prev =
 			    sz_psz2ind(sz_psz_quantize_floor(size));
 			return eset_enumerate_search(eset, size, pind_prev,
@@ -300,28 +300,28 @@ eset_first_fit(eset_t *eset, size_t size, bool exact_only,
 
 	/*
 	 * Each element in the eset->bins is a heap corresponding to a size
-	 * class.  When sz_limit_usize_gap_enabled() is false, all heaps after
+	 * class.  When sz_large_size_classes_disabled() is false, all heaps after
 	 * pind (including pind itself) will surely satisfy the rquests while
 	 * heaps before pind cannot satisfy the request because usize is
 	 * calculated based on size classes then.  However, when
-	 * sz_limit_usize_gap_enabled() is true, usize is calculated by ceiling
-	 * user requested size to the closest multiple of PAGE.  This means in
-	 * the heap before pind, i.e., pind_prev, there may exist extents able
-	 * to satisfy the request and we should enumerate the heap when
-	 * pind_prev != pind.
+	 * sz_large_size_classes_disabled() is true, usize is calculated by
+	 * ceiling user requested size to the closest multiple of PAGE.  This
+	 * means in the heap before pind, i.e., pind_prev, there may exist
+	 * extents able to satisfy the request and we should enumerate the heap
+	 * when pind_prev != pind.
 	 *
 	 * For example, when PAGE=4KB and the user requested size is 1MB + 4KB,
-	 * usize would be 1.25MB when sz_limit_usize_gap_enabled() is false.
+	 * usize would be 1.25MB when sz_large_size_classes_disabled() is false.
 	 * pind points to the heap containing extents ranging in
 	 * [1.25MB, 1.5MB).  Thus, searching starting from pind will not miss
-	 * any candidates.  When sz_limit_usize_gap_enabled() is true, the
+	 * any candidates.  When sz_large_size_classes_disabled() is true, the
 	 * usize would be 1MB + 4KB and pind still points to the same heap.
 	 * In this case, the heap pind_prev points to, which contains extents
 	 * in the range [1MB, 1.25MB), may contain candidates satisfying the
 	 * usize and thus should be enumerated.
 	 */
 	pszind_t pind_prev = sz_psz2ind(sz_psz_quantize_floor(size));
-	if (sz_limit_usize_gap_enabled() && pind != pind_prev){
+	if (sz_large_size_classes_disabled() && pind != pind_prev){
 		ret = eset_enumerate_search(eset, size, pind_prev,
 		    /* exact_only */ false, &ret_summ);
 	}

@@ -368,7 +368,7 @@ psset_pick_alloc(psset_t *psset, size_t size) {
 
 	/* See comments in eset_first_fit for why we enumerate search below. */
 	pszind_t pind_prev = sz_psz2ind(sz_psz_quantize_floor(size));
-	if (sz_limit_usize_gap_enabled() && pind_prev < min_pind) {
+	if (sz_large_size_classes_disabled() && pind_prev < min_pind) {
 		ps = psset_enumerate_search(psset, pind_prev, size);
 		if (ps != NULL) {
 			return ps;

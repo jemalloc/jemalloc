@@ -143,25 +143,26 @@ pac_alloc_real(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 	}
 
 	/*
-	 * We batched allocate a larger extent when limit_usize_gap is enabled
+	 * We batched allocate a larger extent with large size classes disabled
 	 * because the reuse of extents in the dirty pool is worse without size
-	 * classes for large allocs.  For instance, when limit_usize_gap is not
-	 * enabled, 1.1MB, 1.15MB, and 1.2MB allocs will all be ceiled to
-	 * 1.25MB and can reuse the same buffer if they are alloc & dalloc
-	 * sequentially.  However, with limit_usize_gap enabled, they cannot
-	 * reuse the same buffer and their sequential allocs & dallocs will
-	 * result in three different extents.  Thus, we cache extra mergeable
-	 * extents in the dirty pool to improve the reuse.  We skip this
-	 * optimization if both maps_coalesce and opt_retain are disabled
-	 * because VM is not cheap enough to be used aggressively and extents
-	 * cannot be merged at will (only extents from the same VirtualAlloc
-	 * can be merged).  Note that it could still be risky to cache more
-	 * extents when either mpas_coalesce or opt_retain is enabled.  Yet
-	 * doing so is still beneficial in improving the reuse of extents
-	 * with some limits.  This choice should be reevaluated if
+	 * classes for large allocs.  For instance, when
+	 * disable_large_size_classes is false, 1.1MB, 1.15MB, and 1.2MB allocs
+	 * will all be ceiled to 1.25MB and can reuse the same buffer if they
+	 * are alloc & dalloc sequentially.  However, with
+	 * disable_large_size_classes being true, they cannot reuse the same
+	 * buffer and their sequential allocs & dallocs will result in three
+	 * different extents.  Thus, we cache extra mergeable extents in the
+	 * dirty pool to improve the reuse.  We skip this optimization if both
+	 * maps_coalesce and opt_retain are disabled because VM is not cheap
+	 * enough in such cases to be used aggressively and extents cannot be
+	 * merged at will (only extents from the same VirtualAlloc can be
+	 * merged).  Note that it could still be risky to cache more extents
+	 * when either mpas_coalesce or opt_retain is enabled.  Yet doing
+	 * so is still beneficial in improving the reuse of extents with some
+	 * limits.  This choice should be reevaluated if
 	 * pac_alloc_retained_batched_size is changed to be more aggressive.
 	 */
-	if (sz_limit_usize_gap_enabled() && edata == NULL &&
+	if (sz_large_size_classes_disabled() && edata == NULL &&
 	    (maps_coalesce || opt_retain)) {
 		size_t batched_size = pac_alloc_retained_batched_size(size);
 		/*

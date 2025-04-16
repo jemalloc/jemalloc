@@ -291,12 +291,12 @@ static inline size_t
 edata_usize_get(const edata_t *edata) {
 	assert(edata != NULL);
 	/*
-	 * When sz_limit_usize_gap_enabled() is true, two cases:
+	 * When sz_large_size_classes_disabled() is true, two cases:
 	 * 1. if usize_from_ind is not smaller than SC_LARGE_MINCLASS,
 	 * usize_from_size is accurate;
 	 * 2. otherwise, usize_from_ind is accurate.
 	 *
-	 * When sz_limit_usize_gap_enabled() is not true, the two should be the
+	 * When sz_large_size_classes_disabled() is not true, the two should be the
 	 * same when usize_from_ind is not smaller than SC_LARGE_MINCLASS.
 	 *
 	 * Note sampled small allocs will be promoted.  Their extent size is
@@ -316,9 +316,9 @@ edata_usize_get(const edata_t *edata) {
 	}
 #endif
 
-	if (!sz_limit_usize_gap_enabled() || szind < SC_NBINS) {
+	if (!sz_large_size_classes_disabled() || szind < SC_NBINS) {
 		size_t usize_from_ind = sz_index2size(szind);
-		if (!sz_limit_usize_gap_enabled() &&
+		if (!sz_large_size_classes_disabled() &&
 		    usize_from_ind >= SC_LARGE_MINCLASS) {
 			size_t size = (edata->e_size_esn & EDATA_SIZE_MASK);
 			assert(size > sz_large_pad);
@@ -332,8 +332,8 @@ edata_usize_get(const edata_t *edata) {
 	assert(size > sz_large_pad);
 	size_t usize_from_size = size - sz_large_pad;
 	/*
-	 * no matter limit-usize-gap enabled or not, usize retrieved from size
-	 * is not accurate when smaller than SC_LARGE_MINCLASS.
+	 * no matter large size classes disabled or not, usize retrieved from
+	 * size is not accurate when smaller than SC_LARGE_MINCLASS.
 	 */
 	assert(usize_from_size >= SC_LARGE_MINCLASS);
 	return usize_from_size;
