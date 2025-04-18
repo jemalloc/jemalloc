@@ -3,12 +3,7 @@
 
 const char *malloc_conf = TEST_SAN_UAF_ALIGN_DISABLE;
 
-enum {
-	alloc_option_start = 0,
-	use_malloc = 0,
-	use_mallocx,
-	alloc_option_end
-};
+enum { alloc_option_start = 0, use_malloc = 0, use_mallocx, alloc_option_end };
 
 enum {
 	dalloc_option_start = 0,
@@ -59,14 +54,15 @@ dalloc_func(void *ptr, size_t sz, unsigned dalloc_option) {
 static size_t
 tcache_bytes_read_global(void) {
 	uint64_t epoch;
-	assert_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch,
-	    sizeof(epoch)), 0, "Unexpected mallctl() failure");
+	assert_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sizeof(epoch)),
+	    0, "Unexpected mallctl() failure");
 
 	size_t tcache_bytes;
 	size_t sz = sizeof(tcache_bytes);
-	assert_d_eq(mallctl(
-	    "stats.arenas." STRINGIFY(MALLCTL_ARENAS_ALL) ".tcache_bytes",
-	    &tcache_bytes, &sz, NULL, 0), 0, "Unexpected mallctl failure");
+	assert_d_eq(mallctl("stats.arenas." STRINGIFY(
+	                        MALLCTL_ARENAS_ALL) ".tcache_bytes",
+	                &tcache_bytes, &sz, NULL, 0),
+	    0, "Unexpected mallctl failure");
 
 	return tcache_bytes;
 }
@@ -88,8 +84,8 @@ tcache_bytes_read_local(void) {
 }
 static void
 tcache_bytes_check_update(size_t *prev, ssize_t diff) {
-	size_t tcache_bytes = global_test ? tcache_bytes_read_global():
-	    tcache_bytes_read_local();
+	size_t tcache_bytes = global_test ? tcache_bytes_read_global()
+	                                  : tcache_bytes_read_local();
 	expect_zu_eq(tcache_bytes, *prev + diff, "tcache bytes not expected");
 	*prev += diff;
 }
@@ -108,8 +104,8 @@ test_tcache_bytes_alloc(size_t alloc_size, size_t tcache_max,
 	void *ptr1 = alloc_func(alloc_size, alloc_option);
 	void *ptr2 = alloc_func(alloc_size, alloc_option);
 
-	size_t bytes = global_test ? tcache_bytes_read_global() :
-	    tcache_bytes_read_local();
+	size_t bytes = global_test ? tcache_bytes_read_global()
+	                           : tcache_bytes_read_local();
 	dalloc_func(ptr2, alloc_size, dalloc_option);
 	/* Expect tcache_bytes increase after dalloc */
 	tcache_bytes_check_update(&bytes, diff);
@@ -139,48 +135,48 @@ test_tcache_bytes_alloc(size_t alloc_size, size_t tcache_max,
 }
 
 static void
-test_tcache_max_impl(size_t target_tcache_max, unsigned alloc_option,
-    unsigned dalloc_option) {
+test_tcache_max_impl(
+    size_t target_tcache_max, unsigned alloc_option, unsigned dalloc_option) {
 	size_t tcache_max, sz;
 	sz = sizeof(tcache_max);
 	if (global_test) {
 		assert_d_eq(mallctl("arenas.tcache_max", (void *)&tcache_max,
-		    &sz, NULL, 0), 0, "Unexpected mallctl() failure");
+		                &sz, NULL, 0),
+		    0, "Unexpected mallctl() failure");
 		expect_zu_eq(tcache_max, target_tcache_max,
 		    "Global tcache_max not expected");
 	} else {
-		assert_d_eq(mallctl("thread.tcache.max",
-		    (void *)&tcache_max, &sz, NULL,.0), 0,
-		    "Unexpected.mallctl().failure");
+		assert_d_eq(mallctl("thread.tcache.max", (void *)&tcache_max,
+		                &sz, NULL, .0),
+		    0, "Unexpected.mallctl().failure");
 		expect_zu_eq(tcache_max, target_tcache_max,
 		    "Current thread's tcache_max not expected");
 	}
 	test_tcache_bytes_alloc(1, tcache_max, alloc_option, dalloc_option);
-	test_tcache_bytes_alloc(tcache_max - 1, tcache_max, alloc_option,
-	    dalloc_option);
-	test_tcache_bytes_alloc(tcache_max, tcache_max, alloc_option,
-	    dalloc_option);
-	test_tcache_bytes_alloc(tcache_max + 1, tcache_max, alloc_option,
-	    dalloc_option);
+	test_tcache_bytes_alloc(
+	    tcache_max - 1, tcache_max, alloc_option, dalloc_option);
+	test_tcache_bytes_alloc(
+	    tcache_max, tcache_max, alloc_option, dalloc_option);
+	test_tcache_bytes_alloc(
+	    tcache_max + 1, tcache_max, alloc_option, dalloc_option);
 
-	test_tcache_bytes_alloc(PAGE - 1, tcache_max, alloc_option,
-	    dalloc_option);
-	test_tcache_bytes_alloc(PAGE, tcache_max, alloc_option,
-	    dalloc_option);
-	test_tcache_bytes_alloc(PAGE + 1, tcache_max, alloc_option,
-	    dalloc_option);
+	test_tcache_bytes_alloc(
+	    PAGE - 1, tcache_max, alloc_option, dalloc_option);
+	test_tcache_bytes_alloc(PAGE, tcache_max, alloc_option, dalloc_option);
+	test_tcache_bytes_alloc(
+	    PAGE + 1, tcache_max, alloc_option, dalloc_option);
 
 	size_t large;
 	sz = sizeof(large);
-	assert_d_eq(mallctl("arenas.lextent.0.size", (void *)&large, &sz, NULL,
-	    0), 0, "Unexpected mallctl() failure");
+	assert_d_eq(
+	    mallctl("arenas.lextent.0.size", (void *)&large, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
 
-	test_tcache_bytes_alloc(large - 1, tcache_max, alloc_option,
-	    dalloc_option);
-	test_tcache_bytes_alloc(large, tcache_max, alloc_option,
-	    dalloc_option);
-	test_tcache_bytes_alloc(large + 1, tcache_max, alloc_option,
-	    dalloc_option);
+	test_tcache_bytes_alloc(
+	    large - 1, tcache_max, alloc_option, dalloc_option);
+	test_tcache_bytes_alloc(large, tcache_max, alloc_option, dalloc_option);
+	test_tcache_bytes_alloc(
+	    large + 1, tcache_max, alloc_option, dalloc_option);
 }
 
 TEST_BEGIN(test_tcache_max) {
@@ -193,19 +189,17 @@ TEST_BEGIN(test_tcache_max) {
 	size_t sz = sizeof(arena_ind);
 	expect_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz, NULL, 0),
 	    0, "Unexpected mallctl() failure");
-	expect_d_eq(mallctl("thread.arena", NULL, NULL, &arena_ind,
-	    sizeof(arena_ind)), 0, "Unexpected mallctl() failure");
+	expect_d_eq(
+	    mallctl("thread.arena", NULL, NULL, &arena_ind, sizeof(arena_ind)),
+	    0, "Unexpected mallctl() failure");
 
 	global_test = true;
-	for (alloc_option = alloc_option_start;
-	     alloc_option < alloc_option_end;
+	for (alloc_option = alloc_option_start; alloc_option < alloc_option_end;
 	     alloc_option++) {
 		for (dalloc_option = dalloc_option_start;
-		     dalloc_option < dalloc_option_end;
-		     dalloc_option++) {
+		     dalloc_option < dalloc_option_end; dalloc_option++) {
 			/* opt.tcache_max set to 1024 in tcache_max.sh. */
-			test_tcache_max_impl(1024, alloc_option,
-			    dalloc_option);
+			test_tcache_max_impl(1024, alloc_option, dalloc_option);
 		}
 	}
 	global_test = false;
@@ -229,8 +223,9 @@ validate_tcache_stack(tcache_t *tcache) {
 	bool found = false;
 	do {
 		base_block_t *block = next;
-		if ((byte_t *)tcache_stack >= (byte_t *)block &&
-		    (byte_t *)tcache_stack < ((byte_t *)block + block->size)) {
+		if ((byte_t *)tcache_stack >= (byte_t *)block
+		    && (byte_t *)tcache_stack
+		        < ((byte_t *)block + block->size)) {
 			found = true;
 			break;
 		}
@@ -271,42 +266,42 @@ tcache_check(void *arg) {
 	bool e0 = false, e1;
 	size_t bool_sz = sizeof(bool);
 	expect_d_eq(mallctl("thread.tcache.enabled", (void *)&e1, &bool_sz,
-	    (void *)&e0, bool_sz), 0, "Unexpected mallctl() error");
+	                (void *)&e0, bool_sz),
+	    0, "Unexpected mallctl() error");
 	expect_true(e1, "Unexpected previous tcache state");
 
 	size_t temp_tcache_max = TCACHE_MAXCLASS_LIMIT - 1;
-	assert_d_eq(mallctl("thread.tcache.max",
-	    NULL, NULL, (void *)&temp_tcache_max, sz),.0,
-	    "Unexpected.mallctl().failure");
+	assert_d_eq(mallctl("thread.tcache.max", NULL, NULL,
+	                (void *)&temp_tcache_max, sz),
+	    .0, "Unexpected.mallctl().failure");
 	old_tcache_max = tcache_max_get(tcache_slow);
 	expect_zu_eq(old_tcache_max, TCACHE_MAXCLASS_LIMIT,
 	    "Unexpected value for tcache_max");
 	tcache_nbins = tcache_nbins_get(tcache_slow);
 	expect_zu_eq(tcache_nbins, TCACHE_NBINS_MAX,
 	    "Unexpected value for tcache_nbins");
-	assert_d_eq(mallctl("thread.tcache.max",
-	    (void *)&old_tcache_max, &sz,
-	    (void *)&min_tcache_max, sz),.0,
-	    "Unexpected.mallctl().failure");
+	assert_d_eq(mallctl("thread.tcache.max", (void *)&old_tcache_max, &sz,
+	                (void *)&min_tcache_max, sz),
+	    .0, "Unexpected.mallctl().failure");
 	expect_zu_eq(old_tcache_max, TCACHE_MAXCLASS_LIMIT,
 	    "Unexpected value for tcache_max");
 
 	/* Enable tcache, the set should still be valid. */
 	e0 = true;
 	expect_d_eq(mallctl("thread.tcache.enabled", (void *)&e1, &bool_sz,
-	    (void *)&e0, bool_sz), 0, "Unexpected mallctl() error");
+	                (void *)&e0, bool_sz),
+	    0, "Unexpected mallctl() error");
 	expect_false(e1, "Unexpected previous tcache state");
 	min_tcache_max = sz_s2u(min_tcache_max);
 	expect_zu_eq(tcache_max_get(tcache_slow), min_tcache_max,
 	    "Unexpected value for tcache_max");
 	expect_zu_eq(tcache_nbins_get(tcache_slow),
 	    tcache_max2nbins(min_tcache_max), "Unexpected value for nbins");
-	assert_d_eq(mallctl("thread.tcache.max",
-	    (void *)&old_tcache_max, &sz,
-	    (void *)&new_tcache_max, sz),.0,
-	    "Unexpected.mallctl().failure");
-	expect_zu_eq(old_tcache_max, min_tcache_max,
-	    "Unexpected value for tcache_max");
+	assert_d_eq(mallctl("thread.tcache.max", (void *)&old_tcache_max, &sz,
+	                (void *)&new_tcache_max, sz),
+	    .0, "Unexpected.mallctl().failure");
+	expect_zu_eq(
+	    old_tcache_max, min_tcache_max, "Unexpected value for tcache_max");
 	validate_tcache_stack(tcache);
 
 	/*
@@ -317,19 +312,17 @@ tcache_check(void *arg) {
 		new_tcache_max = TCACHE_MAXCLASS_LIMIT;
 	}
 	old_tcache_max = tcache_max_get(tcache_slow);
-	expect_zu_eq(old_tcache_max, new_tcache_max,
-	    "Unexpected value for tcache_max");
+	expect_zu_eq(
+	    old_tcache_max, new_tcache_max, "Unexpected value for tcache_max");
 	tcache_nbins = tcache_nbins_get(tcache_slow);
 	expect_zu_eq(tcache_nbins, tcache_max2nbins(new_tcache_max),
 	    "Unexpected value for tcache_nbins");
 	for (unsigned alloc_option = alloc_option_start;
-	     alloc_option < alloc_option_end;
-	     alloc_option++) {
+	     alloc_option < alloc_option_end; alloc_option++) {
 		for (unsigned dalloc_option = dalloc_option_start;
-		     dalloc_option < dalloc_option_end;
-		     dalloc_option++) {
-			test_tcache_max_impl(new_tcache_max,
-			    alloc_option, dalloc_option);
+		     dalloc_option < dalloc_option_end; dalloc_option++) {
+			test_tcache_max_impl(
+			    new_tcache_max, alloc_option, dalloc_option);
 		}
 		validate_tcache_stack(tcache);
 	}
@@ -348,14 +341,14 @@ TEST_BEGIN(test_thread_tcache_max) {
 	VARIABLE_ARRAY(thd_t, threads, nthreads);
 	VARIABLE_ARRAY(size_t, all_threads_tcache_max, nthreads);
 	for (unsigned i = 0; i < nthreads; i++) {
-		all_threads_tcache_max[i] = 1024 * (1<<((i + 10) % 20));
+		all_threads_tcache_max[i] = 1024 * (1 << ((i + 10) % 20));
 		if (i == nthreads - 1) {
 			all_threads_tcache_max[i] = UINT_MAX;
 		}
 	}
 	for (unsigned i = 0; i < nthreads; i++) {
-		thd_create(&threads[i], tcache_check,
-		    &(all_threads_tcache_max[i]));
+		thd_create(
+		    &threads[i], tcache_check, &(all_threads_tcache_max[i]));
 	}
 	for (unsigned i = 0; i < nthreads; i++) {
 		thd_join(threads[i], NULL);
@@ -365,7 +358,5 @@ TEST_END
 
 int
 main(void) {
-	return test(
-	    test_tcache_max,
-	    test_thread_tcache_max);
+	return test(test_tcache_max, test_thread_tcache_max);
 }
