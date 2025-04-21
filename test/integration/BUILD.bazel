@@ -1,5 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_test")
 load("//tools:cc.bzl", "COPTS")
+load("//tools:test.bzl", "join_conf", "test_name")
 load("//tools:transition.bzl", "PLATFORM", "transition_default_constraints")
 
 INTEGRATION_TESTS = [
@@ -32,15 +33,15 @@ INTEGRATION_TESTS = [
 
 INTEGRATION_DECAY_TESTS = [
     {
-        "name": "%s_%s" % (
-            test["name"] if "name" in test else test["src"].removesuffix(".c").replace("/", "_"),
+        "name": test_name(
+            test,
             config["suffix"],
         ),
         "src": test["src"],
-        "conf": "%s,%s" % (
-            test["conf"],
+        "conf": join_conf(
+            test.get("conf"),
             config["conf"],
-        ) if "conf" in test else config["conf"],
+        ),
     }
     for config in [
         {
@@ -50,6 +51,35 @@ INTEGRATION_DECAY_TESTS = [
         {
             "suffix": "decay_zero",
             "conf": "dirty_decay_ms:0,muzzy_decay_ms:0",
+        },
+    ]
+    for test in INTEGRATION_TESTS
+]
+
+INTEGRATION_PROF_TESTS = [
+    {
+        "name": test_name(
+            test,
+            config["suffix"],
+        ),
+        "src": test["src"],
+        "conf": join_conf(
+            test.get("conf"),
+            config["conf"],
+        ),
+        "target_compatible_with": select({
+            "//settings/flags:prof": [],
+            "//conditions:default": ["@platforms//:incompatible"],
+        }),
+    }
+    for config in [
+        {
+            "suffix": "prof",
+            "conf": "prof:true",
+        },
+        {
+            "suffix": "prof_active_false",
+            "conf": "prof:true,prof_active:false",
         },
     ]
     for test in INTEGRATION_TESTS
@@ -72,13 +102,14 @@ transition_default_constraints(
 )
 
 [cc_test(
-    name = test["name"] if "name" in test else test["src"].removesuffix(".c").replace("/", "_"),
+    name = test_name(test),
     srcs = [test["src"]],
     copts = COPTS,
     env = {"JE_TEST_MALLOC_CONF": test.get("conf", "")},
     local_defines = ["JEMALLOC_INTEGRATION_TEST"],
+    target_compatible_with = test.get("target_compatible_with", []),
     deps = [":testlib"],
-) for test in INTEGRATION_TESTS + INTEGRATION_DECAY_TESTS]
+) for test in INTEGRATION_TESTS + INTEGRATION_DECAY_TESTS + INTEGRATION_PROF_TESTS]
 
 INTEGRATION_CPP_TESTS = [
     {"src": "cpp/basic.cpp"},
@@ -90,6 +121,60 @@ INTEGRATION_CPP_TESTS = [
         "src": "cpp/infallible_new_false.cpp",
         "conf": "experimental_infallible_new:false",
     },
+]
+
+INTEGRATION_CPP_DECAY_TESTS = [
+    {
+        "name": test_name(
+            test,
+            config["suffix"],
+        ),
+        "src": test["src"],
+        "conf": join_conf(
+            test.get("conf"),
+            config["conf"],
+        ),
+    }
+    for config in [
+        {
+            "suffix": "decay_minus_one",
+            "conf": "dirty_decay_ms:-1,muzzy_decay_ms:-1",
+        },
+        {
+            "suffix": "decay_zero",
+            "conf": "dirty_decay_ms:0,muzzy_decay_ms:0",
+        },
+    ]
+    for test in INTEGRATION_CPP_TESTS
+]
+
+INTEGRATION_CPP_PROF_TESTS = [
+    {
+        "name": test_name(
+            test,
+            config["suffix"],
+        ),
+        "src": test["src"],
+        "conf": join_conf(
+            test.get("conf"),
+            config["conf"],
+        ),
+        "target_compatible_with": select({
+            "//settings/flags:prof": [],
+            "//conditions:default": ["@platforms//:incompatible"],
+        }),
+    }
+    for config in [
+        {
+            "suffix": "prof",
+            "conf": "prof:true",
+        },
+        {
+            "suffix": "prof_active_false",
+            "conf": "prof:true,prof_active:false",
+        },
+    ]
+    for test in INTEGRATION_CPP_TESTS
 ]
 
 transition_default_constraints(
@@ -109,10 +194,11 @@ transition_default_constraints(
 )
 
 [cc_test(
-    name = test["name"] if "name" in test else test["src"].removesuffix(".cpp").replace("/", "_"),
+    name = test_name(test),
     srcs = [test["src"]],
     copts = COPTS,
     env = {"JE_TEST_MALLOC_CONF": test.get("conf", "")},
     local_defines = ["JEMALLOC_INTEGRATION_CPP_TEST"],
+    target_compatible_with = test.get("target_compatible_with", []),
     deps = [":testlib_cpp"],
-) for test in INTEGRATION_CPP_TESTS]
+) for test in INTEGRATION_CPP_TESTS + INTEGRATION_CPP_DECAY_TESTS + INTEGRATION_CPP_PROF_TESTS]
