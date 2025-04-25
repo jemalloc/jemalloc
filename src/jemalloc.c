@@ -494,8 +494,12 @@ arena_migrate(tsd_t *tsd, arena_t *oldarena, arena_t *newarena) {
 	arena_nthreads_inc(newarena, false);
 	tsd_arena_set(tsd, newarena);
 
-	if (arena_nthreads_get(oldarena, false) == 0) {
-		/* Purge if the old arena has no associated threads anymore. */
+	if (arena_nthreads_get(oldarena, false) == 0 &&
+	    !background_thread_enabled()) {
+		/*
+		 * Purge if the old arena has no associated threads anymore and
+		 * no background threads.
+		 */
 		arena_decay(tsd_tsdn(tsd), oldarena,
 		    /* is_background_thread */ false, /* all */ true);
 	}
