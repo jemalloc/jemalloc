@@ -1,10 +1,11 @@
 load("@bazel_skylib//rules:common_settings.bzl", "bool_setting", "string_setting")
 
+package(default_visibility = ["//:__subpackages__"])
+
 # JEMALLOC_JET - Explicitly used for testing
 bool_setting(
     name = "enable_jet",
     build_setting_default = False,
-    visibility = ["//:__subpackages__"],
 )
 
 config_setting(
@@ -17,7 +18,6 @@ config_setting(
 bool_setting(
     name = "enable_no_private_namespace",
     build_setting_default = False,
-    visibility = ["//:__subpackages__"],
 )
 
 config_setting(
@@ -35,7 +35,6 @@ string_setting(
         "integration",
         "integration_cpp",
     ],
-    visibility = ["//:__subpackages__"],
 )
 
 # JEMALLOC_UNIT_TEST

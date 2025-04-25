@@ -2,21 +2,37 @@ load("@rules_cc//cc:defs.bzl", "cc_test")
 load("//tools:cc.bzl", "COPTS")
 load("//tools:transition.bzl", "PLATFORM", "transition_default_constraints")
 
-# TODO: Handle conf when enable_prof = True
-#{ "src": "batch_alloc_prof.c" },
-#{ "src": "arena_reset_prof.c" },
+exports_files(
+    [
+        "arena_reset.c",
+        "batch_alloc.c",
+    ],
+    visibility = ["//:__subpackages__"],
+)
+
 UNIT_TESTS = [
     {"src": "a0.c"},
     {
         "src": "arena_decay.c",
         "conf": "dirty_decay_ms:1000,muzzy_decay_ms:1000,tcache_max:1024",
     },
+    {
+        "src": "arena_reset_prof.c",
+        "conf": "prof:true,lg_prof_sample:0",
+    },
     {"src": "arena_reset.c"},
     {"src": "atomic.c"},
     {"src": "background_thread.c"},
     {"src": "background_thread_enable.c"},
     {"src": "base.c"},
-    {"src": "batch_alloc.c"},
+    {
+        "src": "batch_alloc_prof.c",
+        "conf": "prof:true,lg_prof_sample:14",
+    },
+    {
+        "src": "batch_alloc.c",
+        "conf": "tcache_gc_incr_bytes:2147483648",
+    },
     {
         "src": "binshard.c",
         "conf": "narenas:1,bin_shards:1-160:16|129-512:4|256-256:8",
@@ -50,7 +66,10 @@ UNIT_TESTS = [
     },
     {"src": "hpdata.c"},
     {"src": "huge.c"},
-    {"src": "inspect.c"},
+    {
+        "src": "inspect.c",
+        "prof_conf": "prof:false",
+    },
     {
         "src": "junk.c",
         "conf": "abort:false,zero:false,junk:true",
@@ -67,7 +86,10 @@ UNIT_TESTS = [
     },
     {"src": "log.c"},
     {"src": "mallctl.c"},
-    {"src": "malloc_conf_2.c"},
+    {
+        "src": "malloc_conf_2.c",
+        "conf": "dirty_decay_ms:500",
+    },
     {"src": "malloc_io.c"},
     {"src": "math.c"},
     {"src": "mpsc_queue.c"},
@@ -76,24 +98,67 @@ UNIT_TESTS = [
     {"src": "nstime.c"},
     {"src": "oversize_threshold.c"},
     {"src": "pa.c"},
-    {"src": "pack.c"},
+    {
+        "src": "pack.c",
+        "conf": "dirty_decay_ms:0,muzzy_decay_ms:0",
+    },
     {"src": "pages.c"},
     {"src": "peak.c"},
     {"src": "ph.c"},
     {"src": "prng.c"},
-    {"src": "prof_accum.c"},
-    {"src": "prof_active.c"},
-    {"src": "prof_gdump.c"},
-    {"src": "prof_hook.c"},
-    {"src": "prof_idump.c"},
-    {"src": "prof_log.c"},
-    {"src": "prof_mdump.c"},
-    {"src": "prof_recent.c"},
-    {"src": "prof_reset.c"},
-    {"src": "prof_stats.c"},
-    {"src": "prof_tctx.c"},
-    {"src": "prof_thread_name.c"},
-    {"src": "prof_sys_thread_name.c"},
+    {
+        "src": "prof_accum.c",
+        "prof_conf": "prof:true,prof_accum:true,prof_active:false,lg_prof_sample:0",
+    },
+    {
+        "src": "prof_active.c",
+        "prof_conf": "prof:true,prof_active:true,prof_thread_active_init:false,lg_prof_sample:0",
+    },
+    {
+        "src": "prof_gdump.c",
+        "prof_conf": "prof:true,prof_active:false,prof_gdump:true",
+    },
+    {
+        "src": "prof_hook.c",
+        "prof_conf": "prof:true,prof_active:true,lg_prof_sample:0",
+    },
+    {
+        "src": "prof_idump.c",
+        "conf": "tcache:false",
+        "prof_conf": ",prof:true,prof_accum:true,prof_active:false,lg_prof_sample:0,lg_prof_interval:0",
+    },
+    {
+        "src": "prof_log.c",
+        "prof_conf": "prof:true,prof_active:true,lg_prof_sample:0",
+    },
+    {
+        "src": "prof_mdump.c",
+        "prof_conf": "prof:true,lg_prof_sample:0",
+    },
+    {
+        "src": "prof_recent.c",
+        "prof_conf": "prof:true,prof_active:true,lg_prof_sample:0,prof_recent_alloc_max:3",
+    },
+    {
+        "src": "prof_reset.c",
+        "prof_conf": "prof:true,prof_active:false,lg_prof_sample:0,prof_recent_alloc_max:0",
+    },
+    {
+        "src": "prof_stats.c",
+        "prof_conf": "prof:true,prof_active:true,lg_prof_sample:0,prof_stats:true",
+    },
+    {
+        "src": "prof_tctx.c",
+        "prof_conf": "prof:true,prof_active:true,lg_prof_sample:0",
+    },
+    {
+        "src": "prof_thread_name.c",
+        "prof_conf": "prof:true,prof_active:false",
+    },
+    {
+        "src": "prof_sys_thread_name.c",
+        "prof_conf": "prof:true,prof_active:true,lg_prof_sample:0,prof_sys_thread_name:true",
+    },
     {"src": "psset.c"},
     {"src": "ql.c"},
     {"src": "qr.c"},
@@ -105,7 +170,10 @@ UNIT_TESTS = [
     {"src": "sec.c"},
     {"src": "seq.c"},
     {"src": "SFMT.c"},
-    {"src": "size_check.c"},
+    {
+        "src": "size_check.c",
+        "prof_conf": "prof:false",
+    },
     {"src": "size_classes.c"},
     {"src": "slab.c"},
     {"src": "smoothstep.c"},
@@ -118,7 +186,10 @@ UNIT_TESTS = [
         "conf": "tcache_max:1024",
     },
     {"src": "test_hooks.c"},
-    {"src": "thread_event.c"},
+    {
+        "src": "thread_event.c",
+        "prof_conf": "prof:true,lg_prof_sample:0",
+    },
     {"src": "ticker.c"},
     {"src": "tsd.c"},
     {"src": "uaf.c"},
@@ -166,7 +237,12 @@ transition_default_constraints(
     name = test["name"] if "name" in test else test["src"].removesuffix(".c").replace("/", "_"),
     srcs = [test["src"]],
     copts = COPTS,
-    env = {"JE_TEST_MALLOC_CONF": test.get("conf", "")},
+    env = select({
+        "//settings/flags:prof": {
+            "JE_TEST_MALLOC_CONF": test.get("conf", "") + test.get("prof_conf", ""),
+        },
+        "//conditions:default": {"JE_TEST_MALLOC_CONF": test.get("conf", "")},
+    }),
     linkstatic = True,
     local_defines = ["JEMALLOC_UNIT_TEST"],
     deps = [":testlib"],

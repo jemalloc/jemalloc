@@ -71,6 +71,8 @@ cc_library(
         "include/test/test.h",
         "include/test/thd.h",
         "include/test/timer.h",
+        "//test/unit:arena_reset.c",  # included by arena_reset_prof.c
+        "//test/unit:batch_alloc.c",  # included by batch_alloc_prof.c
     ],
     copts = COPTS,
     includes = ["include"],

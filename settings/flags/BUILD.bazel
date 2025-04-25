@@ -1,5 +1,7 @@
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "int_flag", "string_flag", "string_setting")
 
+package(default_visibility = ["//:__subpackages__"])
+
 ### Bazel-ification of optional flags accepted by ./configure ###
 
 # JEMALLOC_CACHE_OBLIVIOUS
@@ -135,7 +137,6 @@ string_setting(
     name = "jemalloc_cprefix",
     build_setting_default = "",
     make_variable = "JEMALLOC_CPREFIX",
-    visibility = ["//:__subpackages__"],
 )
 
 # LG_QUANTUM Base 2 log of minimum allocation alignment (--with-lg-quantum), -1 is undefined for resolution internal
@@ -179,4 +180,52 @@ string_flag(
 config_setting(
     name = "zone_allocator",
     flag_values = {":enable_zone_allocator": "yes"},
+)
+
+# JEMALLOC_PROF
+bool_flag(
+    name = "enable_prof",
+    build_setting_default = False,
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "prof",
+    flag_values = {":enable_prof": "True"},
+)
+
+# JEMALLOC_PROF_LIBUNWIND
+bool_flag(
+    name = "enable_prof_libunwind",
+    build_setting_default = False,
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "prof_libunwind",
+    flag_values = {":enable_prof_libunwind": "True"},
+)
+
+# JEMALLOC_PROF_LIBGCC
+bool_flag(
+    name = "enable_prof_libgcc",
+    build_setting_default = False,
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "prof_libgcc",
+    flag_values = {":enable_prof_libgcc": "True"},
+)
+
+# JEMALLOC_PROF_GCC
+bool_flag(
+    name = "enable_prof_gcc",
+    build_setting_default = False,
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "prof_gcc",
+    flag_values = {":enable_prof_gcc": "True"},
 )

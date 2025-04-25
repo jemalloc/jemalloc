@@ -130,7 +130,10 @@ cc_library(
     }),
     tags = ["manual"],
     visibility = ["//:__subpackages__"],
-    deps = ["//include/jemalloc/internal"],
+    deps = ["//include/jemalloc/internal"] + select({
+        "//settings/flags:prof_libunwind": ["@libunwind"],
+        "//conditions:default": [],
+    }),
 )
 
 transition_default_constraints(
