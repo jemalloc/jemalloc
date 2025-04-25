@@ -887,7 +887,7 @@ extent_coalesce(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 
 static edata_t *
 extent_try_coalesce_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
-    ecache_t *ecache, edata_t *edata, bool *coalesced) {
+    ecache_t *ecache, edata_t *edata, size_t max_size, bool *coalesced) {
 	assert(!edata_guarded_get(edata));
 	assert(coalesced != NULL);
 	*coalesced = false;
@@ -907,7 +907,8 @@ extent_try_coalesce_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		/* Try to coalesce forward. */
 		edata_t *next = emap_try_acquire_edata_neighbor(tsdn, pac->emap,
 		    edata, EXTENT_PAI_PAC, ecache->state, /* forward */ true);
-		if (next != NULL) {
+		size_t max_next_neighbor = max_size > edata_size_get(edata) ?  max_size - edata_size_get(edata) : 0;
+		if (next != NULL && edata_size_get(next) <= max_next_neighbor) {
 			if (!extent_coalesce(tsdn, pac, ehooks, ecache, edata,
 			    next, true)) {
 				if (ecache->delay_coalesce) {
@@ -922,7 +923,8 @@ extent_try_coalesce_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		/* Try to coalesce backward. */
 		edata_t *prev = emap_try_acquire_edata_neighbor(tsdn, pac->emap,
 		    edata, EXTENT_PAI_PAC, ecache->state, /* forward */ false);
-		if (prev != NULL) {
+		size_t max_prev_neighbor = max_size > edata_size_get(edata) ?  max_size - edata_size_get(edata) : 0;
+		if (prev != NULL && edata_size_get(prev) <= max_prev_neighbor) {
 			if (!extent_coalesce(tsdn, pac, ehooks, ecache, edata,
 			    prev, false)) {
 				edata = prev;
@@ -946,14 +948,14 @@ static edata_t *
 extent_try_coalesce(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *edata, bool *coalesced) {
 	return extent_try_coalesce_impl(tsdn, pac, ehooks, ecache, edata,
-	    coalesced);
+	    SC_LARGE_MAXCLASS, coalesced);
 }
 
 static edata_t *
 extent_try_coalesce_large(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
-    ecache_t *ecache, edata_t *edata, bool *coalesced) {
+    ecache_t *ecache, edata_t *edata, size_t max_size, bool *coalesced) {
 	return extent_try_coalesce_impl(tsdn, pac, ehooks, ecache, edata,
-	    coalesced);
+	    max_size, coalesced);
 }
 
 /* Purge a single extent to retained / unmapped directly. */
@@ -1003,11 +1005,35 @@ extent_record(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 	} else if (edata_size_get(edata) >= SC_LARGE_MINCLASS) {
 		assert(ecache == &pac->ecache_dirty);
 		/* Always coalesce large extents eagerly. */
+		/**
+		* Maximum size limit (max_size) for large extents waiting to be coalesced
+		* in dirty ecache.
+		*
+		* When set to a non-zero value, this parameter restricts the maximum size
+		* of large extents after coalescing. If the combined size of two extents
+		* would exceed this threshold, the coalescing operation is skipped.
+		*
+		* This improves dirty ecache reuse efficiency by:
+		* - Maintaining appropriately sized extents that match common allocation requests
+		* - Limiting large extent coalescence to prevent overly large extents that are
+		*   less likely to be reused efficiently
+		* - Setting lg_max_coalesce for large extent merging scenarios, similar to how
+		*   lg_max_fit is used during extent reuse
+		*
+		* Note that during extent decay/purge operations, no coalescing restrictions
+		* are applied to dirty ecache despite the delay_coalesce setting. This ensures
+		* that while improving dirty ecache reuse efficiency, we don't compromise
+		* the final coalescing that happens during the transition from dirty ecache
+		* to muzzy/retained ecache states.
+		*/
+		unsigned lg_max_coalesce = (unsigned)opt_lg_extent_max_active_fit;
+		size_t edata_size = edata_size_get(edata);
+		size_t max_size = (SC_LARGE_MAXCLASS >> lg_max_coalesce) > edata_size ? (edata_size << lg_max_coalesce) : SC_LARGE_MAXCLASS;
 		bool coalesced;
 		do {
 			assert(edata_state_get(edata) == extent_state_active);
 			edata = extent_try_coalesce_large(tsdn, pac, ehooks,
-			    ecache, edata, &coalesced);
+			    ecache, edata, max_size, &coalesced);
 		} while (coalesced);
 		if (edata_size_get(edata) >=
 		    atomic_load_zu(&pac->oversize_threshold, ATOMIC_RELAXED)
