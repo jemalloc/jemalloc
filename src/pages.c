@@ -640,10 +640,16 @@ init_process_madvise(void) {
 	return false;
 }
 
+#ifdef SYS_process_madvise
+#define JE_SYS_PROCESS_MADVISE_NR SYS_process_madvise
+#else
+#define JE_SYS_PROCESS_MADVISE_NR EXPERIMENTAL_SYS_PROCESS_MADVISE_NR
+#endif
+
 static bool
 pages_purge_process_madvise_impl(void *vec, size_t vec_len,
     size_t total_bytes) {
-	size_t purged_bytes = (size_t)syscall(SYS_process_madvise, pidfd,
+	size_t purged_bytes = (size_t)syscall(JE_SYS_PROCESS_MADVISE_NR, pidfd,
 	    (struct iovec *)vec, vec_len, MADV_DONTNEED, 0);
 
 	return purged_bytes != total_bytes;

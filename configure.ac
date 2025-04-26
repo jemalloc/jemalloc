@@ -2457,6 +2457,13 @@ if test "x${je_cv_osatomic}" = "xyes" ; then
 fi
 
 dnl ============================================================================
+
+AC_ARG_WITH([experimental_sys_process_madvise],
+  [AS_HELP_STRING([--with-experimental-sys-process-madvise=<experimental-sys-process-madvise>],
+   [Force process_madvise and use experimental-sys-process-madvise number when making syscall])],
+  [je_cv_sys_pmadv_nr="${with_experimental_sys_process_madvise}"],
+  [je_cv_sys_pmadv_nr=""])
+
 dnl Check for madvise(2).
 
 JE_COMPILABLE([madvise(2)], [
@@ -2554,6 +2561,13 @@ if test "x${je_cv_madvise}" = "xyes" ; then
 ], [je_cv_process_madvise])
   if test "x${je_cv_process_madvise}" = "xyes" ; then
     AC_DEFINE([JEMALLOC_HAVE_PROCESS_MADVISE], [ ], [ ])
+  else
+    if test "x${je_cv_sys_pmadv_nr}" != "x" ; then
+      dnl Forcing experimental usage of process_madvise
+      AC_MSG_RESULT([Forcing usage of process_madvise with syscall nr=${je_cv_sys_pmadv_nr}])
+      AC_DEFINE([JEMALLOC_HAVE_PROCESS_MADVISE], [ ], [ ])
+      AC_DEFINE_UNQUOTED([EXPERIMENTAL_SYS_PROCESS_MADVISE_NR], [${je_cv_sys_pmadv_nr}], [ ])
+    fi
   fi
 else
   dnl Check for posix_madvise.

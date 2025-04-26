@@ -348,6 +348,8 @@
 /* Defined if process_madvise(2) is available. */
 #undef JEMALLOC_HAVE_PROCESS_MADVISE
 
+#undef EXPERIMENTAL_SYS_PROCESS_MADVISE_NR
+
 /* Defined if mprotect(2) is available. */
 #undef JEMALLOC_HAVE_MPROTECT
 
