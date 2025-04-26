@@ -243,7 +243,7 @@ configure_header(
         # Internal symbol that no longer appears to exist or be public on modern linux + glibc
         undefine_macro("JEMALLOC_OVERRIDE___POSIX_MEMALIGN") |
         # JEMALLOC_PRIVATE_NAMESPACE: Default to "je_" as in autoconf
-        define_macro_with("JEMALLOC_PRIVATE_NAMESPACE", "je_") |
+        define_macro_with("JEMALLOC_PRIVATE_NAMESPACE", "$(PRIVATE_NAMESPACE)je") |
         # CPU_SPINWAIT and HAVE_CPU_SPINWAIT: Platform-specific spin wait instructions, depends on compiler
         select({
             "@platforms//cpu:x86_32": define_macro_with("HAVE_CPU_SPINWAIT", "1"),
@@ -488,8 +488,8 @@ configure_header(
         ) |
         # JEMALLOC_EXPORT: Controlled via flag to disable exporting public API
         define_macro_if("JEMALLOC_EXPORT", "//settings/flags:export") |
-        # JEMALLOC_CONFIG_MALLOC_CONF: Leave empty
-        define_macro_with("JEMALLOC_CONFIG_MALLOC_CONF", "\"\"") |
+        # JEMALLOC_CONFIG_MALLOC_CONF: Configurable flag
+        define_macro_with("JEMALLOC_CONFIG_MALLOC_CONF", "\"$(MALLOC_CONF)\"") |
         # JEMALLOC_IS_MALLOC: Defined if no prefix
         define_macro_if("JEMALLOC_IS_MALLOC", "//settings/flags:no_jemalloc_prefix") |
         # JEMALLOC_STRERROR_R_RETURNS_CHAR_WITH_GNU_SOURCE: Linux/Android
@@ -519,6 +519,8 @@ configure_header(
         "//settings/flags:jemalloc_prefix",
         "//settings/flags:jemalloc_cprefix",
         "//settings/flags:lg_quantum",
+        "//settings/flags:malloc_conf",
+        "//settings/flags:private_namespace",
         "//settings/platform:lg_hugepage",
         "//settings/platform:lg_page",
         "//settings/platform:lg_vaddr",

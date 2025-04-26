@@ -153,6 +153,22 @@ config_setting(
     flag_values = {":lg_quantum": "-1"},
 )
 
+# MALLOC_CONF Specify default malloc_conf (--with-malloc-conf)
+string_flag(
+    name = "malloc_conf",
+    build_setting_default = "",
+    make_variable = "MALLOC_CONF",
+    visibility = ["//visibility:public"],
+)
+
+# PRIVATE_NAMESPACE Prefix to prepend to all library-private APIs (--with-private-namespace)
+string_flag(
+    name = "private_namespace",
+    build_setting_default = "",
+    make_variable = "PRIVATE_NAMESPACE",
+    visibility = ["//visibility:public"],
+)
+
 # JEMALLOC_EXPORT via --without-export which disables the export of the jemalloc API
 bool_flag(
     name = "without_export",
