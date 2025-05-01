@@ -152,6 +152,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/safety_check.c \
 	$(srcroot)src/sc.c \
 	$(srcroot)src/sec.c \
+	$(srcroot)src/spin_delay_arm.c \
 	$(srcroot)src/stats.c \
 	$(srcroot)src/sz.c \
 	$(srcroot)src/tcache.c \

@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_SPIN_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/spin_delay_arm.h"
 
 #define SPIN_INITIALIZER {0U}
 
@@ -11,7 +12,9 @@ typedef struct {
 
 static inline void
 spin_cpu_spinwait(void) {
-#  if HAVE_CPU_SPINWAIT
+#  if defined(__linux__) && (defined(__aarch64__) || defined(__arm64__))
+	spin_delay_arm();
+#  elif HAVE_CPU_SPINWAIT
 	CPU_SPINWAIT;
 #  else
 	volatile int x = 0;
