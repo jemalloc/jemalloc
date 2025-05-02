@@ -586,7 +586,7 @@ prof_getpid(void) {
 }
 
 static long
-prof_get_pid_namespace() {
+prof_get_pid_namespace(void) {
 	long ret = 0;
 
 #if defined(_WIN32) || defined(__APPLE__)

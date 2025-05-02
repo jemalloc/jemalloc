@@ -153,7 +153,7 @@ struct hpa_shard_s {
 	peak_demand_t peak_demand;
 };
 
-bool hpa_hugepage_size_exceeds_limit();
+bool hpa_hugepage_size_exceeds_limit(void);
 /*
  * Whether or not the HPA can be used given the current configuration.  This is
  * is not necessarily a guarantee that it backs its allocations by hugepages,

@@ -55,7 +55,7 @@ extern size_t sz_large_pad;
 extern void sz_boot(const sc_data_t *sc_data, bool cache_oblivious);
 
 JEMALLOC_ALWAYS_INLINE bool
-sz_large_size_classes_disabled() {
+sz_large_size_classes_disabled(void) {
 	return opt_disable_large_size_classes;
 }
 

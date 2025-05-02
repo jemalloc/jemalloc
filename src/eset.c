@@ -155,7 +155,7 @@ eset_remove(eset_t *eset, edata_t *edata) {
 	    cur_extents_npages - (size >> LG_PAGE), ATOMIC_RELAXED);
 }
 
-edata_t *
+static edata_t *
 eset_enumerate_alignment_search(eset_t *eset, size_t size, pszind_t bin_ind,
     size_t alignment) {
 	if (edata_heap_empty(&eset->bins[bin_ind].heap)) {
@@ -191,7 +191,7 @@ eset_enumerate_alignment_search(eset_t *eset, size_t size, pszind_t bin_ind,
 	return NULL;
 }
 
-edata_t *
+static edata_t *
 eset_enumerate_search(eset_t *eset, size_t size, pszind_t bin_ind,
     bool exact_only, edata_cmp_summary_t *ret_summ) {
 	if (edata_heap_empty(&eset->bins[bin_ind].heap)) {

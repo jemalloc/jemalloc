@@ -337,7 +337,7 @@ psset_update_end(psset_t *psset, hpdata_t *ps) {
 	hpdata_assert_consistent(ps);
 }
 
-hpdata_t *
+static hpdata_t *
 psset_enumerate_search(psset_t *psset, pszind_t pind, size_t size) {
 	if (hpdata_age_heap_empty(&psset->pageslabs[pind])) {
 		return NULL;

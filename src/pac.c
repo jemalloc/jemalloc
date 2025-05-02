@@ -112,7 +112,7 @@ pac_may_have_muzzy(pac_t *pac) {
 	return pac_decay_ms_get(pac, extent_state_muzzy) != 0;
 }
 
-size_t pac_alloc_retained_batched_size(size_t size) {
+static size_t pac_alloc_retained_batched_size(size_t size) {
 	if (size > SC_LARGE_MAXCLASS) {
 		/*
 		 * A valid input with usize SC_LARGE_MAXCLASS could still
