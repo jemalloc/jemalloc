@@ -47,4 +47,7 @@ COPTS = ["-D_REENTRANT"] + select({
     ],
     "@platforms//os:macos": ["-DPIC"],
     "//conditions:default": [],
+}) + select({
+    "//settings/flags:prof_gcc": ["-fno-omit-frame-pointer"],
+    "//conditions:default": [],
 })

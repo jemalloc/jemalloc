@@ -120,6 +120,9 @@ cc_library(
             "-lrt",
         ],
         "//conditions:default": [],
+    }) + select({
+        "//settings/flags:prof": ["-lm"],
+        "//conditions:default": [],
     }),
     local_defines = select({
         "//settings:jet": ["JEMALLOC_JET"],

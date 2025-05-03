@@ -1,3 +1,4 @@
+load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "int_flag", "string_flag", "string_setting")
 
 package(default_visibility = ["//:__subpackages__"])
@@ -198,50 +199,47 @@ config_setting(
     flag_values = {":enable_zone_allocator": "yes"},
 )
 
-# JEMALLOC_PROF
-bool_flag(
+# JEMALLOC_PROF Enable allocation profiling with specified backtracing implementation
+string_flag(
     name = "enable_prof",
-    build_setting_default = False,
+    build_setting_default = "no",
+    values = [
+        "gcc",
+        "libgcc",
+        "libunwind",
+        "no",
+    ],
     visibility = ["//visibility:public"],
 )
 
-config_setting(
+selects.config_setting_group(
     name = "prof",
-    flag_values = {":enable_prof": "True"},
-)
-
-# JEMALLOC_PROF_LIBUNWIND
-bool_flag(
-    name = "enable_prof_libunwind",
-    build_setting_default = False,
-    visibility = ["//visibility:public"],
+    match_any = [
+        ":prof_gcc",
+        ":prof_libgcc",
+        ":prof_libunwind",
+    ],
 )
 
 config_setting(
-    name = "prof_libunwind",
-    flag_values = {":enable_prof_libunwind": "True"},
-)
-
-# JEMALLOC_PROF_LIBGCC
-bool_flag(
-    name = "enable_prof_libgcc",
-    build_setting_default = False,
-    visibility = ["//visibility:public"],
-)
-
-config_setting(
-    name = "prof_libgcc",
-    flag_values = {":enable_prof_libgcc": "True"},
+    name = "no_prof",
+    flag_values = {":enable_prof": "no"},
 )
 
 # JEMALLOC_PROF_GCC
-bool_flag(
-    name = "enable_prof_gcc",
-    build_setting_default = False,
-    visibility = ["//visibility:public"],
-)
-
 config_setting(
     name = "prof_gcc",
-    flag_values = {":enable_prof_gcc": "True"},
+    flag_values = {":enable_prof": "gcc"},
+)
+
+# JEMALLOC_PROF_LIBUNWIND
+config_setting(
+    name = "prof_libunwind",
+    flag_values = {":enable_prof": "libunwind"},
+)
+
+# JEMALLOC_PROF_LIBGCC
+config_setting(
+    name = "prof_libgcc",
+    flag_values = {":enable_prof": "libgcc"},
 )
