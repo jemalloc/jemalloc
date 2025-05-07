@@ -68,7 +68,8 @@ large_dalloc_safety_checks(edata_t *edata, const void *ptr, size_t input_size) {
 		    "possibly caused by double free bugs.", ptr);
 		return true;
 	}
-	if (unlikely(input_size != edata_usize_get(edata))) {
+	if (unlikely(input_size != edata_usize_get(edata) ||
+	    input_size > SC_LARGE_MAXCLASS)) {
 		safety_check_fail_sized_dealloc(/* current_dealloc */ true, ptr,
 		    /* true_size */ edata_usize_get(edata), input_size);
 		return true;
