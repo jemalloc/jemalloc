@@ -1911,10 +1911,11 @@ case "${host}" in
         LG_PAGE=14
       fi
       ;;
-  aarch64-linux-gnu*)
-      dnl When cross-compile for 64 bit Arm64, use memory granularity of 64K to ensure
-      dnl that 64K and 16K kernel sizes (default for many distros) function al all.
-      if test "x${host}" != "x${build}" -a "x$LG_PAGE" = "xdetect"; then
+  aarch64-*-linux-gnu*)
+      dnl When cross-compile for 64 bit Arm64, in the absence of an explicit flag setting page size, 
+      dnl use memory granularity of 64K to ensure that 64K and 16K kernel sizes (default for many
+      dnl distros) function al all.
+      if test "x$LG_PAGE" = "xdetect"; then
         LG_PAGE=16
       fi
       ;;
