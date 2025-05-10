@@ -4,11 +4,6 @@
 
 #if defined(__linux__) && (defined(__aarch64__) || defined(__arm64__))
 #include <sys/auxv.h>
-
-/* Define HWCAP_SB if not already defined in system headers */
-#ifndef HWCAP_SB
-#define HWCAP_SB (1ULL << 56) /* Speculation Barrier */
-#endif   // HWCAP_SB
 #endif   // __linux__ && (defined(__aarch64__) || defined(__arm64__))
 
 /* Global variable to track SB support, defined here to avoid multiple definitions */

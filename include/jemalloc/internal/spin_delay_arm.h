@@ -11,6 +11,7 @@ void detect_arm_sb_support(void);
 /* Use SB instruction if available, otherwise ISB */
 static inline void
 spin_delay_arm(void) {
+#ifdef HWCAP_SB
 	if (__builtin_expect(arm_has_sb_instruction == 1, 1)) {
 		/* SB instruction encoding */
 		asm volatile(".inst 0xd50330ff \n");
@@ -18,4 +19,5 @@ spin_delay_arm(void) {
 		/* ISB instruction */
 		asm volatile("isb; \n");
 	}
+#endif // HWCAP_SB
 }
