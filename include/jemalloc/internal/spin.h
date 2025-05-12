@@ -12,7 +12,8 @@ typedef struct {
 
 static inline void
 spin_cpu_spinwait(void) {
-#  if defined(__linux__) && (defined(__aarch64__) || defined(__arm64__))
+#  if defined(__linux__) && (defined(__aarch64__) || defined(__arm64__)) && \
+	(defined(__GNUC__) || defined(__clang__))
 	spin_delay_arm();
 #  elif HAVE_CPU_SPINWAIT
 	CPU_SPINWAIT;
