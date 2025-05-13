@@ -108,7 +108,7 @@ struct cache_bin_s {
 	 * Since the stack grows down, this is a higher address than
 	 * low_bits_full.
 	 */
-	uint16_t low_bits_low_water;
+	cache_bin_sz_t low_bits_low_water;
 
 	/*
 	 * The low bits of the value that stack_head will take on when the array
@@ -119,7 +119,7 @@ struct cache_bin_s {
 	 * Recall that since the stack grows down, this is the lowest available
 	 * address in the array for caching.  Only adjusted when stashing items.
 	 */
-	uint16_t low_bits_full;
+	cache_bin_sz_t low_bits_full;
 
 	/*
 	 * The low bits of the value that stack_head will take on when the array
@@ -128,7 +128,7 @@ struct cache_bin_s {
 	 * The stack grows down -- this is one past the highest address in the
 	 * array.  Immutable after initialization.
 	 */
-	uint16_t low_bits_empty;
+	cache_bin_sz_t low_bits_empty;
 
 	/* The maximum number of cached items in the bin. */
 	cache_bin_info_t bin_info;
@@ -222,7 +222,7 @@ cache_bin_ncached_max_get(cache_bin_t *bin) {
  * with later.
  */
 static inline void
-cache_bin_assert_earlier(cache_bin_t *bin, uint16_t earlier, uint16_t later) {
+cache_bin_assert_earlier(cache_bin_t *bin, cache_bin_sz_t earlier, cache_bin_sz_t later) {
 	if (earlier > later) {
 		assert(bin->low_bits_full > bin->low_bits_empty);
 	}
@@ -235,7 +235,7 @@ cache_bin_assert_earlier(cache_bin_t *bin, uint16_t earlier, uint16_t later) {
  * be associated with the position earlier in memory.
  */
 static inline cache_bin_sz_t
-cache_bin_diff(cache_bin_t *bin, uint16_t earlier, uint16_t later) {
+cache_bin_diff(cache_bin_t *bin, cache_bin_sz_t earlier, cache_bin_sz_t later) {
 	cache_bin_assert_earlier(bin, earlier, later);
 	return later - earlier;
 }
@@ -246,7 +246,7 @@ cache_bin_diff(cache_bin_t *bin, uint16_t earlier, uint16_t later) {
 static inline cache_bin_sz_t
 cache_bin_ncached_get_internal(cache_bin_t *bin) {
 	cache_bin_sz_t diff = cache_bin_diff(bin,
-	    (uint16_t)(uintptr_t)bin->stack_head, bin->low_bits_empty);
+	    (cache_bin_sz_t)(uintptr_t)bin->stack_head, bin->low_bits_empty);
 	cache_bin_sz_t n = diff / sizeof(void *);
 	/*
 	 * We have undefined behavior here; if this function is called from the
@@ -284,7 +284,7 @@ cache_bin_ncached_get_local(cache_bin_t *bin) {
 static inline void **
 cache_bin_empty_position_get(cache_bin_t *bin) {
 	cache_bin_sz_t diff = cache_bin_diff(bin,
-	    (uint16_t)(uintptr_t)bin->stack_head, bin->low_bits_empty);
+	    (cache_bin_sz_t)(uintptr_t)bin->stack_head, bin->low_bits_empty);
 	byte_t *empty_bits = (byte_t *)bin->stack_head + diff;
 	void **ret = (void **)empty_bits;
 
@@ -303,9 +303,9 @@ cache_bin_empty_position_get(cache_bin_t *bin) {
  * multithreaded environment. Currently concurrent access happens only during
  * arena statistics collection.
  */
-static inline uint16_t
+static inline cache_bin_sz_t
 cache_bin_low_bits_low_bound_get(cache_bin_t *bin) {
-	return (uint16_t)bin->low_bits_empty -
+	return (cache_bin_sz_t)bin->low_bits_empty -
 	    cache_bin_ncached_max_get(bin) * sizeof(void *);
 }
 
@@ -351,7 +351,7 @@ cache_bin_low_water_get(cache_bin_t *bin) {
 	assert(low_water <= cache_bin_ncached_max_get(bin));
 	assert(low_water <= cache_bin_ncached_get_local(bin));
 
-	cache_bin_assert_earlier(bin, (uint16_t)(uintptr_t)bin->stack_head,
+	cache_bin_assert_earlier(bin, (cache_bin_sz_t)(uintptr_t)bin->stack_head,
 	    bin->low_bits_low_water);
 
 	return low_water;
@@ -364,7 +364,7 @@ cache_bin_low_water_get(cache_bin_t *bin) {
 static inline void
 cache_bin_low_water_set(cache_bin_t *bin) {
 	assert(!cache_bin_disabled(bin));
-	bin->low_bits_low_water = (uint16_t)(uintptr_t)bin->stack_head;
+	bin->low_bits_low_water = (cache_bin_sz_t)(uintptr_t)bin->stack_head;
 }
 
 static inline void
@@ -391,7 +391,7 @@ cache_bin_alloc_impl(cache_bin_t *bin, bool *success, bool adjust_low_water) {
 	 * be used.  It's safe because the stack has one more slot reserved.
 	 */
 	void *ret = *bin->stack_head;
-	uint16_t low_bits = (uint16_t)(uintptr_t)bin->stack_head;
+	cache_bin_sz_t low_bits = (cache_bin_sz_t)(uintptr_t)bin->stack_head;
 	void **new_head = bin->stack_head + 1;
 
 	/*
@@ -414,7 +414,7 @@ cache_bin_alloc_impl(cache_bin_t *bin, bool *success, bool adjust_low_water) {
 	 */
 	if (likely(low_bits != bin->low_bits_empty)) {
 		bin->stack_head = new_head;
-		bin->low_bits_low_water = (uint16_t)(uintptr_t)new_head;
+		bin->low_bits_low_water = (cache_bin_sz_t)(uintptr_t)new_head;
 		*success = true;
 		return ret;
 	}
@@ -455,7 +455,7 @@ cache_bin_alloc_batch(cache_bin_t *bin, size_t num, void **out) {
 
 JEMALLOC_ALWAYS_INLINE bool
 cache_bin_full(cache_bin_t *bin) {
-	return ((uint16_t)(uintptr_t)bin->stack_head == bin->low_bits_full);
+	return ((cache_bin_sz_t)(uintptr_t)bin->stack_head == bin->low_bits_full);
 }
 
 /*
@@ -503,7 +503,7 @@ cache_bin_dalloc_easy(cache_bin_t *bin, void *ptr) {
 	bin->stack_head--;
 	*bin->stack_head = ptr;
 	cache_bin_assert_earlier(bin, bin->low_bits_full,
-	    (uint16_t)(uintptr_t)bin->stack_head);
+	    (cache_bin_sz_t)(uintptr_t)bin->stack_head);
 
 	return true;
 }
@@ -516,9 +516,9 @@ cache_bin_stash(cache_bin_t *bin, void *ptr) {
 	}
 
 	/* Stash at the full position, in the [full, head) range. */
-	uint16_t low_bits_head = (uint16_t)(uintptr_t)bin->stack_head;
+	cache_bin_sz_t low_bits_head = (cache_bin_sz_t)(uintptr_t)bin->stack_head;
 	/* Wraparound handled as well. */
-	uint16_t diff = cache_bin_diff(bin, bin->low_bits_full, low_bits_head);
+	cache_bin_sz_t diff = cache_bin_diff(bin, bin->low_bits_full, low_bits_head);
 	*(void **)((byte_t *)bin->stack_head - diff) = ptr;
 
 	assert(!cache_bin_full(bin));
@@ -532,7 +532,7 @@ cache_bin_stash(cache_bin_t *bin, void *ptr) {
 JEMALLOC_ALWAYS_INLINE cache_bin_sz_t
 cache_bin_nstashed_get_internal(cache_bin_t *bin) {
 	cache_bin_sz_t ncached_max = cache_bin_ncached_max_get(bin);
-	uint16_t low_bits_low_bound = cache_bin_low_bits_low_bound_get(bin);
+	cache_bin_sz_t low_bits_low_bound = cache_bin_low_bits_low_bound_get(bin);
 
 	cache_bin_sz_t n = cache_bin_diff(bin, low_bits_low_bound,
 	    bin->low_bits_full) / sizeof(void *);
@@ -541,7 +541,7 @@ cache_bin_nstashed_get_internal(cache_bin_t *bin) {
 		/* Below are for assertions only. */
 		void **low_bound = cache_bin_low_bound_get(bin);
 
-		assert((uint16_t)(uintptr_t)low_bound == low_bits_low_bound);
+		assert((cache_bin_sz_t)(uintptr_t)low_bound == low_bits_low_bound);
 		void *stashed = *(low_bound + n - 1);
 		bool aligned = cache_bin_nonfast_aligned(stashed);
 #ifdef JEMALLOC_JET
@@ -586,12 +586,12 @@ cache_bin_nitems_get_remote(cache_bin_t *bin, cache_bin_sz_t *ncached,
     cache_bin_sz_t *nstashed) {
 	/* Racy version of cache_bin_ncached_get_internal. */
 	cache_bin_sz_t diff = bin->low_bits_empty -
-	    (uint16_t)(uintptr_t)bin->stack_head;
+	    (cache_bin_sz_t)(uintptr_t)bin->stack_head;
 	cache_bin_sz_t n = diff / sizeof(void *);
 	*ncached = n;
 
 	/* Racy version of cache_bin_nstashed_get_internal. */
-	uint16_t low_bits_low_bound = cache_bin_low_bits_low_bound_get(bin);
+	cache_bin_sz_t low_bits_low_bound = cache_bin_low_bits_low_bound_get(bin);
 	n = (bin->low_bits_full - low_bits_low_bound) / sizeof(void *);
 	*nstashed = n;
 	/*

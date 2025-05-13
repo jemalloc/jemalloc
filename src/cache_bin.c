@@ -85,19 +85,19 @@ cache_bin_init(cache_bin_t *bin, const cache_bin_info_t *info, void *alloc,
 	 */
 	void *stack_cur = (void *)((byte_t *)alloc + *cur_offset);
 	void *full_position = stack_cur;
-	uint16_t bin_stack_size = info->ncached_max * sizeof(void *);
+	cache_bin_sz_t bin_stack_size = info->ncached_max * sizeof(void *);
 
 	*cur_offset += bin_stack_size;
 	void *empty_position = (void *)((byte_t *)alloc + *cur_offset);
 
 	/* Init to the empty position. */
 	bin->stack_head = (void **)empty_position;
-	bin->low_bits_low_water = (uint16_t)(uintptr_t)bin->stack_head;
-	bin->low_bits_full = (uint16_t)(uintptr_t)full_position;
-	bin->low_bits_empty = (uint16_t)(uintptr_t)empty_position;
+	bin->low_bits_low_water = (cache_bin_sz_t)(uintptr_t)bin->stack_head;
+	bin->low_bits_full = (cache_bin_sz_t)(uintptr_t)full_position;
+	bin->low_bits_empty = (cache_bin_sz_t)(uintptr_t)empty_position;
 	cache_bin_info_init(&bin->bin_info, info->ncached_max);
 	cache_bin_sz_t free_spots = cache_bin_diff(bin,
-	    bin->low_bits_full, (uint16_t)(uintptr_t)bin->stack_head);
+	    bin->low_bits_full, (cache_bin_sz_t)(uintptr_t)bin->stack_head);
 	assert(free_spots == bin_stack_size);
 	if (!cache_bin_disabled(bin)) {
 		assert(cache_bin_ncached_get_local(bin) == 0);
