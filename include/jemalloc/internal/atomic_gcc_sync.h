@@ -87,6 +87,7 @@ atomic_post_sc_store_fence() {
 
 }
 
+/* clang-format off */
 #define JEMALLOC_GENERATE_ATOMICS(type, short_type,			\
     /* unused */ lg_size)						\
 typedef struct {							\
@@ -161,6 +162,7 @@ atomic_compare_exchange_strong_##short_type(atomic_##short_type##_t *a,	\
 		return false;						\
 	}								\
 }
+/* clang-format on */
 
 #define JEMALLOC_GENERATE_INT_ATOMICS(type, short_type,			\
     /* unused */ lg_size)						\

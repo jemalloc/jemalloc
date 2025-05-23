@@ -32,6 +32,7 @@ TSD_DATA_FAST
 TSD_DATA_SLOWER
 #undef O
 
+/* clang-format off */
 /* tsd_foop_get(tsd) returns a pointer to the thread-local instance of foo. */
 #define O(n, t, nt)							\
 JEMALLOC_ALWAYS_INLINE t *						\
@@ -48,6 +49,7 @@ tsd_##n##p_get(tsd_t *tsd) {						\
 	    state == tsd_state_minimal_initialized);			\
 	return tsd_##n##p_get_unsafe(tsd);				\
 }
+/* clang-format on */
 TSD_DATA_SLOW
 TSD_DATA_FAST
 TSD_DATA_SLOWER

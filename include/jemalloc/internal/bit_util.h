@@ -35,6 +35,7 @@ ffs_u(unsigned x) {
 	return JEMALLOC_INTERNAL_FFS(x) - 1;
 }
 
+/* clang-format off */
 #define DO_FLS_SLOW(x, suffix) do {					\
 	util_assume(x != 0);						\
 	x |= (x >> 1);							\
@@ -58,6 +59,7 @@ ffs_u(unsigned x) {
 	}								\
 	return ffs_##suffix(x) - 1;					\
 } while(0)
+/* clang-format on */
 
 static inline unsigned
 fls_llu_slow(unsigned long long x) {
@@ -118,6 +120,7 @@ fls_u(unsigned x) {
 #define DO_BSR64(bit, x) bit = 0; unreachable()
 #endif
 
+/* clang-format off */
 #define DO_FLS(x) do {							\
 	if (x == 0) {							\
 		return 8 * sizeof(x);					\
@@ -144,6 +147,7 @@ fls_u(unsigned x) {
 	}								\
 	unreachable();							\
 } while (0)
+/* clang-format on */
 
 static inline unsigned
 fls_llu(unsigned long long x) {
@@ -184,6 +188,7 @@ fls_u(unsigned x) {
 #  error "Haven't implemented popcount for 16-byte ints."
 #endif
 
+/* clang-format off */
 #define DO_POPCOUNT(x, type) do {					\
 	/*								\
 	 * Algorithm from an old AMD optimization reference manual.	\
@@ -227,6 +232,7 @@ fls_u(unsigned x) {
 	x >>= ((sizeof(x) - 1) * 8);					\
 	return (unsigned)x;						\
 } while(0)
+/* clang-format on */
 
 static inline unsigned
 popcount_u_slow(unsigned bitmap) {

@@ -226,6 +226,7 @@ expand_byte_to_mask(unsigned byte) {
 	return result;
 }
 
+/* clang-format off */
 #define TEST_POPCOUNT(t, suf, pri_hex) do {				\
 	t bmul = (t)0x0101010101010101ULL;				\
 	for (unsigned i = 0; i < (1 << sizeof(t)); i++) {		\
@@ -245,6 +246,7 @@ expand_byte_to_mask(unsigned byte) {
 		}							\
 	}								\
 } while (0)
+/* clang-format on */
 
 TEST_BEGIN(test_popcount_u) {
 	TEST_POPCOUNT(unsigned, u, "x");

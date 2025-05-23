@@ -69,6 +69,7 @@ struct hpa_shard_opts_s {
 	uint64_t peak_demand_window_ms;
 };
 
+/* clang-format off */
 #define HPA_SHARD_OPTS_DEFAULT {					\
 	/* slab_max_alloc */						\
 	64 * 1024,							\
@@ -95,5 +96,6 @@ struct hpa_shard_opts_s {
 	/* peak_demand_window_ms */					\
 	0								\
 }
+/* clang-format on */
 
 #endif /* JEMALLOC_INTERNAL_HPA_OPTS_H */
