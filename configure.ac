@@ -1434,6 +1434,36 @@ if test "x$enable_experimental_smallocx" = "x1" ; then
 fi
 AC_SUBST([enable_experimental_smallocx])
 
+dnl Do not enable fastpath prefetch by default.
+AC_ARG_ENABLE([experimental_fp_prefetch],
+  [AS_HELP_STRING([--enable-experimental-fp-prefetch], [Enable experimental fastpath prefetch])],
+[if test "x$enable_experimental_fp_prefetch" = "xno" ; then
+enable_experimental_fp_prefetch="0"
+else
+  dnl Check if we have __builtin_prefetch.
+  JE_CFLAGS_SAVE()
+  JE_CFLAGS_ADD([-Werror=implicit-function-declaration])
+  JE_COMPILABLE([builtin prefetch], [], [
+void foo(void *p) { __builtin_prefetch(p, 1, 3); }
+  	],
+	[je_cv_have_builtin_prefetch])
+
+	if test "x${je_cv_have_builtin_prefetch}" = "xyes" ; then
+	   enable_experimental_fp_prefetch="1"
+	else
+	   enable_experimental_fp_prefetch="0"
+	   AC_MSG_ERROR([--enable--experimental-fp-prefetch can only be used when builtin_preftech is available])
+	fi
+   JE_CFLAGS_RESTORE()
+fi
+],
+[enable_experimental_fp_prefetch="0"]
+)
+if test "x$enable_experimental_fp_prefetch" = "x1" ; then
+  AC_DEFINE([JEMALLOC_EXPERIMENTAL_FASTPATH_PREFETCH], [ ], [ ])
+fi
+AC_SUBST([enable_experimental_fp_prefetch])
+
 dnl Do not enable profiling by default.
 AC_ARG_ENABLE([prof],
   [AS_HELP_STRING([--enable-prof], [Enable allocation profiling])],

@@ -374,6 +374,12 @@ imalloc_fastpath(size_t size, void *(fallback_alloc)(size_t)) {
 	 */
 	ret = cache_bin_alloc_easy(bin, &tcache_success);
 	if (tcache_success) {
+#if defined(JEMALLOC_EXPERIMENTAL_FASTPATH_PREFETCH)
+		cache_bin_sz_t lb = (cache_bin_sz_t)(uintptr_t)bin->stack_head;
+		if(likely(lb != bin->low_bits_empty)) {
+			util_prefetch_write_range(*(bin->stack_head), usize);
+		}
+#endif
 		fastpath_success_finish(tsd, allocated_after, bin, ret);
 		return ret;
 	}
