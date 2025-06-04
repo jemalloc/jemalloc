@@ -158,7 +158,7 @@ void (*JET_MUTABLE invalid_conf_abort)(void) = &abort;
 bool	opt_utrace = false;
 bool	opt_xmalloc = false;
 bool	opt_experimental_infallible_new = false;
-bool	opt_experimental_tcache_gc = false;
+bool	opt_experimental_tcache_gc = true;
 bool	opt_zero = false;
 unsigned	opt_narenas = 0;
 static fxp_t		opt_narenas_ratio = FXP_INIT_INT(4);
@@ -168,7 +168,8 @@ unsigned	ncpus;
 unsigned opt_debug_double_free_max_scan =
     SAFETY_CHECK_DOUBLE_FREE_MAX_SCAN_DEFAULT;
 
-size_t opt_calloc_madvise_threshold = 0;
+size_t opt_calloc_madvise_threshold =
+    CALLOC_MADVISE_THRESHOLD_DEFAULT;
 
 /* Protects arenas initialization. */
 static malloc_mutex_t arenas_lock;
