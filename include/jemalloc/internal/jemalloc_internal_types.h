@@ -145,4 +145,6 @@ typedef enum malloc_init_e malloc_init_t;
 	assert(sizeof(type) * (count) <= VARIABLE_ARRAY_SIZE_MAX);	\
 	VARIABLE_ARRAY_UNSAFE(type, name, count)
 
+#define CALLOC_MADVISE_THRESHOLD_DEFAULT (((size_t)1) << 23) /* 8 MB */
+
 #endif /* JEMALLOC_INTERNAL_TYPES_H */
