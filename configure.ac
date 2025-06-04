@@ -1434,6 +1434,22 @@ if test "x$enable_experimental_smallocx" = "x1" ; then
 fi
 AC_SUBST([enable_experimental_smallocx])
 
+dnl Do not enable fastpath prefetch by default.
+AC_ARG_ENABLE([experimental_fp_prefetch],
+  [AS_HELP_STRING([--enable-experimental-fp-prefetch], [Enable experimental fastpath prefetch])],
+[if test "x$enable_experimental_fp_prefetch" = "xno" ; then
+enable_experimental_fp_prefetch="0"
+else
+enable_experimental_fp_prefetch="1"
+fi
+],
+[enable_experimental_fp_prefetch="0"]
+)
+if test "x$enable_experimental_fp_prefetch" = "x1" ; then
+  AC_DEFINE([JEMALLOC_EXPERIMENTAL_FASTPATH_PREFETCH], [ ], [ ])
+fi
+AC_SUBST([enable_experimental_fp_prefetch])
+
 dnl Do not enable profiling by default.
 AC_ARG_ENABLE([prof],
   [AS_HELP_STRING([--enable-prof], [Enable allocation profiling])],

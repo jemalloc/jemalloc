@@ -36,10 +36,18 @@ cache_bin_info_compute_alloc(const cache_bin_info_t *infos, szind_t ninfos,
 	 *    checking "is_empty"; and
 	 * 2) the cur_ptr can go beyond the empty position by 1 step safely on
 	 * the fast path (i.e. no overflow).
+	 *
+	 * For each non-disabled cache_bin reserve extra slot to allow prefetch
+	 * without checking the boundary on the fast path
 	 */
 	*size = sizeof(void *) * 2;
 	for (szind_t i = 0; i < ninfos; i++) {
 		*size += infos[i].ncached_max * sizeof(void *);
+#ifdef JEMALLOC_EXPERIMENTAL_FASTPATH_PREFETCH
+		if (infos[i].ncached_max > 0) {
+			*size += sizeof(void *);
+		}
+#endif
 	}
 
 	/*
@@ -100,6 +108,12 @@ cache_bin_init(cache_bin_t *bin, const cache_bin_info_t *info, void *alloc,
 	    bin->low_bits_full, (cache_bin_sz_t)(uintptr_t)bin->stack_head);
 	assert(free_spots == bin_stack_size);
 	if (!cache_bin_disabled(bin)) {
+#ifdef JEMALLOC_EXPERIMENTAL_FASTPATH_PREFETCH
+		/* Address will be mapped to physical page already */
+		void **addr = (void **)((byte_t *)alloc + *cur_offset);
+		*addr = addr;
+		*cur_offset += sizeof(void *);
+#endif
 		assert(cache_bin_ncached_get_local(bin) == 0);
 	}
 	assert(cache_bin_empty_position_get(bin) == empty_position);
@@ -117,3 +131,13 @@ cache_bin_init_disabled(cache_bin_t *bin, cache_bin_sz_t ncached_max) {
 	cache_bin_info_init(&bin->bin_info, ncached_max);
 	assert(fake_offset == 0);
 }
+
+#ifdef JEMALLOC_JET
+test_prefetch_hook_t cache_bin_prefetch_test_hook = NULL;
+test_prefetch_hook_t
+cache_bin_prefetch_hook_set(test_prefetch_hook_t f) {
+	test_prefetch_hook_t old = cache_bin_prefetch_test_hook;
+	cache_bin_prefetch_test_hook = f;
+	return old;
+}
+#endif

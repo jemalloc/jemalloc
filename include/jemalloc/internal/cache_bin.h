@@ -376,6 +376,38 @@ cache_bin_low_water_adjust(cache_bin_t *bin) {
 	}
 }
 
+#ifdef JEMALLOC_JET
+typedef void (*test_prefetch_hook_t)(void *ptr, bool is_write);
+test_prefetch_hook_t
+cache_bin_prefetch_hook_set(test_prefetch_hook_t);
+extern test_prefetch_hook_t cache_bin_prefetch_test_hook;
+#endif
+
+#ifdef JEMALLOC_EXPERIMENTAL_FASTPATH_PREFETCH
+/*
+ * We pad each non-disabled bin with a slot so that we can safely prefetch the
+ * next pointer after the one returned on the fast path.
+ */
+static inline void
+prefetch_one_w(void *ptr) {
+#ifdef JEMALLOC_JET
+	if (cache_bin_prefetch_test_hook) {
+		cache_bin_prefetch_test_hook(ptr, /* write */ true);
+	} else {
+		/* Still want to exercise the code in tests without the hook */
+		util_prefetch_write(ptr);
+	}
+#else
+	util_prefetch_write(ptr);
+#endif /* JEMALLOC_JET */
+}
+
+#else
+
+static inline void prefetch_one_w(void *ptr) {}
+
+#endif /* JEMALLOC_EXPERIMENTAL_FASTPATH_PREFETCH */
+
 JEMALLOC_ALWAYS_INLINE void *
 cache_bin_alloc_impl(cache_bin_t *bin, bool *success, bool adjust_low_water) {
 	/*
@@ -400,6 +432,7 @@ cache_bin_alloc_impl(cache_bin_t *bin, bool *success, bool adjust_low_water) {
 	 */
 	if (likely(low_bits != bin->low_bits_low_water)) {
 		bin->stack_head = new_head;
+		prefetch_one_w(*new_head);
 		*success = true;
 		return ret;
 	}
@@ -414,6 +447,7 @@ cache_bin_alloc_impl(cache_bin_t *bin, bool *success, bool adjust_low_water) {
 	 */
 	if (likely(low_bits != bin->low_bits_empty)) {
 		bin->stack_head = new_head;
+		prefetch_one_w(*new_head);
 		bin->low_bits_low_water = (cache_bin_sz_t)(uintptr_t)new_head;
 		*success = true;
 		return ret;

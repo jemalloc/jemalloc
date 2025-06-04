@@ -1,5 +1,11 @@
 #include "test/jemalloc_test.h"
 
+#ifdef JEMALLOC_EXPERIMENTAL_FASTPATH_PREFETCH
+static bool experimental_fast_prefetch_enabled = true;
+#else
+static bool experimental_fast_prefetch_enabled = false;
+#endif
+
 static void
 do_fill_test(cache_bin_t *bin, void **ptrs, cache_bin_sz_t ncached_max,
     cache_bin_sz_t nfill_attempt, cache_bin_sz_t nfill_succeed) {
@@ -379,8 +385,117 @@ TEST_BEGIN(test_cache_bin_stash) {
 }
 TEST_END
 
+typedef struct {
+	void *ptr;
+	bool is_write;
+} prefetch_arg_t;
+
+#define PREFETCH_SZ 256
+static prefetch_arg_t prefetch_calls[PREFETCH_SZ];
+static unsigned nprefetch_calls;
+
+static void
+prefetch_hook(void *p, bool is_write) {
+	prefetch_calls[nprefetch_calls].ptr = p;
+	prefetch_calls[nprefetch_calls].is_write = is_write;
+	++nprefetch_calls;
+}
+
+static void
+reset_prefetch_calls(void) {
+	nprefetch_calls = 0;
+	cache_bin_prefetch_hook_set(prefetch_hook);
+}
+
+static void**
+do_dallocs_allocs(cache_bin_t *bin, int ncached_max) {
+	bool success = false;
+	assert(ncached_max < PREFETCH_SZ);
+	/*
+	 * We allocate fully, so we can test
+	 * prefetch at the end of the cache bin.
+	 */
+	void **ptrs = mallocx(sizeof(void *) * (ncached_max + 1), 0);
+	assert_ptr_not_null(ptrs, "Unexpected mallocx failure");
+	for  (cache_bin_sz_t i = 0; i < ncached_max; i++) {
+		expect_true(cache_bin_ncached_get_local(bin) == i, "");
+		success = cache_bin_dalloc_easy(bin, &ptrs[i]);
+	}
+	expect_true(cache_bin_ncached_get_local(bin) == ncached_max,
+	    "");
+
+	reset_prefetch_calls();
+	for  (cache_bin_sz_t i = 0; i < ncached_max; i++) {
+		void *ptr = cache_bin_alloc_easy(bin, &success);
+		expect_true(success, "");
+		expect_ptr_eq(ptr, &ptrs[ncached_max - i - 1], "");
+	}
+	return ptrs;
+}
+
+TEST_BEGIN(test_cache_bin_alloc_easy_prefetch_disabled) {
+	test_skip_if(experimental_fast_prefetch_enabled);
+
+	const int ncached_max = 10;
+	cache_bin_info_t info;
+	cache_bin_info_init(&info, ncached_max);
+	cache_bin_t bin;
+	test_bin_init(&bin, &info);
+
+	/* Initialize to empty; should then have 0 elements. */
+	expect_d_eq(ncached_max, cache_bin_ncached_max_get(&bin), "");
+	expect_true(cache_bin_ncached_get_local(&bin) == 0, "");
+
+	void **ptrs = do_dallocs_allocs(&bin, ncached_max);
+	/* Check prefetch calls */
+	expect_zu_eq(nprefetch_calls, 0, "No calls when prefetch disabled");
+
+	free(ptrs);
+	cache_bin_prefetch_hook_set(NULL);
+}
+TEST_END
+
+TEST_BEGIN(test_cache_bin_alloc_easy_prefetch_enabled) {
+	test_skip_if(!experimental_fast_prefetch_enabled);
+	const int ncached_max = 10;
+
+	cache_bin_info_t info;
+	cache_bin_info_init(&info, ncached_max);
+	cache_bin_t bin;
+	test_bin_init(&bin, &info);
+
+	/* Initialize to empty; should then have 0 elements. */
+	expect_d_eq(ncached_max, cache_bin_ncached_max_get(&bin), "");
+	expect_true(cache_bin_ncached_get_local(&bin) == 0, "");
+
+	void **ptrs = do_dallocs_allocs(&bin, ncached_max);
+	/* Check prefetch calls */
+	expect_zu_eq(nprefetch_calls, ncached_max, "Not enough prefetch calls");
+	/*
+	 * Each prefetched pointer should match one ahead in original array
+	 * in the opposite order as bin's head moves backwards on allocations.
+	 */
+	for  (cache_bin_sz_t i = 1; i < ncached_max; i++) {
+		expect_ptr_eq(prefetch_calls[i-1].ptr,
+		    &ptrs[ncached_max - 1 - i], "prefetch address wrong");
+	}
+
+	/* Bin is empty now.  stack_head points one past the "real" slots */
+	expect_true(cache_bin_ncached_get_local(&bin) == 0, "");
+	void **expected_ptr = bin.stack_head;
+	expect_ptr_eq(prefetch_calls[ncached_max - 1].ptr, expected_ptr,
+		      "prefetch address wrong for out of boundary");
+	expect_ptr_eq(expected_ptr, *expected_ptr, "Content is the address");
+
+	free(ptrs);
+	cache_bin_prefetch_hook_set(NULL);
+}
+TEST_END
+
 int
 main(void) {
 	return test(test_cache_bin,
-		test_cache_bin_stash);
+		test_cache_bin_stash,
+		test_cache_bin_alloc_easy_prefetch_disabled,
+		test_cache_bin_alloc_easy_prefetch_enabled);
 }

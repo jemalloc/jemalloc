@@ -160,6 +160,11 @@
 /* JEMALLOC_EXPERIMENTAL_SMALLOCX_API enables experimental smallocx API. */
 #undef JEMALLOC_EXPERIMENTAL_SMALLOCX_API
 
+/* JEMALLOC_EXPERIMENTAL_FASTPATH_PREFETCH enables prefetch
+ * on malloc fast path.
+ */
+#undef JEMALLOC_EXPERIMENTAL_FASTPATH_PREFETCH
+
 /* JEMALLOC_PROF enables allocation profiling. */
 #undef JEMALLOC_PROF
 
