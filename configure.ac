@@ -1681,6 +1681,55 @@ else
 fi
 AC_SUBST([enable_utrace])
 
+dnl Disable experimental sdt tracing by default.
+AC_ARG_ENABLE([experimental-sdt],
+  [AS_HELP_STRING([--enable-experimental-sdt], [Enable systemtap USDT probes])],
+[if test "x$enable_experimental_sdt" = "xno" ; then
+  enable_experimental_sdt="0"
+else
+	JE_COMPILABLE([systemtap sdt], [
+#include <sys/sdt.h>
+	], [
+void foo(int i, void *p) { STAP_PROBE2(jemalloc, test, i, p); }
+  	],
+	[je_cv_stap_sdt])
+
+	if test "x${je_cv_stap_sdt}" = "xyes" ; then
+	   enable_experimental_sdt="1"
+	elif test "x${abi}" = "xelf" ; then
+	     case "${host}" in
+	     	  *-*-linux-android*)
+			case "${host_cpu}" in aarch64|x86_64)
+			     enable_experimental_sdt="2"
+			     ;;
+			esac
+			;;
+		  *-*-linux*)
+			case "${host_cpu}" in x86_64|aarch64|arm*)
+			      enable_experimental_sdt="2"
+			      ;;
+			esac
+		        ;;
+		  *)
+			enable_experimental_sdt="0"
+			AC_MSG_ERROR([Unsupported sdt on this platform])
+			;;
+	     esac
+	else
+	   AC_MSG_ERROR([Unsupported sdt on this platform])
+   	fi
+fi
+],
+[enable_experimental_sdt="0"]
+)
+
+if test "x$enable_experimental_sdt" = "x1" ; then
+    AC_DEFINE([JEMALLOC_EXPERIMENTAL_USDT_STAP], [ ], [ ])
+elif test "x$enable_experimental_sdt" = "x2"; then
+    AC_DEFINE([JEMALLOC_EXPERIMENTAL_USDT_CUSTOM], [ ], [ ])
+fi
+AC_SUBST([enable_experimental_sdt])
+
 dnl Do not support the xmalloc option by default.
 AC_ARG_ENABLE([xmalloc],
   [AS_HELP_STRING([--enable-xmalloc], [Support xmalloc option])],

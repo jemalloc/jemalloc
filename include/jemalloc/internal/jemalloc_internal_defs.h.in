@@ -353,6 +353,15 @@
 /* Defined if mprotect(2) is available. */
 #undef JEMALLOC_HAVE_MPROTECT
 
+/* Defined if sys/sdt.h is available and sdt tracing enabled */
+#undef JEMALLOC_EXPERIMENTAL_USDT_STAP
+
+/*
+ * Defined if sys/sdt.h is unavailable, sdt tracing enabled, and
+ * platform is supported
+ */
+#undef JEMALLOC_EXPERIMENTAL_USDT_CUSTOM
+
 /*
  * Defined if transparent huge pages (THPs) are supported via the
  * MADV_[NO]HUGEPAGE arguments to madvise(2), and THP support is enabled.
