@@ -2,6 +2,7 @@
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/hpdata.h"
+#include "jemalloc/internal/jemalloc_probe.h"
 
 static int
 hpdata_age_comp(const hpdata_t *a, const hpdata_t *b) {
@@ -100,6 +101,8 @@ hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz) {
 	    hpdata->touched_pages, HUGEPAGE_PAGES, result, npages);
 	fb_set_range(hpdata->touched_pages, HUGEPAGE_PAGES, result, npages);
 	hpdata->h_ntouched += new_dirty;
+	JE_USDT(hpa_reserve, 5, npages, hpdata->h_nactive, hpdata->h_ntouched,
+	    new_dirty, largest_unchosen_range);
 
 	/*
 	 * If we allocated out of a range that was the longest in the hpdata, it
@@ -160,6 +163,8 @@ hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz) {
 	hpdata->h_nactive -= npages;
 
 	hpdata_assert_consistent(hpdata);
+	JE_USDT(hpa_unreserve, 5, npages, hpdata->h_nactive, hpdata->h_ntouched,
+	    old_longest_range, new_range_len);
 }
 
 size_t
