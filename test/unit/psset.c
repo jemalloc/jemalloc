@@ -146,7 +146,7 @@ TEST_BEGIN(test_fill) {
 	hpdata_t pageslab;
 	hpdata_init(&pageslab, PAGESLAB_ADDR, PAGESLAB_AGE);
 
-	edata_t alloc[HUGEPAGE_PAGES];
+	edata_t *alloc = (edata_t *)malloc(sizeof(edata_t) * HUGEPAGE_PAGES);
 
 	psset_t psset;
 	psset_init(&psset);
@@ -169,6 +169,8 @@ TEST_BEGIN(test_fill) {
 	edata_init_test(&extra_alloc);
 	err = test_psset_alloc_reuse(&psset, &extra_alloc, PAGE);
 	expect_true(err, "Alloc succeeded even though psset should be empty");
+
+	free(alloc);
 }
 TEST_END
 
@@ -180,7 +182,7 @@ TEST_BEGIN(test_reuse) {
 	hpdata_t pageslab;
 	hpdata_init(&pageslab, PAGESLAB_ADDR, PAGESLAB_AGE);
 
-	edata_t alloc[HUGEPAGE_PAGES];
+	edata_t *alloc = (edata_t *)malloc(sizeof(edata_t) * HUGEPAGE_PAGES);
 
 	psset_t psset;
 	psset_init(&psset);
@@ -262,6 +264,8 @@ TEST_BEGIN(test_reuse) {
 	err = test_psset_alloc_reuse(&psset, &alloc[index_of_4], 4 * PAGE);
 	expect_false(err, "Should have been able to find alloc.");
 	edata_expect(&alloc[index_of_4], index_of_4, 4);
+
+	free(alloc);
 }
 TEST_END
 
@@ -273,7 +277,7 @@ TEST_BEGIN(test_evict) {
 	hpdata_t pageslab;
 	hpdata_init(&pageslab, PAGESLAB_ADDR, PAGESLAB_AGE);
 
-	edata_t alloc[HUGEPAGE_PAGES];
+	edata_t *alloc = (edata_t *)malloc(sizeof(edata_t) * HUGEPAGE_PAGES);
 
 	psset_t psset;
 	psset_init(&psset);
@@ -297,6 +301,8 @@ TEST_BEGIN(test_evict) {
 
 	err = test_psset_alloc_reuse(&psset, &alloc[0], PAGE);
 	expect_true(err, "psset should be empty.");
+
+	free(alloc);
 }
 TEST_END
 
@@ -311,7 +317,9 @@ TEST_BEGIN(test_multi_pageslab) {
 	    (void *)((uintptr_t)PAGESLAB_ADDR + HUGEPAGE),
 	    PAGESLAB_AGE + 1);
 
-	edata_t alloc[2][HUGEPAGE_PAGES];
+	edata_t* alloc[2];
+	alloc[0] = (edata_t *)malloc(sizeof(edata_t) * HUGEPAGE_PAGES);
+	alloc[1] = (edata_t *)malloc(sizeof(edata_t) * HUGEPAGE_PAGES);
 
 	psset_t psset;
 	psset_init(&psset);
@@ -361,6 +369,9 @@ TEST_BEGIN(test_multi_pageslab) {
 	 */
 	err = test_psset_alloc_reuse(&psset, &alloc[1][0], 2 * PAGE);
 	expect_false(err, "Allocation should have succeeded");
+
+	free(alloc[0]);
+	free(alloc[1]);
 }
 TEST_END
 
@@ -368,7 +379,7 @@ TEST_BEGIN(test_stats_merged) {
 	hpdata_t pageslab;
 	hpdata_init(&pageslab, PAGESLAB_ADDR, PAGESLAB_AGE);
 
-	edata_t alloc[HUGEPAGE_PAGES];
+	edata_t *alloc = (edata_t *)malloc(sizeof(edata_t) * HUGEPAGE_PAGES);
 
 	psset_t psset;
 	psset_init(&psset);
@@ -422,6 +433,8 @@ TEST_BEGIN(test_stats_merged) {
 	expect_zu_eq(1, psset.stats.merged.npageslabs, "");
 	expect_zu_eq(1, psset.stats.merged.nactive, "");
 	expect_zu_eq(0, psset.stats.merged.ndirty, "");
+
+	free(alloc);
 }
 TEST_END
 
@@ -432,7 +445,7 @@ TEST_BEGIN(test_stats_huge) {
 	hpdata_t pageslab;
 	hpdata_init(&pageslab, PAGESLAB_ADDR, PAGESLAB_AGE);
 
-	edata_t alloc[HUGEPAGE_PAGES];
+	edata_t *alloc = (edata_t *)malloc(sizeof(edata_t) * HUGEPAGE_PAGES);
 
 	psset_t psset;
 	psset_init(&psset);
@@ -505,6 +518,8 @@ TEST_BEGIN(test_stats_huge) {
 		expect_zu_eq(0, psset.stats.slabs[huge].nactive, "");
 		expect_zu_eq(0, psset.stats.slabs[huge].ndirty, "");
 	}
+
+	free(alloc);
 }
 TEST_END
 
@@ -557,7 +572,7 @@ TEST_BEGIN(test_stats_fullness) {
 	hpdata_t pageslab;
 	hpdata_init(&pageslab, PAGESLAB_ADDR, PAGESLAB_AGE);
 
-	edata_t alloc[HUGEPAGE_PAGES];
+	edata_t *alloc = (edata_t *)malloc(sizeof(edata_t) * HUGEPAGE_PAGES);
 
 	psset_t psset;
 	psset_init(&psset);
@@ -587,6 +602,8 @@ TEST_BEGIN(test_stats_fullness) {
 	stats_expect(&psset, 0);
 	psset_update_end(&psset, &pageslab);
 	stats_expect(&psset, 1);
+
+	free(alloc);
 }
 TEST_END
 
@@ -648,8 +665,8 @@ init_test_pageslabs(psset_t *psset, hpdata_t *pageslab,
 TEST_BEGIN(test_oldest_fit) {
 	test_skip_if(hpa_hugepage_size_exceeds_limit());
 	bool err;
-	edata_t alloc[HUGEPAGE_PAGES];
-	edata_t worse_alloc[HUGEPAGE_PAGES];
+	edata_t *alloc = (edata_t *)malloc(sizeof(edata_t) * HUGEPAGE_PAGES);
+	edata_t *worse_alloc = (edata_t *)malloc(sizeof(edata_t) * HUGEPAGE_PAGES);
 
 	hpdata_t pageslab;
 	hpdata_t worse_pageslab;
@@ -666,6 +683,9 @@ TEST_BEGIN(test_oldest_fit) {
 	expect_false(err, "Nonempty psset failed page allocation");
 	expect_ptr_eq(&pageslab, edata_ps_get(&test_edata),
 	    "Allocated from the wrong pageslab");
+
+	free(alloc);
+	free(worse_alloc);
 }
 TEST_END
 
@@ -673,8 +693,8 @@ TEST_BEGIN(test_insert_remove) {
 	test_skip_if(hpa_hugepage_size_exceeds_limit());
 	bool err;
 	hpdata_t *ps;
-	edata_t alloc[HUGEPAGE_PAGES];
-	edata_t worse_alloc[HUGEPAGE_PAGES];
+	edata_t *alloc = (edata_t *)malloc(sizeof(edata_t) * HUGEPAGE_PAGES);
+	edata_t *worse_alloc = (edata_t *)malloc(sizeof(edata_t) * HUGEPAGE_PAGES);
 
 	hpdata_t pageslab;
 	hpdata_t worse_pageslab;
@@ -713,6 +733,9 @@ TEST_BEGIN(test_insert_remove) {
 	psset_update_begin(&psset, &worse_pageslab);
 	err = test_psset_alloc_reuse(&psset, &alloc[HUGEPAGE_PAGES - 1], PAGE);
 	expect_true(err, "psset should be empty, but an alloc succeeded");
+
+	free(alloc);
+	free(worse_alloc);
 }
 TEST_END
 
