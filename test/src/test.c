@@ -2,10 +2,10 @@
 
 /* Test status state. */
 
-static unsigned		test_count = 0;
-static test_status_t	test_counts[test_status_count] = {0, 0, 0};
-static test_status_t	test_status = test_status_pass;
-static const char *	test_name = "";
+static unsigned      test_count = 0;
+static test_status_t test_counts[test_status_count] = {0, 0, 0};
+static test_status_t test_status = test_status_pass;
+static const char   *test_name = "";
 
 /* Reentrancy testing helpers. */
 
@@ -89,10 +89,14 @@ test_fail(const char *format, ...) {
 static const char *
 test_status_string(test_status_t current_status) {
 	switch (current_status) {
-	case test_status_pass: return "pass";
-	case test_status_skip: return "skip";
-	case test_status_fail: return "fail";
-	default: not_reached();
+	case test_status_pass:
+		return "pass";
+	case test_status_skip:
+		return "skip";
+	case test_status_fail:
+		return "fail";
+	default:
+		not_reached();
 	}
 }
 
@@ -173,19 +177,16 @@ p_test_impl(bool do_malloc_init, bool do_reentrant, test_t *t, va_list ap) {
 		}
 	}
 
-	bool colored = test_counts[test_status_fail] != 0 &&
-	    isatty(STDERR_FILENO);
+	bool colored = test_counts[test_status_fail] != 0
+	    && isatty(STDERR_FILENO);
 	const char *color_start = colored ? "\033[1;31m" : "";
 	const char *color_end = colored ? "\033[0m" : "";
 	malloc_printf("%s--- %s: %u/%u, %s: %u/%u, %s: %u/%u ---\n%s",
-	    color_start,
-	    test_status_string(test_status_pass),
+	    color_start, test_status_string(test_status_pass),
 	    test_counts[test_status_pass], test_count,
-	    test_status_string(test_status_skip),
-	    test_counts[test_status_skip], test_count,
-	    test_status_string(test_status_fail),
-	    test_counts[test_status_fail], test_count,
-	    color_end);
+	    test_status_string(test_status_skip), test_counts[test_status_skip],
+	    test_count, test_status_string(test_status_fail),
+	    test_counts[test_status_fail], test_count, color_end);
 
 	return ret;
 }
@@ -193,7 +194,7 @@ p_test_impl(bool do_malloc_init, bool do_reentrant, test_t *t, va_list ap) {
 test_status_t
 p_test(test_t *t, ...) {
 	test_status_t ret;
-	va_list ap;
+	va_list       ap;
 
 	ret = test_status_pass;
 	va_start(ap, t);
@@ -206,7 +207,7 @@ p_test(test_t *t, ...) {
 test_status_t
 p_test_no_reentrancy(test_t *t, ...) {
 	test_status_t ret;
-	va_list ap;
+	va_list       ap;
 
 	ret = test_status_pass;
 	va_start(ap, t);
@@ -219,7 +220,7 @@ p_test_no_reentrancy(test_t *t, ...) {
 test_status_t
 p_test_no_malloc_init(test_t *t, ...) {
 	test_status_t ret;
-	va_list ap;
+	va_list       ap;
 
 	ret = test_status_pass;
 	va_start(ap, t);
@@ -235,12 +236,12 @@ p_test_no_malloc_init(test_t *t, ...) {
 
 void
 p_test_fail(bool may_abort, const char *prefix, const char *message) {
-	bool colored = test_counts[test_status_fail] != 0 &&
-	    isatty(STDERR_FILENO);
+	bool colored = test_counts[test_status_fail] != 0
+	    && isatty(STDERR_FILENO);
 	const char *color_start = colored ? "\033[1;31m" : "";
 	const char *color_end = colored ? "\033[0m" : "";
-	malloc_cprintf(NULL, NULL, "%s%s%s\n%s", color_start, prefix, message,
-	    color_end);
+	malloc_cprintf(
+	    NULL, NULL, "%s%s%s\n%s", color_start, prefix, message, color_end);
 	test_status = test_status_fail;
 	if (may_abort) {
 		abort();

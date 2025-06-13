@@ -13,13 +13,14 @@
  *
  * The calls to this thunk get driven by the peak_event module.
  */
-#define ACTIVITY_CALLBACK_THUNK_INITIALIZER {NULL, NULL}
-typedef void (*activity_callback_t)(void *uctx, uint64_t allocated,
-    uint64_t deallocated);
+#define ACTIVITY_CALLBACK_THUNK_INITIALIZER                                    \
+	{ NULL, NULL }
+typedef void (*activity_callback_t)(
+    void *uctx, uint64_t allocated, uint64_t deallocated);
 typedef struct activity_callback_thunk_s activity_callback_thunk_t;
 struct activity_callback_thunk_s {
 	activity_callback_t callback;
-	void *uctx;
+	void               *uctx;
 };
 
 #endif /* JEMALLOC_INTERNAL_ACTIVITY_CALLBACK_H */

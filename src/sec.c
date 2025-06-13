@@ -6,12 +6,12 @@
 static edata_t *sec_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
     size_t alignment, bool zero, bool guarded, bool frequent_reuse,
     bool *deferred_work_generated);
-static bool sec_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata,
-    size_t old_size, size_t new_size, bool zero, bool *deferred_work_generated);
-static bool sec_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata,
-    size_t old_size, size_t new_size, bool *deferred_work_generated);
-static void sec_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata,
-    bool *deferred_work_generated);
+static bool     sec_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata,
+        size_t old_size, size_t new_size, bool zero, bool *deferred_work_generated);
+static bool     sec_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata,
+        size_t old_size, size_t new_size, bool *deferred_work_generated);
+static void     sec_dalloc(
+        tsdn_t *tsdn, pai_t *self, edata_t *edata, bool *deferred_work_generated);
 
 static void
 sec_bin_init(sec_bin_t *bin) {
@@ -29,16 +29,16 @@ sec_init(tsdn_t *tsdn, sec_t *sec, base_t *base, pai_t *fallback,
 	 * USIZE_GROW_SLOW_THRESHOLD because the usize above this increases
 	 * by PAGE and the number of usizes is too large.
 	 */
-	assert(!sz_large_size_classes_disabled() ||
-	    opts->max_alloc <= USIZE_GROW_SLOW_THRESHOLD);
+	assert(!sz_large_size_classes_disabled()
+	    || opts->max_alloc <= USIZE_GROW_SLOW_THRESHOLD);
 
-	size_t max_alloc = PAGE_FLOOR(opts->max_alloc);
+	size_t   max_alloc = PAGE_FLOOR(opts->max_alloc);
 	pszind_t npsizes = sz_psz2ind(max_alloc) + 1;
 
 	size_t sz_shards = opts->nshards * sizeof(sec_shard_t);
 	size_t sz_bins = opts->nshards * (size_t)npsizes * sizeof(sec_bin_t);
 	size_t sz_alloc = sz_shards + sz_bins;
-	void *dynalloc = base_alloc(tsdn, base, sz_alloc, CACHELINE);
+	void  *dynalloc = base_alloc(tsdn, base, sz_alloc, CACHELINE);
 	if (dynalloc == NULL) {
 		return true;
 	}
@@ -74,7 +74,6 @@ sec_init(tsdn_t *tsdn, sec_t *sec, base_t *base, pai_t *fallback,
 	assert((char *)bin_cur == ((char *)dynalloc + sz_alloc));
 	sec->fallback = fallback;
 
-
 	sec->opts = *opts;
 	sec->npsizes = npsizes;
 
@@ -102,7 +101,7 @@ sec_shard_pick(tsdn_t *tsdn, sec_t *sec) {
 	if (tsdn_null(tsdn)) {
 		return &sec->shards[0];
 	}
-	tsd_t *tsd = tsdn_tsd(tsdn);
+	tsd_t   *tsd = tsdn_tsd(tsdn);
 	uint8_t *idxp = tsd_sec_shardp_get(tsd);
 	if (*idxp == (uint8_t)-1) {
 		/*
@@ -111,9 +110,10 @@ sec_shard_pick(tsdn_t *tsdn, sec_t *sec) {
 		 * number to store 32 bits, since we'll deliberately overflow
 		 * when we multiply by the number of shards.
 		 */
-		uint64_t rand32 = prng_lg_range_u64(tsd_prng_statep_get(tsd), 32);
-		uint32_t idx =
-		    (uint32_t)((rand32 * (uint64_t)sec->opts.nshards) >> 32);
+		uint64_t rand32 = prng_lg_range_u64(
+		    tsd_prng_statep_get(tsd), 32);
+		uint32_t idx = (uint32_t)((rand32 * (uint64_t)sec->opts.nshards)
+		    >> 32);
 		assert(idx < (uint32_t)sec->opts.nshards);
 		*idxp = (uint8_t)idx;
 	}
@@ -157,13 +157,13 @@ sec_flush_some_and_unlock(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard) {
 
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 	bool deferred_work_generated = false;
-	pai_dalloc_batch(tsdn, sec->fallback, &to_flush,
-	    &deferred_work_generated);
+	pai_dalloc_batch(
+	    tsdn, sec->fallback, &to_flush, &deferred_work_generated);
 }
 
 static edata_t *
-sec_shard_alloc_locked(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard,
-    sec_bin_t *bin) {
+sec_shard_alloc_locked(
+    tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard, sec_bin_t *bin) {
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
 	if (!shard->enabled) {
 		return NULL;
@@ -186,7 +186,7 @@ sec_batch_fill_and_alloc(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard,
 
 	edata_list_active_t result;
 	edata_list_active_init(&result);
-	bool deferred_work_generated = false;
+	bool   deferred_work_generated = false;
 	size_t nalloc = pai_alloc_batch(tsdn, sec->fallback, size,
 	    1 + sec->opts.batch_fill_extra, &result, frequent_reuse,
 	    &deferred_work_generated);
@@ -243,8 +243,8 @@ sec_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
 	assert(pszind < sec->npsizes);
 
 	sec_shard_t *shard = sec_shard_pick(tsdn, sec);
-	sec_bin_t *bin = &shard->bins[pszind];
-	bool do_batch_fill = false;
+	sec_bin_t   *bin = &shard->bins[pszind];
+	bool         do_batch_fill = false;
 
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	edata_t *edata = sec_shard_alloc_locked(tsdn, sec, shard, bin);
@@ -258,8 +258,8 @@ sec_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 	if (edata == NULL) {
 		if (do_batch_fill) {
-			edata = sec_batch_fill_and_alloc(tsdn, sec, shard, bin,
-			    size, frequent_reuse);
+			edata = sec_batch_fill_and_alloc(
+			    tsdn, sec, shard, bin, size, frequent_reuse);
 		} else {
 			edata = pai_alloc(tsdn, sec->fallback, size, alignment,
 			    zero, /* guarded */ false, frequent_reuse,
@@ -304,16 +304,16 @@ sec_flush_all_locked(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard) {
 	 * rare pathways.
 	 */
 	bool deferred_work_generated = false;
-	pai_dalloc_batch(tsdn, sec->fallback, &to_flush,
-	    &deferred_work_generated);
+	pai_dalloc_batch(
+	    tsdn, sec->fallback, &to_flush, &deferred_work_generated);
 }
 
 static void
-sec_shard_dalloc_and_unlock(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard,
-    edata_t *edata) {
+sec_shard_dalloc_and_unlock(
+    tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard, edata_t *edata) {
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
 	assert(shard->bytes_cur <= sec->opts.max_bytes);
-	size_t size = edata_size_get(edata);
+	size_t   size = edata_size_get(edata);
 	pszind_t pszind = sz_psz2ind(size);
 	assert(pszind < sec->npsizes);
 	/*
@@ -342,13 +342,12 @@ sec_shard_dalloc_and_unlock(tsdn_t *tsdn, sec_t *sec, sec_shard_t *shard,
 }
 
 static void
-sec_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata,
-    bool *deferred_work_generated) {
+sec_dalloc(
+    tsdn_t *tsdn, pai_t *self, edata_t *edata, bool *deferred_work_generated) {
 	sec_t *sec = (sec_t *)self;
 	if (sec->opts.nshards == 0
 	    || edata_size_get(edata) > sec->opts.max_alloc) {
-		pai_dalloc(tsdn, sec->fallback, edata,
-		    deferred_work_generated);
+		pai_dalloc(tsdn, sec->fallback, edata, deferred_work_generated);
 		return;
 	}
 	sec_shard_t *shard = sec_shard_pick(tsdn, sec);
@@ -357,8 +356,7 @@ sec_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata,
 		sec_shard_dalloc_and_unlock(tsdn, sec, shard, edata);
 	} else {
 		malloc_mutex_unlock(tsdn, &shard->mtx);
-		pai_dalloc(tsdn, sec->fallback, edata,
-		    deferred_work_generated);
+		pai_dalloc(tsdn, sec->fallback, edata, deferred_work_generated);
 	}
 }
 
@@ -398,12 +396,12 @@ sec_stats_merge(tsdn_t *tsdn, sec_t *sec, sec_stats_t *stats) {
 }
 
 void
-sec_mutex_stats_read(tsdn_t *tsdn, sec_t *sec,
-    mutex_prof_data_t *mutex_prof_data) {
+sec_mutex_stats_read(
+    tsdn_t *tsdn, sec_t *sec, mutex_prof_data_t *mutex_prof_data) {
 	for (size_t i = 0; i < sec->opts.nshards; i++) {
 		malloc_mutex_lock(tsdn, &sec->shards[i].mtx);
-		malloc_mutex_prof_accum(tsdn, mutex_prof_data,
-		    &sec->shards[i].mtx);
+		malloc_mutex_prof_accum(
+		    tsdn, mutex_prof_data, &sec->shards[i].mtx);
 		malloc_mutex_unlock(tsdn, &sec->shards[i].mtx);
 	}
 }

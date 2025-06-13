@@ -10,9 +10,9 @@
  *     EMAP_DECLARE_RTREE_CTX;
  * in uses will avoid empty-statement warnings.
  */
-#define EMAP_DECLARE_RTREE_CTX						\
-    rtree_ctx_t rtree_ctx_fallback;					\
-    rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback)
+#define EMAP_DECLARE_RTREE_CTX                                                 \
+	rtree_ctx_t  rtree_ctx_fallback;                                       \
+	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback)
 
 typedef struct emap_s emap_t;
 struct emap_s {
@@ -22,25 +22,25 @@ struct emap_s {
 /* Used to pass rtree lookup context down the path. */
 typedef struct emap_alloc_ctx_s emap_alloc_ctx_t;
 struct emap_alloc_ctx_s {
-	size_t usize;
+	size_t  usize;
 	szind_t szind;
-	bool slab;
+	bool    slab;
 };
 
 typedef struct emap_full_alloc_ctx_s emap_full_alloc_ctx_t;
 struct emap_full_alloc_ctx_s {
-	szind_t szind;
-	bool slab;
+	szind_t  szind;
+	bool     slab;
 	edata_t *edata;
 };
 
 bool emap_init(emap_t *emap, base_t *base, bool zeroed);
 
-void emap_remap(tsdn_t *tsdn, emap_t *emap, edata_t *edata, szind_t szind,
-    bool slab);
+void emap_remap(
+    tsdn_t *tsdn, emap_t *emap, edata_t *edata, szind_t szind, bool slab);
 
-void emap_update_edata_state(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
-    extent_state_t state);
+void emap_update_edata_state(
+    tsdn_t *tsdn, emap_t *emap, edata_t *edata, extent_state_t state);
 
 /*
  * The two acquire functions below allow accessing neighbor edatas, if it's safe
@@ -62,16 +62,16 @@ edata_t *emap_try_acquire_edata_neighbor(tsdn_t *tsdn, emap_t *emap,
     bool forward);
 edata_t *emap_try_acquire_edata_neighbor_expand(tsdn_t *tsdn, emap_t *emap,
     edata_t *edata, extent_pai_t pai, extent_state_t expected_state);
-void emap_release_edata(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
-    extent_state_t new_state);
+void     emap_release_edata(
+        tsdn_t *tsdn, emap_t *emap, edata_t *edata, extent_state_t new_state);
 
 /*
  * Associate the given edata with its beginning and end address, setting the
  * szind and slab info appropriately.
  * Returns true on error (i.e. resource exhaustion).
  */
-bool emap_register_boundary(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
-    szind_t szind, bool slab);
+bool emap_register_boundary(
+    tsdn_t *tsdn, emap_t *emap, edata_t *edata, szind_t szind, bool slab);
 
 /*
  * Does the same thing, but with the interior of the range, for slab
@@ -92,8 +92,8 @@ bool emap_register_boundary(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
  * touched, so no allocation is necessary to fill the interior once the boundary
  * has been touched.
  */
-void emap_register_interior(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
-    szind_t szind);
+void emap_register_interior(
+    tsdn_t *tsdn, emap_t *emap, edata_t *edata, szind_t szind);
 
 void emap_deregister_boundary(tsdn_t *tsdn, emap_t *emap, edata_t *edata);
 void emap_deregister_interior(tsdn_t *tsdn, emap_t *emap, edata_t *edata);
@@ -161,8 +161,8 @@ emap_edata_in_transition(tsdn_t *tsdn, emap_t *emap, edata_t *edata) {
 	emap_assert_mapped(tsdn, emap, edata);
 
 	EMAP_DECLARE_RTREE_CTX;
-	rtree_contents_t contents = rtree_read(tsdn, &emap->rtree, rtree_ctx,
-	    (uintptr_t)edata_base_get(edata));
+	rtree_contents_t contents = rtree_read(
+	    tsdn, &emap->rtree, rtree_ctx, (uintptr_t)edata_base_get(edata));
 
 	return edata_state_in_transition(contents.metadata.state);
 }
@@ -194,9 +194,9 @@ emap_edata_is_acquired(tsdn_t *tsdn, emap_t *emap, edata_t *edata) {
 	}
 	rtree_contents_t contents = rtree_leaf_elm_read(tsdn, &emap->rtree, elm,
 	    /* dependent */ false);
-	if (contents.edata == NULL ||
-	    contents.metadata.state == extent_state_active ||
-	    edata_state_in_transition(contents.metadata.state)) {
+	if (contents.edata == NULL
+	    || contents.metadata.state == extent_state_active
+	    || edata_state_in_transition(contents.metadata.state)) {
 		return true;
 	}
 
@@ -211,8 +211,8 @@ extent_assert_can_coalesce(const edata_t *inner, const edata_t *outer) {
 	assert(edata_state_get(inner) == extent_state_active);
 	assert(edata_state_get(outer) == extent_state_merging);
 	assert(!edata_guarded_get(inner) && !edata_guarded_get(outer));
-	assert(edata_base_get(inner) == edata_past_get(outer) ||
-	    edata_base_get(outer) == edata_past_get(inner));
+	assert(edata_base_get(inner) == edata_past_get(outer)
+	    || edata_base_get(outer) == edata_past_get(inner));
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -232,13 +232,13 @@ emap_edata_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr) {
 }
 
 JEMALLOC_ALWAYS_INLINE void
-emap_alloc_ctx_init(emap_alloc_ctx_t *alloc_ctx, szind_t szind, bool slab,
-    size_t usize) {
+emap_alloc_ctx_init(
+    emap_alloc_ctx_t *alloc_ctx, szind_t szind, bool slab, size_t usize) {
 	alloc_ctx->szind = szind;
 	alloc_ctx->slab = slab;
 	alloc_ctx->usize = usize;
-	assert(sz_large_size_classes_disabled() ||
-	    usize == sz_index2size(szind));
+	assert(
+	    sz_large_size_classes_disabled() || usize == sz_index2size(szind));
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
@@ -248,27 +248,29 @@ emap_alloc_ctx_usize_get(emap_alloc_ctx_t *alloc_ctx) {
 		assert(alloc_ctx->usize == sz_index2size(alloc_ctx->szind));
 		return sz_index2size(alloc_ctx->szind);
 	}
-	assert(sz_large_size_classes_disabled() ||
-	    alloc_ctx->usize == sz_index2size(alloc_ctx->szind));
+	assert(sz_large_size_classes_disabled()
+	    || alloc_ctx->usize == sz_index2size(alloc_ctx->szind));
 	assert(alloc_ctx->usize <= SC_LARGE_MAXCLASS);
 	return alloc_ctx->usize;
 }
 
 /* Fills in alloc_ctx with the info in the map. */
 JEMALLOC_ALWAYS_INLINE void
-emap_alloc_ctx_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr,
-    emap_alloc_ctx_t *alloc_ctx) {
+emap_alloc_ctx_lookup(
+    tsdn_t *tsdn, emap_t *emap, const void *ptr, emap_alloc_ctx_t *alloc_ctx) {
 	EMAP_DECLARE_RTREE_CTX;
 
-	rtree_contents_t contents = rtree_read(tsdn, &emap->rtree,
-	    rtree_ctx, (uintptr_t)ptr);
+	rtree_contents_t contents = rtree_read(
+	    tsdn, &emap->rtree, rtree_ctx, (uintptr_t)ptr);
 	/*
 	 * If the alloc is invalid, do not calculate usize since edata
 	 * could be corrupted.
 	 */
 	emap_alloc_ctx_init(alloc_ctx, contents.metadata.szind,
-	    contents.metadata.slab, (contents.metadata.szind == SC_NSIZES
-	    || contents.edata == NULL)? 0: edata_usize_get(contents.edata));
+	    contents.metadata.slab,
+	    (contents.metadata.szind == SC_NSIZES || contents.edata == NULL)
+	        ? 0
+	        : edata_usize_get(contents.edata));
 }
 
 /* The pointer must be mapped. */
@@ -277,8 +279,8 @@ emap_full_alloc_ctx_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr,
     emap_full_alloc_ctx_t *full_alloc_ctx) {
 	EMAP_DECLARE_RTREE_CTX;
 
-	rtree_contents_t contents = rtree_read(tsdn, &emap->rtree, rtree_ctx,
-	    (uintptr_t)ptr);
+	rtree_contents_t contents = rtree_read(
+	    tsdn, &emap->rtree, rtree_ctx, (uintptr_t)ptr);
 	full_alloc_ctx->edata = contents.edata;
 	full_alloc_ctx->szind = contents.metadata.szind;
 	full_alloc_ctx->slab = contents.metadata.slab;
@@ -295,8 +297,8 @@ emap_full_alloc_ctx_try_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr,
 	EMAP_DECLARE_RTREE_CTX;
 
 	rtree_contents_t contents;
-	bool err = rtree_read_independent(tsdn, &emap->rtree, rtree_ctx,
-	    (uintptr_t)ptr, &contents);
+	bool             err = rtree_read_independent(
+            tsdn, &emap->rtree, rtree_ctx, (uintptr_t)ptr, &contents);
 	if (err) {
 		return true;
 	}
@@ -311,14 +313,14 @@ emap_full_alloc_ctx_try_lookup(tsdn_t *tsdn, emap_t *emap, const void *ptr,
  * fast path, e.g. when the metadata key is not cached.
  */
 JEMALLOC_ALWAYS_INLINE bool
-emap_alloc_ctx_try_lookup_fast(tsd_t *tsd, emap_t *emap, const void *ptr,
-    emap_alloc_ctx_t *alloc_ctx) {
+emap_alloc_ctx_try_lookup_fast(
+    tsd_t *tsd, emap_t *emap, const void *ptr, emap_alloc_ctx_t *alloc_ctx) {
 	/* Use the unsafe getter since this may gets called during exit. */
 	rtree_ctx_t *rtree_ctx = tsd_rtree_ctxp_get_unsafe(tsd);
 
 	rtree_metadata_t metadata;
-	bool err = rtree_metadata_try_read_fast(tsd_tsdn(tsd), &emap->rtree,
-	    rtree_ctx, (uintptr_t)ptr, &metadata);
+	bool             err = rtree_metadata_try_read_fast(
+            tsd_tsdn(tsd), &emap->rtree, rtree_ctx, (uintptr_t)ptr, &metadata);
 	if (err) {
 		return true;
 	}
@@ -345,11 +347,12 @@ typedef const void *(*emap_ptr_getter)(void *ctx, size_t ind);
  * This allows size-checking assertions, which we can only do while we're in the
  * process of edata lookups.
  */
-typedef void (*emap_metadata_visitor)(void *ctx, emap_full_alloc_ctx_t *alloc_ctx);
+typedef void (*emap_metadata_visitor)(
+    void *ctx, emap_full_alloc_ctx_t *alloc_ctx);
 
 typedef union emap_batch_lookup_result_u emap_batch_lookup_result_t;
 union emap_batch_lookup_result_u {
-	edata_t *edata;
+	edata_t          *edata;
 	rtree_leaf_elm_t *rtree_leaf;
 };
 
@@ -375,8 +378,8 @@ emap_edata_lookup_batch(tsd_t *tsd, emap_t *emap, size_t nptrs,
 
 	for (size_t i = 0; i < nptrs; i++) {
 		rtree_leaf_elm_t *elm = result[i].rtree_leaf;
-		rtree_contents_t contents = rtree_leaf_elm_read(tsd_tsdn(tsd),
-		    &emap->rtree, elm, /* dependent */ true);
+		rtree_contents_t  contents = rtree_leaf_elm_read(
+                    tsd_tsdn(tsd), &emap->rtree, elm, /* dependent */ true);
 		result[i].edata = contents.edata;
 		emap_full_alloc_ctx_t alloc_ctx;
 		/*

@@ -12,17 +12,17 @@
 static edata_t *hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
     size_t alignment, bool zero, bool guarded, bool frequent_reuse,
     bool *deferred_work_generated);
-static size_t hpa_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size,
-    size_t nallocs, edata_list_active_t *results, bool frequent_reuse,
-    bool *deferred_work_generated);
-static bool hpa_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata,
-    size_t old_size, size_t new_size, bool zero, bool *deferred_work_generated);
-static bool hpa_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata,
-    size_t old_size, size_t new_size, bool *deferred_work_generated);
-static void hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata,
-    bool *deferred_work_generated);
-static void hpa_dalloc_batch(tsdn_t *tsdn, pai_t *self,
-    edata_list_active_t *list, bool *deferred_work_generated);
+static size_t   hpa_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size,
+      size_t nallocs, edata_list_active_t *results, bool frequent_reuse,
+      bool *deferred_work_generated);
+static bool     hpa_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata,
+        size_t old_size, size_t new_size, bool zero, bool *deferred_work_generated);
+static bool     hpa_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata,
+        size_t old_size, size_t new_size, bool *deferred_work_generated);
+static void     hpa_dalloc(
+        tsdn_t *tsdn, pai_t *self, edata_t *edata, bool *deferred_work_generated);
+static void     hpa_dalloc_batch(tsdn_t *tsdn, pai_t *self,
+        edata_list_active_t *list, bool *deferred_work_generated);
 static uint64_t hpa_time_until_deferred_work(tsdn_t *tsdn, pai_t *self);
 
 bool
@@ -70,7 +70,8 @@ hpa_do_consistency_checks(hpa_shard_t *shard) {
 }
 
 bool
-hpa_central_init(hpa_central_t *central, base_t *base, const hpa_hooks_t *hooks) {
+hpa_central_init(
+    hpa_central_t *central, base_t *base, const hpa_hooks_t *hooks) {
 	/* malloc_conf processing should have filtered out these cases. */
 	assert(hpa_supported());
 	bool err;
@@ -89,8 +90,8 @@ hpa_central_init(hpa_central_t *central, base_t *base, const hpa_hooks_t *hooks)
 
 static hpdata_t *
 hpa_alloc_ps(tsdn_t *tsdn, hpa_central_t *central) {
-	return (hpdata_t *)base_alloc(tsdn, central->base, sizeof(hpdata_t),
-	    CACHELINE);
+	return (hpdata_t *)base_alloc(
+	    tsdn, central->base, sizeof(hpdata_t), CACHELINE);
 }
 
 static hpdata_t *
@@ -137,8 +138,8 @@ hpa_central_extract(tsdn_t *tsdn, hpa_central_t *central, size_t size,
 		 */
 		bool commit = true;
 		/* Allocate address space, bailing if we fail. */
-		void *new_eden = pages_map(NULL, HPA_EDEN_SIZE, HUGEPAGE,
-		    &commit);
+		void *new_eden = pages_map(
+		    NULL, HPA_EDEN_SIZE, HUGEPAGE, &commit);
 		if (new_eden == NULL) {
 			*oom = true;
 			malloc_mutex_unlock(tsdn, &central->grow_mtx);
@@ -243,8 +244,8 @@ hpa_shard_init(hpa_shard_t *shard, hpa_central_t *central, emap_t *emap,
  * locking here.
  */
 static void
-hpa_shard_nonderived_stats_accum(hpa_shard_nonderived_stats_t *dst,
-    hpa_shard_nonderived_stats_t *src) {
+hpa_shard_nonderived_stats_accum(
+    hpa_shard_nonderived_stats_t *dst, hpa_shard_nonderived_stats_t *src) {
 	dst->npurge_passes += src->npurge_passes;
 	dst->npurges += src->npurges;
 	dst->nhugifies += src->nhugifies;
@@ -255,13 +256,13 @@ hpa_shard_nonderived_stats_accum(hpa_shard_nonderived_stats_t *dst,
 void
 hpa_shard_stats_accum(hpa_shard_stats_t *dst, hpa_shard_stats_t *src) {
 	psset_stats_accum(&dst->psset_stats, &src->psset_stats);
-	hpa_shard_nonderived_stats_accum(&dst->nonderived_stats,
-	    &src->nonderived_stats);
+	hpa_shard_nonderived_stats_accum(
+	    &dst->nonderived_stats, &src->nonderived_stats);
 }
 
 void
-hpa_shard_stats_merge(tsdn_t *tsdn, hpa_shard_t *shard,
-    hpa_shard_stats_t *dst) {
+hpa_shard_stats_merge(
+    tsdn_t *tsdn, hpa_shard_t *shard, hpa_shard_stats_t *dst) {
 	hpa_do_consistency_checks(shard);
 
 	malloc_mutex_lock(tsdn, &shard->grow_mtx);
@@ -295,8 +296,8 @@ hpa_ndirty_max(tsdn_t *tsdn, hpa_shard_t *shard) {
 	if (shard->opts.dirty_mult == (fxp_t)-1) {
 		return (size_t)-1;
 	}
-	return fxp_mul_frac(psset_nactive(&shard->psset),
-	    shard->opts.dirty_mult);
+	return fxp_mul_frac(
+	    psset_nactive(&shard->psset), shard->opts.dirty_mult);
 }
 
 static bool
@@ -307,7 +308,8 @@ hpa_hugify_blocked_by_ndirty(tsdn_t *tsdn, hpa_shard_t *shard) {
 		return false;
 	}
 	return hpa_adjusted_ndirty(tsdn, shard)
-	    + hpdata_nretained_get(to_hugify) > hpa_ndirty_max(tsdn, shard);
+	    + hpdata_nretained_get(to_hugify)
+	    > hpa_ndirty_max(tsdn, shard);
 }
 
 static bool
@@ -323,8 +325,8 @@ hpa_should_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
 }
 
 static void
-hpa_update_purge_hugify_eligibility(tsdn_t *tsdn, hpa_shard_t *shard,
-    hpdata_t *ps) {
+hpa_update_purge_hugify_eligibility(
+    tsdn_t *tsdn, hpa_shard_t *shard, hpdata_t *ps) {
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
 	if (hpdata_changing_state_get(ps)) {
 		hpdata_purge_allowed_set(ps, false);
@@ -397,7 +399,7 @@ hpa_shard_has_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard) {
 #define HPA_PURGE_BATCH_MAX_DEFAULT 16
 
 #ifndef JEMALLOC_JET
-#define HPA_PURGE_BATCH_MAX HPA_PURGE_BATCH_MAX_DEFAULT
+#	define HPA_PURGE_BATCH_MAX HPA_PURGE_BATCH_MAX_DEFAULT
 #else
 size_t hpa_purge_max_batch_size_for_test = HPA_PURGE_BATCH_MAX_DEFAULT;
 size_t
@@ -406,20 +408,21 @@ hpa_purge_max_batch_size_for_test_set(size_t new_size) {
 	hpa_purge_max_batch_size_for_test = new_size;
 	return old_size;
 }
-#define HPA_PURGE_BATCH_MAX hpa_purge_max_batch_size_for_test
+#	define HPA_PURGE_BATCH_MAX hpa_purge_max_batch_size_for_test
 #endif
 
 static inline size_t
 hpa_process_madvise_max_iovec_len(void) {
-	assert(opt_process_madvise_max_batch <=
-		PROCESS_MADVISE_MAX_BATCH_LIMIT);
-	return opt_process_madvise_max_batch == 0 ?
-		HPA_MIN_VAR_VEC_SIZE : opt_process_madvise_max_batch;
+	assert(
+	    opt_process_madvise_max_batch <= PROCESS_MADVISE_MAX_BATCH_LIMIT);
+	return opt_process_madvise_max_batch == 0
+	    ? HPA_MIN_VAR_VEC_SIZE
+	    : opt_process_madvise_max_batch;
 }
 
 static inline void
-hpa_purge_actual_unlocked(hpa_shard_t *shard, hpa_purge_item_t *batch,
-	size_t batch_sz) {
+hpa_purge_actual_unlocked(
+    hpa_shard_t *shard, hpa_purge_item_t *batch, size_t batch_sz) {
 	assert(batch_sz > 0);
 
 	size_t len = hpa_process_madvise_max_iovec_len();
@@ -433,17 +436,18 @@ hpa_purge_actual_unlocked(hpa_shard_t *shard, hpa_purge_item_t *batch,
 
 		/* Actually do the purging, now that the lock is dropped. */
 		if (batch[i].dehugify) {
-			shard->central->hooks.dehugify(hpdata_addr_get(to_purge),
-		    	HUGEPAGE);
+			shard->central->hooks.dehugify(
+			    hpdata_addr_get(to_purge), HUGEPAGE);
 		}
-		void *purge_addr;
+		void  *purge_addr;
 		size_t purge_size;
 		size_t total_purged_on_one_hp = 0;
 		while (hpdata_purge_next(
-				to_purge, &batch[i].state, &purge_addr, &purge_size)) {
+		    to_purge, &batch[i].state, &purge_addr, &purge_size)) {
 			total_purged_on_one_hp += purge_size;
 			assert(total_purged_on_one_hp <= HUGEPAGE);
-			hpa_range_accum_add(&accum, purge_addr, purge_size, shard);
+			hpa_range_accum_add(
+			    &accum, purge_addr, purge_size, shard);
 		}
 	}
 	hpa_range_accum_finish(&accum, shard);
@@ -490,10 +494,10 @@ hpa_purge_start_hp(hpa_purge_batch_t *b, psset_t *psset) {
 	/* Gather all the metadata we'll need during the purge. */
 	hp_item->dehugify = hpdata_huge_get(hp_item->hp);
 	size_t nranges;
-	size_t ndirty =
-		hpdata_purge_begin(hp_item->hp, &hp_item->state, &nranges);
+	size_t ndirty = hpdata_purge_begin(
+	    hp_item->hp, &hp_item->state, &nranges);
 	/* We picked hp to purge, so it should have some dirty ranges */
-	assert(ndirty > 0 && nranges >0);
+	assert(ndirty > 0 && nranges > 0);
 	b->ndirty_in_batch += ndirty;
 	b->nranges += nranges;
 	return ndirty;
@@ -501,8 +505,8 @@ hpa_purge_start_hp(hpa_purge_batch_t *b, psset_t *psset) {
 
 /* Finish purge of one huge page. */
 static inline void
-hpa_purge_finish_hp(tsdn_t *tsdn, hpa_shard_t *shard,
-	hpa_purge_item_t *hp_item) {
+hpa_purge_finish_hp(
+    tsdn_t *tsdn, hpa_shard_t *shard, hpa_purge_item_t *hp_item) {
 	if (hp_item->dehugify) {
 		shard->stats.ndehugifies++;
 	}
@@ -523,9 +527,9 @@ hpa_purge_finish_hp(tsdn_t *tsdn, hpa_shard_t *shard,
 static inline bool
 hpa_batch_full(hpa_purge_batch_t *b) {
 	/* It's okay for ranges to go above */
-	return b->npurged_hp_total == b->max_hp ||
-		b->item_cnt == b->items_capacity ||
-		b->nranges >= b->range_watermark;
+	return b->npurged_hp_total == b->max_hp
+	    || b->item_cnt == b->items_capacity
+	    || b->nranges >= b->range_watermark;
 }
 
 static inline void
@@ -547,23 +551,25 @@ hpa_purge(tsdn_t *tsdn, hpa_shard_t *shard, size_t max_hp) {
 	assert(max_hp > 0);
 
 	assert(HPA_PURGE_BATCH_MAX > 0);
-	assert(HPA_PURGE_BATCH_MAX <
-		(VARIABLE_ARRAY_SIZE_MAX / sizeof(hpa_purge_item_t)));
+	assert(HPA_PURGE_BATCH_MAX
+	    < (VARIABLE_ARRAY_SIZE_MAX / sizeof(hpa_purge_item_t)));
 	VARIABLE_ARRAY(hpa_purge_item_t, items, HPA_PURGE_BATCH_MAX);
 	hpa_purge_batch_t batch = {
-		.max_hp = max_hp,
-		.npurged_hp_total = 0,
-		.items = &items[0],
-		.items_capacity = HPA_PURGE_BATCH_MAX,
-		.range_watermark = hpa_process_madvise_max_iovec_len(),
+	    .max_hp = max_hp,
+	    .npurged_hp_total = 0,
+	    .items = &items[0],
+	    .items_capacity = HPA_PURGE_BATCH_MAX,
+	    .range_watermark = hpa_process_madvise_max_iovec_len(),
 	};
 	assert(batch.range_watermark > 0);
 
 	while (1) {
 		hpa_batch_pass_start(&batch);
 		assert(hpa_batch_empty(&batch));
-		while(!hpa_batch_full(&batch) && hpa_should_purge(tsdn, shard)) {
-			size_t ndirty = hpa_purge_start_hp(&batch, &shard->psset);
+		while (
+		    !hpa_batch_full(&batch) && hpa_should_purge(tsdn, shard)) {
+			size_t ndirty = hpa_purge_start_hp(
+			    &batch, &shard->psset);
 			if (ndirty == 0) {
 				break;
 			}
@@ -582,8 +588,8 @@ hpa_purge(tsdn_t *tsdn, hpa_shard_t *shard, size_t max_hp) {
 		shard->npending_purge -= batch.ndirty_in_batch;
 		shard->stats.npurges += batch.ndirty_in_batch;
 		shard->central->hooks.curtime(&shard->last_purge,
-			/* first_reading */ false);
-		for (size_t i=0; i<batch.item_cnt; ++i) {
+		    /* first_reading */ false);
+		for (size_t i = 0; i < batch.item_cnt; ++i) {
 			hpa_purge_finish_hp(tsdn, shard, &batch.items[i]);
 		}
 	}
@@ -629,8 +635,8 @@ hpa_try_hugify(tsdn_t *tsdn, hpa_shard_t *shard) {
 
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 
-	bool err = shard->central->hooks.hugify(hpdata_addr_get(to_hugify),
-	    HUGEPAGE, shard->opts.hugify_sync);
+	bool err = shard->central->hooks.hugify(
+	    hpdata_addr_get(to_hugify), HUGEPAGE, shard->opts.hugify_sync);
 
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	shard->stats.nhugifies++;
@@ -669,8 +675,8 @@ hpa_min_purge_interval_passed(tsdn_t *tsdn, hpa_shard_t *shard) {
  * hpa_shard_do_deferred_work() call.
  */
 static void
-hpa_shard_maybe_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard,
-    bool forced) {
+hpa_shard_maybe_do_deferred_work(
+    tsdn_t *tsdn, hpa_shard_t *shard, bool forced) {
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
 	if (!forced && shard->opts.deferral_allowed) {
 		return;
@@ -704,8 +710,7 @@ hpa_shard_maybe_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard,
 		 * of purging algorithm.
 		 */
 		ssize_t max_purge_nhp = shard->opts.experimental_max_purge_nhp;
-		if (max_purge_nhp != -1 &&
-		    max_purges > (size_t)max_purge_nhp) {
+		if (max_purge_nhp != -1 && max_purges > (size_t)max_purge_nhp) {
 			max_purges = max_purge_nhp;
 		}
 
@@ -725,9 +730,9 @@ hpa_shard_maybe_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard,
 }
 
 static edata_t *
-hpa_try_alloc_one_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
-    bool *oom) {
-	bool err;
+hpa_try_alloc_one_no_grow(
+    tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) {
+	bool     err;
 	edata_t *edata = edata_cache_fast_get(tsdn, &shard->ecf);
 	if (edata == NULL) {
 		*oom = true;
@@ -754,8 +759,8 @@ hpa_try_alloc_one_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 	}
 
 	void *addr = hpdata_reserve_alloc(ps, size);
-	edata_init(edata, shard->ind, addr, size, /* slab */ false,
-	    SC_NSIZES, /* sn */ hpdata_age_get(ps), extent_state_active,
+	edata_init(edata, shard->ind, addr, size, /* slab */ false, SC_NSIZES,
+	    /* sn */ hpdata_age_get(ps), extent_state_active,
 	    /* zeroed */ false, /* committed */ true, EXTENT_PAI_HPA,
 	    EXTENT_NOT_HEAD);
 	edata_ps_set(edata, ps);
@@ -768,11 +773,11 @@ hpa_try_alloc_one_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 	 * dropped.  This would force us to deal with a pageslab eviction down
 	 * the error pathway, which is a pain.
 	 */
-	err = emap_register_boundary(tsdn, shard->emap, edata,
-	    SC_NSIZES, /* slab */ false);
+	err = emap_register_boundary(
+	    tsdn, shard->emap, edata, SC_NSIZES, /* slab */ false);
 	if (err) {
-		hpdata_unreserve(ps, edata_addr_get(edata),
-		    edata_size_get(edata));
+		hpdata_unreserve(
+		    ps, edata_addr_get(edata), edata_size_get(edata));
 		/*
 		 * We should arguably reset dirty state here, but this would
 		 * require some sort of prepare + commit functionality that's a
@@ -800,8 +805,8 @@ hpa_try_alloc_batch_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	size_t nsuccess = 0;
 	for (; nsuccess < nallocs; nsuccess++) {
-		edata_t *edata = hpa_try_alloc_one_no_grow(tsdn, shard, size,
-		    oom);
+		edata_t *edata = hpa_try_alloc_one_no_grow(
+		    tsdn, shard, size, oom);
 		if (edata == NULL) {
 			break;
 		}
@@ -819,12 +824,11 @@ hpa_alloc_batch_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
     size_t nallocs, edata_list_active_t *results,
     bool *deferred_work_generated) {
 	assert(size <= HUGEPAGE);
-	assert(size <= shard->opts.slab_max_alloc ||
-	    size == sz_s2u(size));
+	assert(size <= shard->opts.slab_max_alloc || size == sz_s2u(size));
 	bool oom = false;
 
-	size_t nsuccess = hpa_try_alloc_batch_no_grow(tsdn, shard, size, &oom,
-	    nallocs, results, deferred_work_generated);
+	size_t nsuccess = hpa_try_alloc_batch_no_grow(
+	    tsdn, shard, size, &oom, nallocs, results, deferred_work_generated);
 
 	if (nsuccess == nallocs || oom) {
 		return nsuccess;
@@ -851,8 +855,8 @@ hpa_alloc_batch_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 	 * deallocations (and allocations of smaller sizes) may still succeed
 	 * while we're doing this potentially expensive system call.
 	 */
-	hpdata_t *ps = hpa_central_extract(tsdn, shard->central, size,
-	    shard->age_counter++, &oom);
+	hpdata_t *ps = hpa_central_extract(
+	    tsdn, shard->central, size, shard->age_counter++, &oom);
 	if (ps == NULL) {
 		malloc_mutex_unlock(tsdn, &shard->grow_mtx);
 		return nsuccess;
@@ -894,8 +898,8 @@ hpa_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size, size_t nallocs,
     bool *deferred_work_generated) {
 	assert(nallocs > 0);
 	assert((size & PAGE_MASK) == 0);
-	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
-	    WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(
+	    tsdn_witness_tsdp_get(tsdn), WITNESS_RANK_CORE, 0);
 	hpa_shard_t *shard = hpa_from_pai(self);
 
 	/*
@@ -908,16 +912,16 @@ hpa_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size, size_t nallocs,
 	 * huge page size).  These requests do not concern internal
 	 * fragmentation with huge pages (again, the full size will be used).
 	 */
-	if (!(frequent_reuse && size <= HUGEPAGE) &&
-	    (size > shard->opts.slab_max_alloc)) {
+	if (!(frequent_reuse && size <= HUGEPAGE)
+	    && (size > shard->opts.slab_max_alloc)) {
 		return 0;
 	}
 
-	size_t nsuccess = hpa_alloc_batch_psset(tsdn, shard, size, nallocs,
-	    results, deferred_work_generated);
+	size_t nsuccess = hpa_alloc_batch_psset(
+	    tsdn, shard, size, nallocs, results, deferred_work_generated);
 
-	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
-	    WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(
+	    tsdn_witness_tsdp_get(tsdn), WITNESS_RANK_CORE, 0);
 
 	/*
 	 * Guard the sanity checks with config_debug because the loop cannot be
@@ -926,13 +930,13 @@ hpa_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size, size_t nallocs,
 	 */
 	if (config_debug) {
 		edata_t *edata;
-		ql_foreach(edata, &results->head, ql_link_active) {
+		ql_foreach (edata, &results->head, ql_link_active) {
 			emap_assert_mapped(tsdn, shard->emap, edata);
 			assert(edata_pai_get(edata) == EXTENT_PAI_HPA);
 			assert(edata_state_get(edata) == extent_state_active);
 			assert(edata_arena_ind_get(edata) == shard->ind);
-			assert(edata_szind_get_maybe_invalid(edata) ==
-			    SC_NSIZES);
+			assert(
+			    edata_szind_get_maybe_invalid(edata) == SC_NSIZES);
 			assert(!edata_slab_get(edata));
 			assert(edata_committed_get(edata));
 			assert(edata_base_get(edata) == edata_addr_get(edata));
@@ -947,8 +951,8 @@ hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
     bool guarded, bool frequent_reuse, bool *deferred_work_generated) {
 	assert((size & PAGE_MASK) == 0);
 	assert(!guarded);
-	witness_assert_depth_to_rank(tsdn_witness_tsdp_get(tsdn),
-	    WITNESS_RANK_CORE, 0);
+	witness_assert_depth_to_rank(
+	    tsdn_witness_tsdp_get(tsdn), WITNESS_RANK_CORE, 0);
 
 	/* We don't handle alignment or zeroing for now. */
 	if (alignment > PAGE || zero) {
@@ -975,8 +979,8 @@ hpa_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
 }
 
 static bool
-hpa_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata,
-    size_t old_size, size_t new_size, bool *deferred_work_generated) {
+hpa_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
+    size_t new_size, bool *deferred_work_generated) {
 	/* Shrink not yet supported. */
 	return true;
 }
@@ -1021,7 +1025,7 @@ hpa_dalloc_locked(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata) {
 	hpdata_t *ps = edata_ps_get(edata);
 	/* Currently, all edatas come from pageslabs. */
 	assert(ps != NULL);
-	void *unreserve_addr = edata_addr_get(edata);
+	void  *unreserve_addr = edata_addr_get(edata);
 	size_t unreserve_size = edata_size_get(edata);
 	edata_cache_fast_put(tsdn, &shard->ecf, edata);
 
@@ -1037,7 +1041,7 @@ hpa_dalloc_batch(tsdn_t *tsdn, pai_t *self, edata_list_active_t *list,
 	hpa_shard_t *shard = hpa_from_pai(self);
 
 	edata_t *edata;
-	ql_foreach(edata, &list->head, ql_link_active) {
+	ql_foreach (edata, &list->head, ql_link_active) {
 		hpa_dalloc_prepare_unlocked(tsdn, shard, edata);
 	}
 
@@ -1048,15 +1052,14 @@ hpa_dalloc_batch(tsdn_t *tsdn, pai_t *self, edata_list_active_t *list,
 		hpa_dalloc_locked(tsdn, shard, edata);
 	}
 	hpa_shard_maybe_do_deferred_work(tsdn, shard, /* forced */ false);
-	*deferred_work_generated =
-	    hpa_shard_has_deferred_work(tsdn, shard);
+	*deferred_work_generated = hpa_shard_has_deferred_work(tsdn, shard);
 
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 }
 
 static void
-hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata,
-    bool *deferred_work_generated) {
+hpa_dalloc(
+    tsdn_t *tsdn, pai_t *self, edata_t *edata, bool *deferred_work_generated) {
 	assert(!edata_guarded_get(edata));
 	/* Just a dalloc_batch of size 1; this lets us share logic. */
 	edata_list_active_t dalloc_list;
@@ -1072,14 +1075,14 @@ hpa_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata,
 static uint64_t
 hpa_time_until_deferred_work(tsdn_t *tsdn, pai_t *self) {
 	hpa_shard_t *shard = hpa_from_pai(self);
-	uint64_t time_ns = BACKGROUND_THREAD_DEFERRED_MAX;
+	uint64_t     time_ns = BACKGROUND_THREAD_DEFERRED_MAX;
 
 	malloc_mutex_lock(tsdn, &shard->mtx);
 
 	hpdata_t *to_hugify = psset_pick_hugify(&shard->psset);
 	if (to_hugify != NULL) {
-		nstime_t time_hugify_allowed =
-		    hpdata_time_hugify_allowed(to_hugify);
+		nstime_t time_hugify_allowed = hpdata_time_hugify_allowed(
+		    to_hugify);
 		uint64_t since_hugify_allowed_ms =
 		    shard->central->hooks.ms_since(&time_hugify_allowed);
 		/*
@@ -1087,8 +1090,8 @@ hpa_time_until_deferred_work(tsdn_t *tsdn, pai_t *self) {
 		 * sleep for the rest.
 		 */
 		if (since_hugify_allowed_ms < shard->opts.hugify_delay_ms) {
-			time_ns = shard->opts.hugify_delay_ms -
-			    since_hugify_allowed_ms;
+			time_ns = shard->opts.hugify_delay_ms
+			    - since_hugify_allowed_ms;
 			time_ns *= 1000 * 1000;
 		} else {
 			malloc_mutex_unlock(tsdn, &shard->mtx);
@@ -1110,8 +1113,8 @@ hpa_time_until_deferred_work(tsdn_t *tsdn, pai_t *self) {
 
 		if (since_last_purge_ms < shard->opts.min_purge_interval_ms) {
 			uint64_t until_purge_ns;
-			until_purge_ns = shard->opts.min_purge_interval_ms -
-			    since_last_purge_ms;
+			until_purge_ns = shard->opts.min_purge_interval_ms
+			    - since_last_purge_ms;
 			until_purge_ns *= 1000 * 1000;
 
 			if (until_purge_ns < time_ns) {
@@ -1176,8 +1179,8 @@ hpa_shard_destroy(tsdn_t *tsdn, hpa_shard_t *shard) {
 }
 
 void
-hpa_shard_set_deferral_allowed(tsdn_t *tsdn, hpa_shard_t *shard,
-    bool deferral_allowed) {
+hpa_shard_set_deferral_allowed(
+    tsdn_t *tsdn, hpa_shard_t *shard, bool deferral_allowed) {
 	hpa_do_consistency_checks(shard);
 
 	malloc_mutex_lock(tsdn, &shard->mtx);

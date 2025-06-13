@@ -5,7 +5,7 @@
 TEST_BEGIN(test_simple) {
 	enum { NELEMS_MAX = 10, DATA_BASE_VAL = 100, NRUNS = 5 };
 	batcher_t batcher;
-	size_t data[NELEMS_MAX];
+	size_t    data[NELEMS_MAX];
 	for (size_t nelems = 0; nelems < NELEMS_MAX; nelems++) {
 		batcher_init(&batcher, nelems);
 		for (int run = 0; run < NRUNS; run++) {
@@ -13,8 +13,8 @@ TEST_BEGIN(test_simple) {
 				data[i] = (size_t)-1;
 			}
 			for (size_t i = 0; i < nelems; i++) {
-				size_t idx = batcher_push_begin(TSDN_NULL,
-				    &batcher, 1);
+				size_t idx = batcher_push_begin(
+				    TSDN_NULL, &batcher, 1);
 				assert_zu_eq(i, idx, "Wrong index");
 				assert_zu_eq((size_t)-1, data[idx],
 				    "Expected uninitialized slot");
@@ -22,8 +22,8 @@ TEST_BEGIN(test_simple) {
 				batcher_push_end(TSDN_NULL, &batcher);
 			}
 			if (nelems > 0) {
-				size_t idx = batcher_push_begin(TSDN_NULL,
-				    &batcher, 1);
+				size_t idx = batcher_push_begin(
+				    TSDN_NULL, &batcher, 1);
 				assert_zu_eq(BATCHER_NO_IDX, idx,
 				    "Shouldn't be able to push into a full "
 				    "batcher");
@@ -51,7 +51,7 @@ TEST_BEGIN(test_simple) {
 TEST_END
 
 TEST_BEGIN(test_multi_push) {
-	size_t idx, nelems;
+	size_t    idx, nelems;
 	batcher_t batcher;
 	batcher_init(&batcher, 11);
 	/* Push two at a time, 5 times, for 10 total. */
@@ -82,13 +82,13 @@ enum {
 
 typedef struct stress_test_data_s stress_test_data_t;
 struct stress_test_data_s {
-	batcher_t batcher;
-	mtx_t pop_mtx;
+	batcher_t    batcher;
+	mtx_t        pop_mtx;
 	atomic_u32_t thread_id;
 
-	uint32_t elems_data[STRESS_TEST_ELEMS];
-	size_t push_count[STRESS_TEST_ELEMS];
-	size_t pop_count[STRESS_TEST_ELEMS];
+	uint32_t    elems_data[STRESS_TEST_ELEMS];
+	size_t      push_count[STRESS_TEST_ELEMS];
+	size_t      pop_count[STRESS_TEST_ELEMS];
 	atomic_zu_t atomic_push_count[STRESS_TEST_ELEMS];
 	atomic_zu_t atomic_pop_count[STRESS_TEST_ELEMS];
 };
@@ -108,7 +108,8 @@ get_nth_set(bool elems_owned[STRESS_TEST_ELEMS], size_t n) {
 			return i;
 		}
 	}
-	assert_not_reached("Asked for the %zu'th set element when < %zu are "
+	assert_not_reached(
+	    "Asked for the %zu'th set element when < %zu are "
 	    "set",
 	    n, n);
 	/* Just to silence a compiler warning. */
@@ -118,20 +119,19 @@ get_nth_set(bool elems_owned[STRESS_TEST_ELEMS], size_t n) {
 static void *
 stress_test_thd(void *arg) {
 	stress_test_data_t *data = arg;
-	size_t prng = atomic_fetch_add_u32(&data->thread_id, 1,
-	    ATOMIC_RELAXED);
+	size_t prng = atomic_fetch_add_u32(&data->thread_id, 1, ATOMIC_RELAXED);
 
 	size_t nelems_owned = 0;
-	bool elems_owned[STRESS_TEST_ELEMS] = {0};
+	bool   elems_owned[STRESS_TEST_ELEMS] = {0};
 	size_t local_push_count[STRESS_TEST_ELEMS] = {0};
 	size_t local_pop_count[STRESS_TEST_ELEMS] = {0};
 
 	for (int i = 0; i < STRESS_TEST_OPS; i++) {
-		size_t rnd = prng_range_zu(&prng,
-		    STRESS_TEST_PUSH_TO_POP_RATIO);
+		size_t rnd = prng_range_zu(
+		    &prng, STRESS_TEST_PUSH_TO_POP_RATIO);
 		if (rnd == 0 || nelems_owned == 0) {
-			size_t nelems = batcher_pop_begin(TSDN_NULL,
-			    &data->batcher);
+			size_t nelems = batcher_pop_begin(
+			    TSDN_NULL, &data->batcher);
 			if (nelems == BATCHER_NO_IDX) {
 				continue;
 			}
@@ -147,19 +147,18 @@ stress_test_thd(void *arg) {
 			}
 			batcher_pop_end(TSDN_NULL, &data->batcher);
 		} else {
-			size_t elem_to_push_idx = prng_range_zu(&prng,
-			    nelems_owned);
-			size_t elem = get_nth_set(elems_owned,
-			    elem_to_push_idx);
-			assert_true(
-			    elems_owned[elem],
+			size_t elem_to_push_idx = prng_range_zu(
+			    &prng, nelems_owned);
+			size_t elem = get_nth_set(
+			    elems_owned, elem_to_push_idx);
+			assert_true(elems_owned[elem],
 			    "Should own element we're about to pop");
 			elems_owned[elem] = false;
 			local_push_count[elem]++;
 			data->push_count[elem]++;
 			nelems_owned--;
-			size_t idx = batcher_push_begin(TSDN_NULL,
-			    &data->batcher, 1);
+			size_t idx = batcher_push_begin(
+			    TSDN_NULL, &data->batcher, 1);
 			assert_zu_ne(idx, BATCHER_NO_IDX,
 			    "Batcher can't be full -- we have one of its "
 			    "elems!");
@@ -171,10 +170,10 @@ stress_test_thd(void *arg) {
 	/* Push all local elems back, flush local counts to the shared ones. */
 	size_t push_idx = 0;
 	if (nelems_owned != 0) {
-		push_idx = batcher_push_begin(TSDN_NULL, &data->batcher,
-		    nelems_owned);
-		assert_zu_ne(BATCHER_NO_IDX, push_idx,
-		    "Should be space to push");
+		push_idx = batcher_push_begin(
+		    TSDN_NULL, &data->batcher, nelems_owned);
+		assert_zu_ne(
+		    BATCHER_NO_IDX, push_idx, "Should be space to push");
 	}
 	for (size_t i = 0; i < STRESS_TEST_ELEMS; i++) {
 		if (elems_owned[i]) {
@@ -183,12 +182,10 @@ stress_test_thd(void *arg) {
 			local_push_count[i]++;
 			data->push_count[i]++;
 		}
-		atomic_fetch_add_zu(
-		    &data->atomic_push_count[i], local_push_count[i],
-		    ATOMIC_RELAXED);
-		atomic_fetch_add_zu(
-		    &data->atomic_pop_count[i], local_pop_count[i],
-		    ATOMIC_RELAXED);
+		atomic_fetch_add_zu(&data->atomic_push_count[i],
+		    local_push_count[i], ATOMIC_RELAXED);
+		atomic_fetch_add_zu(&data->atomic_pop_count[i],
+		    local_pop_count[i], ATOMIC_RELAXED);
 	}
 	if (nelems_owned != 0) {
 		batcher_push_end(TSDN_NULL, &data->batcher);
@@ -223,8 +220,8 @@ TEST_BEGIN(test_stress) {
 		thd_join(threads[i], NULL);
 	}
 	for (int i = 0; i < STRESS_TEST_ELEMS; i++) {
-		assert_zu_ne(0, data.push_count[i],
-		    "Should have done something!");
+		assert_zu_ne(
+		    0, data.push_count[i], "Should have done something!");
 		assert_zu_eq(data.push_count[i], data.pop_count[i],
 		    "every element should be pushed and popped an equal number "
 		    "of times");

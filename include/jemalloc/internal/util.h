@@ -8,10 +8,10 @@
 
 /* Junk fill patterns. */
 #ifndef JEMALLOC_ALLOC_JUNK
-#  define JEMALLOC_ALLOC_JUNK	((uint8_t)0xa5)
+#	define JEMALLOC_ALLOC_JUNK ((uint8_t)0xa5)
 #endif
 #ifndef JEMALLOC_FREE_JUNK
-#  define JEMALLOC_FREE_JUNK	((uint8_t)0x5a)
+#	define JEMALLOC_FREE_JUNK ((uint8_t)0x5a)
 #endif
 
 /*
@@ -32,20 +32,20 @@
 #define JEMALLOC_CC_SILENCE_INIT(...) = __VA_ARGS__
 
 #ifdef __GNUC__
-#  define likely(x)   __builtin_expect(!!(x), 1)
-#  define unlikely(x) __builtin_expect(!!(x), 0)
+#	define likely(x) __builtin_expect(!!(x), 1)
+#	define unlikely(x) __builtin_expect(!!(x), 0)
 #else
-#  define likely(x)   !!(x)
-#  define unlikely(x) !!(x)
+#	define likely(x) !!(x)
+#	define unlikely(x) !!(x)
 #endif
 
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
-#include <stddef.h>
+#	include <stddef.h>
 #else
-#if !defined(JEMALLOC_INTERNAL_UNREACHABLE)
-#  error JEMALLOC_INTERNAL_UNREACHABLE should have been defined by configure
-#endif
-#define unreachable() JEMALLOC_INTERNAL_UNREACHABLE()
+#	if !defined(JEMALLOC_INTERNAL_UNREACHABLE)
+#		error JEMALLOC_INTERNAL_UNREACHABLE should have been defined by configure
+#	endif
+#	define unreachable() JEMALLOC_INTERNAL_UNREACHABLE()
 #endif
 
 /* Set error code. */
@@ -69,27 +69,27 @@ get_errno(void) {
 }
 
 #ifdef _MSC_VER
-#define util_assume __assume
-#elif defined(__clang__) && (__clang_major__ > 3 || \
-    (__clang_major__ == 3 && __clang_minor__ >= 6))
-#define util_assume __builtin_assume
+#	define util_assume __assume
+#elif defined(__clang__)                                                       \
+    && (__clang_major__ > 3 || (__clang_major__ == 3 && __clang_minor__ >= 6))
+#	define util_assume __builtin_assume
 #else
-#define util_assume(expr)		\
-	do {				\
-		if (!(expr)) {		\
-			unreachable();	\
-		}			\
-	} while(0)
+#	define util_assume(expr)                                              \
+		do {                                                           \
+			if (!(expr)) {                                         \
+				unreachable();                                 \
+			}                                                      \
+		} while (0)
 #endif
 
 /* Allows compiler constant folding on inlined paths. */
 #if defined(__has_builtin)
-#  if __has_builtin(__builtin_constant_p)
-#    define util_compile_time_const(x) __builtin_constant_p(x)
-#  endif
+#	if __has_builtin(__builtin_constant_p)
+#		define util_compile_time_const(x) __builtin_constant_p(x)
+#	endif
 #endif
 #ifndef util_compile_time_const
-#  define util_compile_time_const(x) (false)
+#	define util_compile_time_const(x) (false)
 #endif
 
 /* ptr should be valid. */
@@ -148,7 +148,6 @@ util_prefetch_write_range(void *ptr, size_t sz) {
  * key1-key2:value|key3-key4:value|...
  * Note it does not handle the ending '\0'.
  */
-bool
-multi_setting_parse_next(const char **setting_segment_cur, size_t *len_left,
-    size_t *key_start, size_t *key_end, size_t *value);
+bool multi_setting_parse_next(const char **setting_segment_cur,
+    size_t *len_left, size_t *key_start, size_t *key_end, size_t *value);
 #endif /* JEMALLOC_INTERNAL_UTIL_H */

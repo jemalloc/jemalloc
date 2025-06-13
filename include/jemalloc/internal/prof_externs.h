@@ -7,21 +7,22 @@
 #include "jemalloc/internal/prof_hook.h"
 #include "jemalloc/internal/thread_event_registry.h"
 
-extern bool opt_prof;
-extern bool opt_prof_active;
-extern bool opt_prof_thread_active_init;
+extern bool     opt_prof;
+extern bool     opt_prof_active;
+extern bool     opt_prof_thread_active_init;
 extern unsigned opt_prof_bt_max;
-extern size_t opt_lg_prof_sample;    /* Mean bytes between samples. */
-extern size_t opt_experimental_lg_prof_threshold;    /* Mean bytes between thresholds. */
-extern ssize_t opt_lg_prof_interval; /* lg(prof_interval). */
-extern bool opt_prof_gdump;          /* High-water memory dumping. */
-extern bool opt_prof_final;          /* Final profile dumping. */
-extern bool opt_prof_leak;           /* Dump leak summary at exit. */
-extern bool opt_prof_leak_error;     /* Exit with error code if memory leaked */
-extern bool opt_prof_accum;          /* Report cumulative bytes. */
-extern bool opt_prof_log;            /* Turn logging on at boot. */
-extern char opt_prof_prefix[
-    /* Minimize memory bloat for non-prof builds. */
+extern size_t   opt_lg_prof_sample; /* Mean bytes between samples. */
+extern size_t
+    opt_experimental_lg_prof_threshold; /* Mean bytes between thresholds. */
+extern ssize_t opt_lg_prof_interval;    /* lg(prof_interval). */
+extern bool    opt_prof_gdump;          /* High-water memory dumping. */
+extern bool    opt_prof_final;          /* Final profile dumping. */
+extern bool    opt_prof_leak;           /* Dump leak summary at exit. */
+extern bool    opt_prof_leak_error; /* Exit with error code if memory leaked */
+extern bool    opt_prof_accum;      /* Report cumulative bytes. */
+extern bool    opt_prof_log;        /* Turn logging on at boot. */
+extern char    opt_prof_prefix[
+/* Minimize memory bloat for non-prof builds. */
 #ifdef JEMALLOC_PROF
     PATH_MAX +
 #endif
@@ -57,19 +58,19 @@ extern size_t lg_prof_sample;
 
 extern bool prof_booted;
 
-void prof_backtrace_hook_set(prof_backtrace_hook_t hook);
+void                  prof_backtrace_hook_set(prof_backtrace_hook_t hook);
 prof_backtrace_hook_t prof_backtrace_hook_get(void);
 
-void prof_dump_hook_set(prof_dump_hook_t hook);
+void             prof_dump_hook_set(prof_dump_hook_t hook);
 prof_dump_hook_t prof_dump_hook_get(void);
 
-void prof_sample_hook_set(prof_sample_hook_t hook);
+void               prof_sample_hook_set(prof_sample_hook_t hook);
 prof_sample_hook_t prof_sample_hook_get(void);
 
-void prof_sample_free_hook_set(prof_sample_free_hook_t hook);
+void                    prof_sample_free_hook_set(prof_sample_free_hook_t hook);
 prof_sample_free_hook_t prof_sample_free_hook_get(void);
 
-void prof_threshold_hook_set(prof_threshold_hook_t hook);
+void                  prof_threshold_hook_set(prof_threshold_hook_t hook);
 prof_threshold_hook_t prof_threshold_hook_get(void);
 
 /* Functions only accessed in prof_inlines.h */
@@ -77,33 +78,33 @@ prof_tdata_t *prof_tdata_init(tsd_t *tsd);
 prof_tdata_t *prof_tdata_reinit(tsd_t *tsd, prof_tdata_t *tdata);
 
 void prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx);
-void prof_malloc_sample_object(tsd_t *tsd, const void *ptr, size_t size,
-    size_t usize, prof_tctx_t *tctx);
-void prof_free_sampled_object(tsd_t *tsd, const void *ptr, size_t usize,
-    prof_info_t *prof_info);
+void prof_malloc_sample_object(
+    tsd_t *tsd, const void *ptr, size_t size, size_t usize, prof_tctx_t *tctx);
+void prof_free_sampled_object(
+    tsd_t *tsd, const void *ptr, size_t usize, prof_info_t *prof_info);
 prof_tctx_t *prof_tctx_create(tsd_t *tsd);
-void prof_idump(tsdn_t *tsdn);
-bool prof_mdump(tsd_t *tsd, const char *filename);
-void prof_gdump(tsdn_t *tsdn);
+void         prof_idump(tsdn_t *tsdn);
+bool         prof_mdump(tsd_t *tsd, const char *filename);
+void         prof_gdump(tsdn_t *tsdn);
 
-void prof_tdata_cleanup(tsd_t *tsd);
-bool prof_active_get(tsdn_t *tsdn);
-bool prof_active_set(tsdn_t *tsdn, bool active);
+void        prof_tdata_cleanup(tsd_t *tsd);
+bool        prof_active_get(tsdn_t *tsdn);
+bool        prof_active_set(tsdn_t *tsdn, bool active);
 const char *prof_thread_name_get(tsd_t *tsd);
-int prof_thread_name_set(tsd_t *tsd, const char *thread_name);
-bool prof_thread_active_get(tsd_t *tsd);
-bool prof_thread_active_set(tsd_t *tsd, bool active);
-bool prof_thread_active_init_get(tsdn_t *tsdn);
-bool prof_thread_active_init_set(tsdn_t *tsdn, bool active_init);
-bool prof_gdump_get(tsdn_t *tsdn);
-bool prof_gdump_set(tsdn_t *tsdn, bool active);
-void prof_boot0(void);
-void prof_boot1(void);
-bool prof_boot2(tsd_t *tsd, base_t *base);
-void prof_prefork0(tsdn_t *tsdn);
-void prof_prefork1(tsdn_t *tsdn);
-void prof_postfork_parent(tsdn_t *tsdn);
-void prof_postfork_child(tsdn_t *tsdn);
+int         prof_thread_name_set(tsd_t *tsd, const char *thread_name);
+bool        prof_thread_active_get(tsd_t *tsd);
+bool        prof_thread_active_set(tsd_t *tsd, bool active);
+bool        prof_thread_active_init_get(tsdn_t *tsdn);
+bool        prof_thread_active_init_set(tsdn_t *tsdn, bool active_init);
+bool        prof_gdump_get(tsdn_t *tsdn);
+bool        prof_gdump_set(tsdn_t *tsdn, bool active);
+void        prof_boot0(void);
+void        prof_boot1(void);
+bool        prof_boot2(tsd_t *tsd, base_t *base);
+void        prof_prefork0(tsdn_t *tsdn);
+void        prof_prefork1(tsdn_t *tsdn);
+void        prof_postfork_parent(tsdn_t *tsdn);
+void        prof_postfork_child(tsdn_t *tsdn);
 
 uint64_t prof_sample_new_event_wait(tsd_t *tsd);
 uint64_t tsd_prof_sample_event_wait_get(tsd_t *tsd);
@@ -130,8 +131,8 @@ uint64_t tsd_prof_sample_event_wait_get(tsd_t *tsd);
  */
 
 JEMALLOC_ALWAYS_INLINE bool
-te_prof_sample_event_lookahead_surplus(tsd_t *tsd, size_t usize,
-    size_t *surplus) {
+te_prof_sample_event_lookahead_surplus(
+    tsd_t *tsd, size_t usize, size_t *surplus) {
 	if (surplus != NULL) {
 		/*
 		 * This is a dead store: the surplus will be overwritten before
@@ -146,8 +147,8 @@ te_prof_sample_event_lookahead_surplus(tsd_t *tsd, size_t usize,
 		return false;
 	}
 	/* The subtraction is intentionally susceptible to underflow. */
-	uint64_t accumbytes = tsd_thread_allocated_get(tsd) + usize -
-	    tsd_thread_allocated_last_event_get(tsd);
+	uint64_t accumbytes = tsd_thread_allocated_get(tsd) + usize
+	    - tsd_thread_allocated_last_event_get(tsd);
 	uint64_t sample_wait = tsd_prof_sample_event_wait_get(tsd);
 	if (accumbytes < sample_wait) {
 		return false;

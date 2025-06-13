@@ -23,9 +23,10 @@ static void
 read_write_prof_threshold_hook(prof_threshold_hook_t *to_read, bool do_write,
     prof_threshold_hook_t to_write) {
 	size_t hook_sz = sizeof(prof_threshold_hook_t);
-	expect_d_eq(mallctl("experimental.hooks.prof_threshold",
-	    (void *)to_read, &hook_sz, do_write ? &to_write : NULL, hook_sz), 0,
-	    "Unexpected prof_threshold_hook mallctl failure");
+	expect_d_eq(
+	    mallctl("experimental.hooks.prof_threshold", (void *)to_read,
+	        &hook_sz, do_write ? &to_write : NULL, hook_sz),
+	    0, "Unexpected prof_threshold_hook mallctl failure");
 }
 
 static void
@@ -40,7 +41,8 @@ read_prof_threshold_hook() {
 	return hook;
 }
 
-static void reset_test_config() {
+static void
+reset_test_config() {
 	hook_calls = 0;
 	last_peak = 0;
 	alloc_baseline = last_alloc; /* We run the test multiple times */
@@ -49,15 +51,20 @@ static void reset_test_config() {
 	chunk_size = threshold_bytes / ALLOC_ITERATIONS_IN_THRESHOLD;
 }
 
-static void expect_threshold_calls(int calls) {
-	expect_u64_eq(hook_calls, calls, "Hook called the right amount of times");
-	expect_u64_lt(last_peak, chunk_size * 2, "We allocate chunk_size at a time");
-	expect_u64_ge(last_alloc, threshold_bytes * calls + alloc_baseline, "Crosses");
+static void
+expect_threshold_calls(int calls) {
+	expect_u64_eq(
+	    hook_calls, calls, "Hook called the right amount of times");
+	expect_u64_lt(
+	    last_peak, chunk_size * 2, "We allocate chunk_size at a time");
+	expect_u64_ge(
+	    last_alloc, threshold_bytes * calls + alloc_baseline, "Crosses");
 }
 
-static void allocate_chunks(int chunks) {
+static void
+allocate_chunks(int chunks) {
 	for (int i = 0; i < chunks; i++) {
-		void* p = mallocx((size_t)chunk_size, 0);
+		void *p = mallocx((size_t)chunk_size, 0);
 		expect_ptr_not_null(p, "Failed to allocate");
 		free(p);
 	}
@@ -68,7 +75,8 @@ TEST_BEGIN(test_prof_threshold_hook) {
 
 	/* Test setting and reading the hook (both value and null) */
 	write_prof_threshold_hook(mock_prof_threshold_hook);
-	expect_ptr_eq(read_prof_threshold_hook(), mock_prof_threshold_hook, "Unexpected hook");
+	expect_ptr_eq(read_prof_threshold_hook(), mock_prof_threshold_hook,
+	    "Unexpected hook");
 
 	write_prof_threshold_hook(NULL);
 	expect_ptr_null(read_prof_threshold_hook(), "Hook was erased");
@@ -100,6 +108,5 @@ TEST_END
 
 int
 main(void) {
-	return test(
-	    test_prof_threshold_hook);
+	return test(test_prof_threshold_hook);
 }

@@ -13,36 +13,35 @@ struct test_data_s {
 	 * Must be the first member -- we convert back and forth between the
 	 * test_data_t and the hpa_shard_t;
 	 */
-	hpa_shard_t shard;
+	hpa_shard_t   shard;
 	hpa_central_t central;
-	base_t *base;
+	base_t       *base;
 	edata_cache_t shard_edata_cache;
 
 	emap_t emap;
 };
 
 static hpa_shard_opts_t test_hpa_shard_opts_default = {
-	/* slab_max_alloc */
-	ALLOC_MAX,
-	/* hugification_threshold */
-	HUGEPAGE,
-	/* dirty_mult */
-	FXP_INIT_PERCENT(25),
-	/* deferral_allowed */
-	false,
-	/* hugify_delay_ms */
-	10 * 1000,
-	/* hugify_sync */
-	false,
-	/* min_purge_interval_ms */
-	5 * 1000,
-	/* experimental_max_purge_nhp */
-	-1
-};
+    /* slab_max_alloc */
+    ALLOC_MAX,
+    /* hugification_threshold */
+    HUGEPAGE,
+    /* dirty_mult */
+    FXP_INIT_PERCENT(25),
+    /* deferral_allowed */
+    false,
+    /* hugify_delay_ms */
+    10 * 1000,
+    /* hugify_sync */
+    false,
+    /* min_purge_interval_ms */
+    5 * 1000,
+    /* experimental_max_purge_nhp */
+    -1};
 
 static hpa_shard_t *
 create_test_data(const hpa_hooks_t *hooks, hpa_shard_opts_t *opts) {
-	bool err;
+	bool    err;
 	base_t *base = base_new(TSDN_NULL, /* ind */ SHARD_IND,
 	    &ehooks_default_extent_hooks, /* metadata_use_hooks */ true);
 	assert_ptr_not_null(base, "");
@@ -108,7 +107,8 @@ defer_vectorized_purge(void *vec, size_t vlen, size_t nbytes) {
 }
 
 static bool defer_vec_purge_didfail = false;
-static bool defer_vectorized_purge_fail(void *vec, size_t vlen, size_t nbytes) {
+static bool
+defer_vectorized_purge_fail(void *vec, size_t vlen, size_t nbytes) {
 	(void)vec;
 	(void)vlen;
 	(void)nbytes;
@@ -141,8 +141,7 @@ defer_test_ms_since(nstime_t *past_time) {
 }
 
 TEST_BEGIN(test_vectorized_failure_fallback) {
-	test_skip_if(!hpa_supported() ||
-		(opt_process_madvise_max_batch == 0));
+	test_skip_if(!hpa_supported() || (opt_process_madvise_max_batch == 0));
 
 	hpa_hooks_t hooks;
 	hooks.map = &defer_test_map;
@@ -166,8 +165,8 @@ TEST_BEGIN(test_vectorized_failure_fallback) {
 	nstime_init(&defer_curtime, 0);
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 
-	edata_t *edata = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false,
-	false, false, &deferred_work_generated);
+	edata_t *edata = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false, false,
+	    false, &deferred_work_generated);
 	expect_ptr_not_null(edata, "Unexpected null edata");
 	pai_dalloc(tsdn, &shard->pai, edata, &deferred_work_generated);
 	hpa_shard_do_deferred_work(tsdn, shard);
@@ -181,9 +180,8 @@ TEST_BEGIN(test_vectorized_failure_fallback) {
 TEST_END
 
 TEST_BEGIN(test_more_regions_purged_from_one_page) {
-	test_skip_if(!hpa_supported() ||
-		(opt_process_madvise_max_batch == 0) ||
-		HUGEPAGE_PAGES <= 4);
+	test_skip_if(!hpa_supported() || (opt_process_madvise_max_batch == 0)
+	    || HUGEPAGE_PAGES <= 4);
 
 	hpa_hooks_t hooks;
 	hooks.map = &defer_test_map;
@@ -208,7 +206,7 @@ TEST_BEGIN(test_more_regions_purged_from_one_page) {
 	nstime_init(&defer_curtime, 0);
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 
-	enum {NALLOCS = 8 * HUGEPAGE_PAGES};
+	enum { NALLOCS = 8 * HUGEPAGE_PAGES };
 	edata_t *edatas[NALLOCS];
 	for (int i = 0; i < NALLOCS; i++) {
 		edatas[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false,
@@ -249,12 +247,10 @@ TEST_BEGIN(test_more_regions_purged_from_one_page) {
 }
 TEST_END
 
-size_t
-hpa_purge_max_batch_size_for_test_set(size_t new_size);
+size_t hpa_purge_max_batch_size_for_test_set(size_t new_size);
 TEST_BEGIN(test_more_pages_than_batch_page_size) {
-	test_skip_if(!hpa_supported() ||
-		(opt_process_madvise_max_batch == 0) ||
-		HUGEPAGE_PAGES <= 4);
+	test_skip_if(!hpa_supported() || (opt_process_madvise_max_batch == 0)
+	    || HUGEPAGE_PAGES <= 4);
 
 	size_t old_page_batch = hpa_purge_max_batch_size_for_test_set(1);
 
@@ -281,7 +277,7 @@ TEST_BEGIN(test_more_pages_than_batch_page_size) {
 	nstime_init(&defer_curtime, 0);
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 
-	enum {NALLOCS = 8 * HUGEPAGE_PAGES};
+	enum { NALLOCS = 8 * HUGEPAGE_PAGES };
 	edata_t *edatas[NALLOCS];
 	for (int i = 0; i < NALLOCS; i++) {
 		edatas[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false,
@@ -289,8 +285,8 @@ TEST_BEGIN(test_more_pages_than_batch_page_size) {
 		expect_ptr_not_null(edatas[i], "Unexpected null edata");
 	}
 	for (int i = 0; i < 3 * (int)HUGEPAGE_PAGES; i++) {
-		pai_dalloc(tsdn, &shard->pai, edatas[i],
-			&deferred_work_generated);
+		pai_dalloc(
+		    tsdn, &shard->pai, edatas[i], &deferred_work_generated);
 	}
 
 	hpa_shard_do_deferred_work(tsdn, shard);
@@ -321,8 +317,7 @@ TEST_END
 
 int
 main(void) {
-	return test_no_reentrancy(
-	    test_vectorized_failure_fallback,
+	return test_no_reentrancy(test_vectorized_failure_fallback,
 	    test_more_regions_purged_from_one_page,
 	    test_more_pages_than_batch_page_size);
 }

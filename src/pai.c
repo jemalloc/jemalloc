@@ -6,7 +6,7 @@ pai_alloc_batch_default(tsdn_t *tsdn, pai_t *self, size_t size, size_t nallocs,
     edata_list_active_t *results, bool frequent_reuse,
     bool *deferred_work_generated) {
 	for (size_t i = 0; i < nallocs; i++) {
-		bool deferred_by_alloc = false;
+		bool     deferred_by_alloc = false;
 		edata_t *edata = pai_alloc(tsdn, self, size, PAGE,
 		    /* zero */ false, /* guarded */ false, frequent_reuse,
 		    &deferred_by_alloc);
@@ -20,8 +20,8 @@ pai_alloc_batch_default(tsdn_t *tsdn, pai_t *self, size_t size, size_t nallocs,
 }
 
 void
-pai_dalloc_batch_default(tsdn_t *tsdn, pai_t *self,
-    edata_list_active_t *list, bool *deferred_work_generated) {
+pai_dalloc_batch_default(tsdn_t *tsdn, pai_t *self, edata_list_active_t *list,
+    bool *deferred_work_generated) {
 	edata_t *edata;
 	while ((edata = edata_list_active_first(list)) != NULL) {
 		bool deferred_by_dalloc = false;

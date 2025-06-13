@@ -26,22 +26,22 @@
 typedef struct bin_info_s bin_info_t;
 struct bin_info_s {
 	/* Size of regions in a slab for this bin's size class. */
-	size_t			reg_size;
+	size_t reg_size;
 
 	/* Total size of a slab for this bin's size class. */
-	size_t			slab_size;
+	size_t slab_size;
 
 	/* Total number of regions in a slab for this bin's size class. */
-	uint32_t		nregs;
+	uint32_t nregs;
 
 	/* Number of sharded bins in each arena for this size class. */
-	uint32_t		n_shards;
+	uint32_t n_shards;
 
 	/*
 	 * Metadata used to manipulate bitmaps for slabs associated with this
 	 * bin.
 	 */
-	bitmap_info_t		bitmap_info;
+	bitmap_info_t bitmap_info;
 };
 
 /* The maximum size a size class can be and still get batching behavior. */
@@ -51,7 +51,7 @@ extern size_t opt_bin_info_remote_free_max_batch;
 // The max number of pending elems (across all batches)
 extern size_t opt_bin_info_remote_free_max;
 
-extern szind_t bin_info_nbatched_sizes;
+extern szind_t  bin_info_nbatched_sizes;
 extern unsigned bin_info_nbatched_bins;
 extern unsigned bin_info_nunbatched_bins;
 

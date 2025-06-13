@@ -18,8 +18,8 @@ batcher_init(batcher_t *batcher, size_t nelems_max) {
  * Returns an index (into some user-owned array) to use for pushing, or
  * BATCHER_NO_IDX if no index is free.
  */
-size_t batcher_push_begin(tsdn_t *tsdn, batcher_t *batcher,
-    size_t elems_to_push) {
+size_t
+batcher_push_begin(tsdn_t *tsdn, batcher_t *batcher, size_t elems_to_push) {
 	assert(elems_to_push > 0);
 	size_t nelems_guess = atomic_load_zu(&batcher->nelems, ATOMIC_RELAXED);
 	if (nelems_guess + elems_to_push > batcher->nelems_max) {
@@ -37,7 +37,8 @@ size_t batcher_push_begin(tsdn_t *tsdn, batcher_t *batcher,
 	 * racing accesses of the batcher can fail fast instead of trying to
 	 * acquire a mutex only to discover that there's no space for them.
 	 */
-	atomic_store_zu(&batcher->nelems, nelems + elems_to_push, ATOMIC_RELAXED);
+	atomic_store_zu(
+	    &batcher->nelems, nelems + elems_to_push, ATOMIC_RELAXED);
 	batcher->npushes++;
 	return nelems;
 }
@@ -75,7 +76,8 @@ batcher_pop_begin(tsdn_t *tsdn, batcher_t *batcher) {
 	return nelems;
 }
 
-void batcher_pop_end(tsdn_t *tsdn, batcher_t *batcher) {
+void
+batcher_pop_end(tsdn_t *tsdn, batcher_t *batcher) {
 	assert(atomic_load_zu(&batcher->nelems, ATOMIC_RELAXED) == 0);
 	malloc_mutex_unlock(tsdn, &batcher->mtx);
 }

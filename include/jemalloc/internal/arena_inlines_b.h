@@ -21,8 +21,8 @@
 
 static inline arena_t *
 arena_get_from_edata(edata_t *edata) {
-	return (arena_t *)atomic_load_p(&arenas[edata_arena_ind_get(edata)],
-	    ATOMIC_RELAXED);
+	return (arena_t *)atomic_load_p(
+	    &arenas[edata_arena_ind_get(edata)], ATOMIC_RELAXED);
 }
 
 JEMALLOC_ALWAYS_INLINE arena_t *
@@ -61,15 +61,17 @@ large_dalloc_safety_checks(edata_t *edata, const void *ptr, size_t input_size) {
 	 * The cost is low enough (as edata will be accessed anyway) to be
 	 * enabled all the time.
 	 */
-	if (unlikely(edata == NULL ||
-	    edata_state_get(edata) != extent_state_active)) {
-		safety_check_fail("Invalid deallocation detected: "
+	if (unlikely(edata == NULL
+	        || edata_state_get(edata) != extent_state_active)) {
+		safety_check_fail(
+		    "Invalid deallocation detected: "
 		    "pages being freed (%p) not currently active, "
-		    "possibly caused by double free bugs.", ptr);
+		    "possibly caused by double free bugs.",
+		    ptr);
 		return true;
 	}
-	if (unlikely(input_size != edata_usize_get(edata) ||
-	    input_size > SC_LARGE_MAXCLASS)) {
+	if (unlikely(input_size != edata_usize_get(edata)
+	        || input_size > SC_LARGE_MAXCLASS)) {
 		safety_check_fail_sized_dealloc(/* current_dealloc */ true, ptr,
 		    /* true_size */ edata_usize_get(edata), input_size);
 		return true;
@@ -86,25 +88,26 @@ arena_prof_info_get(tsd_t *tsd, const void *ptr, emap_alloc_ctx_t *alloc_ctx,
 	assert(prof_info != NULL);
 
 	edata_t *edata = NULL;
-	bool is_slab;
+	bool     is_slab;
 
 	/* Static check. */
 	if (alloc_ctx == NULL) {
-		edata = emap_edata_lookup(tsd_tsdn(tsd), &arena_emap_global,
-		    ptr);
+		edata = emap_edata_lookup(
+		    tsd_tsdn(tsd), &arena_emap_global, ptr);
 		is_slab = edata_slab_get(edata);
 	} else if (unlikely(!(is_slab = alloc_ctx->slab))) {
-		edata = emap_edata_lookup(tsd_tsdn(tsd), &arena_emap_global,
-		    ptr);
+		edata = emap_edata_lookup(
+		    tsd_tsdn(tsd), &arena_emap_global, ptr);
 	}
 
 	if (unlikely(!is_slab)) {
 		/* edata must have been initialized at this point. */
 		assert(edata != NULL);
-		size_t usize = (alloc_ctx == NULL)? edata_usize_get(edata):
-		    emap_alloc_ctx_usize_get(alloc_ctx);
-		if (reset_recent &&
-		    large_dalloc_safety_checks(edata, ptr, usize)) {
+		size_t usize = (alloc_ctx == NULL)
+		    ? edata_usize_get(edata)
+		    : emap_alloc_ctx_usize_get(alloc_ctx);
+		if (reset_recent
+		    && large_dalloc_safety_checks(edata, ptr, usize)) {
 			prof_info->alloc_tctx = PROF_TCTX_SENTINEL;
 			return;
 		}
@@ -119,22 +122,22 @@ arena_prof_info_get(tsd_t *tsd, const void *ptr, emap_alloc_ctx_t *alloc_ctx,
 }
 
 JEMALLOC_ALWAYS_INLINE void
-arena_prof_tctx_reset(tsd_t *tsd, const void *ptr,
-    emap_alloc_ctx_t *alloc_ctx) {
+arena_prof_tctx_reset(
+    tsd_t *tsd, const void *ptr, emap_alloc_ctx_t *alloc_ctx) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 
 	/* Static check. */
 	if (alloc_ctx == NULL) {
-		edata_t *edata = emap_edata_lookup(tsd_tsdn(tsd),
-		    &arena_emap_global, ptr);
+		edata_t *edata = emap_edata_lookup(
+		    tsd_tsdn(tsd), &arena_emap_global, ptr);
 		if (unlikely(!edata_slab_get(edata))) {
 			large_prof_tctx_reset(edata);
 		}
 	} else {
 		if (unlikely(!alloc_ctx->slab)) {
-			edata_t *edata = emap_edata_lookup(tsd_tsdn(tsd),
-			    &arena_emap_global, ptr);
+			edata_t *edata = emap_edata_lookup(
+			    tsd_tsdn(tsd), &arena_emap_global, ptr);
 			large_prof_tctx_reset(edata);
 		}
 	}
@@ -145,16 +148,16 @@ arena_prof_tctx_reset_sampled(tsd_t *tsd, const void *ptr) {
 	cassert(config_prof);
 	assert(ptr != NULL);
 
-	edata_t *edata = emap_edata_lookup(tsd_tsdn(tsd), &arena_emap_global,
-	    ptr);
+	edata_t *edata = emap_edata_lookup(
+	    tsd_tsdn(tsd), &arena_emap_global, ptr);
 	assert(!edata_slab_get(edata));
 
 	large_prof_tctx_reset(edata);
 }
 
 JEMALLOC_ALWAYS_INLINE void
-arena_prof_info_set(tsd_t *tsd, edata_t *edata, prof_tctx_t *tctx,
-    size_t size) {
+arena_prof_info_set(
+    tsd_t *tsd, edata_t *edata, prof_tctx_t *tctx, size_t size) {
 	cassert(config_prof);
 
 	assert(!edata_slab_get(edata));
@@ -177,9 +180,9 @@ arena_decay_ticks(tsdn_t *tsdn, arena_t *arena, unsigned nticks) {
 	 * use a single ticker for all of them.
 	 */
 	ticker_geom_t *decay_ticker = tsd_arena_decay_tickerp_get(tsd);
-	uint64_t *prng_state = tsd_prng_statep_get(tsd);
+	uint64_t      *prng_state = tsd_prng_statep_get(tsd);
 	if (unlikely(ticker_geom_ticks(decay_ticker, prng_state, nticks,
-	    tsd_reentrancy_level_get(tsd) > 0))) {
+	        tsd_reentrancy_level_get(tsd) > 0))) {
 		arena_decay(tsdn, arena, false, false);
 	}
 }
@@ -197,14 +200,13 @@ arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind, bool zero,
 	if (likely(tcache != NULL)) {
 		if (likely(slab)) {
 			assert(sz_can_use_slab(size));
-			return tcache_alloc_small(tsdn_tsd(tsdn), arena,
-			    tcache, size, ind, zero, slow_path);
-		} else if (likely(
-		    ind < tcache_nbins_get(tcache->tcache_slow) &&
-		    !tcache_bin_disabled(ind, &tcache->bins[ind],
-		    tcache->tcache_slow))) {
-			return tcache_alloc_large(tsdn_tsd(tsdn), arena,
-			    tcache, size, ind, zero, slow_path);
+			return tcache_alloc_small(tsdn_tsd(tsdn), arena, tcache,
+			    size, ind, zero, slow_path);
+		} else if (likely(ind < tcache_nbins_get(tcache->tcache_slow)
+		               && !tcache_bin_disabled(ind, &tcache->bins[ind],
+		                   tcache->tcache_slow))) {
+			return tcache_alloc_large(tsdn_tsd(tsdn), arena, tcache,
+			    size, ind, zero, slow_path);
 		}
 		/* (size > tcache_max) case falls through. */
 	}
@@ -241,8 +243,8 @@ arena_vsalloc(tsdn_t *tsdn, const void *ptr) {
 	 */
 
 	emap_full_alloc_ctx_t full_alloc_ctx;
-	bool missing = emap_full_alloc_ctx_try_lookup(tsdn, &arena_emap_global,
-	    ptr, &full_alloc_ctx);
+	bool                  missing = emap_full_alloc_ctx_try_lookup(
+            tsdn, &arena_emap_global, ptr, &full_alloc_ctx);
 	if (missing) {
 		return 0;
 	}
@@ -261,8 +263,8 @@ arena_vsalloc(tsdn_t *tsdn, const void *ptr) {
 }
 
 static inline void
-arena_dalloc_large_no_tcache(tsdn_t *tsdn, void *ptr, szind_t szind,
-    size_t usize) {
+arena_dalloc_large_no_tcache(
+    tsdn_t *tsdn, void *ptr, szind_t szind, size_t usize) {
 	/*
 	 * szind is still needed in this function mainly becuase
 	 * szind < SC_NBINS determines not only if this is a small alloc,
@@ -272,8 +274,8 @@ arena_dalloc_large_no_tcache(tsdn_t *tsdn, void *ptr, szind_t szind,
 	if (config_prof && unlikely(szind < SC_NBINS)) {
 		arena_dalloc_promoted(tsdn, ptr, NULL, true);
 	} else {
-		edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global,
-		    ptr);
+		edata_t *edata = emap_edata_lookup(
+		    tsdn, &arena_emap_global, ptr);
 		if (large_dalloc_safety_checks(edata, ptr, usize)) {
 			/* See the comment in isfree. */
 			return;
@@ -290,13 +292,13 @@ arena_dalloc_no_tcache(tsdn_t *tsdn, void *ptr) {
 	emap_alloc_ctx_lookup(tsdn, &arena_emap_global, ptr, &alloc_ctx);
 
 	if (config_debug) {
-		edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global,
-		    ptr);
+		edata_t *edata = emap_edata_lookup(
+		    tsdn, &arena_emap_global, ptr);
 		assert(alloc_ctx.szind == edata_szind_get(edata));
 		assert(alloc_ctx.szind < SC_NSIZES);
 		assert(alloc_ctx.slab == edata_slab_get(edata));
-		assert(emap_alloc_ctx_usize_get(&alloc_ctx) ==
-		    edata_usize_get(edata));
+		assert(emap_alloc_ctx_usize_get(&alloc_ctx)
+		    == edata_usize_get(edata));
 	}
 
 	if (likely(alloc_ctx.slab)) {
@@ -311,19 +313,19 @@ arena_dalloc_no_tcache(tsdn_t *tsdn, void *ptr) {
 JEMALLOC_ALWAYS_INLINE void
 arena_dalloc_large(tsdn_t *tsdn, void *ptr, tcache_t *tcache, szind_t szind,
     size_t usize, bool slow_path) {
-	assert (!tsdn_null(tsdn) && tcache != NULL);
+	assert(!tsdn_null(tsdn) && tcache != NULL);
 	bool is_sample_promoted = config_prof && szind < SC_NBINS;
 	if (unlikely(is_sample_promoted)) {
 		arena_dalloc_promoted(tsdn, ptr, tcache, slow_path);
 	} else {
-		if (szind < tcache_nbins_get(tcache->tcache_slow) &&
-		    !tcache_bin_disabled(szind, &tcache->bins[szind],
-		    tcache->tcache_slow)) {
-			tcache_dalloc_large(tsdn_tsd(tsdn), tcache, ptr, szind,
-			    slow_path);
+		if (szind < tcache_nbins_get(tcache->tcache_slow)
+		    && !tcache_bin_disabled(
+		        szind, &tcache->bins[szind], tcache->tcache_slow)) {
+			tcache_dalloc_large(
+			    tsdn_tsd(tsdn), tcache, ptr, szind, slow_path);
 		} else {
-			edata_t *edata = emap_edata_lookup(tsdn,
-			    &arena_emap_global, ptr);
+			edata_t *edata = emap_edata_lookup(
+			    tsdn, &arena_emap_global, ptr);
 			if (large_dalloc_safety_checks(edata, ptr, usize)) {
 				/* See the comment in isfree. */
 				return;
@@ -335,16 +337,17 @@ arena_dalloc_large(tsdn_t *tsdn, void *ptr, tcache_t *tcache, szind_t szind,
 
 /* Find the region index of a pointer. */
 JEMALLOC_ALWAYS_INLINE size_t
-arena_slab_regind_impl(div_info_t* div_info, szind_t binind,
-    edata_t *slab, const void *ptr) {
+arena_slab_regind_impl(
+    div_info_t *div_info, szind_t binind, edata_t *slab, const void *ptr) {
 	size_t diff, regind;
 
 	/* Freeing a pointer outside the slab can cause assertion failure. */
 	assert((uintptr_t)ptr >= (uintptr_t)edata_addr_get(slab));
 	assert((uintptr_t)ptr < (uintptr_t)edata_past_get(slab));
 	/* Freeing an interior pointer can cause assertion failure. */
-	assert(((uintptr_t)ptr - (uintptr_t)edata_addr_get(slab)) %
-	    (uintptr_t)bin_infos[binind].reg_size == 0);
+	assert(((uintptr_t)ptr - (uintptr_t)edata_addr_get(slab))
+	        % (uintptr_t)bin_infos[binind].reg_size
+	    == 0);
 
 	diff = (size_t)((uintptr_t)ptr - (uintptr_t)edata_addr_get(slab));
 
@@ -360,22 +363,23 @@ arena_tcache_dalloc_small_safety_check(tsdn_t *tsdn, void *ptr) {
 	if (!config_debug) {
 		return false;
 	}
-	edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global, ptr);
-	szind_t binind = edata_szind_get(edata);
+	edata_t   *edata = emap_edata_lookup(tsdn, &arena_emap_global, ptr);
+	szind_t    binind = edata_szind_get(edata);
 	div_info_t div_info = arena_binind_div_info[binind];
 	/*
 	 * Calls the internal function arena_slab_regind_impl because the
 	 * safety check does not require a lock.
 	 */
 	size_t regind = arena_slab_regind_impl(&div_info, binind, edata, ptr);
-	slab_data_t *slab_data = edata_slab_data_get(edata);
+	slab_data_t      *slab_data = edata_slab_data_get(edata);
 	const bin_info_t *bin_info = &bin_infos[binind];
 	assert(edata_nfree_get(edata) < bin_info->nregs);
-	if (unlikely(!bitmap_get(slab_data->bitmap, &bin_info->bitmap_info,
-	    regind))) {
+	if (unlikely(!bitmap_get(
+	        slab_data->bitmap, &bin_info->bitmap_info, regind))) {
 		safety_check_fail(
 		    "Invalid deallocation detected: the pointer being freed (%p) not "
-		    "currently active, possibly caused by double free bugs.\n", ptr);
+		    "currently active, possibly caused by double free bugs.\n",
+		    ptr);
 		return true;
 	}
 	return false;
@@ -397,18 +401,18 @@ arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 		alloc_ctx = *caller_alloc_ctx;
 	} else {
 		util_assume(tsdn != NULL);
-		emap_alloc_ctx_lookup(tsdn, &arena_emap_global, ptr,
-		    &alloc_ctx);
+		emap_alloc_ctx_lookup(
+		    tsdn, &arena_emap_global, ptr, &alloc_ctx);
 	}
 
 	if (config_debug) {
-		edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global,
-		    ptr);
+		edata_t *edata = emap_edata_lookup(
+		    tsdn, &arena_emap_global, ptr);
 		assert(alloc_ctx.szind == edata_szind_get(edata));
 		assert(alloc_ctx.szind < SC_NSIZES);
 		assert(alloc_ctx.slab == edata_slab_get(edata));
-		assert(emap_alloc_ctx_usize_get(&alloc_ctx) ==
-		    edata_usize_get(edata));
+		assert(emap_alloc_ctx_usize_get(&alloc_ctx)
+		    == edata_usize_get(edata));
 	}
 
 	if (likely(alloc_ctx.slab)) {
@@ -416,8 +420,8 @@ arena_dalloc(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 		if (arena_tcache_dalloc_small_safety_check(tsdn, ptr)) {
 			return;
 		}
-		tcache_dalloc_small(tsdn_tsd(tsdn), tcache, ptr,
-		    alloc_ctx.szind, slow_path);
+		tcache_dalloc_small(
+		    tsdn_tsd(tsdn), tcache, ptr, alloc_ctx.szind, slow_path);
 	} else {
 		arena_dalloc_large(tsdn, ptr, tcache, alloc_ctx.szind,
 		    emap_alloc_ctx_usize_get(&alloc_ctx), slow_path);
@@ -436,21 +440,21 @@ arena_sdalloc_no_tcache(tsdn_t *tsdn, void *ptr, size_t size) {
 		 * object, so base szind and slab on the given size.
 		 */
 		szind_t szind = sz_size2index(size);
-		emap_alloc_ctx_init(&alloc_ctx, szind, (szind < SC_NBINS),
-		    size);
+		emap_alloc_ctx_init(
+		    &alloc_ctx, szind, (szind < SC_NBINS), size);
 	}
 
 	if ((config_prof && opt_prof) || config_debug) {
-		emap_alloc_ctx_lookup(tsdn, &arena_emap_global, ptr,
-		    &alloc_ctx);
+		emap_alloc_ctx_lookup(
+		    tsdn, &arena_emap_global, ptr, &alloc_ctx);
 
 		assert(alloc_ctx.szind == sz_size2index(size));
 		assert((config_prof && opt_prof)
 		    || alloc_ctx.slab == (alloc_ctx.szind < SC_NBINS));
 
 		if (config_debug) {
-			edata_t *edata = emap_edata_lookup(tsdn,
-			    &arena_emap_global, ptr);
+			edata_t *edata = emap_edata_lookup(
+			    tsdn, &arena_emap_global, ptr);
 			assert(alloc_ctx.szind == edata_szind_get(edata));
 			assert(alloc_ctx.slab == edata_slab_get(edata));
 		}
@@ -481,8 +485,8 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 	if (config_prof && opt_prof) {
 		if (caller_alloc_ctx == NULL) {
 			/* Uncommon case and should be a static check. */
-			emap_alloc_ctx_lookup(tsdn, &arena_emap_global, ptr,
-			    &alloc_ctx);
+			emap_alloc_ctx_lookup(
+			    tsdn, &arena_emap_global, ptr, &alloc_ctx);
 			assert(alloc_ctx.szind == sz_size2index(size));
 			assert(emap_alloc_ctx_usize_get(&alloc_ctx) == size);
 		} else {
@@ -498,14 +502,14 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 	}
 
 	if (config_debug) {
-		edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global,
-		    ptr);
+		edata_t *edata = emap_edata_lookup(
+		    tsdn, &arena_emap_global, ptr);
 		assert(alloc_ctx.szind == edata_szind_get(edata));
 		assert(alloc_ctx.slab == edata_slab_get(edata));
-		emap_alloc_ctx_init(&alloc_ctx, alloc_ctx.szind, alloc_ctx.slab,
-		    sz_s2u(size));
-		assert(emap_alloc_ctx_usize_get(&alloc_ctx) ==
-		    edata_usize_get(edata));
+		emap_alloc_ctx_init(
+		    &alloc_ctx, alloc_ctx.szind, alloc_ctx.slab, sz_s2u(size));
+		assert(emap_alloc_ctx_usize_get(&alloc_ctx)
+		    == edata_usize_get(edata));
 	}
 
 	if (likely(alloc_ctx.slab)) {
@@ -513,8 +517,8 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 		if (arena_tcache_dalloc_small_safety_check(tsdn, ptr)) {
 			return;
 		}
-		tcache_dalloc_small(tsdn_tsd(tsdn), tcache, ptr,
-		    alloc_ctx.szind, slow_path);
+		tcache_dalloc_small(
+		    tsdn_tsd(tsdn), tcache, ptr, alloc_ctx.szind, slow_path);
 	} else {
 		arena_dalloc_large(tsdn, ptr, tcache, alloc_ctx.szind,
 		    sz_s2u(size), slow_path);
@@ -522,13 +526,13 @@ arena_sdalloc(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 }
 
 static inline void
-arena_cache_oblivious_randomize(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
-    size_t alignment) {
+arena_cache_oblivious_randomize(
+    tsdn_t *tsdn, arena_t *arena, edata_t *edata, size_t alignment) {
 	assert(edata_base_get(edata) == edata_addr_get(edata));
 
 	if (alignment < PAGE) {
-		unsigned lg_range = LG_PAGE -
-		    lg_floor(CACHELINE_CEILING(alignment));
+		unsigned lg_range = LG_PAGE
+		    - lg_floor(CACHELINE_CEILING(alignment));
 		size_t r;
 		if (!tsdn_null(tsdn)) {
 			tsd_t *tsd = tsdn_tsd(tsdn);
@@ -538,12 +542,12 @@ arena_cache_oblivious_randomize(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
 			uint64_t stack_value = (uint64_t)(uintptr_t)&r;
 			r = (size_t)prng_lg_range_u64(&stack_value, lg_range);
 		}
-		uintptr_t random_offset = ((uintptr_t)r) << (LG_PAGE -
-		    lg_range);
-		edata->e_addr = (void *)((byte_t *)edata->e_addr +
-		    random_offset);
-		assert(ALIGNMENT_ADDR2BASE(edata->e_addr, alignment) ==
-		    edata->e_addr);
+		uintptr_t random_offset = ((uintptr_t)r)
+		    << (LG_PAGE - lg_range);
+		edata->e_addr = (void *)((byte_t *)edata->e_addr
+		    + random_offset);
+		assert(ALIGNMENT_ADDR2BASE(edata->e_addr, alignment)
+		    == edata->e_addr);
 	}
 }
 
@@ -556,20 +560,21 @@ arena_cache_oblivious_randomize(tsdn_t *tsdn, arena_t *arena, edata_t *edata,
 typedef struct arena_dalloc_bin_locked_info_s arena_dalloc_bin_locked_info_t;
 struct arena_dalloc_bin_locked_info_s {
 	div_info_t div_info;
-	uint32_t nregs;
-	uint64_t ndalloc;
+	uint32_t   nregs;
+	uint64_t   ndalloc;
 };
 
 JEMALLOC_ALWAYS_INLINE size_t
 arena_slab_regind(arena_dalloc_bin_locked_info_t *info, szind_t binind,
     edata_t *slab, const void *ptr) {
-	size_t regind = arena_slab_regind_impl(&info->div_info, binind, slab, ptr);
+	size_t regind = arena_slab_regind_impl(
+	    &info->div_info, binind, slab, ptr);
 	return regind;
 }
 
 JEMALLOC_ALWAYS_INLINE void
-arena_dalloc_bin_locked_begin(arena_dalloc_bin_locked_info_t *info,
-    szind_t binind) {
+arena_dalloc_bin_locked_begin(
+    arena_dalloc_bin_locked_info_t *info, szind_t binind) {
 	info->div_info = arena_binind_div_info[binind];
 	info->nregs = bin_infos[binind].nregs;
 	info->ndalloc = 0;
@@ -589,8 +594,8 @@ arena_dalloc_bin_locked_step(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
     void *ptr, edata_t **dalloc_slabs, unsigned ndalloc_slabs,
     unsigned *dalloc_slabs_count, edata_list_active_t *dalloc_slabs_extra) {
 	const bin_info_t *bin_info = &bin_infos[binind];
-	size_t regind = arena_slab_regind(info, binind, slab, ptr);
-	slab_data_t *slab_data = edata_slab_data_get(slab);
+	size_t            regind = arena_slab_regind(info, binind, slab, ptr);
+	slab_data_t      *slab_data = edata_slab_data_get(slab);
 
 	assert(edata_nfree_get(slab) < bin_info->nregs);
 	/* Freeing an unallocated pointer can cause assertion failure. */
@@ -605,8 +610,8 @@ arena_dalloc_bin_locked_step(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 
 	unsigned nfree = edata_nfree_get(slab);
 	if (nfree == bin_info->nregs) {
-		arena_dalloc_bin_locked_handle_newly_empty(tsdn, arena, slab,
-		    bin);
+		arena_dalloc_bin_locked_handle_newly_empty(
+		    tsdn, arena, slab, bin);
 
 		if (*dalloc_slabs_count < ndalloc_slabs) {
 			dalloc_slabs[*dalloc_slabs_count] = slab;
@@ -615,8 +620,8 @@ arena_dalloc_bin_locked_step(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 			edata_list_active_append(dalloc_slabs_extra, slab);
 		}
 	} else if (nfree == 1 && slab != bin->slabcur) {
-		arena_dalloc_bin_locked_handle_newly_nonempty(tsdn, arena, slab,
-		    bin);
+		arena_dalloc_bin_locked_handle_newly_nonempty(
+		    tsdn, arena, slab, bin);
 	}
 }
 
@@ -637,21 +642,20 @@ arena_bin_flush_batch_impl(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
     edata_list_active_t *dalloc_slabs_extra) {
 	assert(binind < bin_info_nbatched_sizes);
 	bin_with_batch_t *batched_bin = (bin_with_batch_t *)bin;
-	size_t nelems_to_pop = batcher_pop_begin(tsdn,
-	    &batched_bin->remote_frees);
+	size_t            nelems_to_pop = batcher_pop_begin(
+            tsdn, &batched_bin->remote_frees);
 
 	bin_batching_test_mid_pop(nelems_to_pop);
 	if (nelems_to_pop == BATCHER_NO_IDX) {
-		malloc_mutex_assert_not_owner(tsdn,
-		    &batched_bin->remote_frees.mtx);
+		malloc_mutex_assert_not_owner(
+		    tsdn, &batched_bin->remote_frees.mtx);
 		return;
 	} else {
-		malloc_mutex_assert_owner(tsdn,
-		    &batched_bin->remote_frees.mtx);
+		malloc_mutex_assert_owner(tsdn, &batched_bin->remote_frees.mtx);
 	}
 
-	size_t npushes = batcher_pop_get_pushes(tsdn,
-	    &batched_bin->remote_frees);
+	size_t npushes = batcher_pop_get_pushes(
+	    tsdn, &batched_bin->remote_frees);
 	bin_remote_free_data_t remote_free_data[BIN_REMOTE_FREE_ELEMS_MAX];
 	for (size_t i = 0; i < nelems_to_pop; i++) {
 		remote_free_data[i] = batched_bin->remote_free_data[i];
@@ -682,8 +686,8 @@ struct arena_bin_flush_batch_state_s {
 	 * backup array for any "extra" slabs, as well as a a list to allow a
 	 * dynamic number of ones exceeding that array.
 	 */
-	edata_t *dalloc_slabs[8];
-	unsigned dalloc_slab_count;
+	edata_t            *dalloc_slabs[8];
+	unsigned            dalloc_slab_count;
 	edata_list_active_t dalloc_slabs_extra;
 };
 
@@ -712,8 +716,8 @@ arena_bin_flush_batch_after_lock(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 	    preallocated_slabs);
 
 	arena_bin_flush_batch_impl(tsdn, arena, bin, &state->info, binind,
-	    state->dalloc_slabs, ndalloc_slabs,
-	    &state->dalloc_slab_count, &state->dalloc_slabs_extra);
+	    state->dalloc_slabs, ndalloc_slabs, &state->dalloc_slab_count,
+	    &state->dalloc_slabs_extra);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -769,8 +773,8 @@ arena_get_bin(arena_t *arena, szind_t binind, unsigned binshard) {
 		ret = shard0 + binshard;
 	}
 	assert(binind >= SC_NBINS - 1
-	    || (uintptr_t)ret < (uintptr_t)arena
-	    + arena_bin_offsets[binind + 1]);
+	    || (uintptr_t)ret
+	        < (uintptr_t)arena + arena_bin_offsets[binind + 1]);
 
 	return ret;
 }

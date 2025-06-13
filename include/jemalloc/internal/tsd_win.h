@@ -1,5 +1,5 @@
 #ifdef JEMALLOC_INTERNAL_TSD_WIN_H
-#error This file should be included only once, by tsd.h.
+#	error This file should be included only once, by tsd.h.
 #endif
 #define JEMALLOC_INTERNAL_TSD_WIN_H
 
@@ -13,29 +13,29 @@
    than a type cast. */
 typedef struct {
 	tsd_t val;
-	bool initialized;
+	bool  initialized;
 } tsd_wrapper_t;
 
 #if defined(JEMALLOC_LEGACY_WINDOWS_SUPPORT) || !defined(_MSC_VER)
 
-extern DWORD tsd_tsd;
+extern DWORD         tsd_tsd;
 extern tsd_wrapper_t tsd_boot_wrapper;
-extern bool tsd_booted;
-#if defined(_M_ARM64EC)
-#define JEMALLOC_WIN32_TLSGETVALUE2 0
-#else
-#define JEMALLOC_WIN32_TLSGETVALUE2 1
-#endif
-#if JEMALLOC_WIN32_TLSGETVALUE2
-typedef LPVOID (WINAPI *TGV2)(DWORD dwTlsIndex);
-extern TGV2 tls_get_value2;
+extern bool          tsd_booted;
+#        if defined(_M_ARM64EC)
+#                define JEMALLOC_WIN32_TLSGETVALUE2 0
+#        else
+#                define JEMALLOC_WIN32_TLSGETVALUE2 1
+#        endif
+#        if JEMALLOC_WIN32_TLSGETVALUE2
+typedef LPVOID(WINAPI *TGV2)(DWORD dwTlsIndex);
+extern TGV2    tls_get_value2;
 extern HMODULE tgv2_mod;
-#endif
+#	endif
 
 /* Initialization/cleanup. */
 JEMALLOC_ALWAYS_INLINE bool
 tsd_cleanup_wrapper(void) {
-	DWORD error = GetLastError();
+	DWORD          error = GetLastError();
 	tsd_wrapper_t *wrapper = (tsd_wrapper_t *)TlsGetValue(tsd_tsd);
 	SetLastError(error);
 
@@ -66,20 +66,20 @@ tsd_wrapper_set(tsd_wrapper_t *wrapper) {
 JEMALLOC_ALWAYS_INLINE tsd_wrapper_t *
 tsd_wrapper_get(bool init) {
 	tsd_wrapper_t *wrapper;
-#if JEMALLOC_WIN32_TLSGETVALUE2
+#	if JEMALLOC_WIN32_TLSGETVALUE2
 	if (tls_get_value2 != NULL) {
-		wrapper = (tsd_wrapper_t *) tls_get_value2(tsd_tsd);
+		wrapper = (tsd_wrapper_t *)tls_get_value2(tsd_tsd);
 	} else
-#endif
+#	endif
 	{
 		DWORD error = GetLastError();
-		wrapper = (tsd_wrapper_t *) TlsGetValue(tsd_tsd);
+		wrapper = (tsd_wrapper_t *)TlsGetValue(tsd_tsd);
 		SetLastError(error);
 	}
 
 	if (init && unlikely(wrapper == NULL)) {
-		wrapper = (tsd_wrapper_t *)
-		    malloc_tsd_malloc(sizeof(tsd_wrapper_t));
+		wrapper = (tsd_wrapper_t *)malloc_tsd_malloc(
+		    sizeof(tsd_wrapper_t));
 		if (wrapper == NULL) {
 			malloc_write("<jemalloc>: Error allocating TSD\n");
 			abort();
@@ -102,12 +102,12 @@ tsd_boot0(void) {
 	}
 	_malloc_tsd_cleanup_register(&tsd_cleanup_wrapper);
 	tsd_wrapper_set(&tsd_boot_wrapper);
-#if JEMALLOC_WIN32_TLSGETVALUE2
+#	if JEMALLOC_WIN32_TLSGETVALUE2
 	tgv2_mod = LoadLibraryA("api-ms-win-core-processthreads-l1-1-8.dll");
 	if (tgv2_mod != NULL) {
 		tls_get_value2 = (TGV2)GetProcAddress(tgv2_mod, "TlsGetValue2");
 	}
-#endif
+#	endif
 	tsd_booted = true;
 	return false;
 }
@@ -115,8 +115,7 @@ tsd_boot0(void) {
 JEMALLOC_ALWAYS_INLINE void
 tsd_boot1(void) {
 	tsd_wrapper_t *wrapper;
-	wrapper = (tsd_wrapper_t *)
-	    malloc_tsd_malloc(sizeof(tsd_wrapper_t));
+	wrapper = (tsd_wrapper_t *)malloc_tsd_malloc(sizeof(tsd_wrapper_t));
 	if (wrapper == NULL) {
 		malloc_write("<jemalloc>: Error allocating TSD\n");
 		abort();
@@ -174,7 +173,7 @@ tsd_set(tsd_t *val) {
 
 #else // defined(JEMALLOC_LEGACY_WINDOWS_SUPPORT) || !defined(_MSC_VER)
 
-#define JEMALLOC_TSD_TYPE_ATTR(type) __declspec(thread) type
+#	define JEMALLOC_TSD_TYPE_ATTR(type) __declspec(thread) type
 
 extern JEMALLOC_TSD_TYPE_ATTR(tsd_wrapper_t) tsd_wrapper_tls;
 extern bool tsd_booted;

@@ -16,12 +16,12 @@ TEST_BEGIN(test_san_bump_alloc) {
 	assert_u_ne(arena_ind, UINT_MAX, "Failed to create an arena");
 
 	arena_t *arena = arena_get(tsdn, arena_ind, false);
-	pac_t *pac = &arena->pa_shard.pac;
+	pac_t   *pac = &arena->pa_shard.pac;
 
-	size_t alloc_size = PAGE * 16;
-	size_t alloc_n = alloc_size / sizeof(unsigned);
-	edata_t* edata = san_bump_alloc(tsdn, &sba, pac, pac_ehooks_get(pac),
-	    alloc_size, /* zero */ false);
+	size_t   alloc_size = PAGE * 16;
+	size_t   alloc_n = alloc_size / sizeof(unsigned);
+	edata_t *edata = san_bump_alloc(
+	    tsdn, &sba, pac, pac_ehooks_get(pac), alloc_size, /* zero */ false);
 
 	expect_ptr_not_null(edata, "Failed to allocate edata");
 	expect_u_eq(edata_arena_ind_get(edata), arena_ind,
@@ -39,10 +39,10 @@ TEST_BEGIN(test_san_bump_alloc) {
 		((unsigned *)ptr)[i] = 1;
 	}
 
-	size_t alloc_size2 = PAGE * 28;
-	size_t alloc_n2 = alloc_size / sizeof(unsigned);
-	edata_t *edata2 = san_bump_alloc(tsdn, &sba, pac, pac_ehooks_get(pac),
-	    alloc_size2, /* zero */ true);
+	size_t   alloc_size2 = PAGE * 28;
+	size_t   alloc_n2 = alloc_size / sizeof(unsigned);
+	edata_t *edata2 = san_bump_alloc(
+	    tsdn, &sba, pac, pac_ehooks_get(pac), alloc_size2, /* zero */ true);
 
 	expect_ptr_not_null(edata2, "Failed to allocate edata");
 	expect_u_eq(edata_arena_ind_get(edata2), arena_ind,
@@ -57,11 +57,11 @@ TEST_BEGIN(test_san_bump_alloc) {
 	expect_ptr_not_null(ptr, "Edata was assigned an invalid address");
 
 	uintptr_t ptrdiff = ptr2 > ptr ? (uintptr_t)ptr2 - (uintptr_t)ptr
-	    : (uintptr_t)ptr - (uintptr_t)ptr2;
-	size_t between_allocs = (size_t)ptrdiff - alloc_size;
+	                               : (uintptr_t)ptr - (uintptr_t)ptr2;
+	size_t    between_allocs = (size_t)ptrdiff - alloc_size;
 
-	expect_zu_ge(between_allocs, PAGE,
-	    "Guard page between allocs is missing");
+	expect_zu_ge(
+	    between_allocs, PAGE, "Guard page between allocs is missing");
 
 	for (unsigned i = 0; i < alloc_n2; ++i) {
 		expect_u_eq(((unsigned *)ptr2)[i], 0, "Memory is not zeroed");
@@ -81,11 +81,11 @@ TEST_BEGIN(test_large_alloc_size) {
 	assert_u_ne(arena_ind, UINT_MAX, "Failed to create an arena");
 
 	arena_t *arena = arena_get(tsdn, arena_ind, false);
-	pac_t *pac = &arena->pa_shard.pac;
+	pac_t   *pac = &arena->pa_shard.pac;
 
-	size_t alloc_size = SBA_RETAINED_ALLOC_SIZE * 2;
-	edata_t* edata = san_bump_alloc(tsdn, &sba, pac, pac_ehooks_get(pac),
-	    alloc_size, /* zero */ false);
+	size_t   alloc_size = SBA_RETAINED_ALLOC_SIZE * 2;
+	edata_t *edata = san_bump_alloc(
+	    tsdn, &sba, pac, pac_ehooks_get(pac), alloc_size, /* zero */ false);
 	expect_u_eq(edata_arena_ind_get(edata), arena_ind,
 	    "Edata was assigned an incorrect arena id");
 	expect_zu_eq(edata_size_get(edata), alloc_size,
@@ -105,7 +105,5 @@ TEST_END
 
 int
 main(void) {
-	return test(
-	    test_san_bump_alloc,
-	    test_large_alloc_size);
+	return test(test_san_bump_alloc, test_large_alloc_size);
 }

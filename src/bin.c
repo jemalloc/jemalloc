@@ -10,8 +10,8 @@
 unsigned bin_batching_test_ndalloc_slabs_max = (unsigned)-1;
 void (*bin_batching_test_after_push_hook)(size_t push_idx);
 void (*bin_batching_test_mid_pop_hook)(size_t nelems_to_pop);
-void (*bin_batching_test_after_unlock_hook)(unsigned slab_dalloc_count,
-    bool list_empty);
+void (*bin_batching_test_after_unlock_hook)(
+    unsigned slab_dalloc_count, bool list_empty);
 #endif
 
 bool
@@ -49,7 +49,7 @@ bin_shard_sizes_boot(unsigned bin_shard_sizes[SC_NBINS]) {
 bool
 bin_init(bin_t *bin, unsigned binind) {
 	if (malloc_mutex_init(&bin->lock, "bin", WITNESS_RANK_BIN,
-	    malloc_mutex_rank_exclusive)) {
+	        malloc_mutex_rank_exclusive)) {
 		return true;
 	}
 	bin->slabcur = NULL;
@@ -60,8 +60,8 @@ bin_init(bin_t *bin, unsigned binind) {
 	}
 	if (arena_bin_has_batch(binind)) {
 		bin_with_batch_t *batched_bin = (bin_with_batch_t *)bin;
-		batcher_init(&batched_bin->remote_frees,
-		    opt_bin_info_remote_free_max);
+		batcher_init(
+		    &batched_bin->remote_frees, opt_bin_info_remote_free_max);
 	}
 	return false;
 }

@@ -36,14 +36,14 @@ background_thread_info_get(size_t ind) {
 JEMALLOC_ALWAYS_INLINE uint64_t
 background_thread_wakeup_time_get(background_thread_info_t *info) {
 	uint64_t next_wakeup = nstime_ns(&info->next_wakeup);
-	assert(atomic_load_b(&info->indefinite_sleep, ATOMIC_ACQUIRE) ==
-	    (next_wakeup == BACKGROUND_THREAD_INDEFINITE_SLEEP));
+	assert(atomic_load_b(&info->indefinite_sleep, ATOMIC_ACQUIRE)
+	    == (next_wakeup == BACKGROUND_THREAD_INDEFINITE_SLEEP));
 	return next_wakeup;
 }
 
 JEMALLOC_ALWAYS_INLINE void
-background_thread_wakeup_time_set(tsdn_t *tsdn, background_thread_info_t *info,
-    uint64_t wakeup_time) {
+background_thread_wakeup_time_set(
+    tsdn_t *tsdn, background_thread_info_t *info, uint64_t wakeup_time) {
 	malloc_mutex_assert_owner(tsdn, &info->mtx);
 	atomic_store_b(&info->indefinite_sleep,
 	    wakeup_time == BACKGROUND_THREAD_INDEFINITE_SLEEP, ATOMIC_RELEASE);

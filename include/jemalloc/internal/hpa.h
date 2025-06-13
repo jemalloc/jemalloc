@@ -27,7 +27,7 @@ struct hpa_central_s {
 	 *
 	 * Guarded by grow_mtx.
 	 */
-	void *eden;
+	void  *eden;
 	size_t eden_len;
 	/* Source for metadata. */
 	base_t *base;
@@ -78,7 +78,7 @@ struct hpa_shard_nonderived_stats_s {
 /* Completely derived; only used by CTL. */
 typedef struct hpa_shard_stats_s hpa_shard_stats_t;
 struct hpa_shard_stats_s {
-	psset_stats_t psset_stats;
+	psset_stats_t                psset_stats;
 	hpa_shard_nonderived_stats_t nonderived_stats;
 };
 
@@ -156,14 +156,15 @@ bool hpa_hugepage_size_exceeds_limit(void);
  * just that it can function properly given the system it's running on.
  */
 bool hpa_supported(void);
-bool hpa_central_init(hpa_central_t *central, base_t *base, const hpa_hooks_t *hooks);
+bool hpa_central_init(
+    hpa_central_t *central, base_t *base, const hpa_hooks_t *hooks);
 bool hpa_shard_init(hpa_shard_t *shard, hpa_central_t *central, emap_t *emap,
     base_t *base, edata_cache_t *edata_cache, unsigned ind,
     const hpa_shard_opts_t *opts);
 
 void hpa_shard_stats_accum(hpa_shard_stats_t *dst, hpa_shard_stats_t *src);
-void hpa_shard_stats_merge(tsdn_t *tsdn, hpa_shard_t *shard,
-    hpa_shard_stats_t *dst);
+void hpa_shard_stats_merge(
+    tsdn_t *tsdn, hpa_shard_t *shard, hpa_shard_stats_t *dst);
 
 /*
  * Notify the shard that we won't use it for allocations much longer.  Due to
@@ -173,8 +174,8 @@ void hpa_shard_stats_merge(tsdn_t *tsdn, hpa_shard_t *shard,
 void hpa_shard_disable(tsdn_t *tsdn, hpa_shard_t *shard);
 void hpa_shard_destroy(tsdn_t *tsdn, hpa_shard_t *shard);
 
-void hpa_shard_set_deferral_allowed(tsdn_t *tsdn, hpa_shard_t *shard,
-    bool deferral_allowed);
+void hpa_shard_set_deferral_allowed(
+    tsdn_t *tsdn, hpa_shard_t *shard, bool deferral_allowed);
 void hpa_shard_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard);
 
 /*

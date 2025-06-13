@@ -12,7 +12,7 @@ void
 peak_event_update(tsd_t *tsd) {
 	uint64_t alloc = tsd_thread_allocated_get(tsd);
 	uint64_t dalloc = tsd_thread_deallocated_get(tsd);
-	peak_t *peak = tsd_peakp_get(tsd);
+	peak_t  *peak = tsd_peakp_get(tsd);
 	peak_update(peak, alloc, dalloc);
 }
 
@@ -32,7 +32,7 @@ void
 peak_event_zero(tsd_t *tsd) {
 	uint64_t alloc = tsd_thread_allocated_get(tsd);
 	uint64_t dalloc = tsd_thread_deallocated_get(tsd);
-	peak_t *peak = tsd_peakp_get(tsd);
+	peak_t  *peak = tsd_peakp_get(tsd);
 	peak_set_zero(peak, alloc, dalloc);
 }
 
@@ -65,8 +65,8 @@ peak_event_enabled(void) {
 
 /* Handles alloc and dalloc */
 te_base_cb_t peak_te_handler = {
-	.enabled = &peak_event_enabled,
-	.new_event_wait = &peak_event_new_event_wait,
-	.postponed_event_wait = &peak_event_postponed_event_wait,
-	.event_handler = &peak_event_handler,
+    .enabled = &peak_event_enabled,
+    .new_event_wait = &peak_event_new_event_wait,
+    .postponed_event_wait = &peak_event_postponed_event_wait,
+    .event_handler = &peak_event_handler,
 };
