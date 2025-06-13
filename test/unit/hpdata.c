@@ -69,23 +69,25 @@ TEST_BEGIN(test_purge_simple) {
 
 	hpdata_alloc_allowed_set(&hpdata, false);
 	hpdata_purge_state_t purge_state;
-	size_t nranges;
+	size_t               nranges;
 	size_t to_purge = hpdata_purge_begin(&hpdata, &purge_state, &nranges);
 	expect_zu_eq(HUGEPAGE_PAGES / 4, to_purge, "");
 	expect_zu_eq(1, nranges, "All dirty pages in a single range");
 
-	void *purge_addr;
+	void  *purge_addr;
 	size_t purge_size;
-	bool got_result = hpdata_purge_next(&hpdata, &purge_state, &purge_addr,
-	    &purge_size);
+	bool   got_result = hpdata_purge_next(
+            &hpdata, &purge_state, &purge_addr, &purge_size);
 	expect_true(got_result, "");
 	expect_ptr_eq(HPDATA_ADDR, purge_addr, "");
 	expect_zu_eq(HUGEPAGE_PAGES / 4 * PAGE, purge_size, "");
 
-	got_result = hpdata_purge_next(&hpdata, &purge_state, &purge_addr,
-	    &purge_size);
-	expect_false(got_result, "Unexpected additional purge range: "
-	    "extent at %p of size %zu", purge_addr, purge_size);
+	got_result = hpdata_purge_next(
+	    &hpdata, &purge_state, &purge_addr, &purge_size);
+	expect_false(got_result,
+	    "Unexpected additional purge range: "
+	    "extent at %p of size %zu",
+	    purge_addr, purge_size);
 
 	hpdata_purge_end(&hpdata, &purge_state);
 	expect_zu_eq(hpdata_ntouched_get(&hpdata), HUGEPAGE_PAGES / 4, "");
@@ -102,7 +104,8 @@ TEST_BEGIN(test_purge_intervening_dalloc) {
 	hpdata_init(&hpdata, HPDATA_ADDR, HPDATA_AGE);
 
 	/* Allocate the first 3/4 of the pages. */
-	void *alloc = hpdata_reserve_alloc(&hpdata, 3 * HUGEPAGE_PAGES / 4  * PAGE);
+	void *alloc = hpdata_reserve_alloc(
+	    &hpdata, 3 * HUGEPAGE_PAGES / 4 * PAGE);
 	expect_ptr_eq(alloc, HPDATA_ADDR, "");
 
 	/* Free the first 1/4 and the third 1/4 of the pages. */
@@ -115,16 +118,16 @@ TEST_BEGIN(test_purge_intervening_dalloc) {
 
 	hpdata_alloc_allowed_set(&hpdata, false);
 	hpdata_purge_state_t purge_state;
-	size_t nranges;
+	size_t               nranges;
 	size_t to_purge = hpdata_purge_begin(&hpdata, &purge_state, &nranges);
 	expect_zu_eq(HUGEPAGE_PAGES / 2, to_purge, "");
 	expect_zu_eq(2, nranges, "First quarter and last half");
 
-	void *purge_addr;
+	void  *purge_addr;
 	size_t purge_size;
 	/* First purge. */
-	bool got_result = hpdata_purge_next(&hpdata, &purge_state, &purge_addr,
-	    &purge_size);
+	bool got_result = hpdata_purge_next(
+	    &hpdata, &purge_state, &purge_addr, &purge_size);
 	expect_true(got_result, "");
 	expect_ptr_eq(HPDATA_ADDR, purge_addr, "");
 	expect_zu_eq(HUGEPAGE_PAGES / 4 * PAGE, purge_size, "");
@@ -135,18 +138,20 @@ TEST_BEGIN(test_purge_intervening_dalloc) {
 	    HUGEPAGE_PAGES / 4 * PAGE);
 
 	/* Now continue purging. */
-	got_result = hpdata_purge_next(&hpdata, &purge_state, &purge_addr,
-	    &purge_size);
+	got_result = hpdata_purge_next(
+	    &hpdata, &purge_state, &purge_addr, &purge_size);
 	expect_true(got_result, "");
 	expect_ptr_eq(
 	    (void *)((uintptr_t)alloc + 2 * HUGEPAGE_PAGES / 4 * PAGE),
 	    purge_addr, "");
 	expect_zu_ge(HUGEPAGE_PAGES / 4 * PAGE, purge_size, "");
 
-	got_result = hpdata_purge_next(&hpdata, &purge_state, &purge_addr,
-	    &purge_size);
-	expect_false(got_result, "Unexpected additional purge range: "
-	    "extent at %p of size %zu", purge_addr, purge_size);
+	got_result = hpdata_purge_next(
+	    &hpdata, &purge_state, &purge_addr, &purge_size);
+	expect_false(got_result,
+	    "Unexpected additional purge range: "
+	    "extent at %p of size %zu",
+	    purge_addr, purge_size);
 
 	hpdata_purge_end(&hpdata, &purge_state);
 
@@ -155,19 +160,20 @@ TEST_BEGIN(test_purge_intervening_dalloc) {
 TEST_END
 
 TEST_BEGIN(test_purge_over_retained) {
-	void *purge_addr;
+	void  *purge_addr;
 	size_t purge_size;
 
 	hpdata_t hpdata;
 	hpdata_init(&hpdata, HPDATA_ADDR, HPDATA_AGE);
 
 	/* Allocate the first 3/4 of the pages. */
-	void *alloc = hpdata_reserve_alloc(&hpdata, 3 * HUGEPAGE_PAGES / 4  * PAGE);
+	void *alloc = hpdata_reserve_alloc(
+	    &hpdata, 3 * HUGEPAGE_PAGES / 4 * PAGE);
 	expect_ptr_eq(alloc, HPDATA_ADDR, "");
 
 	/* Free the second quarter. */
-	void *second_quarter =
-	    (void *)((uintptr_t)alloc + HUGEPAGE_PAGES / 4 * PAGE);
+	void *second_quarter = (void *)((uintptr_t)alloc
+	    + HUGEPAGE_PAGES / 4 * PAGE);
 	hpdata_unreserve(&hpdata, second_quarter, HUGEPAGE_PAGES / 4 * PAGE);
 
 	expect_zu_eq(hpdata_ntouched_get(&hpdata), 3 * HUGEPAGE_PAGES / 4, "");
@@ -175,21 +181,24 @@ TEST_BEGIN(test_purge_over_retained) {
 	/* Purge the second quarter. */
 	hpdata_alloc_allowed_set(&hpdata, false);
 	hpdata_purge_state_t purge_state;
-	size_t nranges;
-	size_t to_purge_dirty = hpdata_purge_begin(&hpdata, &purge_state, &nranges);
+	size_t               nranges;
+	size_t               to_purge_dirty = hpdata_purge_begin(
+            &hpdata, &purge_state, &nranges);
 	expect_zu_eq(HUGEPAGE_PAGES / 4, to_purge_dirty, "");
 	expect_zu_eq(1, nranges, "Second quarter only");
 
-	bool got_result = hpdata_purge_next(&hpdata, &purge_state, &purge_addr,
-	    &purge_size);
+	bool got_result = hpdata_purge_next(
+	    &hpdata, &purge_state, &purge_addr, &purge_size);
 	expect_true(got_result, "");
 	expect_ptr_eq(second_quarter, purge_addr, "");
 	expect_zu_eq(HUGEPAGE_PAGES / 4 * PAGE, purge_size, "");
 
-	got_result = hpdata_purge_next(&hpdata, &purge_state, &purge_addr,
-	    &purge_size);
-	expect_false(got_result, "Unexpected additional purge range: "
-	    "extent at %p of size %zu", purge_addr, purge_size);
+	got_result = hpdata_purge_next(
+	    &hpdata, &purge_state, &purge_addr, &purge_size);
+	expect_false(got_result,
+	    "Unexpected additional purge range: "
+	    "extent at %p of size %zu",
+	    purge_addr, purge_size);
 	hpdata_purge_end(&hpdata, &purge_state);
 
 	expect_zu_eq(hpdata_ntouched_get(&hpdata), HUGEPAGE_PAGES / 2, "");
@@ -209,16 +218,18 @@ TEST_BEGIN(test_purge_over_retained) {
 	expect_zu_eq(HUGEPAGE_PAGES / 2, to_purge_dirty, "");
 	expect_zu_eq(1, nranges, "Single range expected");
 
-	got_result = hpdata_purge_next(&hpdata, &purge_state, &purge_addr,
-	    &purge_size);
+	got_result = hpdata_purge_next(
+	    &hpdata, &purge_state, &purge_addr, &purge_size);
 	expect_true(got_result, "");
 	expect_ptr_eq(HPDATA_ADDR, purge_addr, "");
 	expect_zu_eq(3 * HUGEPAGE_PAGES / 4 * PAGE, purge_size, "");
 
-	got_result = hpdata_purge_next(&hpdata, &purge_state, &purge_addr,
-	    &purge_size);
-	expect_false(got_result, "Unexpected additional purge range: "
-	    "extent at %p of size %zu", purge_addr, purge_size);
+	got_result = hpdata_purge_next(
+	    &hpdata, &purge_state, &purge_addr, &purge_size);
+	expect_false(got_result,
+	    "Unexpected additional purge range: "
+	    "extent at %p of size %zu",
+	    purge_addr, purge_size);
 	hpdata_purge_end(&hpdata, &purge_state);
 
 	expect_zu_eq(hpdata_ntouched_get(&hpdata), 0, "");
@@ -241,11 +252,9 @@ TEST_BEGIN(test_hugify) {
 }
 TEST_END
 
-int main(void) {
-	return test_no_reentrancy(
-	    test_reserve_alloc,
-	    test_purge_simple,
-	    test_purge_intervening_dalloc,
-	    test_purge_over_retained,
+int
+main(void) {
+	return test_no_reentrancy(test_reserve_alloc, test_purge_simple,
+	    test_purge_intervening_dalloc, test_purge_over_retained,
 	    test_hugify);
 }

@@ -73,7 +73,7 @@ struct hpdata_s {
 	bool h_hugify_allowed;
 	/* When we became a hugification candidate. */
 	nstime_t h_time_hugify_allowed;
-	bool h_in_psset_hugify_container;
+	bool     h_in_psset_hugify_container;
 
 	/* Whether or not a purge or hugify is currently happening. */
 	bool h_mid_purge;
@@ -186,8 +186,8 @@ hpdata_purge_allowed_get(const hpdata_t *hpdata) {
 
 static inline void
 hpdata_purge_allowed_set(hpdata_t *hpdata, bool purge_allowed) {
-       assert(purge_allowed == false || !hpdata->h_mid_purge);
-       hpdata->h_purge_allowed = purge_allowed;
+	assert(purge_allowed == false || !hpdata->h_mid_purge);
+	hpdata->h_purge_allowed = purge_allowed;
 }
 
 static inline bool
@@ -249,7 +249,6 @@ static inline bool
 hpdata_changing_state_get(const hpdata_t *hpdata) {
 	return hpdata->h_mid_purge || hpdata->h_mid_hugify;
 }
-
 
 static inline bool
 hpdata_updating_get(const hpdata_t *hpdata) {
@@ -317,7 +316,7 @@ hpdata_assert_empty(hpdata_t *hpdata) {
  */
 static inline bool
 hpdata_consistent(hpdata_t *hpdata) {
-	if(fb_urange_longest(hpdata->active_pages, HUGEPAGE_PAGES)
+	if (fb_urange_longest(hpdata->active_pages, HUGEPAGE_PAGES)
 	    != hpdata_longest_free_range_get(hpdata)) {
 		return false;
 	}
@@ -368,7 +367,7 @@ void hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age);
  * offset within that allocation.
  */
 void *hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz);
-void hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz);
+void  hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz);
 
 /*
  * The hpdata_purge_prepare_t allows grabbing the metadata required to purge
@@ -377,10 +376,10 @@ void hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz);
  */
 typedef struct hpdata_purge_state_s hpdata_purge_state_t;
 struct hpdata_purge_state_s {
-	size_t npurged;
-	size_t ndirty_to_purge;
+	size_t     npurged;
+	size_t     ndirty_to_purge;
 	fb_group_t to_purge[FB_NGROUPS(HUGEPAGE_PAGES)];
-	size_t next_purge_search_begin;
+	size_t     next_purge_search_begin;
 };
 
 /*
@@ -398,8 +397,8 @@ struct hpdata_purge_state_s {
  * Returns the number of dirty pages that will be purged and sets nranges
  * to number of ranges with dirty pages that will be purged.
  */
-size_t hpdata_purge_begin(hpdata_t *hpdata, hpdata_purge_state_t *purge_state,
-    size_t *nranges);
+size_t hpdata_purge_begin(
+    hpdata_t *hpdata, hpdata_purge_state_t *purge_state, size_t *nranges);
 
 /*
  * If there are more extents to purge, sets *r_purge_addr and *r_purge_size to

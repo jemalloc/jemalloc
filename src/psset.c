@@ -32,16 +32,16 @@ psset_stats_accum(psset_stats_t *dst, psset_stats_t *src) {
 	psset_bin_stats_accum(&dst->merged, &src->merged);
 	for (int huge = 0; huge < PSSET_NHUGE; huge++) {
 		psset_bin_stats_accum(&dst->slabs[huge], &src->slabs[huge]);
-		psset_bin_stats_accum(&dst->full_slabs[huge],
-		    &src->full_slabs[huge]);
-		psset_bin_stats_accum(&dst->empty_slabs[huge],
-		    &src->empty_slabs[huge]);
+		psset_bin_stats_accum(
+		    &dst->full_slabs[huge], &src->full_slabs[huge]);
+		psset_bin_stats_accum(
+		    &dst->empty_slabs[huge], &src->empty_slabs[huge]);
 	}
 	for (pszind_t i = 0; i < PSSET_NPSIZES; i++) {
-		psset_bin_stats_accum(&dst->nonfull_slabs[i][0],
-		    &src->nonfull_slabs[i][0]);
-		psset_bin_stats_accum(&dst->nonfull_slabs[i][1],
-		    &src->nonfull_slabs[i][1]);
+		psset_bin_stats_accum(
+		    &dst->nonfull_slabs[i][0], &src->nonfull_slabs[i][0]);
+		psset_bin_stats_accum(
+		    &dst->nonfull_slabs[i][1], &src->nonfull_slabs[i][1]);
 	}
 }
 
@@ -83,10 +83,10 @@ psset_slab_stats_insert_remove(psset_stats_t *stats,
 	if (config_debug) {
 		psset_bin_stats_t check_stats[PSSET_NHUGE] = {{0}};
 		for (int huge = 0; huge < PSSET_NHUGE; huge++) {
-			psset_bin_stats_accum(&check_stats[huge],
-			    &stats->full_slabs[huge]);
-			psset_bin_stats_accum(&check_stats[huge],
-			    &stats->empty_slabs[huge]);
+			psset_bin_stats_accum(
+			    &check_stats[huge], &stats->full_slabs[huge]);
+			psset_bin_stats_accum(
+			    &check_stats[huge], &stats->empty_slabs[huge]);
 			for (pszind_t pind = 0; pind < PSSET_NPSIZES; pind++) {
 				psset_bin_stats_accum(&check_stats[huge],
 				    &stats->nonfull_slabs[pind][huge]);
@@ -112,14 +112,14 @@ psset_slab_stats_insert_remove(psset_stats_t *stats,
 }
 
 static void
-psset_slab_stats_insert(psset_stats_t *stats, psset_bin_stats_t *binstats,
-    hpdata_t *ps) {
+psset_slab_stats_insert(
+    psset_stats_t *stats, psset_bin_stats_t *binstats, hpdata_t *ps) {
 	psset_slab_stats_insert_remove(stats, binstats, ps, true);
 }
 
 static void
-psset_slab_stats_remove(psset_stats_t *stats, psset_bin_stats_t *binstats,
-    hpdata_t *ps) {
+psset_slab_stats_remove(
+    psset_stats_t *stats, psset_bin_stats_t *binstats, hpdata_t *ps) {
 	psset_slab_stats_insert_remove(stats, binstats, ps, false);
 }
 
@@ -127,9 +127,9 @@ static pszind_t
 psset_hpdata_heap_index(const hpdata_t *ps) {
 	assert(!hpdata_full(ps));
 	assert(!hpdata_empty(ps));
-	size_t longest_free_range = hpdata_longest_free_range_get(ps);
-	pszind_t pind = sz_psz2ind(sz_psz_quantize_floor(
-	    longest_free_range << LG_PAGE));
+	size_t   longest_free_range = hpdata_longest_free_range_get(ps);
+	pszind_t pind = sz_psz2ind(
+	    sz_psz_quantize_floor(longest_free_range << LG_PAGE));
 	assert(pind < PSSET_NPSIZES);
 	return pind;
 }
@@ -161,8 +161,8 @@ psset_stats_insert(psset_t *psset, hpdata_t *ps) {
 		psset_slab_stats_insert(stats, psset->stats.full_slabs, ps);
 	} else {
 		pszind_t pind = psset_hpdata_heap_index(ps);
-		psset_slab_stats_insert(stats, psset->stats.nonfull_slabs[pind],
-		    ps);
+		psset_slab_stats_insert(
+		    stats, psset->stats.nonfull_slabs[pind], ps);
 	}
 }
 
@@ -175,8 +175,8 @@ psset_stats_remove(psset_t *psset, hpdata_t *ps) {
 		psset_slab_stats_remove(stats, psset->stats.full_slabs, ps);
 	} else {
 		pszind_t pind = psset_hpdata_heap_index(ps);
-		psset_slab_stats_remove(stats, psset->stats.nonfull_slabs[pind],
-		    ps);
+		psset_slab_stats_remove(
+		    stats, psset->stats.nonfull_slabs[pind], ps);
 	}
 }
 
@@ -264,7 +264,7 @@ psset_maybe_remove_purge_list(psset_t *psset, hpdata_t *ps) {
 	 * purge LRU within a given dirtiness bucket.
 	 */
 	if (hpdata_purge_allowed_get(ps)) {
-		size_t ind = psset_purge_list_ind(ps);
+		size_t               ind = psset_purge_list_ind(ps);
 		hpdata_purge_list_t *purge_list = &psset->to_purge[ind];
 		hpdata_purge_list_remove(purge_list, ps);
 		if (hpdata_purge_list_empty(purge_list)) {
@@ -276,14 +276,13 @@ psset_maybe_remove_purge_list(psset_t *psset, hpdata_t *ps) {
 static void
 psset_maybe_insert_purge_list(psset_t *psset, hpdata_t *ps) {
 	if (hpdata_purge_allowed_get(ps)) {
-		size_t ind = psset_purge_list_ind(ps);
+		size_t               ind = psset_purge_list_ind(ps);
 		hpdata_purge_list_t *purge_list = &psset->to_purge[ind];
 		if (hpdata_purge_list_empty(purge_list)) {
 			fb_set(psset->purge_bitmap, PSSET_NPURGE_LISTS, ind);
 		}
 		hpdata_purge_list_append(purge_list, ps);
 	}
-
 }
 
 void
@@ -343,13 +342,13 @@ psset_enumerate_search(psset_t *psset, pszind_t pind, size_t size) {
 		return NULL;
 	}
 
-	hpdata_t *ps = NULL;
+	hpdata_t                          *ps = NULL;
 	hpdata_age_heap_enumerate_helper_t helper;
 	hpdata_age_heap_enumerate_prepare(&psset->pageslabs[pind], &helper,
 	    PSSET_ENUMERATE_MAX_NUM, sizeof(helper.bfs_queue) / sizeof(void *));
 
-	while ((ps = hpdata_age_heap_enumerate_next(&psset->pageslabs[pind],
-	    &helper))) {
+	while ((ps = hpdata_age_heap_enumerate_next(
+	            &psset->pageslabs[pind], &helper))) {
 		if (hpdata_longest_free_range_get(ps) >= size) {
 			return ps;
 		}
@@ -363,7 +362,7 @@ psset_pick_alloc(psset_t *psset, size_t size) {
 	assert((size & PAGE_MASK) == 0);
 	assert(size <= HUGEPAGE);
 
-	pszind_t min_pind = sz_psz2ind(sz_psz_quantize_ceil(size));
+	pszind_t  min_pind = sz_psz2ind(sz_psz_quantize_ceil(size));
 	hpdata_t *ps = NULL;
 
 	/* See comments in eset_first_fit for why we enumerate search below. */
@@ -375,8 +374,8 @@ psset_pick_alloc(psset_t *psset, size_t size) {
 		}
 	}
 
-	pszind_t pind = (pszind_t)fb_ffs(psset->pageslab_bitmap, PSSET_NPSIZES,
-	    (size_t)min_pind);
+	pszind_t pind = (pszind_t)fb_ffs(
+	    psset->pageslab_bitmap, PSSET_NPSIZES, (size_t)min_pind);
 	if (pind == PSSET_NPSIZES) {
 		return hpdata_empty_list_first(&psset->empty);
 	}
@@ -392,8 +391,8 @@ psset_pick_alloc(psset_t *psset, size_t size) {
 
 hpdata_t *
 psset_pick_purge(psset_t *psset) {
-	ssize_t ind_ssz = fb_fls(psset->purge_bitmap, PSSET_NPURGE_LISTS,
-	    PSSET_NPURGE_LISTS - 1);
+	ssize_t ind_ssz = fb_fls(
+	    psset->purge_bitmap, PSSET_NPURGE_LISTS, PSSET_NPURGE_LISTS - 1);
 	if (ind_ssz < 0) {
 		return NULL;
 	}

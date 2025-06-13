@@ -8,8 +8,8 @@
 #include "jemalloc/internal/prof_sys.h"
 
 #ifdef JEMALLOC_PROF_LIBUNWIND
-#define UNW_LOCAL_ONLY
-#include <libunwind.h>
+#	define UNW_LOCAL_ONLY
+#	include <libunwind.h>
 #endif
 
 #ifdef JEMALLOC_PROF_LIBGCC
@@ -18,14 +18,15 @@
  * use libgcc's unwinding functionality, but after we've included that, we've
  * already hooked _Unwind_Backtrace.  We'll temporarily disable hooking.
  */
-#undef _Unwind_Backtrace
-#include <unwind.h>
-#define _Unwind_Backtrace JEMALLOC_TEST_HOOK(_Unwind_Backtrace, test_hooks_libc_hook)
+#	undef _Unwind_Backtrace
+#	include <unwind.h>
+#	define _Unwind_Backtrace                                              \
+		JEMALLOC_TEST_HOOK(_Unwind_Backtrace, test_hooks_libc_hook)
 #endif
 
 #ifdef JEMALLOC_PROF_FRAME_POINTER
 // execinfo backtrace() as fallback unwinder
-#include <execinfo.h>
+#	include <execinfo.h>
 #endif
 
 /******************************************************************************/
@@ -77,7 +78,7 @@ prof_unwind_init_callback(struct _Unwind_Context *context, void *arg) {
 static _Unwind_Reason_Code
 prof_unwind_callback(struct _Unwind_Context *context, void *arg) {
 	prof_unwind_data_t *data = (prof_unwind_data_t *)arg;
-	void *ip;
+	void               *ip;
 
 	cassert(config_prof);
 
@@ -115,14 +116,15 @@ struct stack_range {
 
 struct thread_unwind_info {
 	struct stack_range stack_range;
-	bool fallback;
+	bool               fallback;
 };
 static __thread struct thread_unwind_info unwind_info = {
-	.stack_range = {
-		.start = 0,
-		.end = 0,
-	},
-	.fallback = false,
+    .stack_range =
+        {
+            .start = 0,
+            .end = 0,
+        },
+    .fallback = false,
 }; /* thread local */
 
 static void
@@ -142,10 +144,11 @@ prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 	uintptr_t fp = (uintptr_t)__builtin_frame_address(0);
 
 	/* new thread - get the stack range */
-	if (!unwind_info.fallback &&
-	    unwind_info.stack_range.start == unwind_info.stack_range.end) {
+	if (!unwind_info.fallback
+	    && unwind_info.stack_range.start == unwind_info.stack_range.end) {
 		if (prof_thread_stack_range(fp, &unwind_info.stack_range.start,
-		    &unwind_info.stack_range.end) != 0) {
+		        &unwind_info.stack_range.end)
+		    != 0) {
 			unwind_info.fallback = true;
 		} else {
 			assert(fp >= unwind_info.stack_range.start
@@ -159,8 +162,8 @@ prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 
 	unsigned ii = 0;
 	while (ii < max_len && fp != 0) {
-		if (fp < unwind_info.stack_range.start ||
-		    fp >= unwind_info.stack_range.end) {
+		if (fp < unwind_info.stack_range.start
+		    || fp >= unwind_info.stack_range.end) {
 			/*
 			 * Determining the stack range from procfs can be
 			 * relatively expensive especially for programs with
@@ -173,7 +176,7 @@ prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 			unwind_info.fallback = true;
 			goto label_fallback;
 		}
-		void* ip = ((void **)fp)[1];
+		void *ip = ((void **)fp)[1];
 		if (ip == 0) {
 			break;
 		}
@@ -205,21 +208,21 @@ JEMALLOC_DIAGNOSTIC_IGNORE_FRAME_ADDRESS
 static void
 prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 /* The input arg must be a constant for __builtin_return_address. */
-#define BT_FRAME(i)							\
-	if ((i) < max_len) {						\
-		void *p;						\
-		if (__builtin_frame_address(i) == 0) {			\
-			return;						\
-		}							\
-		p = __builtin_return_address(i);			\
-		if (p == NULL) {					\
-			return;						\
-		}							\
-		vec[(i)] = p;						\
-		*len = (i) + 1;						\
-	} else {							\
-		return;							\
-	}
+#	define BT_FRAME(i)                                                    \
+		if ((i) < max_len) {                                           \
+			void *p;                                               \
+			if (__builtin_frame_address(i) == 0) {                 \
+				return;                                        \
+			}                                                      \
+			p = __builtin_return_address(i);                       \
+			if (p == NULL) {                                       \
+				return;                                        \
+			}                                                      \
+			vec[(i)] = p;                                          \
+			*len = (i) + 1;                                        \
+		} else {                                                       \
+			return;                                                \
+		}
 
 	cassert(config_prof);
 	assert(vec != NULL);
@@ -506,8 +509,8 @@ prof_backtrace_impl(void **vec, unsigned *len, unsigned max_len) {
 	BT_FRAME(253)
 	BT_FRAME(254)
 	BT_FRAME(255)
-#undef BT_FRAME
-JEMALLOC_DIAGNOSTIC_POP
+#	undef BT_FRAME
+	JEMALLOC_DIAGNOSTIC_POP
 }
 #else
 static void
@@ -568,8 +571,9 @@ prof_sys_thread_name_fetch(tsd_t *tsd) {
 		return;
 	}
 
-	if (prof_sys_thread_name_read(tdata->thread_name,
-	    PROF_THREAD_NAME_MAX_LEN) != 0) {
+	if (prof_sys_thread_name_read(
+	        tdata->thread_name, PROF_THREAD_NAME_MAX_LEN)
+	    != 0) {
 		prof_thread_name_clear(tdata);
 	}
 
@@ -592,32 +596,32 @@ prof_get_pid_namespace(void) {
 #if defined(_WIN32) || defined(__APPLE__)
 	// Not supported, do nothing.
 #else
-	char buf[PATH_MAX];
-	const char* linkname =
-#  if defined(__FreeBSD__) || defined(__DragonFly__)
+	char        buf[PATH_MAX];
+	const char *linkname =
+#	if defined(__FreeBSD__) || defined(__DragonFly__)
 	    "/proc/curproc/ns/pid"
-#  else
+#	else
 	    "/proc/self/ns/pid"
-#  endif
+#	endif
 	    ;
 	ssize_t linklen =
-#  ifndef JEMALLOC_READLINKAT
-	readlink(linkname, buf, PATH_MAX)
-#  else
-	readlinkat(AT_FDCWD, linkname, buf, PATH_MAX)
-#  endif
+#	ifndef JEMALLOC_READLINKAT
+	    readlink(linkname, buf, PATH_MAX)
+#	else
+	    readlinkat(AT_FDCWD, linkname, buf, PATH_MAX)
+#	endif
 	    ;
 
 	// namespace string is expected to be like pid:[4026531836]
 	if (linklen > 0) {
 		// Trim the trailing "]"
-		buf[linklen-1] = '\0';
-		char* index = strtok(buf, "pid:[");
+		buf[linklen - 1] = '\0';
+		char *index = strtok(buf, "pid:[");
 		ret = atol(index);
 	}
 #endif
 
-  return ret;
+	return ret;
 }
 
 /*
@@ -647,8 +651,8 @@ struct prof_dump_arg_s {
 };
 
 static void
-prof_dump_check_possible_error(prof_dump_arg_t *arg, bool err_cond,
-    const char *format, ...) {
+prof_dump_check_possible_error(
+    prof_dump_arg_t *arg, bool err_cond, const char *format, ...) {
 	assert(!arg->error);
 	if (!err_cond) {
 		return;
@@ -660,7 +664,7 @@ prof_dump_check_possible_error(prof_dump_arg_t *arg, bool err_cond,
 	}
 
 	va_list ap;
-	char buf[PROF_PRINTF_BUFSIZE];
+	char    buf[PROF_PRINTF_BUFSIZE];
 	va_start(ap, format);
 	malloc_vsnprintf(buf, sizeof(buf), format, ap);
 	va_end(ap);
@@ -692,8 +696,8 @@ prof_dump_flush(void *opaque, const char *s) {
 	cassert(config_prof);
 	prof_dump_arg_t *arg = (prof_dump_arg_t *)opaque;
 	if (!arg->error) {
-		ssize_t err = prof_dump_write_file(arg->prof_dump_fd, s,
-		    strlen(s));
+		ssize_t err = prof_dump_write_file(
+		    arg->prof_dump_fd, s, strlen(s));
 		prof_dump_check_possible_error(arg, err == -1,
 		    "<jemalloc>: failed to write during heap profile flush\n");
 	}
@@ -707,36 +711,37 @@ prof_dump_close(prof_dump_arg_t *arg) {
 }
 
 #ifdef __APPLE__
-#include <mach-o/dyld.h>
+#	include <mach-o/dyld.h>
 
-#ifdef __LP64__
-typedef struct mach_header_64 mach_header_t;
+#	ifdef __LP64__
+typedef struct mach_header_64     mach_header_t;
 typedef struct segment_command_64 segment_command_t;
-#define MH_MAGIC_VALUE MH_MAGIC_64
-#define MH_CIGAM_VALUE MH_CIGAM_64
-#define LC_SEGMENT_VALUE LC_SEGMENT_64
-#else
-typedef struct mach_header mach_header_t;
+#		define MH_MAGIC_VALUE MH_MAGIC_64
+#		define MH_CIGAM_VALUE MH_CIGAM_64
+#		define LC_SEGMENT_VALUE LC_SEGMENT_64
+#	else
+typedef struct mach_header     mach_header_t;
 typedef struct segment_command segment_command_t;
-#define MH_MAGIC_VALUE MH_MAGIC
-#define MH_CIGAM_VALUE MH_CIGAM
-#define LC_SEGMENT_VALUE LC_SEGMENT
-#endif
+#		define MH_MAGIC_VALUE MH_MAGIC
+#		define MH_CIGAM_VALUE MH_CIGAM
+#		define LC_SEGMENT_VALUE LC_SEGMENT
+#	endif
 
 static void
 prof_dump_dyld_image_vmaddr(buf_writer_t *buf_writer, uint32_t image_index) {
 	const mach_header_t *header = (const mach_header_t *)
 	    _dyld_get_image_header(image_index);
-	if (header == NULL || (header->magic != MH_MAGIC_VALUE &&
-	    header->magic != MH_CIGAM_VALUE)) {
+	if (header == NULL
+	    || (header->magic != MH_MAGIC_VALUE
+	        && header->magic != MH_CIGAM_VALUE)) {
 		// Invalid header
 		return;
 	}
 
-	intptr_t slide = _dyld_get_image_vmaddr_slide(image_index);
-	const char *name = _dyld_get_image_name(image_index);
-	struct load_command *load_cmd = (struct load_command *)
-	    ((char *)header + sizeof(mach_header_t));
+	intptr_t             slide = _dyld_get_image_vmaddr_slide(image_index);
+	const char          *name = _dyld_get_image_name(image_index);
+	struct load_command *load_cmd = (struct load_command *)((char *)header
+	    + sizeof(mach_header_t));
 	for (uint32_t i = 0; load_cmd && (i < header->ncmds); i++) {
 		if (load_cmd->cmd == LC_SEGMENT_VALUE) {
 			const segment_command_t *segment_cmd =
@@ -744,14 +749,17 @@ prof_dump_dyld_image_vmaddr(buf_writer_t *buf_writer, uint32_t image_index) {
 			if (!strcmp(segment_cmd->segname, "__TEXT")) {
 				char buffer[PATH_MAX + 1];
 				malloc_snprintf(buffer, sizeof(buffer),
-				    "%016llx-%016llx: %s\n", segment_cmd->vmaddr + slide,
-				    segment_cmd->vmaddr + slide + segment_cmd->vmsize, name);
+				    "%016llx-%016llx: %s\n",
+				    segment_cmd->vmaddr + slide,
+				    segment_cmd->vmaddr + slide
+				        + segment_cmd->vmsize,
+				    name);
 				buf_writer_cb(buf_writer, buffer);
 				return;
 			}
 		}
-		load_cmd =
-		    (struct load_command *)((char *)load_cmd + load_cmd->cmdsize);
+		load_cmd = (struct load_command *)((char *)load_cmd
+		    + load_cmd->cmdsize);
 	}
 }
 
@@ -772,48 +780,48 @@ prof_dump_maps(buf_writer_t *buf_writer) {
 	prof_dump_dyld_maps(buf_writer);
 }
 #else /* !__APPLE__ */
-#ifndef _WIN32
+#	ifndef _WIN32
 JEMALLOC_FORMAT_PRINTF(1, 2)
 static int
 prof_open_maps_internal(const char *format, ...) {
-	int mfd;
+	int     mfd;
 	va_list ap;
-	char filename[PATH_MAX + 1];
+	char    filename[PATH_MAX + 1];
 
 	va_start(ap, format);
 	malloc_vsnprintf(filename, sizeof(filename), format, ap);
 	va_end(ap);
 
-#if defined(O_CLOEXEC)
+#		if defined(O_CLOEXEC)
 	mfd = open(filename, O_RDONLY | O_CLOEXEC);
-#else
+#		else
 	mfd = open(filename, O_RDONLY);
 	if (mfd != -1) {
 		fcntl(mfd, F_SETFD, fcntl(mfd, F_GETFD) | FD_CLOEXEC);
 	}
-#endif
+#		endif
 
 	return mfd;
 }
-#endif
+#	endif
 
 static int
 prof_dump_open_maps_impl(void) {
 	int mfd;
 
 	cassert(config_prof);
-#if defined(__FreeBSD__) || defined(__DragonFly__)
+#	if defined(__FreeBSD__) || defined(__DragonFly__)
 	mfd = prof_open_maps_internal("/proc/curproc/map");
-#elif defined(_WIN32)
+#	elif defined(_WIN32)
 	mfd = -1; // Not implemented
-#else
+#	else
 	int pid = prof_getpid();
 
 	mfd = prof_open_maps_internal("/proc/%d/task/%d/maps", pid, pid);
 	if (mfd == -1) {
 		mfd = prof_open_maps_internal("/proc/%d/maps", pid);
 	}
-#endif
+#	endif
 	return mfd;
 }
 prof_dump_open_maps_t *JET_MUTABLE prof_dump_open_maps =
@@ -840,12 +848,12 @@ prof_dump_maps(buf_writer_t *buf_writer) {
 #endif /* __APPLE__ */
 
 static bool
-prof_dump(tsd_t *tsd, bool propagate_err, const char *filename,
-    bool leakcheck) {
+prof_dump(
+    tsd_t *tsd, bool propagate_err, const char *filename, bool leakcheck) {
 	cassert(config_prof);
 	assert(tsd_reentrancy_level_get(tsd) == 0);
 
-	prof_tdata_t * tdata = prof_tdata_get(tsd, true);
+	prof_tdata_t *tdata = prof_tdata_get(tsd, true);
 	if (tdata == NULL) {
 		return true;
 	}
@@ -892,7 +900,7 @@ prof_strncpy(char *UNUSED dest, const char *UNUSED src, size_t UNUSED size) {
 }
 
 static const char *
-prof_prefix_get(tsdn_t* tsdn) {
+prof_prefix_get(tsdn_t *tsdn) {
 	malloc_mutex_assert_owner(tsdn, &prof_dump_filename_mtx);
 
 	return prof_prefix == NULL ? opt_prof_prefix : prof_prefix;
@@ -919,25 +927,26 @@ prof_dump_filename(tsd_t *tsd, char *filename, char v, uint64_t vseq) {
 		if (opt_prof_pid_namespace) {
 			/* "<prefix>.<pid_namespace>.<pid>.<seq>.v<vseq>.heap" */
 			malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
-			    "%s.%ld.%d.%"FMTu64".%c%"FMTu64".heap", prefix,
-			    prof_get_pid_namespace(), prof_getpid(), prof_dump_seq, v,
-			    vseq);
+			    "%s.%ld.%d.%" FMTu64 ".%c%" FMTu64 ".heap", prefix,
+			    prof_get_pid_namespace(), prof_getpid(),
+			    prof_dump_seq, v, vseq);
 		} else {
 			/* "<prefix>.<pid>.<seq>.v<vseq>.heap" */
 			malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
-			    "%s.%d.%"FMTu64".%c%"FMTu64".heap", prefix, prof_getpid(),
-			    prof_dump_seq, v, vseq);
+			    "%s.%d.%" FMTu64 ".%c%" FMTu64 ".heap", prefix,
+			    prof_getpid(), prof_dump_seq, v, vseq);
 		}
 	} else {
 		if (opt_prof_pid_namespace) {
 			/* "<prefix>.<pid_namespace>.<pid>.<seq>.<v>.heap" */
 			malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
-			    "%s.%ld.%d.%"FMTu64".%c.heap", prefix,
-			    prof_get_pid_namespace(), prof_getpid(), prof_dump_seq, v);
+			    "%s.%ld.%d.%" FMTu64 ".%c.heap", prefix,
+			    prof_get_pid_namespace(), prof_getpid(),
+			    prof_dump_seq, v);
 		} else {
 			/* "<prefix>.<pid>.<seq>.<v>.heap" */
 			malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
-			    "%s.%d.%"FMTu64".%c.heap", prefix, prof_getpid(),
+			    "%s.%d.%" FMTu64 ".%c.heap", prefix, prof_getpid(),
 			    prof_dump_seq, v);
 		}
 	}
@@ -949,11 +958,12 @@ prof_get_default_filename(tsdn_t *tsdn, char *filename, uint64_t ind) {
 	malloc_mutex_lock(tsdn, &prof_dump_filename_mtx);
 	if (opt_prof_pid_namespace) {
 		malloc_snprintf(filename, PROF_DUMP_FILENAME_LEN,
-		    "%s.%ld.%d.%"FMTu64".json", prof_prefix_get(tsdn),
+		    "%s.%ld.%d.%" FMTu64 ".json", prof_prefix_get(tsdn),
 		    prof_get_pid_namespace(), prof_getpid(), ind);
 	} else {
 		malloc_snprintf(filename, PROF_DUMP_FILENAME_LEN,
-		    "%s.%d.%"FMTu64".json", prof_prefix_get(tsdn), prof_getpid(), ind);
+		    "%s.%d.%" FMTu64 ".json", prof_prefix_get(tsdn),
+		    prof_getpid(), ind);
 	}
 	malloc_mutex_unlock(tsdn, &prof_dump_filename_mtx);
 }
@@ -980,8 +990,8 @@ prof_prefix_set(tsdn_t *tsdn, const char *prefix) {
 	if (prof_prefix == NULL) {
 		malloc_mutex_unlock(tsdn, &prof_dump_filename_mtx);
 		/* Everything is still guarded by ctl_mtx. */
-		char *buffer = base_alloc(tsdn, prof_base,
-		    PROF_DUMP_FILENAME_LEN, QUANTUM);
+		char *buffer = base_alloc(
+		    tsdn, prof_base, PROF_DUMP_FILENAME_LEN, QUANTUM);
 		if (buffer == NULL) {
 			return true;
 		}
@@ -1018,7 +1028,8 @@ prof_mdump_impl(tsd_t *tsd, const char *filename) {
 		/* No filename specified, so automatically generate one. */
 		malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
 		if (prof_prefix_get(tsd_tsdn(tsd))[0] == '\0') {
-			malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_filename_mtx);
+			malloc_mutex_unlock(
+			    tsd_tsdn(tsd), &prof_dump_filename_mtx);
 			return true;
 		}
 		prof_dump_filename(tsd, filename_buf, 'm', prof_dump_mseq);

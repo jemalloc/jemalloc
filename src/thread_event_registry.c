@@ -145,34 +145,25 @@ TE_USER_HANDLER_BINDING_IDX(3);
 /* Table of all the thread events. */
 te_base_cb_t *te_alloc_handlers[te_alloc_count] = {
 #ifdef JEMALLOC_PROF
-	&prof_sample_te_handler,
+    &prof_sample_te_handler,
 #endif
-	&stats_interval_te_handler,
-	&tcache_gc_te_handler,
+    &stats_interval_te_handler, &tcache_gc_te_handler,
 #ifdef JEMALLOC_STATS
-	&prof_threshold_te_handler,
-	&peak_te_handler,
+    &prof_threshold_te_handler, &peak_te_handler,
 #endif
-	&user_alloc_handler0,
-	&user_alloc_handler1,
-	&user_alloc_handler2,
-	&user_alloc_handler3
-};
+    &user_alloc_handler0, &user_alloc_handler1, &user_alloc_handler2,
+    &user_alloc_handler3};
 
-te_base_cb_t *te_dalloc_handlers[te_dalloc_count] = {
-	&tcache_gc_te_handler,
+te_base_cb_t *te_dalloc_handlers[te_dalloc_count] = {&tcache_gc_te_handler,
 #ifdef JEMALLOC_STATS
-	&peak_te_handler,
+    &peak_te_handler,
 #endif
-	&user_dalloc_handler0,
-	&user_dalloc_handler1,
-	&user_dalloc_handler2,
-	&user_dalloc_handler3
-};
+    &user_dalloc_handler0, &user_dalloc_handler1, &user_dalloc_handler2,
+    &user_dalloc_handler3};
 
 static inline bool
 te_update_tsd(tsd_t *tsd, uint64_t new_wait, size_t ue_idx, bool is_alloc) {
-	bool needs_recompute = false;
+	bool     needs_recompute = false;
 	te_ctx_t ctx;
 	uint64_t next, current, cur_wait;
 

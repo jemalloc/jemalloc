@@ -41,9 +41,8 @@ struct pai_s {
  */
 
 static inline edata_t *
-pai_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment,
-    bool zero, bool guarded, bool frequent_reuse,
-    bool *deferred_work_generated) {
+pai_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
+    bool guarded, bool frequent_reuse, bool *deferred_work_generated) {
 	return self->alloc(tsdn, self, size, alignment, zero, guarded,
 	    frequent_reuse, deferred_work_generated);
 }
@@ -66,13 +65,13 @@ pai_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
 static inline bool
 pai_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
     size_t new_size, bool *deferred_work_generated) {
-	return self->shrink(tsdn, self, edata, old_size, new_size,
-	    deferred_work_generated);
+	return self->shrink(
+	    tsdn, self, edata, old_size, new_size, deferred_work_generated);
 }
 
 static inline void
-pai_dalloc(tsdn_t *tsdn, pai_t *self, edata_t *edata,
-    bool *deferred_work_generated) {
+pai_dalloc(
+    tsdn_t *tsdn, pai_t *self, edata_t *edata, bool *deferred_work_generated) {
 	self->dalloc(tsdn, self, edata, deferred_work_generated);
 }
 

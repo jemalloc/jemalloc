@@ -69,8 +69,8 @@ tcache_bytes_read_global(void) {
 
 static size_t
 tcache_bytes_read_local(void) {
-	size_t tcache_bytes = 0;
-	tsd_t *tsd = tsd_fetch();
+	size_t    tcache_bytes = 0;
+	tsd_t    *tsd = tsd_fetch();
 	tcache_t *tcache = tcache_get(tsd);
 	for (szind_t i = 0; i < tcache_nbins_get(tcache->tcache_slow); i++) {
 		cache_bin_t *cache_bin = &tcache->bins[i];
@@ -98,7 +98,7 @@ test_tcache_bytes_alloc(size_t alloc_size, size_t tcache_max,
 
 	size_t usize = sz_s2u(alloc_size);
 	/* No change is expected if usize is outside of tcache_max range. */
-	bool cached = (usize <= tcache_max);
+	bool    cached = (usize <= tcache_max);
 	ssize_t diff = cached ? usize : 0;
 
 	void *ptr1 = alloc_func(alloc_size, alloc_option);
@@ -186,7 +186,7 @@ TEST_BEGIN(test_tcache_max) {
 	test_skip_if(san_uaf_detection_enabled());
 
 	unsigned arena_ind, alloc_option, dalloc_option;
-	size_t sz = sizeof(arena_ind);
+	size_t   sz = sizeof(arena_ind);
 	expect_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz, NULL, 0),
 	    0, "Unexpected mallctl() failure");
 	expect_d_eq(
@@ -215,12 +215,12 @@ static void
 validate_tcache_stack(tcache_t *tcache) {
 	/* Assume bins[0] is enabled. */
 	void *tcache_stack = tcache->bins[0].stack_head;
-	bool expect_found = cache_bin_stack_use_thp() ? true : false;
+	bool  expect_found = cache_bin_stack_use_thp() ? true : false;
 
 	/* Walk through all blocks to see if the stack is within range. */
-	base_t *base = b0get();
+	base_t       *base = b0get();
 	base_block_t *next = base->blocks;
-	bool found = false;
+	bool          found = false;
 	do {
 		base_block_t *block = next;
 		if ((byte_t *)tcache_stack >= (byte_t *)block
@@ -237,10 +237,10 @@ validate_tcache_stack(tcache_t *tcache) {
 
 static void *
 tcache_check(void *arg) {
-	size_t old_tcache_max, new_tcache_max, min_tcache_max, sz;
-	unsigned tcache_nbins;
-	tsd_t *tsd = tsd_fetch();
-	tcache_t *tcache = tsd_tcachep_get(tsd);
+	size_t         old_tcache_max, new_tcache_max, min_tcache_max, sz;
+	unsigned       tcache_nbins;
+	tsd_t         *tsd = tsd_fetch();
+	tcache_t      *tcache = tsd_tcachep_get(tsd);
 	tcache_slow_t *tcache_slow = tcache->tcache_slow;
 	sz = sizeof(size_t);
 	new_tcache_max = *(size_t *)arg;
@@ -263,7 +263,7 @@ tcache_check(void *arg) {
 	 * Test an input that is not a valid size class, it should be ceiled
 	 * to a valid size class.
 	 */
-	bool e0 = false, e1;
+	bool   e0 = false, e1;
 	size_t bool_sz = sizeof(bool);
 	expect_d_eq(mallctl("thread.tcache.enabled", (void *)&e1, &bool_sz,
 	                (void *)&e0, bool_sz),

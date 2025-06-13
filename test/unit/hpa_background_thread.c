@@ -12,7 +12,7 @@ TEST_BEGIN(test_hpa_background_thread_a0_initialized) {
 	test_skip_if(!have_background_thread);
 	test_skip_if(san_guard_enabled());
 
-	bool enabled = false;
+	bool   enabled = false;
 	size_t sz = sizeof(enabled);
 	int err = mallctl("background_thread", (void *)&enabled, &sz, NULL, 0);
 	expect_d_eq(err, 0, "Unexpected mallctl() failure");
@@ -38,7 +38,7 @@ sleep_for_background_thread_interval(void) {
 static unsigned
 create_arena(void) {
 	unsigned arena_ind;
-	size_t sz;
+	size_t   sz;
 
 	sz = sizeof(unsigned);
 	expect_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz, NULL, 2),
@@ -48,17 +48,17 @@ create_arena(void) {
 
 static size_t
 get_empty_ndirty(unsigned arena_ind) {
-	int err;
-	size_t ndirty_huge;
-	size_t ndirty_nonhuge;
+	int      err;
+	size_t   ndirty_huge;
+	size_t   ndirty_nonhuge;
 	uint64_t epoch = 1;
-	size_t sz = sizeof(epoch);
-	err = je_mallctl("epoch", (void *)&epoch, &sz, (void *)&epoch,
-	    sizeof(epoch));
+	size_t   sz = sizeof(epoch);
+	err = je_mallctl(
+	    "epoch", (void *)&epoch, &sz, (void *)&epoch, sizeof(epoch));
 	expect_d_eq(0, err, "Unexpected mallctl() failure");
 
 	size_t mib[6];
-	size_t miblen = sizeof(mib)/sizeof(mib[0]);
+	size_t miblen = sizeof(mib) / sizeof(mib[0]);
 	err = mallctlnametomib(
 	    "stats.arenas.0.hpa_shard.empty_slabs.ndirty_nonhuge", mib,
 	    &miblen);
@@ -70,8 +70,7 @@ get_empty_ndirty(unsigned arena_ind) {
 	expect_d_eq(0, err, "Unexpected mallctlbymib() failure");
 
 	err = mallctlnametomib(
-	    "stats.arenas.0.hpa_shard.empty_slabs.ndirty_huge", mib,
-	    &miblen);
+	    "stats.arenas.0.hpa_shard.empty_slabs.ndirty_huge", mib, &miblen);
 	expect_d_eq(0, err, "Unexpected mallctlnametomib() failure");
 
 	sz = sizeof(ndirty_huge);
@@ -85,20 +84,20 @@ get_empty_ndirty(unsigned arena_ind) {
 static void
 set_background_thread_enabled(bool enabled) {
 	int err;
-	err = je_mallctl("background_thread", NULL, NULL, &enabled,
-	    sizeof(enabled));
+	err = je_mallctl(
+	    "background_thread", NULL, NULL, &enabled, sizeof(enabled));
 	expect_d_eq(0, err, "Unexpected mallctl failure");
 }
 
 static void
 wait_until_thread_is_enabled(unsigned arena_id) {
-	tsd_t* tsd = tsd_fetch();
+	tsd_t *tsd = tsd_fetch();
 
 	bool sleeping = false;
-	int iterations = 0;
+	int  iterations = 0;
 	do {
-		background_thread_info_t *info =
-		    background_thread_info_get(arena_id);
+		background_thread_info_t *info = background_thread_info_get(
+		    arena_id);
 		malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
 		malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
 		sleeping = background_thread_indefinite_sleep(info);
@@ -113,10 +112,8 @@ expect_purging(unsigned arena_ind) {
 	expect_zu_eq(0, empty_ndirty, "Expected arena to start unused.");
 
 	void *ptrs[2];
-	ptrs[0] = mallocx(PAGE,
-	    MALLOCX_TCACHE_NONE | MALLOCX_ARENA(arena_ind));
-	ptrs[1] = mallocx(PAGE,
-	    MALLOCX_TCACHE_NONE | MALLOCX_ARENA(arena_ind));
+	ptrs[0] = mallocx(PAGE, MALLOCX_TCACHE_NONE | MALLOCX_ARENA(arena_ind));
+	ptrs[1] = mallocx(PAGE, MALLOCX_TCACHE_NONE | MALLOCX_ARENA(arena_ind));
 
 	empty_ndirty = get_empty_ndirty(arena_ind);
 	expect_zu_eq(0, empty_ndirty, "All pages should be active");
@@ -151,15 +148,14 @@ expect_deferred_purging(unsigned arena_ind) {
 	 */
 	bool observed_dirty_page = false;
 	for (int i = 0; i < 10; i++) {
-		void *ptr = mallocx(PAGE,
-		    MALLOCX_TCACHE_NONE | MALLOCX_ARENA(arena_ind));
+		void *ptr = mallocx(
+		    PAGE, MALLOCX_TCACHE_NONE | MALLOCX_ARENA(arena_ind));
 		empty_ndirty = get_empty_ndirty(arena_ind);
 		expect_zu_eq(0, empty_ndirty, "All pages should be active");
 		dallocx(ptr, MALLOCX_TCACHE_NONE);
 		empty_ndirty = get_empty_ndirty(arena_ind);
-		expect_true(empty_ndirty == 0 || empty_ndirty == 1 ||
-		    opt_prof, "Unexpected extra dirty page count: %zu",
-		    empty_ndirty);
+		expect_true(empty_ndirty == 0 || empty_ndirty == 1 || opt_prof,
+		    "Unexpected extra dirty page count: %zu", empty_ndirty);
 		if (empty_ndirty > 0) {
 			observed_dirty_page = true;
 			break;
@@ -173,8 +169,8 @@ expect_deferred_purging(unsigned arena_ind) {
 	 * time.  Retry 100 times max before bailing out.
 	 */
 	unsigned retry = 0;
-	while ((empty_ndirty = get_empty_ndirty(arena_ind)) > 0 &&
-	    (retry++ < 100)) {
+	while ((empty_ndirty = get_empty_ndirty(arena_ind)) > 0
+	    && (retry++ < 100)) {
 		sleep_for_background_thread_interval();
 	}
 

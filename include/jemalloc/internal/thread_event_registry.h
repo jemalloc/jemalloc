@@ -87,8 +87,8 @@ typedef void (*user_event_cb_t)(
 typedef struct user_hook_object_s user_hook_object_t;
 struct user_hook_object_s {
 	user_event_cb_t callback;
-	uint64_t interval;
-	bool is_alloc_only;
+	uint64_t        interval;
+	bool            is_alloc_only;
 };
 
 /*

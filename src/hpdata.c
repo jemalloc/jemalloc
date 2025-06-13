@@ -17,8 +17,7 @@ hpdata_age_comp(const hpdata_t *a, const hpdata_t *b) {
 
 ph_gen(, hpdata_age_heap, hpdata_t, age_link, hpdata_age_comp)
 
-void
-hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age) {
+    void hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age) {
 	hpdata_addr_set(hpdata, addr);
 	hpdata_age_set(hpdata, age);
 	hpdata->h_huge = false;
@@ -66,8 +65,8 @@ hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz) {
 
 	size_t largest_unchosen_range = 0;
 	while (true) {
-		bool found = fb_urange_iter(hpdata->active_pages,
-		    HUGEPAGE_PAGES, start, &begin, &len);
+		bool found = fb_urange_iter(
+		    hpdata->active_pages, HUGEPAGE_PAGES, start, &begin, &len);
 		/*
 		 * A precondition to this function is that hpdata must be able
 		 * to serve the allocation.
@@ -97,8 +96,8 @@ hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz) {
 	 * We might be about to dirty some memory for the first time; update our
 	 * count if so.
 	 */
-	size_t new_dirty = fb_ucount(hpdata->touched_pages,  HUGEPAGE_PAGES,
-	    result, npages);
+	size_t new_dirty = fb_ucount(
+	    hpdata->touched_pages, HUGEPAGE_PAGES, result, npages);
 	fb_set_range(hpdata->touched_pages, HUGEPAGE_PAGES, result, npages);
 	hpdata->h_ntouched += new_dirty;
 
@@ -129,8 +128,8 @@ hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz) {
 	}
 
 	hpdata_assert_consistent(hpdata);
-	return (void *)(
-	    (byte_t *)hpdata_addr_get(hpdata) + (result << LG_PAGE));
+	return (
+	    void *)((byte_t *)hpdata_addr_get(hpdata) + (result << LG_PAGE));
 }
 
 void
@@ -148,10 +147,10 @@ hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz) {
 
 	fb_unset_range(hpdata->active_pages, HUGEPAGE_PAGES, begin, npages);
 	/* We might have just created a new, larger range. */
-	size_t new_begin = (fb_fls(hpdata->active_pages, HUGEPAGE_PAGES,
-	    begin) + 1);
-	size_t new_end = fb_ffs(hpdata->active_pages, HUGEPAGE_PAGES,
-	    begin + npages - 1);
+	size_t new_begin = (fb_fls(hpdata->active_pages, HUGEPAGE_PAGES, begin)
+	    + 1);
+	size_t new_end = fb_ffs(
+	    hpdata->active_pages, HUGEPAGE_PAGES, begin + npages - 1);
 	size_t new_range_len = new_end - new_begin;
 
 	if (new_range_len > old_longest_range) {
@@ -164,8 +163,8 @@ hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz) {
 }
 
 size_t
-hpdata_purge_begin(hpdata_t *hpdata, hpdata_purge_state_t *purge_state,
-	size_t *nranges) {
+hpdata_purge_begin(
+    hpdata_t *hpdata, hpdata_purge_state_t *purge_state, size_t *nranges) {
 	hpdata_assert_consistent(hpdata);
 	/*
 	 * See the comment below; we might purge any inactive extent, so it's
@@ -212,29 +211,29 @@ hpdata_purge_begin(hpdata_t *hpdata, hpdata_purge_state_t *purge_state,
 	fb_group_t dirty_pages[FB_NGROUPS(HUGEPAGE_PAGES)];
 	fb_init(dirty_pages, HUGEPAGE_PAGES);
 	fb_bit_not(dirty_pages, hpdata->active_pages, HUGEPAGE_PAGES);
-	fb_bit_and(dirty_pages, dirty_pages, hpdata->touched_pages,
-	    HUGEPAGE_PAGES);
+	fb_bit_and(
+	    dirty_pages, dirty_pages, hpdata->touched_pages, HUGEPAGE_PAGES);
 
 	fb_init(purge_state->to_purge, HUGEPAGE_PAGES);
 	size_t next_bit = 0;
 	*nranges = 0;
 	while (next_bit < HUGEPAGE_PAGES) {
-		size_t next_dirty = fb_ffs(dirty_pages, HUGEPAGE_PAGES,
-		    next_bit);
+		size_t next_dirty = fb_ffs(
+		    dirty_pages, HUGEPAGE_PAGES, next_bit);
 		/* Recall that fb_ffs returns nbits if no set bit is found. */
 		if (next_dirty == HUGEPAGE_PAGES) {
 			break;
 		}
-		size_t next_active = fb_ffs(hpdata->active_pages,
-		    HUGEPAGE_PAGES, next_dirty);
+		size_t next_active = fb_ffs(
+		    hpdata->active_pages, HUGEPAGE_PAGES, next_dirty);
 		/*
 		 * Don't purge past the end of the dirty extent, into retained
 		 * pages.  This helps the kernel a tiny bit, but honestly it's
 		 * mostly helpful for testing (where we tend to write test cases
 		 * that think in terms of the dirty ranges).
 		 */
-		ssize_t last_dirty = fb_fls(dirty_pages, HUGEPAGE_PAGES,
-		    next_active - 1);
+		ssize_t last_dirty = fb_fls(
+		    dirty_pages, HUGEPAGE_PAGES, next_active - 1);
 		assert(last_dirty >= 0);
 		assert((size_t)last_dirty >= next_dirty);
 		assert((size_t)last_dirty - next_dirty + 1 <= HUGEPAGE_PAGES);
@@ -249,9 +248,9 @@ hpdata_purge_begin(hpdata_t *hpdata, hpdata_purge_state_t *purge_state,
 	size_t ndirty = hpdata->h_ntouched - hpdata->h_nactive;
 	purge_state->ndirty_to_purge = ndirty;
 	assert(ndirty <= fb_scount(
-	    purge_state->to_purge, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES));
-	assert(ndirty == fb_scount(dirty_pages, HUGEPAGE_PAGES, 0,
-	    HUGEPAGE_PAGES));
+	           purge_state->to_purge, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES));
+	assert(ndirty
+	    == fb_scount(dirty_pages, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES));
 	assert(*nranges <= ndirty);
 	assert(ndirty == 0 || *nranges > 0);
 
@@ -281,8 +280,8 @@ hpdata_purge_next(hpdata_t *hpdata, hpdata_purge_state_t *purge_state,
 		return false;
 	}
 
-	*r_purge_addr = (void *)(
-	    (byte_t *)hpdata_addr_get(hpdata) + purge_begin * PAGE);
+	*r_purge_addr = (void *)((byte_t *)hpdata_addr_get(hpdata)
+	    + purge_begin * PAGE);
 	*r_purge_size = purge_len * PAGE;
 
 	purge_state->next_purge_search_begin = purge_begin + purge_len;
@@ -299,12 +298,13 @@ hpdata_purge_end(hpdata_t *hpdata, hpdata_purge_state_t *purge_state) {
 	/* See the comment in reserve. */
 	assert(!hpdata->h_in_psset || hpdata->h_updating);
 
-	assert(purge_state->npurged == fb_scount(purge_state->to_purge,
-	    HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES));
+	assert(purge_state->npurged
+	    == fb_scount(
+	        purge_state->to_purge, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES));
 	assert(purge_state->npurged >= purge_state->ndirty_to_purge);
 
-	fb_bit_not(purge_state->to_purge, purge_state->to_purge,
-	    HUGEPAGE_PAGES);
+	fb_bit_not(
+	    purge_state->to_purge, purge_state->to_purge, HUGEPAGE_PAGES);
 	fb_bit_and(hpdata->touched_pages, hpdata->touched_pages,
 	    purge_state->to_purge, HUGEPAGE_PAGES);
 	assert(hpdata->h_ntouched >= purge_state->ndirty_to_purge);

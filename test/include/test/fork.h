@@ -3,7 +3,7 @@
 
 #ifndef _WIN32
 
-#include <sys/wait.h>
+#	include <sys/wait.h>
 
 static inline void
 fork_wait_for_child_exit(int pid) {
@@ -13,8 +13,10 @@ fork_wait_for_child_exit(int pid) {
 			test_fail("Unexpected waitpid() failure.");
 		}
 		if (WIFSIGNALED(status)) {
-			test_fail("Unexpected child termination due to "
-			    "signal %d", WTERMSIG(status));
+			test_fail(
+			    "Unexpected child termination due to "
+			    "signal %d",
+			    WTERMSIG(status));
 			break;
 		}
 		if (WIFEXITED(status)) {
