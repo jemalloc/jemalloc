@@ -90,7 +90,7 @@ struct psset_s {
 	 */
 	hpdata_age_heap_t pageslabs[PSSET_NPSIZES];
 	/* Bitmap for which set bits correspond to non-empty heaps. */
-	fb_group_t pageslab_bitmap[FB_NGROUPS(PSSET_NPSIZES)];
+	fb_group_t    pageslab_bitmap[FB_NGROUPS(PSSET_NPSIZES)];
 	psset_stats_t stats;
 	/*
 	 * Slabs with no active allocations, but which are allowed to serve new

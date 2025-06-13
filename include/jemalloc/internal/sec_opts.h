@@ -44,18 +44,14 @@ struct sec_opts_s {
 	size_t batch_fill_extra;
 };
 
-#define SEC_OPTS_DEFAULT {						\
-	/* nshards */							\
-	4,								\
-	/* max_alloc */							\
-	(32 * 1024) < PAGE ? PAGE : (32 * 1024),			\
-	/* max_bytes */							\
-	256 * 1024,							\
-	/* bytes_after_flush */						\
-	128 * 1024,							\
-	/* batch_fill_extra */						\
-	0								\
-}
-
+#define SEC_OPTS_DEFAULT                                                       \
+	{                                                                      \
+		/* nshards */                                                  \
+		4,                                           /* max_alloc */   \
+		    (32 * 1024) < PAGE ? PAGE : (32 * 1024), /* max_bytes */   \
+		    256 * 1024, /* bytes_after_flush */                        \
+		    128 * 1024, /* batch_fill_extra */                         \
+		    0                                                          \
+	}
 
 #endif /* JEMALLOC_INTERNAL_SEC_OPTS_H */

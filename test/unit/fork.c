@@ -8,7 +8,7 @@ TEST_BEGIN(test_fork) {
 
 	/* Set up a manually managed arena for test. */
 	unsigned arena_ind;
-	size_t sz = sizeof(unsigned);
+	size_t   sz = sizeof(unsigned);
 	expect_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz, NULL, 0),
 	    0, "Unexpected mallctl() failure");
 
@@ -16,8 +16,8 @@ TEST_BEGIN(test_fork) {
 	unsigned old_arena_ind;
 	sz = sizeof(old_arena_ind);
 	expect_d_eq(mallctl("thread.arena", (void *)&old_arena_ind, &sz,
-	    (void *)&arena_ind, sizeof(arena_ind)), 0,
-	    "Unexpected mallctl() failure");
+	                (void *)&arena_ind, sizeof(arena_ind)),
+	    0, "Unexpected mallctl() failure");
 
 	p = malloc(1);
 	expect_ptr_not_null(p, "Unexpected malloc() failure");
@@ -108,7 +108,5 @@ TEST_END
 
 int
 main(void) {
-	return test_no_reentrancy(
-	    test_fork,
-	    test_fork_multithreaded);
+	return test_no_reentrancy(test_fork, test_fork_multithreaded);
 }

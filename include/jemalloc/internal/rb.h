@@ -26,7 +26,7 @@
  */
 
 #ifndef __PGI
-#define RB_COMPACT
+#	define RB_COMPACT
 #endif
 
 /*

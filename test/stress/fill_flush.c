@@ -35,9 +35,9 @@ item_alloc_dalloc_small(void) {
 }
 
 TEST_BEGIN(test_array_vs_item_small) {
-	compare_funcs(1 * 1000, 10 * 1000,
-	    "array of small allocations", array_alloc_dalloc_small,
-	    "small item allocation", item_alloc_dalloc_small);
+	compare_funcs(1 * 1000, 10 * 1000, "array of small allocations",
+	    array_alloc_dalloc_small, "small item allocation",
+	    item_alloc_dalloc_small);
 }
 TEST_END
 
@@ -64,14 +64,14 @@ item_alloc_dalloc_large(void) {
 }
 
 TEST_BEGIN(test_array_vs_item_large) {
-	compare_funcs(100, 1000,
-	    "array of large allocations", array_alloc_dalloc_large,
-	    "large item allocation", item_alloc_dalloc_large);
+	compare_funcs(100, 1000, "array of large allocations",
+	    array_alloc_dalloc_large, "large item allocation",
+	    item_alloc_dalloc_large);
 }
 TEST_END
 
-int main(void) {
+int
+main(void) {
 	return test_no_reentrancy(
-	    test_array_vs_item_small,
-	    test_array_vs_item_large);
+	    test_array_vs_item_small, test_array_vs_item_large);
 }

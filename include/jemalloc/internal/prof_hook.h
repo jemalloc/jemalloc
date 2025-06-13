@@ -21,7 +21,8 @@ typedef void (*prof_backtrace_hook_t)(void **, unsigned *, unsigned);
 typedef void (*prof_dump_hook_t)(const char *filename);
 
 /* ptr, size, backtrace vector, backtrace vector length, usize */
-typedef void (*prof_sample_hook_t)(const void *ptr, size_t size, void **backtrace, unsigned backtrace_length, size_t usize);
+typedef void (*prof_sample_hook_t)(const void *ptr, size_t size,
+    void **backtrace, unsigned backtrace_length, size_t usize);
 
 /* ptr, size */
 typedef void (*prof_sample_free_hook_t)(const void *, size_t);
@@ -29,6 +30,7 @@ typedef void (*prof_sample_free_hook_t)(const void *, size_t);
 /*
  * A callback hook that notifies when an allocation threshold has been crossed.
  */
-typedef void (*prof_threshold_hook_t)(uint64_t alloc, uint64_t dealloc, uint64_t peak);
+typedef void (*prof_threshold_hook_t)(
+    uint64_t alloc, uint64_t dealloc, uint64_t peak);
 
 #endif /* JEMALLOC_INTERNAL_PROF_HOOK_H */

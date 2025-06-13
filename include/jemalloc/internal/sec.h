@@ -59,7 +59,7 @@ struct sec_bin_s {
 	 * stats; rather, it allows us to quickly determine the change in the
 	 * centralized counter when flushing.
 	 */
-	size_t bytes_cur;
+	size_t              bytes_cur;
 	edata_list_active_t freelist;
 };
 
@@ -80,7 +80,7 @@ struct sec_shard_s {
 	 * that we won't go down these pathways very often after custom extent
 	 * hooks are installed.
 	 */
-	bool enabled;
+	bool       enabled;
 	sec_bin_t *bins;
 	/* Number of bytes in all bins in the shard. */
 	size_t bytes_cur;
@@ -90,12 +90,12 @@ struct sec_shard_s {
 
 typedef struct sec_s sec_t;
 struct sec_s {
-	pai_t pai;
+	pai_t  pai;
 	pai_t *fallback;
 
-	sec_opts_t opts;
+	sec_opts_t   opts;
 	sec_shard_t *shards;
-	pszind_t npsizes;
+	pszind_t     npsizes;
 };
 
 bool sec_init(tsdn_t *tsdn, sec_t *sec, base_t *base, pai_t *fallback,
@@ -110,8 +110,8 @@ void sec_disable(tsdn_t *tsdn, sec_t *sec);
  * split), which simplifies the stats management.
  */
 void sec_stats_merge(tsdn_t *tsdn, sec_t *sec, sec_stats_t *stats);
-void sec_mutex_stats_read(tsdn_t *tsdn, sec_t *sec,
-    mutex_prof_data_t *mutex_prof_data);
+void sec_mutex_stats_read(
+    tsdn_t *tsdn, sec_t *sec, mutex_prof_data_t *mutex_prof_data);
 
 /*
  * We use the arena lock ordering; these are acquired in phase 2 of forking, but

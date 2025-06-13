@@ -9,10 +9,10 @@ enum {
 
 typedef struct stress_thread_data_s stress_thread_data_t;
 struct stress_thread_data_s {
-	unsigned thd_id;
+	unsigned     thd_id;
 	atomic_zu_t *ready_thds;
 	atomic_zu_t *done_thds;
-	void **to_dalloc;
+	void       **to_dalloc;
 };
 
 static atomic_zu_t push_failure_count;
@@ -68,19 +68,19 @@ increment_pop_attempt(size_t elems_to_pop) {
 static void
 increment_slab_dalloc_count(unsigned slab_dalloc_count, bool list_empty) {
 	if (slab_dalloc_count > 0) {
-		atomic_fetch_add_zu(&dalloc_nonzero_slab_count, 1,
-		    ATOMIC_RELAXED);
+		atomic_fetch_add_zu(
+		    &dalloc_nonzero_slab_count, 1, ATOMIC_RELAXED);
 	} else {
-		atomic_fetch_add_zu(&dalloc_zero_slab_count, 1,
-		    ATOMIC_RELAXED);
+		atomic_fetch_add_zu(&dalloc_zero_slab_count, 1, ATOMIC_RELAXED);
 	}
 	if (!list_empty) {
-		atomic_fetch_add_zu(&dalloc_nonempty_list_count, 1,
-		    ATOMIC_RELAXED);
+		atomic_fetch_add_zu(
+		    &dalloc_nonempty_list_count, 1, ATOMIC_RELAXED);
 	}
 }
 
-static void flush_tcache() {
+static void
+flush_tcache() {
 	assert_d_eq(0, mallctl("thread.tcache.flush", NULL, NULL, NULL, 0),
 	    "Unexpected mallctl failure");
 }
@@ -88,7 +88,7 @@ static void flush_tcache() {
 static void *
 stress_thread(void *arg) {
 	stress_thread_data_t *data = arg;
-	uint64_t prng_state = data->thd_id;
+	uint64_t              prng_state = data->thd_id;
 	atomic_fetch_add_zu(data->ready_thds, 1, ATOMIC_RELAXED);
 	while (atomic_load_zu(data->ready_thds, ATOMIC_RELAXED)
 	    != STRESS_THREADS) {
@@ -99,7 +99,6 @@ stress_thread(void *arg) {
 		if (prng_range_u64(&prng_state, 3) == 0) {
 			flush_tcache();
 		}
-
 	}
 	flush_tcache();
 	atomic_fetch_add_zu(data->done_thds, 1, ATOMIC_RELAXED);
@@ -125,9 +124,9 @@ stress_run(void (*main_thread_fn)(), int nruns) {
 	atomic_store_zu(&dalloc_nonempty_list_count, 0, ATOMIC_RELAXED);
 
 	for (int run = 0; run < nruns; run++) {
-		thd_t thds[STRESS_THREADS];
+		thd_t                thds[STRESS_THREADS];
 		stress_thread_data_t thd_datas[STRESS_THREADS];
-		atomic_zu_t ready_thds;
+		atomic_zu_t          ready_thds;
 		atomic_store_zu(&ready_thds, 0, ATOMIC_RELAXED);
 		atomic_zu_t done_thds;
 		atomic_store_zu(&done_thds, 0, ATOMIC_RELAXED);
@@ -164,7 +163,7 @@ stress_run(void (*main_thread_fn)(), int nruns) {
 
 static void
 do_allocs_frees() {
-	enum {NALLOCS = 32};
+	enum { NALLOCS = 32 };
 	flush_tcache();
 	void *ptrs[NALLOCS];
 	for (int i = 0; i < NALLOCS; i++) {
@@ -182,7 +181,7 @@ test_arena_reset_main_fn() {
 }
 
 TEST_BEGIN(test_arena_reset) {
-	int err;
+	int      err;
 	unsigned arena;
 	unsigned old_arena;
 
@@ -256,17 +255,16 @@ TEST_BEGIN(test_races) {
 	    "Should have seen some pop successes");
 	assert_zu_lt(0, atomic_load_zu(&dalloc_zero_slab_count, ATOMIC_RELAXED),
 	    "Expected some frees that didn't empty a slab");
-	assert_zu_lt(0, atomic_load_zu(&dalloc_nonzero_slab_count,
-	    ATOMIC_RELAXED), "expected some frees that emptied a slab");
-	assert_zu_lt(0, atomic_load_zu(&dalloc_nonempty_list_count,
-	    ATOMIC_RELAXED), "expected some frees that used the empty list");
+	assert_zu_lt(0,
+	    atomic_load_zu(&dalloc_nonzero_slab_count, ATOMIC_RELAXED),
+	    "expected some frees that emptied a slab");
+	assert_zu_lt(0,
+	    atomic_load_zu(&dalloc_nonempty_list_count, ATOMIC_RELAXED),
+	    "expected some frees that used the empty list");
 }
 TEST_END
 
 int
 main(void) {
-	return test_no_reentrancy(
-	    test_arena_reset,
-	    test_races,
-	    test_fork);
+	return test_no_reentrancy(test_arena_reset, test_races, test_fork);
 }

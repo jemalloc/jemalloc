@@ -37,7 +37,7 @@
 #define TE_INVALID_ELAPSED UINT64_MAX
 
 typedef struct te_ctx_s {
-	bool is_alloc;
+	bool      is_alloc;
 	uint64_t *current;
 	uint64_t *last_event;
 	uint64_t *next_event;
@@ -48,22 +48,20 @@ void te_assert_invariants_debug(tsd_t *tsd);
 void te_event_trigger(tsd_t *tsd, te_ctx_t *ctx);
 void te_recompute_fast_threshold(tsd_t *tsd);
 void tsd_te_init(tsd_t *tsd);
-void te_adjust_thresholds_helper(tsd_t *tsd, te_ctx_t *ctx,
-    uint64_t wait);
+void te_adjust_thresholds_helper(tsd_t *tsd, te_ctx_t *ctx, uint64_t wait);
 
 /* List of all thread event counters. */
-#define ITERATE_OVER_ALL_COUNTERS					\
-	C(thread_allocated)						\
-	C(thread_allocated_last_event)					\
-	C(prof_sample_last_event)					\
+#define ITERATE_OVER_ALL_COUNTERS                                              \
+	C(thread_allocated)                                                    \
+	C(thread_allocated_last_event)                                         \
+	C(prof_sample_last_event)                                              \
 	C(stats_interval_last_event)
 
 /* Getters directly wrap TSD getters. */
-#define C(counter)							\
-JEMALLOC_ALWAYS_INLINE uint64_t						\
-counter##_get(tsd_t *tsd) {						\
-	return tsd_##counter##_get(tsd);				\
-}
+#define C(counter)                                                             \
+	JEMALLOC_ALWAYS_INLINE uint64_t counter##_get(tsd_t *tsd) {            \
+		return tsd_##counter##_get(tsd);                               \
+	}
 
 ITERATE_OVER_ALL_COUNTERS
 #undef C
@@ -75,11 +73,10 @@ ITERATE_OVER_ALL_COUNTERS
  * temporarily delay the event and let it be immediately triggered at the next
  * allocation call.
  */
-#define C(counter)							\
-JEMALLOC_ALWAYS_INLINE void						\
-counter##_set(tsd_t *tsd, uint64_t v) {					\
-	*tsd_##counter##p_get(tsd) = v;					\
-}
+#define C(counter)                                                             \
+	JEMALLOC_ALWAYS_INLINE void counter##_set(tsd_t *tsd, uint64_t v) {    \
+		*tsd_##counter##p_get(tsd) = v;                                \
+	}
 
 ITERATE_OVER_ALL_COUNTERS
 #undef C
