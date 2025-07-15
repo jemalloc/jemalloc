@@ -1391,20 +1391,6 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				} while (vlen_left > 0);
 				CONF_CONTINUE;
 			}
-			CONF_HANDLE_SIZE_T(opt_bin_info_max_batched_size,
-			    "max_batched_size", 0, SIZE_T_MAX,
-			    CONF_DONT_CHECK_MIN, CONF_DONT_CHECK_MAX,
-			    /* clip */ true)
-			CONF_HANDLE_SIZE_T(opt_bin_info_remote_free_max_batch,
-			    "remote_free_max_batch", 0,
-			    BIN_REMOTE_FREE_ELEMS_MAX, CONF_DONT_CHECK_MIN,
-			    CONF_CHECK_MAX,
-			    /* clip */ true)
-			CONF_HANDLE_SIZE_T(opt_bin_info_remote_free_max,
-			    "remote_free_max", 0, BIN_REMOTE_FREE_ELEMS_MAX,
-			    CONF_DONT_CHECK_MIN, CONF_CHECK_MAX,
-			    /* clip */ true)
-
 			if (CONF_MATCH("tcache_ncached_max")) {
 				bool err = tcache_bin_info_default_init(
 				    v, vlen);

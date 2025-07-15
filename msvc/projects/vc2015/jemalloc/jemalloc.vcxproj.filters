@@ -16,9 +16,6 @@
     <ClCompile Include="..\..\..\..\src\base.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\src\batcher.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\src\bin.c">
       <Filter>Source Files</Filter>
     </ClCompile>
