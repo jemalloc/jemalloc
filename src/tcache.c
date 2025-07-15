@@ -608,7 +608,7 @@ tcache_alloc_small_hard(tsdn_t *tsdn, arena_t *arena, tcache_t *tcache,
 	}
 	arena_cache_bin_fill_small(tsdn, arena, cache_bin, binind,
 	    /* nfill_min */
-	        opt_experimental_tcache_gc ? ((nfill >> 1) + 1) : nfill,
+	    opt_experimental_tcache_gc ? ((nfill >> 1) + 1) : nfill,
 	    /* nfill_max */ nfill);
 	tcache_slow->bin_refilled[binind] = true;
 	tcache_nfill_small_burst_prepare(tcache_slow, binind);
@@ -680,8 +680,6 @@ tcache_bin_flush_impl_small(tsd_t *tsd, tcache_t *tcache,
 	assert(binind < SC_NBINS);
 	arena_t *tcache_arena = tcache_slow->arena;
 	assert(tcache_arena != NULL);
-	unsigned tcache_binshard =
-	    tsd_binshardsp_get(tsdn_tsd(tsdn))->binshard[binind];
 
 	/*
 	 * Variable length array must have > 0 length; the last element is never
@@ -699,24 +697,11 @@ tcache_bin_flush_impl_small(tsd_t *tsd, tcache_t *tcache,
 	VARIABLE_ARRAY(edata_t *, dalloc_slabs, nflush + 1);
 
 	/*
-	 * There's an edge case where we need to deallocate more slabs than we
-	 * have elements of dalloc_slabs.  This can if we end up deallocating
-	 * items batched by another thread in addition to ones flushed from the
-	 * cache.  Since this is not very likely (most small object
-	 * deallocations don't free up a whole slab), we don't want to burn the
-	 * stack space to keep those excess slabs in an array.  Instead we'll
-	 * maintain an overflow list.
-	 */
-	edata_list_active_t dalloc_slabs_extra;
-	edata_list_active_init(&dalloc_slabs_extra);
-
-	/*
 	 * We're about to grab a bunch of locks.  If one of them happens to be
 	 * the one guarding the arena-level stats counters we flush our
 	 * thread-local ones to, we do so under one critical section.
 	 */
 	bool merged_stats = false;
-
 	/*
 	 * We maintain the invariant that all edatas yet to be flushed are
 	 * contained in the half-open range [flush_start, flush_end).  We'll
@@ -741,7 +726,6 @@ tcache_bin_flush_impl_small(tsd_t *tsd, tcache_t *tcache,
 		unsigned cur_binshard = edata_binshard_get(cur_edata);
 		bin_t *cur_bin = arena_get_bin(cur_arena, binind, cur_binshard);
 		assert(cur_binshard < bin_infos[binind].n_shards);
-
 		/*
 		 * Start off the partition; item_edata[i] always matches itself
 		 * of course.
@@ -788,150 +772,43 @@ tcache_bin_flush_impl_small(tsd_t *tsd, tcache_t *tcache,
 			}
 		}
 
-		/*
-		 * We never batch when flushing to our home-base bin shard,
-		 * since it's likely that we'll have to acquire that lock anyway
-		 * when flushing stats.
-		 *
-		 * A plausible check we could add to can_batch is
-		 * '&& arena_is_auto(cur_arena)'.  The motivation would be that
-		 * we have a higher tolerance for dubious user assumptions
-		 * around non-auto arenas (e.g. "if I deallocate every object I
-		 * allocated, and then call tcache.flush, then the arena stats
-		 * must reflect zero live allocations").
-		 *
-		 * This is dubious for a couple reasons:
-		 * - We already don't provide perfect fidelity for stats
-		 *   counting (e.g. for profiled allocations, whose size can
-		 *   inflate in stats).
-		 * - Hanging load-bearing guarantees around stats impedes
-		 *   scalability in general.
-		 *
-		 * There are some "complete" strategies we could do instead:
-		 * - Add a arena.<i>.quiesce call to pop all bins for users who
-		 *   do want those stats accounted for.
-		 * - Make batchability a user-controllable per-arena option.
-		 * - Do a batch pop after every mutex acquisition for which we
-		 *   want to provide accurate stats.  This gives perfectly
-		 *   accurate stats, but can cause weird performance effects
-		 *   (because doing stats collection can now result in slabs
-		 *   becoming empty, and therefore purging, large mutex
-		 *   acquisition, etc.).
-		 * - Propagate the "why" behind a flush down to the level of the
-		 *   batcher, and include a batch pop attempt down full tcache
-		 *   flushing pathways.  This is just a lot of plumbing and
-		 *   internal complexity.
-		 *
-		 * We don't do any of these right now, but the decision calculus
-		 * and tradeoffs are subtle enough that the reasoning was worth
-		 * leaving in this comment.
-		 */
-		bool bin_is_batched = arena_bin_has_batch(binind);
-		bool home_binshard = (cur_arena == tcache_arena
-		    && cur_binshard == tcache_binshard);
-		bool can_batch = (flush_start - prev_flush_start
-		                     <= opt_bin_info_remote_free_max_batch)
-		    && !home_binshard && bin_is_batched;
+		/* Actually do the flushing. */
+		malloc_mutex_lock(tsdn, &cur_bin->lock);
 
 		/*
-		 * We try to avoid the batching pathway if we can, so we always
-		 * at least *try* to lock.
+		 * Flush stats first, if that was the right lock.  Note that we
+		 * don't actually have to flush stats into the current thread's
+		 * binshard. Flushing into any binshard in the same arena is
+		 * enough; we don't expose stats on per-binshard basis (just
+		 * per-bin).
 		 */
-		bool locked = false;
-		bool batched = false;
-		bool batch_failed = false;
-		if (can_batch) {
-			locked = !malloc_mutex_trylock(tsdn, &cur_bin->lock);
+		if (config_stats && tcache_arena == cur_arena
+		    && !merged_stats) {
+			merged_stats = true;
+			cur_bin->stats.nflushes++;
+			cur_bin->stats.nrequests += cache_bin->tstats.nrequests;
+			cache_bin->tstats.nrequests = 0;
 		}
-		if (can_batch && !locked) {
-			bin_with_batch_t *batched_bin = (bin_with_batch_t *)
-			    cur_bin;
-			size_t push_idx = batcher_push_begin(tsdn,
-			    &batched_bin->remote_frees,
-			    flush_start - prev_flush_start);
-			bin_batching_test_after_push(push_idx);
 
-			if (push_idx != BATCHER_NO_IDX) {
-				batched = true;
-				unsigned nbatched = flush_start
-				    - prev_flush_start;
-				for (unsigned i = 0; i < nbatched; i++) {
-					unsigned src_ind = prev_flush_start + i;
-					batched_bin
-					    ->remote_free_data[push_idx + i]
-					    .ptr = ptrs->ptr[src_ind];
-					batched_bin
-					    ->remote_free_data[push_idx + i]
-					    .slab = item_edata[src_ind].edata;
-				}
-				batcher_push_end(
-				    tsdn, &batched_bin->remote_frees);
-			} else {
-				batch_failed = true;
+		/* Next flush objects. */
+		/* Init only to avoid used-uninitialized warning. */
+		arena_dalloc_bin_locked_info_t dalloc_bin_info = {0};
+		arena_dalloc_bin_locked_begin(&dalloc_bin_info, binind);
+		for (unsigned i = prev_flush_start; i < flush_start; i++) {
+			void    *ptr = ptrs->ptr[i];
+			edata_t *edata = item_edata[i].edata;
+			if (arena_dalloc_bin_locked_step(tsdn, cur_arena,
+			        cur_bin, &dalloc_bin_info, binind, edata,
+			        ptr)) {
+				dalloc_slabs[dalloc_count] = edata;
+				dalloc_count++;
 			}
 		}
-		if (!batched) {
-			if (!locked) {
-				malloc_mutex_lock(tsdn, &cur_bin->lock);
-			}
-			/*
-			 * Unlike other stats (which only ever get flushed into
-			 * a tcache's associated arena), batch_failed counts get
-			 * accumulated into the bin where the push attempt
-			 * failed.
-			 */
-			if (config_stats && batch_failed) {
-				cur_bin->stats.batch_failed_pushes++;
-			}
 
-			/*
-			 * Flush stats first, if that was the right lock.  Note
-			 * that we don't actually have to flush stats into the
-			 * current thread's binshard. Flushing into any binshard
-			 * in the same arena is enough; we don't expose stats on
-			 * per-binshard basis (just per-bin).
-			 */
-			if (config_stats && tcache_arena == cur_arena
-			    && !merged_stats) {
-				merged_stats = true;
-				cur_bin->stats.nflushes++;
-				cur_bin->stats.nrequests +=
-				    cache_bin->tstats.nrequests;
-				cache_bin->tstats.nrequests = 0;
-			}
-			unsigned preallocated_slabs = nflush;
-			unsigned ndalloc_slabs =
-			    arena_bin_batch_get_ndalloc_slabs(
-			        preallocated_slabs);
+		arena_dalloc_bin_locked_finish(
+		    tsdn, cur_arena, cur_bin, &dalloc_bin_info);
+		malloc_mutex_unlock(tsdn, &cur_bin->lock);
 
-			/* Next flush objects our own objects. */
-			/* Init only to avoid used-uninitialized warning. */
-			arena_dalloc_bin_locked_info_t dalloc_bin_info = {0};
-			arena_dalloc_bin_locked_begin(&dalloc_bin_info, binind);
-			for (unsigned i = prev_flush_start; i < flush_start;
-			     i++) {
-				void    *ptr = ptrs->ptr[i];
-				edata_t *edata = item_edata[i].edata;
-				arena_dalloc_bin_locked_step(tsdn, cur_arena,
-				    cur_bin, &dalloc_bin_info, binind, edata,
-				    ptr, dalloc_slabs, ndalloc_slabs,
-				    &dalloc_count, &dalloc_slabs_extra);
-			}
-			/*
-			 * Lastly, flush any batched objects (from other
-			 * threads).
-			 */
-			if (bin_is_batched) {
-				arena_bin_flush_batch_impl(tsdn, cur_arena,
-				    cur_bin, &dalloc_bin_info, binind,
-				    dalloc_slabs, ndalloc_slabs, &dalloc_count,
-				    &dalloc_slabs_extra);
-			}
-
-			arena_dalloc_bin_locked_finish(
-			    tsdn, cur_arena, cur_bin, &dalloc_bin_info);
-			malloc_mutex_unlock(tsdn, &cur_bin->lock);
-		}
 		arena_decay_ticks(
 		    tsdn, cur_arena, flush_start - prev_flush_start);
 	}
@@ -941,18 +818,13 @@ tcache_bin_flush_impl_small(tsd_t *tsd, tcache_t *tcache,
 		edata_t *slab = dalloc_slabs[i];
 		arena_slab_dalloc(tsdn, arena_get_from_edata(slab), slab);
 	}
-	while (!edata_list_active_empty(&dalloc_slabs_extra)) {
-		edata_t *slab = edata_list_active_first(&dalloc_slabs_extra);
-		edata_list_active_remove(&dalloc_slabs_extra, slab);
-		arena_slab_dalloc(tsdn, arena_get_from_edata(slab), slab);
-	}
 
 	if (config_stats && !merged_stats) {
 		/*
-			 * The flush loop didn't happen to flush to this
-			 * thread's arena, so the stats didn't get merged.
-			 * Manually do so now.
-			 */
+		 * The flush loop didn't happen to flush to this
+		 * thread's arena, so the stats didn't get merged.
+		 * Manually do so now.
+		 */
 		bin_t *bin = arena_bin_choose(tsdn, tcache_arena, binind, NULL);
 		malloc_mutex_lock(tsdn, &bin->lock);
 		bin->stats.nflushes++;
