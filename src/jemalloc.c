@@ -4549,6 +4549,7 @@ jemalloc_postfork_child(void) {
 	malloc_mutex_postfork_child(tsd_tsdn(tsd), &arenas_lock);
 	tcache_postfork_child(tsd_tsdn(tsd));
 	ctl_postfork_child(tsd_tsdn(tsd));
+	pages_postfork_child();
 }
 
 /******************************************************************************/

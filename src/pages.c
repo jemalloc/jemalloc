@@ -621,7 +621,7 @@ pages_dodump(void *addr, size_t size) {
 #ifdef JEMALLOC_HAVE_PROCESS_MADVISE
 #	include <sys/mman.h>
 #	include <sys/syscall.h>
-static int pidfd;
+static atomic_i_t process_madvise_pidfd = ATOMIC_INIT(-1);
 
 static bool
 init_process_madvise(void) {
@@ -631,11 +631,6 @@ init_process_madvise(void) {
 
 	if (opt_process_madvise_max_batch > PROCESS_MADVISE_MAX_BATCH_LIMIT) {
 		opt_process_madvise_max_batch = PROCESS_MADVISE_MAX_BATCH_LIMIT;
-	}
-	pid_t pid = getpid();
-	pidfd = syscall(SYS_pidfd_open, pid, 0);
-	if (pidfd == -1) {
-		return true;
 	}
 
 	return false;
@@ -651,10 +646,36 @@ init_process_madvise(void) {
 static bool
 pages_purge_process_madvise_impl(
     void *vec, size_t vec_len, size_t total_bytes) {
-	size_t purged_bytes = (size_t)syscall(JE_SYS_PROCESS_MADVISE_NR, pidfd,
+	int pid_fd = atomic_load_i(&process_madvise_pidfd, ATOMIC_SEQ_CST);
+	while (pid_fd == -1) {
+		int newfd = syscall(SYS_pidfd_open, getpid(), 0);
+		if (newfd == -1) {
+			return true;
+		}
+		if (!atomic_compare_exchange_strong_i(&process_madvise_pidfd,
+						      &pid_fd, newfd,
+						      ATOMIC_SEQ_CST,
+						      ATOMIC_SEQ_CST)) {
+			/* Someone else set the fd, so we close ours */
+			assert(pid_fd != -1);
+			close(newfd);
+		} else {
+			pid_fd = newfd;
+		}
+	}
+	size_t purged_bytes = (size_t)syscall(JE_SYS_PROCESS_MADVISE_NR, pid_fd,
 	    (struct iovec *)vec, vec_len, MADV_DONTNEED, 0);
 
 	return purged_bytes != total_bytes;
+}
+
+void pages_postfork_child(void) {
+	/* Reset the file descriptor we inherited from parent process */
+	int pid_fd = atomic_load_i(&process_madvise_pidfd, ATOMIC_SEQ_CST);
+	if (pid_fd != -1) {
+		atomic_store_i(&process_madvise_pidfd, -1, ATOMIC_SEQ_CST);
+		close(pid_fd);
+	}
 }
 
 #else
@@ -670,6 +691,8 @@ pages_purge_process_madvise_impl(
 	not_reached();
 	return true;
 }
+
+void pages_postfork_child(void) {}
 
 #endif
 
