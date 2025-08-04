@@ -389,12 +389,6 @@ defer_test_hugify(void *ptr, size_t size, bool sync) {
 	return false;
 }
 
-static size_t ndefer_dehugify_calls = 0;
-static void
-defer_test_dehugify(void *ptr, size_t size) {
-	++ndefer_dehugify_calls;
-}
-
 static nstime_t defer_curtime;
 static void
 defer_test_curtime(nstime_t *r_time, bool first_reading) {
@@ -414,7 +408,6 @@ TEST_BEGIN(test_defer_time) {
 	hooks.unmap = &defer_test_unmap;
 	hooks.purge = &defer_test_purge;
 	hooks.hugify = &defer_test_hugify;
-	hooks.dehugify = &defer_test_dehugify;
 	hooks.curtime = &defer_test_curtime;
 	hooks.ms_since = &defer_test_ms_since;
 	hooks.vectorized_purge = &defer_vectorized_purge;
@@ -453,10 +446,8 @@ TEST_BEGIN(test_defer_time) {
 	hpa_shard_do_deferred_work(tsdn, shard);
 
 	expect_zu_eq(0, ndefer_hugify_calls, "Hugified too early");
-	expect_zu_eq(1, ndefer_dehugify_calls, "Should have dehugified");
 	expect_zu_eq(1, ndefer_purge_calls, "Should have purged");
 	ndefer_hugify_calls = 0;
-	ndefer_dehugify_calls = 0;
 	ndefer_purge_calls = 0;
 
 	/*
@@ -477,7 +468,6 @@ TEST_BEGIN(test_defer_time) {
 	nstime_init2(&defer_curtime, 22, 0);
 	hpa_shard_do_deferred_work(tsdn, shard);
 	expect_zu_eq(1, ndefer_hugify_calls, "Failed to hugify");
-	expect_zu_eq(0, ndefer_dehugify_calls, "Unexpected dehugify");
 	expect_zu_eq(0, ndefer_purge_calls, "Unexpected purge");
 	ndefer_hugify_calls = 0;
 
@@ -524,7 +514,6 @@ TEST_BEGIN(test_no_min_purge_interval) {
 	hooks.unmap = &defer_test_unmap;
 	hooks.purge = &defer_test_purge;
 	hooks.hugify = &defer_test_hugify;
-	hooks.dehugify = &defer_test_dehugify;
 	hooks.curtime = &defer_test_curtime;
 	hooks.ms_since = &defer_test_ms_since;
 	hooks.vectorized_purge = &defer_vectorized_purge;
@@ -551,7 +540,6 @@ TEST_BEGIN(test_no_min_purge_interval) {
 	 * we have dirty pages.
 	 */
 	expect_zu_eq(0, ndefer_hugify_calls, "Hugified too early");
-	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
 	expect_zu_eq(1, ndefer_purge_calls, "Expect purge");
 	ndefer_purge_calls = 0;
 
@@ -567,7 +555,6 @@ TEST_BEGIN(test_min_purge_interval) {
 	hooks.unmap = &defer_test_unmap;
 	hooks.purge = &defer_test_purge;
 	hooks.hugify = &defer_test_hugify;
-	hooks.dehugify = &defer_test_dehugify;
 	hooks.curtime = &defer_test_curtime;
 	hooks.ms_since = &defer_test_ms_since;
 	hooks.vectorized_purge = &defer_vectorized_purge;
@@ -593,7 +580,6 @@ TEST_BEGIN(test_min_purge_interval) {
 	 * opt.min_purge_interval_ms didn't pass yet.
 	 */
 	expect_zu_eq(0, ndefer_hugify_calls, "Hugified too early");
-	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
 	expect_zu_eq(0, ndefer_purge_calls, "Purged too early");
 
 	/* Minumum purge interval is set to 5 seconds in options. */
@@ -602,7 +588,6 @@ TEST_BEGIN(test_min_purge_interval) {
 
 	/* Now we should purge, but nothing else. */
 	expect_zu_eq(0, ndefer_hugify_calls, "Hugified too early");
-	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
 	expect_zu_eq(1, ndefer_purge_calls, "Expect purge");
 	ndefer_purge_calls = 0;
 
@@ -618,7 +603,6 @@ TEST_BEGIN(test_purge) {
 	hooks.unmap = &defer_test_unmap;
 	hooks.purge = &defer_test_purge;
 	hooks.hugify = &defer_test_hugify;
-	hooks.dehugify = &defer_test_dehugify;
 	hooks.curtime = &defer_test_curtime;
 	hooks.ms_since = &defer_test_ms_since;
 	hooks.vectorized_purge = &defer_vectorized_purge;
@@ -648,7 +632,6 @@ TEST_BEGIN(test_purge) {
 	hpa_shard_do_deferred_work(tsdn, shard);
 
 	expect_zu_eq(0, ndefer_hugify_calls, "Hugified too early");
-	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
 	/*
 	 * Expect only 2 purges, because opt.dirty_mult is set to 0.25 and we still
 	 * have 5 active hugepages (1 / 5 = 0.2 < 0.25).
@@ -665,7 +648,6 @@ TEST_BEGIN(test_purge) {
 	 */
 	expect_zu_eq(5, ndefer_hugify_calls, "Expect hugification");
 	ndefer_hugify_calls = 0;
-	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
 	/*
 	 * We still have completely dirty hugepage, but we are below
 	 * opt.dirty_mult.
@@ -685,7 +667,6 @@ TEST_BEGIN(test_experimental_max_purge_nhp) {
 	hooks.unmap = &defer_test_unmap;
 	hooks.purge = &defer_test_purge;
 	hooks.hugify = &defer_test_hugify;
-	hooks.dehugify = &defer_test_dehugify;
 	hooks.curtime = &defer_test_curtime;
 	hooks.ms_since = &defer_test_ms_since;
 	hooks.vectorized_purge = &defer_vectorized_purge;
@@ -716,7 +697,6 @@ TEST_BEGIN(test_experimental_max_purge_nhp) {
 	hpa_shard_do_deferred_work(tsdn, shard);
 
 	expect_zu_eq(0, ndefer_hugify_calls, "Hugified too early");
-	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
 	/*
 	 * Expect only one purge call, because opts.experimental_max_purge_nhp
 	 * is set to 1.
@@ -729,7 +709,6 @@ TEST_BEGIN(test_experimental_max_purge_nhp) {
 
 	expect_zu_eq(5, ndefer_hugify_calls, "Expect hugification");
 	ndefer_hugify_calls = 0;
-	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
 	/* We still above the limit for dirty pages. */
 	expect_zu_eq(1, ndefer_purge_calls, "Expect purge");
 	ndefer_purge_calls = 0;
@@ -738,7 +717,6 @@ TEST_BEGIN(test_experimental_max_purge_nhp) {
 	hpa_shard_do_deferred_work(tsdn, shard);
 
 	expect_zu_eq(0, ndefer_hugify_calls, "Hugified too early");
-	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
 	/* Finally, we are below the limit, no purges are expected. */
 	expect_zu_eq(0, ndefer_purge_calls, "Purged too early");
 
@@ -754,7 +732,6 @@ TEST_BEGIN(test_vectorized_opt_eq_zero) {
 	hooks.unmap = &defer_test_unmap;
 	hooks.purge = &defer_test_purge;
 	hooks.hugify = &defer_test_hugify;
-	hooks.dehugify = &defer_test_dehugify;
 	hooks.curtime = &defer_test_curtime;
 	hooks.ms_since = &defer_test_ms_since;
 	hooks.vectorized_purge = &defer_vectorized_purge;
