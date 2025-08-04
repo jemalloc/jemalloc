@@ -240,7 +240,7 @@ hpa_shard_init(hpa_shard_t *shard, hpa_central_t *central, emap_t *emap,
 /*
  * Note that the stats functions here follow the usual stats naming conventions;
  * "merge" obtains the stats from some live object of instance, while "accum"
- * only combines the stats from one stats objet to another.  Hence the lack of
+ * only combines the stats from one stats object to another.  Hence the lack of
  * locking here.
  */
 static void
@@ -368,7 +368,7 @@ hpa_update_purge_hugify_eligibility(
 	 * could lead to situations where a hugepage that spends most of its
 	 * time meeting the criteria never quite getting hugified if there are
 	 * intervening deallocations).  The idea is that the hugification delay
-	 * will allow them to get purged, reseting their "hugify-allowed" bit.
+	 * will allow them to get purged, resetting their "hugify-allowed" bit.
 	 * If they don't get purged, then the hugification isn't hurting and
 	 * might help.  As an exception, we don't hugify hugepages that are now
 	 * empty; it definitely doesn't help there until the hugepage gets
@@ -642,11 +642,11 @@ hpa_try_hugify(tsdn_t *tsdn, hpa_shard_t *shard) {
 	shard->stats.nhugifies++;
 	if (err) {
 		/*
-		 * When asynchronious hugification is used
+		 * When asynchronous hugification is used
 		 * (shard->opts.hugify_sync option is false), we are not
 		 * expecting to get here, unless something went terrible wrong.
 		 * Because underlying syscall is only setting kernel flag for
-		 * memory range (actual hugification happens asynchroniously
+		 * memory range (actual hugification happens asynchronously
 		 * and we are not getting any feedback about its outcome), we
 		 * expect syscall to be successful all the time.
 		 */
@@ -706,7 +706,7 @@ hpa_shard_maybe_do_deferred_work(
 		 * When experimental_max_purge_nhp option is used, there is no
 		 * guarantee we'll always respect dirty_mult option.  Option
 		 * experimental_max_purge_nhp provides a way to configure same
-		 * behaviour as was possible before, with buggy implementation
+		 * behavior as was possible before, with buggy implementation
 		 * of purging algorithm.
 		 */
 		ssize_t max_purge_nhp = shard->opts.experimental_max_purge_nhp;
