@@ -646,7 +646,7 @@ init_process_madvise(void) {
 static bool
 pages_purge_process_madvise_impl(
     void *vec, size_t vec_len, size_t total_bytes) {
-	int pid_fd = atomic_load_i(&process_madvise_pidfd, ATOMIC_SEQ_CST);
+	int pid_fd = atomic_load_i(&process_madvise_pidfd, ATOMIC_RELAXED);
 	while (pid_fd == -1) {
 		int newfd = syscall(SYS_pidfd_open, getpid(), 0);
 		if (newfd == -1) {
@@ -654,8 +654,8 @@ pages_purge_process_madvise_impl(
 		}
 		if (!atomic_compare_exchange_strong_i(&process_madvise_pidfd,
 						      &pid_fd, newfd,
-						      ATOMIC_SEQ_CST,
-						      ATOMIC_SEQ_CST)) {
+						      ATOMIC_RELAXED,
+						      ATOMIC_RELAXED)) {
 			/* Someone else set the fd, so we close ours */
 			assert(pid_fd != -1);
 			close(newfd);
@@ -671,9 +671,9 @@ pages_purge_process_madvise_impl(
 
 void pages_postfork_child(void) {
 	/* Reset the file descriptor we inherited from parent process */
-	int pid_fd = atomic_load_i(&process_madvise_pidfd, ATOMIC_SEQ_CST);
+	int pid_fd = atomic_load_i(&process_madvise_pidfd, ATOMIC_RELAXED);
 	if (pid_fd != -1) {
-		atomic_store_i(&process_madvise_pidfd, -1, ATOMIC_SEQ_CST);
+		atomic_store_i(&process_madvise_pidfd, -1, ATOMIC_RELAXED);
 		close(pid_fd);
 	}
 }
