@@ -766,11 +766,6 @@ os_overcommits_sysctl(void) {
 #endif
 
 #ifdef JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY
-/*
- * Use syscall(2) rather than {open,read,close}(2) when possible to avoid
- * reentry during bootstrapping if another library has interposed system call
- * wrappers.
- */
 static bool
 os_overcommits_proc(void) {
 	int  fd;
