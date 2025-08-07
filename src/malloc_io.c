@@ -760,6 +760,81 @@ malloc_printf(const char *format, ...) {
 	va_end(ap);
 }
 
+static ssize_t
+malloc_write_fd_syscall(int fd, const void *buf, size_t count) {
+#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_write)
+	/*
+	 * Use syscall(2) rather than write(2) when possible in order to avoid
+	 * the possibility of memory allocation within libc.  This is necessary
+	 * on FreeBSD; most operating systems do not have this problem though.
+	 *
+	 * syscall() returns long or int, depending on platform, so capture the
+	 * result in the widest plausible type to avoid compiler warnings.
+	 */
+	return (ssize_t)syscall(SYS_write, fd, buf, count);
+#else
+	return (ssize_t)write(fd, buf,
+#	ifdef _WIN32
+	    (unsigned int)
+#	endif
+	        count);
+#endif
+}
+
+ssize_t
+malloc_write_fd(int fd, const void *buf, size_t count) {
+	size_t bytes_written = 0;
+	do {
+		ssize_t result = malloc_write_fd_syscall(fd,
+		    &((const byte_t *)buf)[bytes_written],
+		    count - bytes_written);
+		if (result < 0) {
+#ifndef _WIN32
+			if (errno == EINTR) {
+				continue;
+			}
+#endif
+			return result;
+		}
+		bytes_written += result;
+	} while (bytes_written < count);
+	return bytes_written;
+}
+
+static ssize_t
+malloc_read_fd_syscall(int fd, void *buf, size_t count) {
+#if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_read)
+	return (ssize_t)syscall(SYS_read, fd, buf, count);
+#else
+	return (ssize_t)read(fd, buf,
+#	ifdef _WIN32
+	    (unsigned int)
+#	endif
+	        count);
+#endif
+}
+
+ssize_t
+malloc_read_fd(int fd, void *buf, size_t count) {
+	size_t bytes_read = 0;
+	do {
+		ssize_t result = malloc_read_fd_syscall(
+		    fd, &((byte_t *)buf)[bytes_read], count - bytes_read);
+		if (result < 0) {
+#ifndef _WIN32
+			if (errno == EINTR) {
+				continue;
+			}
+#endif
+			return result;
+		} else if (result == 0) {
+			break;
+		}
+		bytes_read += result;
+	} while (bytes_read < count);
+	return bytes_read;
+}
+
 /*
  * Restore normal assertion macros, in order to make it possible to compile all
  * C files as a single concatenation.
