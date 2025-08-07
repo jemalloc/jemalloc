@@ -2,6 +2,7 @@
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/sec.h"
+#include "jemalloc/internal/jemalloc_probe.h"
 
 static edata_t *sec_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
     size_t alignment, bool zero, bool guarded, bool frequent_reuse,
@@ -266,6 +267,7 @@ sec_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
 			    deferred_work_generated);
 		}
 	}
+	JE_USDT(sec_alloc, 5, sec, shard, edata, size, frequent_reuse);
 	return edata;
 }
 
@@ -273,6 +275,7 @@ static bool
 sec_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
     size_t new_size, bool zero, bool *deferred_work_generated) {
 	sec_t *sec = (sec_t *)self;
+	JE_USDT(sec_expand, 4, sec, edata, old_size, new_size);
 	return pai_expand(tsdn, sec->fallback, edata, old_size, new_size, zero,
 	    deferred_work_generated);
 }
@@ -281,6 +284,7 @@ static bool
 sec_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
     size_t new_size, bool *deferred_work_generated) {
 	sec_t *sec = (sec_t *)self;
+	JE_USDT(sec_shrink, 4, sec, edata, old_size, new_size);
 	return pai_shrink(tsdn, sec->fallback, edata, old_size, new_size,
 	    deferred_work_generated);
 }
@@ -351,6 +355,7 @@ sec_dalloc(
 		return;
 	}
 	sec_shard_t *shard = sec_shard_pick(tsdn, sec);
+	JE_USDT(sec_dalloc, 3, sec, shard, edata);
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	if (shard->enabled) {
 		sec_shard_dalloc_and_unlock(tsdn, sec, shard, edata);
