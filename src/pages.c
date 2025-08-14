@@ -622,6 +622,7 @@ pages_dodump(void *addr, size_t size) {
 #	include <sys/mman.h>
 #	include <sys/syscall.h>
 static atomic_i_t process_madvise_pidfd = ATOMIC_INIT(-1);
+static atomic_b_t process_madvise_gate = ATOMIC_INIT(true);
 
 static bool
 init_process_madvise(void) {
@@ -646,9 +647,12 @@ init_process_madvise(void) {
 static bool
 pages_purge_process_madvise_impl(
     void *vec, size_t vec_len, size_t total_bytes) {
+	if (!atomic_load_b(&process_madvise_gate, ATOMIC_RELAXED)) {
+		return true;
+	}
 	int pid_fd = atomic_load_i(&process_madvise_pidfd, ATOMIC_RELAXED);
 	while (pid_fd == -1) {
-		int newfd = syscall(SYS_pidfd_open, getpid(), 0);
+		int newfd = (int) syscall(SYS_pidfd_open, getpid(), 0);
 		if (newfd == -1) {
 			return true;
 		}
@@ -663,8 +667,22 @@ pages_purge_process_madvise_impl(
 			pid_fd = newfd;
 		}
 	}
+
+	/*
+	 * TODO: remove this save/restore of errno after supporting errno
+	 * preservation for free() call properly.
+	 */
+	int saved_errno = get_errno();
 	size_t purged_bytes = (size_t)syscall(JE_SYS_PROCESS_MADVISE_NR, pid_fd,
 	    (struct iovec *)vec, vec_len, MADV_DONTNEED, 0);
+	if (purged_bytes == (size_t) -1) {
+		if (errno == EPERM || errno == EINVAL || errno == ENOSYS) {
+			/* Process madvise not supported the way we need it. */
+			atomic_store_b(&process_madvise_gate, false,
+				       ATOMIC_RELAXED);
+		}
+		set_errno(saved_errno);
+	}
 
 	return purged_bytes != total_bytes;
 }
