@@ -113,12 +113,6 @@ defer_test_hugify(void *ptr, size_t size, bool sync) {
 	return false;
 }
 
-static size_t ndefer_dehugify_calls = 0;
-static void
-defer_test_dehugify(void *ptr, size_t size) {
-	++ndefer_dehugify_calls;
-}
-
 static nstime_t defer_curtime;
 static void
 defer_test_curtime(nstime_t *r_time, bool first_reading) {
