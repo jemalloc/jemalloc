@@ -2633,8 +2633,8 @@ if test "x${je_cv_madvise}" = "xyes" ; then
 
   dnl Check for process_madvise
   JE_COMPILABLE([process_madvise(2)], [
-#include <sys/mman.h>
 #include <sys/syscall.h>
+#include <unistd.h>
 ], [
 	syscall(SYS_process_madvise, 0, (void *)0, 0, 0, 0);
 ], [je_cv_process_madvise])
