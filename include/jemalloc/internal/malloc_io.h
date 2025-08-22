@@ -96,6 +96,11 @@ malloc_write_fd(int fd, const void *buf, size_t count) {
 		    &((const byte_t *)buf)[bytes_written],
 		    count - bytes_written);
 		if (result < 0) {
+#ifndef _WIN32
+			if (errno == EINTR) {
+				continue;
+			}
+#endif
 			return result;
 		}
 		bytes_written += result;
@@ -124,6 +129,11 @@ malloc_read_fd(int fd, void *buf, size_t count) {
 		ssize_t result = malloc_read_fd_syscall(
 		    fd, &((byte_t *)buf)[bytes_read], count - bytes_read);
 		if (result < 0) {
+#ifndef _WIN32
+			if (errno == EINTR) {
+				continue;
+			}
+#endif
 			return result;
 		} else if (result == 0) {
 			break;
