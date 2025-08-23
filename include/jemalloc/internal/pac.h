@@ -131,7 +131,7 @@ struct pac_thp_s {
 	 * opt_thp controls THP for user requested allocations. Settings
 	 * "always", "never" and "default" are available if THP is supported
 	 * by the OS and the default extent hooks are used:
-	 * - "always" and "never" are convered by pages_set_thp_state() in
+	 * - "always" and "never" are covered by pages_set_thp_state() in
 	 *   ehooks_default_alloc_impl().
 	 * - "default" makes no change for all the other auto arenas except
 	 *   the huge arena. For the huge arena, we might also look at
