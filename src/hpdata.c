@@ -18,7 +18,8 @@ hpdata_age_comp(const hpdata_t *a, const hpdata_t *b) {
 
 ph_gen(, hpdata_age_heap, hpdata_t, age_link, hpdata_age_comp)
 
-    void hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age) {
+void
+hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age) {
 	hpdata_addr_set(hpdata, addr);
 	hpdata_age_set(hpdata, age);
 	hpdata->h_huge = false;
