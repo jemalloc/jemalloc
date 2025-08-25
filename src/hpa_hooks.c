@@ -19,7 +19,13 @@ const hpa_hooks_t hpa_hooks_default = {&hpa_hooks_map, &hpa_hooks_unmap,
 
 static void *
 hpa_hooks_map(size_t size) {
+	/*
+	 * During development, we're primarily concerned with systems
+	 * that overcommit.  Eventually, we should be more careful here.
+	 */
+
 	bool commit = true;
+	assert((size & HUGEPAGE_MASK) == 0);
 	void *ret = pages_map(NULL, size, HUGEPAGE, &commit);
 	JE_USDT(hpa_map, 2, size, ret);
 	return ret;

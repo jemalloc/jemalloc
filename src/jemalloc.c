@@ -1619,6 +1619,50 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			    opt_hpa_opts.experimental_max_purge_nhp,
 			    "experimental_hpa_max_purge_nhp", -1, SSIZE_MAX);
 
+			/*
+			 * Accept either a ratio-based or an exact purge
+			 * threshold.
+			 */
+			CONF_HANDLE_SIZE_T(opt_hpa_opts.purge_threshold,
+			    "hpa_purge_threshold", PAGE, HUGEPAGE,
+			    CONF_CHECK_MIN, CONF_CHECK_MAX, true);
+			if (CONF_MATCH("hpa_purge_threshold_ratio")) {
+				fxp_t ratio;
+				char *end;
+				bool  err = fxp_parse(&ratio, v, &end);
+				if (err || (size_t)(end - v) != vlen
+				    || ratio > FXP_INIT_INT(1)) {
+					CONF_ERROR("Invalid conf value", k,
+					    klen, v, vlen);
+				} else {
+					opt_hpa_opts.purge_threshold =
+					    fxp_mul_frac(HUGEPAGE, ratio);
+				}
+				CONF_CONTINUE;
+			}
+
+			CONF_HANDLE_UINT64_T(opt_hpa_opts.min_purge_delay_ms,
+			    "hpa_min_purge_delay_ms", 0, UINT64_MAX,
+			    CONF_DONT_CHECK_MIN, CONF_DONT_CHECK_MAX, false);
+
+			if (strncmp("hpa_hugify_style", k, klen) == 0) {
+				bool match = false;
+				for (int m = 0; m < hpa_hugify_style_limit; m++) {
+					if (strncmp(hpa_hugify_style_names[m],
+					        v, vlen)
+					    == 0) {
+						opt_hpa_opts.hugify_style = m;
+						match = true;
+						break;
+					}
+				}
+				if (!match) {
+					CONF_ERROR("Invalid conf value", k,
+					    klen, v, vlen);
+				}
+				CONF_CONTINUE;
+			}
+
 			if (CONF_MATCH("hpa_dirty_mult")) {
 				if (CONF_MATCH_VALUE("-1")) {
 					opt_hpa_opts.dirty_mult = (fxp_t)-1;

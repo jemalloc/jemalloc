@@ -313,6 +313,9 @@ TEST_BEGIN(test_mallctl_opt) {
 	TEST_MALLCTL_OPT(size_t, hpa_sec_bytes_after_flush, always);
 	TEST_MALLCTL_OPT(size_t, hpa_sec_batch_fill_extra, always);
 	TEST_MALLCTL_OPT(ssize_t, experimental_hpa_max_purge_nhp, always);
+	TEST_MALLCTL_OPT(size_t, hpa_purge_threshold, always);
+	TEST_MALLCTL_OPT(uint64_t, hpa_min_purge_delay_ms, always);
+	TEST_MALLCTL_OPT(const char *, hpa_hugify_style, always);
 	TEST_MALLCTL_OPT(unsigned, narenas, always);
 	TEST_MALLCTL_OPT(const char *, percpu_arena, always);
 	TEST_MALLCTL_OPT(size_t, oversize_threshold, always);
