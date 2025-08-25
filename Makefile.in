@@ -570,11 +570,15 @@ $(objroot)test/stress/pa/pa_data_preprocessor$(EXE): $(objroot)test/stress/pa/pa
 	@mkdir -p $(@D)
 	$(CXX) $(LDTARGET) $(filter %.$(O),$^) $(LDFLAGS) $(filter-out -lm,$(LIBS)) $(LM) $(EXTRA_LDFLAGS)
 
+$(objroot)test/stress/pa/pa_microbench$(EXE): $(objroot)test/stress/pa/pa_microbench.$(O) $(C_JET_OBJS) $(C_TESTLIB_STRESS_OBJS)
+	@mkdir -p $(@D)
+	$(CC) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(LDFLAGS) $(filter-out -lm,$(LIBS)) $(LM) $(EXTRA_LDFLAGS)
+
 $(objroot)test/stress/pa/%.$(O): $(srcroot)test/stress/pa/%.c
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -c $(CPPFLAGS) -I$(srcroot)test/include -I$(objroot)test/include $(CTARGET) $<
+	$(CC) $(CFLAGS) -c $(CPPFLAGS) -DJEMALLOC_STRESS_TEST -I$(srcroot)test/include -I$(objroot)test/include $(CTARGET) $<
 ifdef CC_MM
-	@$(CC) -MM $(CPPFLAGS) -I$(srcroot)test/include -I$(objroot)test/include -MT $@ -o $(@:%.$(O)=%.d) $<
+	@$(CC) -MM $(CPPFLAGS) -DJEMALLOC_STRESS_TEST -I$(srcroot)test/include -I$(objroot)test/include -MT $@ -o $(@:%.$(O)=%.d) $<
 endif
 
 $(objroot)test/stress/pa/%.$(O): $(srcroot)test/stress/pa/%.cpp
@@ -704,7 +708,7 @@ tests_unit: $(TESTS_UNIT:$(srcroot)%.c=$(objroot)%$(EXE))
 tests_integration: $(TESTS_INTEGRATION:$(srcroot)%.c=$(objroot)%$(EXE)) $(TESTS_INTEGRATION_CPP:$(srcroot)%.cpp=$(objroot)%$(EXE))
 tests_analyze: $(TESTS_ANALYZE:$(srcroot)%.c=$(objroot)%$(EXE))
 tests_stress: $(TESTS_STRESS:$(srcroot)%.c=$(objroot)%$(EXE)) $(TESTS_STRESS_CPP:$(srcroot)%.cpp=$(objroot)%$(EXE))
-tests_pa: $(objroot)test/stress/pa/pa_data_preprocessor$(EXE)
+tests_pa: $(objroot)test/stress/pa/pa_data_preprocessor$(EXE) $(objroot)test/stress/pa/pa_microbench$(EXE)
 tests: tests_unit tests_integration tests_analyze tests_stress
 
 check_unit_dir:
