@@ -73,6 +73,7 @@ test/include/test/jemalloc_test_defs.h
 
 /test/stress/[A-Za-z]*
 !/test/stress/[A-Za-z]*.*
+!/test/stress/pa/
 /test/stress/*.[od]
 /test/stress/*.out
 
