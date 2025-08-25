@@ -37,7 +37,13 @@ static hpa_shard_opts_t test_hpa_shard_opts_default = {
     /* min_purge_interval_ms */
     5 * 1000,
     /* experimental_max_purge_nhp */
-    -1};
+    -1,
+    /* purge_threshold */
+    1,
+    /* min_purge_delay_ms */
+    0,
+    /* hugify_style */
+    hpa_hugify_style_lazy};
 
 static hpa_shard_t *
 create_test_data(const hpa_hooks_t *hooks, hpa_shard_opts_t *opts) {

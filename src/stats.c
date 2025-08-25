@@ -1618,6 +1618,9 @@ stats_general_print(emitter_t *emitter) {
 			    "opt.hpa_dirty_mult", emitter_type_string, &bufp);
 		}
 	}
+	OPT_WRITE_SIZE_T("hpa_purge_threshold")
+	OPT_WRITE_UINT64("hpa_min_purge_delay_ms")
+	OPT_WRITE_CHAR_P("hpa_hugify_style")
 	OPT_WRITE_SIZE_T("hpa_sec_nshards")
 	OPT_WRITE_SIZE_T("hpa_sec_max_alloc")
 	OPT_WRITE_SIZE_T("hpa_sec_max_bytes")

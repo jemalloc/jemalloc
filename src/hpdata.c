@@ -17,11 +17,10 @@ hpdata_age_comp(const hpdata_t *a, const hpdata_t *b) {
 
 ph_gen(, hpdata_age_heap, hpdata_t, age_link, hpdata_age_comp)
 
-void
-hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age) {
+    void hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age, bool is_huge) {
 	hpdata_addr_set(hpdata, addr);
 	hpdata_age_set(hpdata, age);
-	hpdata->h_huge = false;
+	hpdata->h_huge = is_huge;
 	hpdata->h_alloc_allowed = true;
 	hpdata->h_in_psset_alloc_container = false;
 	hpdata->h_purge_allowed = false;
@@ -34,8 +33,16 @@ hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age) {
 	hpdata_longest_free_range_set(hpdata, HUGEPAGE_PAGES);
 	hpdata->h_nactive = 0;
 	fb_init(hpdata->active_pages, HUGEPAGE_PAGES);
-	hpdata->h_ntouched = 0;
-	fb_init(hpdata->touched_pages, HUGEPAGE_PAGES);
+	if (is_huge) {
+		fb_set_range(
+		    hpdata->touched_pages, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES);
+		hpdata->h_ntouched = HUGEPAGE_PAGES;
+	} else {
+		fb_init(hpdata->touched_pages, HUGEPAGE_PAGES);
+		hpdata->h_ntouched = 0;
+	}
+	nstime_init_zero(&hpdata->h_time_purge_allowed);
+	hpdata->h_purged_when_empty_and_huge = false;
 
 	hpdata_assert_consistent(hpdata);
 }
