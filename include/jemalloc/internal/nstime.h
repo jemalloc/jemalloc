@@ -40,6 +40,8 @@ void     nstime_isubtract(nstime_t *time, uint64_t subtrahend);
 void     nstime_imultiply(nstime_t *time, uint64_t multiplier);
 void     nstime_idivide(nstime_t *time, uint64_t divisor);
 uint64_t nstime_divide(const nstime_t *time, const nstime_t *divisor);
+uint64_t nstime_ns_between(const nstime_t *earlier, const nstime_t *later);
+uint64_t nstime_ms_between(const nstime_t *earlier, const nstime_t *later);
 uint64_t nstime_ns_since(const nstime_t *past);
 uint64_t nstime_ms_since(const nstime_t *past);
 
@@ -67,7 +69,7 @@ nstime_init_zero(nstime_t *time) {
 }
 
 JEMALLOC_ALWAYS_INLINE bool
-nstime_equals_zero(nstime_t *time) {
+nstime_equals_zero(const nstime_t *time) {
 	int diff = nstime_compare(time, &nstime_zero);
 	assert(diff >= 0);
 	return diff == 0;

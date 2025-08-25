@@ -390,17 +390,37 @@ psset_pick_alloc(psset_t *psset, size_t size) {
 }
 
 hpdata_t *
-psset_pick_purge(psset_t *psset) {
-	ssize_t ind_ssz = fb_fls(
-	    psset->purge_bitmap, PSSET_NPURGE_LISTS, PSSET_NPURGE_LISTS - 1);
-	if (ind_ssz < 0) {
-		return NULL;
+psset_pick_purge(psset_t *psset, const nstime_t *now) {
+	size_t max_bit = PSSET_NPURGE_LISTS - 1;
+	while (1) {
+		ssize_t ind_ssz = fb_fls(
+		    psset->purge_bitmap, PSSET_NPURGE_LISTS, max_bit);
+		if (ind_ssz < 0) {
+			break;
+		}
+		pszind_t ind = (pszind_t)ind_ssz;
+		assert(ind < PSSET_NPURGE_LISTS);
+		hpdata_t *ps = hpdata_purge_list_first(&psset->to_purge[ind]);
+		assert(ps != NULL);
+		if (now == NULL) {
+			return ps;
+		}
+		/*
+		 * We only check the first page (it had least recent hpa_alloc
+		 * or hpa_dalloc). It is possible that some page in the list
+		 * would meet the time, but we only guarantee the min delay. If
+		 * we want to get the one that changed the state to purgable
+		 * the earliest, we would change the list into a heap ordered by
+		 * time.  We will use benchmark to make a decision.
+		 */
+		const nstime_t *tm_allowed = hpdata_time_purge_allowed_get(ps);
+		if (nstime_compare(tm_allowed, now) <= 0) {
+			return ps;
+		}
+		max_bit--;
 	}
-	pszind_t ind = (pszind_t)ind_ssz;
-	assert(ind < PSSET_NPURGE_LISTS);
-	hpdata_t *ps = hpdata_purge_list_first(&psset->to_purge[ind]);
-	assert(ps != NULL);
-	return ps;
+	/* No page is ready yet */
+	return NULL;
 }
 
 hpdata_t *

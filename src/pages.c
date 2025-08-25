@@ -833,9 +833,19 @@ init_thp_state(void) {
 	} else {
 		goto label_error;
 	}
+	if (opt_hpa_opts.hugify_style == hpa_hugify_style_auto) {
+		if (init_system_thp_mode == thp_mode_default) {
+			opt_hpa_opts.hugify_style = hpa_hugify_style_lazy;
+		} else {
+			opt_hpa_opts.hugify_style = hpa_hugify_style_none;
+		}
+	}
 	return;
 #elif defined(JEMALLOC_HAVE_MEMCNTL)
 	init_system_thp_mode = thp_mode_default;
+	if (opt_hpa_opts.hugify_style == hpa_hugify_style_auto) {
+		opt_hpa_opts.hugify_style = hpa_hugify_style_eager;
+	}
 	return;
 #endif
 label_error:

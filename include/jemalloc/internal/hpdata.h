@@ -124,6 +124,12 @@ struct hpdata_s {
 
 	/* The touched pages (using the same definition as above). */
 	fb_group_t touched_pages[FB_NGROUPS(HUGEPAGE_PAGES)];
+
+	/* Time when this extent (hpdata) becomes eligible for purging */
+	nstime_t h_time_purge_allowed;
+
+	/* True if the extent was huge and empty last time when it was purged */
+	bool h_purged_when_empty_and_huge;
 };
 
 TYPED_LIST(hpdata_empty_list, hpdata_t, ql_link_empty)
@@ -284,23 +290,43 @@ hpdata_longest_free_range_set(hpdata_t *hpdata, size_t longest_free_range) {
 }
 
 static inline size_t
-hpdata_nactive_get(hpdata_t *hpdata) {
+hpdata_nactive_get(const hpdata_t *hpdata) {
 	return hpdata->h_nactive;
 }
 
 static inline size_t
-hpdata_ntouched_get(hpdata_t *hpdata) {
+hpdata_ntouched_get(const hpdata_t *hpdata) {
 	return hpdata->h_ntouched;
 }
 
 static inline size_t
-hpdata_ndirty_get(hpdata_t *hpdata) {
+hpdata_ndirty_get(const hpdata_t *hpdata) {
 	return hpdata->h_ntouched - hpdata->h_nactive;
 }
 
 static inline size_t
 hpdata_nretained_get(hpdata_t *hpdata) {
 	return HUGEPAGE_PAGES - hpdata->h_ntouched;
+}
+
+static inline void
+hpdata_time_purge_allowed_set(hpdata_t *hpdata, const nstime_t *v) {
+	nstime_copy(&hpdata->h_time_purge_allowed, v);
+}
+
+static inline const nstime_t *
+hpdata_time_purge_allowed_get(const hpdata_t *hpdata) {
+	return &hpdata->h_time_purge_allowed;
+}
+
+static inline bool
+hpdata_purged_when_empty_and_huge_get(const hpdata_t *hpdata) {
+	return hpdata->h_purged_when_empty_and_huge;
+}
+
+static inline void
+hpdata_purged_when_empty_and_huge_set(hpdata_t *hpdata, bool v) {
+	hpdata->h_purged_when_empty_and_huge = v;
 }
 
 static inline void
@@ -360,7 +386,7 @@ hpdata_full(const hpdata_t *hpdata) {
 	return hpdata->h_nactive == HUGEPAGE_PAGES;
 }
 
-void hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age);
+void hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age, bool is_huge);
 
 /*
  * Given an hpdata which can serve an allocation request, pick and reserve an

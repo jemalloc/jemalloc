@@ -147,6 +147,15 @@ struct hpa_shard_s {
 	 * Last time we performed purge on this shard.
 	 */
 	nstime_t last_purge;
+
+	/*
+	 * Last time when we attempted work (purging or hugifying). If deferral
+	 * of the work is allowed (we have background thread), this is the time
+	 * when background thread checked if purging or hugifying needs to be
+	 * done. If deferral is not allowed, this is the time of (hpa_alloc or
+	 * hpa_dalloc) activity in the shard.
+	 */
+	nstime_t last_time_work_attempted;
 };
 
 bool hpa_hugepage_size_exceeds_limit(void);
