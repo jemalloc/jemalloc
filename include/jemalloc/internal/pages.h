@@ -127,6 +127,5 @@ bool pages_boot(void);
 void pages_set_thp_state(void *ptr, size_t size);
 void pages_mark_guards(void *head, void *tail);
 void pages_unmark_guards(void *head, void *tail);
-void pages_postfork_child(void);
 
 #endif /* JEMALLOC_INTERNAL_PAGES_EXTERNS_H */
