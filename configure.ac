@@ -1990,6 +1990,11 @@ case "${host}" in
         LG_PAGE=14
       fi
       ;;
+  aarch64-unknown-linux-*)
+      if test "x$LG_PAGE" = "xdetect"; then
+        LG_PAGE=16
+      fi
+      ;;
 esac
 if test "x$LG_PAGE" = "xdetect"; then
   AC_CACHE_CHECK([LG_PAGE],
@@ -3076,6 +3081,8 @@ AC_MSG_RESULT([DATADIR            : ${DATADIR}])
 AC_MSG_RESULT([INCLUDEDIR         : ${INCLUDEDIR}])
 AC_MSG_RESULT([LIBDIR             : ${LIBDIR}])
 AC_MSG_RESULT([MANDIR             : ${MANDIR}])
+AC_MSG_RESULT([])
+AC_MSG_RESULT([LG_PAGE            : ${LG_PAGE}])
 AC_MSG_RESULT([])
 AC_MSG_RESULT([srcroot            : ${srcroot}])
 AC_MSG_RESULT([abs_srcroot        : ${abs_srcroot}])
