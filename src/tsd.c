@@ -528,7 +528,7 @@ tsd_init_check_recursion(tsd_init_head_t *head, tsd_init_block_t *block) {
 	/* Check whether this thread has already inserted into the list. */
 	malloc_mutex_lock(TSDN_NULL, &head->lock);
 	ql_foreach (iter, &head->blocks, link) {
-		if (iter->thread == self) {
+		if (pthread_equal(iter->thread, self)) {
 			malloc_mutex_unlock(TSDN_NULL, &head->lock);
 			return iter->data;
 		}
