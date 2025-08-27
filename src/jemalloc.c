@@ -220,7 +220,8 @@ static uint8_t malloc_slow_flags;
 /* Used to let the initializing thread recursively allocate. */
 #	define NO_INITIALIZER ((unsigned long)0)
 #	define INITIALIZER pthread_self()
-#	define IS_INITIALIZER (malloc_initializer == pthread_self())
+#	define IS_INITIALIZER                                                 \
+		(pthread_equal(malloc_initializer, pthread_self()))
 static pthread_t malloc_initializer = NO_INITIALIZER;
 #else
 #	define NO_INITIALIZER false
