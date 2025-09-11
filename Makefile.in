@@ -155,7 +155,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/tcache.c \
 	$(srcroot)src/test_hooks.c \
 	$(srcroot)src/thread_event.c \
-        $(srcroot)src/thread_event_registry.c \
+	$(srcroot)src/thread_event_registry.c \
 	$(srcroot)src/ticker.c \
 	$(srcroot)src/tsd.c \
 	$(srcroot)src/util.c \
