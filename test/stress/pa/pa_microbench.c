@@ -32,10 +32,11 @@
 typedef enum { PA_ALLOC = 0, PA_DALLOC = 1 } pa_op_t;
 
 typedef struct {
-	int     shard_ind;
-	pa_op_t operation;
-	size_t  size_or_alloc_index;
-	int     is_frequent;
+	int      shard_ind;
+	pa_op_t  operation;
+	size_t   size_or_alloc_index;
+	uint64_t nsecs;
+	int      is_frequent;
 } pa_event_t;
 
 typedef struct {
@@ -72,6 +73,29 @@ static shard_stats_t *g_shard_stats = NULL; /* Per-shard tracking statistics */
 static shard_infrastructure_t *g_shard_infra =
     NULL;                         /* Per-shard PA infrastructure */
 static pa_central_t g_pa_central; /* Global PA central */
+
+/* Override for curtime */
+static hpa_hooks_t hpa_hooks_override;
+static nstime_t    cur_time_clock;
+
+void
+curtime(nstime_t *r_time, bool first_reading) {
+	if (first_reading) {
+		nstime_init_zero(r_time);
+	}
+	*r_time = cur_time_clock;
+}
+
+static void
+set_clock(uint64_t nsecs) {
+	nstime_init(&cur_time_clock, nsecs);
+}
+
+static void
+init_hpa_hooks() {
+	hpa_hooks_override = hpa_hooks_default;
+	hpa_hooks_override.curtime = curtime;
+}
 
 static void cleanup_pa_infrastructure(int num_shards);
 
@@ -125,8 +149,9 @@ initialize_pa_infrastructure(int num_shards) {
 	}
 
 	/* Initialize PA central with HPA enabled */
+	init_hpa_hooks();
 	if (pa_central_init(&g_pa_central, central_base, true /* hpa */,
-	        &hpa_hooks_default)) {
+	        &hpa_hooks_override)) {
 		printf("DEBUG: Failed to initialize PA central\n");
 		base_delete(tsd_tsdn(tsd_fetch()), central_base);
 		free(g_shard_stats);
@@ -237,14 +262,15 @@ static bool
 parse_csv_line(const char *line, pa_event_t *event) {
 	/* Expected format: shard_ind,operation,size_or_alloc_index,is_frequent */
 	int operation;
-	int fields = sscanf(line, "%d,%d,%zu,%d", &event->shard_ind, &operation,
-	    &event->size_or_alloc_index, &event->is_frequent);
+	int fields = sscanf(line, "%d,%d,%zu,%lu,%d", &event->shard_ind,
+	    &operation, &event->size_or_alloc_index, &event->nsecs,
+	    &event->is_frequent);
 
-	if (fields < 3) { /* is_frequent is optional */
+	if (fields < 4) { /* is_frequent is optional */
 		return false;
 	}
 
-	if (fields == 3) {
+	if (fields == 4) {
 		event->is_frequent = 0; /* Default value */
 	}
 
@@ -393,6 +419,7 @@ simulate_trace(
 			continue;
 		}
 
+		set_clock(event->nsecs);
 		switch (event->operation) {
 		case PA_ALLOC: {
 			size_t size = event->size_or_alloc_index;
