@@ -16,13 +16,14 @@
  *   HPA: shard_ind_int,addr_int,nsecs_int,probe,size_int
  *   SEC: process_id,thread_id,thread_name,nsecs_int,_c4,sec_ptr_int,sec_shard_ptr_int,edata_ptr_int,size_int,is_frequent_reuse_int
  *
- * Output format (4 columns):
- *   shard_ind_int,operation_index,size_or_alloc_index,is_frequent
+ * Output format (5 columns):
+ *   shard_ind_int,operation_index,size_or_alloc_index,nsecs,is_frequent
  *   where:
  *   - shard_ind_int: shard index as integer
  *   - operation_index: 0=alloc, 1=dalloc
  *   - size_or_alloc_index: for alloc operations show bytes,
  *                          for dalloc operations show index of corresponding alloc
+ *   - nsecs: nanonosec of some monotonic clock
  *   - is_frequent: 1 if frequent reuse allocation, 0 otherwise
  */
 
@@ -250,14 +251,14 @@ parse_sec_line(
 
 void
 write_output_header(std::ofstream &output) {
-	output << "shard_ind,operation,size_or_alloc_index,is_frequent\n";
+	output << "shard_ind,operation,size_or_alloc_index,nsecs,is_frequent\n";
 }
 
 void
 write_output_event(std::ofstream &output, int shard_ind, int operation,
-    size_t value, bool is_frequent) {
-	output << shard_ind << "," << operation << "," << value << ","
-	       << (is_frequent ? 1 : 0) << "\n";
+    size_t value, uint64_t nsecs, bool is_frequent) {
+	output << shard_ind << "," << operation << "," << value << "," << nsecs
+	       << "," << (is_frequent ? 1 : 0) << "\n";
 }
 
 size_t
@@ -319,7 +320,7 @@ process_trace_file(const std::string &input_filename,
 		if (is_alloc_operation(event.probe)) {
 			/* This is an allocation */
 			write_output_event(output, event.shard_ind, 0,
-			    event.size, event.is_frequent);
+			    event.size, event.nsecs, event.is_frequent);
 
 			/* Track this allocation with the current sequence number */
 			tracker.add_allocation(event.addr, event.size,
@@ -335,7 +336,8 @@ process_trace_file(const std::string &input_filename,
 				assert(event.nsecs >= record->nsecs);
 				/* Found matching allocation with valid timing */
 				write_output_event(output, event.shard_ind, 1,
-				    record->alloc_index, event.is_frequent);
+				    record->alloc_index, event.nsecs,
+				    event.is_frequent);
 				tracker.remove_allocation(event.addr);
 				output_count++; /* Count this deallocation */
 			} else {
@@ -390,7 +392,7 @@ main(int argc, char *argv[]) {
 		    << "  output_file     - Output file for simulator with format:"
 		    << std::endl;
 		std::cerr
-		    << "                    shard_ind,operation,size_or_alloc_index,is_frequent"
+		    << "                    shard_ind,operation,size_or_alloc_index,nsecs,is_frequent"
 		    << std::endl;
 		std::cerr << std::endl;
 		std::cerr << "Output format:" << std::endl;
