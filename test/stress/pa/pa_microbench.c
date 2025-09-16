@@ -382,11 +382,17 @@ print_shard_stats(int shard_id, size_t operation_count) {
 	}
 
 	/* Dirty bytes */
-	size_t dirty_bytes = psset_stats->merged.ndirty * PAGE;
+	size_t   dirty_bytes = psset_stats->merged.ndirty * PAGE;
+	uint64_t npurge_passes = hpa_stats.nonderived_stats.npurge_passes;
+	uint64_t npurges = hpa_stats.nonderived_stats.npurges;
 
+	assert(g_use_sec
+	    || psset_stats->merged.nactive * PAGE
+	        == g_shard_stats[shard_id].bytes_allocated);
 	/* Output enhanced stats with detailed breakdown */
 	fprintf(g_stats_output,
-	    "%zu,%d,%lu,%lu,%lu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%lu,%lu,%lu\n",
+	    "%zu,%d,%lu,%lu,%lu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%lu,%lu,%lu"
+	    ",%lu,%lu\n",
 	    operation_count, shard_id, g_shard_stats[shard_id].alloc_count,
 	    g_shard_stats[shard_id].dealloc_count,
 	    g_shard_stats[shard_id].bytes_allocated, total_pageslabs,
@@ -395,7 +401,7 @@ print_shard_stats(int shard_id, size_t operation_count) {
 	    empty_pageslabs_non_huge, empty_pageslabs_huge, dirty_bytes,
 	    hpa_stats.nonderived_stats.nhugifies,
 	    hpa_stats.nonderived_stats.nhugify_failures,
-	    hpa_stats.nonderived_stats.ndehugifies);
+	    hpa_stats.nonderived_stats.ndehugifies, npurge_passes, npurges);
 	fflush(g_stats_output);
 }
 
@@ -629,7 +635,8 @@ main(int argc, char *argv[]) {
 		    "total_pageslabs,full_pageslabs_total,empty_pageslabs_total,hugified_pageslabs,"
 		    "full_pageslabs_non_huge,full_pageslabs_huge,"
 		    "empty_pageslabs_non_huge,empty_pageslabs_huge,"
-		    "dirty_bytes,nhugifies,nhugify_failures,ndehugifies\n");
+		    "dirty_bytes,nhugifies,nhugify_failures,ndehugifies,"
+		    "npurge_passes,npurges\n");
 	}
 
 	/* Load trace data and determine max number of arenas */
