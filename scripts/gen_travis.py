@@ -333,7 +333,10 @@ EXTRA_CFLAGS="-Werror -Wno-array-bounds"
 
 def main():
     jobs = '\n'.join((
-        generate_windows(AMD64),
+        # Travis is failing on Windows due to infra failures, comment it out for
+        # now.  Should resume once it is fixed.
+
+        # generate_windows(AMD64),
 
         # Travis currently provides only FreeBSD 12.1 which is EOL.  Builds are
         # not working as of Jan 2024.  Disable the tests for now to avoid the
