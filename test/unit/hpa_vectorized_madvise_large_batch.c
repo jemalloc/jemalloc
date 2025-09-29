@@ -140,6 +140,7 @@ TEST_BEGIN(test_vectorized_purge) {
 	hooks.unmap = &defer_test_unmap;
 	hooks.purge = &defer_test_purge;
 	hooks.hugify = &defer_test_hugify;
+	hooks.dehugify = &defer_test_dehugify;
 	hooks.curtime = &defer_test_curtime;
 	hooks.ms_since = &defer_test_ms_since;
 	hooks.vectorized_purge = &defer_vectorized_purge;
