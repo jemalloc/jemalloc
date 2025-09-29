@@ -123,6 +123,12 @@ defer_test_hugify(void *ptr, size_t size, bool sync) {
 	return false;
 }
 
+static size_t ndefer_dehugify_calls = 0;
+static void
+defer_test_dehugify(void *ptr, size_t size) {
+	++ndefer_dehugify_calls;
+}
+
 static nstime_t defer_curtime;
 static void
 defer_test_curtime(nstime_t *r_time, bool first_reading) {
@@ -142,6 +148,7 @@ TEST_BEGIN(test_vectorized_failure_fallback) {
 	hooks.unmap = &defer_test_unmap;
 	hooks.purge = &defer_test_purge;
 	hooks.hugify = &defer_test_hugify;
+	hooks.dehugify = &defer_test_dehugify;
 	hooks.curtime = &defer_test_curtime;
 	hooks.ms_since = &defer_test_ms_since;
 	hooks.vectorized_purge = &defer_vectorized_purge_fail;
@@ -181,6 +188,7 @@ TEST_BEGIN(test_more_regions_purged_from_one_page) {
 	hooks.unmap = &defer_test_unmap;
 	hooks.purge = &defer_test_purge;
 	hooks.hugify = &defer_test_hugify;
+	hooks.dehugify = &defer_test_dehugify;
 	hooks.curtime = &defer_test_curtime;
 	hooks.ms_since = &defer_test_ms_since;
 	hooks.vectorized_purge = &defer_vectorized_purge;
@@ -223,6 +231,7 @@ TEST_BEGIN(test_more_regions_purged_from_one_page) {
 	 * we have dirty pages.
 	 */
 	expect_zu_eq(0, ndefer_hugify_calls, "Hugified too early");
+	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
 
 	/* We purge from 2 huge pages, each one 3 dirty continous segments.
 	 * For opt_process_madvise_max_batch = 2, that is
@@ -250,6 +259,7 @@ TEST_BEGIN(test_more_pages_than_batch_page_size) {
 	hooks.unmap = &defer_test_unmap;
 	hooks.purge = &defer_test_purge;
 	hooks.hugify = &defer_test_hugify;
+	hooks.dehugify = &defer_test_dehugify;
 	hooks.curtime = &defer_test_curtime;
 	hooks.ms_since = &defer_test_ms_since;
 	hooks.vectorized_purge = &defer_vectorized_purge;
@@ -286,6 +296,7 @@ TEST_BEGIN(test_more_pages_than_batch_page_size) {
 	 * we have dirty pages.
 	 */
 	expect_zu_eq(0, ndefer_hugify_calls, "Hugified too early");
+	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
 
 	/* We have page batch size = 1.
 	 * we have 5 * HP active pages, 3 * HP dirty pages

@@ -433,11 +433,18 @@ hpa_purge_actual_unlocked(
 	hpa_range_accum_init(&accum, vec, len);
 
 	for (size_t i = 0; i < batch_sz; ++i) {
+		hpdata_t *to_purge = batch[i].hp;
+
+		/* Actually do the purging, now that the lock is dropped. */
+		if (batch[i].dehugify) {
+			shard->central->hooks.dehugify(
+			    hpdata_addr_get(to_purge), HUGEPAGE);
+		}
 		void  *purge_addr;
 		size_t purge_size;
 		size_t total_purged_on_one_hp = 0;
 		while (hpdata_purge_next(
-		    batch[i].hp, &batch[i].state, &purge_addr, &purge_size)) {
+		    to_purge, &batch[i].state, &purge_addr, &purge_size)) {
 			total_purged_on_one_hp += purge_size;
 			assert(total_purged_on_one_hp <= HUGEPAGE);
 			hpa_range_accum_add(
