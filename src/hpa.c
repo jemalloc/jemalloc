@@ -473,70 +473,6 @@ hpa_shard_has_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard) {
 	return to_hugify != NULL || hpa_should_purge(tsdn, shard);
 }
 
-/*
- * This is used for jemalloc internal tuning and may change in the
- * future based on production traffic.
- *
- * This value protects two things:
- *    1. Stack size
- *    2. Number of huge pages that are being purged in a batch as
- *       we do not allow allocations while making madvise syscall.
- */
-#define HPA_PURGE_BATCH_MAX_DEFAULT 16
-
-#ifndef JEMALLOC_JET
-#	define HPA_PURGE_BATCH_MAX HPA_PURGE_BATCH_MAX_DEFAULT
-#else
-size_t hpa_purge_max_batch_size_for_test = HPA_PURGE_BATCH_MAX_DEFAULT;
-size_t
-hpa_purge_max_batch_size_for_test_set(size_t new_size) {
-	size_t old_size = hpa_purge_max_batch_size_for_test;
-	hpa_purge_max_batch_size_for_test = new_size;
-	return old_size;
-}
-#	define HPA_PURGE_BATCH_MAX hpa_purge_max_batch_size_for_test
-#endif
-
-static inline size_t
-hpa_process_madvise_max_iovec_len(void) {
-	assert(
-	    opt_process_madvise_max_batch <= PROCESS_MADVISE_MAX_BATCH_LIMIT);
-	return opt_process_madvise_max_batch == 0
-	    ? HPA_MIN_VAR_VEC_SIZE
-	    : opt_process_madvise_max_batch;
-}
-
-static inline void
-hpa_purge_actual_unlocked(
-    hpa_shard_t *shard, hpa_purge_item_t *batch, size_t batch_sz) {
-	assert(batch_sz > 0);
-
-	size_t len = hpa_process_madvise_max_iovec_len();
-	VARIABLE_ARRAY(hpa_io_vector_t, vec, len);
-
-	hpa_range_accum_t accum;
-	hpa_range_accum_init(&accum, vec, len);
-
-	for (size_t i = 0; i < batch_sz; ++i) {
-		/* Actually do the purging, now that the lock is dropped. */
-		if (batch[i].dehugify) {
-			shard->central->hooks.dehugify(
-			    hpdata_addr_get(batch[i].hp), HUGEPAGE);
-		}
-		void  *purge_addr;
-		size_t purge_size;
-		size_t total_purged_on_one_hp = 0;
-		while (hpdata_purge_next(
-		    batch[i].hp, &batch[i].state, &purge_addr, &purge_size)) {
-			total_purged_on_one_hp += purge_size;
-			assert(total_purged_on_one_hp <= HUGEPAGE);
-			hpa_range_accum_add(
-			    &accum, purge_addr, purge_size, shard);
-		}
-	}
-	hpa_range_accum_finish(&accum, shard);
-}
-
 static inline bool
 hpa_needs_dehugify(hpa_shard_t *shard, const hpdata_t *ps) {
 	return (hpa_is_hugify_lazy(shard)
@@ -624,26 +560,6 @@ hpa_purge_finish_hp(
 	psset_update_end(&shard->psset, hp_item->hp);
 }
 
-static inline bool
-hpa_batch_full(hpa_purge_batch_t *b) {
-	/* It's okay for ranges to go above */
-	return b->npurged_hp_total == b->max_hp
-	    || b->item_cnt == b->items_capacity
-	    || b->nranges >= b->range_watermark;
-}
-
-static inline void
-hpa_batch_pass_start(hpa_purge_batch_t *b) {
-	b->item_cnt = 0;
-	b->nranges = 0;
-	b->ndirty_in_batch = 0;
-}
-
-static inline bool
-hpa_batch_empty(hpa_purge_batch_t *b) {
-	return b->item_cnt == 0;
-}
-
 /* Returns number of huge pages purged. */
 static inline size_t
 hpa_purge(tsdn_t *tsdn, hpa_shard_t *shard, size_t max_hp) {
@@ -679,8 +595,9 @@ hpa_purge(tsdn_t *tsdn, hpa_shard_t *shard, size_t max_hp) {
 		if (hpa_batch_empty(&batch)) {
 			break;
 		}
+		hpa_hooks_t *hooks = &shard->central->hooks;
 		malloc_mutex_unlock(tsdn, &shard->mtx);
-		hpa_purge_actual_unlocked(shard, batch.items, batch.item_cnt);
+		hpa_purge_batch(hooks, batch.items, batch.item_cnt);
 		malloc_mutex_lock(tsdn, &shard->mtx);
 
 		/* The shard updates */
