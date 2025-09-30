@@ -622,9 +622,9 @@ pages_dodump(void *addr, size_t size) {
 #	include <sys/mman.h>
 #	include <sys/syscall.h>
 
-#ifndef PIDFD_SELF
-#define PIDFD_SELF -10000
-#endif
+#	ifndef PIDFD_SELF
+#		define PIDFD_SELF -10000
+#	endif
 
 static atomic_b_t process_madvise_gate = ATOMIC_INIT(true);
 
@@ -659,15 +659,15 @@ pages_purge_process_madvise_impl(
 	 * TODO: remove this save/restore of errno after supporting errno
 	 * preservation for free() call properly.
 	 */
-	int saved_errno = get_errno();
+	int    saved_errno = get_errno();
 	size_t purged_bytes = (size_t)syscall(JE_SYS_PROCESS_MADVISE_NR,
 	    PIDFD_SELF, (struct iovec *)vec, vec_len, MADV_DONTNEED, 0);
-	if (purged_bytes == (size_t) -1) {
+	if (purged_bytes == (size_t)-1) {
 		if (errno == EPERM || errno == EINVAL || errno == ENOSYS
 		    || errno == EBADF) {
 			/* Process madvise not supported the way we need it. */
-			atomic_store_b(&process_madvise_gate, false,
-				       ATOMIC_RELAXED);
+			atomic_store_b(
+			    &process_madvise_gate, false, ATOMIC_RELAXED);
 		}
 		set_errno(saved_errno);
 	}

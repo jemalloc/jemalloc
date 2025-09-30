@@ -172,8 +172,7 @@ unsigned ncpus;
 unsigned opt_debug_double_free_max_scan =
     SAFETY_CHECK_DOUBLE_FREE_MAX_SCAN_DEFAULT;
 
-size_t opt_calloc_madvise_threshold =
-    CALLOC_MADVISE_THRESHOLD_DEFAULT;
+size_t opt_calloc_madvise_threshold = CALLOC_MADVISE_THRESHOLD_DEFAULT;
 
 /* Protects arenas initialization. */
 static malloc_mutex_t arenas_lock;
@@ -261,8 +260,8 @@ _init_init_lock(void) {
 #		ifdef _MSC_VER
 #			pragma section(".CRT$XCU", read)
 JEMALLOC_SECTION(".CRT$XCU")
-JEMALLOC_ATTR(used) static const
-    void(WINAPI *init_init_lock)(void) = _init_init_lock;
+JEMALLOC_ATTR(used)
+static const void(WINAPI *init_init_lock)(void) = _init_init_lock;
 #		endif
 #	endif
 #else
@@ -2883,8 +2882,8 @@ malloc_default(size_t size) {
  */
 
 JEMALLOC_EXPORT
-    JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
-    JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(1) je_malloc(size_t size) {
+JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
+JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(1) je_malloc(size_t size) {
 	LOG("core.malloc.entry", "size: %zu", size);
 
 	void *ret = imalloc_fastpath(size, &malloc_default);
@@ -2935,9 +2934,9 @@ JEMALLOC_ATTR(nonnull(1))
 }
 
 JEMALLOC_EXPORT
-    JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
-    JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(2)
-        je_aligned_alloc(size_t alignment, size_t size) {
+JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
+JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(2)
+    je_aligned_alloc(size_t alignment, size_t size) {
 	void *ret;
 
 	static_opts_t  sopts;
@@ -2976,9 +2975,9 @@ JEMALLOC_EXPORT
 }
 
 JEMALLOC_EXPORT
-    JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
-    JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE2(1, 2)
-        je_calloc(size_t num, size_t size) {
+JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
+JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE2(1, 2)
+    je_calloc(size_t num, size_t size) {
 	void          *ret;
 	static_opts_t  sopts;
 	dynamic_opts_t dopts;
@@ -3186,8 +3185,8 @@ je_free_aligned_sized(void *ptr, size_t alignment, size_t size) {
 
 #ifdef JEMALLOC_OVERRIDE_MEMALIGN
 JEMALLOC_EXPORT
-    JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
-    JEMALLOC_ATTR(malloc) je_memalign(size_t alignment, size_t size) {
+JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
+JEMALLOC_ATTR(malloc) je_memalign(size_t alignment, size_t size) {
 	void          *ret;
 	static_opts_t  sopts;
 	dynamic_opts_t dopts;
@@ -3225,8 +3224,8 @@ JEMALLOC_EXPORT
 
 #ifdef JEMALLOC_OVERRIDE_VALLOC
 JEMALLOC_EXPORT
-    JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
-    JEMALLOC_ATTR(malloc) je_valloc(size_t size) {
+JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
+JEMALLOC_ATTR(malloc) je_valloc(size_t size) {
 	void *ret;
 
 	static_opts_t  sopts;
@@ -3262,8 +3261,8 @@ JEMALLOC_EXPORT
 
 #ifdef JEMALLOC_OVERRIDE_PVALLOC
 JEMALLOC_EXPORT
-    JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
-    JEMALLOC_ATTR(malloc) je_pvalloc(size_t size) {
+JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
+JEMALLOC_ATTR(malloc) je_pvalloc(size_t size) {
 	void *ret;
 
 	static_opts_t  sopts;
@@ -3457,9 +3456,9 @@ JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN smallocx_return_t
 #endif
 
 JEMALLOC_EXPORT
-    JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
-    JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(1)
-        je_mallocx(size_t size, int flags) {
+JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
+JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(1)
+    je_mallocx(size_t size, int flags) {
 	void          *ret;
 	static_opts_t  sopts;
 	dynamic_opts_t dopts;
@@ -3639,8 +3638,8 @@ label_oom:
 }
 
 JEMALLOC_EXPORT
-    JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
-    JEMALLOC_ALLOC_SIZE(2) je_rallocx(void *ptr, size_t size, int flags) {
+JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
+JEMALLOC_ALLOC_SIZE(2) je_rallocx(void *ptr, size_t size, int flags) {
 	LOG("core.rallocx.entry", "ptr: %p, size: %zu, flags: %d", ptr, size,
 	    flags);
 	void *ret = do_rallocx(ptr, size, flags, false);
@@ -3689,8 +3688,8 @@ do_realloc_nonnull_zero(void *ptr) {
 }
 
 JEMALLOC_EXPORT
-    JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
-    JEMALLOC_ALLOC_SIZE(2) je_realloc(void *ptr, size_t size) {
+JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
+JEMALLOC_ALLOC_SIZE(2) je_realloc(void *ptr, size_t size) {
 	LOG("core.realloc.entry", "ptr: %p, size: %zu\n", ptr, size);
 
 	if (likely(ptr != NULL && size != 0)) {
