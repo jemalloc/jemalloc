@@ -67,6 +67,9 @@
     <ClCompile Include="..\..\..\..\src\hpa.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\src\hpa_central.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\src\hpa_hooks.c">
       <Filter>Source Files</Filter>
     </ClCompile>
