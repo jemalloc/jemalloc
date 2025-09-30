@@ -1,6 +1,7 @@
 #include "test/jemalloc_test.h"
 
 #include "jemalloc/internal/hpa.h"
+#include "jemalloc/internal/hpa_utils.h"
 #include "jemalloc/internal/nstime.h"
 
 #define SHARD_IND 111
@@ -195,7 +196,75 @@ TEST_BEGIN(test_vectorized_purge) {
 }
 TEST_END
 
+TEST_BEGIN(test_purge_more_than_one_batch_pages) {
+	test_skip_if(!hpa_supported()
+	    || (opt_process_madvise_max_batch < HPA_PURGE_BATCH_MAX)
+	    || HUGEPAGE_PAGES <= 4);
+
+	hpa_hooks_t hooks;
+	hooks.map = &defer_test_map;
+	hooks.unmap = &defer_test_unmap;
+	hooks.purge = &defer_test_purge;
+	hooks.hugify = &defer_test_hugify;
+	hooks.dehugify = &defer_test_dehugify;
+	hooks.curtime = &defer_test_curtime;
+	hooks.ms_since = &defer_test_ms_since;
+	hooks.vectorized_purge = &defer_vectorized_purge;
+
+	hpa_shard_opts_t opts = test_hpa_shard_opts_default;
+	opts.deferral_allowed = true;
+	opts.min_purge_interval_ms = 0;
+	opts.dirty_mult = FXP_INIT_PERCENT(1);
+	ndefer_vec_purge_calls = 0;
+	ndefer_purge_calls = 0;
+	ndefer_hugify_calls = 0;
+	ndefer_dehugify_calls = 0;
+
+	hpa_shard_t *shard = create_test_data(&hooks, &opts);
+
+	bool deferred_work_generated = false;
+
+	nstime_init(&defer_curtime, 0);
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+
+	enum { NALLOCS = HPA_PURGE_BATCH_MAX * 3 * HUGEPAGE_PAGES };
+	edata_t *edatas[NALLOCS];
+	for (int i = 0; i < NALLOCS; i++) {
+		edatas[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false,
+		    false, false, &deferred_work_generated);
+		expect_ptr_not_null(edatas[i], "Unexpected null edata");
+	}
+	for (int i = 0; i < HPA_PURGE_BATCH_MAX * 2 * (int)HUGEPAGE_PAGES;
+	    i++) {
+		pai_dalloc(
+		    tsdn, &shard->pai, edatas[i], &deferred_work_generated);
+	}
+
+	hpa_shard_do_deferred_work(tsdn, shard);
+
+	/*
+	 * Strict minimum purge interval is not set, we should purge as long as
+	 * we have dirty pages.
+	 */
+	expect_zu_eq(0, ndefer_hugify_calls, "Hugified too early");
+	expect_zu_eq(0, ndefer_dehugify_calls, "Dehugified too early");
+
+	/* We have page batch size = HPA_PURGE_BATCH_MAX.  We have
+	 * HPA_PURGE_BATCH_MAX active pages, 2 * HPA_PURGE_BATCH_MAX dirty.
+	 * To achieve the balance of 1% max dirty we need to purge more than one
+	 * batch.
+	 */
+	size_t nexpected = 2;
+	expect_zu_eq(nexpected, ndefer_vec_purge_calls, "Expect purge");
+	expect_zu_eq(0, ndefer_purge_calls, "Expect no non-vec purge");
+	ndefer_vec_purge_calls = 0;
+
+	destroy_test_data(shard);
+}
+TEST_END
+
 int
 main(void) {
-	return test_no_reentrancy(test_vectorized_purge);
+	return test_no_reentrancy(
+	    test_vectorized_purge, test_purge_more_than_one_batch_pages);
 }
