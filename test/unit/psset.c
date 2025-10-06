@@ -124,8 +124,8 @@ TEST_BEGIN(test_empty) {
 	test_skip_if(hpa_hugepage_size_exceeds_limit());
 	bool     err;
 	hpdata_t pageslab;
-	bool     is_huge = false;
-	hpdata_init(&pageslab, PAGESLAB_ADDR, PAGESLAB_AGE, is_huge);
+	hpdata_init(
+	    &pageslab, PAGESLAB_ADDR, PAGESLAB_AGE, /* is_huge */ false);
 
 	edata_t alloc;
 	edata_init_test(&alloc);
@@ -142,10 +142,10 @@ TEST_END
 TEST_BEGIN(test_fill) {
 	test_skip_if(hpa_hugepage_size_exceeds_limit());
 	bool err;
-	bool is_huge = false;
 
 	hpdata_t pageslab;
-	hpdata_init(&pageslab, PAGESLAB_ADDR, PAGESLAB_AGE, is_huge);
+	hpdata_init(
+	    &pageslab, PAGESLAB_ADDR, PAGESLAB_AGE, /* is_huge */ false);
 
 	edata_t *alloc = (edata_t *)malloc(sizeof(edata_t) * HUGEPAGE_PAGES);
 
@@ -181,8 +181,8 @@ TEST_BEGIN(test_reuse) {
 	hpdata_t *ps;
 
 	hpdata_t pageslab;
-	bool     is_huge = false;
-	hpdata_init(&pageslab, PAGESLAB_ADDR, PAGESLAB_AGE, is_huge);
+	hpdata_init(
+	    &pageslab, PAGESLAB_ADDR, PAGESLAB_AGE, /* is_huge */ false);
 
 	edata_t *alloc = (edata_t *)malloc(sizeof(edata_t) * HUGEPAGE_PAGES);
 
@@ -277,8 +277,8 @@ TEST_BEGIN(test_evict) {
 	hpdata_t *ps;
 
 	hpdata_t pageslab;
-	bool     is_huge = false;
-	hpdata_init(&pageslab, PAGESLAB_ADDR, PAGESLAB_AGE, is_huge);
+	hpdata_init(
+	    &pageslab, PAGESLAB_ADDR, PAGESLAB_AGE, /* is_huge */ false);
 
 	edata_t *alloc = (edata_t *)malloc(sizeof(edata_t) * HUGEPAGE_PAGES);
 
@@ -315,10 +315,10 @@ TEST_BEGIN(test_multi_pageslab) {
 	hpdata_t *ps;
 
 	hpdata_t pageslab[2];
-	bool     is_huge = false;
-	hpdata_init(&pageslab[0], PAGESLAB_ADDR, PAGESLAB_AGE, is_huge);
+	hpdata_init(
+	    &pageslab[0], PAGESLAB_ADDR, PAGESLAB_AGE, /* is_huge */ false);
 	hpdata_init(&pageslab[1], (void *)((uintptr_t)PAGESLAB_ADDR + HUGEPAGE),
-	    PAGESLAB_AGE + 1, is_huge);
+	    PAGESLAB_AGE + 1, /* is_huge */ false);
 
 	edata_t *alloc[2];
 	alloc[0] = (edata_t *)malloc(sizeof(edata_t) * HUGEPAGE_PAGES);
@@ -381,8 +381,8 @@ TEST_END
 
 TEST_BEGIN(test_stats_merged) {
 	hpdata_t pageslab;
-	bool     is_huge = false;
-	hpdata_init(&pageslab, PAGESLAB_ADDR, PAGESLAB_AGE, is_huge);
+	hpdata_init(
+	    &pageslab, PAGESLAB_ADDR, PAGESLAB_AGE, /* is_huge */ false);
 
 	edata_t *alloc = (edata_t *)malloc(sizeof(edata_t) * HUGEPAGE_PAGES);
 
@@ -448,8 +448,8 @@ TEST_BEGIN(test_stats_huge) {
 	test_skip_if(hpa_hugepage_size_exceeds_limit());
 
 	hpdata_t pageslab;
-	bool     is_huge = false;
-	hpdata_init(&pageslab, PAGESLAB_ADDR, PAGESLAB_AGE, is_huge);
+	hpdata_init(
+	    &pageslab, PAGESLAB_ADDR, PAGESLAB_AGE, /* is_huge */ false);
 
 	edata_t *alloc = (edata_t *)malloc(sizeof(edata_t) * HUGEPAGE_PAGES);
 
@@ -577,8 +577,8 @@ TEST_BEGIN(test_stats_fullness) {
 	bool err;
 
 	hpdata_t pageslab;
-	bool     is_huge = false;
-	hpdata_init(&pageslab, PAGESLAB_ADDR, PAGESLAB_AGE, is_huge);
+	hpdata_init(
+	    &pageslab, PAGESLAB_ADDR, PAGESLAB_AGE, /* is_huge */ false);
 
 	edata_t *alloc = (edata_t *)malloc(sizeof(edata_t) * HUGEPAGE_PAGES);
 
@@ -628,15 +628,15 @@ static void
 init_test_pageslabs(psset_t *psset, hpdata_t *pageslab,
     hpdata_t *worse_pageslab, edata_t *alloc, edata_t *worse_alloc) {
 	bool err;
-	bool is_huge = false;
 
-	hpdata_init(pageslab, (void *)(10 * HUGEPAGE), PAGESLAB_AGE, is_huge);
+	hpdata_init(pageslab, (void *)(10 * HUGEPAGE), PAGESLAB_AGE,
+	    /* is_huge */ false);
 	/*
 	 * This pageslab would be better from an address-first-fit POV, but
 	 * worse from an age POV.
 	 */
-	hpdata_init(
-	    worse_pageslab, (void *)(9 * HUGEPAGE), PAGESLAB_AGE + 1, is_huge);
+	hpdata_init(worse_pageslab, (void *)(9 * HUGEPAGE), PAGESLAB_AGE + 1,
+	    /* is_huge */ false);
 
 	psset_init(psset);
 
@@ -773,15 +773,15 @@ TEST_BEGIN(test_purge_prefers_nonhuge) {
 	hpdata_t  hpdata_nonhuge[NHP];
 	uintptr_t nonhuge_begin = (uintptr_t)&hpdata_nonhuge[0];
 	uintptr_t nonhuge_end = (uintptr_t)&hpdata_nonhuge[NHP];
-	bool      is_huge = false;
 
 	for (size_t i = 0; i < NHP; i++) {
 		hpdata_init(&hpdata_huge[i], (void *)((10 + i) * HUGEPAGE),
-		    123 + i, is_huge);
+		    123 + i, /* is_huge */ false);
 		psset_insert(&psset, &hpdata_huge[i]);
 
 		hpdata_init(&hpdata_nonhuge[i],
-		    (void *)((10 + NHP + i) * HUGEPAGE), 456 + i, is_huge);
+		    (void *)((10 + NHP + i) * HUGEPAGE), 456 + i,
+		    /* is_huge */ false);
 		psset_insert(&psset, &hpdata_nonhuge[i]);
 	}
 	for (int i = 0; i < 2 * NHP; i++) {
@@ -911,10 +911,11 @@ TEST_BEGIN(test_purge_prefers_empty) {
 
 	hpdata_t hpdata_empty;
 	hpdata_t hpdata_nonempty;
-	bool     is_huge = false;
-	hpdata_init(&hpdata_empty, (void *)(10 * HUGEPAGE), 123, is_huge);
+	hpdata_init(
+	    &hpdata_empty, (void *)(10 * HUGEPAGE), 123, /* is_huge */ false);
 	psset_insert(&psset, &hpdata_empty);
-	hpdata_init(&hpdata_nonempty, (void *)(11 * HUGEPAGE), 456, is_huge);
+	hpdata_init(&hpdata_nonempty, (void *)(11 * HUGEPAGE), 456,
+	    /* is_huge */ false);
 	psset_insert(&psset, &hpdata_nonempty);
 
 	psset_update_begin(&psset, &hpdata_empty);
@@ -954,16 +955,15 @@ TEST_BEGIN(test_purge_prefers_empty_huge) {
 
 	uintptr_t cur_addr = 100 * HUGEPAGE;
 	uint64_t  cur_age = 123;
-	bool      is_huge = false;
 	for (int i = 0; i < NHP; i++) {
-		hpdata_init(
-		    &hpdata_huge[i], (void *)cur_addr, cur_age, is_huge);
+		hpdata_init(&hpdata_huge[i], (void *)cur_addr, cur_age,
+		    /* is_huge */ false);
 		cur_addr += HUGEPAGE;
 		cur_age++;
 		psset_insert(&psset, &hpdata_huge[i]);
 
-		hpdata_init(
-		    &hpdata_nonhuge[i], (void *)cur_addr, cur_age, is_huge);
+		hpdata_init(&hpdata_nonhuge[i], (void *)cur_addr, cur_age,
+		    /* is_huge */ false);
 		cur_addr += HUGEPAGE;
 		cur_age++;
 		psset_insert(&psset, &hpdata_nonhuge[i]);
