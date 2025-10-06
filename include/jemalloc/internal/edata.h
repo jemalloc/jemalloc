@@ -23,7 +23,7 @@
 
 /*
  * Defines how many nodes visited when enumerating the heap to search for
- * qualifed extents.  More nodes visited may result in better choices at
+ * qualified extents.  More nodes visited may result in better choices at
  * the cost of longer search time.  This size should not exceed 2^16 - 1
  * because we use uint16_t for accessing the queue needed for enumeration.
  */
@@ -230,7 +230,7 @@ struct edata_s {
 
 	/*
 	 * If this edata is a user allocation from an HPA, it comes out of some
-	 * pageslab (we don't yet support huegpage allocations that don't fit
+	 * pageslab (we don't yet support hugepage allocations that don't fit
 	 * into pageslabs).  This tracks it.
 	 */
 	hpdata_t *e_ps;
