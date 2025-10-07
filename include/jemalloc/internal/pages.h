@@ -97,8 +97,12 @@ static const bool pages_can_hugify =
 #endif
     ;
 
+/*
+ * thp_mode_t are values for opt.thp, while system_thp_mode_t is for kernel thp
+ * settings, i.e., init_system_thp_mode.
+ */
 typedef enum {
-	thp_mode_default = 0, /* Do not change hugepage settings. */
+	thp_mode_do_nothing = 0, /* Respect kernel thp settings. */
 	thp_mode_always = 1,  /* Always set MADV_HUGEPAGE. */
 	thp_mode_never = 2,   /* Always set MADV_NOHUGEPAGE. */
 
@@ -106,10 +110,18 @@ typedef enum {
 	thp_mode_not_supported = 3 /* No THP support detected. */
 } thp_mode_t;
 
-#define THP_MODE_DEFAULT thp_mode_default
+typedef enum {
+	system_thp_mode_madvise = 0,     /* Kernel THP mode: madvise */
+	system_thp_mode_always = 1,      /* Kernel THP mode: always */
+	system_thp_mode_never = 2,       /* Kernel THP mode: never */
+	system_thp_mode_not_supported = 3 /* No THP support detected. */
+} system_thp_mode_t;
+
+#define THP_MODE_DEFAULT thp_mode_do_nothing
 extern thp_mode_t        opt_thp;
-extern thp_mode_t        init_system_thp_mode; /* Initial system wide state. */
+extern system_thp_mode_t init_system_thp_mode; /* Initial system wide state. */
 extern const char *const thp_mode_names[];
+extern const char *const system_thp_mode_names[];
 
 void *pages_map(void *addr, size_t size, size_t alignment, bool *commit);
 void  pages_unmap(void *addr, size_t size);

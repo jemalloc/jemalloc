@@ -28,8 +28,8 @@ const char *const metadata_thp_mode_names[] = {"disabled", "auto", "always"};
 
 static inline bool
 metadata_thp_madvise(void) {
-	return (metadata_thp_enabled()
-	    && (init_system_thp_mode == thp_mode_default));
+	return (metadata_thp_enabled() &&
+	    (init_system_thp_mode == system_thp_mode_madvise));
 }
 
 static void *
