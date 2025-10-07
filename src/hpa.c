@@ -840,6 +840,8 @@ hpa_shard_maybe_do_deferred_work(
 static edata_t *
 hpa_try_alloc_one_no_grow(
     tsdn_t *tsdn, hpa_shard_t *shard, size_t size, bool *oom) {
+	malloc_mutex_assert_owner(tsdn, &shard->mtx);
+
 	bool     err;
 	edata_t *edata = edata_cache_fast_get(tsdn, &shard->ecf);
 	if (edata == NULL) {
@@ -912,10 +914,10 @@ hpa_try_alloc_one_no_grow(
 }
 
 static size_t
-hpa_try_alloc_batch_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
-    bool *oom, size_t nallocs, edata_list_active_t *results,
+hpa_try_alloc_batch_no_grow_locked(tsdn_t *tsdn, hpa_shard_t *shard,
+    size_t size, bool *oom, size_t nallocs, edata_list_active_t *results,
     bool *deferred_work_generated) {
-	malloc_mutex_lock(tsdn, &shard->mtx);
+	malloc_mutex_assert_owner(tsdn, &shard->mtx);
 	size_t nsuccess = 0;
 	for (; nsuccess < nallocs; nsuccess++) {
 		edata_t *edata = hpa_try_alloc_one_no_grow(
@@ -928,6 +930,16 @@ hpa_try_alloc_batch_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 
 	hpa_shard_maybe_do_deferred_work(tsdn, shard, /* forced */ false);
 	*deferred_work_generated = hpa_shard_has_deferred_work(tsdn, shard);
+	return nsuccess;
+}
+
+static size_t
+hpa_try_alloc_batch_no_grow(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
+    bool *oom, size_t nallocs, edata_list_active_t *results,
+    bool *deferred_work_generated) {
+	malloc_mutex_lock(tsdn, &shard->mtx);
+	size_t nsuccess = hpa_try_alloc_batch_no_grow_locked(
+	    tsdn, shard, size, oom, nallocs, results, deferred_work_generated);
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 	return nsuccess;
 }
@@ -976,17 +988,16 @@ hpa_alloc_batch_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 	}
 
 	/*
-	 * We got the pageslab; allocate from it.  This does an unlock followed
-	 * by a lock on the same mutex, and holds the grow mutex while doing
-	 * deferred work, but this is an uncommon path; the simplicity is worth
-	 * it.
+	 * We got the pageslab; allocate from it.  This holds the grow mutex
+	 * while doing deferred work, but this is an uncommon path; the
+	 * simplicity is worth it.
 	 */
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	psset_insert(&shard->psset, ps);
+	nsuccess += hpa_try_alloc_batch_no_grow_locked(tsdn, shard, size, &oom,
+	    nallocs - nsuccess, results, deferred_work_generated);
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 
-	nsuccess += hpa_try_alloc_batch_no_grow(tsdn, shard, size, &oom,
-	    nallocs - nsuccess, results, deferred_work_generated);
 	/*
 	 * Drop grow_mtx before doing deferred work; other threads blocked on it
 	 * should be allowed to proceed while we're working.
