@@ -1890,8 +1890,8 @@ arena_init_huge(tsdn_t *tsdn, arena_t *a0) {
 		/* Make sure that b0 thp auto-switch won't happen concurrently here. */
 		malloc_mutex_lock(tsdn, &b0->mtx);
 		(&huge_arena_pac_thp)->thp_madvise = opt_huge_arena_pac_thp
-		    && metadata_thp_enabled() && (opt_thp == thp_mode_default)
-		    && (init_system_thp_mode == thp_mode_default);
+		    && metadata_thp_enabled() && (opt_thp == thp_mode_do_nothing)
+		    && (init_system_thp_mode == system_thp_mode_madvise);
 		(&huge_arena_pac_thp)->auto_thp_switched =
 		    b0->auto_thp_switched;
 		malloc_mutex_init(&(&huge_arena_pac_thp)->lock, "pac_thp",

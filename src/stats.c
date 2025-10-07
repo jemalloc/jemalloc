@@ -1516,6 +1516,22 @@ stats_general_print(emitter_t *emitter) {
 #undef CONFIG_WRITE_BOOL
 	emitter_dict_end(emitter); /* Close "config" dict. */
 
+	/* system. */
+	emitter_dict_begin(emitter, "system", "System configuration");
+
+	/*
+	 * This shows system's THP mode detected at jemalloc's init time.
+	 * jemalloc does not re-detect the mode even if it changes after
+	 * jemalloc's init.  It is assumed that system's THP mode is stable
+	 * during the process's lifetime and a violation could lead to
+	 * undefined behavior.
+	*/
+	const char *thp_mode_name = system_thp_mode_names[init_system_thp_mode];
+	emitter_kv(emitter, "thp_mode", "system.thp_mode", emitter_type_string,
+	    &thp_mode_name);
+
+	emitter_dict_end(emitter); /* Close "system". */
+
 	/* opt. */
 #define OPT_WRITE(name, var, size, emitter_type)                               \
 	if (je_mallctl("opt." name, (void *)&var, &size, NULL, 0) == 0) {      \

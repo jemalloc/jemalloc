@@ -10,7 +10,7 @@ TEST_BEGIN(test_pages_huge) {
 	pages = pages_map(NULL, alloc_size, PAGE, &commit);
 	expect_ptr_not_null(pages, "Unexpected pages_map() error");
 
-	if (init_system_thp_mode == thp_mode_default) {
+	if (init_system_thp_mode == system_thp_mode_madvise) {
 		hugepage = (void *)(ALIGNMENT_CEILING(
 		    (uintptr_t)pages, HUGEPAGE));
 		expect_b_ne(pages_huge(hugepage, HUGEPAGE), have_madvise_huge,

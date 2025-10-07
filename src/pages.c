@@ -44,8 +44,10 @@ static bool os_overcommits;
 
 const char *const thp_mode_names[] = {
     "default", "always", "never", "not supported"};
-thp_mode_t opt_thp = THP_MODE_DEFAULT;
-thp_mode_t init_system_thp_mode;
+const char *const system_thp_mode_names[] = {
+    "madvise", "always", "never", "not supported"};
+thp_mode_t        opt_thp = THP_MODE_DEFAULT;
+system_thp_mode_t init_system_thp_mode;
 
 /* Runtime support for lazy purge. Irrelevant when !pages_can_purge_lazy. */
 static bool pages_can_purge_lazy_runtime = true;
@@ -778,21 +780,31 @@ os_overcommits_proc(void) {
 }
 #endif
 
+static bool
+pages_should_skip_set_thp_state() {
+	if (opt_thp == thp_mode_do_nothing
+	    || (opt_thp == thp_mode_always
+	        && init_system_thp_mode == system_thp_mode_always)
+	    || (opt_thp == thp_mode_never
+	        && init_system_thp_mode == system_thp_mode_never)) {
+		return true;
+	}
+	return false;
+}
 void
 pages_set_thp_state(void *ptr, size_t size) {
-	if (opt_thp == thp_mode_default || opt_thp == init_system_thp_mode) {
+	if (pages_should_skip_set_thp_state()) {
 		return;
 	}
 	assert(opt_thp != thp_mode_not_supported
-	    && init_system_thp_mode != thp_mode_not_supported);
+	    && init_system_thp_mode != system_thp_mode_not_supported);
 
 	if (opt_thp == thp_mode_always
-	    && init_system_thp_mode != thp_mode_never) {
-		assert(init_system_thp_mode == thp_mode_default);
+	    && init_system_thp_mode == system_thp_mode_madvise) {
 		pages_huge_unaligned(ptr, size);
 	} else if (opt_thp == thp_mode_never) {
-		assert(init_system_thp_mode == thp_mode_default
-		    || init_system_thp_mode == thp_mode_always);
+		assert(init_system_thp_mode == system_thp_mode_madvise
+		    || init_system_thp_mode == system_thp_mode_always);
 		pages_nohuge_unaligned(ptr, size);
 	}
 }
@@ -825,16 +837,16 @@ init_thp_state(void) {
 	}
 
 	if (strncmp(buf, sys_state_madvise, (size_t)nread) == 0) {
-		init_system_thp_mode = thp_mode_default;
+		init_system_thp_mode = system_thp_mode_madvise;
 	} else if (strncmp(buf, sys_state_always, (size_t)nread) == 0) {
-		init_system_thp_mode = thp_mode_always;
+		init_system_thp_mode = system_thp_mode_always;
 	} else if (strncmp(buf, sys_state_never, (size_t)nread) == 0) {
-		init_system_thp_mode = thp_mode_never;
+		init_system_thp_mode = system_thp_mode_never;
 	} else {
 		goto label_error;
 	}
 	if (opt_hpa_opts.hugify_style == hpa_hugify_style_auto) {
-		if (init_system_thp_mode == thp_mode_default) {
+		if (init_system_thp_mode == system_thp_mode_madvise) {
 			opt_hpa_opts.hugify_style = hpa_hugify_style_lazy;
 		} else {
 			opt_hpa_opts.hugify_style = hpa_hugify_style_none;
@@ -842,14 +854,15 @@ init_thp_state(void) {
 	}
 	return;
 #elif defined(JEMALLOC_HAVE_MEMCNTL)
-	init_system_thp_mode = thp_mode_default;
+	init_system_thp_mode = system_thp_mode_madvise;
 	if (opt_hpa_opts.hugify_style == hpa_hugify_style_auto) {
 		opt_hpa_opts.hugify_style = hpa_hugify_style_eager;
 	}
 	return;
 #endif
 label_error:
-	opt_thp = init_system_thp_mode = thp_mode_not_supported;
+	opt_thp = thp_mode_not_supported;
+	init_system_thp_mode = system_thp_mode_not_supported;
 }
 
 bool
