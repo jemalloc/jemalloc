@@ -28,6 +28,8 @@ static uint64_t hpa_time_until_deferred_work(tsdn_t *tsdn, pai_t *self);
 
 const char *const hpa_hugify_style_names[] = {"auto", "none", "eager", "lazy"};
 
+bool opt_experimental_hpa_start_huge_if_thp_always = true;
+
 bool
 hpa_hugepage_size_exceeds_limit(void) {
 	return HUGEPAGE > HUGEPAGE_MAX_EXPECTED_SIZE;
@@ -113,6 +115,9 @@ hpa_central_extract(tsdn_t *tsdn, hpa_central_t *central, size_t size,
 	*oom = false;
 
 	hpdata_t *ps = NULL;
+	bool      start_as_huge = hugify_eager
+	    || (init_system_thp_mode == system_thp_mode_always
+	        && opt_experimental_hpa_start_huge_if_thp_always);
 
 	/* Is eden a perfect fit? */
 	if (central->eden != NULL && central->eden_len == HUGEPAGE) {
@@ -122,7 +127,7 @@ hpa_central_extract(tsdn_t *tsdn, hpa_central_t *central, size_t size,
 			malloc_mutex_unlock(tsdn, &central->grow_mtx);
 			return NULL;
 		}
-		hpdata_init(ps, central->eden, age, hugify_eager);
+		hpdata_init(ps, central->eden, age, start_as_huge);
 		central->eden = NULL;
 		central->eden_len = 0;
 		malloc_mutex_unlock(tsdn, &central->grow_mtx);
@@ -170,7 +175,7 @@ hpa_central_extract(tsdn_t *tsdn, hpa_central_t *central, size_t size,
 	assert(central->eden_len % HUGEPAGE == 0);
 	assert(HUGEPAGE_ADDR2BASE(central->eden) == central->eden);
 
-	hpdata_init(ps, central->eden, age, hugify_eager);
+	hpdata_init(ps, central->eden, age, start_as_huge);
 
 	char *eden_char = (char *)central->eden;
 	eden_char += HUGEPAGE;
