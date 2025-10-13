@@ -228,6 +228,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/hash.c \
 	$(srcroot)test/unit/hook.c \
 	$(srcroot)test/unit/hpa.c \
+	$(srcroot)test/unit/hpa_thp_always.c \
 	$(srcroot)test/unit/hpa_vectorized_madvise.c \
 	$(srcroot)test/unit/hpa_vectorized_madvise_large_batch.c \
 	$(srcroot)test/unit/hpa_background_thread.c \

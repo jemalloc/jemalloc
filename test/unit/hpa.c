@@ -1416,7 +1416,6 @@ TEST_BEGIN(test_hpa_hugify_style_none_huge_no_syscall) {
 	nstime_init(&defer_curtime, 10 * 1000 * 1000);
 
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
-	/* First allocation makes the page huge */
 	enum { NALLOCS = HUGEPAGE_PAGES };
 	edata_t *edatas[NALLOCS];
 	ndefer_purge_calls = 0;
@@ -1426,14 +1425,17 @@ TEST_BEGIN(test_hpa_hugify_style_none_huge_no_syscall) {
 		expect_ptr_not_null(edatas[i], "Unexpected null edata");
 	}
 	hpdata_t *ps = psset_pick_alloc(&shard->psset, PAGE);
-	expect_false(hpdata_huge_get(ps), "Page should be non-huge");
+	expect_false(
+	    hpdata_huge_get(ps), "style=none, thp=madvise, should be non-huge");
 
 	ndefer_hugify_calls = 0;
 	ndefer_purge_calls = 0;
 	hpa_shard_do_deferred_work(tsdn, shard);
 	expect_zu_eq(ndefer_hugify_calls, 0, "Hugify none, no syscall");
 	ps = psset_pick_alloc(&shard->psset, PAGE);
-	expect_true(ps, "Page should be huge");
+	expect_ptr_not_null(ps, "Unexpected null page");
+	expect_false(
+	    hpdata_huge_get(ps), "style=none, thp=madvise, should be non-huge");
 
 	destroy_test_data(shard);
 }

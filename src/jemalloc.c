@@ -1303,6 +1303,9 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			CONF_HANDLE_BOOL(opt_cache_oblivious, "cache_oblivious")
 			CONF_HANDLE_BOOL(opt_trust_madvise, "trust_madvise")
 			CONF_HANDLE_BOOL(
+			    opt_experimental_hpa_start_huge_if_thp_always,
+			    "experimental_hpa_start_huge_if_thp_always")
+			CONF_HANDLE_BOOL(
 			    opt_huge_arena_pac_thp, "huge_arena_pac_thp")
 			if (strncmp("metadata_thp", k, klen) == 0) {
 				int  m;
@@ -1647,7 +1650,8 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 
 			if (strncmp("hpa_hugify_style", k, klen) == 0) {
 				bool match = false;
-				for (int m = 0; m < hpa_hugify_style_limit; m++) {
+				for (int m = 0; m < hpa_hugify_style_limit;
+				     m++) {
 					if (strncmp(hpa_hugify_style_names[m],
 					        v, vlen)
 					    == 0) {

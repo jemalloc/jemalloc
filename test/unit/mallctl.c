@@ -300,6 +300,8 @@ TEST_BEGIN(test_mallctl_opt) {
 	TEST_MALLCTL_OPT(bool, abort_conf, always);
 	TEST_MALLCTL_OPT(bool, cache_oblivious, always);
 	TEST_MALLCTL_OPT(bool, trust_madvise, always);
+	TEST_MALLCTL_OPT(
+	    bool, experimental_hpa_start_huge_if_thp_always, always);
 	TEST_MALLCTL_OPT(bool, confirm_conf, always);
 	TEST_MALLCTL_OPT(const char *, metadata_thp, always);
 	TEST_MALLCTL_OPT(bool, retain, always);
