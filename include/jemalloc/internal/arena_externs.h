@@ -61,13 +61,13 @@ bool arena_decay_ms_set(
 ssize_t arena_decay_ms_get(arena_t *arena, extent_state_t state);
 void    arena_decay(
        tsdn_t *tsdn, arena_t *arena, bool is_background_thread, bool all);
-uint64_t arena_time_until_deferred(tsdn_t *tsdn, arena_t *arena);
-void     arena_do_deferred_work(tsdn_t *tsdn, arena_t *arena);
-void     arena_reset(tsd_t *tsd, arena_t *arena);
-void     arena_destroy(tsd_t *tsd, arena_t *arena);
-void     arena_cache_bin_fill_small(tsdn_t *tsdn, arena_t *arena,
-        cache_bin_t *cache_bin, szind_t binind, const cache_bin_sz_t nfill_min,
-        const cache_bin_sz_t nfill_max);
+uint64_t       arena_time_until_deferred(tsdn_t *tsdn, arena_t *arena);
+void           arena_do_deferred_work(tsdn_t *tsdn, arena_t *arena);
+void           arena_reset(tsd_t *tsd, arena_t *arena);
+void           arena_destroy(tsd_t *tsd, arena_t *arena);
+cache_bin_sz_t arena_ptr_array_fill_small(tsdn_t *tsdn, arena_t *arena,
+    szind_t binind, cache_bin_ptr_array_t *arr, const cache_bin_sz_t nfill_min,
+    const cache_bin_sz_t nfill_max, cache_bin_stats_t merge_stats);
 
 void *arena_malloc_hard(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind,
     bool zero, bool slab);
@@ -84,6 +84,9 @@ void arena_dalloc_bin_locked_handle_newly_empty(
 void arena_dalloc_bin_locked_handle_newly_nonempty(
     tsdn_t *tsdn, arena_t *arena, edata_t *slab, bin_t *bin);
 void  arena_dalloc_small(tsdn_t *tsdn, void *ptr);
+void  arena_ptr_array_flush(tsd_t *tsd, szind_t binind,
+     cache_bin_ptr_array_t *arr, unsigned nflush, bool small,
+     arena_t *stats_arena, cache_bin_stats_t merge_stats);
 bool  arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
      size_t extra, bool zero, size_t *newsize);
 void *arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,

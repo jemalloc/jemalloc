@@ -690,6 +690,10 @@ cache_bin_finish_fill(
 		    nfilled * sizeof(void *));
 	}
 	bin->stack_head = empty_position - nfilled;
+	/* Reset the bin stats as it's merged during fill. */
+	if (config_stats) {
+		bin->tstats.nrequests = 0;
+	}
 }
 
 /*
@@ -711,6 +715,10 @@ cache_bin_finish_flush(
 	    bin->stack_head + nflushed, bin->stack_head, rem * sizeof(void *));
 	bin->stack_head += nflushed;
 	cache_bin_low_water_adjust(bin);
+	/* Reset the bin stats as it's merged during flush. */
+	if (config_stats) {
+		bin->tstats.nrequests = 0;
+	}
 }
 
 static inline void
@@ -731,6 +739,10 @@ cache_bin_finish_flush_stashed(cache_bin_t *bin) {
 	/* Reset the bin local full position. */
 	bin->low_bits_full = (uint16_t)(uintptr_t)low_bound;
 	assert(cache_bin_nstashed_get_local(bin) == 0);
+	/* Reset the bin stats as it's merged during flush. */
+	if (config_stats) {
+		bin->tstats.nrequests = 0;
+	}
 }
 
 /*
