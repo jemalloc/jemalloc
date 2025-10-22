@@ -12,8 +12,7 @@
 /* Maximum length of the arena name. */
 #define ARENA_NAME_LEN 32
 
-typedef struct arena_decay_s arena_decay_t;
-typedef struct arena_s       arena_t;
+typedef struct arena_s arena_t;
 
 typedef enum {
 	percpu_arena_mode_names_base = 0, /* Used for options processing. */
