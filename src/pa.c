@@ -67,12 +67,9 @@ pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, pa_central_t *central,
 bool
 pa_shard_enable_hpa(tsdn_t *tsdn, pa_shard_t *shard,
     const hpa_shard_opts_t *hpa_opts, const sec_opts_t *hpa_sec_opts) {
-	if (hpa_shard_init(&shard->hpa_shard, &shard->central->hpa, shard->emap,
-	        shard->base, &shard->edata_cache, shard->ind, hpa_opts)) {
-		return true;
-	}
-	if (sec_init(tsdn, &shard->hpa_sec, shard->base, &shard->hpa_shard.pai,
-	        hpa_sec_opts)) {
+	if (hpa_shard_init(tsdn, &shard->hpa_shard, &shard->central->hpa,
+	        shard->emap, shard->base, &shard->edata_cache, shard->ind,
+	        hpa_opts, hpa_sec_opts)) {
 		return true;
 	}
 	shard->ever_used_hpa = true;
@@ -85,7 +82,6 @@ void
 pa_shard_disable_hpa(tsdn_t *tsdn, pa_shard_t *shard) {
 	atomic_store_b(&shard->use_hpa, false, ATOMIC_RELAXED);
 	if (shard->ever_used_hpa) {
-		sec_disable(tsdn, &shard->hpa_sec);
 		hpa_shard_disable(tsdn, &shard->hpa_shard);
 	}
 }
@@ -93,8 +89,13 @@ pa_shard_disable_hpa(tsdn_t *tsdn, pa_shard_t *shard) {
 void
 pa_shard_reset(tsdn_t *tsdn, pa_shard_t *shard) {
 	atomic_store_zu(&shard->nactive, 0, ATOMIC_RELAXED);
+	pa_shard_flush(tsdn, shard);
+}
+
+void
+pa_shard_flush(tsdn_t *tsdn, pa_shard_t *shard) {
 	if (shard->ever_used_hpa) {
-		sec_flush(tsdn, &shard->hpa_sec);
+		hpa_shard_flush(tsdn, &shard->hpa_shard);
 	}
 }
 
@@ -107,7 +108,6 @@ void
 pa_shard_destroy(tsdn_t *tsdn, pa_shard_t *shard) {
 	pac_destroy(tsdn, &shard->pac);
 	if (shard->ever_used_hpa) {
-		sec_flush(tsdn, &shard->hpa_sec);
 		hpa_shard_destroy(tsdn, &shard->hpa_shard);
 	}
 }
@@ -115,7 +115,7 @@ pa_shard_destroy(tsdn_t *tsdn, pa_shard_t *shard) {
 static pai_t *
 pa_get_pai(pa_shard_t *shard, edata_t *edata) {
 	return (edata_pai_get(edata) == EXTENT_PAI_PAC ? &shard->pac.pai
-	                                               : &shard->hpa_sec.pai);
+	                                               : &shard->hpa_shard.pai);
 }
 
 edata_t *
@@ -128,7 +128,7 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 
 	edata_t *edata = NULL;
 	if (!guarded && pa_shard_uses_hpa(shard)) {
-		edata = pai_alloc(tsdn, &shard->hpa_sec.pai, size, alignment,
+		edata = pai_alloc(tsdn, &shard->hpa_shard.pai, size, alignment,
 		    zero, /* guarded */ false, slab, deferred_work_generated);
 	}
 	/*

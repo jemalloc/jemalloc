@@ -11,18 +11,16 @@
 static edata_t *hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
     size_t alignment, bool zero, bool guarded, bool frequent_reuse,
     bool *deferred_work_generated);
-static size_t   hpa_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size,
-      size_t nallocs, edata_list_active_t *results, bool frequent_reuse,
-      bool *deferred_work_generated);
 static bool     hpa_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata,
         size_t old_size, size_t new_size, bool zero, bool *deferred_work_generated);
 static bool     hpa_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata,
         size_t old_size, size_t new_size, bool *deferred_work_generated);
 static void     hpa_dalloc(
         tsdn_t *tsdn, pai_t *self, edata_t *edata, bool *deferred_work_generated);
-static void     hpa_dalloc_batch(tsdn_t *tsdn, pai_t *self,
-        edata_list_active_t *list, bool *deferred_work_generated);
 static uint64_t hpa_time_until_deferred_work(tsdn_t *tsdn, pai_t *self);
+
+static void hpa_dalloc_batch(tsdn_t *tsdn, pai_t *self,
+    edata_list_active_t *list, bool *deferred_work_generated);
 
 const char *const hpa_hugify_style_names[] = {"auto", "none", "eager", "lazy"};
 
@@ -74,9 +72,9 @@ hpa_do_consistency_checks(hpa_shard_t *shard) {
 }
 
 bool
-hpa_shard_init(hpa_shard_t *shard, hpa_central_t *central, emap_t *emap,
-    base_t *base, edata_cache_t *edata_cache, unsigned ind,
-    const hpa_shard_opts_t *opts) {
+hpa_shard_init(tsdn_t *tsdn, hpa_shard_t *shard, hpa_central_t *central,
+    emap_t *emap, base_t *base, edata_cache_t *edata_cache, unsigned ind,
+    const hpa_shard_opts_t *opts, const sec_opts_t *sec_opts) {
 	/* malloc_conf processing should have filtered out these cases. */
 	assert(hpa_supported());
 	bool err;
@@ -118,12 +116,15 @@ hpa_shard_init(hpa_shard_t *shard, hpa_central_t *central, emap_t *emap,
 	 * operating on corrupted data.
 	 */
 	shard->pai.alloc = &hpa_alloc;
-	shard->pai.alloc_batch = &hpa_alloc_batch;
 	shard->pai.expand = &hpa_expand;
 	shard->pai.shrink = &hpa_shrink;
 	shard->pai.dalloc = &hpa_dalloc;
-	shard->pai.dalloc_batch = &hpa_dalloc_batch;
 	shard->pai.time_until_deferred_work = &hpa_time_until_deferred_work;
+
+	err = sec_init(tsdn, &shard->sec, base, sec_opts);
+	if (err) {
+		return true;
+	}
 
 	hpa_do_consistency_checks(shard);
 
@@ -151,6 +152,7 @@ hpa_shard_stats_accum(hpa_shard_stats_t *dst, hpa_shard_stats_t *src) {
 	psset_stats_accum(&dst->psset_stats, &src->psset_stats);
 	hpa_shard_nonderived_stats_accum(
 	    &dst->nonderived_stats, &src->nonderived_stats);
+	sec_stats_accum(&dst->secstats, &src->secstats);
 }
 
 void
@@ -164,6 +166,8 @@ hpa_shard_stats_merge(
 	hpa_shard_nonderived_stats_accum(&dst->nonderived_stats, &shard->stats);
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 	malloc_mutex_unlock(tsdn, &shard->grow_mtx);
+
+	sec_stats_merge(tsdn, &shard->sec, &dst->secstats);
 }
 
 static bool
@@ -825,37 +829,9 @@ hpa_from_pai(pai_t *self) {
 	return (hpa_shard_t *)self;
 }
 
-static size_t
-hpa_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size, size_t nallocs,
-    edata_list_active_t *results, bool frequent_reuse,
-    bool *deferred_work_generated) {
-	assert(nallocs > 0);
-	assert((size & PAGE_MASK) == 0);
-	witness_assert_depth_to_rank(
-	    tsdn_witness_tsdp_get(tsdn), WITNESS_RANK_CORE, 0);
-	hpa_shard_t *shard = hpa_from_pai(self);
-
-	/*
-	 * frequent_use here indicates this request comes from the arena bins,
-	 * in which case it will be split into slabs, and therefore there is no
-	 * intrinsic slack in the allocation (the entire range of allocated size
-	 * will be accessed).
-	 *
-	 * In this case bypass the slab_max_alloc limit (if still within the
-	 * huge page size).  These requests do not concern internal
-	 * fragmentation with huge pages (again, the full size will be used).
-	 */
-	if (!(frequent_reuse && size <= HUGEPAGE)
-	    && (size > shard->opts.slab_max_alloc)) {
-		return 0;
-	}
-
-	size_t nsuccess = hpa_alloc_batch_psset(
-	    tsdn, shard, size, nallocs, results, deferred_work_generated);
-
-	witness_assert_depth_to_rank(
-	    tsdn_witness_tsdp_get(tsdn), WITNESS_RANK_CORE, 0);
-
+static void
+hpa_assert_results(
+    tsdn_t *tsdn, hpa_shard_t *shard, edata_list_active_t *results) {
 	/*
 	 * Guard the sanity checks with config_debug because the loop cannot be
 	 * proven non-circular by the compiler, even if everything within the
@@ -876,7 +852,6 @@ hpa_alloc_batch(tsdn_t *tsdn, pai_t *self, size_t size, size_t nallocs,
 			assert(edata_base_get(edata) != NULL);
 		}
 	}
-	return nsuccess;
 }
 
 static edata_t *
@@ -891,16 +866,52 @@ hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
 	if (alignment > PAGE || zero) {
 		return NULL;
 	}
+	hpa_shard_t *shard = hpa_from_pai(self);
+
 	/*
-	 * An alloc with alignment == PAGE and zero == false is equivalent to a
-	 * batch alloc of 1.  Just do that, so we can share code.
+	 * frequent_use here indicates this request comes from the arena bins,
+	 * in which case it will be split into slabs, and therefore there is no
+	 * intrinsic slack in the allocation (the entire range of allocated size
+	 * will be accessed).
+	 *
+	 * In this case bypass the slab_max_alloc limit (if still within the
+	 * huge page size).  These requests do not concern internal
+	 * fragmentation with huge pages (again, the full size will be used).
 	 */
+	if (!(frequent_reuse && size <= HUGEPAGE)
+	    && (size > shard->opts.slab_max_alloc)) {
+		return NULL;
+	}
+	edata_t *edata = sec_alloc(tsdn, &shard->sec, size);
+	if (edata != NULL) {
+		return edata;
+	}
+	size_t              nallocs = sec_size_supported(&shard->sec, size)
+	                 ? shard->sec.opts.batch_fill_extra + 1
+	                 : 1;
 	edata_list_active_t results;
 	edata_list_active_init(&results);
-	size_t nallocs = hpa_alloc_batch(tsdn, self, size, /* nallocs */ 1,
-	    &results, frequent_reuse, deferred_work_generated);
-	assert(nallocs == 0 || nallocs == 1);
-	edata_t *edata = edata_list_active_first(&results);
+	size_t nsuccess = hpa_alloc_batch_psset(
+	    tsdn, shard, size, nallocs, &results, deferred_work_generated);
+	hpa_assert_results(tsdn, shard, &results);
+	edata = edata_list_active_first(&results);
+
+	if (edata != NULL) {
+		edata_list_active_remove(&results, edata);
+		assert(nsuccess > 0);
+		nsuccess--;
+	}
+	if (nsuccess > 0) {
+		assert(sec_size_supported(&shard->sec, size));
+		sec_fill(tsdn, &shard->sec, size, &results, nsuccess);
+		/* Unlikely rollback in case of overfill */
+		if (!edata_list_active_empty(&results)) {
+			hpa_dalloc_batch(
+			    tsdn, self, &results, deferred_work_generated);
+		}
+	}
+	witness_assert_depth_to_rank(
+	    tsdn_witness_tsdp_get(tsdn), WITNESS_RANK_CORE, 0);
 	return edata;
 }
 
@@ -996,10 +1007,19 @@ static void
 hpa_dalloc(
     tsdn_t *tsdn, pai_t *self, edata_t *edata, bool *deferred_work_generated) {
 	assert(!edata_guarded_get(edata));
-	/* Just a dalloc_batch of size 1; this lets us share logic. */
+
 	edata_list_active_t dalloc_list;
 	edata_list_active_init(&dalloc_list);
 	edata_list_active_append(&dalloc_list, edata);
+
+	hpa_shard_t *shard = hpa_from_pai(self);
+	sec_dalloc(tsdn, &shard->sec, &dalloc_list);
+	if (edata_list_active_empty(&dalloc_list)) {
+		/* sec consumed the pointer */
+		*deferred_work_generated = false;
+		return;
+	}
+	/* We may have more than one pointer to flush now */
 	hpa_dalloc_batch(tsdn, self, &dalloc_list, deferred_work_generated);
 }
 
@@ -1063,13 +1083,30 @@ hpa_time_until_deferred_work(tsdn_t *tsdn, pai_t *self) {
 	return time_ns;
 }
 
+static void
+hpa_sec_flush_impl(tsdn_t *tsdn, hpa_shard_t *shard) {
+	edata_list_active_t to_flush;
+	edata_list_active_init(&to_flush);
+
+	sec_flush(tsdn, &shard->sec, &to_flush);
+	bool deferred_work_generated;
+	hpa_dalloc_batch(
+	    tsdn, (pai_t *)shard, &to_flush, &deferred_work_generated);
+}
+
 void
 hpa_shard_disable(tsdn_t *tsdn, hpa_shard_t *shard) {
 	hpa_do_consistency_checks(shard);
+	hpa_sec_flush_impl(tsdn, shard);
 
 	malloc_mutex_lock(tsdn, &shard->mtx);
 	edata_cache_fast_disable(tsdn, &shard->ecf);
 	malloc_mutex_unlock(tsdn, &shard->mtx);
+}
+
+void
+hpa_shard_flush(tsdn_t *tsdn, hpa_shard_t *shard) {
+	hpa_sec_flush_impl(tsdn, shard);
 }
 
 static void
@@ -1093,6 +1130,7 @@ hpa_assert_empty(tsdn_t *tsdn, hpa_shard_t *shard, psset_t *psset) {
 void
 hpa_shard_destroy(tsdn_t *tsdn, hpa_shard_t *shard) {
 	hpa_do_consistency_checks(shard);
+	hpa_shard_flush(tsdn, shard);
 	/*
 	 * By the time we're here, the arena code should have dalloc'd all the
 	 * active extents, which means we should have eventually evicted
@@ -1138,6 +1176,12 @@ hpa_shard_do_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard) {
 }
 
 void
+hpa_shard_prefork2(tsdn_t *tsdn, hpa_shard_t *shard) {
+	hpa_do_consistency_checks(shard);
+	sec_prefork2(tsdn, &shard->sec);
+}
+
+void
 hpa_shard_prefork3(tsdn_t *tsdn, hpa_shard_t *shard) {
 	hpa_do_consistency_checks(shard);
 
@@ -1155,6 +1199,7 @@ void
 hpa_shard_postfork_parent(tsdn_t *tsdn, hpa_shard_t *shard) {
 	hpa_do_consistency_checks(shard);
 
+	sec_postfork_parent(tsdn, &shard->sec);
 	malloc_mutex_postfork_parent(tsdn, &shard->grow_mtx);
 	malloc_mutex_postfork_parent(tsdn, &shard->mtx);
 }
@@ -1163,6 +1208,7 @@ void
 hpa_shard_postfork_child(tsdn_t *tsdn, hpa_shard_t *shard) {
 	hpa_do_consistency_checks(shard);
 
+	sec_postfork_child(tsdn, &shard->sec);
 	malloc_mutex_postfork_child(tsdn, &shard->grow_mtx);
 	malloc_mutex_postfork_child(tsdn, &shard->mtx);
 }

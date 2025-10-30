@@ -96,12 +96,6 @@ struct pa_shard_s {
 	/* Allocates from a PAC. */
 	pac_t pac;
 
-	/*
-	 * We place a small extent cache in front of the HPA, since we intend
-	 * these configurations to use many fewer arenas, and therefore have a
-	 * higher risk of hot locks.
-	 */
-	sec_t       hpa_sec;
 	hpa_shard_t hpa_shard;
 
 	/* The source of edata_t objects. */
@@ -165,6 +159,9 @@ void pa_shard_reset(tsdn_t *tsdn, pa_shard_t *shard);
  * last step in destroying the shard.
  */
 void pa_shard_destroy(tsdn_t *tsdn, pa_shard_t *shard);
+
+/* Flush any caches used by shard */
+void pa_shard_flush(tsdn_t *tsdn, pa_shard_t *shard);
 
 /* Gets an edata for the given allocation. */
 edata_t *pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size,
@@ -233,8 +230,7 @@ void pa_shard_basic_stats_merge(
 
 void pa_shard_stats_merge(tsdn_t *tsdn, pa_shard_t *shard,
     pa_shard_stats_t *pa_shard_stats_out, pac_estats_t *estats_out,
-    hpa_shard_stats_t *hpa_stats_out, sec_stats_t *sec_stats_out,
-    size_t *resident);
+    hpa_shard_stats_t *hpa_stats_out, size_t *resident);
 
 /*
  * Reads the PA-owned mutex stats into the output stats array, at the

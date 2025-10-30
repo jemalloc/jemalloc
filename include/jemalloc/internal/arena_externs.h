@@ -46,7 +46,7 @@ void arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     const char **dss, ssize_t *dirty_decay_ms, ssize_t *muzzy_decay_ms,
     size_t *nactive, size_t *ndirty, size_t *nmuzzy, arena_stats_t *astats,
     bin_stats_data_t *bstats, arena_stats_large_t *lstats, pac_estats_t *estats,
-    hpa_shard_stats_t *hpastats, sec_stats_t *secstats);
+    hpa_shard_stats_t *hpastats);
 void arena_handle_deferred_work(tsdn_t *tsdn, arena_t *arena);
 edata_t *arena_extent_alloc_large(
     tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment, bool zero);

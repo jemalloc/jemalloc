@@ -89,7 +89,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     const char **dss, ssize_t *dirty_decay_ms, ssize_t *muzzy_decay_ms,
     size_t *nactive, size_t *ndirty, size_t *nmuzzy, arena_stats_t *astats,
     bin_stats_data_t *bstats, arena_stats_large_t *lstats, pac_estats_t *estats,
-    hpa_shard_stats_t *hpastats, sec_stats_t *secstats) {
+    hpa_shard_stats_t *hpastats) {
 	cassert(config_stats);
 
 	arena_basic_stats_merge(tsdn, arena, nthreads, dss, dirty_decay_ms,
@@ -159,7 +159,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	}
 
 	pa_shard_stats_merge(tsdn, &arena->pa_shard, &astats->pa_shard_stats,
-	    estats, hpastats, secstats, &astats->resident);
+	    estats, hpastats, &astats->resident);
 
 	LOCKEDINT_MTX_UNLOCK(tsdn, arena->stats.mtx);
 
@@ -529,7 +529,7 @@ arena_decay(tsdn_t *tsdn, arena_t *arena, bool is_background_thread, bool all) {
 		 * as possible", including flushing any caches (for situations
 		 * like thread death, or manual purge calls).
 		 */
-		sec_flush(tsdn, &arena->pa_shard.hpa_sec);
+		pa_shard_flush(tsdn, &arena->pa_shard);
 	}
 	if (arena_decay_dirty(tsdn, arena, is_background_thread, all)) {
 		return;

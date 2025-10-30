@@ -1013,6 +1013,15 @@ malloc_conf_error(
 		/* However, tolerate experimental features. */
 		return;
 	}
+	const char  *deprecated[] = {"hpa_sec_bytes_after_flush"};
+	const size_t deprecated_cnt = (sizeof(deprecated)
+	    / sizeof(deprecated[0]));
+	for (size_t i = 0; i < deprecated_cnt; ++i) {
+		if (strncmp(k, deprecated[i], strlen(deprecated[i])) == 0) {
+			/* Tolerate deprecated features. */
+			return;
+		}
+	}
 	had_conf_error = true;
 }
 
@@ -1685,7 +1694,6 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				}
 				CONF_CONTINUE;
 			}
-
 			CONF_HANDLE_SIZE_T(opt_hpa_sec_opts.nshards,
 			    "hpa_sec_nshards", 0, 0, CONF_CHECK_MIN,
 			    CONF_DONT_CHECK_MAX, true);
@@ -1694,13 +1702,10 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			    USIZE_GROW_SLOW_THRESHOLD, CONF_CHECK_MIN,
 			    CONF_CHECK_MAX, true);
 			CONF_HANDLE_SIZE_T(opt_hpa_sec_opts.max_bytes,
-			    "hpa_sec_max_bytes", PAGE, 0, CONF_CHECK_MIN,
-			    CONF_DONT_CHECK_MAX, true);
-			CONF_HANDLE_SIZE_T(opt_hpa_sec_opts.bytes_after_flush,
-			    "hpa_sec_bytes_after_flush", PAGE, 0,
+			    "hpa_sec_max_bytes", SEC_OPTS_MAX_BYTES_DEFAULT, 0,
 			    CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
 			CONF_HANDLE_SIZE_T(opt_hpa_sec_opts.batch_fill_extra,
-			    "hpa_sec_batch_fill_extra", 0, HUGEPAGE_PAGES,
+			    "hpa_sec_batch_fill_extra", 1, HUGEPAGE_PAGES,
 			    CONF_CHECK_MIN, CONF_CHECK_MAX, true);
 
 			if (CONF_MATCH("slab_sizes")) {
