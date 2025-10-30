@@ -135,7 +135,6 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/nstime.c \
 	$(srcroot)src/pa.c \
 	$(srcroot)src/pa_extra.c \
-	$(srcroot)src/pai.c \
 	$(srcroot)src/pac.c \
 	$(srcroot)src/pages.c \
 	$(srcroot)src/peak_event.c \
@@ -230,6 +229,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/hash.c \
 	$(srcroot)test/unit/hook.c \
 	$(srcroot)test/unit/hpa.c \
+	$(srcroot)test/unit/hpa_sec_integration.c \
 	$(srcroot)test/unit/hpa_thp_always.c \
 	$(srcroot)test/unit/hpa_vectorized_madvise.c \
 	$(srcroot)test/unit/hpa_vectorized_madvise_large_batch.c \
