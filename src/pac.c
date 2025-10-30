@@ -97,11 +97,9 @@ pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
 	atomic_store_zu(&pac->extent_sn_next, 0, ATOMIC_RELAXED);
 
 	pac->pai.alloc = &pac_alloc_impl;
-	pac->pai.alloc_batch = &pai_alloc_batch_default;
 	pac->pai.expand = &pac_expand_impl;
 	pac->pai.shrink = &pac_shrink_impl;
 	pac->pai.dalloc = &pac_dalloc_impl;
-	pac->pai.dalloc_batch = &pai_dalloc_batch_default;
 	pac->pai.time_until_deferred_work = &pac_time_until_deferred_work;
 
 	return false;
@@ -449,8 +447,8 @@ decay_with_process_madvise(edata_list_inactive_t *decay_extents) {
 
 	size_t cur = 0, total_bytes = 0;
 	for (edata_t *edata = edata_list_inactive_first(decay_extents);
-	     edata != NULL;
-	     edata = edata_list_inactive_next(decay_extents, edata)) {
+	    edata != NULL;
+	    edata = edata_list_inactive_next(decay_extents, edata)) {
 		size_t pages_bytes = edata_size_get(edata);
 		vec[cur].iov_base = edata_base_get(edata);
 		vec[cur].iov_len = pages_bytes;
@@ -511,7 +509,7 @@ pac_decay_stashed(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
 	}
 
 	for (edata_t *edata = edata_list_inactive_first(decay_extents);
-	     edata != NULL; edata = edata_list_inactive_first(decay_extents)) {
+	    edata != NULL; edata = edata_list_inactive_first(decay_extents)) {
 		edata_list_inactive_remove(decay_extents, edata);
 
 		size_t size = edata_size_get(edata);

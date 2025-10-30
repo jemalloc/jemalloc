@@ -113,10 +113,12 @@ create_test_data(const hpa_hooks_t *hooks, hpa_shard_opts_t *opts) {
 
 	err = hpa_central_init(&test_data->central, test_data->base, hooks);
 	assert_false(err, "");
-
-	err = hpa_shard_init(&test_data->shard, &test_data->central,
+	sec_opts_t sec_opts;
+	sec_opts.nshards = 0;
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+	err = hpa_shard_init(tsdn, &test_data->shard, &test_data->central,
 	    &test_data->emap, test_data->base, &test_data->shard_edata_cache,
-	    SHARD_IND, opts);
+	    SHARD_IND, opts, &sec_opts);
 	assert_false(err, "");
 
 	return (hpa_shard_t *)test_data;
@@ -305,83 +307,6 @@ TEST_BEGIN(test_stress) {
 	hpa_shard_destroy(tsdn, shard);
 
 	free(live_edatas);
-	destroy_test_data(shard);
-}
-TEST_END
-
-static void
-expect_contiguous(edata_t **edatas, size_t nedatas) {
-	for (size_t i = 0; i < nedatas; i++) {
-		size_t expected = (size_t)edata_base_get(edatas[0]) + i * PAGE;
-		expect_zu_eq(expected, (size_t)edata_base_get(edatas[i]),
-		    "Mismatch at index %zu", i);
-	}
-}
-
-TEST_BEGIN(test_alloc_dalloc_batch) {
-	test_skip_if(!hpa_supported());
-
-	hpa_shard_t *shard = create_test_data(
-	    &hpa_hooks_default, &test_hpa_shard_opts_default);
-	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
-
-	bool deferred_work_generated = false;
-
-	enum { NALLOCS = 8 };
-
-	edata_t *allocs[NALLOCS];
-	/*
-	 * Allocate a mix of ways; first half from regular alloc, second half
-	 * from alloc_batch.
-	 */
-	for (size_t i = 0; i < NALLOCS / 2; i++) {
-		allocs[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE,
-		    /* zero */ false, /* guarded */ false,
-		    /* frequent_reuse */ false, &deferred_work_generated);
-		expect_ptr_not_null(allocs[i], "Unexpected alloc failure");
-	}
-	edata_list_active_t allocs_list;
-	edata_list_active_init(&allocs_list);
-	size_t nsuccess = pai_alloc_batch(tsdn, &shard->pai, PAGE, NALLOCS / 2,
-	    &allocs_list, /* frequent_reuse */ false, &deferred_work_generated);
-	expect_zu_eq(NALLOCS / 2, nsuccess, "Unexpected oom");
-	for (size_t i = NALLOCS / 2; i < NALLOCS; i++) {
-		allocs[i] = edata_list_active_first(&allocs_list);
-		edata_list_active_remove(&allocs_list, allocs[i]);
-	}
-
-	/*
-	 * Should have allocated them contiguously, despite the differing
-	 * methods used.
-	 */
-	void *orig_base = edata_base_get(allocs[0]);
-	expect_contiguous(allocs, NALLOCS);
-
-	/*
-	 * Batch dalloc the first half, individually deallocate the second half.
-	 */
-	for (size_t i = 0; i < NALLOCS / 2; i++) {
-		edata_list_active_append(&allocs_list, allocs[i]);
-	}
-	pai_dalloc_batch(
-	    tsdn, &shard->pai, &allocs_list, &deferred_work_generated);
-	for (size_t i = NALLOCS / 2; i < NALLOCS; i++) {
-		pai_dalloc(
-		    tsdn, &shard->pai, allocs[i], &deferred_work_generated);
-	}
-
-	/* Reallocate (individually), and ensure reuse and contiguity. */
-	for (size_t i = 0; i < NALLOCS; i++) {
-		allocs[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE,
-		    /* zero */ false, /* guarded */ false, /* frequent_reuse */
-		    false, &deferred_work_generated);
-		expect_ptr_not_null(allocs[i], "Unexpected alloc failure.");
-	}
-	void *new_base = edata_base_get(allocs[0]);
-	expect_ptr_eq(
-	    orig_base, new_base, "Failed to reuse the allocated memory.");
-	expect_contiguous(allocs, NALLOCS);
-
 	destroy_test_data(shard);
 }
 TEST_END
@@ -1533,8 +1458,7 @@ main(void) {
 	(void)mem_tree_iter;
 	(void)mem_tree_reverse_iter;
 	(void)mem_tree_destroy;
-	return test_no_reentrancy(test_alloc_max, test_stress,
-	    test_alloc_dalloc_batch, test_defer_time,
+	return test_no_reentrancy(test_alloc_max, test_stress, test_defer_time,
 	    test_purge_no_infinite_loop, test_no_min_purge_interval,
 	    test_min_purge_interval, test_purge,
 	    test_experimental_max_purge_nhp, test_vectorized_opt_eq_zero,

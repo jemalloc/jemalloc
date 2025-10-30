@@ -21,13 +21,13 @@ struct test_data_s {
 	emap_t emap;
 };
 
-static hpa_shard_opts_t test_hpa_shard_opts_aggressive = {
+static hpa_shard_opts_t test_hpa_shard_opts = {
     /* slab_max_alloc */
     HUGEPAGE,
     /* hugification_threshold */
     0.9 * HUGEPAGE,
     /* dirty_mult */
-    FXP_INIT_PERCENT(11),
+    FXP_INIT_PERCENT(10),
     /* deferral_allowed */
     true,
     /* hugify_delay_ms */
@@ -39,14 +39,15 @@ static hpa_shard_opts_t test_hpa_shard_opts_aggressive = {
     /* experimental_max_purge_nhp */
     -1,
     /* purge_threshold */
-    HUGEPAGE - 5 * PAGE,
+    PAGE,
     /* min_purge_delay_ms */
     10,
     /* hugify_style */
-    hpa_hugify_style_eager};
+    hpa_hugify_style_lazy};
 
 static hpa_shard_t *
-create_test_data(const hpa_hooks_t *hooks, hpa_shard_opts_t *opts) {
+create_test_data(const hpa_hooks_t *hooks, hpa_shard_opts_t *opts,
+    const sec_opts_t *sec_opts) {
 	bool    err;
 	base_t *base = base_new(TSDN_NULL, /* ind */ SHARD_IND,
 	    &ehooks_default_extent_hooks, /* metadata_use_hooks */ true);
@@ -65,12 +66,10 @@ create_test_data(const hpa_hooks_t *hooks, hpa_shard_opts_t *opts) {
 
 	err = hpa_central_init(&test_data->central, test_data->base, hooks);
 	assert_false(err, "");
-	sec_opts_t sec_opts;
-	sec_opts.nshards = 0;
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 	err = hpa_shard_init(tsdn, &test_data->shard, &test_data->central,
 	    &test_data->emap, test_data->base, &test_data->shard_edata_cache,
-	    SHARD_IND, opts, &sec_opts);
+	    SHARD_IND, opts, sec_opts);
 	assert_false(err, "");
 
 	return (hpa_shard_t *)test_data;
@@ -140,8 +139,10 @@ defer_test_ms_since(nstime_t *past_time) {
 	return (nstime_ns(&defer_curtime) - nstime_ns(past_time)) / 1000 / 1000;
 }
 
-TEST_BEGIN(test_hpa_hugify_style_none_huge_no_syscall_thp_always) {
-	test_skip_if(!hpa_supported() || (opt_process_madvise_max_batch != 0));
+// test that freed pages stay in SEC and hpa thinks they are active
+
+TEST_BEGIN(test_hpa_sec) {
+	test_skip_if(!hpa_supported());
 
 	hpa_hooks_t hooks;
 	hooks.map = &defer_test_map;
@@ -153,52 +154,86 @@ TEST_BEGIN(test_hpa_hugify_style_none_huge_no_syscall_thp_always) {
 	hooks.ms_since = &defer_test_ms_since;
 	hooks.vectorized_purge = &defer_vectorized_purge;
 
-	hpa_shard_opts_t opts = test_hpa_shard_opts_aggressive;
-	opts.deferral_allowed = true;
-	opts.purge_threshold = PAGE;
-	opts.min_purge_delay_ms = 0;
-	opts.hugification_threshold = HUGEPAGE * 0.25;
-	opts.dirty_mult = FXP_INIT_PERCENT(10);
-	opts.hugify_style = hpa_hugify_style_none;
-	opts.min_purge_interval_ms = 0;
-	opts.hugify_delay_ms = 0;
+	hpa_shard_opts_t opts = test_hpa_shard_opts;
 
-	hpa_shard_t *shard = create_test_data(&hooks, &opts);
+	enum { NALLOCS = 8 };
+	sec_opts_t sec_opts;
+	sec_opts.nshards = 1;
+	sec_opts.max_alloc = 2 * PAGE;
+	sec_opts.max_bytes = NALLOCS * PAGE;
+	sec_opts.batch_fill_extra = 4;
+
+	hpa_shard_t *shard = create_test_data(&hooks, &opts, &sec_opts);
 	bool         deferred_work_generated = false;
-	/* Current time = 10ms */
-	nstime_init(&defer_curtime, 10 * 1000 * 1000);
+	tsdn_t      *tsdn = tsd_tsdn(tsd_fetch());
 
-	/* Fake that system is in thp_always mode */
-	system_thp_mode_t old_mode = init_system_thp_mode;
-	init_system_thp_mode = system_thp_mode_always;
+	/* alloc 1 PAGE, confirm sec has fill_extra bytes. */
+	edata_t *edata1 = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false, false,
+	    false, &deferred_work_generated);
+	expect_ptr_not_null(edata1, "Unexpected null edata");
+	hpa_shard_stats_t hpa_stats;
+	memset(&hpa_stats, 0, sizeof(hpa_shard_stats_t));
+	hpa_shard_stats_merge(tsdn, shard, &hpa_stats);
+	expect_zu_eq(hpa_stats.psset_stats.merged.nactive,
+	    1 + sec_opts.batch_fill_extra, "");
+	expect_zu_eq(hpa_stats.secstats.bytes, PAGE * sec_opts.batch_fill_extra,
+	    "sec should have fill extra pages");
 
-	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
-	enum { NALLOCS = HUGEPAGE_PAGES };
+	/* Alloc/dealloc NALLOCS times and confirm extents are in sec. */
 	edata_t *edatas[NALLOCS];
-	ndefer_purge_calls = 0;
-	for (int i = 0; i < NALLOCS / 2; i++) {
+	for (int i = 0; i < NALLOCS; i++) {
 		edatas[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false,
 		    false, false, &deferred_work_generated);
 		expect_ptr_not_null(edatas[i], "Unexpected null edata");
 	}
-	hpdata_t *ps = psset_pick_alloc(&shard->psset, PAGE);
-	expect_true(hpdata_huge_get(ps),
-	    "Page should be huge because thp=always and hugify_style is none");
+	memset(&hpa_stats, 0, sizeof(hpa_shard_stats_t));
+	hpa_shard_stats_merge(tsdn, shard, &hpa_stats);
+	expect_zu_eq(hpa_stats.psset_stats.merged.nactive, 2 + NALLOCS, "");
+	expect_zu_eq(hpa_stats.secstats.bytes, PAGE, "2 refills (at 0 and 4)");
 
-	ndefer_hugify_calls = 0;
-	ndefer_purge_calls = 0;
-	hpa_shard_do_deferred_work(tsdn, shard);
-	expect_zu_eq(ndefer_hugify_calls, 0, "style=none, no syscall");
-	expect_zu_eq(ndefer_dehugify_calls, 0, "style=none, no syscall");
-	expect_zu_eq(ndefer_purge_calls, 1, "purge should happen");
+	for (int i = 0; i < NALLOCS - 1; i++) {
+		pai_dalloc(
+		    tsdn, &shard->pai, edatas[i], &deferred_work_generated);
+	}
+	memset(&hpa_stats, 0, sizeof(hpa_shard_stats_t));
+	hpa_shard_stats_merge(tsdn, shard, &hpa_stats);
+	expect_zu_eq(hpa_stats.psset_stats.merged.nactive, (2 + NALLOCS), "");
+	expect_zu_eq(
+	    hpa_stats.secstats.bytes, sec_opts.max_bytes, "sec should be full");
+
+	/* this one should flush 1 + 0.25 * 8 = 3 extents */
+	pai_dalloc(
+	    tsdn, &shard->pai, edatas[NALLOCS - 1], &deferred_work_generated);
+	memset(&hpa_stats, 0, sizeof(hpa_shard_stats_t));
+	hpa_shard_stats_merge(tsdn, shard, &hpa_stats);
+	expect_zu_eq(hpa_stats.psset_stats.merged.nactive, (NALLOCS - 1), "");
+	expect_zu_eq(hpa_stats.psset_stats.merged.ndirty, 3, "");
+	expect_zu_eq(hpa_stats.secstats.bytes, 0.75 * sec_opts.max_bytes,
+	    "sec should be full");
+
+	/* Next allocation should come from SEC and not increase active */
+	edata_t *edata2 = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false, false,
+	    false, &deferred_work_generated);
+	expect_ptr_not_null(edata2, "Unexpected null edata");
+	memset(&hpa_stats, 0, sizeof(hpa_shard_stats_t));
+	hpa_shard_stats_merge(tsdn, shard, &hpa_stats);
+	expect_zu_eq(hpa_stats.psset_stats.merged.nactive, NALLOCS - 1, "");
+	expect_zu_eq(hpa_stats.secstats.bytes, 0.75 * sec_opts.max_bytes - PAGE,
+	    "sec should have max_bytes minus one page that just came from it");
+
+	/* We return this one and it stays in the cache */
+	pai_dalloc(tsdn, &shard->pai, edata2, &deferred_work_generated);
+	memset(&hpa_stats, 0, sizeof(hpa_shard_stats_t));
+	hpa_shard_stats_merge(tsdn, shard, &hpa_stats);
+	expect_zu_eq(hpa_stats.psset_stats.merged.nactive, NALLOCS - 1, "");
+	expect_zu_eq(hpa_stats.psset_stats.merged.ndirty, 3, "");
+	expect_zu_eq(hpa_stats.secstats.bytes, 0.75 * sec_opts.max_bytes, "");
 
 	destroy_test_data(shard);
-	init_system_thp_mode = old_mode;
 }
 TEST_END
 
 int
 main(void) {
-	return test_no_reentrancy(
-	    test_hpa_hugify_style_none_huge_no_syscall_thp_always);
+	return test_no_reentrancy(test_hpa_sec);
 }
