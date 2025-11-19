@@ -29,6 +29,7 @@ static uint64_t hpa_time_until_deferred_work(tsdn_t *tsdn, pai_t *self);
 const char *const hpa_hugify_style_names[] = {"auto", "none", "eager", "lazy"};
 
 bool opt_experimental_hpa_start_huge_if_thp_always = true;
+bool opt_experimental_hpa_enforce_hugify = false;
 
 bool
 hpa_hugepage_size_exceeds_limit(void) {
@@ -430,7 +431,7 @@ hpa_update_purge_hugify_eligibility(
 		/* Assume it is huge without the need to madvise */
 		hpa_assume_huge(tsdn, shard, ps);
 	}
-	if (hpa_is_hugify_lazy(shard)
+	if ((hpa_is_hugify_lazy(shard) || opt_experimental_hpa_enforce_hugify)
 	    && hpa_good_hugification_candidate(shard, ps)
 	    && !hpdata_huge_get(ps)) {
 		nstime_t now;
@@ -538,8 +539,9 @@ hpa_purge_actual_unlocked(
 
 static inline bool
 hpa_needs_dehugify(hpa_shard_t *shard, const hpdata_t *ps) {
-	return hpa_is_hugify_lazy(shard) && hpdata_huge_get(ps)
-	    && !hpdata_empty(ps);
+	return (hpa_is_hugify_lazy(shard)
+	           || opt_experimental_hpa_enforce_hugify)
+	    && hpdata_huge_get(ps) && !hpdata_empty(ps);
 }
 
 /* Prepare purge of one page. Return number of dirty regular pages on it
@@ -736,7 +738,7 @@ hpa_try_hugify(tsdn_t *tsdn, hpa_shard_t *shard) {
 	 * what user believes is the truth on the target system, but we won't
 	 * update nhugifies stat as system call is not being made.
 	 */
-	if (hpa_is_hugify_lazy(shard)) {
+	if (hpa_is_hugify_lazy(shard) || opt_experimental_hpa_enforce_hugify) {
 		malloc_mutex_unlock(tsdn, &shard->mtx);
 		bool err = shard->central->hooks.hugify(
 		    hpdata_addr_get(to_hugify), HUGEPAGE,

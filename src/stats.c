@@ -1115,7 +1115,7 @@ stats_arena_mutexes_print(
 	CTL_LEAF_PREPARE(stats_arenas_mib, 3, "mutexes");
 
 	for (mutex_prof_arena_ind_t i = 0; i < mutex_prof_num_arena_mutexes;
-	     i++) {
+	    i++) {
 		const char *name = arena_mutex_names[i];
 		emitter_json_object_kv_begin(emitter, name);
 		mutex_stats_read_arena(
@@ -1605,6 +1605,7 @@ stats_general_print(emitter_t *emitter) {
 	OPT_WRITE_BOOL("cache_oblivious")
 	OPT_WRITE_BOOL("confirm_conf")
 	OPT_WRITE_BOOL("experimental_hpa_start_huge_if_thp_always")
+	OPT_WRITE_BOOL("experimental_hpa_enforce_hugify")
 	OPT_WRITE_BOOL("retain")
 	OPT_WRITE_CHAR_P("dss")
 	OPT_WRITE_UNSIGNED("narenas")
