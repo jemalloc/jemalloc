@@ -286,7 +286,7 @@ TEST_BEGIN(test_stress) {
 
 	size_t ntreenodes = 0;
 	for (mem_contents_t *contents = mem_tree_first(&tree); contents != NULL;
-	     contents = mem_tree_next(&tree, contents)) {
+	    contents = mem_tree_next(&tree, contents)) {
 		ntreenodes++;
 		node_check(&tree, contents);
 	}
@@ -1441,6 +1441,84 @@ TEST_BEGIN(test_hpa_hugify_style_none_huge_no_syscall) {
 }
 TEST_END
 
+TEST_BEGIN(test_experimental_hpa_enforce_hugify) {
+	test_skip_if(!hpa_supported() || (opt_process_madvise_max_batch != 0)
+	    || !config_stats);
+
+	bool old_opt_value = opt_experimental_hpa_enforce_hugify;
+	opt_experimental_hpa_enforce_hugify = true;
+
+	hpa_hooks_t hooks;
+	hooks.map = &defer_test_map;
+	hooks.unmap = &defer_test_unmap;
+	hooks.purge = &defer_test_purge;
+	hooks.hugify = &defer_test_hugify;
+	hooks.dehugify = &defer_test_dehugify;
+	hooks.curtime = &defer_test_curtime;
+	hooks.ms_since = &defer_test_ms_since;
+	hooks.vectorized_purge = &defer_vectorized_purge;
+
+	/* Use eager so hugify would normally not be made on threshold */
+	hpa_shard_opts_t opts = test_hpa_shard_opts_default;
+	opts.hugify_style = hpa_hugify_style_eager;
+	opts.deferral_allowed = true;
+	opts.hugify_delay_ms = 0;
+	opts.min_purge_interval_ms = 0;
+	opts.hugification_threshold = 0.9 * HUGEPAGE;
+
+	ndefer_hugify_calls = 0;
+	ndefer_dehugify_calls = 0;
+	ndefer_purge_calls = 0;
+
+	hpa_shard_t *shard = create_test_data(&hooks, &opts);
+	bool         deferred_work_generated = false;
+	nstime_init2(&defer_curtime, 100, 0);
+
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+	enum { NALLOCS = HUGEPAGE_PAGES * 95 / 100 };
+	edata_t *edatas[NALLOCS];
+	for (int i = 0; i < NALLOCS; i++) {
+		edatas[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false,
+		    false, false, &deferred_work_generated);
+		expect_ptr_not_null(edatas[i], "Unexpected null edata");
+	}
+
+	ndefer_hugify_calls = 0;
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(ndefer_hugify_calls, 0, "Page was already huge");
+
+	ndefer_hugify_calls = 0;
+	ndefer_dehugify_calls = 0;
+	ndefer_purge_calls = 0;
+
+	/* Deallocate half to trigger purge */
+	for (int i = 0; i < NALLOCS / 2; i++) {
+		pai_dalloc(
+		    tsdn, &shard->pai, edatas[i], &deferred_work_generated);
+	}
+
+	hpa_shard_do_deferred_work(tsdn, shard);
+	/*
+	 * Enforce hugify should have triggered dehugify syscall during purge
+	 * when the page is huge and not empty.
+	 */
+	expect_zu_ge(ndefer_dehugify_calls, 1,
+	    "Should have triggered dehugify syscall with eager style");
+
+	for (int i = 0; i < NALLOCS / 2; i++) {
+		edatas[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false,
+		    false, false, &deferred_work_generated);
+		expect_ptr_not_null(edatas[i], "Unexpected null edata");
+	}
+	ndefer_hugify_calls = 0;
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(ndefer_hugify_calls, 1, "");
+
+	opt_experimental_hpa_enforce_hugify = old_opt_value;
+	destroy_test_data(shard);
+}
+TEST_END
+
 int
 main(void) {
 	/*
@@ -1464,5 +1542,6 @@ main(void) {
 	    test_assume_huge_purge_fully, test_eager_with_purge_threshold,
 	    test_delay_when_not_allowed_deferral, test_deferred_until_time,
 	    test_eager_no_hugify_on_threshold,
-	    test_hpa_hugify_style_none_huge_no_syscall);
+	    test_hpa_hugify_style_none_huge_no_syscall,
+	    test_experimental_hpa_enforce_hugify);
 }

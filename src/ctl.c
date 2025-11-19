@@ -99,6 +99,7 @@ CTL_PROTO(opt_cache_oblivious)
 CTL_PROTO(opt_debug_double_free_max_scan)
 CTL_PROTO(opt_trust_madvise)
 CTL_PROTO(opt_experimental_hpa_start_huge_if_thp_always)
+CTL_PROTO(opt_experimental_hpa_enforce_hugify)
 CTL_PROTO(opt_confirm_conf)
 CTL_PROTO(opt_hpa)
 CTL_PROTO(opt_hpa_slab_max_alloc)
@@ -467,6 +468,8 @@ static const ctl_named_node_t opt_node[] = {{NAME("abort"), CTL(opt_abort)},
     {NAME("trust_madvise"), CTL(opt_trust_madvise)},
     {NAME("experimental_hpa_start_huge_if_thp_always"),
         CTL(opt_experimental_hpa_start_huge_if_thp_always)},
+    {NAME("experimental_hpa_enforce_hugify"),
+        CTL(opt_experimental_hpa_enforce_hugify)},
     {NAME("confirm_conf"), CTL(opt_confirm_conf)}, {NAME("hpa"), CTL(opt_hpa)},
     {NAME("hpa_slab_max_alloc"), CTL(opt_hpa_slab_max_alloc)},
     {NAME("hpa_hugification_threshold"), CTL(opt_hpa_hugification_threshold)},
@@ -1108,30 +1111,30 @@ ctl_arena_stats_sdmerge(
 		}
 
 		ctl_accum_locked_u64(&sdstats->astats.pa_shard_stats.pac_stats
-		                          .decay_dirty.npurge,
+		                         .decay_dirty.npurge,
 		    &astats->astats.pa_shard_stats.pac_stats.decay_dirty
-		         .npurge);
+		        .npurge);
 		ctl_accum_locked_u64(&sdstats->astats.pa_shard_stats.pac_stats
-		                          .decay_dirty.nmadvise,
+		                         .decay_dirty.nmadvise,
 		    &astats->astats.pa_shard_stats.pac_stats.decay_dirty
-		         .nmadvise);
+		        .nmadvise);
 		ctl_accum_locked_u64(&sdstats->astats.pa_shard_stats.pac_stats
-		                          .decay_dirty.purged,
+		                         .decay_dirty.purged,
 		    &astats->astats.pa_shard_stats.pac_stats.decay_dirty
-		         .purged);
+		        .purged);
 
 		ctl_accum_locked_u64(&sdstats->astats.pa_shard_stats.pac_stats
-		                          .decay_muzzy.npurge,
+		                         .decay_muzzy.npurge,
 		    &astats->astats.pa_shard_stats.pac_stats.decay_muzzy
-		         .npurge);
+		        .npurge);
 		ctl_accum_locked_u64(&sdstats->astats.pa_shard_stats.pac_stats
-		                          .decay_muzzy.nmadvise,
+		                         .decay_muzzy.nmadvise,
 		    &astats->astats.pa_shard_stats.pac_stats.decay_muzzy
-		         .nmadvise);
+		        .nmadvise);
 		ctl_accum_locked_u64(&sdstats->astats.pa_shard_stats.pac_stats
-		                          .decay_muzzy.purged,
+		                         .decay_muzzy.purged,
 		    &astats->astats.pa_shard_stats.pac_stats.decay_muzzy
-		         .purged);
+		        .purged);
 
 #define OP(mtx)                                                                \
 	malloc_mutex_prof_merge(                                               \
@@ -1390,7 +1393,7 @@ ctl_refresh(tsdn_t *tsdn) {
 			    background_thread_lock);
 		} else {
 			memset(&ctl_stats->mutex_prof_data
-			            [global_prof_mutex_background_thread],
+			           [global_prof_mutex_background_thread],
 			    0, sizeof(mutex_prof_data_t));
 		}
 		/* We own ctl mutex already. */
@@ -2136,6 +2139,8 @@ CTL_RO_NL_GEN(
 CTL_RO_NL_GEN(opt_trust_madvise, opt_trust_madvise, bool)
 CTL_RO_NL_GEN(opt_experimental_hpa_start_huge_if_thp_always,
     opt_experimental_hpa_start_huge_if_thp_always, bool)
+CTL_RO_NL_GEN(opt_experimental_hpa_enforce_hugify,
+    opt_experimental_hpa_enforce_hugify, bool)
 CTL_RO_NL_GEN(opt_confirm_conf, opt_confirm_conf, bool)
 
 /* HPA options. */
@@ -3770,35 +3775,29 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_extent_avail,
     arenas_i(mib[2])->astats->astats.pa_shard_stats.edata_avail, size_t)
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_dirty_npurge,
-    locked_read_u64_unsynchronized(
-        &arenas_i(mib[2])
-             ->astats->astats.pa_shard_stats.pac_stats.decay_dirty.npurge),
+    locked_read_u64_unsynchronized(&arenas_i(mib[2])
+            ->astats->astats.pa_shard_stats.pac_stats.decay_dirty.npurge),
     uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_dirty_nmadvise,
-    locked_read_u64_unsynchronized(
-        &arenas_i(mib[2])
-             ->astats->astats.pa_shard_stats.pac_stats.decay_dirty.nmadvise),
+    locked_read_u64_unsynchronized(&arenas_i(mib[2])
+            ->astats->astats.pa_shard_stats.pac_stats.decay_dirty.nmadvise),
     uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_dirty_purged,
-    locked_read_u64_unsynchronized(
-        &arenas_i(mib[2])
-             ->astats->astats.pa_shard_stats.pac_stats.decay_dirty.purged),
+    locked_read_u64_unsynchronized(&arenas_i(mib[2])
+            ->astats->astats.pa_shard_stats.pac_stats.decay_dirty.purged),
     uint64_t)
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_muzzy_npurge,
-    locked_read_u64_unsynchronized(
-        &arenas_i(mib[2])
-             ->astats->astats.pa_shard_stats.pac_stats.decay_muzzy.npurge),
+    locked_read_u64_unsynchronized(&arenas_i(mib[2])
+            ->astats->astats.pa_shard_stats.pac_stats.decay_muzzy.npurge),
     uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_muzzy_nmadvise,
-    locked_read_u64_unsynchronized(
-        &arenas_i(mib[2])
-             ->astats->astats.pa_shard_stats.pac_stats.decay_muzzy.nmadvise),
+    locked_read_u64_unsynchronized(&arenas_i(mib[2])
+            ->astats->astats.pa_shard_stats.pac_stats.decay_muzzy.nmadvise),
     uint64_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_muzzy_purged,
-    locked_read_u64_unsynchronized(
-        &arenas_i(mib[2])
-             ->astats->astats.pa_shard_stats.pac_stats.decay_muzzy.purged),
+    locked_read_u64_unsynchronized(&arenas_i(mib[2])
+            ->astats->astats.pa_shard_stats.pac_stats.decay_muzzy.purged),
     uint64_t)
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_base,
