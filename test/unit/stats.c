@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/arena_structs.h"
+
 #define STRINGIFY_HELPER(x) #x
 #define STRINGIFY(x) STRINGIFY_HELPER(x)
 
@@ -445,11 +447,113 @@ TEST_BEGIN(test_stats_tcache_bytes_large) {
 }
 TEST_END
 
+TEST_BEGIN(test_approximate_stats_active) {
+	/*
+	 * Test 1: create a manual arena that we exclusively control and use it
+	 * to verify the values returned by pa_shard_nactive() is accurate.
+	 * This also helps verify the correctness of approximate_stats.active
+	 * since it simply sums the pa_shard_nactive() of all arenas.
+	 */
+	tsdn_t  *tsdn = tsdn_fetch();
+	unsigned arena_ind;
+	size_t   sz = sizeof(unsigned);
+	expect_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz, NULL, 0),
+	    0, "Arena creation failed");
+
+	arena_t *arena = arena_get(tsdn, arena_ind, false);
+	expect_ptr_not_null(arena, "Failed to get arena");
+
+	size_t nactive_initial = pa_shard_nactive(&arena->pa_shard);
+
+	/*
+	 * Allocate a small size from this arena.  Use MALLOCX_TCACHE_NONE
+	 * to bypass tcache and ensure the allocation goes directly to the
+	 * arena's pa_shard.
+	 */
+	size_t small_alloc_size = 128;
+	void  *p_small = mallocx(
+            small_alloc_size, MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE);
+	expect_ptr_not_null(p_small, "Unexpected mallocx() failure for small");
+
+	size_t nactive_after_small = pa_shard_nactive(&arena->pa_shard);
+	/*
+	 * For small allocations, jemalloc allocates a slab.  The slab size can
+	 * be looked up via bin_infos[szind].slab_size.  The assertion allows
+	 * for extra overhead from profiling, HPA, or sanitizer guard pages.
+	 */
+	size_t small_usize = nallocx(
+	    small_alloc_size, MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE);
+	szind_t small_szind = sz_size2index(small_usize);
+	size_t  expected_small_pages = bin_infos[small_szind].slab_size / PAGE;
+	expect_zu_ge(nactive_after_small - nactive_initial,
+	    expected_small_pages,
+	    "nactive increase should be at least the slab size in pages");
+
+	/*
+	 * Allocate a large size from this arena.
+	 */
+	size_t large_alloc_size = SC_LARGE_MINCLASS;
+	void  *p_large = mallocx(
+            large_alloc_size, MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE);
+	expect_ptr_not_null(p_large, "Unexpected mallocx() failure for large");
+
+	size_t nactive_after_large = pa_shard_nactive(&arena->pa_shard);
+	/*
+	 * For large allocations, the increase in pa_shard_nactive should be at
+	 * least the allocation size in pages with sz_large_pad considered.
+	 * The assertion allows for extra overhead from profiling, HPA, or
+	 * sanitizer guard pages.
+	 */
+	size_t large_usize = nallocx(
+	    large_alloc_size, MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE);
+	size_t expected_large_pages = (large_usize + sz_large_pad) / PAGE;
+	expect_zu_ge(nactive_after_large - nactive_after_small,
+	    expected_large_pages,
+	    "nactive increase should be at least the large allocation size in pages");
+
+	/*
+	 * Deallocate both allocations and verify nactive returns to the
+	 * original value.
+	 */
+	dallocx(p_small, MALLOCX_TCACHE_NONE);
+	dallocx(p_large, MALLOCX_TCACHE_NONE);
+
+	size_t nactive_final = pa_shard_nactive(&arena->pa_shard);
+	expect_zu_ge(nactive_final - nactive_after_large,
+	    expected_small_pages + expected_large_pages,
+	    "nactive should return to original value after deallocation");
+
+	/*
+	 * Test 2: allocate a large allocation in the auto arena and confirm
+	 * that approximate_stats.active increases.  Since there may be other
+	 * allocs/dallocs going on, cannot make more accurate assertions like
+	 * Test 1.
+	 */
+	size_t approximate_active_before = 0;
+	size_t approximate_active_after = 0;
+	sz = sizeof(size_t);
+	expect_d_eq(mallctl("approximate_stats.active",
+	                (void *)&approximate_active_before, &sz, NULL, 0),
+	    0, "Unexpected mallctl() result");
+
+	void *p0 = mallocx(4 * SC_SMALL_MAXCLASS, MALLOCX_TCACHE_NONE);
+	expect_ptr_not_null(p0, "Unexpected mallocx() failure");
+
+	expect_d_eq(mallctl("approximate_stats.active",
+	                (void *)&approximate_active_after, &sz, NULL, 0),
+	    0, "Unexpected mallctl() result");
+	expect_zu_gt(approximate_active_after, approximate_active_before,
+	    "approximate_stats.active should increase after the allocation");
+
+	free(p0);
+}
+TEST_END
+
 int
 main(void) {
 	return test_no_reentrancy(test_stats_summary, test_stats_large,
 	    test_stats_arenas_summary, test_stats_arenas_small,
 	    test_stats_arenas_large, test_stats_arenas_bins,
 	    test_stats_arenas_lextents, test_stats_tcache_bytes_small,
-	    test_stats_tcache_bytes_large);
+	    test_stats_tcache_bytes_large, test_approximate_stats_active);
 }
