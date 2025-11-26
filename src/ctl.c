@@ -353,6 +353,7 @@ CTL_PROTO(stats_resident)
 CTL_PROTO(stats_mapped)
 CTL_PROTO(stats_retained)
 CTL_PROTO(stats_zero_reallocs)
+CTL_PROTO(approximate_stats_active)
 CTL_PROTO(experimental_hooks_install)
 CTL_PROTO(experimental_hooks_remove)
 CTL_PROTO(experimental_hooks_prof_backtrace)
@@ -853,6 +854,10 @@ static const ctl_named_node_t stats_mutexes_node[] = {
     {NAME("reset"), CTL(stats_mutexes_reset)}};
 #undef MUTEX_PROF_DATA_NODE
 
+static const ctl_named_node_t approximate_stats_node[] = {
+    {NAME("active"), CTL(approximate_stats_active)},
+};
+
 static const ctl_named_node_t stats_node[] = {
     {NAME("allocated"), CTL(stats_allocated)},
     {NAME("active"), CTL(stats_active)},
@@ -920,6 +925,7 @@ static const ctl_named_node_t root_node[] = {{NAME("version"), CTL(version)},
     {NAME("arena"), CHILD(indexed, arena)},
     {NAME("arenas"), CHILD(named, arenas)}, {NAME("prof"), CHILD(named, prof)},
     {NAME("stats"), CHILD(named, stats)},
+    {NAME("approximate_stats"), CHILD(named, approximate_stats)},
     {NAME("experimental"), CHILD(named, experimental)}};
 static const ctl_named_node_t super_root_node[] = {
     {NAME(""), CHILD(named, root)}};
@@ -3755,6 +3761,45 @@ CTL_RO_CGEN(config_stats, stats_background_thread_run_interval,
 
 CTL_RO_CGEN(config_stats, stats_zero_reallocs,
     atomic_load_zu(&zero_realloc_count, ATOMIC_RELAXED), size_t)
+
+/*
+ * approximate_stats.active returns a result that is informative itself,
+ * but the returned value SHOULD NOT be compared against other stats retrieved.
+ * For instance, approximate_stats.active should not be compared against
+ * any stats, e.g., stats.active or stats.resident, because there is no
+ * guarantee in the comparison results.  Results returned by stats.*, on the
+ * other hand, provides such guarantees, i.e., stats.active <= stats.resident,
+ * as long as epoch is called right before the queries.
+ */
+
+static int
+approximate_stats_active_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	int    ret;
+	size_t approximate_nactive = 0;
+	size_t approximate_active_bytes = 0;
+
+	READONLY();
+
+	tsdn_t  *tsdn = tsd_tsdn(tsd);
+	unsigned n = narenas_total_get();
+
+	for (unsigned i = 0; i < n; i++) {
+		arena_t *arena = arena_get(tsdn, i, false);
+		if (!arena) {
+			continue;
+		}
+		/* Accumulate nactive pages from each arena's pa_shard */
+		approximate_nactive += pa_shard_nactive(&arena->pa_shard);
+	}
+
+	approximate_active_bytes = approximate_nactive << LG_PAGE;
+	READ(approximate_active_bytes, size_t);
+
+	ret = 0;
+label_return:
+	return ret;
+}
 
 CTL_RO_GEN(stats_arenas_i_dss, arenas_i(mib[2])->dss, const char *)
 CTL_RO_GEN(
