@@ -448,7 +448,7 @@ background_thread0_work(tsd_t *tsd) {
 		}
 		if (check_background_thread_creation(tsd,
 		        const_max_background_threads, &n_created,
-		        (bool *)&created_threads)) {
+		        created_threads)) {
 			continue;
 		}
 		background_work_sleep_once(
