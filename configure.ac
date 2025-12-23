@@ -652,7 +652,7 @@ AC_ARG_WITH([version],
   [AS_HELP_STRING([--with-version=<major>.<minor>.<bugfix>-<nrev>-g<gid>],
    [Version string])],
   [
-    echo "${with_version}" | grep ['^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*-[0-9][0-9]*-g[0-9a-f][0-9a-f]*$'] 2>&1 1>/dev/null
+    echo "${with_version}" | grep ['^[0-9]\{1,\}\.[0-9]\{1,\}\.[0-9]\{1,\}-[0-9]\{1,\}-g[0-9a-f]\{1,\}$'] 2>&1 1>/dev/null
     if test $? -eq 0 ; then
       echo "$with_version" > "${objroot}VERSION"
     else
@@ -2059,7 +2059,7 @@ if test "x${je_cv_lg_hugepage}" = "x" ; then
   dnl   Hugepagesize:       2048 kB
   if test -e "/proc/meminfo" ; then
     hpsk=[`cat /proc/meminfo 2>/dev/null | \
-          grep '^Hugepagesize:[[:space:]][[:space:]]*[0-9][0-9]*[[:space:]]kB$' | \
+          grep '^Hugepagesize:[[:space:]]\{1,\}[0-9]\{1,\}[[:space:]]kB$' | \
           awk '{print $2}'`]
     if test "x${hpsk}" != "x" ; then
       je_cv_lg_hugepage=10
