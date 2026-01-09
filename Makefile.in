@@ -206,6 +206,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/atomic.c \
 	$(srcroot)test/unit/background_thread.c \
 	$(srcroot)test/unit/background_thread_enable.c \
+	$(srcroot)test/unit/background_thread_init.c \
 	$(srcroot)test/unit/base.c \
 	$(srcroot)test/unit/batch_alloc.c \
 	$(srcroot)test/unit/binshard.c \
