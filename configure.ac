@@ -1990,6 +1990,11 @@ case "${host}" in
         LG_PAGE=14
       fi
       ;;
+  *-*-linux-android)
+      if test "x$LG_PAGE" = "xdetect"; then
+	AC_CHECK_DECLS([PAGE_SIZE], [LG_PAGE=12], [LG_PAGE=14], [#include <sys/user.h>])
+      fi
+      ;;
   aarch64-unknown-linux-*)
       if test "x$LG_PAGE" = "xdetect"; then
         LG_PAGE=16
