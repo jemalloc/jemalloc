@@ -6,7 +6,6 @@
 #include "jemalloc/internal/tcache_externs.h"
 #include "jemalloc/internal/peak_event.h"
 #include "jemalloc/internal/prof_externs.h"
-#include "jemalloc/internal/prof_threshold.h"
 #include "jemalloc/internal/stats.h"
 
 static malloc_mutex_t uevents_mu;
@@ -149,7 +148,7 @@ te_base_cb_t *te_alloc_handlers[te_alloc_count] = {
 #endif
     &stats_interval_te_handler, &tcache_gc_te_handler,
 #ifdef JEMALLOC_STATS
-    &prof_threshold_te_handler, &peak_te_handler,
+    &peak_te_handler,
 #endif
     &user_alloc_handler0, &user_alloc_handler1, &user_alloc_handler2,
     &user_alloc_handler3};

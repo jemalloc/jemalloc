@@ -27,10 +27,4 @@ typedef void (*prof_sample_hook_t)(const void *ptr, size_t size,
 /* ptr, size */
 typedef void (*prof_sample_free_hook_t)(const void *, size_t);
 
-/*
- * A callback hook that notifies when an allocation threshold has been crossed.
- */
-typedef void (*prof_threshold_hook_t)(
-    uint64_t alloc, uint64_t dealloc, uint64_t peak);
-
 #endif /* JEMALLOC_INTERNAL_PROF_HOOK_H */

@@ -290,15 +290,6 @@ te_update_alloc_events(tsd_t *tsd, te_base_cb_t **to_trigger,
 		to_trigger[nto_trigger++] = te_alloc_handlers[te_alloc_peak];
 	}
 
-	assert(te_enabled_yes
-	    == te_alloc_handlers[te_alloc_prof_threshold]->enabled());
-	if (te_update_wait(tsd, accumbytes, allow,
-	        &waits[te_alloc_prof_threshold], wait,
-	        te_alloc_handlers[te_alloc_prof_threshold],
-	        1 << opt_experimental_lg_prof_threshold)) {
-		to_trigger[nto_trigger++] =
-		    te_alloc_handlers[te_alloc_prof_threshold];
-	}
 #endif
 
 	for (te_alloc_t ue = te_alloc_user0; ue <= te_alloc_user3; ue++) {

@@ -14,7 +14,6 @@ enum te_alloc_e {
 	te_alloc_stats_interval,
 	te_alloc_tcache_gc,
 #ifdef JEMALLOC_STATS
-	te_alloc_prof_threshold,
 	te_alloc_peak,
 #endif
 	te_alloc_user0,
