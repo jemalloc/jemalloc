@@ -520,12 +520,15 @@ typedef void(test_t)(void);
 
 #define TEST_BEGIN(f)                                                          \
 	static void f(void) {                                                  \
-		p_test_init(#f);
+		const bool skip_test = p_test_init(#f);                        \
+		if (skip_test) {                                               \
+			goto label_test_end;                                   \
+		}
 
 #define TEST_END                                                               \
 	goto label_test_end;                                                   \
 	label_test_end:                                                        \
-	p_test_fini();                                                         \
+	p_test_fini(skip_test);                                                \
 	}
 
 #define test(...) p_test(__VA_ARGS__, NULL)
@@ -552,6 +555,6 @@ void test_fail(const char *format, ...) JEMALLOC_FORMAT_PRINTF(1, 2);
 test_status_t p_test(test_t *t, ...);
 test_status_t p_test_no_reentrancy(test_t *t, ...);
 test_status_t p_test_no_malloc_init(test_t *t, ...);
-void          p_test_init(const char *name);
-void          p_test_fini(void);
+bool          p_test_init(const char *name);
+void          p_test_fini(bool skip_test);
 void p_test_fail(bool may_abort, const char *prefix, const char *message);
