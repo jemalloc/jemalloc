@@ -260,10 +260,10 @@ mutex_stats_emit(emitter_t *emitter, emitter_row_t *row,
 #define OP(counter, type, human, derived, base_counter)                        \
 	if (!derived) {                                                        \
 		col = &col_##type[k_##type];                                   \
-		++k_##type;                                                    \
 		emitter_json_kv(emitter, #counter, EMITTER_TYPE_##type,        \
 		    (const void *)&col->bool_val);                             \
-	}
+	}                                                                      \
+	++k_##type;
 	MUTEX_PROF_COUNTERS;
 #undef OP
 #undef EMITTER_TYPE_uint32_t
