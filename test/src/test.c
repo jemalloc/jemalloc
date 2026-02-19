@@ -6,6 +6,7 @@ static unsigned      test_count = 0;
 static test_status_t test_counts[test_status_count] = {0, 0, 0};
 static test_status_t test_status = test_status_pass;
 static const char   *test_name = "";
+static const char   *selected_test_name = NULL;
 
 /* Reentrancy testing helpers. */
 
@@ -100,15 +101,26 @@ test_status_string(test_status_t current_status) {
 	}
 }
 
-void
+bool
 p_test_init(const char *name) {
+	if (selected_test_name != NULL && strcmp(selected_test_name, name)) {
+		/* skip test */
+		return true;
+	}
+
 	test_count++;
 	test_status = test_status_pass;
 	test_name = name;
+
+	return false;
 }
 
 void
-p_test_fini(void) {
+p_test_fini(bool skip_test) {
+	if (skip_test) {
+		return;
+	}
+
 	test_counts[test_status]++;
 	malloc_printf("%s (%s): %s\n", test_name, reentrancy_t_str(reentrancy),
 	    test_status_string(test_status));
@@ -130,6 +142,8 @@ check_global_slow(test_status_t *status) {
 
 static test_status_t
 p_test_impl(bool do_malloc_init, bool do_reentrant, test_t *t, va_list ap) {
+	selected_test_name = getenv("JEMALLOC_TEST_NAME");
+
 	test_status_t ret;
 
 	if (do_malloc_init) {
