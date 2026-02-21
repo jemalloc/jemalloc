@@ -240,6 +240,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/junk.c \
 	$(srcroot)test/unit/junk_alloc.c \
 	$(srcroot)test/unit/junk_free.c \
+	$(srcroot)test/unit/json_stats.c \
 	$(srcroot)test/unit/log.c \
 	$(srcroot)test/unit/mallctl.c \
 	$(srcroot)test/unit/malloc_conf_2.c \
