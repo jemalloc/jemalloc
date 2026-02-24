@@ -4,6 +4,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/arena_externs.h"
 #include "jemalloc/internal/arena_structs.h"
+#include "jemalloc/internal/bin_inlines.h"
 #include "jemalloc/internal/div.h"
 #include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_b.h"
@@ -335,29 +336,6 @@ arena_dalloc_large(tsdn_t *tsdn, void *ptr, tcache_t *tcache, szind_t szind,
 	}
 }
 
-/* Find the region index of a pointer. */
-JEMALLOC_ALWAYS_INLINE size_t
-arena_slab_regind_impl(
-    div_info_t *div_info, szind_t binind, edata_t *slab, const void *ptr) {
-	size_t diff, regind;
-
-	/* Freeing a pointer outside the slab can cause assertion failure. */
-	assert((uintptr_t)ptr >= (uintptr_t)edata_addr_get(slab));
-	assert((uintptr_t)ptr < (uintptr_t)edata_past_get(slab));
-	/* Freeing an interior pointer can cause assertion failure. */
-	assert(((uintptr_t)ptr - (uintptr_t)edata_addr_get(slab))
-	        % (uintptr_t)bin_infos[binind].reg_size
-	    == 0);
-
-	diff = (size_t)((uintptr_t)ptr - (uintptr_t)edata_addr_get(slab));
-
-	/* Avoid doing division with a variable divisor. */
-	regind = div_compute(div_info, diff);
-	assert(regind < bin_infos[binind].nregs);
-	return regind;
-}
-
-/* Checks whether ptr is currently active in the arena. */
 JEMALLOC_ALWAYS_INLINE bool
 arena_tcache_dalloc_small_safety_check(tsdn_t *tsdn, void *ptr) {
 	if (!config_debug) {
@@ -367,10 +345,10 @@ arena_tcache_dalloc_small_safety_check(tsdn_t *tsdn, void *ptr) {
 	szind_t    binind = edata_szind_get(edata);
 	div_info_t div_info = arena_binind_div_info[binind];
 	/*
-	 * Calls the internal function arena_slab_regind_impl because the
+	 * Calls the internal function bin_slab_regind_impl because the
 	 * safety check does not require a lock.
 	 */
-	size_t regind = arena_slab_regind_impl(&div_info, binind, edata, ptr);
+	size_t regind = bin_slab_regind_impl(&div_info, binind, edata, ptr);
 	slab_data_t      *slab_data = edata_slab_data_get(edata);
 	const bin_info_t *bin_info = &bin_infos[binind];
 	assert(edata_nfree_get(edata) < bin_info->nregs);
@@ -548,84 +526,6 @@ arena_cache_oblivious_randomize(
 		    + random_offset);
 		assert(ALIGNMENT_ADDR2BASE(edata->e_addr, alignment)
 		    == edata->e_addr);
-	}
-}
-
-/*
- * The dalloc bin info contains just the information that the common paths need
- * during tcache flushes.  By force-inlining these paths, and using local copies
- * of data (so that the compiler knows it's constant), we avoid a whole bunch of
- * redundant loads and stores by leaving this information in registers.
- */
-typedef struct arena_dalloc_bin_locked_info_s arena_dalloc_bin_locked_info_t;
-struct arena_dalloc_bin_locked_info_s {
-	div_info_t div_info;
-	uint32_t   nregs;
-	uint64_t   ndalloc;
-};
-
-JEMALLOC_ALWAYS_INLINE size_t
-arena_slab_regind(arena_dalloc_bin_locked_info_t *info, szind_t binind,
-    edata_t *slab, const void *ptr) {
-	size_t regind = arena_slab_regind_impl(
-	    &info->div_info, binind, slab, ptr);
-	return regind;
-}
-
-JEMALLOC_ALWAYS_INLINE void
-arena_dalloc_bin_locked_begin(
-    arena_dalloc_bin_locked_info_t *info, szind_t binind) {
-	info->div_info = arena_binind_div_info[binind];
-	info->nregs = bin_infos[binind].nregs;
-	info->ndalloc = 0;
-}
-
-/*
- * Does the deallocation work associated with freeing a single pointer (a
- * "step") in between a arena_dalloc_bin_locked begin and end call.
- *
- * Returns true if arena_slab_dalloc must be called on slab.  Doesn't do
- * stats updates, which happen during finish (this lets running counts get left
- * in a register).
- */
-JEMALLOC_ALWAYS_INLINE bool
-arena_dalloc_bin_locked_step(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
-    arena_dalloc_bin_locked_info_t *info, szind_t binind, edata_t *slab,
-    void *ptr) {
-	const bin_info_t *bin_info = &bin_infos[binind];
-	size_t            regind = arena_slab_regind(info, binind, slab, ptr);
-	slab_data_t      *slab_data = edata_slab_data_get(slab);
-
-	assert(edata_nfree_get(slab) < bin_info->nregs);
-	/* Freeing an unallocated pointer can cause assertion failure. */
-	assert(bitmap_get(slab_data->bitmap, &bin_info->bitmap_info, regind));
-
-	bitmap_unset(slab_data->bitmap, &bin_info->bitmap_info, regind);
-	edata_nfree_inc(slab);
-
-	if (config_stats) {
-		info->ndalloc++;
-	}
-
-	unsigned nfree = edata_nfree_get(slab);
-	if (nfree == bin_info->nregs) {
-		bin_dalloc_locked_handle_newly_empty(
-		    tsdn, arena_is_auto(arena), slab, bin);
-		return true;
-	} else if (nfree == 1 && slab != bin->slabcur) {
-		bin_dalloc_locked_handle_newly_nonempty(
-		    tsdn, arena_is_auto(arena), slab, bin);
-	}
-	return false;
-}
-
-JEMALLOC_ALWAYS_INLINE void
-arena_dalloc_bin_locked_finish(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
-    arena_dalloc_bin_locked_info_t *info) {
-	if (config_stats) {
-		bin->stats.ndalloc += info->ndalloc;
-		assert(bin->stats.curregs >= (size_t)info->ndalloc);
-		bin->stats.curregs -= (size_t)info->ndalloc;
 	}
 }
 

@@ -1171,11 +1171,11 @@ arena_dalloc_bin(tsdn_t *tsdn, arena_t *arena, edata_t *edata, void *ptr) {
 	bin_t   *bin = arena_get_bin(arena, binind, binshard);
 
 	malloc_mutex_lock(tsdn, &bin->lock);
-	arena_dalloc_bin_locked_info_t info;
-	arena_dalloc_bin_locked_begin(&info, binind);
-	bool ret = arena_dalloc_bin_locked_step(
-	    tsdn, arena, bin, &info, binind, edata, ptr);
-	arena_dalloc_bin_locked_finish(tsdn, arena, bin, &info);
+	bin_dalloc_locked_info_t info;
+	bin_dalloc_locked_begin(&info, binind);
+	bool ret = bin_dalloc_locked_step(
+	    tsdn, arena_is_auto(arena), bin, &info, binind, edata, ptr);
+	bin_dalloc_locked_finish(tsdn, bin, &info);
 	malloc_mutex_unlock(tsdn, &bin->lock);
 
 	if (ret) {
@@ -1330,12 +1330,13 @@ arena_ptr_array_flush_impl_small(tsdn_t *tsdn, szind_t binind,
 
 		/* Next flush objects. */
 		/* Init only to avoid used-uninitialized warning. */
-		arena_dalloc_bin_locked_info_t dalloc_bin_info = {0};
-		arena_dalloc_bin_locked_begin(&dalloc_bin_info, binind);
+		bin_dalloc_locked_info_t dalloc_bin_info = {0};
+		bin_dalloc_locked_begin(&dalloc_bin_info, binind);
 		for (unsigned i = prev_flush_start; i < flush_start; i++) {
 			void    *ptr = arr->ptr[i];
 			edata_t *edata = item_edata[i].edata;
-			if (arena_dalloc_bin_locked_step(tsdn, cur_arena,
+			if (bin_dalloc_locked_step(tsdn,
+			        arena_is_auto(cur_arena),
 			        cur_bin, &dalloc_bin_info, binind, edata,
 			        ptr)) {
 				dalloc_slabs[dalloc_count] = edata;
@@ -1343,8 +1344,8 @@ arena_ptr_array_flush_impl_small(tsdn_t *tsdn, szind_t binind,
 			}
 		}
 
-		arena_dalloc_bin_locked_finish(
-		    tsdn, cur_arena, cur_bin, &dalloc_bin_info);
+		bin_dalloc_locked_finish(
+		    tsdn, cur_bin, &dalloc_bin_info);
 		malloc_mutex_unlock(tsdn, &cur_bin->lock);
 
 		arena_decay_ticks(
