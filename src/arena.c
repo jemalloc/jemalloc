@@ -66,8 +66,6 @@ const arena_config_t arena_config_default = {
 
 static bool arena_decay_dirty(
     tsdn_t *tsdn, arena_t *arena, bool is_background_thread, bool all);
-static void arena_bin_lower_slab(
-    tsdn_t *tsdn, arena_t *arena, edata_t *slab, bin_t *bin);
 static void arena_maybe_do_deferred_work(
     tsdn_t *tsdn, arena_t *arena, decay_t *decay, size_t npages_new);
 
@@ -239,71 +237,6 @@ arena_handle_deferred_work(tsdn_t *tsdn, arena_t *arena) {
 		arena_decay_dirty(tsdn, arena, false, true);
 	}
 	arena_background_thread_inactivity_check(tsdn, arena, false);
-}
-
-static void *
-arena_slab_reg_alloc(edata_t *slab, const bin_info_t *bin_info) {
-	void        *ret;
-	slab_data_t *slab_data = edata_slab_data_get(slab);
-	size_t       regind;
-
-	assert(edata_nfree_get(slab) > 0);
-	assert(!bitmap_full(slab_data->bitmap, &bin_info->bitmap_info));
-
-	regind = bitmap_sfu(slab_data->bitmap, &bin_info->bitmap_info);
-	ret = (void *)((byte_t *)edata_addr_get(slab)
-	    + (uintptr_t)(bin_info->reg_size * regind));
-	edata_nfree_dec(slab);
-	return ret;
-}
-
-static void
-arena_slab_reg_alloc_batch(
-    edata_t *slab, const bin_info_t *bin_info, unsigned cnt, void **ptrs) {
-	slab_data_t *slab_data = edata_slab_data_get(slab);
-
-	assert(edata_nfree_get(slab) >= cnt);
-	assert(!bitmap_full(slab_data->bitmap, &bin_info->bitmap_info));
-
-#if (!defined JEMALLOC_INTERNAL_POPCOUNTL) || (defined BITMAP_USE_TREE)
-	for (unsigned i = 0; i < cnt; i++) {
-		size_t regind = bitmap_sfu(
-		    slab_data->bitmap, &bin_info->bitmap_info);
-		*(ptrs + i) = (void *)((uintptr_t)edata_addr_get(slab)
-		    + (uintptr_t)(bin_info->reg_size * regind));
-	}
-#else
-	unsigned group = 0;
-	bitmap_t g = slab_data->bitmap[group];
-	unsigned i = 0;
-	while (i < cnt) {
-		while (g == 0) {
-			g = slab_data->bitmap[++group];
-		}
-		size_t shift = group << LG_BITMAP_GROUP_NBITS;
-		size_t pop = popcount_lu(g);
-		if (pop > (cnt - i)) {
-			pop = cnt - i;
-		}
-
-		/*
-		 * Load from memory locations only once, outside the
-		 * hot loop below.
-		 */
-		uintptr_t base = (uintptr_t)edata_addr_get(slab);
-		uintptr_t regsize = (uintptr_t)bin_info->reg_size;
-		while (pop--) {
-			size_t bit = cfs_lu(&g);
-			size_t regind = shift + bit;
-			/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
-			*(ptrs + i) = (void *)(base + regsize * regind);
-
-			i++;
-		}
-		slab_data->bitmap[group] = g;
-	}
-#endif
-	edata_nfree_sub(slab, cnt);
 }
 
 static void
@@ -623,58 +556,6 @@ arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, edata_t *slab) {
 }
 
 static void
-arena_bin_slabs_nonfull_insert(bin_t *bin, edata_t *slab) {
-	assert(edata_nfree_get(slab) > 0);
-	edata_heap_insert(&bin->slabs_nonfull, slab);
-	if (config_stats) {
-		bin->stats.nonfull_slabs++;
-	}
-}
-
-static void
-arena_bin_slabs_nonfull_remove(bin_t *bin, edata_t *slab) {
-	edata_heap_remove(&bin->slabs_nonfull, slab);
-	if (config_stats) {
-		bin->stats.nonfull_slabs--;
-	}
-}
-
-static edata_t *
-arena_bin_slabs_nonfull_tryget(bin_t *bin) {
-	edata_t *slab = edata_heap_remove_first(&bin->slabs_nonfull);
-	if (slab == NULL) {
-		return NULL;
-	}
-	if (config_stats) {
-		bin->stats.reslabs++;
-		bin->stats.nonfull_slabs--;
-	}
-	return slab;
-}
-
-static void
-arena_bin_slabs_full_insert(arena_t *arena, bin_t *bin, edata_t *slab) {
-	assert(edata_nfree_get(slab) == 0);
-	/*
-	 *  Tracking extents is required by arena_reset, which is not allowed
-	 *  for auto arenas.  Bypass this step to avoid touching the edata
-	 *  linkage (often results in cache misses) for auto arenas.
-	 */
-	if (arena_is_auto(arena)) {
-		return;
-	}
-	edata_list_active_append(&bin->slabs_full, slab);
-}
-
-static void
-arena_bin_slabs_full_remove(arena_t *arena, bin_t *bin, edata_t *slab) {
-	if (arena_is_auto(arena)) {
-		return;
-	}
-	edata_list_active_remove(&bin->slabs_full, slab);
-}
-
-static void
 arena_bin_reset(tsd_t *tsd, arena_t *arena, bin_t *bin) {
 	edata_t *slab;
 
@@ -694,7 +575,7 @@ arena_bin_reset(tsd_t *tsd, arena_t *arena, bin_t *bin) {
 	}
 	for (slab = edata_list_active_first(&bin->slabs_full); slab != NULL;
 	    slab = edata_list_active_first(&bin->slabs_full)) {
-		arena_bin_slabs_full_remove(arena, bin, slab);
+		bin_slabs_full_remove(false, bin, slab);
 		malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
 		arena_slab_dalloc(tsd_tsdn(tsd), arena, slab);
 		malloc_mutex_lock(tsd_tsdn(tsd), &bin->lock);
@@ -985,73 +866,6 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 	return slab;
 }
 
-/*
- * Before attempting the _with_fresh_slab approaches below, the _no_fresh_slab
- * variants (i.e. through slabcur and nonfull) must be tried first.
- */
-static void
-arena_bin_refill_slabcur_with_fresh_slab(tsdn_t *tsdn, arena_t *arena,
-    bin_t *bin, szind_t binind, edata_t *fresh_slab) {
-	malloc_mutex_assert_owner(tsdn, &bin->lock);
-	/* Only called after slabcur and nonfull both failed. */
-	assert(bin->slabcur == NULL);
-	assert(edata_heap_first(&bin->slabs_nonfull) == NULL);
-	assert(fresh_slab != NULL);
-
-	/* A new slab from arena_slab_alloc() */
-	assert(edata_nfree_get(fresh_slab) == bin_infos[binind].nregs);
-	if (config_stats) {
-		bin->stats.nslabs++;
-		bin->stats.curslabs++;
-	}
-	bin->slabcur = fresh_slab;
-}
-
-/* Refill slabcur and then alloc using the fresh slab */
-static void *
-arena_bin_malloc_with_fresh_slab(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
-    szind_t binind, edata_t *fresh_slab) {
-	malloc_mutex_assert_owner(tsdn, &bin->lock);
-	arena_bin_refill_slabcur_with_fresh_slab(
-	    tsdn, arena, bin, binind, fresh_slab);
-
-	return arena_slab_reg_alloc(bin->slabcur, &bin_infos[binind]);
-}
-
-static bool
-arena_bin_refill_slabcur_no_fresh_slab(
-    tsdn_t *tsdn, arena_t *arena, bin_t *bin) {
-	malloc_mutex_assert_owner(tsdn, &bin->lock);
-	/* Only called after arena_slab_reg_alloc[_batch] failed. */
-	assert(bin->slabcur == NULL || edata_nfree_get(bin->slabcur) == 0);
-
-	if (bin->slabcur != NULL) {
-		arena_bin_slabs_full_insert(arena, bin, bin->slabcur);
-	}
-
-	/* Look for a usable slab. */
-	bin->slabcur = arena_bin_slabs_nonfull_tryget(bin);
-	assert(bin->slabcur == NULL || edata_nfree_get(bin->slabcur) > 0);
-
-	return (bin->slabcur == NULL);
-}
-
-bin_t *
-arena_bin_choose(
-    tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned *binshard_p) {
-	unsigned binshard;
-	if (tsdn_null(tsdn) || tsd_arena_get(tsdn_tsd(tsdn)) == NULL) {
-		binshard = 0;
-	} else {
-		binshard = tsd_binshardsp_get(tsdn_tsd(tsdn))->binshard[binind];
-	}
-	assert(binshard < bin_infos[binind].n_shards);
-	if (binshard_p != NULL) {
-		*binshard_p = binshard;
-	}
-	return arena_get_bin(arena, binind, binshard);
-}
-
 cache_bin_sz_t
 arena_ptr_array_fill_small(tsdn_t *tsdn, arena_t *arena, szind_t binind,
     cache_bin_ptr_array_t *arr, const cache_bin_sz_t nfill_min,
@@ -1088,9 +902,10 @@ arena_ptr_array_fill_small(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 	bool           made_progress = true;
 	edata_t       *fresh_slab = NULL;
 	bool           alloc_and_retry = false;
+	bool           is_auto = arena_is_auto(arena);
 	cache_bin_sz_t filled = 0;
 	unsigned       binshard;
-	bin_t         *bin = arena_bin_choose(tsdn, arena, binind, &binshard);
+	bin_t         *bin = bin_choose(tsdn, arena, binind, &binshard);
 
 label_refill:
 	malloc_mutex_lock(tsdn, &bin->lock);
@@ -1109,22 +924,22 @@ label_refill:
 				cnt = nfill_min - filled;
 			}
 
-			arena_slab_reg_alloc_batch(
+			bin_slab_reg_alloc_batch(
 			    slabcur, bin_info, cnt, &arr->ptr[filled]);
 			made_progress = true;
 			filled += cnt;
 			continue;
 		}
 		/* Next try refilling slabcur from nonfull slabs. */
-		if (!arena_bin_refill_slabcur_no_fresh_slab(tsdn, arena, bin)) {
+		if (!bin_refill_slabcur_no_fresh_slab(tsdn, is_auto, bin)) {
 			assert(bin->slabcur != NULL);
 			continue;
 		}
 
 		/* Then see if a new slab was reserved already. */
 		if (fresh_slab != NULL) {
-			arena_bin_refill_slabcur_with_fresh_slab(
-			    tsdn, arena, bin, binind, fresh_slab);
+			bin_refill_slabcur_with_fresh_slab(
+			    tsdn, bin, binind, fresh_slab);
 			assert(bin->slabcur != NULL);
 			fresh_slab = NULL;
 			continue;
@@ -1193,7 +1008,7 @@ arena_fill_small_fresh(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 
 	const bool manual_arena = !arena_is_auto(arena);
 	unsigned   binshard;
-	bin_t     *bin = arena_bin_choose(tsdn, arena, binind, &binshard);
+	bin_t     *bin = bin_choose(tsdn, arena, binind, &binshard);
 
 	size_t              nslab = 0;
 	size_t              filled = 0;
@@ -1212,7 +1027,7 @@ arena_fill_small_fresh(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 			batch = nregs;
 		}
 		assert(batch > 0);
-		arena_slab_reg_alloc_batch(
+		bin_slab_reg_alloc_batch(
 		    slab, bin_info, (unsigned)batch, &ptrs[filled]);
 		assert(edata_addr_get(slab) == ptrs[filled]);
 		if (zero) {
@@ -1233,7 +1048,7 @@ arena_fill_small_fresh(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 	 * iff slab != NULL.
 	 */
 	if (slab != NULL) {
-		arena_bin_lower_slab(tsdn, arena, slab, bin);
+		bin_lower_slab(tsdn, !manual_arena, slab, bin);
 	}
 	if (manual_arena) {
 		edata_list_active_concat(&bin->slabs_full, &fulls);
@@ -1252,35 +1067,18 @@ arena_fill_small_fresh(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 	return filled;
 }
 
-/*
- * Without allocating a new slab, try arena_slab_reg_alloc() and re-fill
- * bin->slabcur if necessary.
- */
-static void *
-arena_bin_malloc_no_fresh_slab(
-    tsdn_t *tsdn, arena_t *arena, bin_t *bin, szind_t binind) {
-	malloc_mutex_assert_owner(tsdn, &bin->lock);
-	if (bin->slabcur == NULL || edata_nfree_get(bin->slabcur) == 0) {
-		if (arena_bin_refill_slabcur_no_fresh_slab(tsdn, arena, bin)) {
-			return NULL;
-		}
-	}
-
-	assert(bin->slabcur != NULL && edata_nfree_get(bin->slabcur) > 0);
-	return arena_slab_reg_alloc(bin->slabcur, &bin_infos[binind]);
-}
-
 static void *
 arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero) {
 	assert(binind < SC_NBINS);
 	const bin_info_t *bin_info = &bin_infos[binind];
 	size_t            usize = sz_index2size(binind);
+	bool              is_auto = arena_is_auto(arena);
 	unsigned          binshard;
-	bin_t *bin = arena_bin_choose(tsdn, arena, binind, &binshard);
+	bin_t *bin = bin_choose(tsdn, arena, binind, &binshard);
 
 	malloc_mutex_lock(tsdn, &bin->lock);
 	edata_t *fresh_slab = NULL;
-	void    *ret = arena_bin_malloc_no_fresh_slab(tsdn, arena, bin, binind);
+	void    *ret = bin_malloc_no_fresh_slab(tsdn, is_auto, bin, binind);
 	if (ret == NULL) {
 		malloc_mutex_unlock(tsdn, &bin->lock);
 		/******************************/
@@ -1289,15 +1087,15 @@ arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero) {
 		/********************************/
 		malloc_mutex_lock(tsdn, &bin->lock);
 		/* Retry since the lock was dropped. */
-		ret = arena_bin_malloc_no_fresh_slab(tsdn, arena, bin, binind);
+		ret = bin_malloc_no_fresh_slab(tsdn, is_auto, bin, binind);
 		if (ret == NULL) {
 			if (fresh_slab == NULL) {
 				/* OOM */
 				malloc_mutex_unlock(tsdn, &bin->lock);
 				return NULL;
 			}
-			ret = arena_bin_malloc_with_fresh_slab(
-			    tsdn, arena, bin, binind, fresh_slab);
+			ret = bin_malloc_with_fresh_slab(
+			    tsdn, bin, binind, fresh_slab);
 			fresh_slab = NULL;
 		}
 	}
@@ -1364,78 +1162,6 @@ arena_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
 			    tsdn, arena, usize, alignment, zero);
 		}
 	}
-}
-
-static void
-arena_dissociate_bin_slab(arena_t *arena, edata_t *slab, bin_t *bin) {
-	/* Dissociate slab from bin. */
-	if (slab == bin->slabcur) {
-		bin->slabcur = NULL;
-	} else {
-		szind_t           binind = edata_szind_get(slab);
-		const bin_info_t *bin_info = &bin_infos[binind];
-
-		/*
-		 * The following block's conditional is necessary because if the
-		 * slab only contains one region, then it never gets inserted
-		 * into the non-full slabs heap.
-		 */
-		if (bin_info->nregs == 1) {
-			arena_bin_slabs_full_remove(arena, bin, slab);
-		} else {
-			arena_bin_slabs_nonfull_remove(bin, slab);
-		}
-	}
-}
-
-static void
-arena_bin_lower_slab(tsdn_t *tsdn, arena_t *arena, edata_t *slab, bin_t *bin) {
-	assert(edata_nfree_get(slab) > 0);
-
-	/*
-	 * Make sure that if bin->slabcur is non-NULL, it refers to the
-	 * oldest/lowest non-full slab.  It is okay to NULL slabcur out rather
-	 * than proactively keeping it pointing at the oldest/lowest non-full
-	 * slab.
-	 */
-	if (bin->slabcur != NULL && edata_snad_comp(bin->slabcur, slab) > 0) {
-		/* Switch slabcur. */
-		if (edata_nfree_get(bin->slabcur) > 0) {
-			arena_bin_slabs_nonfull_insert(bin, bin->slabcur);
-		} else {
-			arena_bin_slabs_full_insert(arena, bin, bin->slabcur);
-		}
-		bin->slabcur = slab;
-		if (config_stats) {
-			bin->stats.reslabs++;
-		}
-	} else {
-		arena_bin_slabs_nonfull_insert(bin, slab);
-	}
-}
-
-static void
-arena_dalloc_bin_slab_prepare(tsdn_t *tsdn, edata_t *slab, bin_t *bin) {
-	malloc_mutex_assert_owner(tsdn, &bin->lock);
-
-	assert(slab != bin->slabcur);
-	if (config_stats) {
-		bin->stats.curslabs--;
-	}
-}
-
-void
-arena_dalloc_bin_locked_handle_newly_empty(
-    tsdn_t *tsdn, arena_t *arena, edata_t *slab, bin_t *bin) {
-	arena_dissociate_bin_slab(arena, slab, bin);
-	arena_dalloc_bin_slab_prepare(tsdn, slab, bin);
-}
-
-void
-arena_dalloc_bin_locked_handle_newly_nonempty(
-    tsdn_t *tsdn, arena_t *arena, edata_t *slab, bin_t *bin) {
-	arena_bin_slabs_full_remove(arena, bin, slab);
-	arena_bin_lower_slab(tsdn, arena, slab, bin);
 }
 
 static void
@@ -1637,7 +1363,7 @@ arena_ptr_array_flush_impl_small(tsdn_t *tsdn, szind_t binind,
 		 * thread's arena, so the stats didn't get merged.
 		 * Manually do so now.
 		 */
-		bin_t *bin = arena_bin_choose(tsdn, stats_arena, binind, NULL);
+		bin_t *bin = bin_choose(tsdn, stats_arena, binind, NULL);
 		malloc_mutex_lock(tsdn, &bin->lock);
 		bin->stats.nflushes++;
 		bin->stats.nrequests += (*merge_stats)->nrequests;
