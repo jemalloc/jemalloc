@@ -609,12 +609,12 @@ arena_dalloc_bin_locked_step(tsdn_t *tsdn, arena_t *arena, bin_t *bin,
 
 	unsigned nfree = edata_nfree_get(slab);
 	if (nfree == bin_info->nregs) {
-		arena_dalloc_bin_locked_handle_newly_empty(
-		    tsdn, arena, slab, bin);
+		bin_dalloc_locked_handle_newly_empty(
+		    tsdn, arena_is_auto(arena), slab, bin);
 		return true;
 	} else if (nfree == 1 && slab != bin->slabcur) {
-		arena_dalloc_bin_locked_handle_newly_nonempty(
-		    tsdn, arena, slab, bin);
+		bin_dalloc_locked_handle_newly_nonempty(
+		    tsdn, arena_is_auto(arena), slab, bin);
 	}
 	return false;
 }

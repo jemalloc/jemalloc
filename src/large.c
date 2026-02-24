@@ -41,7 +41,7 @@ large_palloc(
 		return NULL;
 	}
 
-	/* See comments in arena_bin_slabs_full_insert(). */
+	/* See comments in bin_slabs_full_insert(). */
 	if (!arena_is_auto(arena)) {
 		/* Insert edata into large. */
 		malloc_mutex_lock(tsdn, &arena->large_mtx);
@@ -233,7 +233,7 @@ static void
 large_dalloc_prep_impl(
     tsdn_t *tsdn, arena_t *arena, edata_t *edata, bool locked) {
 	if (!locked) {
-		/* See comments in arena_bin_slabs_full_insert(). */
+		/* See comments in bin_slabs_full_insert(). */
 		if (!arena_is_auto(arena)) {
 			malloc_mutex_lock(tsdn, &arena->large_mtx);
 			edata_list_active_remove(&arena->large, edata);
