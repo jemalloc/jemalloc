@@ -113,8 +113,12 @@ os_page_id(void *addr, size_t size, const char *name) {
 	 * While parsing `/proc/<pid>/maps` file, the block could appear as
 	 * 7f4836000000-7f4836800000 rw-p 00000000 00:00 0 [anon:jemalloc_pg_overcommit]`
 	 */
-	return prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, (uintptr_t)addr, size,
+	int n;
+	assert(addr != NULL);
+	n = prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, (uintptr_t)addr, size,
 	    (uintptr_t)name);
+	assert(n == 0 || (n == -1 && get_errno() == EINVAL));
+	return n;
 #	else
 	return 0;
 #	endif
@@ -187,9 +191,10 @@ os_pages_map(void *addr, size_t size, size_t alignment, bool *commit) {
 	assert(ret == NULL || (addr == NULL && ret != addr)
 	    || (addr != NULL && ret == addr));
 #ifdef JEMALLOC_PAGEID
-	int n = os_page_id(ret, size,
-	    os_overcommits ? "jemalloc_pg_overcommit" : "jemalloc_pg");
-	assert(n == 0 || (n == -1 && get_errno() == EINVAL));
+	if (ret != NULL) {
+		os_page_id(ret, size,
+		    os_overcommits ? "jemalloc_pg_overcommit" : "jemalloc_pg");
+	}
 #endif
 	return ret;
 }
