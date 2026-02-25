@@ -324,6 +324,15 @@ fi
 ,
 enable_cxx="1"
 )
+AC_ARG_WITH([cxx_stdlib],
+  [AS_HELP_STRING([--with-cxx-stdlib=<libstdc++|libcxx>],
+  [Specify the C++ standard library to link (default: probe for libstdc++)])],
+  [case "${with_cxx_stdlib}" in
+    libstdc++|libcxx) ;;
+    *) AC_MSG_ERROR([bad value ${with_cxx_stdlib} for --with-cxx-stdlib]) ;;
+  esac],
+  [with_cxx_stdlib=""]
+)
 if test "x$enable_cxx" = "x1" ; then
   dnl Require at least c++14, which is the first version to support sized
   dnl deallocation.  C++ support is not compiled otherwise.
@@ -338,17 +347,28 @@ if test "x$enable_cxx" = "x1" ; then
     JE_CXXFLAGS_ADD([-g3])
 
     SAVED_LIBS="${LIBS}"
-    JE_APPEND_VS(LIBS, -lstdc++)
-    JE_COMPILABLE([libstdc++ linkage], [
+    case "${with_cxx_stdlib}" in
+      libstdc++)
+        JE_APPEND_VS(LIBS, -lstdc++)
+        ;;
+      libcxx)
+        JE_APPEND_VS(LIBS, -lc++)
+        ;;
+      *)
+        dnl Probe for libstdc++ (the default when --with-cxx-stdlib is not given).
+        JE_APPEND_VS(LIBS, -lstdc++)
+        JE_COMPILABLE([libstdc++ linkage], [
 #include <stdlib.h>
 ], [[
 	int *arr = (int *)malloc(sizeof(int) * 42);
 	if (arr == NULL)
 		return 1;
 ]], [je_cv_libstdcxx])
-    if test "x${je_cv_libstdcxx}" = "xno" ; then
-      LIBS="${SAVED_LIBS}"
-    fi
+        if test "x${je_cv_libstdcxx}" = "xno" ; then
+          LIBS="${SAVED_LIBS}"
+        fi
+        ;;
+    esac
   else
     enable_cxx="0"
   fi
