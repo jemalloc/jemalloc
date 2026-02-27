@@ -208,6 +208,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/background_thread_init.c \
 	$(srcroot)test/unit/base.c \
 	$(srcroot)test/unit/batch_alloc.c \
+	$(srcroot)test/unit/bin.c \
 	$(srcroot)test/unit/binshard.c \
 	$(srcroot)test/unit/bitmap.c \
 	$(srcroot)test/unit/bit_util.c \
