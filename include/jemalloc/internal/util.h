@@ -6,6 +6,18 @@
 
 #define UTIL_INLINE static inline
 
+JEMALLOC_ALWAYS_INLINE
+size_t
+min_zu(size_t a, size_t b) {
+	return (a < b) ? a : b;
+}
+
+JEMALLOC_ALWAYS_INLINE
+size_t
+max_zu(size_t a, size_t b) {
+	return (a > b) ? a : b;
+}
+
 /* Junk fill patterns. */
 #ifndef JEMALLOC_ALLOC_JUNK
 #	define JEMALLOC_ALLOC_JUNK ((uint8_t)0xa5)

@@ -171,6 +171,171 @@ hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz) {
 }
 
 size_t
+hpdata_find_alloc_offsets(hpdata_t *hpdata, size_t sz,
+    hpdata_alloc_offset_t *offsets, size_t max_nallocs) {
+	hpdata_assert_consistent(hpdata);
+	assert((sz & PAGE_MASK) == 0);
+	assert(1 <= max_nallocs);
+	const size_t npages = sz >> LG_PAGE;
+	/* We should be able to find at least one allocation */
+	assert(npages <= hpdata_longest_free_range_get(hpdata));
+
+	size_t nallocs = 0;
+	size_t start = 0;
+	size_t longest_len = 0;
+	while (true) {
+		size_t begin = 0;
+		size_t len = 0;
+
+		const bool found = fb_urange_iter(
+		    hpdata->active_pages, HUGEPAGE_PAGES, start, &begin, &len);
+		if (!found) {
+			/* we should have found at least one */
+			assert(0 < nallocs);
+			break;
+		}
+
+		/* carve up the free range, if it's large enough */
+		while (npages <= len) {
+			offsets->len_before = len;
+			offsets->index = begin;
+			offsets->longest_len = longest_len;
+			offsets += 1;
+
+			nallocs += 1;
+			if (nallocs == max_nallocs) {
+				/* cause start to be == HUGEPAGE_PAGES to break out of the outer loop */
+				begin = HUGEPAGE_PAGES;
+				len = 0;
+				break;
+			}
+
+			begin += npages;
+			len -= npages;
+		}
+
+		start = begin + len;
+		assert(start <= HUGEPAGE_PAGES);
+		if (start == HUGEPAGE_PAGES) {
+			break;
+		}
+		longest_len = max_zu(longest_len, len);
+	}
+
+	/* post-conditions */
+	assert(1 <= nallocs);
+	assert(nallocs <= max_nallocs);
+
+	return nallocs;
+}
+
+void *
+hpdata_reserve_alloc_offset(
+    hpdata_t *hpdata, size_t sz, hpdata_alloc_offset_t *offset) {
+	/*
+	 * This is a metadata change; the hpdata should therefore either not be
+	 * in the psset, or should have explicitly marked itself as being
+	 * mid-update.
+	 */
+	assert(!hpdata->h_in_psset || hpdata->h_updating);
+	assert(hpdata->h_alloc_allowed);
+	assert((sz & PAGE_MASK) == 0);
+	const size_t npages = sz >> LG_PAGE;
+	const size_t index = offset->index;
+
+	fb_set_range(hpdata->active_pages, HUGEPAGE_PAGES, index, npages);
+	hpdata->h_nactive += npages;
+
+	/*
+	 * We might be about to dirty some memory for the first time; update our
+	 * count if so.
+	 */
+	size_t new_dirty = fb_ucount(
+	    hpdata->touched_pages, HUGEPAGE_PAGES, index, npages);
+	fb_set_range(hpdata->touched_pages, HUGEPAGE_PAGES, index, npages);
+	hpdata->h_ntouched += new_dirty;
+
+	return (void *)((byte_t *)hpdata_addr_get(hpdata) + (index << LG_PAGE));
+}
+
+void
+hpdata_post_reserve_alloc_offsets(hpdata_t *hpdata, size_t sz,
+    hpdata_alloc_offset_t *offsets, size_t nallocs) {
+	assert((sz & PAGE_MASK) == 0);
+	const size_t npages = sz >> LG_PAGE;
+
+	if (nallocs == 0) {
+		return;
+	}
+
+	size_t max_len = offsets[0].len_before;
+	for (size_t i = 1; i < nallocs; i += 1) {
+		max_len = max_zu(max_len, offsets[i].len_before);
+	}
+
+	const size_t prev_longest = hpdata_longest_free_range_get(hpdata);
+	assert(max_len <= prev_longest);
+	if (max_len < prev_longest) {
+		/* no need to update the hpdata longest range */
+		return;
+	}
+
+	/*
+	 * If we allocated out of a range that was the longest in the hpdata, it
+	 * might be the only one of that size and we'll have to adjust the
+	 * metadata.
+	 */
+	const size_t len_before = offsets[nallocs - 1].len_before;
+	size_t       start = offsets[nallocs - 1].index + len_before;
+	size_t       longest_len = max_zu(
+            offsets[nallocs - 1].longest_len, len_before - npages);
+
+	const size_t rest = HUGEPAGE_PAGES - start;
+	/*
+	 * Only look at the rest if we think we'll find a range longer than what
+	 * we already have. This also implicitly checks for rest == 0, so we don't
+	 * have to check before the first call to fb_urange_iter().
+	 */
+	if (longest_len < rest) {
+		while (true) {
+			size_t begin = 0;
+			size_t len = 0;
+
+			const bool found = fb_urange_iter(hpdata->active_pages,
+			    HUGEPAGE_PAGES, start, &begin, &len);
+			if (!found) {
+				break;
+			}
+
+			if (longest_len < len) {
+				if (len == prev_longest) {
+					/* it's already set to the right value */
+					assert(hpdata_longest_free_range_get(
+					           hpdata)
+					    == len);
+					assert(fb_urange_longest(
+					           hpdata->active_pages,
+					           HUGEPAGE_PAGES)
+					    == len);
+					return;
+				}
+				longest_len = len;
+			}
+
+			start = begin + len;
+			assert(start <= HUGEPAGE_PAGES);
+			if (start == HUGEPAGE_PAGES) {
+				break;
+			}
+		}
+	}
+
+	assert(fb_urange_longest(hpdata->active_pages, HUGEPAGE_PAGES)
+	    == longest_len);
+	hpdata_longest_free_range_set(hpdata, longest_len);
+}
+
+size_t
 hpdata_purge_begin(
     hpdata_t *hpdata, hpdata_purge_state_t *purge_state, size_t *nranges) {
 	hpdata_assert_consistent(hpdata);
