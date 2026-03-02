@@ -225,7 +225,8 @@ conf_error(
 		/* However, tolerate experimental features. */
 		return;
 	}
-	const char  *deprecated[] = {"hpa_sec_bytes_after_flush"};
+	const char *deprecated[] = {
+	    "hpa_sec_bytes_after_flush", "hpa_sec_batch_fill_extra"};
 	const size_t deprecated_cnt = (sizeof(deprecated)
 	    / sizeof(deprecated[0]));
 	for (size_t i = 0; i < deprecated_cnt; ++i) {
@@ -952,9 +953,6 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			CONF_HANDLE_SIZE_T(opt_hpa_sec_opts.max_bytes,
 			    "hpa_sec_max_bytes", SEC_OPTS_MAX_BYTES_DEFAULT, 0,
 			    CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
-			CONF_HANDLE_SIZE_T(opt_hpa_sec_opts.batch_fill_extra,
-			    "hpa_sec_batch_fill_extra", 1, HUGEPAGE_PAGES,
-			    CONF_CHECK_MIN, CONF_CHECK_MAX, true);
 
 			if (CONF_MATCH("slab_sizes")) {
 				if (CONF_MATCH_VALUE("default")) {

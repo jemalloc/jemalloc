@@ -69,7 +69,6 @@ TEST_BEGIN(test_sec_fill) {
 	opts.nshards = 1;
 	opts.max_alloc = 2 * PAGE;
 	opts.max_bytes = 4 * PAGE;
-	opts.batch_fill_extra = 2;
 
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 	test_data_init(tsdn, &tdata, &opts);
@@ -114,7 +113,6 @@ TEST_BEGIN(test_sec_alloc) {
 	opts.nshards = 1;
 	opts.max_alloc = 2 * PAGE;
 	opts.max_bytes = 4 * PAGE;
-	opts.batch_fill_extra = 1;
 
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 	test_data_init(tsdn, &tdata, &opts);

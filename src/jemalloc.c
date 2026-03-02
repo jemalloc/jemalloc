@@ -163,13 +163,13 @@ void (*JET_MUTABLE junk_free_callback)(
     void *ptr, size_t size) = &default_junk_free;
 void (*JET_MUTABLE invalid_conf_abort)(void) = &abort;
 
-bool         opt_utrace = false;
-bool         opt_xmalloc = false;
-bool         opt_experimental_infallible_new = false;
-bool         opt_experimental_tcache_gc = true;
-bool         opt_zero = false;
-unsigned     opt_narenas = 0;
-fxp_t opt_narenas_ratio = FXP_INIT_INT(4);
+bool     opt_utrace = false;
+bool     opt_xmalloc = false;
+bool     opt_experimental_infallible_new = false;
+bool     opt_experimental_tcache_gc = true;
+bool     opt_zero = false;
+unsigned opt_narenas = 0;
+fxp_t    opt_narenas_ratio = FXP_INIT_INT(4);
 
 unsigned ncpus;
 
@@ -208,7 +208,6 @@ typedef struct {
 #else
 #	define UTRACE(a, b, c)
 #endif
-
 
 /******************************************************************************/
 /*
