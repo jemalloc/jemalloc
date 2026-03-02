@@ -51,6 +51,60 @@ struct hpa_shard_nonderived_stats_s {
 	 * Guarded by mtx.
 	 */
 	uint64_t ndehugifies;
+
+	/*
+	 * Distribution of the min number of extents we will try to allocate
+	 * from a single hpa_alloc() call.
+	 *
+	 * Guarded by mtx.
+	 */
+	uint64_t hpa_alloc_min_extents[SEC_MAX_NALLOCS + 1];
+
+	/*
+	 * Distribution of the max number of extents we will try to allocate
+	 * from a single hpa_alloc() call.
+	 *
+	 * Guarded by mtx.
+	 */
+	uint64_t hpa_alloc_max_extents[SEC_MAX_NALLOCS + 1];
+
+	/*
+	 * Distribution of the number of extents allocated for a single
+	 * hpa_alloc() call and a single mtx lock acquisition.
+	 *
+	 * Guarded by mtx.
+	 */
+	uint64_t hpa_alloc_extents[SEC_MAX_NALLOCS + 1];
+
+	/*
+	 * Distribution of the number of ps out of which we allocated extents
+	 * for a single hpa_alloc() call and a single mtx lock acquisition.
+	 *
+	 * Guarded by mtx.
+	 */
+	uint64_t hpa_alloc_ps[SEC_MAX_NALLOCS + 1];
+
+	/*
+	 * Distribution of the number of pages allocated from a single ps.
+	 *
+	 * Guarded by mtx.
+	 */
+	uint64_t hpa_alloc_pages_per_ps[SEC_MAX_NALLOCS + 1];
+
+	/*
+	 * Distribution of the number of extents allocated from a single ps.
+	 *
+	 * Guarded by mtx.
+	 */
+	uint64_t hpa_alloc_extents_per_ps[SEC_MAX_NALLOCS + 1];
+
+	/*
+	 * Distribution of the total elapsed time (ns) for allocating extents
+	 * from a single ps.
+	 *
+	 * Guarded by mtx.
+	 */
+	uint64_t hpa_alloc_total_elapsed_ns_per_ps[SEC_MAX_NALLOCS + 1];
 };
 
 /* Completely derived; only used by CTL. */

@@ -889,9 +889,7 @@ stats_arena_hpa_shard_counters_print(
 	    " / sec)\n"
 	    "  Hugify failures: %" FMTu64 " (%" FMTu64
 	    " / sec)\n"
-	    "  Dehugifies: %" FMTu64 " (%" FMTu64
-	    " / sec)\n"
-	    "\n",
+	    "  Dehugifies: %" FMTu64 " (%" FMTu64 " / sec)\n",
 	    npageslabs, npageslabs_huge, npageslabs_nonhuge, nactive,
 	    nactive_huge, nactive_nonhuge, ndirty, ndirty_huge, ndirty_nonhuge,
 	    nretained_nonhuge, npurge_passes,
@@ -931,6 +929,82 @@ stats_arena_hpa_shard_counters_print(
 	emitter_json_kv(
 	    emitter, "ndirty_huge", emitter_type_size, &ndirty_huge);
 	emitter_json_object_end(emitter); /* End "slabs" */
+
+	/* alloc_batch stats */
+	uint64_t hpa_alloc_min_extents[SEC_MAX_NALLOCS + 1];
+	uint64_t hpa_alloc_max_extents[SEC_MAX_NALLOCS + 1];
+	uint64_t hpa_alloc_extents[SEC_MAX_NALLOCS + 1];
+	uint64_t hpa_alloc_ps[SEC_MAX_NALLOCS + 1];
+	uint64_t hpa_alloc_pages_per_ps[SEC_MAX_NALLOCS + 1];
+	uint64_t hpa_alloc_extents_per_ps[SEC_MAX_NALLOCS + 1];
+	uint64_t hpa_alloc_total_elapsed_ns_per_ps[SEC_MAX_NALLOCS + 1];
+
+	size_t alloc_mib[CTL_MAX_DEPTH];
+	CTL_LEAF_PREPARE(alloc_mib, 0, "stats.arenas");
+	alloc_mib[2] = i;
+	CTL_LEAF_PREPARE(alloc_mib, 3, "hpa_shard.alloc");
+
+	for (size_t j = 0; j <= SEC_MAX_NALLOCS; j += 1) {
+		alloc_mib[5] = j;
+		CTL_LEAF(alloc_mib, 6, "min_extents", &hpa_alloc_min_extents[j],
+		    uint64_t);
+		CTL_LEAF(alloc_mib, 6, "max_extents", &hpa_alloc_max_extents[j],
+		    uint64_t);
+		CTL_LEAF(
+		    alloc_mib, 6, "extents", &hpa_alloc_extents[j], uint64_t);
+		CTL_LEAF(alloc_mib, 6, "ps", &hpa_alloc_ps[j], uint64_t);
+		CTL_LEAF(alloc_mib, 6, "pages_per_ps",
+		    &hpa_alloc_pages_per_ps[j], uint64_t);
+		CTL_LEAF(alloc_mib, 6, "extents_per_ps",
+		    &hpa_alloc_extents_per_ps[j], uint64_t);
+		CTL_LEAF(alloc_mib, 6, "total_elapsed_ns_per_ps",
+		    &hpa_alloc_total_elapsed_ns_per_ps[j], uint64_t);
+	}
+
+	emitter_table_printf(emitter, "  extent allocation distribution:\n");
+	emitter_table_printf(emitter,
+	    "  %4s %20s %20s %20s %20s %20s %20s %24s %24s\n", "",
+	    "min_extents", "max_extents",
+	    "extents", "ps", "pages_per_ps", "extents_per_ps",
+	    "total_elapsed_ns_per_ps", "elapsed_ns_per_ps");
+	for (size_t j = 0; j <= SEC_MAX_NALLOCS; j += 1) {
+		const uint64_t extents_per_ps = hpa_alloc_extents_per_ps[j];
+		const uint64_t total_elapsed_ns_per_ps =
+		    hpa_alloc_total_elapsed_ns_per_ps[j];
+		const uint64_t elapsed_ns_per_ps = (extents_per_ps != 0)
+		    ? (total_elapsed_ns_per_ps / extents_per_ps)
+		    : 0;
+		emitter_table_printf(emitter,
+		    "  %4zu %20" FMTu64 " %20" FMTu64 " %20" FMTu64
+		    " %20" FMTu64 " %20" FMTu64 " %20" FMTu64 " %24" FMTu64
+		    " %24" FMTu64 "\n",
+		    j, hpa_alloc_min_extents[j], hpa_alloc_max_extents[j],
+		    hpa_alloc_extents[j],
+		    hpa_alloc_ps[j], hpa_alloc_pages_per_ps[j], extents_per_ps,
+		    total_elapsed_ns_per_ps, elapsed_ns_per_ps);
+	}
+	emitter_table_printf(emitter, "\n");
+
+	emitter_json_array_kv_begin(emitter, "extent_allocation_distribution");
+	for (size_t j = 0; j <= SEC_MAX_NALLOCS; j += 1) {
+		emitter_json_object_begin(emitter);
+		emitter_json_kv(emitter, "min_extents", emitter_type_uint64,
+		    &hpa_alloc_min_extents[j]);
+		emitter_json_kv(emitter, "max_extents", emitter_type_uint64,
+		    &hpa_alloc_max_extents[j]);
+		emitter_json_kv(emitter, "extents", emitter_type_uint64,
+		    &hpa_alloc_extents[j]);
+		emitter_json_kv(
+		    emitter, "ps", emitter_type_uint64, &hpa_alloc_ps[j]);
+		emitter_json_kv(emitter, "pages_per_ps", emitter_type_uint64,
+		    &hpa_alloc_pages_per_ps[j]);
+		emitter_json_kv(emitter, "extents_per_ps", emitter_type_uint64,
+		    &hpa_alloc_extents_per_ps[j]);
+		emitter_json_kv(emitter, "total_elapsed_ns_per_ps",
+		    emitter_type_uint64, &hpa_alloc_total_elapsed_ns_per_ps[j]);
+		emitter_json_object_end(emitter);
+	}
+	emitter_json_array_end(emitter); /* End "alloc_batch" */
 }
 
 static void
@@ -1673,7 +1747,6 @@ stats_general_print(emitter_t *emitter) {
 	OPT_WRITE_SIZE_T("hpa_sec_nshards")
 	OPT_WRITE_SIZE_T("hpa_sec_max_alloc")
 	OPT_WRITE_SIZE_T("hpa_sec_max_bytes")
-	OPT_WRITE_SIZE_T("hpa_sec_batch_fill_extra")
 	OPT_WRITE_BOOL("huge_arena_pac_thp")
 	OPT_WRITE_CHAR_P("metadata_thp")
 	OPT_WRITE_INT64("mutex_max_spin")

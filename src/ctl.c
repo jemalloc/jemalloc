@@ -115,7 +115,6 @@ CTL_PROTO(opt_hpa_dirty_mult)
 CTL_PROTO(opt_hpa_sec_nshards)
 CTL_PROTO(opt_hpa_sec_max_alloc)
 CTL_PROTO(opt_hpa_sec_max_bytes)
-CTL_PROTO(opt_hpa_sec_batch_fill_extra)
 CTL_PROTO(opt_huge_arena_pac_thp)
 CTL_PROTO(opt_metadata_thp)
 CTL_PROTO(opt_retain)
@@ -309,6 +308,14 @@ CTL_PROTO(stats_arenas_i_hpa_shard_nonfull_slabs_j_ndirty_nonhuge)
 CTL_PROTO(stats_arenas_i_hpa_shard_nonfull_slabs_j_ndirty_huge)
 
 INDEX_PROTO(stats_arenas_i_hpa_shard_nonfull_slabs_j)
+CTL_PROTO(stats_arenas_i_hpa_shard_alloc_j_min_extents)
+CTL_PROTO(stats_arenas_i_hpa_shard_alloc_j_max_extents)
+CTL_PROTO(stats_arenas_i_hpa_shard_alloc_j_extents)
+CTL_PROTO(stats_arenas_i_hpa_shard_alloc_j_ps)
+CTL_PROTO(stats_arenas_i_hpa_shard_alloc_j_pages_per_ps)
+CTL_PROTO(stats_arenas_i_hpa_shard_alloc_j_extents_per_ps)
+CTL_PROTO(stats_arenas_i_hpa_shard_alloc_j_total_elapsed_ns_per_ps)
+INDEX_PROTO(stats_arenas_i_hpa_shard_alloc_j)
 
 CTL_PROTO(stats_arenas_i_nthreads)
 CTL_PROTO(stats_arenas_i_uptime)
@@ -487,7 +494,6 @@ static const ctl_named_node_t opt_node[] = {{NAME("abort"), CTL(opt_abort)},
     {NAME("hpa_sec_nshards"), CTL(opt_hpa_sec_nshards)},
     {NAME("hpa_sec_max_alloc"), CTL(opt_hpa_sec_max_alloc)},
     {NAME("hpa_sec_max_bytes"), CTL(opt_hpa_sec_max_bytes)},
-    {NAME("hpa_sec_batch_fill_extra"), CTL(opt_hpa_sec_batch_fill_extra)},
     {NAME("huge_arena_pac_thp"), CTL(opt_huge_arena_pac_thp)},
     {NAME("metadata_thp"), CTL(opt_metadata_thp)},
     {NAME("retain"), CTL(opt_retain)}, {NAME("dss"), CTL(opt_dss)},
@@ -778,6 +784,23 @@ static const ctl_named_node_t
 static const ctl_indexed_node_t stats_arenas_i_hpa_shard_nonfull_slabs_node[] =
     {{INDEX(stats_arenas_i_hpa_shard_nonfull_slabs_j)}};
 
+static const ctl_named_node_t stats_arenas_i_hpa_shard_alloc_j_node[] = {
+    {NAME("min_extents"), CTL(stats_arenas_i_hpa_shard_alloc_j_min_extents)},
+    {NAME("max_extents"), CTL(stats_arenas_i_hpa_shard_alloc_j_max_extents)},
+    {NAME("extents"), CTL(stats_arenas_i_hpa_shard_alloc_j_extents)},
+    {NAME("ps"), CTL(stats_arenas_i_hpa_shard_alloc_j_ps)},
+    {NAME("pages_per_ps"), CTL(stats_arenas_i_hpa_shard_alloc_j_pages_per_ps)},
+    {NAME("extents_per_ps"),
+        CTL(stats_arenas_i_hpa_shard_alloc_j_extents_per_ps)},
+    {NAME("total_elapsed_ns_per_ps"),
+        CTL(stats_arenas_i_hpa_shard_alloc_j_total_elapsed_ns_per_ps)}};
+
+static const ctl_named_node_t super_stats_arenas_i_hpa_shard_alloc_j_node[] = {
+    {NAME(""), CHILD(named, stats_arenas_i_hpa_shard_alloc_j)}};
+
+static const ctl_indexed_node_t stats_arenas_i_hpa_shard_alloc_node[] = {
+    {INDEX(stats_arenas_i_hpa_shard_alloc_j)}};
+
 static const ctl_named_node_t stats_arenas_i_hpa_shard_node[] = {
     {NAME("npageslabs"), CTL(stats_arenas_i_hpa_shard_npageslabs)},
     {NAME("nactive"), CTL(stats_arenas_i_hpa_shard_nactive)},
@@ -790,6 +813,8 @@ static const ctl_named_node_t stats_arenas_i_hpa_shard_node[] = {
     {NAME("nhugifies"), CTL(stats_arenas_i_hpa_shard_nhugifies)},
     {NAME("nhugify_failures"), CTL(stats_arenas_i_hpa_shard_nhugify_failures)},
     {NAME("ndehugifies"), CTL(stats_arenas_i_hpa_shard_ndehugifies)},
+
+    {NAME("alloc"), CHILD(indexed, stats_arenas_i_hpa_shard_alloc)},
 
     {NAME("full_slabs"), CHILD(named, stats_arenas_i_hpa_shard_full_slabs)},
     {NAME("empty_slabs"), CHILD(named, stats_arenas_i_hpa_shard_empty_slabs)},
@@ -2173,8 +2198,6 @@ CTL_RO_NL_GEN(opt_hpa_slab_max_alloc, opt_hpa_opts.slab_max_alloc, size_t)
 CTL_RO_NL_GEN(opt_hpa_sec_nshards, opt_hpa_sec_opts.nshards, size_t)
 CTL_RO_NL_GEN(opt_hpa_sec_max_alloc, opt_hpa_sec_opts.max_alloc, size_t)
 CTL_RO_NL_GEN(opt_hpa_sec_max_bytes, opt_hpa_sec_opts.max_bytes, size_t)
-CTL_RO_NL_GEN(
-    opt_hpa_sec_batch_fill_extra, opt_hpa_sec_opts.batch_fill_extra, size_t)
 CTL_RO_NL_GEN(opt_huge_arena_pac_thp, opt_huge_arena_pac_thp, bool)
 CTL_RO_NL_GEN(
     opt_metadata_thp, metadata_thp_mode_names[opt_metadata_thp], const char *)
@@ -4086,6 +4109,36 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_nhugify_failures,
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_ndehugifies,
     arenas_i(mib[2])->astats->hpastats.nonderived_stats.ndehugifies, uint64_t);
 
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_alloc_j_min_extents,
+    arenas_i(mib[2])
+        ->astats->hpastats.nonderived_stats.hpa_alloc_min_extents[mib[5]],
+    uint64_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_alloc_j_max_extents,
+    arenas_i(mib[2])
+        ->astats->hpastats.nonderived_stats.hpa_alloc_max_extents[mib[5]],
+    uint64_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_alloc_j_extents,
+    arenas_i(mib[2])
+        ->astats->hpastats.nonderived_stats.hpa_alloc_extents[mib[5]],
+    uint64_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_alloc_j_ps,
+    arenas_i(mib[2])->astats->hpastats.nonderived_stats.hpa_alloc_ps[mib[5]],
+    uint64_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_alloc_j_pages_per_ps,
+    arenas_i(mib[2])
+        ->astats->hpastats.nonderived_stats.hpa_alloc_pages_per_ps[mib[5]],
+    uint64_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_alloc_j_extents_per_ps,
+    arenas_i(mib[2])
+        ->astats->hpastats.nonderived_stats.hpa_alloc_extents_per_ps[mib[5]],
+    uint64_t);
+CTL_RO_CGEN(config_stats,
+    stats_arenas_i_hpa_shard_alloc_j_total_elapsed_ns_per_ps,
+    arenas_i(mib[2])
+        ->astats->hpastats.nonderived_stats
+        .hpa_alloc_total_elapsed_ns_per_ps[mib[5]],
+    uint64_t);
+
 /* Full, nonhuge */
 CTL_RO_CGEN(config_stats,
     stats_arenas_i_hpa_shard_full_slabs_npageslabs_nonhuge,
@@ -4177,6 +4230,15 @@ stats_arenas_i_hpa_shard_nonfull_slabs_j_index(
 		return NULL;
 	}
 	return super_stats_arenas_i_hpa_shard_nonfull_slabs_j_node;
+}
+
+static const ctl_named_node_t *
+stats_arenas_i_hpa_shard_alloc_j_index(
+    tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t j) {
+	if (j > SEC_MAX_NALLOCS) {
+		return NULL;
+	}
+	return super_stats_arenas_i_hpa_shard_alloc_j_node;
 }
 
 static bool

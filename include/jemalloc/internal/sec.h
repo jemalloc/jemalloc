@@ -96,6 +96,25 @@ sec_size_supported(sec_t *sec, size_t size) {
 	return sec_is_used(sec) && size <= sec->opts.max_alloc;
 }
 
+/* Min number of extents we will allocate when expanding the SEC. */
+#define SEC_MIN_NALLOCS 2
+
+/* Max number of extents we will allocate out of a single huge page. */
+#define SEC_MAX_NALLOCS 4
+
+/* Attempt to fill the SEC up to max_bytes / SEC_MAX_BYTES_DIV */
+#define SEC_MAX_BYTES_DIV 4
+
+/*
+ * Calculate the min and max number of extents we will try to allocate
+ * when expanding the SEC. We will attempt to allocate at least min
+ * extents and up to max extents depending on whether we can allocate
+ * them out of a huge page we have already allocated out of. Both
+ * min and max should the in the range [1, SEC_MAX_NALLOCS].
+ */
+void sec_calc_nallocs_for_size(
+    sec_t *sec, size_t size, size_t *min_nallocs, size_t *max_nallocs);
+
 /* If sec does not have extent available, it will return NULL. */
 edata_t *sec_alloc(tsdn_t *tsdn, sec_t *sec, size_t size);
 void     sec_fill(tsdn_t *tsdn, sec_t *sec, size_t size,
