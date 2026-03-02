@@ -216,6 +216,11 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/buf_writer.c \
 	$(srcroot)test/unit/cache_bin.c \
 	$(srcroot)test/unit/ckh.c \
+	$(srcroot)test/unit/conf.c \
+	$(srcroot)test/unit/conf_init_0.c \
+	$(srcroot)test/unit/conf_init_1.c \
+	$(srcroot)test/unit/conf_init_confirm.c \
+	$(srcroot)test/unit/conf_parse.c \
 	$(srcroot)test/unit/counter.c \
 	$(srcroot)test/unit/decay.c \
 	$(srcroot)test/unit/div.c \
