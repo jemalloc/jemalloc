@@ -3,6 +3,7 @@
 
 #include "jemalloc/internal/arena_types.h"
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/fxp.h"
 #include "jemalloc/internal/hpa_opts.h"
 #include "jemalloc/internal/nstime.h"
 #include "jemalloc/internal/sec_opts.h"
@@ -34,6 +35,7 @@ extern bool                  opt_experimental_infallible_new;
 extern bool                  opt_experimental_tcache_gc;
 extern bool                  opt_zero;
 extern unsigned              opt_narenas;
+extern fxp_t                 opt_narenas_ratio;
 extern zero_realloc_action_t opt_zero_realloc_action;
 extern malloc_init_t         malloc_init_state;
 extern const char *const     zero_realloc_mode_names[];
