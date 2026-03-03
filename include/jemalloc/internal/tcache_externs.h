@@ -64,7 +64,7 @@ bool tcache_bin_ncached_max_read(
 void tcache_arena_reassociate(
     tsdn_t *tsdn, tcache_slow_t *tcache_slow, tcache_t *tcache, arena_t *arena);
 tcache_t *tcache_create_explicit(tsd_t *tsd);
-void      thread_tcache_max_set(tsd_t *tsd, size_t tcache_max);
+bool      thread_tcache_max_set(tsd_t *tsd, size_t tcache_max);
 void      tcache_cleanup(tsd_t *tsd);
 void      tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena);
 bool      tcaches_create(tsd_t *tsd, base_t *base, unsigned *r_ind);
@@ -79,6 +79,9 @@ void tcache_postfork_child(tsdn_t *tsdn);
 void tcache_flush(tsd_t *tsd);
 bool tsd_tcache_enabled_data_init(tsd_t *tsd);
 void tcache_enabled_set(tsd_t *tsd, bool enabled);
+
+extern void *(*JET_MUTABLE tcache_stack_alloc)(tsdn_t *tsdn, size_t size,
+    size_t alignment);
 
 void tcache_assert_initialized(tcache_t *tcache);
 
