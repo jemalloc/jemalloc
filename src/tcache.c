@@ -949,6 +949,21 @@ tcache_bin_info_compute(cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX]) {
 	}
 }
 
+static void *
+tcache_stack_alloc_impl(tsdn_t *tsdn, size_t size, size_t alignment) {
+	if (cache_bin_stack_use_thp()) {
+		/* Alignment is ignored since it comes from THP. */
+		assert(alignment == QUANTUM);
+		return b0_alloc_tcache_stack(tsdn, size);
+	}
+	size = sz_sa2u(size, alignment);
+	return ipallocztm(tsdn, size, alignment, true, NULL,
+	    true, arena_get(TSDN_NULL, 0, true));
+}
+
+void *(*JET_MUTABLE tcache_stack_alloc)(tsdn_t *tsdn, size_t size,
+    size_t alignment) = tcache_stack_alloc_impl;
+
 static bool
 tsd_tcache_data_init_impl(
     tsd_t *tsd, arena_t *arena, const cache_bin_info_t *tcache_bin_info) {
@@ -961,16 +976,7 @@ tsd_tcache_data_init_impl(
 	cache_bin_info_compute_alloc(
 	    tcache_bin_info, tcache_nbins, &size, &alignment);
 
-	void *mem;
-	if (cache_bin_stack_use_thp()) {
-		/* Alignment is ignored since it comes from THP. */
-		assert(alignment == QUANTUM);
-		mem = b0_alloc_tcache_stack(tsd_tsdn(tsd), size);
-	} else {
-		size = sz_sa2u(size, alignment);
-		mem = ipallocztm(tsd_tsdn(tsd), size, alignment, true, NULL,
-		    true, arena_get(TSDN_NULL, 0, true));
-	}
+	void *mem = tcache_stack_alloc(tsd_tsdn(tsd), size, alignment);
 	if (mem == NULL) {
 		return true;
 	}
@@ -1010,7 +1016,20 @@ static bool
 tsd_tcache_data_init(tsd_t *tsd, arena_t *arena,
     const cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX]) {
 	assert(tcache_bin_info != NULL);
-	return tsd_tcache_data_init_impl(tsd, arena, tcache_bin_info);
+	bool err = tsd_tcache_data_init_impl(tsd, arena, tcache_bin_info);
+	if (unlikely(err)) {
+		/*
+		 * Disable the tcache before calling malloc_write to
+		 * avoid recursive allocations through libc hooks.
+		 */
+		tsd_tcache_enabled_set(tsd, false);
+		tsd_slow_update(tsd);
+		malloc_write("<jemalloc>: Failed to allocate tcache data\n");
+		if (opt_abort) {
+			abort();
+		}
+	}
+	return err;
 }
 
 /* Created manual tcache for tcache.create mallctl. */
@@ -1062,8 +1081,8 @@ tsd_tcache_enabled_data_init(tsd_t *tsd) {
 
 	if (opt_tcache) {
 		/* Trigger tcache init. */
-		tsd_tcache_data_init(
-		    tsd, NULL, tcache_get_default_ncached_max());
+		return tsd_tcache_data_init(
+			tsd, NULL, tcache_get_default_ncached_max());
 	}
 
 	return false;
@@ -1074,8 +1093,10 @@ tcache_enabled_set(tsd_t *tsd, bool enabled) {
 	bool was_enabled = tsd_tcache_enabled_get(tsd);
 
 	if (!was_enabled && enabled) {
-		tsd_tcache_data_init(
-		    tsd, NULL, tcache_get_default_ncached_max());
+		if (tsd_tcache_data_init(
+		    tsd, NULL, tcache_get_default_ncached_max())) {
+			return;
+		}
 	} else if (was_enabled && !enabled) {
 		tcache_cleanup(tsd);
 	}
@@ -1084,13 +1105,14 @@ tcache_enabled_set(tsd_t *tsd, bool enabled) {
 	tsd_slow_update(tsd);
 }
 
-void
+bool
 thread_tcache_max_set(tsd_t *tsd, size_t tcache_max) {
 	assert(tcache_max <= TCACHE_MAXCLASS_LIMIT);
 	assert(tcache_max == sz_s2u(tcache_max));
 	tcache_t        *tcache = tsd_tcachep_get(tsd);
 	tcache_slow_t   *tcache_slow = tcache->tcache_slow;
 	cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX] = {{0}};
+	bool             ret = false;
 	assert(tcache != NULL && tcache_slow != NULL);
 
 	bool                    enabled = tcache_available(tsd);
@@ -1111,10 +1133,11 @@ thread_tcache_max_set(tsd_t *tsd, size_t tcache_max) {
 	tcache_max_set(tcache_slow, tcache_max);
 
 	if (enabled) {
-		tsd_tcache_data_init(tsd, assigned_arena, tcache_bin_info);
+		ret = tsd_tcache_data_init(tsd, assigned_arena, tcache_bin_info);
 	}
 
 	assert(tcache_nbins_get(tcache_slow) == sz_size2index(tcache_max) + 1);
+	return ret;
 }
 
 static bool
@@ -1177,9 +1200,7 @@ tcache_bins_ncached_max_write(tsd_t *tsd, char *settings, size_t len) {
 
 	arena_t *assigned_arena = tcache->tcache_slow->arena;
 	tcache_cleanup(tsd);
-	tsd_tcache_data_init(tsd, assigned_arena, tcache_bin_info);
-
-	return false;
+	return tsd_tcache_data_init(tsd, assigned_arena, tcache_bin_info);
 }
 
 static void
