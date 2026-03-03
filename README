@@ -1,3 +1,15 @@
+Update:
+
+Development of Jemalloc will transition back to the original open source
+project: https://github.com/jemalloc/jemalloc. Meta’s fork of the Jemalloc
+project will be fully archived as part of the transition. We look forward
+to continuing the collaboration with the community to drive jemalloc.
+
+See blog post for details:
+https://engineering.fb.com/2026/03/02/data-infrastructure/investing-in-infrastructure-metas-renewed-commitment-to-jemalloc/
+
+------
+
 jemalloc is a general purpose malloc(3) implementation that emphasizes
 fragmentation avoidance and scalable concurrency support.  jemalloc first came
 into use as the FreeBSD libc allocator in 2005, and since then it has found its
