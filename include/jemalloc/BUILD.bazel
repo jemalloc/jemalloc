@@ -1,7 +1,10 @@
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
 load("//tools:autoconf.bzl", "configure_header", "define_macro_if", "define_macro_with")
 load("//tools:version.bzl", "parse_version")
+load(":jemalloc_hdr.bzl", "jemalloc_hdr")
 
 version = parse_version(module_version())
 
@@ -48,27 +51,36 @@ expand_template(
     template = "jemalloc_macros.h.in",
 )
 
+sh_binary(
+    name = "jemalloc_mangle_sh",
+    srcs = ["jemalloc_mangle.sh"],
+)
+
+# Note this scripts are not hermetic.
 genrule(
     name = "jemalloc_mangle",
     srcs = [
-        "jemalloc_mangle.sh",
         "//include/jemalloc/internal:public_symbols",
     ],
     outs = ["jemalloc_mangle.h"],
-    cmd = "$(location jemalloc_mangle.sh) $(location //include/jemalloc/internal:public_symbols) je_ > $@",
+    cmd = "$(execpath :jemalloc_mangle_sh) $(execpath //include/jemalloc/internal:public_symbols) je_ > $@",
+    cmd_bat = "$(execpath :jemalloc_mangle_sh) $(execpath //include/jemalloc/internal:public_symbols) je_ > $@",
     tags = ["manual"],
+    tools = [":jemalloc_mangle_sh"],
     visibility = ["//visibility:public"],
 )
 
+# Note this scripts are not hermetic.
 genrule(
     name = "jemalloc_mangle_jet",
     srcs = [
-        "jemalloc_mangle.sh",
         "//include/jemalloc/internal:public_symbols",
     ],
     outs = ["jemalloc_mangle_jet.h"],
-    cmd = "$(location jemalloc_mangle.sh) $(location //include/jemalloc/internal:public_symbols) jet_ > $@",
+    cmd = "$(execpath :jemalloc_mangle_sh) $(execpath //include/jemalloc/internal:public_symbols) jet_ > $@",
+    cmd_bat = "$(execpath :jemalloc_mangle_sh) $(execpath //include/jemalloc/internal:public_symbols) jet_ > $@",
     tags = ["manual"],
+    tools = [":jemalloc_mangle_sh"],
     visibility = ["//visibility:public"],
 )
 
@@ -92,16 +104,22 @@ expand_template(
     template = "jemalloc_protos.h.in",
 )
 
+sh_binary(
+    name = "jemalloc_rename_sh",
+    srcs = ["jemalloc_rename.sh"],
+)
+
 # Invoke jemalloc_rename.sh to generate jemalloc_rename.h
 genrule(
     name = "jemalloc_rename",
     srcs = [
-        "jemalloc_rename.sh",
         "//include/jemalloc/internal:public_symbols",
     ],
     outs = ["jemalloc_rename.h"],
-    cmd = "$(location jemalloc_rename.sh) $(location //include/jemalloc/internal:public_symbols) > $@",
+    cmd = "$(execpath :jemalloc_rename_sh) $(execpath //include/jemalloc/internal:public_symbols) > $@",
+    cmd_bat = "$(execpath :jemalloc_rename_sh) $(execpath //include/jemalloc/internal:public_symbols) > $@",
     tags = ["manual"],
+    tools = [":jemalloc_rename_sh"],
     visibility = ["//visibility:public"],
 )
 
@@ -112,9 +130,17 @@ expand_template(
     template = "jemalloc_typedefs.h.in",
 )
 
-# jemalloc.sh generates the public jemalloc.h header file. Equivalent logic is replicated to handle pathing.
-# Not fully hermetic but assumes no more about the host system than the Makefile does.
-genrule(
+cc_binary(
+    name = "jemalloc_hdr_gen",
+    srcs = ["jemalloc_hdr_gen.cc"],
+    cxxopts = select({
+        "@rules_cc//cc/compiler:msvc-cl": ["/std:c++11"],
+        "//conditions:default": ["-std=c++11"],
+    }),
+    visibility = ["//visibility:private"],
+)
+
+jemalloc_hdr(
     name = "jemalloc",
     srcs = [
         ":jemalloc_defs",
@@ -124,23 +150,7 @@ genrule(
         ":jemalloc_typedefs",
         ":jemalloc_mangle",
     ],
-    outs = ["jemalloc.h"],
-    cmd = """
-        echo '#ifndef JEMALLOC_H_' > $@
-        echo '#define JEMALLOC_H_' >> $@
-        echo '#ifdef __cplusplus' >> $@
-        echo 'extern "C" {' >> $@
-        echo '#endif' >> $@
-        echo '' >> $@
-        for f in $(SRCS); do
-            grep -v 'Generated from .* by configure' $$f | sed 's/ $$//g' >> $@
-            echo '' >> $@
-        done
-        echo '#ifdef __cplusplus' >> $@
-        echo '}' >> $@
-        echo '#endif' >> $@
-        echo '#endif /* JEMALLOC_H_ */' >> $@
-    """,
+    out = "jemalloc.h",
     tags = ["manual"],
     visibility = ["//:__subpackages__"],
 )

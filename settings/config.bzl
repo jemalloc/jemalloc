@@ -1,6 +1,6 @@
 """Public API for configuring jemalloc build settings."""
 
-load("@rules_cc//cc:defs.bzl", "CcInfo")
+load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 
 def _jemalloc_config_impl(ctx):
     target = ctx.attr._target[0]

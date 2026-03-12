@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 load("//tools:cc.bzl", "COPTS")
 load("//tools:transition.bzl", "PLATFORM", "transition_default_constraints")
@@ -23,7 +23,7 @@ alias(
 )
 
 cc_library(
-    name = "jemalloc_core",
+    name = "lib/jemalloc",
     srcs = [
                "src/arena.c",
                "src/background_thread.c",
@@ -141,7 +141,7 @@ cc_library(
 
 transition_default_constraints(
     name = "jemalloc_with_defaults",
-    src = ":jemalloc_core",
+    src = ":lib/jemalloc",
     platform = PLATFORM,
     settings = {},
 )

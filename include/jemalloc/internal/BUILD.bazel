@@ -1,6 +1,7 @@
-load("@aspect_bazel_lib//lib:expand_template.bzl", "expand_template")
+load("@bazel_lib//lib:expand_template.bzl", "expand_template")
 load("@bazel_skylib//lib:selects.bzl", "selects")
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
 load("//tools:autoconf.bzl", "configure_header", "define_macro", "define_macro_if", "define_macro_if_any", "define_macro_if_with", "define_macro_with", "undefine_macro")
 load("//tools:version.bzl", "parse_version")
 load(":private_namespace.bzl", "private_namespace")
@@ -603,7 +604,7 @@ WRAP_SYMBOLS = select({
 private_namespace(
     name = "private_namespace",
     out = "private_namespace.h",
-    input = "//:jemalloc_core",
+    input = "//:lib/jemalloc",
     public_symbols = PUBLIC_SYMBOLS,
     tags = ["manual"],
     wrap_symbols = WRAP_SYMBOLS,
@@ -613,33 +614,45 @@ private_namespace(
     name = "private_namespace_jet",
     out = "private_namespace_jet.h",
     enable_jet = True,
-    input = "//:jemalloc_core",
+    input = "//:lib/jemalloc",
     prefix = "jet_",
     public_symbols = PUBLIC_SYMBOLS,
     tags = ["manual"],
     wrap_symbols = WRAP_SYMBOLS,
 )
 
+sh_binary(
+    name = "public_namespace_sh",
+    srcs = ["public_namespace.sh"],
+)
+
 genrule(
     name = "public_namespace",
     srcs = [
-        "public_namespace.sh",
         ":public_symbols",
     ],
     outs = ["public_namespace.h"],
-    cmd = "$(location public_namespace.sh) $(location :public_symbols) > $@",
+    cmd = "$(execpath :public_namespace_sh) $(execpath :public_symbols) > $@",
+    cmd_bat = "$(execpath :public_namespace_sh) $(execpath :public_symbols) > $@",
+    tools = [":public_namespace_sh"],
     tags = ["manual"],
     visibility = ["//visibility:public"],
+)
+
+sh_binary(
+    name = "public_unnamespace_sh",
+    srcs = ["public_unnamespace.sh"],
 )
 
 genrule(
     name = "public_unnamespace",
     srcs = [
-        "public_unnamespace.sh",
         ":public_symbols",
     ],
     outs = ["public_unnamespace.h"],
-    cmd = "$(location public_unnamespace.sh) $(location :public_symbols) > $@",
+    cmd = "$(execpath :public_unnamespace_sh) $(execpath :public_symbols) > $@",
+    cmd_bat = "$(execpath :public_unnamespace_sh) $(execpath :public_symbols) > $@",
+    tools = [":public_unnamespace_sh"],
     tags = ["manual"],
     visibility = ["//visibility:public"],
 )

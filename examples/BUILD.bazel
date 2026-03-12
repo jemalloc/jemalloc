@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_test")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@jemalloc//settings:config.bzl", "jemalloc")
 
 # Case 1: Test libc malloc can be replaced

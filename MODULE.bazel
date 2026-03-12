@@ -1,13 +1,14 @@
 module(
     name = "jemalloc",
-    version = "5.3.0-bcr.alpha.4",
-    bazel_compatibility = [">=7.2.1"],  # need support for "overlay" directory
+    version = "5.3.0-bcr.alpha.5",
+    bazel_compatibility = [">=7.4.0"],  # need support for "overlay" directory and cxxopts in cc_binary
     compatibility_level = 5,
 )
 
-bazel_dep(name = "aspect_bazel_lib", version = "2.0.0")
-bazel_dep(name = "bazel_skylib", version = "1.7.1")
+bazel_dep(name = "bazel_lib", version = "3.2.2")
+bazel_dep(name = "bazel_skylib", version = "1.8.1")
 bazel_dep(name = "libunwind", version = "1.8.1")
 bazel_dep(name = "platforms", version = "0.0.11")
-bazel_dep(name = "rules_cc", version = "0.1.1")
+bazel_dep(name = "rules_cc", version = "0.2.4")
 bazel_dep(name = "rules_license", version = "1.0.0")
+bazel_dep(name = "rules_shell", version = "0.4.1")

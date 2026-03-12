@@ -1,5 +1,5 @@
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//tools:cc.bzl", "COPTS")
 
 expand_template(
@@ -85,7 +85,7 @@ cc_library(
     ),
     tags = ["manual"],
     visibility = ["//test:__subpackages__"],
-    deps = ["//:jemalloc_core"] + select(
+    deps = ["//:lib/jemalloc"] + select(
         {
             "//settings:integration_test": ["//:utils"],
             "//settings:integration_cpp_test": ["//:utils"],

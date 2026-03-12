@@ -1,6 +1,5 @@
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
-load("@rules_cc//cc:defs.bzl", "CcToolchainConfigInfo")
-load("@rules_cc//cc:find_cc_toolchain.bzl", "CC_TOOLCHAIN_TYPE", "find_cc_toolchain", "use_cc_toolchain")
+load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cc_toolchain", "use_cc_toolchain")
 
 def _private_namespace_impl(ctx):
     cc_toolchain = find_cc_toolchain(ctx)
@@ -63,7 +62,7 @@ def _private_namespace_impl(ctx):
 
     return [DefaultInfo(files = depset([output]))]
 
-def _transition_impl(settings, attr):
+def _transition_impl(_settings, attr):
     return {
         # Only C sources are used for symbol extraction
         "//settings/flags:enable_cxx": False,

@@ -1,6 +1,6 @@
 "Utilities for replicating autoconf behavior"
 
-load("@aspect_bazel_lib//lib:expand_template.bzl", "expand_template")
+load("@bazel_lib//lib:expand_template.bzl", "expand_template")
 
 def define_macro_if(macro, condition):
     """Controls conditional macro definition based on a build condition.

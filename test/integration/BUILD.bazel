@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_test")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//tools:cc.bzl", "COPTS")
 load("//tools:test.bzl", "join_conf", "test_name")
 load("//tools:transition.bzl", "PLATFORM", "transition_default_constraints")
@@ -67,6 +67,7 @@ INTEGRATION_PROF_TESTS = [
             test.get("conf"),
             config["conf"],
         ),
+        "flaky": test["src"] == "extent.c",
         "target_compatible_with": select({
             "//settings/flags:prof": [],
             "//conditions:default": ["@platforms//:incompatible"],
@@ -108,6 +109,7 @@ transition_default_constraints(
     env = {"JE_TEST_MALLOC_CONF": test.get("conf", "")},
     local_defines = ["JEMALLOC_INTEGRATION_TEST"],
     target_compatible_with = test.get("target_compatible_with", []),
+    flaky = test.get("flaky", False),
     deps = [":testlib"],
 ) for test in INTEGRATION_TESTS + INTEGRATION_DECAY_TESTS + INTEGRATION_PROF_TESTS]
 

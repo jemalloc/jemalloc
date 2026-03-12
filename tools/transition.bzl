@@ -1,6 +1,6 @@
 "Transition build and platform settings"
 
-load("@rules_cc//cc:defs.bzl", "CcInfo")
+load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 
 PLATFORM = select({
     "@platforms//os:freebsd": "freebsd",

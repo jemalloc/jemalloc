@@ -8,5 +8,5 @@ local_path_override(
     path = "..",
 )
 
-bazel_dep(name = "platforms", version = "0.0.10", dev_dependency = True)
-bazel_dep(name = "rules_cc", version = "0.0.17", dev_dependency = True)
+bazel_dep(name = "platforms", version = "0.0.11", dev_dependency = True)
+bazel_dep(name = "rules_cc", version = "0.2.4", dev_dependency = True)
