@@ -510,7 +510,7 @@ jobs:
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Show OS version
       run: |
@@ -639,7 +639,7 @@ jobs:
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Show OS version
       run: |
