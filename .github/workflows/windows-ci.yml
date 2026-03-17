@@ -54,7 +54,7 @@ jobs:
               CONFIGURE_FLAGS: --enable-debug
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Show OS version
       shell: cmd
