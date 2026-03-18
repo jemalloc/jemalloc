@@ -375,7 +375,7 @@ prof_log_rep_check(void) {
 	size_t alloc_count = prof_log_alloc_count();
 
 	if (prof_logging_state == prof_logging_state_stopped) {
-		if (bt_count != 0 || thr_count != 0 || alloc_count || 0) {
+		if (bt_count != 0 || thr_count != 0 || alloc_count != 0) {
 			return true;
 		}
 	}
