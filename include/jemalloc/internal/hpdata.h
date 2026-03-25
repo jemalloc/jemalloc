@@ -342,39 +342,76 @@ hpdata_assert_empty(hpdata_t *hpdata) {
  */
 static inline bool
 hpdata_consistent(hpdata_t *hpdata) {
-	if (fb_urange_longest(hpdata->active_pages, HUGEPAGE_PAGES)
-	    != hpdata_longest_free_range_get(hpdata)) {
-		return false;
+	bool res = true;
+
+	const size_t active_urange_longest = fb_urange_longest(
+	    hpdata->active_pages, HUGEPAGE_PAGES);
+	const size_t longest_free_range = hpdata_longest_free_range_get(hpdata);
+	if (active_urange_longest != longest_free_range) {
+		malloc_printf(
+		    "<jemalloc>: active_fb_urange_longest=%zu != hpdata_longest_free_range=%zu\n",
+		    active_urange_longest, longest_free_range);
+		res = false;
 	}
-	if (fb_scount(hpdata->active_pages, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES)
-	    != hpdata->h_nactive) {
-		return false;
+
+	const size_t active_scount = fb_scount(
+	    hpdata->active_pages, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES);
+	if (active_scount != hpdata->h_nactive) {
+		malloc_printf(
+		    "<jemalloc>: active_fb_scount=%zu != hpdata_nactive=%zu\n",
+		    active_scount, hpdata->h_nactive);
+		res = false;
 	}
-	if (fb_scount(hpdata->touched_pages, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES)
-	    != hpdata->h_ntouched) {
-		return false;
+
+	const size_t touched_scount = fb_scount(
+	    hpdata->touched_pages, HUGEPAGE_PAGES, 0, HUGEPAGE_PAGES);
+	if (touched_scount != hpdata->h_ntouched) {
+		malloc_printf(
+		    "<jemalloc>: touched_fb_scount=%zu != hpdata_ntouched=%zu\n",
+		    touched_scount, hpdata->h_ntouched);
+		res = false;
 	}
+
 	if (hpdata->h_ntouched < hpdata->h_nactive) {
-		return false;
+		malloc_printf(
+		    "<jemalloc>: hpdata_ntouched=%zu < hpdata_nactive=%zu\n",
+		    hpdata->h_ntouched, hpdata->h_nactive);
+		res = false;
 	}
-	if (hpdata->h_huge && hpdata->h_ntouched != HUGEPAGE_PAGES) {
-		return false;
+
+	if (hpdata->h_huge && (hpdata->h_ntouched != HUGEPAGE_PAGES)) {
+		malloc_printf(
+		    "<jemalloc>: hpdata_huge=%d && (hpdata_ntouched=%zu != hugepage_pages=%zu)\n",
+		    hpdata->h_huge, hpdata->h_ntouched, HUGEPAGE_PAGES);
+		res = false;
 	}
-	if (hpdata_changing_state_get(hpdata)
-	    && ((hpdata->h_purge_allowed) || hpdata->h_hugify_allowed)) {
-		return false;
+
+	const bool changing_state = hpdata_changing_state_get(hpdata);
+	if (changing_state
+	    && (hpdata->h_purge_allowed || hpdata->h_hugify_allowed)) {
+		malloc_printf(
+		    "<jemalloc>: hpdata_changing_state=%d && (hpdata_purge_allowed=%d || hpdata_hugify_allowed=%d)\n",
+		    changing_state, hpdata->h_purge_allowed,
+		    hpdata->h_hugify_allowed);
+		res = false;
 	}
+
 	if (hpdata_hugify_allowed_get(hpdata)
 	    != hpdata_in_psset_hugify_container_get(hpdata)) {
-		return false;
+		malloc_printf(
+		    "<jemalloc>: hpdata_hugify_allowed=%d != hpdata_in_psset_hugify_container=%d\n",
+		    hpdata_hugify_allowed_get(hpdata),
+		    hpdata_in_psset_hugify_container_get(hpdata));
+		res = false;
 	}
-	return true;
+
+	return res;
 }
 
-static inline void
-hpdata_assert_consistent(hpdata_t *hpdata) {
-	assert(hpdata_consistent(hpdata));
-}
+#define hpdata_assert_consistent(hpdata)                                       \
+	do {                                                                   \
+		assert(hpdata_consistent(hpdata));                             \
+	} while (0)
 
 static inline bool
 hpdata_empty(const hpdata_t *hpdata) {
