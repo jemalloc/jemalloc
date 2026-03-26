@@ -417,7 +417,10 @@ psset_pick_purge(psset_t *psset, const nstime_t *now) {
 		if (nstime_compare(tm_allowed, now) <= 0) {
 			return ps;
 		}
-		max_bit--;
+		if (ind == 0) {
+			break;
+		}
+		max_bit = ind - 1;
 	}
 	/* No page is ready yet */
 	return NULL;
