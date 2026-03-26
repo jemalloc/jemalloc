@@ -941,6 +941,58 @@ TEST_BEGIN(test_purge_prefers_empty) {
 }
 TEST_END
 
+TEST_BEGIN(test_pick_purge_underflow) {
+	test_skip_if(hpa_hugepage_size_exceeds_limit());
+	void *ptr;
+
+	psset_t psset;
+	psset_init(&psset);
+
+	/*
+	 * Test that psset_pick_purge skips directly past a time-ineligible
+	 * entry without underflow.
+	 *
+	 * Create a hugified, non-empty hpdata with 1 dirty page, which
+	 * lands at purge list index 0 (pind=0, huge=true).  Set its
+	 * purge-allowed time in the future.  Calling psset_pick_purge
+	 * with a "now" before that time should return NULL without
+	 * looping through all higher indices on the way down.
+	 */
+	hpdata_t       hpdata_lowest;
+	nstime_t       future_tm, now;
+	const uint64_t BASE_SEC = 1000;
+
+	hpdata_init(&hpdata_lowest, (void *)(10 * HUGEPAGE), 100, false);
+	psset_insert(&psset, &hpdata_lowest);
+
+	psset_update_begin(&psset, &hpdata_lowest);
+	/* Allocate all pages. */
+	ptr = hpdata_reserve_alloc(&hpdata_lowest, HUGEPAGE_PAGES * PAGE);
+	expect_ptr_eq(hpdata_addr_get(&hpdata_lowest), ptr, "");
+	/* Hugify the slab. */
+	hpdata_hugify(&hpdata_lowest);
+	/* Free the last page to create exactly 1 dirty page. */
+	hpdata_unreserve(&hpdata_lowest,
+	    (void *)((uintptr_t)ptr + (HUGEPAGE_PAGES - 1) * PAGE), PAGE);
+	/* Now: nactive = HUGEPAGE_PAGES-1, ndirty = 1, huge = true.
+	 * purge_list_ind = sz_psz2ind(sz_psz_quantize_floor(PAGE)) * 2 + 0
+	 * which should be index 0. */
+	hpdata_purge_allowed_set(&hpdata_lowest, true);
+	nstime_init2(&future_tm, BASE_SEC + 9999, 0);
+	hpdata_time_purge_allowed_set(&hpdata_lowest, &future_tm);
+	psset_update_end(&psset, &hpdata_lowest);
+
+	/*
+	 * Call with a "now" before the future time.  Should return NULL
+	 * (no eligible entry).
+	 */
+	nstime_init2(&now, BASE_SEC + 500, 0);
+	hpdata_t *to_purge = psset_pick_purge(&psset, &now);
+	expect_ptr_null(
+	    to_purge, "Should return NULL when no entry is time-eligible");
+}
+TEST_END
+
 TEST_BEGIN(test_purge_prefers_empty_huge) {
 	test_skip_if(hpa_hugepage_size_exceeds_limit());
 	void *ptr;
@@ -1020,5 +1072,6 @@ main(void) {
 	    test_multi_pageslab, test_stats_merged, test_stats_huge,
 	    test_stats_fullness, test_oldest_fit, test_insert_remove,
 	    test_purge_prefers_nonhuge, test_purge_timing,
-	    test_purge_prefers_empty, test_purge_prefers_empty_huge);
+	    test_purge_prefers_empty, test_pick_purge_underflow,
+	    test_purge_prefers_empty_huge);
 }
