@@ -206,6 +206,50 @@ TEST_BEGIN(test_tcache_max) {
 }
 TEST_END
 
+TEST_BEGIN(test_large_tcache_nrequests_on_miss) {
+	test_skip_if(!config_stats);
+	test_skip_if(!opt_tcache);
+	test_skip_if(opt_prof);
+	test_skip_if(san_uaf_detection_enabled());
+
+	size_t large;
+	size_t sz = sizeof(large);
+	expect_d_eq(
+	    mallctl("arenas.lextent.0.size", (void *)&large, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	expect_d_eq(mallctl("thread.tcache.max", NULL, NULL, (void *)&large,
+	                sizeof(large)),
+	    0, "Unexpected mallctl() failure");
+	expect_d_eq(mallctl("thread.tcache.flush", NULL, NULL, NULL, 0), 0,
+	    "Unexpected tcache flush failure");
+
+	tsd_t *tsd = tsd_fetch();
+	expect_ptr_not_null(tsd, "Unexpected tsd_fetch() failure");
+	tcache_t *tcache = tcache_get(tsd);
+	expect_ptr_not_null(tcache, "Expected auto tcache");
+
+	szind_t binind = sz_size2index(large);
+	expect_true(binind >= SC_NBINS, "Expected large size class");
+	cache_bin_t *bin = &tcache->bins[binind];
+	bin->tstats.nrequests = 0;
+
+	void *p = mallocx(large, 0);
+	expect_ptr_not_null(p, "Unexpected mallocx() failure");
+	expect_u64_eq(bin->tstats.nrequests, 1,
+	    "Large tcache miss should count as one request");
+
+	dallocx(p, 0);
+	p = mallocx(large, 0);
+	expect_ptr_not_null(p, "Unexpected mallocx() failure");
+	expect_u64_eq(bin->tstats.nrequests, 2,
+	    "Large tcache hit should increment request count again");
+
+	dallocx(p, 0);
+	expect_d_eq(mallctl("thread.tcache.flush", NULL, NULL, NULL, 0), 0,
+	    "Unexpected tcache flush failure");
+}
+TEST_END
+
 static size_t
 tcache_max2nbins(size_t tcache_max) {
 	return sz_size2index(tcache_max) + 1;
@@ -358,5 +402,6 @@ TEST_END
 
 int
 main(void) {
-	return test(test_tcache_max, test_thread_tcache_max);
+	return test(test_tcache_max, test_large_tcache_nrequests_on_miss,
+	    test_thread_tcache_max);
 }
