@@ -981,7 +981,7 @@ stats_arena_hpa_shard_slabs_print(emitter_t *emitter, unsigned i) {
 	emitter_json_kv(
 	    emitter, "nactive_huge", emitter_type_size, &nactive_huge);
 	emitter_json_kv(
-	    emitter, "nactive_huge", emitter_type_size, &nactive_huge);
+	    emitter, "ndirty_huge", emitter_type_size, &ndirty_huge);
 	emitter_json_kv(emitter, "npageslabs_nonhuge", emitter_type_size,
 	    &npageslabs_nonhuge);
 	emitter_json_kv(
@@ -1022,7 +1022,7 @@ stats_arena_hpa_shard_slabs_print(emitter_t *emitter, unsigned i) {
 	emitter_json_kv(
 	    emitter, "nactive_huge", emitter_type_size, &nactive_huge);
 	emitter_json_kv(
-	    emitter, "nactive_huge", emitter_type_size, &nactive_huge);
+	    emitter, "ndirty_huge", emitter_type_size, &ndirty_huge);
 	emitter_json_kv(emitter, "npageslabs_nonhuge", emitter_type_size,
 	    &npageslabs_nonhuge);
 	emitter_json_kv(

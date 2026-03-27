@@ -237,7 +237,78 @@ TEST_BEGIN(test_json_stats_mutexes) {
 }
 TEST_END
 
+/*
+ * Verify that hpa_shard JSON stats contain "ndirty_huge" key in both
+ * full_slabs and empty_slabs sections.  A previous bug emitted duplicate
+ * "nactive_huge" instead of "ndirty_huge".
+ */
+TEST_BEGIN(test_hpa_shard_json_ndirty_huge) {
+	test_skip_if(!config_stats);
+	test_skip_if(!hpa_supported());
+
+	/* Do some allocation to create HPA state. */
+	void *p = mallocx(PAGE, MALLOCX_TCACHE_NONE);
+	expect_ptr_not_null(p, "Unexpected mallocx failure");
+
+	uint64_t epoch = 1;
+	size_t   sz = sizeof(epoch);
+	expect_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sz), 0,
+	    "Unexpected mallctl() failure");
+
+	stats_buf_t sbuf;
+	stats_buf_init(&sbuf);
+	/* "J" for JSON, include per-arena HPA stats. */
+	malloc_stats_print(stats_buf_write_cb, &sbuf, "J");
+
+	/*
+	 * Find "full_slabs" and check it contains "ndirty_huge".
+	 */
+	const char *full_slabs = strstr(sbuf.buf, "\"full_slabs\"");
+	if (full_slabs != NULL) {
+		const char *empty_slabs = strstr(full_slabs, "\"empty_slabs\"");
+		const char *search_end = empty_slabs != NULL
+		    ? empty_slabs
+		    : sbuf.buf + sbuf.len;
+		/*
+		 * Search for "ndirty_huge" between full_slabs and
+		 * empty_slabs.
+		 */
+		const char *ndirty = full_slabs;
+		bool        found = false;
+		while (ndirty < search_end) {
+			ndirty = strstr(ndirty, "\"ndirty_huge\"");
+			if (ndirty != NULL && ndirty < search_end) {
+				found = true;
+				break;
+			}
+			break;
+		}
+		expect_true(
+		    found, "full_slabs section should contain ndirty_huge key");
+	}
+
+	/*
+	 * Find "empty_slabs" and check it contains "ndirty_huge".
+	 */
+	const char *empty_slabs = strstr(sbuf.buf, "\"empty_slabs\"");
+	if (empty_slabs != NULL) {
+		/* Find the end of the empty_slabs object. */
+		const char *nonfull = strstr(empty_slabs, "\"nonfull_slabs\"");
+		const char *search_end = nonfull != NULL ? nonfull
+		                                         : sbuf.buf + sbuf.len;
+		const char *ndirty = strstr(empty_slabs, "\"ndirty_huge\"");
+		bool        found = (ndirty != NULL && ndirty < search_end);
+		expect_true(found,
+		    "empty_slabs section should contain ndirty_huge key");
+	}
+
+	stats_buf_fini(&sbuf);
+	dallocx(p, MALLOCX_TCACHE_NONE);
+}
+TEST_END
+
 int
 main(void) {
-	return test(test_json_stats_mutexes);
+	return test_no_reentrancy(test_json_stats_mutexes,
+	    test_hpa_shard_json_ndirty_huge);
 }
