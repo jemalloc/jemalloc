@@ -196,6 +196,28 @@ json_find_object_end(const char *object_begin) {
 			if (depth == 0) {
 				return cur;
 			}
+			if (depth < 0) {
+				return NULL;
+			}
+		}
+	}
+	return NULL;
+}
+
+static const char *
+json_find_array_end(const char *array_begin) {
+	int depth = 0;
+	for (const char *cur = array_begin; *cur != '\0'; cur++) {
+		if (*cur == '[') {
+			depth++;
+		} else if (*cur == ']') {
+			depth--;
+			if (depth == 0) {
+				return cur;
+			}
+			if (depth < 0) {
+				return NULL;
+			}
 		}
 	}
 	return NULL;
@@ -218,6 +240,52 @@ json_find_previous_hpa_shard_object(
 	}
 	*object_end = json_find_object_end(found);
 	return found;
+}
+
+static const char *
+json_find_named_object(
+    const char *json, const char *key, const char **object_end) {
+	*object_end = NULL;
+	char   search_key[128];
+	size_t written = malloc_snprintf(
+	    search_key, sizeof(search_key), "\"%s\":{", key);
+	if (written >= sizeof(search_key)) {
+		return NULL;
+	}
+
+	const char *object_begin = strstr(json, search_key);
+	if (object_begin == NULL) {
+		return NULL;
+	}
+	object_begin = strchr(object_begin, '{');
+	if (object_begin == NULL) {
+		return NULL;
+	}
+	*object_end = json_find_object_end(object_begin);
+	return object_begin;
+}
+
+static const char *
+json_find_named_array(
+    const char *json, const char *key, const char **array_end) {
+	*array_end = NULL;
+	char   search_key[128];
+	size_t written = malloc_snprintf(
+	    search_key, sizeof(search_key), "\"%s\":[", key);
+	if (written >= sizeof(search_key)) {
+		return NULL;
+	}
+
+	const char *array_begin = strstr(json, search_key);
+	if (array_begin == NULL) {
+		return NULL;
+	}
+	array_begin = strchr(array_begin, '[');
+	if (array_begin == NULL) {
+		return NULL;
+	}
+	*array_end = json_find_array_end(array_begin);
+	return array_begin;
 }
 
 TEST_BEGIN(test_json_stats_mutexes) {
@@ -381,9 +449,61 @@ TEST_BEGIN(test_hpa_shard_json_contains_sec_stats) {
 }
 TEST_END
 
+TEST_BEGIN(test_hpa_shard_json_contains_retained_stats) {
+	test_skip_if(!config_stats);
+	test_skip_if(!hpa_supported());
+
+	void *p = mallocx(PAGE, MALLOCX_TCACHE_NONE);
+	expect_ptr_not_null(p, "Unexpected mallocx failure");
+
+	uint64_t epoch = 1;
+	size_t   sz = sizeof(epoch);
+	expect_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sz), 0,
+	    "Unexpected mallctl() failure");
+
+	stats_buf_t sbuf;
+	stats_buf_init(&sbuf);
+	malloc_stats_print(stats_buf_write_cb, &sbuf, "J");
+
+	const char *full_slabs_end = NULL;
+	const char *full_slabs = json_find_named_object(
+	    sbuf.buf, "full_slabs", &full_slabs_end);
+	expect_ptr_not_null(
+	    full_slabs, "JSON output should contain full_slabs");
+	const char *full_retained = strstr(full_slabs, "\"nretained_nonhuge\"");
+	expect_true(full_retained != NULL && full_retained < full_slabs_end,
+	    "full_slabs should contain nretained_nonhuge");
+
+	const char *empty_slabs_end = NULL;
+	const char *empty_slabs = json_find_named_object(
+	    sbuf.buf, "empty_slabs", &empty_slabs_end);
+	expect_ptr_not_null(
+	    empty_slabs, "JSON output should contain empty_slabs");
+	const char *empty_retained = strstr(
+	    empty_slabs, "\"nretained_nonhuge\"");
+	expect_true(empty_retained != NULL && empty_retained < empty_slabs_end,
+	    "empty_slabs should contain nretained_nonhuge");
+
+	const char *nonfull_slabs_end = NULL;
+	const char *nonfull_slabs = json_find_named_array(
+	    sbuf.buf, "nonfull_slabs", &nonfull_slabs_end);
+	expect_ptr_not_null(
+	    nonfull_slabs, "JSON output should contain nonfull_slabs");
+	const char *nonfull_retained = strstr(
+	    nonfull_slabs, "\"nretained_nonhuge\"");
+	expect_true(
+	    nonfull_retained != NULL && nonfull_retained < nonfull_slabs_end,
+	    "nonfull_slabs should contain nretained_nonhuge");
+
+	stats_buf_fini(&sbuf);
+	dallocx(p, MALLOCX_TCACHE_NONE);
+}
+TEST_END
+
 int
 main(void) {
 	return test_no_reentrancy(test_json_stats_mutexes,
 	    test_hpa_shard_json_ndirty_huge,
-	    test_hpa_shard_json_contains_sec_stats);
+	    test_hpa_shard_json_contains_sec_stats,
+	    test_hpa_shard_json_contains_retained_stats);
 }

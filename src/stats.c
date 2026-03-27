@@ -988,6 +988,8 @@ stats_arena_hpa_shard_slabs_print(emitter_t *emitter, unsigned i) {
 	    emitter, "nactive_nonhuge", emitter_type_size, &nactive_nonhuge);
 	emitter_json_kv(
 	    emitter, "ndirty_nonhuge", emitter_type_size, &ndirty_nonhuge);
+	emitter_json_kv(emitter, "nretained_nonhuge", emitter_type_size,
+	    &nretained_nonhuge);
 	emitter_json_object_end(emitter); /* End "full_slabs" */
 
 	/* Next, empty slab stats. */
@@ -1029,6 +1031,8 @@ stats_arena_hpa_shard_slabs_print(emitter_t *emitter, unsigned i) {
 	    emitter, "nactive_nonhuge", emitter_type_size, &nactive_nonhuge);
 	emitter_json_kv(
 	    emitter, "ndirty_nonhuge", emitter_type_size, &ndirty_nonhuge);
+	emitter_json_kv(emitter, "nretained_nonhuge", emitter_type_size,
+	    &nretained_nonhuge);
 	emitter_json_object_end(emitter); /* End "empty_slabs" */
 
 	/* Last, nonfull slab stats. */
@@ -1103,6 +1107,8 @@ stats_arena_hpa_shard_slabs_print(emitter_t *emitter, unsigned i) {
 		    &nactive_nonhuge);
 		emitter_json_kv(emitter, "ndirty_nonhuge", emitter_type_size,
 		    &ndirty_nonhuge);
+		emitter_json_kv(emitter, "nretained_nonhuge", emitter_type_size,
+		    &nretained_nonhuge);
 		emitter_json_object_end(emitter);
 	}
 	emitter_json_array_end(emitter); /* End "nonfull_slabs" */
