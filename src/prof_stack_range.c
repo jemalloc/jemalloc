@@ -73,16 +73,20 @@ prof_mapping_containing_addr(uintptr_t addr, const char *maps_path,
 			}
 
 			remaining = malloc_read_fd(fd, buf, sizeof(buf));
-			if (remaining <= 0) {
+			if (remaining < 0) {
 				ret = errno;
+				break;
+			} else if (remaining == 0) {
 				break;
 			}
 			line = buf;
 		} else if (line == NULL) {
 			/* case 1: no newline found in buf */
 			remaining = malloc_read_fd(fd, buf, sizeof(buf));
-			if (remaining <= 0) {
+			if (remaining < 0) {
 				ret = errno;
+				break;
+			} else if (remaining == 0) {
 				break;
 			}
 			line = memchr(buf, '\n', remaining);
@@ -99,10 +103,12 @@ prof_mapping_containing_addr(uintptr_t addr, const char *maps_path,
 			    remaining); /* copy remaining characters to start of buf */
 			line = buf;
 
-			size_t count = malloc_read_fd(
+			ssize_t count = malloc_read_fd(
 			    fd, buf + remaining, sizeof(buf) - remaining);
-			if (count <= 0) {
+			if (count < 0) {
 				ret = errno;
+				break;
+			} else if (count == 0) {
 				break;
 			}
 
