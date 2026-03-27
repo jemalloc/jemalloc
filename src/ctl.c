@@ -3250,7 +3250,7 @@ CTL_RO_NL_GEN(arenas_bin_i_slab_size, bin_infos[mib[2]].slab_size, size_t)
 CTL_RO_NL_GEN(arenas_bin_i_nshards, bin_infos[mib[2]].n_shards, uint32_t)
 static const ctl_named_node_t *
 arenas_bin_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t i) {
-	if (i > SC_NBINS) {
+	if (i >= SC_NBINS) {
 		return NULL;
 	}
 	return super_arenas_bin_i_node;
@@ -3262,7 +3262,7 @@ CTL_RO_NL_GEN(arenas_lextent_i_size,
 static const ctl_named_node_t *
 arenas_lextent_i_index(
     tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t i) {
-	if (i > SC_NSIZES - SC_NBINS) {
+	if (i >= SC_NSIZES - SC_NBINS) {
 		return NULL;
 	}
 	return super_arenas_lextent_i_node;
