@@ -956,6 +956,52 @@ TEST_BEGIN(test_arenas_bin_constants) {
 }
 TEST_END
 
+TEST_BEGIN(test_arenas_bin_oob) {
+	size_t sz;
+	size_t result;
+	char   buf[128];
+
+	/*
+	 * Querying the bin at index SC_NBINS should fail because valid
+	 * indices are [0, SC_NBINS).
+	 */
+	sz = sizeof(result);
+	malloc_snprintf(
+	    buf, sizeof(buf), "arenas.bin.%u.size", (unsigned)SC_NBINS);
+	expect_d_eq(mallctl(buf, (void *)&result, &sz, NULL, 0), ENOENT,
+	    "mallctl() should fail for out-of-bounds bin index SC_NBINS");
+
+	/* One below the boundary should succeed. */
+	malloc_snprintf(
+	    buf, sizeof(buf), "arenas.bin.%u.size", (unsigned)(SC_NBINS - 1));
+	expect_d_eq(mallctl(buf, (void *)&result, &sz, NULL, 0), 0,
+	    "mallctl() should succeed for valid bin index SC_NBINS-1");
+}
+TEST_END
+
+TEST_BEGIN(test_arenas_lextent_oob) {
+	size_t   sz;
+	size_t   result;
+	char     buf[128];
+	unsigned nlextents = SC_NSIZES - SC_NBINS;
+
+	/*
+	 * Querying the lextent at index nlextents should fail because valid
+	 * indices are [0, nlextents).
+	 */
+	sz = sizeof(result);
+	malloc_snprintf(buf, sizeof(buf), "arenas.lextent.%u.size", nlextents);
+	expect_d_eq(mallctl(buf, (void *)&result, &sz, NULL, 0), ENOENT,
+	    "mallctl() should fail for out-of-bounds lextent index");
+
+	/* Querying the last element (nlextents - 1) should succeed. */
+	malloc_snprintf(
+	    buf, sizeof(buf), "arenas.lextent.%u.size", nlextents - 1);
+	expect_d_eq(mallctl(buf, (void *)&result, &sz, NULL, 0), 0,
+	    "mallctl() should succeed for valid lextent index");
+}
+TEST_END
+
 TEST_BEGIN(test_arenas_lextent_constants) {
 #define TEST_ARENAS_LEXTENT_CONSTANT(t, name, expected)                        \
 	do {                                                                   \
@@ -1450,6 +1496,7 @@ main(void) {
 	    test_arena_i_dss, test_arena_i_name, test_arena_i_retain_grow_limit,
 	    test_arenas_dirty_decay_ms, test_arenas_muzzy_decay_ms,
 	    test_arenas_constants, test_arenas_bin_constants,
+	    test_arenas_bin_oob, test_arenas_lextent_oob,
 	    test_arenas_lextent_constants, test_arenas_create,
 	    test_arenas_lookup, test_prof_active, test_stats_arenas,
 	    test_stats_arenas_hpa_shard_counters,
