@@ -185,6 +185,41 @@ static const char  *arena_mutex_names[] = {"large", "extent_avail",
 static const size_t num_arena_mutexes = sizeof(arena_mutex_names)
     / sizeof(arena_mutex_names[0]);
 
+static const char *
+json_find_object_end(const char *object_begin) {
+	int depth = 0;
+	for (const char *cur = object_begin; *cur != '\0'; cur++) {
+		if (*cur == '{') {
+			depth++;
+		} else if (*cur == '}') {
+			depth--;
+			if (depth == 0) {
+				return cur;
+			}
+		}
+	}
+	return NULL;
+}
+
+static const char *
+json_find_previous_hpa_shard_object(
+    const char *json, const char *pos, const char **object_end) {
+	*object_end = NULL;
+	const char *found = NULL;
+	const char *cur = json;
+	const char *next;
+
+	while ((next = strstr(cur, "\"hpa_shard\":{")) != NULL && next < pos) {
+		found = strchr(next, '{');
+		cur = next + 1;
+	}
+	if (found == NULL) {
+		return NULL;
+	}
+	*object_end = json_find_object_end(found);
+	return found;
+}
+
 TEST_BEGIN(test_json_stats_mutexes) {
 	test_skip_if(!config_stats);
 
@@ -307,8 +342,48 @@ TEST_BEGIN(test_hpa_shard_json_ndirty_huge) {
 }
 TEST_END
 
+TEST_BEGIN(test_hpa_shard_json_contains_sec_stats) {
+	test_skip_if(!config_stats);
+	test_skip_if(!hpa_supported());
+
+	void *p = mallocx(PAGE, MALLOCX_TCACHE_NONE);
+	expect_ptr_not_null(p, "Unexpected mallocx failure");
+
+	uint64_t epoch = 1;
+	size_t   sz = sizeof(epoch);
+	expect_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sz), 0,
+	    "Unexpected mallctl() failure");
+
+	stats_buf_t sbuf;
+	stats_buf_init(&sbuf);
+	malloc_stats_print(stats_buf_write_cb, &sbuf, "J");
+
+	const char *sec_bytes = strstr(sbuf.buf, "\"sec_bytes\"");
+	expect_ptr_not_null(sec_bytes, "JSON output should contain sec_bytes");
+	const char *hpa_shard_end = NULL;
+	const char *hpa_shard = json_find_previous_hpa_shard_object(
+	    sbuf.buf, sec_bytes, &hpa_shard_end);
+	expect_ptr_not_null(hpa_shard,
+	    "sec_bytes should be associated with an hpa_shard JSON object");
+	expect_ptr_not_null(hpa_shard_end,
+	    "Could not find end of enclosing hpa_shard JSON object");
+	expect_true(sec_bytes != NULL && sec_bytes < hpa_shard_end,
+	    "sec_bytes should be nested inside hpa_shard JSON object");
+	const char *sec_hits = strstr(hpa_shard, "\"sec_hits\"");
+	expect_true(sec_hits != NULL && sec_hits < hpa_shard_end,
+	    "sec_hits should be nested inside hpa_shard JSON object");
+	const char *sec_misses = strstr(hpa_shard, "\"sec_misses\"");
+	expect_true(sec_misses != NULL && sec_misses < hpa_shard_end,
+	    "sec_misses should be nested inside hpa_shard JSON object");
+
+	stats_buf_fini(&sbuf);
+	dallocx(p, MALLOCX_TCACHE_NONE);
+}
+TEST_END
+
 int
 main(void) {
 	return test_no_reentrancy(test_json_stats_mutexes,
-	    test_hpa_shard_json_ndirty_huge);
+	    test_hpa_shard_json_ndirty_huge,
+	    test_hpa_shard_json_contains_sec_stats);
 }

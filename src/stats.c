@@ -1113,9 +1113,8 @@ stats_arena_hpa_shard_slabs_print(emitter_t *emitter, unsigned i) {
 
 static void
 stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
-	stats_arena_hpa_shard_sec_print(emitter, i);
-
 	emitter_json_object_kv_begin(emitter, "hpa_shard");
+	stats_arena_hpa_shard_sec_print(emitter, i);
 	stats_arena_hpa_shard_counters_print(emitter, i, uptime);
 	stats_arena_hpa_shard_slabs_print(emitter, i);
 	emitter_json_object_end(emitter); /* End "hpa_shard" */
