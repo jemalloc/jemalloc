@@ -254,36 +254,8 @@ JEMALLOC_DIAGNOSTIC_PUSH
 JEMALLOC_DIAGNOSTIC_IGNORE("-Wunused-function")
 
 JET_EXTERN bool
-conf_handle_unsigned(const char *v, size_t vlen,
-    uintmax_t min, uintmax_t max, bool check_min, bool check_max,
-    bool clip, uintmax_t *result) {
-	char *end;
-	set_errno(0);
-	uintmax_t mv = (uintmax_t)malloc_strtoumax(v, &end, 0);
-	if (get_errno() != 0 || (uintptr_t)end - (uintptr_t)v != vlen) {
-		return true;
-	}
-	if (clip) {
-		if (check_min && mv < min) {
-			*result = min;
-		} else if (check_max && mv > max) {
-			*result = max;
-		} else {
-			*result = mv;
-		}
-	} else {
-		if ((check_min && mv < min) || (check_max && mv > max)) {
-			return true;
-		}
-		*result = mv;
-	}
-	return false;
-}
-
-JET_EXTERN bool
-conf_handle_signed(const char *v, size_t vlen,
-    intmax_t min, intmax_t max, bool check_min, bool check_max,
-    bool clip, intmax_t *result) {
+conf_handle_signed(const char *v, size_t vlen, intmax_t min, intmax_t max,
+    bool check_min, bool check_max, bool clip, intmax_t *result) {
 	char *end;
 	set_errno(0);
 	intmax_t mv = (intmax_t)malloc_strtoumax(v, &end, 0);
@@ -309,6 +281,9 @@ conf_handle_signed(const char *v, size_t vlen,
 
 JET_EXTERN bool
 conf_handle_char_p(const char *v, size_t vlen, char *dest, size_t dest_sz) {
+	if (dest_sz == 0) {
+		return false;
+	}
 	size_t cpylen = (vlen <= dest_sz - 1) ? vlen : dest_sz - 1;
 	strncpy(dest, v, cpylen);
 	dest[cpylen] = '\0';
@@ -473,11 +448,11 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			continue;
 		}
 
-		while (*opts != '\0'
-		    && !conf_next(&opts, &k, &klen, &v, &vlen)) {
+		while (
+		    *opts != '\0' && !conf_next(&opts, &k, &klen, &v, &vlen)) {
 #define CONF_ERROR(msg, k, klen, v, vlen)                                      \
 	if (!initial_call) {                                                   \
-		conf_error(msg, k, klen, v, vlen);                      \
+		conf_error(msg, k, klen, v, vlen);                             \
 		cur_opt_valid = false;                                         \
 	}
 #define CONF_CONTINUE                                                          \
