@@ -198,7 +198,9 @@ pac_alloc_real(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 		edata = ecache_alloc_grow(tsdn, pac, ehooks,
 		    &pac->ecache_retained, NULL, size, alignment, zero,
 		    guarded);
-		newly_mapped_size = size;
+		if (edata != NULL) {
+			newly_mapped_size = size;
+		}
 	}
 
 	if (config_stats && newly_mapped_size != 0) {
