@@ -692,7 +692,7 @@ malloc_vsnprintf(char *str, size_t size, const char *format, va_list ap) {
 label_out:
 	if (i < size) {
 		str[i] = '\0';
-	} else {
+	} else if (size != 0) {
 		str[size - 1] = '\0';
 	}
 
