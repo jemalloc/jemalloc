@@ -121,7 +121,52 @@ TEST_BEGIN(test_alloc_free_purge_thds) {
 }
 TEST_END
 
+TEST_BEGIN(test_failed_coalesce_releases_neighbor) {
+	test_skip_if(!maps_coalesce);
+
+	test_data_t *test_data = init_test_data(-1, -1);
+	size_t old_lg_extent_max_active_fit = opt_lg_extent_max_active_fit;
+	opt_lg_extent_max_active_fit = 0;
+
+	bool     deferred_work_generated = false;
+	size_t   unit = SC_LARGE_MINCLASS;
+	size_t   alloc_size = 4 * unit;
+	edata_t *edata = pa_alloc(TSDN_NULL, &test_data->shard, alloc_size,
+	    PAGE,
+	    /* slab */ false, sz_size2index(alloc_size), /* zero */ false,
+	    /* guarded */ false, &deferred_work_generated);
+	expect_ptr_not_null(edata, "Unexpected pa_alloc() failure");
+
+	void *tail_addr = (void *)((uintptr_t)edata_base_get(edata) + unit);
+	expect_false(pa_shrink(TSDN_NULL, &test_data->shard, edata, alloc_size,
+	                 unit, sz_size2index(unit), &deferred_work_generated),
+	    "Unexpected pa_shrink() failure");
+
+	edata_t *tail = emap_edata_lookup(
+	    TSDN_NULL, &test_data->emap, tail_addr);
+	expect_ptr_not_null(tail, "Expected dirty tail extent after shrink");
+	expect_ptr_eq(
+	    edata_base_get(tail), tail_addr, "Unexpected tail extent address");
+	expect_zu_eq(
+	    edata_size_get(tail), 3 * unit, "Unexpected tail extent size");
+	expect_d_eq(edata_state_get(tail), extent_state_dirty,
+	    "Expected tail extent to start dirty");
+
+	pa_dalloc(
+	    TSDN_NULL, &test_data->shard, edata, &deferred_work_generated);
+
+	tail = emap_edata_lookup(TSDN_NULL, &test_data->emap, tail_addr);
+	expect_ptr_not_null(
+	    tail, "Expected oversized dirty neighbor to remain discoverable");
+	expect_d_eq(edata_state_get(tail), extent_state_dirty,
+	    "Failed coalesce must release oversized dirty neighbor");
+
+	opt_lg_extent_max_active_fit = old_lg_extent_max_active_fit;
+}
+TEST_END
+
 int
 main(void) {
-	return test(test_alloc_free_purge_thds);
+	return test(
+	    test_alloc_free_purge_thds, test_failed_coalesce_releases_neighbor);
 }
