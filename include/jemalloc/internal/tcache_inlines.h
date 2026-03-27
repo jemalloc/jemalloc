@@ -163,10 +163,10 @@ tcache_alloc_large(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
 			assert(usize <= tcache_max_get(tcache->tcache_slow));
 			memset(ret, 0, usize);
 		}
+	}
 
-		if (config_stats) {
-			bin->tstats.nrequests++;
-		}
+	if (config_stats) {
+		bin->tstats.nrequests++;
 	}
 
 	return ret;
