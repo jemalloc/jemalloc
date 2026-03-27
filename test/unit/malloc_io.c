@@ -252,8 +252,26 @@ TEST_BEGIN(test_malloc_snprintf) {
 }
 TEST_END
 
+TEST_BEGIN(test_malloc_snprintf_zero_size) {
+	char   buf[8];
+	size_t result;
+
+	/*
+	 * malloc_snprintf with size==0 should not write anything but should
+	 * return the length that would have been written.  A previous bug
+	 * caused an out-of-bounds write via str[size - 1] when size was 0.
+	 */
+	memset(buf, 'X', sizeof(buf));
+	result = malloc_snprintf(buf, 0, "%s", "hello");
+	expect_zu_eq(result, 5, "Expected length 5 for \"hello\"");
+	/* buf should be untouched. */
+	expect_c_eq(buf[0], 'X', "Buffer should not have been modified");
+}
+TEST_END
+
 int
 main(void) {
 	return test(test_malloc_strtoumax_no_endptr, test_malloc_strtoumax,
-	    test_malloc_snprintf_truncated, test_malloc_snprintf);
+	    test_malloc_snprintf_truncated, test_malloc_snprintf,
+	    test_malloc_snprintf_zero_size);
 }
