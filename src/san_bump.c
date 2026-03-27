@@ -31,6 +31,7 @@ san_bump_alloc(tsdn_t *tsdn, san_bump_alloc_t *sba, pac_t *pac,
 		bool err = san_bump_grow_locked(
 		    tsdn, sba, pac, ehooks, guarded_size);
 		if (err) {
+			sba->curr_reg = to_destroy;
 			goto label_err;
 		}
 	} else {
