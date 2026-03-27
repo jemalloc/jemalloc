@@ -20,6 +20,9 @@
  */
 #define JEMALLOC_ARG_CONCAT(...) __VA_ARGS__
 
+/* Number of elements in a fixed-size array. */
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+
 /* cpp macro definition stringification. */
 #define STRINGIFY_HELPER(x) #x
 #define STRINGIFY(x) STRINGIFY_HELPER(x)
