@@ -1002,6 +1002,59 @@ TEST_BEGIN(test_arenas_lextent_oob) {
 }
 TEST_END
 
+TEST_BEGIN(test_stats_arenas_bins_oob) {
+	test_skip_if(!config_stats);
+	size_t   sz;
+	uint64_t result;
+	char     buf[128];
+
+	uint64_t epoch = 1;
+	sz = sizeof(epoch);
+	expect_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sz), 0,
+	    "Unexpected mallctl() failure");
+
+	/* SC_NBINS is one past the valid range. */
+	sz = sizeof(result);
+	malloc_snprintf(buf, sizeof(buf), "stats.arenas.0.bins.%u.nmalloc",
+	    (unsigned)SC_NBINS);
+	expect_d_eq(mallctl(buf, (void *)&result, &sz, NULL, 0), ENOENT,
+	    "mallctl() should fail for out-of-bounds stats bin index");
+
+	/* SC_NBINS - 1 is valid. */
+	malloc_snprintf(buf, sizeof(buf), "stats.arenas.0.bins.%u.nmalloc",
+	    (unsigned)(SC_NBINS - 1));
+	expect_d_eq(mallctl(buf, (void *)&result, &sz, NULL, 0), 0,
+	    "mallctl() should succeed for valid stats bin index");
+}
+TEST_END
+
+TEST_BEGIN(test_stats_arenas_lextents_oob) {
+	test_skip_if(!config_stats);
+	size_t   sz;
+	uint64_t result;
+	char     buf[128];
+	unsigned nlextents = SC_NSIZES - SC_NBINS;
+
+	uint64_t epoch = 1;
+	sz = sizeof(epoch);
+	expect_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sz), 0,
+	    "Unexpected mallctl() failure");
+
+	/* nlextents is one past the valid range. */
+	sz = sizeof(result);
+	malloc_snprintf(
+	    buf, sizeof(buf), "stats.arenas.0.lextents.%u.nmalloc", nlextents);
+	expect_d_eq(mallctl(buf, (void *)&result, &sz, NULL, 0), ENOENT,
+	    "mallctl() should fail for out-of-bounds stats lextent index");
+
+	/* nlextents - 1 is valid. */
+	malloc_snprintf(buf, sizeof(buf), "stats.arenas.0.lextents.%u.nmalloc",
+	    nlextents - 1);
+	expect_d_eq(mallctl(buf, (void *)&result, &sz, NULL, 0), 0,
+	    "mallctl() should succeed for valid stats lextent index");
+}
+TEST_END
+
 TEST_BEGIN(test_arenas_lextent_constants) {
 #define TEST_ARENAS_LEXTENT_CONSTANT(t, name, expected)                        \
 	do {                                                                   \
@@ -1497,6 +1550,7 @@ main(void) {
 	    test_arenas_dirty_decay_ms, test_arenas_muzzy_decay_ms,
 	    test_arenas_constants, test_arenas_bin_constants,
 	    test_arenas_bin_oob, test_arenas_lextent_oob,
+	    test_stats_arenas_bins_oob, test_stats_arenas_lextents_oob,
 	    test_arenas_lextent_constants, test_arenas_create,
 	    test_arenas_lookup, test_prof_active, test_stats_arenas,
 	    test_stats_arenas_hpa_shard_counters,

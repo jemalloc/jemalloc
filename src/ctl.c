@@ -4003,7 +4003,7 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_bins_j_nonfull_slabs,
 static const ctl_named_node_t *
 stats_arenas_i_bins_j_index(
     tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t j) {
-	if (j > SC_NBINS) {
+	if (j >= SC_NBINS) {
 		return NULL;
 	}
 	return super_stats_arenas_i_bins_j_node;
@@ -4027,7 +4027,7 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_lextents_j_curlextents,
 static const ctl_named_node_t *
 stats_arenas_i_lextents_j_index(
     tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t j) {
-	if (j > SC_NSIZES - SC_NBINS) {
+	if (j >= SC_NSIZES - SC_NBINS) {
 		return NULL;
 	}
 	return super_stats_arenas_i_lextents_j_node;
