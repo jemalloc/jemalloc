@@ -130,13 +130,17 @@ sec_multishard_trylock_alloc(
 			cur_shard = 0;
 		}
 	}
-	/* No bin had alloc or had the extent */
+	/*
+	 * TODO: Benchmark whether it is worth blocking on all shards here before
+	 * declaring a miss.  That could recover more remote-shard hits under
+	 * contention, but it also changes the allocation latency policy.
+	 */
 	assert(cur_shard == sec_shard_pick(tsdn, sec));
 	bin = sec_bin_pick(sec, cur_shard, pszind);
 	malloc_mutex_lock(tsdn, &bin->mtx);
 	edata_t *edata = sec_bin_alloc_locked(tsdn, sec, bin, size);
 	if (edata == NULL) {
-		/* Only now we know it is a miss */
+		/* Only now we know it is a miss. */
 		bin->stats.nmisses++;
 	}
 	malloc_mutex_unlock(tsdn, &bin->mtx);
