@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  push:
+    branches: [bcr-5.3.0]
+  pull_request:
+    branches: [bcr-5.3.0]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }}, Bazel ${{ matrix.bazel_version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04, macos-13, macos-14]
+        bazel_version: ["7.x", "8.x", "9.x", "latest"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bazel-contrib/setup-bazel@0.14.0
+        with:
+          bazelisk-cache: true
+          repository-cache: true
+      - name: Build
+        env:
+          USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
+        run: bazel build //...
+      - name: Test
+        env:
+          USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
+        run: bazel test //...
+
+  prof-libunwind:
+    name: Prof libunwind (${{ matrix.os }}, Bazel ${{ matrix.bazel_version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+        bazel_version: ["7.x", "8.x", "9.x", "latest"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bazel-contrib/setup-bazel@0.14.0
+        with:
+          bazelisk-cache: true
+          repository-cache: true
+      - name: Build
+        env:
+          USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
+        run: bazel build //... --config=prof-libunwind
+      - name: Test
+        env:
+          USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
+        run: bazel test //... --config=prof-libunwind
+
+  prof-libgcc:
+    name: Prof libgcc (${{ matrix.os }}, Bazel ${{ matrix.bazel_version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04, macos-13, macos-14]
+        bazel_version: ["7.x", "8.x", "9.x", "latest"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bazel-contrib/setup-bazel@0.14.0
+        with:
+          bazelisk-cache: true
+          repository-cache: true
+      - name: Build
+        env:
+          USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
+        run: bazel build //... --config=prof-libgcc
+      - name: Test
+        env:
+          USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
+        run: bazel test //... --config=prof-libgcc ${{ startsWith(matrix.os, 'macos') && '-- -//test/unit:prof_gdump' || '' }}
+
+  prof-gcc:
+    name: Prof gcc (${{ matrix.os }}, Bazel ${{ matrix.bazel_version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04, macos-13, macos-14]
+        bazel_version: ["7.x", "8.x", "9.x", "latest"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bazel-contrib/setup-bazel@0.14.0
+        with:
+          bazelisk-cache: true
+          repository-cache: true
+      - name: Build
+        env:
+          USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
+        run: bazel build //... --config=prof-gcc
+      - name: Test
+        env:
+          USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
+        run: bazel test //... --config=prof-gcc ${{ startsWith(matrix.os, 'macos') && '-- -//test/unit:prof_gdump' || '' }}
+
+  examples:
+    name: Examples (${{ matrix.os }}, Bazel ${{ matrix.bazel_version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04, macos-13, macos-14]
+        bazel_version: ["7.x", "8.x", "9.x", "latest"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bazel-contrib/setup-bazel@0.14.0
+        with:
+          bazelisk-cache: true
+          repository-cache: true
+      - name: Build
+        env:
+          USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
+        working-directory: examples
+        run: bazel build //...
+      - name: Test
+        env:
+          USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
+        working-directory: examples
+        run: bazel test //...
