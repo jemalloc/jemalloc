@@ -1387,18 +1387,6 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         setting of tcache_max.</para></listitem>
       </varlistentry>
 
-      <varlistentry id="opt.huge_arena_pac_thp">
-        <term>
-          <mallctl>opt.huge_arena_pac_thp</mallctl>
-          (<type>bool</type>)
-          <literal>r-</literal>
-        </term>
-        <listitem><para>Controls whether the huge (oversized) arena's backing
-        memory is promoted to transparent huge pages via madvise. Only effective
-        when the system THP mode is madvise, opt.thp is left at its default, and
-        opt.metadata_thp is enabled.</para></listitem>
-      </varlistentry>
-
       <varlistentry id="opt.thp">
         <term>
           <mallctl>opt.thp</mallctl>
