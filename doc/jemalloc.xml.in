@@ -1393,9 +1393,10 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           (<type>bool</type>)
           <literal>r-</literal>
         </term>
-        <listitem><para>Controls whether the oversize arena uses transparent huge
-        pages (THP) for oversize allocations.  This option is disabled by
-        default.</para></listitem>
+        <listitem><para>Controls whether the huge (oversized) arena's backing
+        memory is promoted to transparent huge pages via madvise. Only effective
+        when the system THP mode is madvise, opt.thp is left at its default, and
+        opt.metadata_thp is enabled.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.thp">
@@ -1896,7 +1897,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         </term>
         <listitem><para>Set the maximum number of cached objects
         (<varname>ncached_max</varname>) for size classes in the calling
-        thread's tcache.  The input is a string of colon-separated settings,
+        thread's tcache.  The input is a string of pipe-separated settings,
         where each setting specifies a size range and a count, in the same
         format as the <mallctl>opt.tcache_ncached_max</mallctl> runtime
         option.</para></listitem>
