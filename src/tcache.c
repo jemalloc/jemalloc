@@ -111,16 +111,6 @@ tcache_gc_postponed_event_wait(tsd_t *tsd) {
 	return TE_MIN_START_WAIT;
 }
 
-uint64_t
-tcache_gc_dalloc_new_event_wait(tsd_t *tsd) {
-	return opt_tcache_gc_incr_bytes;
-}
-
-uint64_t
-tcache_gc_dalloc_postponed_event_wait(tsd_t *tsd) {
-	return TE_MIN_START_WAIT;
-}
-
 static inline void
 tcache_bin_fill_ctl_init(tcache_slow_t *tcache_slow, szind_t szind) {
 	assert(szind < SC_NBINS);

@@ -276,11 +276,6 @@ large_dalloc(tsdn_t *tsdn, edata_t *edata) {
 	arena_decay_tick(tsdn, arena);
 }
 
-size_t
-large_salloc(tsdn_t *tsdn, const edata_t *edata) {
-	return edata_usize_get(edata);
-}
-
 void
 large_prof_info_get(
     tsd_t *tsd, edata_t *edata, prof_info_t *prof_info, bool reset_recent) {
