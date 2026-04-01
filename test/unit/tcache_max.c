@@ -195,9 +195,9 @@ TEST_BEGIN(test_tcache_max) {
 
 	global_test = true;
 	for (alloc_option = alloc_option_start; alloc_option < alloc_option_end;
-	     alloc_option++) {
+	    alloc_option++) {
 		for (dalloc_option = dalloc_option_start;
-		     dalloc_option < dalloc_option_end; dalloc_option++) {
+		    dalloc_option < dalloc_option_end; dalloc_option++) {
 			/* opt.tcache_max set to 1024 in tcache_max.sh. */
 			test_tcache_max_impl(1024, alloc_option, dalloc_option);
 		}
@@ -318,9 +318,9 @@ tcache_check(void *arg) {
 	expect_zu_eq(tcache_nbins, tcache_max2nbins(new_tcache_max),
 	    "Unexpected value for tcache_nbins");
 	for (unsigned alloc_option = alloc_option_start;
-	     alloc_option < alloc_option_end; alloc_option++) {
+	    alloc_option < alloc_option_end; alloc_option++) {
 		for (unsigned dalloc_option = dalloc_option_start;
-		     dalloc_option < dalloc_option_end; dalloc_option++) {
+		    dalloc_option < dalloc_option_end; dalloc_option++) {
 			test_tcache_max_impl(
 			    new_tcache_max, alloc_option, dalloc_option);
 		}
