@@ -17,7 +17,6 @@ void *large_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t usize,
 void   large_dalloc_prep_locked(tsdn_t *tsdn, edata_t *edata);
 void   large_dalloc_finish(tsdn_t *tsdn, edata_t *edata);
 void   large_dalloc(tsdn_t *tsdn, edata_t *edata);
-size_t large_salloc(tsdn_t *tsdn, const edata_t *edata);
 void   large_prof_info_get(
       tsd_t *tsd, edata_t *edata, prof_info_t *prof_info, bool reset_recent);
 void large_prof_tctx_reset(edata_t *edata);

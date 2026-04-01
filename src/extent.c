@@ -1239,13 +1239,6 @@ extent_commit_impl(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
 	return err;
 }
 
-bool
-extent_commit_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
-    size_t offset, size_t length) {
-	return extent_commit_impl(tsdn, ehooks, edata, offset, length,
-	    /* growing_retained */ false);
-}
-
 static bool
 extent_decommit_wrapper(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
     size_t offset, size_t length) {
