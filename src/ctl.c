@@ -365,7 +365,6 @@ CTL_PROTO(experimental_hooks_prof_sample)
 CTL_PROTO(experimental_hooks_prof_sample_free)
 CTL_PROTO(experimental_hooks_thread_event)
 CTL_PROTO(experimental_hooks_safety_check_abort)
-CTL_PROTO(experimental_thread_activity_callback)
 CTL_PROTO(experimental_utilization_query)
 CTL_PROTO(experimental_utilization_batch_query)
 CTL_PROTO(experimental_arenas_i_pactivep)
@@ -890,9 +889,6 @@ static const ctl_named_node_t experimental_hooks_node[] = {
     {NAME("thread_event"), CTL(experimental_hooks_thread_event)},
 };
 
-static const ctl_named_node_t experimental_thread_node[] = {
-    {NAME("activity_callback"), CTL(experimental_thread_activity_callback)}};
-
 static const ctl_named_node_t experimental_utilization_node[] = {
     {NAME("query"), CTL(experimental_utilization_query)},
     {NAME("batch_query"), CTL(experimental_utilization_batch_query)}};
@@ -916,8 +912,7 @@ static const ctl_named_node_t experimental_node[] = {
     {NAME("arenas"), CHILD(indexed, experimental_arenas)},
     {NAME("arenas_create_ext"), CTL(experimental_arenas_create_ext)},
     {NAME("prof_recent"), CHILD(named, experimental_prof_recent)},
-    {NAME("batch_alloc"), CTL(experimental_batch_alloc)},
-    {NAME("thread"), CHILD(named, experimental_thread)}};
+    {NAME("batch_alloc"), CTL(experimental_batch_alloc)}};
 
 static const ctl_named_node_t root_node[] = {{NAME("version"), CTL(version)},
     {NAME("epoch"), CTL(epoch)},
@@ -4250,32 +4245,6 @@ experimental_hooks_remove_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 		goto label_return;
 	}
 	hook_remove(tsd_tsdn(tsd), handle);
-	ret = 0;
-label_return:
-	return ret;
-}
-
-static int
-experimental_thread_activity_callback_ctl(tsd_t *tsd, const size_t *mib,
-    size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
-
-	if (!config_stats) {
-		return ENOENT;
-	}
-
-	activity_callback_thunk_t t_old = tsd_activity_callback_thunk_get(tsd);
-	READ(t_old, activity_callback_thunk_t);
-
-	if (newp != NULL) {
-		/*
-		 * This initialization is unnecessary.  If it's omitted, though,
-		 * clang gets confused and warns on the subsequent use of t_new.
-		 */
-		activity_callback_thunk_t t_new = {NULL, NULL};
-		WRITE(t_new, activity_callback_thunk_t);
-		tsd_activity_callback_thunk_set(tsd, t_new);
-	}
 	ret = 0;
 label_return:
 	return ret;
