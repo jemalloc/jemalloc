@@ -42,7 +42,7 @@ install:
   - bash -c "python3 -c \"import re; f='c:/msys64/etc/pacman.conf'; c=open(f).read(); open(f,'w').write(re.sub(r'^SigLevel\s*=.*$', 'SigLevel = Never', c, flags=re.MULTILINE))\""
   - pacman --noconfirm -Syuu
   - pacman --noconfirm -S msys2-keyring
-  - bash -c "python3 -c \"import re; f='/etc/pacman.conf'; c=open(f).read(); open(f,'w').write(re.sub(r'^SigLevel\s*=.*$', 'SigLevel = Required DatabaseOptional', c, flags=re.MULTILINE))\""
+  - bash -c "python3 -c \"import re; f='c:/msys64/etc/pacman.conf'; c=open(f).read(); open(f,'w').write(re.sub(r'^SigLevel\s*=.*$', 'SigLevel = Required DatabaseOptional', c, flags=re.MULTILINE))\""
   - pacman --noconfirm -Syuu
   - pacman --noconfirm -S autoconf
 
