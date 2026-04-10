@@ -62,8 +62,26 @@ void bin_prefork(tsdn_t *tsdn, bin_t *bin);
 void bin_postfork_parent(tsdn_t *tsdn, bin_t *bin);
 void bin_postfork_child(tsdn_t *tsdn, bin_t *bin);
 
-/* Slab region allocation. */
-void *bin_slab_reg_alloc(edata_t *slab, const bin_info_t *bin_info);
+/*
+ * Slab region allocation — locking contracts:
+ *
+ * bin_slab_reg_alloc()
+ *   REQUIRES: bin->lock held by the caller.
+ *   Calls bitmap_sfu() → bitmap_set(), which performs a non-atomic
+ *   read-modify-write on the slab bitmap at every tree level.  Two threads
+ *   that reach bitmap_sfu() concurrently (even for different bits in the same
+ *   group word) will corrupt the bitmap and eventually abort inside
+ *   bitmap_set().  malloc_mutex_assert_owner() is used internally to catch
+ *   call sites that forget to acquire the lock.
+ *
+ * bin_slab_reg_alloc_batch()
+ *   Shared slab  (already inserted into a bin): bin->lock MUST be held.
+ *   Fresh slab   (just returned by arena_slab_alloc, not yet visible to any
+ *                 other thread): no lock required.
+ *   The caller is responsible for selecting the correct case.
+ */
+void *bin_slab_reg_alloc(tsdn_t *tsdn, bin_t *bin,
+    edata_t *slab, const bin_info_t *bin_info);
 void  bin_slab_reg_alloc_batch(
      edata_t *slab, const bin_info_t *bin_info, unsigned cnt, void **ptrs);
 

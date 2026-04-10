@@ -210,6 +210,33 @@ bitmap_get(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit) {
 	return !(g & (ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK)));
 }
 
+/*
+ * bitmap_set() performs a non-atomic read-modify-write on every level of the
+ * bitmap tree:
+ *
+ *     g  = *gp;             // READ
+ *     g ^= ZU(1) << bit;   // MODIFY (thread-local copy)
+ *     *gp = g;              // WRITE BACK — not atomic, no barrier
+ *
+ * If two threads enter bitmap_set() concurrently for bits that share the same
+ * group word (or a common ancestor group in the BITMAP_USE_TREE path), one
+ * thread's write silently clobbers the other's.  On the next call the
+ * clobbered bit still appears free; bitmap_sfu() returns it again; the second
+ * call to bitmap_set() for that bit trips:
+ *
+ *     assert(!bitmap_get(bitmap, binfo, bit));        // line 220 — bit already set
+ *
+ * or, after a group drains to zero and tree propagation begins:
+ *
+ *     assert(g & (ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK)));  // line 237
+ *
+ * Either assert calls abort() and produces the observed coredump.
+ *
+ * bitmap_set() is intentionally not thread-safe.  Callers must hold the
+ * owning bin_t.lock for the entire duration of bitmap_sfu() → bitmap_set().
+ * The fix enforces this contract at the bin_slab_reg_alloc() call boundary
+ * via malloc_mutex_assert_owner(); see src/bin.c and include/.../bin.h.
+ */
 static inline void
 bitmap_set(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit) {
 	size_t    goff;

@@ -68,11 +68,40 @@ bin_postfork_child(tsdn_t *tsdn, bin_t *bin) {
 	malloc_mutex_postfork_child(tsdn, &bin->lock);
 }
 
+/*
+ * bin_slab_reg_alloc — enforce bin->lock ownership before touching the bitmap.
+ *
+ * Root cause of issue #2875 (and #2772):
+ *   bitmap_set() is not thread-safe.  It does a plain read-modify-write on
+ *   each level of the bitmap tree with no atomics or barriers.  If two threads
+ *   ever reach bitmap_sfu() → bitmap_set() concurrently on the same slab
+ *   bitmap — even for different bit positions that share a group word — one
+ *   write silently discards the other.  The clobbered bit still looks free on
+ *   the next allocation attempt; bitmap_sfu() selects it again; the second
+ *   call to bitmap_set() fires:
+ *
+ *       assert(!bitmap_get(bitmap, binfo, bit));   // bitmap.h:220
+ *
+ *   which calls abort() and produces the coredump.
+ *
+ *   The existing callers (bin_malloc_with_fresh_slab, bin_malloc_no_fresh_slab)
+ *   already assert lock ownership via malloc_mutex_assert_owner(), but
+ *   bin_slab_reg_alloc() itself had no such check, making it easy for future
+ *   callers to silently bypass the requirement.
+ *
+ *   Fix: thread tsdn_t *tsdn and bin_t *bin through the signature and add
+ *   malloc_mutex_assert_owner() as the first statement, so any caller that
+ *   forgets to hold the lock is caught immediately in debug builds rather than
+ *   producing a rare, hard-to-reproduce coredump in production.
+ */
 void *
-bin_slab_reg_alloc(edata_t *slab, const bin_info_t *bin_info) {
+bin_slab_reg_alloc(tsdn_t *tsdn, bin_t *bin,
+    edata_t *slab, const bin_info_t *bin_info) {
 	void        *ret;
 	slab_data_t *slab_data = edata_slab_data_get(slab);
 	size_t       regind;
+
+	malloc_mutex_assert_owner(tsdn, &bin->lock);
 
 	assert(edata_nfree_get(slab) > 0);
 	assert(!bitmap_full(slab_data->bitmap, &bin_info->bitmap_info));
@@ -281,7 +310,7 @@ bin_malloc_with_fresh_slab(tsdn_t *tsdn, bin_t *bin,
 	malloc_mutex_assert_owner(tsdn, &bin->lock);
 	bin_refill_slabcur_with_fresh_slab(tsdn, bin, binind, fresh_slab);
 
-	return bin_slab_reg_alloc(bin->slabcur, &bin_infos[binind]);
+	return bin_slab_reg_alloc(tsdn, bin, bin->slabcur, &bin_infos[binind]);
 }
 
 bool
@@ -312,7 +341,7 @@ bin_malloc_no_fresh_slab(tsdn_t *tsdn, bool is_auto, bin_t *bin,
 	}
 
 	assert(bin->slabcur != NULL && edata_nfree_get(bin->slabcur) > 0);
-	return bin_slab_reg_alloc(bin->slabcur, &bin_infos[binind]);
+	return bin_slab_reg_alloc(tsdn, bin, bin->slabcur, &bin_infos[binind]);
 }
 
 bin_t *
