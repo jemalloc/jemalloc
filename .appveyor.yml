@@ -39,6 +39,9 @@ install:
   - set PATH=c:\msys64\%MSYSTEM%\bin;c:\msys64\usr\bin;%PATH%
   - if defined MSVC call "c:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %MSVC%
   - if defined MSVC pacman --noconfirm -Rsc mingw-w64-%CPU%-gcc gcc
+  - pacman-key --init
+  - pacman-key --populate msys2
+  - pacman -Sy --noconfirm msys2-keyring
   - pacman --noconfirm -Syuu
   - pacman --noconfirm -S autoconf
 
