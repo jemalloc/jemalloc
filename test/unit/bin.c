@@ -54,12 +54,15 @@ TEST_END
  * Test single-region allocation from a slab.
  */
 TEST_BEGIN(test_bin_slab_reg_alloc) {
+	tsdn_t *tsdn = tsdn_fetch();
+	bin_t bin;
 	szind_t binind = 0;
 	const bin_info_t *bin_info = &bin_infos[binind];
 	edata_t slab;
 	unsigned nregs;
 	unsigned i;
 
+	bin_init(&bin);
 	create_mock_slab(&slab, binind, 0);
 	nregs = bin_info->nregs;
 
@@ -68,7 +71,9 @@ TEST_BEGIN(test_bin_slab_reg_alloc) {
 
 		expect_u_gt(edata_nfree_get(&slab), 0,
 		    "Slab should have free regions");
-		reg = bin_slab_reg_alloc(&slab, bin_info);
+		malloc_mutex_lock(tsdn, &bin.lock);
+		reg = bin_slab_reg_alloc(tsdn, &bin, &slab, bin_info);
+		malloc_mutex_unlock(tsdn, &bin.lock);
 		expect_ptr_not_null(reg,
 		    "bin_slab_reg_alloc should return non-NULL");
 		/* Verify the pointer is within the slab. */
@@ -198,6 +203,7 @@ TEST_END
  * Test full slab list insert and remove (non-auto arena case).
  */
 TEST_BEGIN(test_bin_slabs_full) {
+	tsdn_t *tsdn = tsdn_fetch();
 	bin_t bin;
 	szind_t binind = 0;
 	const bin_info_t *bin_info = &bin_infos[binind];
@@ -208,9 +214,11 @@ TEST_BEGIN(test_bin_slabs_full) {
 	create_mock_slab(&slab, binind, 0);
 
 	/* Consume all regions so the slab appears full. */
+	malloc_mutex_lock(tsdn, &bin.lock);
 	for (i = 0; i < bin_info->nregs; i++) {
-		bin_slab_reg_alloc(&slab, bin_info);
+		bin_slab_reg_alloc(tsdn, &bin, &slab, bin_info);
 	}
+	malloc_mutex_unlock(tsdn, &bin.lock);
 	expect_u_eq(edata_nfree_get(&slab), 0, "Slab should be full");
 
 	/* Insert into full list (is_auto=false to actually track). */
@@ -231,6 +239,7 @@ TEST_END
  * Test that full slab insert/remove is a no-op for auto arenas.
  */
 TEST_BEGIN(test_bin_slabs_full_auto) {
+	tsdn_t *tsdn = tsdn_fetch();
 	bin_t bin;
 	szind_t binind = 0;
 	const bin_info_t *bin_info = &bin_infos[binind];
@@ -239,9 +248,11 @@ TEST_BEGIN(test_bin_slabs_full_auto) {
 
 	bin_init(&bin);
 	create_mock_slab(&slab, binind, 0);
+	malloc_mutex_lock(tsdn, &bin.lock);
 	for (i = 0; i < bin_info->nregs; i++) {
-		bin_slab_reg_alloc(&slab, bin_info);
+		bin_slab_reg_alloc(tsdn, &bin, &slab, bin_info);
 	}
+	malloc_mutex_unlock(tsdn, &bin.lock);
 
 	/* is_auto=true: insert should be a no-op. */
 	bin_slabs_full_insert(true, &bin, &slab);
@@ -384,9 +395,11 @@ TEST_BEGIN(test_bin_refill_slabcur_full_to_list) {
 	create_mock_slab(&nonfull_slab, binind, 1);
 
 	/* Make full_slab actually full. */
+	malloc_mutex_lock(tsdn, &bin.lock);
 	for (i = 0; i < bin_info->nregs; i++) {
-		bin_slab_reg_alloc(&full_slab, bin_info);
+		bin_slab_reg_alloc(tsdn, &bin, &full_slab, bin_info);
 	}
+	malloc_mutex_unlock(tsdn, &bin.lock);
 
 	malloc_mutex_lock(tsdn, &bin.lock);
 	bin.slabcur = &full_slab;
@@ -494,10 +507,12 @@ TEST_BEGIN(test_bin_dalloc_locked) {
 	nregs = bin_info->nregs;
 	ptrs = mallocx(nregs * sizeof(void *), 0);
 	assert_ptr_not_null(ptrs, "Unexpected mallocx failure");
+	malloc_mutex_lock(tsdn, &bin.lock);
 	for (i = 0; i < nregs; i++) {
-		ptrs[i] = bin_slab_reg_alloc(&slab, bin_info);
+		ptrs[i] = bin_slab_reg_alloc(tsdn, &bin, &slab, bin_info);
 		assert_ptr_not_null(ptrs[i], "Alloc should succeed");
 	}
+	malloc_mutex_unlock(tsdn, &bin.lock);
 	expect_u_eq(edata_nfree_get(&slab), 0, "Slab should be full");
 
 	/* Set this slab as slabcur so dalloc steps work correctly. */
