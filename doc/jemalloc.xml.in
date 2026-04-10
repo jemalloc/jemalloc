@@ -1137,7 +1137,7 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         </term>
         <listitem><para>Maximum number of background threads that will be created
         if <link linkend="background_thread">background_thread</link> is set.
-        Defaults to number of cpus.</para></listitem>
+        Defaults to 4.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.dirty_decay_ms">
