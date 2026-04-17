@@ -411,7 +411,7 @@ differ in their ease of use and flexibility.
 ### With MSVC solutions
 This is the easy, but less flexible approach. It doesn't let you specify
 arguments to the `configure` script.
-  
+
 1. Install Cygwin with at least the following packages:
    * autoconf
    * autogen
@@ -419,18 +419,19 @@ arguments to the `configure` script.
    * grep
    * sed
 
-2. Install Visual Studio 2015 or 2017 with Visual C++
+2. Install Visual Studio with Visual C++. We currently test on 2022 and provide
+solution files back to 2015.
 
 3. Add Cygwin\bin to the PATH environment variable
 
-4. Open "x64 Native Tools Command Prompt for VS 2017"
+4. Open "x64 Native Tools Command Prompt" for your version of Visual Studio
    (note: x86/x64 doesn't matter at this point)
 
 5. Generate header files:
    sh -c "CC=cl ./autogen.sh"
 
-6. Now the project can be opened and built in Visual Studio:
-   msvc\jemalloc_vc2017.sln
+6. Now the project can be opened and built in Visual Studio using the
+   corresponding solution files in the `msvc\` folder.
 
 ### With MSYS
 This is a more involved approach that offers the same configuration flexibility

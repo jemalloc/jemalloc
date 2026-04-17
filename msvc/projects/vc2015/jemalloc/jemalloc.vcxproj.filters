@@ -31,6 +31,9 @@
     <ClCompile Include="..\..\..\..\src\ckh.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\src\conf.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\src\counter.c">
       <Filter>Source Files</Filter>
     </ClCompile>

@@ -44,6 +44,7 @@
     <ClCompile Include="..\..\..\..\src\buf_writer.c" />
     <ClCompile Include="..\..\..\..\src\cache_bin.c" />
     <ClCompile Include="..\..\..\..\src\ckh.c" />
+    <ClCompile Include="..\..\..\..\src\conf.c" />
     <ClCompile Include="..\..\..\..\src\counter.c" />
     <ClCompile Include="..\..\..\..\src\ctl.c" />
     <ClCompile Include="..\..\..\..\src\decay.c" />
