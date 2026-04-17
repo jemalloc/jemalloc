@@ -1,3 +1,5 @@
+image: Visual Studio 2022
+
 version: '{build}'
 
 environment:
@@ -37,7 +39,8 @@ environment:
 
 install:
   - set PATH=c:\msys64\%MSYSTEM%\bin;c:\msys64\usr\bin;%PATH%
-  - if defined MSVC call "c:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %MSVC%
+  - if "%MSVC%"=="amd64" call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+  - if "%MSVC%"=="x86"   call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars32.bat"
   - if defined MSVC pacman --noconfirm -Rsc mingw-w64-%CPU%-gcc gcc
   - pacman --noconfirm -Syuu
   - pacman --noconfirm -S autoconf
