@@ -13,7 +13,7 @@ struct node_s {
 	uint64_t    key;
 };
 
-static int
+static inline int
 node_cmp(const node_t *a, const node_t *b) {
 	int ret;
 
@@ -29,7 +29,7 @@ node_cmp(const node_t *a, const node_t *b) {
 	return ret;
 }
 
-static int
+static inline int
 node_cmp_magic(const node_t *a, const node_t *b) {
 	expect_u32_eq(a->magic, NODE_MAGIC, "Bad magic");
 	expect_u32_eq(b->magic, NODE_MAGIC, "Bad magic");
