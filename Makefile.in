@@ -632,8 +632,8 @@ endif
 install_lib_static: $(STATIC_LIBS)
 	$(INSTALL) -d $(LIBDIR)
 	@for l in $(STATIC_LIBS); do \
-	echo "$(INSTALL) -m 755 $$l $(LIBDIR)"; \
-	$(INSTALL) -m 755 $$l $(LIBDIR); \
+	echo "$(INSTALL) -m 644 $$l $(LIBDIR)"; \
+	$(INSTALL) -m 644 $$l $(LIBDIR); \
 done
 
 install_lib_pc: $(PC)
