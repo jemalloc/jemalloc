@@ -257,9 +257,11 @@ INDEX_PROTO(stats_arenas_i_lextents_j)
 CTL_PROTO(stats_arenas_i_extents_j_ndirty)
 CTL_PROTO(stats_arenas_i_extents_j_nmuzzy)
 CTL_PROTO(stats_arenas_i_extents_j_nretained)
+CTL_PROTO(stats_arenas_i_extents_j_npinned)
 CTL_PROTO(stats_arenas_i_extents_j_dirty_bytes)
 CTL_PROTO(stats_arenas_i_extents_j_muzzy_bytes)
 CTL_PROTO(stats_arenas_i_extents_j_retained_bytes)
+CTL_PROTO(stats_arenas_i_extents_j_pinned_bytes)
 INDEX_PROTO(stats_arenas_i_extents_j)
 
 /* Merged set of stats for HPA shard. */
@@ -320,6 +322,7 @@ CTL_PROTO(stats_arenas_i_pdirty)
 CTL_PROTO(stats_arenas_i_pmuzzy)
 CTL_PROTO(stats_arenas_i_mapped)
 CTL_PROTO(stats_arenas_i_retained)
+CTL_PROTO(stats_arenas_i_pinned)
 CTL_PROTO(stats_arenas_i_extent_avail)
 CTL_PROTO(stats_arenas_i_dirty_npurge)
 CTL_PROTO(stats_arenas_i_dirty_nmadvise)
@@ -355,6 +358,7 @@ CTL_PROTO(stats_metadata_thp)
 CTL_PROTO(stats_resident)
 CTL_PROTO(stats_mapped)
 CTL_PROTO(stats_retained)
+CTL_PROTO(stats_pinned)
 CTL_PROTO(stats_zero_reallocs)
 CTL_PROTO(approximate_stats_active)
 CTL_PROTO(experimental_hooks_install)
@@ -697,9 +701,11 @@ static const ctl_named_node_t stats_arenas_i_extents_j_node[] = {
     {NAME("ndirty"), CTL(stats_arenas_i_extents_j_ndirty)},
     {NAME("nmuzzy"), CTL(stats_arenas_i_extents_j_nmuzzy)},
     {NAME("nretained"), CTL(stats_arenas_i_extents_j_nretained)},
+    {NAME("npinned"), CTL(stats_arenas_i_extents_j_npinned)},
     {NAME("dirty_bytes"), CTL(stats_arenas_i_extents_j_dirty_bytes)},
     {NAME("muzzy_bytes"), CTL(stats_arenas_i_extents_j_muzzy_bytes)},
-    {NAME("retained_bytes"), CTL(stats_arenas_i_extents_j_retained_bytes)}};
+    {NAME("retained_bytes"), CTL(stats_arenas_i_extents_j_retained_bytes)},
+    {NAME("pinned_bytes"), CTL(stats_arenas_i_extents_j_pinned_bytes)}};
 
 static const ctl_named_node_t super_stats_arenas_i_extents_j_node[] = {
     {NAME(""), CHILD(named, stats_arenas_i_extents_j)}};
@@ -807,6 +813,7 @@ static const ctl_named_node_t stats_arenas_i_node[] = {
     {NAME("pmuzzy"), CTL(stats_arenas_i_pmuzzy)},
     {NAME("mapped"), CTL(stats_arenas_i_mapped)},
     {NAME("retained"), CTL(stats_arenas_i_retained)},
+    {NAME("pinned"), CTL(stats_arenas_i_pinned)},
     {NAME("extent_avail"), CTL(stats_arenas_i_extent_avail)},
     {NAME("dirty_npurge"), CTL(stats_arenas_i_dirty_npurge)},
     {NAME("dirty_nmadvise"), CTL(stats_arenas_i_dirty_nmadvise)},
@@ -872,6 +879,7 @@ static const ctl_named_node_t stats_node[] = {
     {NAME("resident"), CTL(stats_resident)},
     {NAME("mapped"), CTL(stats_mapped)},
     {NAME("retained"), CTL(stats_retained)},
+    {NAME("pinned"), CTL(stats_pinned)},
     {NAME("background_thread"), CHILD(named, stats_background_thread)},
     {NAME("mutexes"), CHILD(named, stats_mutexes)},
     {NAME("arenas"), CHILD(indexed, stats_arenas)},
@@ -1111,6 +1119,8 @@ ctl_arena_stats_sdmerge(
 			sdstats->astats.mapped += astats->astats.mapped;
 			sdstats->astats.pa_shard_stats.pac_stats.retained +=
 			    astats->astats.pa_shard_stats.pac_stats.retained;
+			sdstats->astats.pa_shard_stats.pac_stats.pinned +=
+			    astats->astats.pa_shard_stats.pac_stats.pinned;
 			sdstats->astats.pa_shard_stats.edata_avail +=
 			    astats->astats.pa_shard_stats.edata_avail;
 		}
@@ -1247,12 +1257,16 @@ ctl_arena_stats_sdmerge(
 			sdstats->estats[i].nmuzzy += astats->estats[i].nmuzzy;
 			sdstats->estats[i].nretained +=
 			    astats->estats[i].nretained;
+			sdstats->estats[i].npinned +=
+			    astats->estats[i].npinned;
 			sdstats->estats[i].dirty_bytes +=
 			    astats->estats[i].dirty_bytes;
 			sdstats->estats[i].muzzy_bytes +=
 			    astats->estats[i].muzzy_bytes;
 			sdstats->estats[i].retained_bytes +=
 			    astats->estats[i].retained_bytes;
+			sdstats->estats[i].pinned_bytes +=
+			    astats->estats[i].pinned_bytes;
 		}
 
 		/* Merge HPA stats. */
@@ -1367,6 +1381,8 @@ ctl_refresh(tsdn_t *tsdn) {
 		ctl_stats->mapped = ctl_sarena->astats->astats.mapped;
 		ctl_stats->retained = ctl_sarena->astats->astats.pa_shard_stats
 		                          .pac_stats.retained;
+		ctl_stats->pinned = ctl_sarena->astats->astats.pa_shard_stats
+		                        .pac_stats.pinned;
 
 		ctl_background_thread_stats_read(tsdn);
 
@@ -3721,6 +3737,7 @@ CTL_RO_CGEN(config_stats, stats_metadata_thp, ctl_stats->metadata_thp, size_t)
 CTL_RO_CGEN(config_stats, stats_resident, ctl_stats->resident, size_t)
 CTL_RO_CGEN(config_stats, stats_mapped, ctl_stats->mapped, size_t)
 CTL_RO_CGEN(config_stats, stats_retained, ctl_stats->retained, size_t)
+CTL_RO_CGEN(config_stats, stats_pinned, ctl_stats->pinned, size_t)
 
 CTL_RO_CGEN(config_stats, stats_background_thread_num_threads,
     ctl_stats->background_thread.num_threads, size_t)
@@ -3786,6 +3803,8 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_mapped,
     arenas_i(mib[2])->astats->astats.mapped, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_retained,
     arenas_i(mib[2])->astats->astats.pa_shard_stats.pac_stats.retained, size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_pinned,
+    arenas_i(mib[2])->astats->astats.pa_shard_stats.pac_stats.pinned, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_extent_avail,
     arenas_i(mib[2])->astats->astats.pa_shard_stats.edata_avail, size_t)
 
@@ -3958,6 +3977,7 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 		MUTEX_PROF_RESET(arena->pa_shard.pac.ecache_dirty.mtx);
 		MUTEX_PROF_RESET(arena->pa_shard.pac.ecache_muzzy.mtx);
 		MUTEX_PROF_RESET(arena->pa_shard.pac.ecache_retained.mtx);
+		MUTEX_PROF_RESET(arena->pa_shard.pac.ecache_pinned.mtx);
 		MUTEX_PROF_RESET(arena->pa_shard.pac.decay_dirty.mtx);
 		MUTEX_PROF_RESET(arena->pa_shard.pac.decay_muzzy.mtx);
 		MUTEX_PROF_RESET(arena->tcache_ql_mtx);
@@ -4034,12 +4054,16 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_extents_j_nmuzzy,
     arenas_i(mib[2])->astats->estats[mib[4]].nmuzzy, size_t);
 CTL_RO_CGEN(config_stats, stats_arenas_i_extents_j_nretained,
     arenas_i(mib[2])->astats->estats[mib[4]].nretained, size_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_extents_j_npinned,
+    arenas_i(mib[2])->astats->estats[mib[4]].npinned, size_t);
 CTL_RO_CGEN(config_stats, stats_arenas_i_extents_j_dirty_bytes,
     arenas_i(mib[2])->astats->estats[mib[4]].dirty_bytes, size_t);
 CTL_RO_CGEN(config_stats, stats_arenas_i_extents_j_muzzy_bytes,
     arenas_i(mib[2])->astats->estats[mib[4]].muzzy_bytes, size_t);
 CTL_RO_CGEN(config_stats, stats_arenas_i_extents_j_retained_bytes,
     arenas_i(mib[2])->astats->estats[mib[4]].retained_bytes, size_t);
+CTL_RO_CGEN(config_stats, stats_arenas_i_extents_j_pinned_bytes,
+    arenas_i(mib[2])->astats->estats[mib[4]].pinned_bytes, size_t);
 
 static const ctl_named_node_t *
 stats_arenas_i_extents_j_index(

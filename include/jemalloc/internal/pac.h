@@ -51,6 +51,8 @@ struct pac_estats_s {
 	size_t muzzy_bytes;
 	size_t nretained;
 	size_t retained_bytes;
+	size_t npinned;
+	size_t pinned_bytes;
 };
 
 typedef struct pac_stats_s pac_stats_t;
@@ -61,9 +63,14 @@ struct pac_stats_s {
 	/*
 	 * Number of unused virtual memory bytes currently retained.  Retained
 	 * bytes are technically mapped (though always decommitted or purged),
-	 * but they are excluded from the mapped statistic (above).
+	 * but they are excluded from pac_mapped.
 	 */
 	size_t retained; /* Derived. */
+	/*
+	 * Number of bytes in pinned (non-reclaimable) extents currently
+	 * cached.  Unlike retained, pinned bytes count toward pac_mapped.
+	 */
+	size_t pinned;   /* Derived. */
 
 	/*
 	 * Number of bytes currently mapped, excluding retained memory (and any
@@ -85,6 +92,8 @@ struct pac_s {
 	 * pointer).  The handle to the allocation interface.
 	 */
 	pai_t pai;
+	/* True once pinned memory has been seen. */
+	atomic_b_t has_pinned;
 	/*
 	 * Collections of extents that were previously allocated.  These are
 	 * used when allocating extents, in an attempt to re-use address space.
@@ -94,6 +103,7 @@ struct pac_s {
 	ecache_t ecache_dirty;
 	ecache_t ecache_muzzy;
 	ecache_t ecache_retained;
+	ecache_t ecache_pinned;
 
 	base_t        *base;
 	emap_t        *emap;
@@ -158,6 +168,21 @@ bool pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
 static inline size_t
 pac_mapped(pac_t *pac) {
 	return atomic_load_zu(&pac->stats->pac_mapped, ATOMIC_RELAXED);
+}
+
+void extent_record(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
+    ecache_t *ecache, edata_t *edata);
+
+static inline void
+pac_record_grown(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
+    edata_t *edata) {
+	bool pinned = edata_pinned_get(edata);
+	if (pinned && config_stats) {
+		atomic_fetch_add_zu(&pac->stats->pac_mapped,
+		    edata_size_get(edata), ATOMIC_RELAXED);
+	}
+	extent_record(tsdn, pac, ehooks,
+	    pinned ? &pac->ecache_pinned : &pac->ecache_retained, edata);
 }
 
 static inline ehooks_t *

@@ -98,7 +98,10 @@ eset_insert(eset_t *eset, edata_t *edata) {
 		eset_stats_add(eset, pind, size);
 	}
 
-	edata_list_inactive_append(&eset->lru, edata);
+	/* Pinned extents skip LRU as they do not decay. */
+	if (!edata_pinned_get(edata)) {
+		edata_list_inactive_append(&eset->lru, edata);
+	}
 	size_t npages = size >> LG_PAGE;
 	/*
 	 * All modifications to npages hold the mutex (as asserted above), so we
@@ -143,7 +146,9 @@ eset_remove(eset_t *eset, edata_t *edata) {
 			    edata_heap_first(&eset->bins[pind].heap));
 		}
 	}
-	edata_list_inactive_remove(&eset->lru, edata);
+	if (!edata_pinned_get(edata)) {
+		edata_list_inactive_remove(&eset->lru, edata);
+	}
 	size_t npages = size >> LG_PAGE;
 	/*
 	 * As in eset_insert, we hold eset->mtx and so don't need atomic
@@ -279,10 +284,15 @@ eset_fit_alignment(
  * avoiding reusing and splitting large extents for smaller sizes.  In practice,
  * it's set to opt_lg_extent_max_active_fit for the dirty eset and SC_PTR_BITS
  * for others.
+ *
+ * If prefer_small is true, return as soon as the smallest fitting bin yields a
+ * candidate, instead of scanning further bins for an older/lower extent.
+ * Useful for fragmentation control for the pinned pool.
  */
 static edata_t *
 eset_first_fit(
-    eset_t *eset, size_t size, bool exact_only, unsigned lg_max_fit) {
+    eset_t *eset, size_t size, bool exact_only, unsigned lg_max_fit,
+    bool prefer_small) {
 	edata_t                     *ret = NULL;
 	edata_cmp_summary_t ret_summ JEMALLOC_CC_SILENCE_INIT({0});
 
@@ -327,6 +337,9 @@ eset_first_fit(
 	if (sz_large_size_classes_disabled() && pind != pind_prev) {
 		ret = eset_enumerate_search(eset, size, pind_prev,
 		    /* exact_only */ false, &ret_summ);
+		if (prefer_small && ret != NULL) {
+			return ret;
+		}
 	}
 
 	for (pszind_t i =
@@ -363,6 +376,9 @@ eset_first_fit(
 			           edata_cmp_summary_get(edata))
 			        == 0);
 			ret = edata;
+			if (prefer_small) {
+				return ret;
+			}
 			ret_summ = eset->bins[i].heap_min;
 		}
 		if (i == SC_NPSIZES) {
@@ -376,14 +392,15 @@ eset_first_fit(
 
 edata_t *
 eset_fit(eset_t *eset, size_t esize, size_t alignment, bool exact_only,
-    unsigned lg_max_fit) {
+    unsigned lg_max_fit, bool prefer_small) {
 	size_t max_size = esize + PAGE_CEILING(alignment) - PAGE;
 	/* Beware size_t wrap-around. */
 	if (max_size < esize) {
 		return NULL;
 	}
 
-	edata_t *edata = eset_first_fit(eset, max_size, exact_only, lg_max_fit);
+	edata_t *edata = eset_first_fit(eset, max_size, exact_only, lg_max_fit,
+	    prefer_small);
 
 	if (alignment > PAGE && edata == NULL) {
 		/*

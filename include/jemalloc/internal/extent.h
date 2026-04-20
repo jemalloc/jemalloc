@@ -120,6 +120,10 @@ extent_can_acquire_neighbor(edata_t *edata, rtree_contents_t contents,
 			 */
 			return false;
 		}
+		/* Do not merge pinned and non-pinned extents. */
+		if (edata_pinned_get(edata) != edata_pinned_get(neighbor)) {
+			return false;
+		}
 	} else {
 		if (neighbor_state == extent_state_active) {
 			return false;

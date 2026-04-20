@@ -31,6 +31,7 @@ pac_decay_data_get(pac_t *pac, extent_state_t state, decay_t **r_decay,
 		return;
 	case extent_state_active:
 	case extent_state_retained:
+	case extent_state_pinned:
 	case extent_state_transition:
 	case extent_state_merging:
 	default:
@@ -72,6 +73,12 @@ pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
 	        /* delay_coalesce */ false)) {
 		return true;
 	}
+	/* Pinned extents: no decay, delayed coalesce. */
+	if (ecache_init(tsdn, &pac->ecache_pinned, extent_state_pinned, ind,
+	        /* delay_coalesce */ true)) {
+		return true;
+	}
+	atomic_store_b(&pac->has_pinned, false, ATOMIC_RELAXED);
 	exp_grow_init(&pac->exp_grow);
 	if (malloc_mutex_init(&pac->grow_mtx, "extent_grow",
 	        WITNESS_RANK_EXTENT_GROW, malloc_mutex_rank_exclusive)) {
@@ -110,6 +117,14 @@ pac_may_have_muzzy(pac_t *pac) {
 	return pac_decay_ms_get(pac, extent_state_muzzy) != 0;
 }
 
+static inline void
+pac_ecache_dalloc(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
+    edata_t *edata) {
+	ecache_dalloc(tsdn, pac, ehooks,
+	    edata_pinned_get(edata) ? &pac->ecache_pinned : &pac->ecache_dirty,
+	    edata);
+}
+
 static size_t
 pac_alloc_retained_batched_size(size_t size) {
 	if (size > SC_LARGE_MAXCLASS) {
@@ -133,8 +148,22 @@ pac_alloc_real(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 	assert(!guarded || alignment <= PAGE);
 	size_t newly_mapped_size = 0;
 
-	edata_t *edata = ecache_alloc(tsdn, pac, ehooks, &pac->ecache_dirty,
-	    NULL, size, alignment, zero, guarded);
+	edata_t *edata = NULL;
+
+	/*
+	 * Guarded allocations need surrounding guard pages, which the pinned
+	 * pool does not maintain; skip ecache_pinned in that case.
+	 */
+	if (!guarded && atomic_load_b(&pac->has_pinned, ATOMIC_RELAXED)
+	    && ecache_npages_get(&pac->ecache_pinned) > 0) {
+		edata = ecache_alloc(tsdn, pac, ehooks, &pac->ecache_pinned,
+		    NULL, size, alignment, zero, guarded);
+	}
+
+	if (edata == NULL) {
+		edata = ecache_alloc(tsdn, pac, ehooks, &pac->ecache_dirty,
+		    NULL, size, alignment, zero, guarded);
+	}
 
 	if (edata == NULL && pac_may_have_muzzy(pac)) {
 		edata = ecache_alloc(tsdn, pac, ehooks, &pac->ecache_muzzy,
@@ -180,12 +209,10 @@ pac_alloc_real(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 			    edata, size, batched_size - size,
 			    /* holding_core_locks */ false);
 			if (trail == NULL) {
-				ecache_dalloc(tsdn, pac, ehooks,
-				    &pac->ecache_retained, edata);
+				pac_record_grown(tsdn, pac, ehooks, edata);
 				edata = NULL;
 			} else {
-				ecache_dalloc(tsdn, pac, ehooks,
-				    &pac->ecache_dirty, trail);
+				pac_ecache_dalloc(tsdn, pac, ehooks, trail);
 			}
 		}
 
@@ -277,23 +304,53 @@ pac_expand_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
 	if (ehooks_merge_will_fail(ehooks)) {
 		return true;
 	}
-	edata_t *trail = ecache_alloc(tsdn, pac, ehooks, &pac->ecache_dirty,
-	    edata, expand_amount, PAGE, zero, /* guarded*/ false);
-	if (trail == NULL) {
-		trail = ecache_alloc(tsdn, pac, ehooks, &pac->ecache_muzzy,
-		    edata, expand_amount, PAGE, zero, /* guarded*/ false);
+	edata_t *trail = NULL;
+	if (edata_pinned_get(edata)) {
+		trail = ecache_alloc(tsdn, pac, ehooks,
+		    &pac->ecache_pinned, edata, expand_amount,
+		    PAGE, zero, /* guarded */ false);
+		if (trail == NULL) {
+			/*
+			 * Only ecache_pinned can hold a mergeable neighbor;
+			 * dirty, muzzy, and retained extents are non-pinned.
+			 * Pinned memory is already committed, and hooks are
+			 * unlikely to reserve adjacent pinned space for growth,
+			 * so don't consult the hook to grow in place.
+			 */
+			return true;
+		}
+		assert(edata_pinned_get(trail));
+	} else {
+		trail = ecache_alloc(tsdn, pac, ehooks, &pac->ecache_dirty,
+		    edata, expand_amount, PAGE, zero, /* guarded */ false);
+		if (trail == NULL) {
+			trail = ecache_alloc(tsdn, pac, ehooks,
+			    &pac->ecache_muzzy, edata, expand_amount,
+			    PAGE, zero, /* guarded */ false);
+		}
+		if (trail == NULL) {
+			trail = ecache_alloc_grow(tsdn, pac, ehooks,
+			    &pac->ecache_retained, edata, expand_amount,
+			    PAGE, zero, /* guarded */ false);
+			mapped_add = expand_amount;
+		}
+		if (trail == NULL) {
+			return true;
+		}
 	}
-	if (trail == NULL) {
-		trail = ecache_alloc_grow(tsdn, pac, ehooks,
-		    &pac->ecache_retained, edata, expand_amount, PAGE, zero,
-		    /* guarded */ false);
-		mapped_add = expand_amount;
-	}
-	if (trail == NULL) {
-		return true;
-	}
-	if (extent_merge_wrapper(tsdn, pac, ehooks, edata, trail)) {
-		extent_dalloc_wrapper(tsdn, pac, ehooks, trail);
+	/* extent_merge_wrapper requires matching pinnedness. */
+	if ((edata_pinned_get(edata) != edata_pinned_get(trail))
+	    || extent_merge_wrapper(tsdn, pac, ehooks, edata, trail)) {
+		if (edata_pinned_get(trail)) {
+			if (config_stats) {
+				atomic_fetch_add_zu(&pac->stats->pac_mapped,
+				    mapped_add, ATOMIC_RELAXED);
+			}
+			ecache_dalloc(tsdn, pac, ehooks,
+			    &pac->ecache_pinned, trail);
+		} else {
+			extent_dalloc_wrapper(tsdn, pac, ehooks, trail);
+		}
 		return true;
 	}
 	if (config_stats && mapped_add > 0) {
@@ -320,8 +377,11 @@ pac_shrink_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
 	if (trail == NULL) {
 		return true;
 	}
-	ecache_dalloc(tsdn, pac, ehooks, &pac->ecache_dirty, trail);
-	*deferred_work_generated = true;
+	bool pinned = edata_pinned_get(trail);
+	pac_ecache_dalloc(tsdn, pac, ehooks, trail);
+	if (!pinned) {
+		*deferred_work_generated = true;
+	}
 	return false;
 }
 
@@ -352,9 +412,11 @@ pac_dalloc_impl(
 		}
 	}
 
-	ecache_dalloc(tsdn, pac, ehooks, &pac->ecache_dirty, edata);
-	/* Purging of deallocated pages is deferred */
-	*deferred_work_generated = true;
+	bool pinned = edata_pinned_get(edata);
+	pac_ecache_dalloc(tsdn, pac, ehooks, edata);
+	if (!pinned) {
+		*deferred_work_generated = true;
+	}
 }
 
 static inline uint64_t
@@ -543,6 +605,7 @@ pac_decay_stashed(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
 			break;
 		case extent_state_active:
 		case extent_state_retained:
+		case extent_state_pinned:
 		case extent_state_transition:
 		case extent_state_merging:
 		default:
@@ -721,7 +784,48 @@ pac_destroy(tsdn_t *tsdn, pac_t *pac) {
 	 * dss-based extents for later reuse.
 	 */
 	ehooks_t *ehooks = pac_ehooks_get(pac);
-	edata_t  *edata;
+	edata_t *edata;
+	if (atomic_load_b(&pac->has_pinned, ATOMIC_RELAXED)) {
+		/*
+		 * Reroute pinned extents through ecache_retained: clearing the
+		 * pinned bit lets retained's eager coalesce merge fragments
+		 * back to their original OS-allocation bases, so the destroy
+		 * hook can release whole reservations (required on platforms
+		 * like Windows where VirtualFree only accepts the original
+		 * VirtualAlloc base).  Subtract from pac_mapped along the way
+		 * because retained is excluded from stats.mapped.
+		 */
+		edata_list_inactive_t pinned_list;
+		edata_list_inactive_init(&pinned_list);
+		malloc_mutex_lock(tsdn, &pac->ecache_pinned.mtx);
+		assert(eset_npages_get(&pac->ecache_pinned.guarded_eset) == 0);
+		size_t pinned_bytes =
+		    eset_npages_get(&pac->ecache_pinned.eset) << LG_PAGE;
+		while (eset_npages_get(&pac->ecache_pinned.eset) > 0) {
+			edata = eset_fit(&pac->ecache_pinned.eset,
+			    PAGE, PAGE, /* exact_only */ false, SC_PTR_BITS,
+			    /* prefer_small */ false);
+			assert(edata != NULL);
+			assert(edata_pinned_get(edata));
+			eset_remove(&pac->ecache_pinned.eset, edata);
+			emap_update_edata_state(tsdn, pac->emap, edata,
+			    extent_state_active);
+			edata_pinned_set(edata, false);
+			edata_list_inactive_append(&pinned_list, edata);
+		}
+		malloc_mutex_unlock(tsdn, &pac->ecache_pinned.mtx);
+		if (config_stats && pinned_bytes > 0) {
+			atomic_fetch_sub_zu(&pac->stats->pac_mapped,
+			    pinned_bytes, ATOMIC_RELAXED);
+		}
+		while ((edata = edata_list_inactive_first(&pinned_list))
+		    != NULL) {
+			edata_list_inactive_remove(&pinned_list, edata);
+			extent_record(tsdn, pac, ehooks,
+			    &pac->ecache_retained, edata);
+		}
+	}
+	assert(ecache_npages_get(&pac->ecache_pinned) == 0);
 	while (
 	    (edata = ecache_evict(tsdn, pac, ehooks, &pac->ecache_retained, 0))
 	    != NULL) {

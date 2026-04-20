@@ -50,7 +50,8 @@ emap_try_acquire_edata_neighbor_impl(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
 	assert(!edata_state_in_transition(expected_state));
 	assert(expected_state == extent_state_dirty
 	    || expected_state == extent_state_muzzy
-	    || expected_state == extent_state_retained);
+	    || expected_state == extent_state_retained
+	    || expected_state == extent_state_pinned);
 
 	void *neighbor_addr = forward ? edata_past_get(edata)
 	                              : edata_before_get(edata);

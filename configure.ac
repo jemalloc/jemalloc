@@ -2062,6 +2062,9 @@ if test "x${LG_PAGE}" != "xundefined" ; then
 else
    AC_MSG_ERROR([cannot determine value for LG_PAGE])
 fi
+if test "${LG_PAGE}" -lt 8 ; then
+   AC_MSG_ERROR([LG_PAGE must be at least 8 (PAGE >= 256)])
+fi
 
 AC_ARG_WITH([lg_hugepage],
   [AS_HELP_STRING([--with-lg-hugepage=<lg-hugepage>],
