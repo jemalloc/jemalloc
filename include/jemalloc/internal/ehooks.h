@@ -191,7 +191,7 @@ ehooks_debug_zero_check(void *addr, size_t size) {
 
 static inline void *
 ehooks_alloc(tsdn_t *tsdn, ehooks_t *ehooks, void *new_addr, size_t size,
-    size_t alignment, bool *zero, bool *commit) {
+    size_t alignment, bool *zero, bool *commit, unsigned *alloc_flags) {
 	bool            orig_zero = *zero;
 	void           *ret;
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
@@ -203,6 +203,18 @@ ehooks_alloc(tsdn_t *tsdn, ehooks_t *ehooks, void *new_addr, size_t size,
 		ret = extent_hooks->alloc(extent_hooks, new_addr, size,
 		    alignment, zero, commit, ehooks_ind_get(ehooks));
 		ehooks_post_reentrancy(tsdn);
+	}
+#if LG_PAGE < 8
+#  error "Extent alloc flags require page size of at least 256"
+#endif
+	if (ret != NULL) {
+		*alloc_flags = (unsigned)((uintptr_t)ret
+		    & EXTENT_ALLOC_FLAG_MASK);
+		ret = (void *)((byte_t *)ret - *alloc_flags);
+		/* Pinned hooks must also set *commit; pinned bypasses commit/decommit. */
+		assert(!(*alloc_flags & EXTENT_ALLOC_FLAG_PINNED) || *commit);
+	} else {
+		*alloc_flags = 0;
 	}
 	assert(new_addr == NULL || ret == NULL || new_addr == ret);
 	assert(!orig_zero || *zero);

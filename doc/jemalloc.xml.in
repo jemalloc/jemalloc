@@ -2172,6 +2172,15 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         addition there may be extents created prior to the application having an
         opportunity to take over extent allocation.</para>
 
+        <para>An extent must be operated on (dalloc, destroy, commit, decommit,
+        purge, split, merge) by a hook capable of handling it, normally the hook
+        that allocated it. Replacing hooks on a live arena is tricky and thus
+        discouraged. If the hook is replaced anyway, the new hook should forward
+        operations on extents it did not allocate to the previous hook (e.g.,
+        the new dalloc dispatches to the previous dalloc for an
+        old-hook-allocated extent). The new hook should also avoid merging
+        extents allocated by different hooks.</para>
+
         <programlisting language="C"><![CDATA[
 typedef extent_hooks_s extent_hooks_t;
 struct extent_hooks_s {
@@ -2235,6 +2244,18 @@ struct extent_hooks_s {
         default extent allocation function makes the arena's <link
         linkend="arena.i.dss"><mallctl>arena.&lt;i&gt;.dss</mallctl></link>
         setting irrelevant.</para>
+
+        <para>The alloc hook may bitwise-OR
+        <constant>EXTENT_ALLOC_FLAG_PINNED</constant> into the low bits of
+        the returned pointer to indicate that the backing memory is
+        non-reclaimable (e.g. HugeTLB pages) and should be reused
+        preferentially; in that case <parameter>*commit</parameter> must also
+        be set to true.  jemalloc strips the low byte before use.  The
+        pinned attribute is per-extent rather than per-hook: a single alloc
+        hook may return pinned and non-pinned extents in different calls.
+        Pinned-ness is set at allocation, inherited through splits, and
+        never changes after that.  Pinned and non-pinned extents are never
+        merged together.</para>
 
         <funcsynopsis><funcprototype>
           <funcdef>typedef bool <function>(extent_dalloc_t)</function></funcdef>
@@ -2768,11 +2789,11 @@ struct extent_hooks_s {
         </term>
         <listitem><para>Maximum number of bytes in physically resident data
         pages mapped by the allocator, comprising all pages dedicated to
-        allocator metadata, pages backing active allocations, and unused dirty
-        pages.  This is a maximum rather than precise because pages may not
-        actually be physically resident if they correspond to demand-zeroed
-        virtual memory that has not yet been touched.  This is a multiple of the
-        page size, and is larger than <link
+        allocator metadata, pages backing active allocations, unused dirty
+        pages, and pinned pages.  This is a maximum rather than precise because
+        pages may not actually be physically resident if they correspond to
+        demand-zeroed virtual memory that has not yet been touched.  This is a
+        multiple of the page size, and is larger than <link
         linkend="stats.active"><mallctl>stats.active</mallctl></link>.</para></listitem>
       </varlistentry>
 
@@ -2809,6 +2830,22 @@ struct extent_hooks_s {
         Retained memory is excluded from mapped memory statistics, e.g. <link
         linkend="stats.mapped"><mallctl>stats.mapped</mallctl></link>.
         </para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.pinned">
+        <term>
+          <mallctl>stats.pinned</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Total number of bytes in unused extents backed by
+        non-reclaimable memory.  Pinned extents are tracked separately from
+        dirty, muzzy, and retained extents because they are excluded from
+        decay and purging; unlike <link
+        linkend="stats.retained"><mallctl>stats.retained</mallctl></link>,
+        pinned bytes are included in <link
+        linkend="stats.mapped"><mallctl>stats.mapped</mallctl></link>.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.zero_reallocs">
@@ -3089,6 +3126,18 @@ struct extent_hooks_s {
         details.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="stats.arenas.i.pinned">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.pinned</mallctl>
+          (<type>size_t</type>)
+          <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Number of pinned bytes.  See <link
+        linkend="stats.pinned"><mallctl>stats.pinned</mallctl></link> for
+        details.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="stats.arenas.i.extent_avail">
         <term>
           <mallctl>stats.arenas.&lt;i&gt;.extent_avail</mallctl>
@@ -3146,11 +3195,11 @@ struct extent_hooks_s {
         </term>
         <listitem><para>Maximum number of bytes in physically resident data
         pages mapped by the arena, comprising all pages dedicated to allocator
-        metadata, pages backing active allocations, and unused dirty pages.
-        This is a maximum rather than precise because pages may not actually be
-        physically resident if they correspond to demand-zeroed virtual memory
-        that has not yet been touched.  This is a multiple of the page
-        size.</para></listitem>
+        metadata, pages backing active allocations, unused dirty pages, and
+        pinned pages.  This is a maximum rather than precise because pages
+        may not actually be physically resident if they correspond to
+        demand-zeroed virtual memory that has not yet been touched.  This is
+        a multiple of the page size.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.dirty_npurge">
@@ -3493,7 +3542,7 @@ struct extent_hooks_s {
         </term>
         <listitem><para> Number of extents of the given type in this arena in
 	the bucket corresponding to page size index &lt;j&gt;. The extent type
-	is one of dirty, muzzy, or retained.</para></listitem>
+	is one of dirty, muzzy, retained, or pinned.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.extents.bytes">
@@ -3505,7 +3554,7 @@ struct extent_hooks_s {
         </term>
 	<listitem><para> Sum of the bytes managed by extents of the given type
 	in this arena in the bucket corresponding to page size index &lt;j&gt;.
-	The extent type is one of dirty, muzzy, or retained.</para></listitem>
+	The extent type is one of dirty, muzzy, retained, or pinned.</para></listitem>
       </varlistentry>
 
       <varlistentry id="stats.arenas.i.lextents.j.nmalloc">
@@ -3620,6 +3669,19 @@ struct extent_hooks_s {
         </term>
         <listitem><para>Statistics on <varname>arena.&lt;i&gt;.extents_retained
         </varname> mutex (arena scope; retained extents related).
+        <mallctl>{counter}</mallctl> is one of the counters in <link
+        linkend="mutex_counters">mutex profiling
+        counters</link>.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="stats.arenas.i.mutexes.extents_pinned">
+        <term>
+          <mallctl>stats.arenas.&lt;i&gt;.mutexes.extents_pinned.{counter}</mallctl>
+          (<type>counter specific type</type>) <literal>r-</literal>
+          [<option>--enable-stats</option>]
+        </term>
+        <listitem><para>Statistics on <varname>arena.&lt;i&gt;.extents_pinned
+        </varname> mutex (arena scope; pinned extents related).
         <mallctl>{counter}</mallctl> is one of the counters in <link
         linkend="mutex_counters">mutex profiling
         counters</link>.</para></listitem>

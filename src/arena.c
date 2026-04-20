@@ -797,6 +797,8 @@ arena_prepare_base_deletion(tsd_t *tsd, base_t *base_to_destroy) {
 		    tsd, &pac->ecache_muzzy.mtx, delayed_mtx, &n_delayed);
 		arena_prepare_base_deletion_sync(
 		    tsd, &pac->ecache_retained.mtx, delayed_mtx, &n_delayed);
+		arena_prepare_base_deletion_sync(
+		    tsd, &pac->ecache_pinned.mtx, delayed_mtx, &n_delayed);
 	}
 	arena_prepare_base_deletion_sync_finish(tsd, delayed_mtx, n_delayed);
 }

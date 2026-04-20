@@ -52,8 +52,9 @@ base_map(tsdn_t *tsdn, ehooks_t *ehooks, unsigned ind, size_t size) {
 	if (ehooks_are_default(ehooks)) {
 		addr = extent_alloc_mmap(NULL, size, alignment, &zero, &commit);
 	} else {
-		addr = ehooks_alloc(
-		    tsdn, ehooks, NULL, size, alignment, &zero, &commit);
+		UNUSED unsigned flags;
+		addr = ehooks_alloc(tsdn, ehooks, NULL, size, alignment, &zero,
+		    &commit, &flags);
 	}
 
 	return addr;
