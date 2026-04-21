@@ -168,7 +168,7 @@ TEST_BEGIN(test_hpa_sec) {
 	tsdn_t      *tsdn = tsd_tsdn(tsd_fetch());
 
 	/* alloc 1 PAGE, confirm sec has fill_extra bytes. */
-	edata_t *edata1 = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false, false,
+	edata_t *edata1 = hpa_alloc(tsdn, shard, PAGE, PAGE, false, false,
 	    false, &deferred_work_generated);
 	expect_ptr_not_null(edata1, "Unexpected null edata");
 	hpa_shard_stats_t hpa_stats;
@@ -182,7 +182,7 @@ TEST_BEGIN(test_hpa_sec) {
 	/* Alloc/dealloc NALLOCS times and confirm extents are in sec. */
 	edata_t *edatas[NALLOCS];
 	for (int i = 0; i < NALLOCS; i++) {
-		edatas[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false,
+		edatas[i] = hpa_alloc(tsdn, shard, PAGE, PAGE, false,
 		    false, false, &deferred_work_generated);
 		expect_ptr_not_null(edatas[i], "Unexpected null edata");
 	}
@@ -192,8 +192,7 @@ TEST_BEGIN(test_hpa_sec) {
 	expect_zu_eq(hpa_stats.secstats.bytes, PAGE, "2 refills (at 0 and 4)");
 
 	for (int i = 0; i < NALLOCS - 1; i++) {
-		pai_dalloc(
-		    tsdn, &shard->pai, edatas[i], &deferred_work_generated);
+		hpa_dalloc(tsdn, shard, edatas[i], &deferred_work_generated);
 	}
 	memset(&hpa_stats, 0, sizeof(hpa_shard_stats_t));
 	hpa_shard_stats_merge(tsdn, shard, &hpa_stats);
@@ -202,8 +201,7 @@ TEST_BEGIN(test_hpa_sec) {
 	    hpa_stats.secstats.bytes, sec_opts.max_bytes, "sec should be full");
 
 	/* this one should flush 1 + 0.25 * 8 = 3 extents */
-	pai_dalloc(
-	    tsdn, &shard->pai, edatas[NALLOCS - 1], &deferred_work_generated);
+	hpa_dalloc(tsdn, shard, edatas[NALLOCS - 1], &deferred_work_generated);
 	memset(&hpa_stats, 0, sizeof(hpa_shard_stats_t));
 	hpa_shard_stats_merge(tsdn, shard, &hpa_stats);
 	expect_zu_eq(hpa_stats.psset_stats.merged.nactive, (NALLOCS - 1), "");
@@ -212,7 +210,7 @@ TEST_BEGIN(test_hpa_sec) {
 	    "sec should be full");
 
 	/* Next allocation should come from SEC and not increase active */
-	edata_t *edata2 = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false, false,
+	edata_t *edata2 = hpa_alloc(tsdn, shard, PAGE, PAGE, false, false,
 	    false, &deferred_work_generated);
 	expect_ptr_not_null(edata2, "Unexpected null edata");
 	memset(&hpa_stats, 0, sizeof(hpa_shard_stats_t));
@@ -222,7 +220,7 @@ TEST_BEGIN(test_hpa_sec) {
 	    "sec should have max_bytes minus one page that just came from it");
 
 	/* We return this one and it stays in the cache */
-	pai_dalloc(tsdn, &shard->pai, edata2, &deferred_work_generated);
+	hpa_dalloc(tsdn, shard, edata2, &deferred_work_generated);
 	memset(&hpa_stats, 0, sizeof(hpa_shard_stats_t));
 	hpa_shard_stats_merge(tsdn, shard, &hpa_stats);
 	expect_zu_eq(hpa_stats.psset_stats.merged.nactive, NALLOCS - 1, "");

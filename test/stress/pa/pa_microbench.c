@@ -364,7 +364,7 @@ collect_hpa_stats(int shard_id, hpa_shard_stats_t *hpa_stats_out) {
 
 	/* Merge HPA statistics from the shard */
 	hpa_shard_stats_merge(
-	    tsdn, &g_shard_infra[shard_id].pa_shard.hpa_shard, hpa_stats_out);
+	    tsdn, &g_shard_infra[shard_id].pa_shard.hpa, hpa_stats_out);
 }
 
 static void

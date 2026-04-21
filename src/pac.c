@@ -4,17 +4,6 @@
 #include "jemalloc/internal/pac.h"
 #include "jemalloc/internal/san.h"
 
-static edata_t *pac_alloc_impl(tsdn_t *tsdn, pai_t *self, size_t size,
-    size_t alignment, bool zero, bool guarded, bool frequent_reuse,
-    bool *deferred_work_generated);
-static bool     pac_expand_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata,
-        size_t old_size, size_t new_size, bool zero, bool *deferred_work_generated);
-static bool     pac_shrink_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata,
-        size_t old_size, size_t new_size, bool *deferred_work_generated);
-static void     pac_dalloc_impl(
-        tsdn_t *tsdn, pai_t *self, edata_t *edata, bool *deferred_work_generated);
-static uint64_t pac_time_until_deferred_work(tsdn_t *tsdn, pai_t *self);
-
 static inline void
 pac_decay_data_get(pac_t *pac, extent_state_t state, decay_t **r_decay,
     pac_decay_stats_t **r_decay_stats, ecache_t **r_ecache) {
@@ -102,12 +91,6 @@ pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
 	pac->stats = pac_stats;
 	pac->stats_mtx = stats_mtx;
 	atomic_store_zu(&pac->extent_sn_next, 0, ATOMIC_RELAXED);
-
-	pac->pai.alloc = &pac_alloc_impl;
-	pac->pai.expand = &pac_expand_impl;
-	pac->pai.shrink = &pac_shrink_impl;
-	pac->pai.dalloc = &pac_dalloc_impl;
-	pac->pai.time_until_deferred_work = &pac_time_until_deferred_work;
 
 	return false;
 }
@@ -265,11 +248,10 @@ pac_alloc_new_guarded(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 	return edata;
 }
 
-static edata_t *
-pac_alloc_impl(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment,
+edata_t *
+pac_alloc(tsdn_t *tsdn, pac_t *pac, size_t size, size_t alignment,
     bool zero, bool guarded, bool frequent_reuse,
     bool *deferred_work_generated) {
-	pac_t    *pac = (pac_t *)self;
 	ehooks_t *ehooks = pac_ehooks_get(pac);
 
 	edata_t *edata = NULL;
@@ -292,10 +274,11 @@ pac_alloc_impl(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment,
 	return edata;
 }
 
-static bool
-pac_expand_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
+bool
+pac_expand(tsdn_t *tsdn, pac_t *pac, edata_t *edata, size_t old_size,
     size_t new_size, bool zero, bool *deferred_work_generated) {
-	pac_t    *pac = (pac_t *)self;
+	assert(edata_pai_get(edata) == EXTENT_PAI_PAC);
+
 	ehooks_t *ehooks = pac_ehooks_get(pac);
 
 	size_t mapped_add = 0;
@@ -360,10 +343,11 @@ pac_expand_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
 	return false;
 }
 
-static bool
-pac_shrink_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
+bool
+pac_shrink(tsdn_t *tsdn, pac_t *pac, edata_t *edata, size_t old_size,
     size_t new_size, bool *deferred_work_generated) {
-	pac_t    *pac = (pac_t *)self;
+	assert(edata_pai_get(edata) == EXTENT_PAI_PAC);
+
 	ehooks_t *ehooks = pac_ehooks_get(pac);
 
 	size_t shrink_amount = old_size - new_size;
@@ -385,10 +369,11 @@ pac_shrink_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
 	return false;
 }
 
-static void
-pac_dalloc_impl(
-    tsdn_t *tsdn, pai_t *self, edata_t *edata, bool *deferred_work_generated) {
-	pac_t    *pac = (pac_t *)self;
+void
+pac_dalloc(tsdn_t *tsdn, pac_t *pac, edata_t *edata,
+    bool *deferred_work_generated) {
+	assert(edata_pai_get(edata) == EXTENT_PAI_PAC);
+
 	ehooks_t *ehooks = pac_ehooks_get(pac);
 
 	if (edata_guarded_get(edata)) {
@@ -432,10 +417,9 @@ pac_ns_until_purge(tsdn_t *tsdn, decay_t *decay, size_t npages) {
 	return result;
 }
 
-static uint64_t
-pac_time_until_deferred_work(tsdn_t *tsdn, pai_t *self) {
+uint64_t
+pac_time_until_deferred_work(tsdn_t *tsdn, pac_t *pac) {
 	uint64_t time;
-	pac_t   *pac = (pac_t *)self;
 
 	time = pac_ns_until_purge(
 	    tsdn, &pac->decay_dirty, ecache_npages_get(&pac->ecache_dirty));

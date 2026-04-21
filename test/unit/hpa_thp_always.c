@@ -177,7 +177,7 @@ TEST_BEGIN(test_hpa_hugify_style_none_huge_no_syscall_thp_always) {
 	edata_t *edatas[NALLOCS];
 	ndefer_purge_calls = 0;
 	for (int i = 0; i < NALLOCS / 2; i++) {
-		edatas[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false,
+		edatas[i] = hpa_alloc(tsdn, shard, PAGE, PAGE, false,
 		    false, false, &deferred_work_generated);
 		expect_ptr_not_null(edatas[i], "Unexpected null edata");
 	}

@@ -165,6 +165,17 @@ bool pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
     ssize_t dirty_decay_ms, ssize_t muzzy_decay_ms, pac_stats_t *pac_stats,
     malloc_mutex_t *stats_mtx);
 
+edata_t *pac_alloc(tsdn_t *tsdn, pac_t *pac, size_t size, size_t alignment,
+    bool zero, bool guarded, bool frequent_reuse,
+    bool *deferred_work_generated);
+bool pac_expand(tsdn_t *tsdn, pac_t *pac, edata_t *edata, size_t old_size,
+    size_t new_size, bool zero, bool *deferred_work_generated);
+bool pac_shrink(tsdn_t *tsdn, pac_t *pac, edata_t *edata, size_t old_size,
+    size_t new_size, bool *deferred_work_generated);
+void pac_dalloc(tsdn_t *tsdn, pac_t *pac, edata_t *edata,
+    bool *deferred_work_generated);
+uint64_t pac_time_until_deferred_work(tsdn_t *tsdn, pac_t *pac);
+
 static inline size_t
 pac_mapped(const pac_t *pac) {
 	return atomic_load_zu(&pac->stats->pac_mapped, ATOMIC_RELAXED);

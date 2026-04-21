@@ -20,7 +20,7 @@ TEST_BEGIN(test_hpa_background_thread_a0_initialized) {
 
 	arena_t *a0 = arena_get(TSDN_NULL, 0, false);
 	expect_ptr_ne(a0, NULL, "");
-	bool deferral_allowed = a0->pa_shard.hpa_shard.opts.deferral_allowed;
+	bool deferral_allowed = a0->pa_shard.hpa.opts.deferral_allowed;
 	expect_true(deferral_allowed,
 	    "Should have deferral_allowed option enabled for arena #0");
 }
