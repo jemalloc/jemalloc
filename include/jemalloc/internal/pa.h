@@ -10,15 +10,13 @@
 #include "jemalloc/internal/hpa.h"
 #include "jemalloc/internal/lockedint.h"
 #include "jemalloc/internal/pac.h"
-#include "jemalloc/internal/pai.h"
 #include "jemalloc/internal/sec.h"
 
 /*
  * The page allocator; responsible for acquiring pages of memory for
- * allocations.  It picks the implementation of the page allocator interface
- * (i.e. a pai_t) to handle a given page-level allocation request.  For now, the
- * only such implementation is the PAC code ("page allocator classic"), but
- * others will be coming soon.
+ * allocations.  It dispatches each page-level allocation request to either
+ * the PAC ("page allocator classic") or the HPA ("hugepage allocator")
+ * by calling their pac_*() / hpa_*() entry points directly.
  */
 
 typedef struct pa_central_s pa_central_t;

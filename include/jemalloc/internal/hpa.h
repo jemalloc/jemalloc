@@ -10,7 +10,6 @@
 #include "jemalloc/internal/hpa_hooks.h"
 #include "jemalloc/internal/hpa_opts.h"
 #include "jemalloc/internal/mutex.h"
-#include "jemalloc/internal/pai.h"
 #include "jemalloc/internal/psset.h"
 #include "jemalloc/internal/sec.h"
 
@@ -63,12 +62,6 @@ struct hpa_shard_stats_s {
 
 typedef struct hpa_shard_s hpa_shard_t;
 struct hpa_shard_s {
-	/*
-	 * pai must be the first member; we cast from a pointer to it to a
-	 * pointer to the hpa_shard_t.
-	 */
-	pai_t pai;
-
 	/* The central allocator we get our hugepages from. */
 	hpa_central_t *central;
 
