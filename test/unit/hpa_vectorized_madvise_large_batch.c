@@ -238,8 +238,7 @@ TEST_BEGIN(test_purge_more_than_one_batch_pages) {
 	}
 	for (int i = 0; i < HPA_PURGE_BATCH_MAX * 2 * (int)HUGEPAGE_PAGES;
 	    i++) {
-		hpa_dalloc(tsdn, shard, edatas[i],
-		    &deferred_work_generated);
+		hpa_dalloc(tsdn, shard, edatas[i], &deferred_work_generated);
 	}
 
 	hpa_shard_do_deferred_work(tsdn, shard);

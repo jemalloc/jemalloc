@@ -4,9 +4,10 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/base.h"
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/edata.h"
 #include "jemalloc/internal/mutex.h"
-#include "jemalloc/internal/pai.h"
 #include "jemalloc/internal/sec_opts.h"
+#include "jemalloc/internal/tsd_types.h"
 
 /*
  * Small extent cache.

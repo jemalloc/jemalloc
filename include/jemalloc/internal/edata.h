@@ -48,8 +48,8 @@ enum extent_head_state_e {
 typedef enum extent_head_state_e extent_head_state_t;
 
 /*
- * Which implementation of the page allocator interface, (PAI, defined in
- * pai.h) owns the given extent?
+ * Which page allocator implementation (PAC or HPA) owns the given extent?
+ * Used by PA to route expand/shrink/dalloc to the correct implementation.
  */
 enum extent_pai_e { EXTENT_PAI_PAC = 0, EXTENT_PAI_HPA = 1 };
 typedef enum extent_pai_e extent_pai_t;

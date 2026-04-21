@@ -4,10 +4,11 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/decay.h"
 #include "jemalloc/internal/ecache.h"
+#include "jemalloc/internal/edata.h"
 #include "jemalloc/internal/edata_cache.h"
 #include "jemalloc/internal/exp_grow.h"
 #include "jemalloc/internal/lockedint.h"
-#include "jemalloc/internal/pai.h"
+#include "jemalloc/internal/tsd_types.h"
 #include "san_bump.h"
 
 /*
@@ -87,11 +88,6 @@ struct pac_stats_s {
 
 typedef struct pac_s pac_t;
 struct pac_s {
-	/*
-	 * Must be the first member (we convert it to a PAC given only a
-	 * pointer).  The handle to the allocation interface.
-	 */
-	pai_t pai;
 	/* True once pinned memory has been seen. */
 	atomic_b_t has_pinned;
 	/*
