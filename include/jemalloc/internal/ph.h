@@ -534,7 +534,7 @@ ph_enumerate_next(
 
 /* The ph_gen() macro generates a type-specific pairing heap implementation. */
 #define ph_gen(a_attr, a_prefix, a_type, a_field, a_cmp)                       \
-	JEMALLOC_ALWAYS_INLINE int a_prefix##_ph_cmp(void *a, void *b) {       \
+	static inline int a_prefix##_ph_cmp(void *a, void *b) {       \
 		return a_cmp((a_type *)a, (a_type *)b);                        \
 	}                                                                      \
                                                                                \
