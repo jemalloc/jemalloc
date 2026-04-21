@@ -287,7 +287,7 @@ def generate_linux_job(arch):
 
     job += f"""
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Show OS version
       run: |
@@ -302,7 +302,7 @@ def generate_linux_job(arch):
         cat /etc/os-release || true
         echo ""
         echo "=== CPU Info ==="
-        lscpu | grep -E "Architecture|CPU op-mode|Byte Order|CPU\(s\):" || true
+        lscpu | grep -E "Architecture|CPU op-mode|Byte Order|CPU\\(s\\):" || true
 
     - name: Install dependencies (32-bit)
       if: matrix.env.CROSS_COMPILE_32BIT == 'yes'
@@ -387,7 +387,7 @@ def generate_macos_job(arch):
 
     job += f"""
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Show OS version
       run: |
@@ -469,7 +469,7 @@ def generate_windows_job(arch):
 
     job += f"""
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Show OS version
       shell: cmd
@@ -590,7 +590,7 @@ def generate_freebsd_job(arch):
     name: FreeBSD (${{{{ matrix.arch }}}}, debug=${{{{ matrix.debug }}}}, prof=${{{{ matrix.prof }}}}${{{{ matrix.uncommon && ', uncommon' || '' }}}})
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 1
 
