@@ -8,18 +8,7 @@
 #include "jemalloc/internal/witness.h"
 #include "jemalloc/internal/jemalloc_probe.h"
 
-static edata_t *hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size,
-    size_t alignment, bool zero, bool guarded, bool frequent_reuse,
-    bool *deferred_work_generated);
-static bool     hpa_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata,
-        size_t old_size, size_t new_size, bool zero, bool *deferred_work_generated);
-static bool     hpa_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata,
-        size_t old_size, size_t new_size, bool *deferred_work_generated);
-static void     hpa_dalloc(
-        tsdn_t *tsdn, pai_t *self, edata_t *edata, bool *deferred_work_generated);
-static uint64_t hpa_time_until_deferred_work(tsdn_t *tsdn, pai_t *self);
-
-static void hpa_dalloc_batch(tsdn_t *tsdn, pai_t *self,
+static void hpa_dalloc_batch(tsdn_t *tsdn, hpa_shard_t *shard,
     edata_list_active_t *list, bool *deferred_work_generated);
 
 const char *const hpa_hugify_style_names[] = {"auto", "none", "eager", "lazy"};
@@ -109,17 +98,6 @@ hpa_shard_init(tsdn_t *tsdn, hpa_shard_t *shard, hpa_central_t *central,
 	shard->stats.nhugifies = 0;
 	shard->stats.nhugify_failures = 0;
 	shard->stats.ndehugifies = 0;
-
-	/*
-	 * Fill these in last, so that if an hpa_shard gets used despite
-	 * initialization failing, we'll at least crash instead of just
-	 * operating on corrupted data.
-	 */
-	shard->pai.alloc = &hpa_alloc;
-	shard->pai.expand = &hpa_expand;
-	shard->pai.shrink = &hpa_shrink;
-	shard->pai.dalloc = &hpa_dalloc;
-	shard->pai.time_until_deferred_work = &hpa_time_until_deferred_work;
 
 	err = sec_init(tsdn, &shard->sec, base, sec_opts);
 	if (err) {
@@ -820,15 +798,6 @@ hpa_alloc_batch_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 	return nsuccess;
 }
 
-static hpa_shard_t *
-hpa_from_pai(pai_t *self) {
-	assert(self->alloc == &hpa_alloc);
-	assert(self->expand == &hpa_expand);
-	assert(self->shrink == &hpa_shrink);
-	assert(self->dalloc == &hpa_dalloc);
-	return (hpa_shard_t *)self;
-}
-
 static void
 hpa_assert_results(
     tsdn_t *tsdn, hpa_shard_t *shard, edata_list_active_t *results) {
@@ -854,9 +823,10 @@ hpa_assert_results(
 	}
 }
 
-static edata_t *
-hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
-    bool guarded, bool frequent_reuse, bool *deferred_work_generated) {
+edata_t *
+hpa_alloc(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, size_t alignment,
+    bool zero, bool guarded, bool frequent_reuse,
+    bool *deferred_work_generated) {
 	assert((size & PAGE_MASK) == 0);
 	assert(!guarded);
 	witness_assert_depth_to_rank(
@@ -866,7 +836,6 @@ hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
 	if (alignment > PAGE || zero) {
 		return NULL;
 	}
-	hpa_shard_t *shard = hpa_from_pai(self);
 
 	/*
 	 * frequent_use here indicates this request comes from the arena bins,
@@ -907,7 +876,7 @@ hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
 		/* Unlikely rollback in case of overfill */
 		if (!edata_list_active_empty(&results)) {
 			hpa_dalloc_batch(
-			    tsdn, self, &results, deferred_work_generated);
+			    tsdn, shard, &results, deferred_work_generated);
 		}
 	}
 	witness_assert_depth_to_rank(
@@ -915,15 +884,15 @@ hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
 	return edata;
 }
 
-static bool
-hpa_expand(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
+bool
+hpa_expand(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata, size_t old_size,
     size_t new_size, bool zero, bool *deferred_work_generated) {
 	/* Expand not yet supported. */
 	return true;
 }
 
-static bool
-hpa_shrink(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
+bool
+hpa_shrink(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata, size_t old_size,
     size_t new_size, bool *deferred_work_generated) {
 	/* Shrink not yet supported. */
 	return true;
@@ -982,10 +951,8 @@ hpa_dalloc_locked(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata) {
 }
 
 static void
-hpa_dalloc_batch(tsdn_t *tsdn, pai_t *self, edata_list_active_t *list,
+hpa_dalloc_batch(tsdn_t *tsdn, hpa_shard_t *shard, edata_list_active_t *list,
     bool *deferred_work_generated) {
-	hpa_shard_t *shard = hpa_from_pai(self);
-
 	edata_t *edata;
 	ql_foreach (edata, &list->head, ql_link_active) {
 		hpa_dalloc_prepare_unlocked(tsdn, shard, edata);
@@ -1003,16 +970,15 @@ hpa_dalloc_batch(tsdn_t *tsdn, pai_t *self, edata_list_active_t *list,
 	malloc_mutex_unlock(tsdn, &shard->mtx);
 }
 
-static void
-hpa_dalloc(
-    tsdn_t *tsdn, pai_t *self, edata_t *edata, bool *deferred_work_generated) {
+void
+hpa_dalloc(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata,
+    bool *deferred_work_generated) {
 	assert(!edata_guarded_get(edata));
 
 	edata_list_active_t dalloc_list;
 	edata_list_active_init(&dalloc_list);
 	edata_list_active_append(&dalloc_list, edata);
 
-	hpa_shard_t *shard = hpa_from_pai(self);
 	sec_dalloc(tsdn, &shard->sec, &dalloc_list);
 	if (edata_list_active_empty(&dalloc_list)) {
 		/* sec consumed the pointer */
@@ -1020,17 +986,16 @@ hpa_dalloc(
 		return;
 	}
 	/* We may have more than one pointer to flush now */
-	hpa_dalloc_batch(tsdn, self, &dalloc_list, deferred_work_generated);
+	hpa_dalloc_batch(tsdn, shard, &dalloc_list, deferred_work_generated);
 }
 
 /*
  * Calculate time until either purging or hugification ought to happen.
  * Called by background threads.
  */
-static uint64_t
-hpa_time_until_deferred_work(tsdn_t *tsdn, pai_t *self) {
-	hpa_shard_t *shard = hpa_from_pai(self);
-	uint64_t     time_ns = BACKGROUND_THREAD_DEFERRED_MAX;
+uint64_t
+hpa_time_until_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard) {
+	uint64_t time_ns = BACKGROUND_THREAD_DEFERRED_MAX;
 
 	malloc_mutex_lock(tsdn, &shard->mtx);
 
@@ -1090,8 +1055,7 @@ hpa_sec_flush_impl(tsdn_t *tsdn, hpa_shard_t *shard) {
 
 	sec_flush(tsdn, &shard->sec, &to_flush);
 	bool deferred_work_generated;
-	hpa_dalloc_batch(
-	    tsdn, (pai_t *)shard, &to_flush, &deferred_work_generated);
+	hpa_dalloc_batch(tsdn, shard, &to_flush, &deferred_work_generated);
 }
 
 void

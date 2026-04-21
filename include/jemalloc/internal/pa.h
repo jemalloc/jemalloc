@@ -96,7 +96,7 @@ struct pa_shard_s {
 	/* Allocates from a PAC. */
 	pac_t pac;
 
-	hpa_shard_t hpa_shard;
+	hpa_shard_t hpa;
 
 	/* The source of edata_t objects. */
 	edata_cache_t edata_cache;

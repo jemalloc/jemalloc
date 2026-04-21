@@ -174,10 +174,10 @@ TEST_BEGIN(test_vectorized_failure_fallback) {
 	nstime_init(&defer_curtime, 0);
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 
-	edata_t *edata = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false, false,
+	edata_t *edata = hpa_alloc(tsdn, shard, PAGE, PAGE, false, false,
 	    false, &deferred_work_generated);
 	expect_ptr_not_null(edata, "Unexpected null edata");
-	pai_dalloc(tsdn, &shard->pai, edata, &deferred_work_generated);
+	hpa_dalloc(tsdn, shard, edata, &deferred_work_generated);
 	hpa_shard_do_deferred_work(tsdn, shard);
 
 	expect_true(defer_vec_purge_didfail, "Expect vec purge fail");
@@ -218,7 +218,7 @@ TEST_BEGIN(test_more_regions_purged_from_one_page) {
 	enum { NALLOCS = 8 * HUGEPAGE_PAGES };
 	edata_t *edatas[NALLOCS];
 	for (int i = 0; i < NALLOCS; i++) {
-		edatas[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false,
+		edatas[i] = hpa_alloc(tsdn, shard, PAGE, PAGE, false,
 		    false, false, &deferred_work_generated);
 		expect_ptr_not_null(edatas[i], "Unexpected null edata");
 	}
@@ -228,7 +228,7 @@ TEST_BEGIN(test_more_regions_purged_from_one_page) {
 	for (int i = 0; i < 3 * (int)HUGEPAGE_PAGES; i++) {
 		int j = i % HUGEPAGE_PAGES;
 		if (j != 1 && j != 3) {
-			pai_dalloc(tsdn, &shard->pai, edatas[i],
+			hpa_dalloc(tsdn, shard, edatas[i],
 			    &deferred_work_generated);
 		}
 	}
