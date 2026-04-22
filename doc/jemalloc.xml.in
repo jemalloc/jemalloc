@@ -2088,7 +2088,7 @@ malloc_conf = "xmalloc:true";]]></programlisting>
         <parameter>*oldlenp</parameter> must be
         <code language="C">sizeof(<type>char *</type>)</code>.
         Arena names are also included in the output of <link
-        linkend="stats_print"><function>malloc_stats_print()</function></link>.
+        linkend="malloc_stats_print_opts"><function>malloc_stats_print()</function></link>.
         </para></listitem>
       </varlistentry>
 
@@ -2457,7 +2457,7 @@ struct extent_hooks_s {
         </term>
         <listitem><para>Hugepage size.  This value is also reported in the
         output of <link
-        linkend="stats_print"><function>malloc_stats_print()</function></link>.
+        linkend="malloc_stats_print_opts"><function>malloc_stats_print()</function></link>.
         </para></listitem>
       </varlistentry>
 
