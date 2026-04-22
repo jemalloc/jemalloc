@@ -46,7 +46,7 @@ hpa_supported(void) {
 		return false;
 	}
 	/*
-	 * We fundamentally rely on a address-space-hungry growth strategy for
+	 * We fundamentally rely on an address-space-hungry growth strategy for
 	 * hugepages.
 	 */
 	if (LG_SIZEOF_PTR != 3) {

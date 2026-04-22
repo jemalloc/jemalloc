@@ -18,7 +18,7 @@ JEMALLOC_DIAGNOSTIC_DISABLE_SPURIOUS
 /* Data. */
 
 /*
- * Define names for both unininitialized and initialized phases, so that
+ * Define names for both uninitialized and initialized phases, so that
  * options and mallctl processing are straightforward.
  */
 const char *const percpu_arena_mode_names[] = {
@@ -44,7 +44,7 @@ static unsigned nbins_total;
 
 /*
  * a0 is used to handle huge requests before malloc init completes. After
- * that,the huge_arena_ind is updated to point to the actual huge arena,
+ * that, the huge_arena_ind is updated to point to the actual huge arena,
  * which is the last one of the auto arenas.
  */
 unsigned  huge_arena_ind = 0;

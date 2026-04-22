@@ -43,7 +43,7 @@ const char *je_malloc_conf
  * setting, which gets lower priority than the environment settings).
  *
  * But it's a fairly common use case in some testing environments for a user to
- * be able to control the binary, but nothing else (e.g. a performancy canary
+ * be able to control the binary, but nothing else (e.g. a performance canary
  * uses the production OS and environment variables, but can run any binary in
  * those circumstances).  For these use cases, it's handy to have an in-binary
  * mechanism for overriding environment variable settings, with the idea that if

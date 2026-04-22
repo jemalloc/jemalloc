@@ -145,7 +145,7 @@ struct hpa_shard_s {
 
 bool hpa_hugepage_size_exceeds_limit(void);
 /*
- * Whether or not the HPA can be used given the current configuration.  This is
+ * Whether or not the HPA can be used given the current configuration.  This
  * is not necessarily a guarantee that it backs its allocations by hugepages,
  * just that it can function properly given the system it's running on.
  */
