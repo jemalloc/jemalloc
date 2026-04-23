@@ -56,11 +56,19 @@ typedef struct {
 /* Structure to group per-shard PA infrastructure */
 typedef struct {
 	base_t          *base;        /* Base allocator */
-	emap_t           emap;        /* Extent map */
 	pa_shard_t       pa_shard;    /* PA shard */
 	pa_shard_stats_t shard_stats; /* PA shard statistics */
 	malloc_mutex_t   stats_mtx;   /* Statistics mutex */
 } shard_infrastructure_t;
+
+/*
+ * The TSD-local rtree_ctx cache assumes a single rtree per process. JET's
+ * malloc init already populates that cache against `arena_emap_global`, so
+ * any additional emap we create would silently share the cache and have
+ * its registrations leak into JET's leaves. Reuse arena_emap_global to
+ * keep the invariant.
+ */
+extern emap_t jet_arena_emap_global;
 
 static FILE                *g_stats_output = NULL; /* Output file for stats */
 static size_t               g_alloc_counter = 0; /* Global allocation counter */
@@ -159,6 +167,8 @@ initialize_pa_infrastructure(int num_shards) {
 		return true;
 	}
 
+	/* jet_arena_emap_global was already initialized by JET malloc init. */
+
 	for (int i = 0; i < num_shards; i++) {
 		/* Create a separate base allocator for each shard */
 		g_shard_infra[i].base = base_new(tsd_tsdn(tsd_fetch()),
@@ -166,15 +176,6 @@ initialize_pa_infrastructure(int num_shards) {
 		    /* metadata_use_hooks */ true);
 		if (g_shard_infra[i].base == NULL) {
 			printf("DEBUG: Failed to create base %d\n", i);
-			/* Clean up partially initialized shards */
-			cleanup_pa_infrastructure(num_shards);
-			return true;
-		}
-
-		/* Initialize emap for this shard */
-		if (emap_init(&g_shard_infra[i].emap, g_shard_infra[i].base,
-		        /* zeroed */ false)) {
-			printf("DEBUG: Failed to initialize emap %d\n", i);
 			/* Clean up partially initialized shards */
 			cleanup_pa_infrastructure(num_shards);
 			return true;
@@ -197,7 +198,7 @@ initialize_pa_infrastructure(int num_shards) {
 
 		if (pa_shard_init(tsd_tsdn(tsd_fetch()),
 		        &g_shard_infra[i].pa_shard, &g_pa_central,
-		        &g_shard_infra[i].emap /* emap */,
+		        &jet_arena_emap_global /* emap (shared) */,
 		        g_shard_infra[i].base, i /* ind */,
 		        &g_shard_infra[i].shard_stats /* stats */,
 		        &g_shard_infra[i].stats_mtx /* stats_mtx */,
