@@ -158,29 +158,27 @@ AC_SUBST([abs_objroot])
 
 dnl Munge install path variables.
 case "$prefix" in
-   *\ * ) AC_MSG_ERROR([Prefix should not contain spaces]) ;;
    "NONE" ) prefix="/usr/local" ;;
 esac
 case "$exec_prefix" in
-   *\ * ) AC_MSG_ERROR([Exec prefix should not contain spaces]) ;;
    "NONE" ) exec_prefix=$prefix ;;
 esac
 PREFIX=$prefix
 AC_SUBST([PREFIX])
-BINDIR=`eval echo $bindir`
-BINDIR=`eval echo $BINDIR`
+BINDIR=`eval echo "\"$bindir\""`
+BINDIR=`eval echo "\"$BINDIR\""`
 AC_SUBST([BINDIR])
-INCLUDEDIR=`eval echo $includedir`
-INCLUDEDIR=`eval echo $INCLUDEDIR`
+INCLUDEDIR=`eval echo "\"$includedir\""`
+INCLUDEDIR=`eval echo "\"$INCLUDEDIR\""`
 AC_SUBST([INCLUDEDIR])
-LIBDIR=`eval echo $libdir`
-LIBDIR=`eval echo $LIBDIR`
+LIBDIR=`eval echo "\"$libdir\""`
+LIBDIR=`eval echo "\"$LIBDIR\""`
 AC_SUBST([LIBDIR])
-DATADIR=`eval echo $datadir`
-DATADIR=`eval echo $DATADIR`
+DATADIR=`eval echo "\"$datadir\""`
+DATADIR=`eval echo "\"$DATADIR\""`
 AC_SUBST([DATADIR])
-MANDIR=`eval echo $mandir`
-MANDIR=`eval echo $MANDIR`
+MANDIR=`eval echo "\"$mandir\""`
+MANDIR=`eval echo "\"$MANDIR\""`
 AC_SUBST([MANDIR])
 
 dnl Support for building documentation.
