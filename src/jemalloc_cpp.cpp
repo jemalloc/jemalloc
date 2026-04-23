@@ -1,3 +1,4 @@
+#include <exception>
 #include <mutex>
 #include <new>
 // NOLINTBEGIN(misc-use-anonymous-namespace)
@@ -90,17 +91,26 @@ handleOOM(std::size_t size, bool nothrow) {
 		if (handler == nullptr)
 			break;
 
+#ifdef JEMALLOC_HAVE_CXX_EXCEPTIONS
 		try {
 			handler();
 		} catch (const std::bad_alloc &) {
 			break;
 		}
+#else
+		handler();
+#endif
 
 		ptr = je_malloc(size);
 	}
 
-	if (ptr == nullptr && !nothrow)
-		std::__throw_bad_alloc();
+	if (ptr == nullptr && !nothrow) {
+#ifdef JEMALLOC_HAVE_CXX_EXCEPTIONS
+		throw std::bad_alloc();
+#else
+		std::terminate();
+#endif
+	}
 	return ptr;
 }
 
