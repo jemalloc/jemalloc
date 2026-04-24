@@ -208,6 +208,9 @@
     <ClCompile Include="..\..\..\..\src\arenas_management.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\src\jemalloc_fork.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\src\jemalloc_init.c">
       <Filter>Source Files</Filter>
     </ClCompile>
