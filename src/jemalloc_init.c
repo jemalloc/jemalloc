@@ -8,6 +8,7 @@
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/hook.h"
+#include "jemalloc/internal/jemalloc_fork.h"
 #include "jemalloc/internal/jemalloc_init.h"
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/mutex.h"
@@ -685,3 +686,24 @@ malloc_init_hard(void) {
 #undef UNLOCK_RETURN
 	return false;
 }
+
+/*
+ * If an application creates a thread before doing any allocation in the main
+ * thread, then calls fork(2) in the main thread followed by memory allocation
+ * in the child process, a race can occur that results in deadlock within the
+ * child: the main thread may have forked while the created thread had
+ * partially initialized the allocator.  Ordinarily jemalloc prevents
+ * fork/malloc races via the following functions it registers during
+ * initialization using pthread_atfork(), but of course that does no good if
+ * the allocator isn't fully initialized at fork time.  The following library
+ * constructor is a partial solution to this problem.  It may still be possible
+ * to trigger the deadlock described above, but doing so would involve forking
+ * via a library constructor that runs before jemalloc's runs.
+ */
+#ifndef JEMALLOC_JET
+JEMALLOC_ATTR(constructor)
+static void
+jemalloc_constructor(void) {
+	malloc_init();
+}
+#endif
