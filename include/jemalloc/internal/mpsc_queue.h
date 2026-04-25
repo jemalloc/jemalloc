@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_MPSC_QUEUE_H
 #define JEMALLOC_INTERNAL_MPSC_QUEUE_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/atomic.h"
 
 /*
@@ -25,6 +26,7 @@
  * two-stack tricks reverses orders in the lock-free first stack).
  */
 
+/* clang-format off */
 #define mpsc_queue(a_type)						\
 struct {								\
 	atomic_p_t tail;						\
@@ -130,5 +132,6 @@ a_prefix##pop_batch(a_queue_type *queue, a_list_type *dst) {		\
 	}								\
 	ql_concat(dst, &reversed, a_link);				\
 }
+/* clang-format on */
 
 #endif /* JEMALLOC_INTERNAL_MPSC_QUEUE_H */

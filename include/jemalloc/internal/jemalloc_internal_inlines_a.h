@@ -1,10 +1,14 @@
 #ifndef JEMALLOC_INTERNAL_INLINES_A_H
 #define JEMALLOC_INTERNAL_INLINES_A_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/arena_externs.h"
+#include "jemalloc/internal/arena_types.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bit_util.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/sc.h"
+#include "jemalloc/internal/tcache_externs.h"
 #include "jemalloc/internal/ticker.h"
 
 JEMALLOC_ALWAYS_INLINE malloc_cpuid_t
@@ -14,6 +18,15 @@ malloc_getcpu(void) {
 	return GetCurrentProcessorNumber();
 #elif defined(JEMALLOC_HAVE_SCHED_GETCPU)
 	return (malloc_cpuid_t)sched_getcpu();
+#elif defined(JEMALLOC_HAVE_RDTSCP)
+	unsigned int ecx;
+	asm volatile("rdtscp" : "=c"(ecx)::"eax", "edx");
+	return (malloc_cpuid_t)(ecx & 0xfff);
+#elif defined(__aarch64__) && defined(__APPLE__)
+	/* Other oses most likely use tpidr_el0 instead */
+	uintptr_t c;
+	asm volatile("mrs %x0, tpidrro_el0" : "=r"(c)::"memory");
+	return (malloc_cpuid_t)(c & (1 << 3) - 1);
 #else
 	not_reached();
 	return -1;
@@ -29,8 +42,8 @@ percpu_arena_choose(void) {
 	assert(cpuid >= 0);
 
 	unsigned arena_ind;
-	if ((opt_percpu_arena == percpu_arena) || ((unsigned)cpuid < ncpus /
-	    2)) {
+	if ((opt_percpu_arena == percpu_arena)
+	    || ((unsigned)cpuid < ncpus / 2)) {
 		arena_ind = cpuid;
 	} else {
 		assert(opt_percpu_arena == per_phycpu_arena);

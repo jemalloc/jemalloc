@@ -1,12 +1,14 @@
 #ifndef JEMALLOC_INTERNAL_COUNTER_H
 #define JEMALLOC_INTERNAL_COUNTER_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/lockedint.h"
 #include "jemalloc/internal/mutex.h"
 
 typedef struct counter_accum_s {
 	LOCKEDINT_MTX_DECLARE(mtx)
 	locked_u64_t accumbytes;
-	uint64_t interval;
+	uint64_t     interval;
 } counter_accum_t;
 
 JEMALLOC_ALWAYS_INLINE bool

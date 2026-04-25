@@ -1,7 +1,7 @@
 #include <mutex>
 #include <new>
+// NOLINTBEGIN(misc-use-anonymous-namespace)
 
-#define JEMALLOC_CPP_CPP_
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -24,41 +24,54 @@ extern "C" {
 //
 // ... but it needs to work with jemalloc namespaces.
 
-void	*operator new(std::size_t size);
-void	*operator new[](std::size_t size);
-void	*operator new(std::size_t size, const std::nothrow_t &) noexcept;
-void	*operator new[](std::size_t size, const std::nothrow_t &) noexcept;
-void	operator delete(void *ptr) noexcept;
-void	operator delete[](void *ptr) noexcept;
-void	operator delete(void *ptr, const std::nothrow_t &) noexcept;
-void	operator delete[](void *ptr, const std::nothrow_t &) noexcept;
+void *operator new(std::size_t size);
+void *operator new[](std::size_t size);
+void *operator new(std::size_t size, const std::nothrow_t &) noexcept;
+void *operator new[](std::size_t size, const std::nothrow_t &) noexcept;
+void  operator delete(void *ptr) noexcept;
+void  operator delete[](void *ptr) noexcept;
+void  operator delete(void *ptr, const std::nothrow_t &) noexcept;
+void  operator delete[](void *ptr, const std::nothrow_t &) noexcept;
 
 #if __cpp_sized_deallocation >= 201309
 /* C++14's sized-delete operators. */
-void	operator delete(void *ptr, std::size_t size) noexcept;
-void	operator delete[](void *ptr, std::size_t size) noexcept;
+void operator delete(void *ptr, std::size_t size) noexcept;
+void operator delete[](void *ptr, std::size_t size) noexcept;
 #endif
 
 #if __cpp_aligned_new >= 201606
 /* C++17's over-aligned operators. */
-void	*operator new(std::size_t size, std::align_val_t);
-void	*operator new(std::size_t size, std::align_val_t, const std::nothrow_t &) noexcept;
-void	*operator new[](std::size_t size, std::align_val_t);
-void	*operator new[](std::size_t size, std::align_val_t, const std::nothrow_t &) noexcept;
-void	operator delete(void* ptr, std::align_val_t) noexcept;
-void	operator delete(void* ptr, std::align_val_t, const std::nothrow_t &) noexcept;
-void	operator delete(void* ptr, std::size_t size, std::align_val_t al) noexcept;
-void	operator delete[](void* ptr, std::align_val_t) noexcept;
-void	operator delete[](void* ptr, std::align_val_t, const std::nothrow_t &) noexcept;
-void	operator delete[](void* ptr, std::size_t size, std::align_val_t al) noexcept;
+void *operator new(std::size_t size, std::align_val_t);
+void *operator new(
+    std::size_t size, std::align_val_t, const std::nothrow_t &) noexcept;
+void *operator new[](std::size_t size, std::align_val_t);
+void *operator new[](
+    std::size_t size, std::align_val_t, const std::nothrow_t &) noexcept;
+void operator delete(void *ptr, std::align_val_t) noexcept;
+void operator delete(
+    void *ptr, std::align_val_t, const std::nothrow_t &) noexcept;
+void operator delete(void *ptr, std::size_t size, std::align_val_t al) noexcept;
+void operator delete[](void *ptr, std::align_val_t) noexcept;
+void operator delete[](
+    void *ptr, std::align_val_t, const std::nothrow_t &) noexcept;
+void operator delete[](
+    void *ptr, std::size_t size, std::align_val_t al) noexcept;
 #endif
 
 JEMALLOC_NOINLINE
 static void *
 handleOOM(std::size_t size, bool nothrow) {
 	if (opt_experimental_infallible_new) {
-		safety_check_fail("<jemalloc>: Allocation failed and "
-		    "opt.experimental_infallible_new is true. Aborting.\n");
+		const char *huge_warning = (size >= ((std::size_t)1 << 30))
+		    ? "This may be caused by heap corruption, if the large size "
+		      "is unexpected (suggest building with sanitizers for "
+		      "debugging)."
+		    : "";
+
+		safety_check_fail(
+		    "<jemalloc>: Allocation of size %zu failed. "
+		    "%s opt.experimental_infallible_new is true. Aborting.\n",
+		    size, huge_warning);
 		return nullptr;
 	}
 
@@ -68,7 +81,7 @@ handleOOM(std::size_t size, bool nothrow) {
 		std::new_handler handler;
 		// GCC-4.8 and clang 4.0 do not have std::get_new_handler.
 		{
-			static std::mutex mtx;
+			static std::mutex           mtx;
 			std::lock_guard<std::mutex> lock(mtx);
 
 			handler = std::set_new_handler(nullptr);
@@ -92,9 +105,8 @@ handleOOM(std::size_t size, bool nothrow) {
 }
 
 template <bool IsNoExcept>
-JEMALLOC_NOINLINE
-static void *
-fallback_impl(std::size_t size) noexcept(IsNoExcept) {
+JEMALLOC_NOINLINE static void *
+fallbackNewImpl(std::size_t size) noexcept(IsNoExcept) {
 	void *ptr = malloc_default(size);
 	if (likely(ptr != nullptr)) {
 		return ptr;
@@ -103,10 +115,14 @@ fallback_impl(std::size_t size) noexcept(IsNoExcept) {
 }
 
 template <bool IsNoExcept>
-JEMALLOC_ALWAYS_INLINE
-void *
+JEMALLOC_ALWAYS_INLINE void *
 newImpl(std::size_t size) noexcept(IsNoExcept) {
-	return imalloc_fastpath(size, &fallback_impl<IsNoExcept>);
+	LOG("core.operator_new.entry", "size: %zu", size);
+
+	void *ret = imalloc_fastpath(size, &fallbackNewImpl<IsNoExcept>);
+
+	LOG("core.operator_new.exit", "result: %p", ret);
+	return ret;
 }
 
 void *
@@ -132,9 +148,9 @@ operator new[](std::size_t size, const std::nothrow_t &) noexcept {
 #if __cpp_aligned_new >= 201606
 
 template <bool IsNoExcept>
-JEMALLOC_ALWAYS_INLINE
-void *
-alignedNewImpl(std::size_t size, std::align_val_t alignment) noexcept(IsNoExcept) {
+JEMALLOC_ALWAYS_INLINE void *
+alignedNewImpl(std::size_t size, std::align_val_t alignment) noexcept(
+    IsNoExcept) {
 	void *ptr = je_aligned_alloc(static_cast<std::size_t>(alignment), size);
 	if (likely(ptr != nullptr)) {
 		return ptr;
@@ -154,45 +170,68 @@ operator new[](std::size_t size, std::align_val_t alignment) {
 }
 
 void *
-operator new(std::size_t size, std::align_val_t alignment, const std::nothrow_t &) noexcept {
+operator new(std::size_t size, std::align_val_t alignment,
+    const std::nothrow_t &) noexcept {
 	return alignedNewImpl<true>(size, alignment);
 }
 
 void *
-operator new[](std::size_t size, std::align_val_t alignment, const std::nothrow_t &) noexcept {
+operator new[](std::size_t size, std::align_val_t alignment,
+    const std::nothrow_t &) noexcept {
 	return alignedNewImpl<true>(size, alignment);
 }
 
-#endif  // __cpp_aligned_new
+#endif // __cpp_aligned_new
 
 void
 operator delete(void *ptr) noexcept {
-	je_free(ptr);
+	LOG("core.operator_delete.entry", "ptr: %p", ptr);
+
+	je_free_impl(ptr);
+
+	LOG("core.operator_delete.exit", "");
 }
 
 void
 operator delete[](void *ptr) noexcept {
-	je_free(ptr);
+	LOG("core.operator_delete.entry", "ptr: %p", ptr);
+
+	je_free_impl(ptr);
+
+	LOG("core.operator_delete.exit", "");
 }
 
 void
 operator delete(void *ptr, const std::nothrow_t &) noexcept {
-	je_free(ptr);
+	LOG("core.operator_delete.entry", "ptr: %p", ptr);
+
+	je_free_impl(ptr);
+
+	LOG("core.operator_delete.exit", "");
 }
 
-void operator delete[](void *ptr, const std::nothrow_t &) noexcept {
-	je_free(ptr);
+void
+operator delete[](void *ptr, const std::nothrow_t &) noexcept {
+	LOG("core.operator_delete.entry", "ptr: %p", ptr);
+
+	je_free_impl(ptr);
+
+	LOG("core.operator_delete.exit", "");
 }
 
 #if __cpp_sized_deallocation >= 201309
 
 JEMALLOC_ALWAYS_INLINE
 void
-sizedDeleteImpl(void* ptr, std::size_t size) noexcept {
+sizedDeleteImpl(void *ptr, std::size_t size) noexcept {
 	if (unlikely(ptr == nullptr)) {
 		return;
 	}
+	LOG("core.operator_delete.entry", "ptr: %p, size: %zu", ptr, size);
+
 	je_sdallocx_noflags(ptr, size);
+
+	LOG("core.operator_delete.exit", "");
 }
 
 void
@@ -205,50 +244,76 @@ operator delete[](void *ptr, std::size_t size) noexcept {
 	sizedDeleteImpl(ptr, size);
 }
 
-#endif  // __cpp_sized_deallocation
+#endif // __cpp_sized_deallocation
 
 #if __cpp_aligned_new >= 201606
 
 JEMALLOC_ALWAYS_INLINE
 void
-alignedSizedDeleteImpl(void* ptr, std::size_t size, std::align_val_t alignment) noexcept {
+alignedSizedDeleteImpl(
+    void *ptr, std::size_t size, std::align_val_t alignment) noexcept {
 	if (config_debug) {
 		assert(((size_t)alignment & ((size_t)alignment - 1)) == 0);
 	}
 	if (unlikely(ptr == nullptr)) {
 		return;
 	}
-	je_sdallocx(ptr, size, MALLOCX_ALIGN(alignment));
+	LOG("core.operator_delete.entry", "ptr: %p, size: %zu, alignment: %zu",
+	    ptr, size, alignment);
+
+	je_sdallocx_impl(ptr, size, MALLOCX_ALIGN(alignment));
+
+	LOG("core.operator_delete.exit", "");
 }
 
 void
-operator delete(void* ptr, std::align_val_t) noexcept {
-	je_free(ptr);
+operator delete(void *ptr, std::align_val_t) noexcept {
+	LOG("core.operator_delete.entry", "ptr: %p", ptr);
+
+	je_free_impl(ptr);
+
+	LOG("core.operator_delete.exit", "");
 }
 
 void
-operator delete[](void* ptr, std::align_val_t) noexcept {
-	je_free(ptr);
+operator delete[](void *ptr, std::align_val_t) noexcept {
+	LOG("core.operator_delete.entry", "ptr: %p", ptr);
+
+	je_free_impl(ptr);
+
+	LOG("core.operator_delete.exit", "");
 }
 
 void
-operator delete(void* ptr, std::align_val_t, const std::nothrow_t&) noexcept {
-	je_free(ptr);
+operator delete(void *ptr, std::align_val_t, const std::nothrow_t &) noexcept {
+	LOG("core.operator_delete.entry", "ptr: %p", ptr);
+
+	je_free_impl(ptr);
+
+	LOG("core.operator_delete.exit", "");
 }
 
 void
-operator delete[](void* ptr, std::align_val_t, const std::nothrow_t&) noexcept {
-	je_free(ptr);
+operator delete[](
+    void *ptr, std::align_val_t, const std::nothrow_t &) noexcept {
+	LOG("core.operator_delete.entry", "ptr: %p", ptr);
+
+	je_free_impl(ptr);
+
+	LOG("core.operator_delete.exit", "");
 }
 
 void
-operator delete(void* ptr, std::size_t size, std::align_val_t alignment) noexcept {
+operator delete(
+    void *ptr, std::size_t size, std::align_val_t alignment) noexcept {
 	alignedSizedDeleteImpl(ptr, size, alignment);
 }
 
 void
-operator delete[](void* ptr, std::size_t size, std::align_val_t alignment) noexcept {
+operator delete[](
+    void *ptr, std::size_t size, std::align_val_t alignment) noexcept {
 	alignedSizedDeleteImpl(ptr, size, alignment);
 }
 
-#endif  // __cpp_aligned_new
+#endif // __cpp_aligned_new
+// NOLINTEND(misc-use-anonymous-namespace)

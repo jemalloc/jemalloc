@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_ATOMIC_C11_H
 #define JEMALLOC_INTERNAL_ATOMIC_C11_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include <stdatomic.h>
 
 #define ATOMIC_INIT(...) ATOMIC_VAR_INIT(__VA_ARGS__)
@@ -14,6 +15,7 @@
 
 #define atomic_fence atomic_thread_fence
 
+/* clang-format off */
 #define JEMALLOC_GENERATE_ATOMICS(type, short_type,			\
     /* unused */ lg_size)						\
 typedef _Atomic(type) atomic_##short_type##_t;				\
@@ -58,40 +60,35 @@ atomic_compare_exchange_strong_##short_type(atomic_##short_type##_t *a,	\
 	return atomic_compare_exchange_strong_explicit(a, expected,	\
 	    desired, success_mo, failure_mo);				\
 }
+/* clang-format on */
 
 /*
  * Integral types have some special operations available that non-integral ones
  * lack.
  */
-#define JEMALLOC_GENERATE_INT_ATOMICS(type, short_type, 		\
-    /* unused */ lg_size)						\
-JEMALLOC_GENERATE_ATOMICS(type, short_type, /* unused */ lg_size)	\
-									\
-ATOMIC_INLINE type							\
-atomic_fetch_add_##short_type(atomic_##short_type##_t *a,		\
-    type val, atomic_memory_order_t mo) {				\
-	return atomic_fetch_add_explicit(a, val, mo);			\
-}									\
-									\
-ATOMIC_INLINE type							\
-atomic_fetch_sub_##short_type(atomic_##short_type##_t *a,		\
-    type val, atomic_memory_order_t mo) {				\
-	return atomic_fetch_sub_explicit(a, val, mo);			\
-}									\
-ATOMIC_INLINE type							\
-atomic_fetch_and_##short_type(atomic_##short_type##_t *a,		\
-    type val, atomic_memory_order_t mo) {				\
-	return atomic_fetch_and_explicit(a, val, mo);			\
-}									\
-ATOMIC_INLINE type							\
-atomic_fetch_or_##short_type(atomic_##short_type##_t *a,		\
-    type val, atomic_memory_order_t mo) {				\
-	return atomic_fetch_or_explicit(a, val, mo);			\
-}									\
-ATOMIC_INLINE type							\
-atomic_fetch_xor_##short_type(atomic_##short_type##_t *a,		\
-    type val, atomic_memory_order_t mo) {				\
-	return atomic_fetch_xor_explicit(a, val, mo);			\
-}
+#define JEMALLOC_GENERATE_INT_ATOMICS(type, short_type, /* unused */ lg_size)  \
+	JEMALLOC_GENERATE_ATOMICS(type, short_type, /* unused */ lg_size)      \
+                                                                               \
+	ATOMIC_INLINE type atomic_fetch_add_##short_type(                      \
+	    atomic_##short_type##_t *a, type val, atomic_memory_order_t mo) {  \
+		return atomic_fetch_add_explicit(a, val, mo);                  \
+	}                                                                      \
+                                                                               \
+	ATOMIC_INLINE type atomic_fetch_sub_##short_type(                      \
+	    atomic_##short_type##_t *a, type val, atomic_memory_order_t mo) {  \
+		return atomic_fetch_sub_explicit(a, val, mo);                  \
+	}                                                                      \
+	ATOMIC_INLINE type atomic_fetch_and_##short_type(                      \
+	    atomic_##short_type##_t *a, type val, atomic_memory_order_t mo) {  \
+		return atomic_fetch_and_explicit(a, val, mo);                  \
+	}                                                                      \
+	ATOMIC_INLINE type atomic_fetch_or_##short_type(                       \
+	    atomic_##short_type##_t *a, type val, atomic_memory_order_t mo) {  \
+		return atomic_fetch_or_explicit(a, val, mo);                   \
+	}                                                                      \
+	ATOMIC_INLINE type atomic_fetch_xor_##short_type(                      \
+	    atomic_##short_type##_t *a, type val, atomic_memory_order_t mo) {  \
+		return atomic_fetch_xor_explicit(a, val, mo);                  \
+	}
 
 #endif /* JEMALLOC_INTERNAL_ATOMIC_C11_H */

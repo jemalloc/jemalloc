@@ -1,7 +1,10 @@
 #ifndef JEMALLOC_INTERNAL_INLINES_B_H
 #define JEMALLOC_INTERNAL_INLINES_B_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/arena_inlines_a.h"
 #include "jemalloc/internal/extent.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_a.h"
 
 static inline void
 percpu_arena_update(tsd_t *tsd, unsigned cpu) {
@@ -20,12 +23,12 @@ percpu_arena_update(tsd_t *tsd, unsigned cpu) {
 		tcache_t *tcache = tcache_get(tsd);
 		if (tcache != NULL) {
 			tcache_slow_t *tcache_slow = tsd_tcache_slowp_get(tsd);
-			tcache_arena_reassociate(tsd_tsdn(tsd), tcache_slow,
-			    tcache, newarena);
+			assert(tcache_slow->arena != NULL);
+			tcache_arena_reassociate(
+			    tsd_tsdn(tsd), tcache_slow, tcache, newarena);
 		}
 	}
 }
-
 
 /* Choose an arena based on a per-thread value. */
 static inline arena_t *
@@ -47,18 +50,18 @@ arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
 		assert(ret);
 		if (tcache_available(tsd)) {
 			tcache_slow_t *tcache_slow = tsd_tcache_slowp_get(tsd);
-			tcache_t *tcache = tsd_tcachep_get(tsd);
+			tcache_t      *tcache = tsd_tcachep_get(tsd);
 			if (tcache_slow->arena != NULL) {
 				/* See comments in tsd_tcache_data_init().*/
-				assert(tcache_slow->arena ==
-				    arena_get(tsd_tsdn(tsd), 0, false));
+				assert(tcache_slow->arena
+				    == arena_get(tsd_tsdn(tsd), 0, false));
 				if (tcache_slow->arena != ret) {
 					tcache_arena_reassociate(tsd_tsdn(tsd),
 					    tcache_slow, tcache, ret);
 				}
 			} else {
-				tcache_arena_associate(tsd_tsdn(tsd),
-				    tcache_slow, tcache, ret);
+				tcache_arena_associate(
+				    tsd_tsdn(tsd), tcache_slow, tcache, ret);
 			}
 		}
 	}
@@ -68,10 +71,10 @@ arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
 	 * auto percpu arena range, (i.e. thread is assigned to a manually
 	 * managed arena), then percpu arena is skipped.
 	 */
-	if (have_percpu_arena && PERCPU_ARENA_ENABLED(opt_percpu_arena) &&
-	    !internal && (arena_ind_get(ret) <
-	    percpu_arena_ind_limit(opt_percpu_arena)) && (ret->last_thd !=
-	    tsd_tsdn(tsd))) {
+	if (have_percpu_arena && PERCPU_ARENA_ENABLED(opt_percpu_arena)
+	    && !internal
+	    && (arena_ind_get(ret) < percpu_arena_ind_limit(opt_percpu_arena))
+	    && (ret->last_thd != tsd_tsdn(tsd))) {
 		unsigned ind = percpu_arena_choose();
 		if (arena_ind_get(ret) != ind) {
 			percpu_arena_update(tsd, ind);

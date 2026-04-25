@@ -9,6 +9,7 @@ malloc_free(void) {
 		test_fail("Unexpected malloc() failure");
 		return;
 	}
+	p = no_opt_ptr(p);
 	free(p);
 }
 
@@ -19,11 +20,12 @@ mallocx_free(void) {
 		test_fail("Unexpected mallocx() failure");
 		return;
 	}
+	p = no_opt_ptr(p);
 	free(p);
 }
 
 TEST_BEGIN(test_malloc_vs_mallocx) {
-	compare_funcs(10*1000*1000, 100*1000*1000, "malloc",
+	compare_funcs(10 * 1000 * 1000, 100 * 1000 * 1000, "malloc",
 	    malloc_free, "mallocx", mallocx_free);
 }
 TEST_END
@@ -35,6 +37,7 @@ malloc_dallocx(void) {
 		test_fail("Unexpected malloc() failure");
 		return;
 	}
+	p = no_opt_ptr(p);
 	dallocx(p, 0);
 }
 
@@ -45,18 +48,19 @@ malloc_sdallocx(void) {
 		test_fail("Unexpected malloc() failure");
 		return;
 	}
+	p = no_opt_ptr(p);
 	sdallocx(p, 1, 0);
 }
 
 TEST_BEGIN(test_free_vs_dallocx) {
-	compare_funcs(10*1000*1000, 100*1000*1000, "free", malloc_free,
+	compare_funcs(10 * 1000 * 1000, 100 * 1000 * 1000, "free", malloc_free,
 	    "dallocx", malloc_dallocx);
 }
 TEST_END
 
 TEST_BEGIN(test_dallocx_vs_sdallocx) {
-	compare_funcs(10*1000*1000, 100*1000*1000, "dallocx", malloc_dallocx,
-	    "sdallocx", malloc_sdallocx);
+	compare_funcs(10 * 1000 * 1000, 100 * 1000 * 1000, "dallocx",
+	    malloc_dallocx, "sdallocx", malloc_sdallocx);
 }
 TEST_END
 
@@ -82,6 +86,7 @@ malloc_sallocx_free(void) {
 		test_fail("Unexpected malloc() failure");
 		return;
 	}
+	p = no_opt_ptr(p);
 	if (sallocx(p, 0) < 1) {
 		test_fail("Unexpected sallocx() failure");
 	}
@@ -89,7 +94,7 @@ malloc_sallocx_free(void) {
 }
 
 TEST_BEGIN(test_mus_vs_sallocx) {
-	compare_funcs(10*1000*1000, 100*1000*1000, "malloc_usable_size",
+	compare_funcs(10 * 1000 * 1000, 100 * 1000 * 1000, "malloc_usable_size",
 	    malloc_mus_free, "sallocx", malloc_sallocx_free);
 }
 TEST_END
@@ -103,6 +108,7 @@ malloc_nallocx_free(void) {
 		test_fail("Unexpected malloc() failure");
 		return;
 	}
+	p = no_opt_ptr(p);
 	if (nallocx(1, 0) < 1) {
 		test_fail("Unexpected nallocx() failure");
 	}
@@ -110,17 +116,14 @@ malloc_nallocx_free(void) {
 }
 
 TEST_BEGIN(test_sallocx_vs_nallocx) {
-	compare_funcs(10*1000*1000, 100*1000*1000, "sallocx",
+	compare_funcs(10 * 1000 * 1000, 100 * 1000 * 1000, "sallocx",
 	    malloc_sallocx_free, "nallocx", malloc_nallocx_free);
 }
 TEST_END
 
 int
 main(void) {
-	return test_no_reentrancy(
-	    test_malloc_vs_mallocx,
-	    test_free_vs_dallocx,
-	    test_dallocx_vs_sdallocx,
-	    test_mus_vs_sallocx,
+	return test_no_reentrancy(test_malloc_vs_mallocx, test_free_vs_dallocx,
+	    test_dallocx_vs_sdallocx, test_mus_vs_sallocx,
 	    test_sallocx_vs_nallocx);
 }

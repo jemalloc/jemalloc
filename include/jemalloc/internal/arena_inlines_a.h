@@ -1,6 +1,9 @@
 #ifndef JEMALLOC_INTERNAL_ARENA_INLINES_A_H
 #define JEMALLOC_INTERNAL_ARENA_INLINES_A_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/arena_structs.h"
+
 static inline unsigned
 arena_ind_get(const arena_t *arena) {
 	return arena->ind;

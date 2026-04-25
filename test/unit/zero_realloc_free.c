@@ -1,14 +1,15 @@
 #include "test/jemalloc_test.h"
 
 static uint64_t
-deallocated() {
+deallocated(void) {
 	if (!config_stats) {
 		return 0;
 	}
 	uint64_t deallocated;
-	size_t sz = sizeof(deallocated);
-	expect_d_eq(mallctl("thread.deallocated", (void *)&deallocated, &sz,
-	    NULL, 0), 0, "Unexpected mallctl failure");
+	size_t   sz = sizeof(deallocated);
+	expect_d_eq(
+	    mallctl("thread.deallocated", (void *)&deallocated, &sz, NULL, 0),
+	    0, "Unexpected mallctl failure");
 	return deallocated;
 }
 
@@ -28,6 +29,5 @@ TEST_END
 
 int
 main(void) {
-	return test(
-	    test_realloc_free);
+	return test(test_realloc_free);
 }

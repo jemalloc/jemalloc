@@ -1,8 +1,11 @@
 #ifndef JEMALLOC_INTERNAL_GUARD_H
 #define JEMALLOC_INTERNAL_GUARD_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/ehooks.h"
 #include "jemalloc/internal/emap.h"
+#include "jemalloc/internal/jemalloc_internal_externs.h"
+#include "jemalloc/internal/tsd.h"
 
 #define SAN_PAGE_GUARD PAGE
 #define SAN_PAGE_GUARDS_SIZE (SAN_PAGE_GUARD * 2)
@@ -29,22 +32,22 @@ void san_unguard_pages(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
  * Unguard the extent, but don't modify emap boundaries. Must be called on an
  * extent that has been erased from emap and shouldn't be placed back.
  */
-void san_unguard_pages_pre_destroy(tsdn_t *tsdn, ehooks_t *ehooks,
-    edata_t *edata, emap_t *emap);
+void san_unguard_pages_pre_destroy(
+    tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap);
 void san_check_stashed_ptrs(void **ptrs, size_t nstashed, size_t usize);
 
 void tsd_san_init(tsd_t *tsd);
 void san_init(ssize_t lg_san_uaf_align);
 
 static inline void
-san_guard_pages_two_sided(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
-    emap_t *emap, bool remap) {
+san_guard_pages_two_sided(
+    tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap, bool remap) {
 	san_guard_pages(tsdn, ehooks, edata, emap, true, true, remap);
 }
 
 static inline void
-san_unguard_pages_two_sided(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
-    emap_t *emap) {
+san_unguard_pages_two_sided(
+    tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata, emap_t *emap) {
 	san_unguard_pages(tsdn, ehooks, edata, emap, true, true);
 }
 
@@ -80,14 +83,14 @@ san_guard_enabled(void) {
 }
 
 static inline bool
-san_large_extent_decide_guard(tsdn_t *tsdn, ehooks_t *ehooks, size_t size,
-    size_t alignment) {
-	if (opt_san_guard_large == 0 || ehooks_guard_will_fail(ehooks) ||
-	    tsdn_null(tsdn)) {
+san_large_extent_decide_guard(
+    tsdn_t *tsdn, ehooks_t *ehooks, size_t size, size_t alignment) {
+	if (opt_san_guard_large == 0 || ehooks_guard_will_fail(ehooks)
+	    || tsdn_null(tsdn)) {
 		return false;
 	}
 
-	tsd_t *tsd = tsdn_tsd(tsdn);
+	tsd_t   *tsd = tsdn_tsd(tsdn);
 	uint64_t n = tsd_san_extents_until_guard_large_get(tsd);
 	assert(n >= 1);
 	if (n > 1) {
@@ -98,10 +101,10 @@ san_large_extent_decide_guard(tsdn_t *tsdn, ehooks_t *ehooks, size_t size,
 		*tsd_san_extents_until_guard_largep_get(tsd) = n - 1;
 	}
 
-	if (n == 1 && (alignment <= PAGE) &&
-	    (san_two_side_guarded_sz(size) <= SC_LARGE_MAXCLASS)) {
-		*tsd_san_extents_until_guard_largep_get(tsd) =
-		    opt_san_guard_large;
+	if (n == 1 && (alignment <= PAGE)
+	    && (san_two_side_guarded_sz(size) <= SC_LARGE_MAXCLASS)) {
+		*tsd_san_extents_until_guard_largep_get(
+		    tsd) = opt_san_guard_large;
 		return true;
 	} else {
 		assert(tsd_san_extents_until_guard_large_get(tsd) >= 1);
@@ -111,17 +114,17 @@ san_large_extent_decide_guard(tsdn_t *tsdn, ehooks_t *ehooks, size_t size,
 
 static inline bool
 san_slab_extent_decide_guard(tsdn_t *tsdn, ehooks_t *ehooks) {
-	if (opt_san_guard_small == 0 || ehooks_guard_will_fail(ehooks) ||
-	    tsdn_null(tsdn)) {
+	if (opt_san_guard_small == 0 || ehooks_guard_will_fail(ehooks)
+	    || tsdn_null(tsdn)) {
 		return false;
 	}
 
-	tsd_t *tsd = tsdn_tsd(tsdn);
+	tsd_t   *tsd = tsdn_tsd(tsdn);
 	uint64_t n = tsd_san_extents_until_guard_small_get(tsd);
 	assert(n >= 1);
 	if (n == 1) {
-		*tsd_san_extents_until_guard_smallp_get(tsd) =
-		    opt_san_guard_small;
+		*tsd_san_extents_until_guard_smallp_get(
+		    tsd) = opt_san_guard_small;
 		return true;
 	} else {
 		*tsd_san_extents_until_guard_smallp_get(tsd) = n - 1;
@@ -131,13 +134,13 @@ san_slab_extent_decide_guard(tsdn_t *tsdn, ehooks_t *ehooks) {
 }
 
 static inline void
-san_junk_ptr_locations(void *ptr, size_t usize, void **first, void **mid,
-    void **last) {
+san_junk_ptr_locations(
+    void *ptr, size_t usize, void **first, void **mid, void **last) {
 	size_t ptr_sz = sizeof(void *);
 
 	*first = ptr;
 
-	*mid = (void *)((uintptr_t)ptr + ((usize >> 1) & ~(ptr_sz - 1)));
+	*mid = (void *)((byte_t *)ptr + ((usize >> 1) & ~(ptr_sz - 1)));
 	assert(*first != *mid || usize == ptr_sz);
 	assert((uintptr_t)*first <= (uintptr_t)*mid);
 
@@ -148,7 +151,7 @@ san_junk_ptr_locations(void *ptr, size_t usize, void **first, void **mid,
 	 * default the tcache only goes up to the 32K size class, and is usually
 	 * tuned lower instead of higher, which makes it less of a concern.
 	 */
-	*last = (void *)((uintptr_t)ptr + usize - sizeof(uaf_detect_junk));
+	*last = (void *)((byte_t *)ptr + usize - sizeof(uaf_detect_junk));
 	assert(*first != *last || usize == ptr_sz);
 	assert(*mid != *last || usize <= ptr_sz * 2);
 	assert((uintptr_t)*mid <= (uintptr_t)*last);
@@ -181,8 +184,8 @@ static inline bool
 san_uaf_detection_enabled(void) {
 	bool ret = config_uaf_detection && (opt_lg_san_uaf_align != -1);
 	if (config_uaf_detection && ret) {
-		assert(san_cache_bin_nonfast_mask == ((uintptr_t)1 <<
-		    opt_lg_san_uaf_align) - 1);
+		assert(san_cache_bin_nonfast_mask
+		    == ((uintptr_t)1 << opt_lg_san_uaf_align) - 1);
 	}
 
 	return ret;

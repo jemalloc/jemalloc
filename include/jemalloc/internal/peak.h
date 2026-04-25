@@ -1,6 +1,8 @@
 #ifndef JEMALLOC_INTERNAL_PEAK_H
 #define JEMALLOC_INTERNAL_PEAK_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+
 typedef struct peak_s peak_t;
 struct peak_s {
 	/* The highest recorded peak value, after adjustment (see below). */
@@ -12,7 +14,8 @@ struct peak_s {
 	uint64_t adjustment;
 };
 
-#define PEAK_INITIALIZER {0, 0}
+#define PEAK_INITIALIZER                                                       \
+	{ 0, 0 }
 
 static inline uint64_t
 peak_max(peak_t *peak) {

@@ -1,15 +1,16 @@
 #include "test/jemalloc_test.h"
 
 static size_t
-zero_reallocs() {
+zero_reallocs(void) {
 	if (!config_stats) {
 		return 0;
 	}
 	size_t count = 12345;
 	size_t sz = sizeof(count);
 
-	expect_d_eq(mallctl("stats.zero_reallocs", (void *)&count, &sz,
-	    NULL, 0), 0, "Unexpected mallctl failure");
+	expect_d_eq(
+	    mallctl("stats.zero_reallocs", (void *)&count, &sz, NULL, 0), 0,
+	    "Unexpected mallctl failure");
 	return count;
 }
 
@@ -35,6 +36,5 @@ main(void) {
 	 * We expect explicit counts; reentrant tests run multiple times, so
 	 * counts leak across runs.
 	 */
-	return test_no_reentrancy(
-	    test_zero_reallocs);
+	return test_no_reentrancy(test_zero_reallocs);
 }

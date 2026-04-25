@@ -11,9 +11,9 @@ by a few percent, or make favorable trade-offs.
 ## Notable runtime options for performance tuning
 
 Runtime options can be set via
-[malloc_conf](http://jemalloc.net/jemalloc.3.html#tuning).
+[malloc_conf](https://jemalloc.net/jemalloc.3.html#tuning).
 
-* [background_thread](http://jemalloc.net/jemalloc.3.html#background_thread)
+* [background_thread](https://jemalloc.net/jemalloc.3.html#background_thread)
 
     Enabling jemalloc background threads generally improves the tail latency for
     application threads, since unused memory purging is shifted to the dedicated
@@ -23,7 +23,7 @@ Runtime options can be set via
     Suggested: `background_thread:true` when jemalloc managed threads can be
     allowed.
 
-* [metadata_thp](http://jemalloc.net/jemalloc.3.html#opt.metadata_thp)
+* [metadata_thp](https://jemalloc.net/jemalloc.3.html#opt.metadata_thp)
 
     Allowing jemalloc to utilize transparent huge pages for its internal
     metadata usually reduces TLB misses significantly, especially for programs
@@ -35,8 +35,8 @@ Runtime options can be set via
     `metadata_thp:always`, which is expected to improve CPU utilization at a
     small memory cost.
 
-* [dirty_decay_ms](http://jemalloc.net/jemalloc.3.html#opt.dirty_decay_ms) and
-  [muzzy_decay_ms](http://jemalloc.net/jemalloc.3.html#opt.muzzy_decay_ms)
+* [dirty_decay_ms](https://jemalloc.net/jemalloc.3.html#opt.dirty_decay_ms) and
+  [muzzy_decay_ms](https://jemalloc.net/jemalloc.3.html#opt.muzzy_decay_ms)
 
     Decay time determines how fast jemalloc returns unused pages back to the
     operating system, and therefore provides a fairly straightforward trade-off
@@ -46,7 +46,7 @@ Runtime options can be set via
 
     Suggested: tune the values based on the desired trade-offs.
 
-* [narenas](http://jemalloc.net/jemalloc.3.html#opt.narenas)
+* [narenas](https://jemalloc.net/jemalloc.3.html#opt.narenas)
 
     By default jemalloc uses multiple arenas to reduce internal lock contention.
     However high arena count may also increase overall memory fragmentation,
@@ -57,7 +57,7 @@ Runtime options can be set via
     Suggested: if low parallelism is expected, try lower arena count while
     monitoring CPU and memory usage.
 
-* [percpu_arena](http://jemalloc.net/jemalloc.3.html#opt.percpu_arena)
+* [percpu_arena](https://jemalloc.net/jemalloc.3.html#opt.percpu_arena)
 
     Enable dynamic thread to arena association based on running CPU.  This has
     the potential to improve locality, e.g. when thread to CPU affinity is
@@ -100,28 +100,28 @@ aborts immediately on illegal options.
 In addition to the runtime options, there are a number of programmatic ways to
 improve application performance with jemalloc.
 
-* [Explicit arenas](http://jemalloc.net/jemalloc.3.html#arenas.create)
+* [Explicit arenas](https://jemalloc.net/jemalloc.3.html#arenas.create)
 
     Manually created arenas can help performance in various ways, e.g. by
     managing locality and contention for specific usages.  For example,
     applications can explicitly allocate frequently accessed objects from a
     dedicated arena with
-    [mallocx()](http://jemalloc.net/jemalloc.3.html#MALLOCX_ARENA) to improve
+    [mallocx()](https://jemalloc.net/jemalloc.3.html#MALLOCX_ARENA) to improve
     locality.  In addition, explicit arenas often benefit from individually
     tuned options, e.g. relaxed [decay
-    time](http://jemalloc.net/jemalloc.3.html#arena.i.dirty_decay_ms) if
+    time](https://jemalloc.net/jemalloc.3.html#arena.i.dirty_decay_ms) if
     frequent reuse is expected.
 
-* [Extent hooks](http://jemalloc.net/jemalloc.3.html#arena.i.extent_hooks)
+* [Extent hooks](https://jemalloc.net/jemalloc.3.html#arena.i.extent_hooks)
 
     Extent hooks allow customization for managing underlying memory.  One use
     case for performance purpose is to utilize huge pages -- for example,
-    [HHVM](https://github.com/facebook/hhvm/blob/master/hphp/util/alloc.cpp)
+    [HHVM](httpss://github.com/facebook/hhvm/blob/master/hphp/util/alloc.cpp)
     uses explicit arenas with customized extent hooks to manage 1GB huge pages
     for frequently accessed data, which reduces TLB misses significantly.
 
 * [Explicit thread-to-arena
-  binding](http://jemalloc.net/jemalloc.3.html#thread.arena)
+  binding](https://jemalloc.net/jemalloc.3.html#thread.arena)
 
     It is common for some threads in an application to have different memory
     access / allocation patterns.  Threads with heavy workloads often benefit

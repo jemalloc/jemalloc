@@ -1,7 +1,7 @@
 #ifndef JEMALLOC_PREAMBLE_H
 #define JEMALLOC_PREAMBLE_H
 
-#include "jemalloc_internal_defs.h"
+#include "jemalloc/internal/jemalloc_internal_defs.h"
 #include "jemalloc/internal/jemalloc_internal_decls.h"
 
 #if defined(JEMALLOC_UTRACE) || defined(JEMALLOC_UTRACE_LABEL)
@@ -57,6 +57,15 @@
 #  define JEMALLOC_MADV_FREE 8
 #endif
 
+/*
+ * Can be defined at compile time, in cases, when it is known
+ * madvise(..., MADV_COLLAPSE) feature is supported, but MADV_COLLAPSE
+ * constant is not defined.
+ */
+#ifdef JEMALLOC_DEFINE_MADVISE_COLLAPSE
+#  define JEMALLOC_MADV_COLLAPSE 25
+#endif
+
 static const bool config_debug =
 #ifdef JEMALLOC_DEBUG
     true
@@ -73,6 +82,13 @@ static const bool have_dss =
     ;
 static const bool have_madvise_huge =
 #ifdef JEMALLOC_HAVE_MADVISE_HUGE
+    true
+#else
+    false
+#endif
+    ;
+static const bool have_process_madvise =
+#ifdef JEMALLOC_HAVE_PROCESS_MADVISE
     true
 #else
     false
@@ -109,6 +125,13 @@ static const bool config_prof_libgcc =
     ;
 static const bool config_prof_libunwind =
 #ifdef JEMALLOC_PROF_LIBUNWIND
+    true
+#else
+    false
+#endif
+    ;
+static const bool config_prof_frameptr =
+#ifdef JEMALLOC_PROF_FRAME_POINTER
     true
 #else
     false
@@ -215,7 +238,7 @@ static const bool config_enable_cxx =
 #endif
 ;
 
-#if defined(_WIN32) || defined(JEMALLOC_HAVE_SCHED_GETCPU)
+#if defined(_WIN32) || defined(__APPLE__) || defined(JEMALLOC_HAVE_SCHED_GETCPU)
 /* Currently percpu_arena depends on sched_getcpu. */
 #define JEMALLOC_PERCPU_ARENA
 #endif

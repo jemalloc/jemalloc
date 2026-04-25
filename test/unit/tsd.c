@@ -5,7 +5,7 @@
  * be asserting that we're on one.
  */
 static bool originally_fast;
-static int data_cleanup_count;
+static int  data_cleanup_count;
 
 void
 data_cleanup(int *data) {
@@ -45,7 +45,7 @@ data_cleanup(int *data) {
 
 static void *
 thd_start(void *arg) {
-	int d = (int)(uintptr_t)arg;
+	int   d = (int)(uintptr_t)arg;
 	void *p;
 
 	/*
@@ -105,11 +105,10 @@ thd_start_reincarnated(void *arg) {
 	expect_ptr_not_null(p, "Unexpected malloc() failure");
 
 	/* Manually trigger reincarnation. */
-	expect_ptr_not_null(tsd_arena_get(tsd),
-	    "Should have tsd arena set.");
+	expect_ptr_not_null(tsd_arena_get(tsd), "Should have tsd arena set.");
 	tsd_cleanup((void *)tsd);
-	expect_ptr_null(*tsd_arenap_get_unsafe(tsd),
-	    "TSD arena should have been cleared.");
+	expect_ptr_null(
+	    *tsd_arenap_get_unsafe(tsd), "TSD arena should have been cleared.");
 	expect_u_eq(tsd_state_get(tsd), tsd_state_purgatory,
 	    "TSD state should be purgatory\n");
 
@@ -136,9 +135,64 @@ TEST_BEGIN(test_tsd_reincarnation) {
 }
 TEST_END
 
+static void *
+thd_start_dalloc_only(void *arg) {
+	void **ptrs = (void **)arg;
+
+	tsd_t *tsd = tsd_fetch_min();
+	if (tsd_state_get(tsd) != tsd_state_minimal_initialized) {
+		/* Allocation happened implicitly. */
+		expect_u_eq(tsd_state_get(tsd), tsd_state_nominal,
+		    "TSD state should be nominal");
+		return NULL;
+	}
+
+	void *ptr;
+	for (size_t i = 0; (ptr = ptrs[i]) != NULL; i++) {
+		/* Offset by 1 because of the manual tsd_fetch_min above. */
+		if (i + 1 < TSD_MIN_INIT_STATE_MAX_FETCHED) {
+			expect_u_eq(tsd_state_get(tsd),
+			    tsd_state_minimal_initialized,
+			    "TSD should be minimal initialized");
+		} else {
+			/* State may be nominal or nominal_slow. */
+			expect_true(tsd_nominal(tsd), "TSD should be nominal");
+		}
+		free(ptr);
+	}
+
+	return NULL;
+}
+
+static void
+test_sub_thread_n_dalloc(size_t nptrs) {
+	void **ptrs = (void **)malloc(sizeof(void *) * (nptrs + 1));
+	for (size_t i = 0; i < nptrs; i++) {
+		ptrs[i] = malloc(8);
+	}
+	ptrs[nptrs] = NULL;
+
+	thd_t thd;
+	thd_create(&thd, thd_start_dalloc_only, (void *)ptrs);
+	thd_join(thd, NULL);
+	free(ptrs);
+}
+
+TEST_BEGIN(test_tsd_sub_thread_dalloc_only) {
+	test_sub_thread_n_dalloc(1);
+	test_sub_thread_n_dalloc(16);
+	test_sub_thread_n_dalloc(TSD_MIN_INIT_STATE_MAX_FETCHED - 2);
+	test_sub_thread_n_dalloc(TSD_MIN_INIT_STATE_MAX_FETCHED - 1);
+	test_sub_thread_n_dalloc(TSD_MIN_INIT_STATE_MAX_FETCHED);
+	test_sub_thread_n_dalloc(TSD_MIN_INIT_STATE_MAX_FETCHED + 1);
+	test_sub_thread_n_dalloc(TSD_MIN_INIT_STATE_MAX_FETCHED + 2);
+	test_sub_thread_n_dalloc(TSD_MIN_INIT_STATE_MAX_FETCHED * 2);
+}
+TEST_END
+
 typedef struct {
 	atomic_u32_t phase;
-	atomic_b_t error;
+	atomic_b_t   error;
 } global_slow_data_t;
 
 static void *
@@ -152,8 +206,8 @@ thd_start_global_slow(void *arg) {
 	 * No global slowness has happened yet; there was an error if we were
 	 * originally fast but aren't now.
 	 */
-	atomic_store_b(&data->error, originally_fast && !tsd_fast(tsd),
-	    ATOMIC_SEQ_CST);
+	atomic_store_b(
+	    &data->error, originally_fast && !tsd_fast(tsd), ATOMIC_SEQ_CST);
 	atomic_store_u32(&data->phase, 1, ATOMIC_SEQ_CST);
 
 	/* PHASE 2 */
@@ -186,8 +240,8 @@ thd_start_global_slow(void *arg) {
 	 * Both decrements happened; we should be fast again (if we ever
 	 * were)
 	 */
-	atomic_store_b(&data->error, originally_fast && !tsd_fast(tsd),
-	    ATOMIC_SEQ_CST);
+	atomic_store_b(
+	    &data->error, originally_fast && !tsd_fast(tsd), ATOMIC_SEQ_CST);
 	atomic_store_u32(&data->phase, 9, ATOMIC_SEQ_CST);
 
 	return NULL;
@@ -266,9 +320,7 @@ main(void) {
 		return test_status_fail;
 	}
 
-	return test_no_reentrancy(
-	    test_tsd_main_thread,
-	    test_tsd_sub_thread,
-	    test_tsd_reincarnation,
+	return test_no_reentrancy(test_tsd_main_thread, test_tsd_sub_thread,
+	    test_tsd_sub_thread_dalloc_only, test_tsd_reincarnation,
 	    test_tsd_global_slow);
 }

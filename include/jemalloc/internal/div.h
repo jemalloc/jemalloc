@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_DIV_H
 #define JEMALLOC_INTERNAL_DIV_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/assert.h"
 
 /*

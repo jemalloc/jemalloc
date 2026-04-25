@@ -1,6 +1,9 @@
 #ifndef JEMALLOC_INTERNAL_FXP_H
 #define JEMALLOC_INTERNAL_FXP_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/assert.h"
+
 /*
  * A simple fixed-point math implementation, supporting only unsigned values
  * (with overflow being an error).
@@ -86,7 +89,7 @@ fxp_round_down(fxp_t a) {
 
 static inline uint32_t
 fxp_round_nearest(fxp_t a) {
-	uint32_t fractional_part = (a  & ((1U << 16) - 1));
+	uint32_t fractional_part = (a & ((1U << 16) - 1));
 	uint32_t increment = (uint32_t)(fractional_part >= (1U << 15));
 	return (a >> 16) + increment;
 }

@@ -1,6 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_ARENA_STRUCTS_H
 #define JEMALLOC_INTERNAL_ARENA_STRUCTS_H
 
+#include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/arena_stats.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bin.h"
@@ -31,20 +32,20 @@ struct arena_s {
 	 *
 	 * Synchronization: atomic.
 	 */
-	atomic_u_t		nthreads[2];
+	atomic_u_t nthreads[2];
 
 	/* Next bin shard for binding new threads. Synchronization: atomic. */
-	atomic_u_t		binshard_next;
+	atomic_u_t binshard_next;
 
 	/*
 	 * When percpu_arena is enabled, to amortize the cost of reading /
 	 * updating the current CPU id, track the most recent thread accessing
 	 * this arena, and only read CPU if there is a mismatch.
 	 */
-	tsdn_t		*last_thd;
+	tsdn_t *last_thd;
 
 	/* Synchronization: internal. */
-	arena_stats_t		stats;
+	arena_stats_t stats;
 
 	/*
 	 * Lists of tcaches and cache_bin_array_descriptors for extant threads
@@ -53,28 +54,28 @@ struct arena_s {
 	 *
 	 * Synchronization: tcache_ql_mtx.
 	 */
-	ql_head(tcache_slow_t)			tcache_ql;
-	ql_head(cache_bin_array_descriptor_t)	cache_bin_array_descriptor_ql;
-	malloc_mutex_t				tcache_ql_mtx;
+	ql_head(tcache_slow_t) tcache_ql;
+	ql_head(cache_bin_array_descriptor_t) cache_bin_array_descriptor_ql;
+	malloc_mutex_t tcache_ql_mtx;
 
 	/*
 	 * Represents a dss_prec_t, but atomically.
 	 *
 	 * Synchronization: atomic.
 	 */
-	atomic_u_t		dss_prec;
+	atomic_u_t dss_prec;
 
 	/*
 	 * Extant large allocations.
 	 *
 	 * Synchronization: large_mtx.
 	 */
-	edata_list_active_t	large;
+	edata_list_active_t large;
 	/* Synchronizes all large allocation/update/deallocation. */
-	malloc_mutex_t		large_mtx;
+	malloc_mutex_t large_mtx;
 
 	/* The page-level allocator shard this arena uses. */
-	pa_shard_t		pa_shard;
+	pa_shard_t pa_shard;
 
 	/*
 	 * A cached copy of base->ind.  This can get accessed on hot paths;
@@ -87,15 +88,24 @@ struct arena_s {
 	 *
 	 * Synchronization: internal.
 	 */
-	base_t			*base;
+	base_t *base;
 	/* Used to determine uptime.  Read-only after initialization. */
-	nstime_t		create_time;
+	nstime_t create_time;
+
+	/* The name of the arena. */
+	char name[ARENA_NAME_LEN];
 
 	/*
 	 * The arena is allocated alongside its bins; really this is a
 	 * dynamically sized array determined by the binshard settings.
+	 * Enforcing cacheline-alignment to minimize the number of cachelines
+	 * touched on the hot paths.
 	 */
-	bin_t			bins[0];
+	JEMALLOC_WARN_ON_USAGE(
+	    "Do not use this field directly. "
+	    "Use `arena_get_bin` instead.")
+	JEMALLOC_ALIGNED(CACHELINE)
+	bin_t all_bins[0];
 };
 
 #endif /* JEMALLOC_INTERNAL_ARENA_STRUCTS_H */
