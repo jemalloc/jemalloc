@@ -105,6 +105,84 @@ do_test_fork_multithreaded(void) {
 }
 #endif
 
+TEST_BEGIN(test_fork_child_usability) {
+#ifndef _WIN32
+	void    *p;
+	pid_t    pid;
+	unsigned arena_ind;
+	size_t   sz = sizeof(unsigned);
+
+	expect_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz, NULL, 0),
+	    0, "Unexpected mallctl() failure");
+
+	p = mallocx(1, MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE);
+	expect_ptr_not_null(p, "Unexpected mallocx() failure");
+
+	pid = fork();
+
+	if (pid == -1) {
+		test_fail("Unexpected fork() failure");
+	} else if (pid == 0) {
+		/* Child: exercise non-trivial allocator operations. */
+
+		/* Free pre-fork pointer (arena mutexes must be unlocked). */
+		dallocx(p, MALLOCX_TCACHE_NONE);
+
+		/* Basic malloc/free. */
+		void *q = malloc(64);
+		if (q == NULL) {
+			_exit(1);
+		}
+		free(q);
+
+		/* Create a new arena (ctl_mtx + arenas_lock re-init). */
+		unsigned child_arena;
+		size_t   csz = sizeof(unsigned);
+		if (mallctl("arenas.create", (void *)&child_arena, &csz,
+		        NULL, 0) != 0) {
+			_exit(2);
+		}
+
+		/* Allocate from the new arena. */
+		q = mallocx(128,
+		    MALLOCX_ARENA(child_arena) | MALLOCX_TCACHE_NONE);
+		if (q == NULL) {
+			_exit(3);
+		}
+		dallocx(q, MALLOCX_TCACHE_NONE);
+
+		/* Read narenas (ctl read path). */
+		unsigned narenas;
+		csz = sizeof(unsigned);
+		if (mallctl("arenas.narenas", (void *)&narenas, &csz,
+		        NULL, 0) != 0) {
+			_exit(4);
+		}
+
+		/* Destroy the child-created arena. */
+		size_t mib[3];
+		size_t miblen = ARRAY_SIZE(mib);
+		if (mallctlnametomib("arena.0.destroy", mib, &miblen)
+		    != 0) {
+			_exit(5);
+		}
+		mib[1] = (size_t)child_arena;
+		if (mallctlbymib(mib, miblen, NULL, NULL, NULL, 0) != 0) {
+			_exit(6);
+		}
+
+		_exit(0);
+	} else {
+		/* Parent. */
+		dallocx(p, MALLOCX_TCACHE_NONE);
+		wait_for_child_exit(pid);
+	}
+#else
+	test_skip("fork(2) is irrelevant to Windows");
+#endif
+}
+TEST_END
+
 TEST_BEGIN(test_fork_multithreaded) {
 #ifndef _WIN32
 	/*
@@ -137,5 +215,6 @@ TEST_END
 
 int
 main(void) {
-	return test_no_reentrancy(test_fork, test_fork_multithreaded);
+	return test_no_reentrancy(test_fork, test_fork_child_usability,
+	    test_fork_multithreaded);
 }

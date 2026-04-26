@@ -206,6 +206,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/a0.c \
 	$(srcroot)test/unit/arena_decay.c \
 	$(srcroot)test/unit/arena_reset.c \
+	$(srcroot)test/unit/arenas_management.c \
 	$(srcroot)test/unit/atomic.c \
 	$(srcroot)test/unit/background_thread.c \
 	$(srcroot)test/unit/background_thread_enable.c \
@@ -247,6 +248,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/hpdata.c \
 	$(srcroot)test/unit/huge.c \
 	$(srcroot)test/unit/inspect.c \
+	$(srcroot)test/unit/jemalloc_init.c \
 	$(srcroot)test/unit/junk.c \
 	$(srcroot)test/unit/junk_alloc.c \
 	$(srcroot)test/unit/junk_free.c \
