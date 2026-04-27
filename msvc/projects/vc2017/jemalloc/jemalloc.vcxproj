@@ -36,6 +36,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\..\src\arena.c" />
+    <ClCompile Include="..\..\..\..\src\arenas_management.c" />
     <ClCompile Include="..\..\..\..\src\background_thread.c" />
     <ClCompile Include="..\..\..\..\src\base.c" />
     <ClCompile Include="..\..\..\..\src\bin.c" />

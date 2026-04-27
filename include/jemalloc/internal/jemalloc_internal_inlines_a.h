@@ -4,6 +4,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/arena_externs.h"
 #include "jemalloc/internal/arena_types.h"
+#include "jemalloc/internal/arenas_management.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bit_util.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"

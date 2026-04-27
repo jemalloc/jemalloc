@@ -3,6 +3,7 @@
 
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/arena_inlines_a.h"
+#include "jemalloc/internal/arenas_management.h"
 #include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_a.h"
 
