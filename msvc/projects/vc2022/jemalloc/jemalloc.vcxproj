@@ -69,6 +69,7 @@
     <ClCompile Include="..\..\..\..\src\hpdata.c" />
     <ClCompile Include="..\..\..\..\src\inspect.c" />
     <ClCompile Include="..\..\..\..\src\jemalloc.c" />
+    <ClCompile Include="..\..\..\..\src\jemalloc_init.c" />
     <ClCompile Include="..\..\..\..\src\large.c" />
     <ClCompile Include="..\..\..\..\src\log.c" />
     <ClCompile Include="..\..\..\..\src\malloc_io.c" />
