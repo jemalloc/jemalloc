@@ -374,7 +374,30 @@ fi
 if test "x$enable_cxx" = "x1"; then
   AC_DEFINE([JEMALLOC_ENABLE_CXX], [ ], [ ])
 fi
+if test "x$enable_cxx" = "x1"; then
+  dnl Now check whether the C++ compiler has exceptions enabled.
+  AC_LANG_PUSH([C++])
+  SAVED_CXXFLAGS="${CXXFLAGS}"
+  CXXFLAGS="${CXXFLAGS} ${EXTRA_CXXFLAGS}"
+  JE_COMPILABLE([C++ exception support], [
+#include <new>
+], [
+	try {
+		throw std::bad_alloc();
+	} catch (const std::bad_alloc &) {
+	}
+], [je_cv_cxx_exceptions])
+  CXXFLAGS="${SAVED_CXXFLAGS}"
+  AC_LANG_POP([C++])
+  if test "x${je_cv_cxx_exceptions}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_HAVE_CXX_EXCEPTIONS], [ ], [ ])
+    enable_cxx_exceptions="1"
+  else
+    enable_cxx_exceptions="0"
+  fi
+fi
 AC_SUBST([enable_cxx])
+AC_SUBST([enable_cxx_exceptions])
 AC_SUBST([CONFIGURE_CXXFLAGS])
 AC_SUBST([SPECIFIED_CXXFLAGS])
 AC_SUBST([EXTRA_CXXFLAGS])

@@ -1,4 +1,4 @@
-#include <mutex>
+#include <exception>
 #include <new>
 // NOLINTBEGIN(misc-use-anonymous-namespace)
 
@@ -78,29 +78,30 @@ handleOOM(std::size_t size, bool nothrow) {
 	void *ptr = nullptr;
 
 	while (ptr == nullptr) {
-		std::new_handler handler;
-		// GCC-4.8 and clang 4.0 do not have std::get_new_handler.
-		{
-			static std::mutex           mtx;
-			std::lock_guard<std::mutex> lock(mtx);
-
-			handler = std::set_new_handler(nullptr);
-			std::set_new_handler(handler);
-		}
+		std::new_handler handler = std::get_new_handler();
 		if (handler == nullptr)
 			break;
 
+#ifdef JEMALLOC_HAVE_CXX_EXCEPTIONS
 		try {
 			handler();
 		} catch (const std::bad_alloc &) {
 			break;
 		}
+#else
+		handler();
+#endif
 
 		ptr = je_malloc(size);
 	}
 
-	if (ptr == nullptr && !nothrow)
-		std::__throw_bad_alloc();
+	if (ptr == nullptr && !nothrow) {
+#ifdef JEMALLOC_HAVE_CXX_EXCEPTIONS
+		throw std::bad_alloc();
+#else
+		std::terminate();
+#endif
+	}
 	return ptr;
 }
 
