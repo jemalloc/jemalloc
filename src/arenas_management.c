@@ -2,6 +2,7 @@
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/arenas_management.h"
+#include "jemalloc/internal/jemalloc_init.h"
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/sz.h"
@@ -69,8 +70,7 @@ manual_arena_base_set(unsigned base) {
 
 void *
 a0ialloc(size_t size, bool zero, bool is_internal) {
-	if (unlikely(malloc_init_state == malloc_init_uninitialized)
-	    && malloc_init_hard_a0()) {
+	if (unlikely(malloc_init_a0())) {
 		return NULL;
 	}
 

@@ -6,6 +6,7 @@
 #include "jemalloc/internal/arena_inlines_b.h"
 #include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/hook.h"
+#include "jemalloc/internal/jemalloc_init.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/log.h"
 #include "jemalloc/internal/sz.h"
@@ -278,11 +279,6 @@ fastpath_success_finish(
 	if (config_stats) {
 		bin->tstats.nrequests++;
 	}
-}
-
-JEMALLOC_ALWAYS_INLINE bool
-malloc_initialized(void) {
-	return (malloc_init_state == malloc_init_initialized);
 }
 
 /*

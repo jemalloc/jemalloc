@@ -37,7 +37,6 @@ extern bool                  opt_zero;
 extern unsigned              opt_narenas;
 extern fxp_t                 opt_narenas_ratio;
 extern zero_realloc_action_t opt_zero_realloc_action;
-extern malloc_init_t         malloc_init_state;
 extern const char *const     zero_realloc_mode_names[];
 extern atomic_zu_t           zero_realloc_count;
 extern bool                  opt_cache_oblivious;
@@ -53,9 +52,6 @@ extern uintptr_t san_cache_bin_nonfast_mask;
 
 /* Number of CPUs. */
 extern unsigned ncpus;
-
-/* Will be refactored in subsequent commit */
-bool malloc_init_hard_a0(void);
 
 void    *bootstrap_malloc(size_t size);
 void    *bootstrap_calloc(size_t num, size_t size);
