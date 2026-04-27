@@ -33,6 +33,8 @@ extern size_t oversize_threshold;
 extern bool      opt_huge_arena_pac_thp;
 extern pac_thp_t huge_arena_pac_thp;
 
+extern unsigned huge_arena_ind;
+
 /*
  * arena_bin_offsets[binind] is the offset of the first bin shard for size class
  * binind.

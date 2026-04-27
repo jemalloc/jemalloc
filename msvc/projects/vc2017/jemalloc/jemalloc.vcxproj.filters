@@ -205,5 +205,8 @@
     <ClCompile Include="..\..\..\..\src\san_bump.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\src\arenas_management.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

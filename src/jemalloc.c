@@ -1,6 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arenas_management.h"
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/buf_writer.h"
@@ -176,31 +177,10 @@ unsigned opt_debug_double_free_max_scan =
 
 size_t opt_calloc_madvise_threshold = CALLOC_MADVISE_THRESHOLD_DEFAULT;
 
-/* Protects arenas initialization. */
-static malloc_mutex_t arenas_lock;
-
 /* The global hpa, and whether it's on. */
 bool             opt_hpa = false;
 hpa_shard_opts_t opt_hpa_opts = HPA_SHARD_OPTS_DEFAULT;
 sec_opts_t       opt_hpa_sec_opts = SEC_OPTS_DEFAULT;
-
-/*
- * Arenas that are used to service external requests.  Not all elements of the
- * arenas array are necessarily used; arenas are created lazily as needed.
- *
- * arenas[0..narenas_auto) are used for automatic multiplexing of threads and
- * arenas.  arenas[narenas_auto..narenas_total) are only used if the application
- * takes some action to create them and allocate from them.
- *
- * Points to an arena_t.
- */
-JEMALLOC_ALIGNED(CACHELINE)
-atomic_p_t        arenas[MALLOCX_ARENA_LIMIT];
-static atomic_u_t narenas_total; /* Use narenas_total_*(). */
-/* Below three are read-only after initialization. */
-static arena_t *a0; /* arenas[0]. */
-unsigned        narenas_auto;
-unsigned        manual_arena_base;
 
 malloc_init_t malloc_init_state = malloc_init_uninitialized;
 
@@ -300,7 +280,6 @@ typedef struct {
  * definition.
  */
 
-static bool malloc_init_hard_a0(void);
 static bool malloc_init_hard(void);
 
 /******************************************************************************/
@@ -322,36 +301,6 @@ malloc_init(void) {
 		return true;
 	}
 	return false;
-}
-
-/*
- * The a0*() functions are used instead of i{d,}alloc() in situations that
- * cannot tolerate TLS variable access.
- */
-
-static void *
-a0ialloc(size_t size, bool zero, bool is_internal) {
-	if (unlikely(malloc_init_a0())) {
-		return NULL;
-	}
-
-	return iallocztm(TSDN_NULL, size, sz_size2index(size), zero, NULL,
-	    is_internal, arena_get(TSDN_NULL, 0, true), true);
-}
-
-static void
-a0idalloc(void *ptr, bool is_internal) {
-	idalloctm(TSDN_NULL, ptr, NULL, NULL, is_internal, true);
-}
-
-void *
-a0malloc(size_t size) {
-	return a0ialloc(size, false, true);
-}
-
-void
-a0dalloc(void *ptr) {
-	a0idalloc(ptr, true);
 }
 
 /*
@@ -389,281 +338,6 @@ bootstrap_free(void *ptr) {
 	}
 
 	a0idalloc(ptr, false);
-}
-
-void
-arena_set(unsigned ind, arena_t *arena) {
-	atomic_store_p(&arenas[ind], arena, ATOMIC_RELEASE);
-}
-
-static void
-narenas_total_set(unsigned narenas) {
-	atomic_store_u(&narenas_total, narenas, ATOMIC_RELEASE);
-}
-
-static void
-narenas_total_inc(void) {
-	atomic_fetch_add_u(&narenas_total, 1, ATOMIC_RELEASE);
-}
-
-unsigned
-narenas_total_get(void) {
-	return atomic_load_u(&narenas_total, ATOMIC_ACQUIRE);
-}
-
-/* Create a new arena and insert it into the arenas array at index ind. */
-static arena_t *
-arena_init_locked(tsdn_t *tsdn, unsigned ind, const arena_config_t *config) {
-	arena_t *arena;
-
-	assert(ind <= narenas_total_get());
-	if (ind >= MALLOCX_ARENA_LIMIT) {
-		return NULL;
-	}
-	if (ind == narenas_total_get()) {
-		narenas_total_inc();
-	}
-
-	/*
-	 * Another thread may have already initialized arenas[ind] if it's an
-	 * auto arena.
-	 */
-	arena = arena_get(tsdn, ind, false);
-	if (arena != NULL) {
-		assert(arena_is_auto(arena));
-		return arena;
-	}
-
-	/* Actually initialize the arena. */
-	arena = arena_new(tsdn, ind, config);
-
-	return arena;
-}
-
-static void
-arena_new_create_background_thread(tsdn_t *tsdn, unsigned ind) {
-	if (ind == 0) {
-		return;
-	}
-
-	if (have_background_thread) {
-		if (background_thread_create(tsdn_tsd(tsdn), ind)) {
-			malloc_printf(
-			    "<jemalloc>: error in background thread "
-			    "creation for arena %u. Abort.\n",
-			    ind);
-			abort();
-		}
-	}
-}
-
-arena_t *
-arena_init(tsdn_t *tsdn, unsigned ind, const arena_config_t *config) {
-	arena_t *arena;
-
-	malloc_mutex_lock(tsdn, &arenas_lock);
-	arena = arena_init_locked(tsdn, ind, config);
-	malloc_mutex_unlock(tsdn, &arenas_lock);
-
-	arena_new_create_background_thread(tsdn, ind);
-
-	return arena;
-}
-
-static void
-arena_bind(tsd_t *tsd, unsigned ind, bool internal) {
-	arena_t *arena = arena_get(tsd_tsdn(tsd), ind, false);
-	arena_nthreads_inc(arena, internal);
-
-	if (internal) {
-		tsd_iarena_set(tsd, arena);
-	} else {
-		tsd_arena_set(tsd, arena);
-		/*
-		 * While shard acts as a random seed, the cast below should
-		 * not make much difference.
-		 */
-		uint8_t shard = (uint8_t)atomic_fetch_add_u(
-		    &arena->binshard_next, 1, ATOMIC_RELAXED);
-		tsd_binshards_t *bins = tsd_binshardsp_get(tsd);
-		for (unsigned i = 0; i < SC_NBINS; i++) {
-			assert(bin_infos[i].n_shards > 0
-			    && bin_infos[i].n_shards <= BIN_SHARDS_MAX);
-			bins->binshard[i] = shard % bin_infos[i].n_shards;
-		}
-	}
-}
-
-void
-arena_migrate(tsd_t *tsd, arena_t *oldarena, arena_t *newarena) {
-	assert(oldarena != NULL);
-	assert(newarena != NULL);
-
-	arena_nthreads_dec(oldarena, false);
-	arena_nthreads_inc(newarena, false);
-	tsd_arena_set(tsd, newarena);
-
-	if (arena_nthreads_get(oldarena, false) == 0
-	    && !background_thread_enabled()) {
-		/*
-		 * Purge if the old arena has no associated threads anymore and
-		 * no background threads.
-		 */
-		arena_decay(tsd_tsdn(tsd), oldarena,
-		    /* is_background_thread */ false, /* all */ true);
-	}
-}
-
-static void
-arena_unbind(tsd_t *tsd, unsigned ind, bool internal) {
-	arena_t *arena;
-
-	arena = arena_get(tsd_tsdn(tsd), ind, false);
-	arena_nthreads_dec(arena, internal);
-
-	if (internal) {
-		tsd_iarena_set(tsd, NULL);
-	} else {
-		tsd_arena_set(tsd, NULL);
-	}
-}
-
-/* Slow path, called only by arena_choose(). */
-arena_t *
-arena_choose_hard(tsd_t *tsd, bool internal) {
-	arena_t *ret JEMALLOC_CC_SILENCE_INIT(NULL);
-
-	if (have_percpu_arena && PERCPU_ARENA_ENABLED(opt_percpu_arena)) {
-		unsigned choose = percpu_arena_choose();
-		ret = arena_get(tsd_tsdn(tsd), choose, true);
-		assert(ret != NULL);
-		arena_bind(tsd, arena_ind_get(ret), false);
-		arena_bind(tsd, arena_ind_get(ret), true);
-
-		return ret;
-	}
-
-	if (narenas_auto > 1) {
-		unsigned i, j, choose[2], first_null;
-		bool     is_new_arena[2];
-
-		/*
-		 * Determine binding for both non-internal and internal
-		 * allocation.
-		 *
-		 *   choose[0]: For application allocation.
-		 *   choose[1]: For internal metadata allocation.
-		 */
-
-		for (j = 0; j < 2; j++) {
-			choose[j] = 0;
-			is_new_arena[j] = false;
-		}
-
-		first_null = narenas_auto;
-		malloc_mutex_lock(tsd_tsdn(tsd), &arenas_lock);
-		assert(arena_get(tsd_tsdn(tsd), 0, false) != NULL);
-		for (i = 1; i < narenas_auto; i++) {
-			if (arena_get(tsd_tsdn(tsd), i, false) != NULL) {
-				/*
-				 * Choose the first arena that has the lowest
-				 * number of threads assigned to it.
-				 */
-				for (j = 0; j < 2; j++) {
-					if (arena_nthreads_get(
-					        arena_get(
-					            tsd_tsdn(tsd), i, false),
-					        !!j)
-					    < arena_nthreads_get(
-					        arena_get(tsd_tsdn(tsd),
-					            choose[j], false),
-					        !!j)) {
-						choose[j] = i;
-					}
-				}
-			} else if (first_null == narenas_auto) {
-				/*
-				 * Record the index of the first uninitialized
-				 * arena, in case all extant arenas are in use.
-				 *
-				 * NB: It is possible for there to be
-				 * discontinuities in terms of initialized
-				 * versus uninitialized arenas, due to the
-				 * "thread.arena" mallctl.
-				 */
-				first_null = i;
-			}
-		}
-
-		for (j = 0; j < 2; j++) {
-			if (arena_nthreads_get(
-			        arena_get(tsd_tsdn(tsd), choose[j], false), !!j)
-			        == 0
-			    || first_null == narenas_auto) {
-				/*
-				 * Use an unloaded arena, or the least loaded
-				 * arena if all arenas are already initialized.
-				 */
-				if (!!j == internal) {
-					ret = arena_get(
-					    tsd_tsdn(tsd), choose[j], false);
-				}
-			} else {
-				arena_t *arena;
-
-				/* Initialize a new arena. */
-				choose[j] = first_null;
-				arena = arena_init_locked(tsd_tsdn(tsd),
-				    choose[j], &arena_config_default);
-				if (arena == NULL) {
-					malloc_mutex_unlock(
-					    tsd_tsdn(tsd), &arenas_lock);
-					return NULL;
-				}
-				is_new_arena[j] = true;
-				if (!!j == internal) {
-					ret = arena;
-				}
-			}
-			arena_bind(tsd, choose[j], !!j);
-		}
-		malloc_mutex_unlock(tsd_tsdn(tsd), &arenas_lock);
-
-		for (j = 0; j < 2; j++) {
-			if (is_new_arena[j]) {
-				assert(choose[j] > 0);
-				arena_new_create_background_thread(
-				    tsd_tsdn(tsd), choose[j]);
-			}
-		}
-
-	} else {
-		ret = arena_get(tsd_tsdn(tsd), 0, false);
-		arena_bind(tsd, 0, false);
-		arena_bind(tsd, 0, true);
-	}
-
-	return ret;
-}
-
-void
-iarena_cleanup(tsd_t *tsd) {
-	arena_t *iarena;
-
-	iarena = tsd_iarena_get(tsd);
-	if (iarena != NULL) {
-		arena_unbind(tsd, arena_ind_get(iarena), true);
-	}
-}
-
-void
-arena_cleanup(tsd_t *tsd) {
-	arena_t *arena;
-
-	arena = tsd_arena_get(tsd);
-	if (arena != NULL) {
-		arena_unbind(tsd, arena_ind_get(arena), false);
-	}
 }
 
 static void
@@ -933,8 +607,7 @@ malloc_init_hard_a0_locked(void) {
 	if (tcache_boot(TSDN_NULL, b0get())) {
 		return true;
 	}
-	if (malloc_mutex_init(&arenas_lock, "arenas", WITNESS_RANK_ARENAS,
-	        malloc_mutex_rank_exclusive)) {
+	if (arenas_management_boot()) {
 		return true;
 	}
 	hook_boot();
@@ -943,8 +616,8 @@ malloc_init_hard_a0_locked(void) {
 	 * Create enough scaffolding to allow recursive allocation in
 	 * malloc_ncpus().
 	 */
-	narenas_auto = 1;
-	manual_arena_base = narenas_auto + 1;
+	narenas_auto_set(1);
+	manual_arena_base_set(narenas_auto + 1);
 	memset(arenas, 0, sizeof(arena_t *) * narenas_auto);
 	/*
 	 * Initialize one arena here.  The rest are lazily created in
@@ -953,7 +626,6 @@ malloc_init_hard_a0_locked(void) {
 	if (arena_init(TSDN_NULL, 0, &arena_config_default) == NULL) {
 		return true;
 	}
-	a0 = arena_get(TSDN_NULL, 0, false);
 
 	if (opt_hpa && !hpa_supported()) {
 		malloc_printf(
@@ -981,7 +653,7 @@ malloc_init_hard_a0_locked(void) {
 	return false;
 }
 
-static bool
+bool
 malloc_init_hard_a0(void) {
 	bool ret;
 
@@ -1141,20 +813,20 @@ malloc_init_narenas(tsdn_t *tsdn) {
 	}
 	assert(opt_narenas > 0);
 
-	narenas_auto = opt_narenas;
+	narenas_auto_set(opt_narenas);
 	/*
 	 * Limit the number of arenas to the indexing range of MALLOCX_ARENA().
 	 */
 	if (narenas_auto >= MALLOCX_ARENA_LIMIT) {
-		narenas_auto = MALLOCX_ARENA_LIMIT - 1;
+		narenas_auto_set(MALLOCX_ARENA_LIMIT - 1);
 		malloc_printf("<jemalloc>: Reducing narenas to limit (%d)\n",
 		    narenas_auto);
 	}
 	narenas_total_set(narenas_auto);
-	if (arena_init_huge(tsdn, a0)) {
+	if (arena_init_huge(tsdn, arena_get(tsdn, 0, false))) {
 		narenas_total_inc();
 	}
-	manual_arena_base = narenas_total_get();
+	manual_arena_base_set(narenas_total_get());
 
 	return false;
 }
@@ -3333,7 +3005,7 @@ _malloc_prefork(void)
 	/* Acquire all mutexes in a safe order. */
 	ctl_prefork(tsd_tsdn(tsd));
 	tcache_prefork(tsd_tsdn(tsd));
-	malloc_mutex_prefork(tsd_tsdn(tsd), &arenas_lock);
+	arenas_management_prefork(tsd_tsdn(tsd));
 	if (have_background_thread) {
 		background_thread_prefork0(tsd_tsdn(tsd));
 	}
@@ -3421,7 +3093,7 @@ _malloc_postfork(void)
 	if (have_background_thread) {
 		background_thread_postfork_parent(tsd_tsdn(tsd));
 	}
-	malloc_mutex_postfork_parent(tsd_tsdn(tsd), &arenas_lock);
+	arenas_management_postfork_parent(tsd_tsdn(tsd));
 	tcache_postfork_parent(tsd_tsdn(tsd));
 	ctl_postfork_parent(tsd_tsdn(tsd));
 }
@@ -3451,7 +3123,7 @@ jemalloc_postfork_child(void) {
 	if (have_background_thread) {
 		background_thread_postfork_child(tsd_tsdn(tsd));
 	}
-	malloc_mutex_postfork_child(tsd_tsdn(tsd), &arenas_lock);
+	arenas_management_postfork_child(tsd_tsdn(tsd));
 	tcache_postfork_child(tsd_tsdn(tsd));
 	ctl_postfork_child(tsd_tsdn(tsd));
 }

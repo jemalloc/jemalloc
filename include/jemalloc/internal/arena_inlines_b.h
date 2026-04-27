@@ -21,7 +21,7 @@
 #include "jemalloc/internal/ticker.h"
 
 static inline arena_t *
-arena_get_from_edata(edata_t *edata) {
+arena_get_from_edata(const edata_t *edata) {
 	return (arena_t *)atomic_load_p(
 	    &arenas[edata_arena_ind_get(edata)], ATOMIC_RELAXED);
 }

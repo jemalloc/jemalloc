@@ -54,32 +54,12 @@ extern uintptr_t san_cache_bin_nonfast_mask;
 /* Number of CPUs. */
 extern unsigned ncpus;
 
-/* Number of arenas used for automatic multiplexing of threads and arenas. */
-extern unsigned narenas_auto;
+/* Will be refactored in subsequent commit */
+bool malloc_init_hard_a0(void);
 
-/* Base index for manual arenas. */
-extern unsigned manual_arena_base;
-
-/*
- * Arenas that are used to service external requests.  Not all elements of the
- * arenas array are necessarily used; arenas are created lazily as needed.
- */
-extern atomic_p_t arenas[];
-
-extern unsigned huge_arena_ind;
-
-void    *a0malloc(size_t size);
-void     a0dalloc(void *ptr);
 void    *bootstrap_malloc(size_t size);
 void    *bootstrap_calloc(size_t num, size_t size);
 void     bootstrap_free(void *ptr);
-void     arena_set(unsigned ind, arena_t *arena);
-unsigned narenas_total_get(void);
-arena_t *arena_init(tsdn_t *tsdn, unsigned ind, const arena_config_t *config);
-arena_t *arena_choose_hard(tsd_t *tsd, bool internal);
-void     arena_migrate(tsd_t *tsd, arena_t *oldarena, arena_t *newarena);
-void     iarena_cleanup(tsd_t *tsd);
-void     arena_cleanup(tsd_t *tsd);
 size_t   batch_alloc(void **ptrs, size_t num, size_t size, int flags);
 void     jemalloc_prefork(void);
 void     jemalloc_postfork_parent(void);
