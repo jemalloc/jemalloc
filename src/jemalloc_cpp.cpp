@@ -1,5 +1,4 @@
 #include <exception>
-#include <mutex>
 #include <new>
 // NOLINTBEGIN(misc-use-anonymous-namespace)
 
@@ -79,15 +78,7 @@ handleOOM(std::size_t size, bool nothrow) {
 	void *ptr = nullptr;
 
 	while (ptr == nullptr) {
-		std::new_handler handler;
-		// GCC-4.8 and clang 4.0 do not have std::get_new_handler.
-		{
-			static std::mutex           mtx;
-			std::lock_guard<std::mutex> lock(mtx);
-
-			handler = std::set_new_handler(nullptr);
-			std::set_new_handler(handler);
-		}
+		std::new_handler handler = std::get_new_handler();
 		if (handler == nullptr)
 			break;
 
