@@ -1035,6 +1035,7 @@ void
 free_default(void *ptr) {
 	UTRACE(ptr, 0, 0);
 	if (likely(ptr != NULL)) {
+		int saved_errno = get_errno();
 		/*
 		 * We avoid setting up tsd fully (e.g. tcache, arena binding)
 		 * based on only free() calls -- other activities trigger the
@@ -1061,6 +1062,7 @@ free_default(void *ptr) {
 		}
 
 		check_entry_exit_locking(tsd_tsdn(tsd));
+		set_errno(saved_errno);
 	}
 }
 
@@ -1896,6 +1898,7 @@ inallocx(tsdn_t *tsdn, size_t size, int flags) {
 
 JEMALLOC_NOINLINE void
 sdallocx_default(void *ptr, size_t size, int flags) {
+	int saved_errno = get_errno();
 	assert(ptr != NULL);
 	assert(malloc_initialized() || malloc_is_initializer());
 
@@ -1918,6 +1921,7 @@ sdallocx_default(void *ptr, size_t size, int flags) {
 		isfree(tsd, ptr, usize, tcache, true);
 	}
 	check_entry_exit_locking(tsd_tsdn(tsd));
+	set_errno(saved_errno);
 }
 
 JEMALLOC_EXPORT void JEMALLOC_NOTHROW
