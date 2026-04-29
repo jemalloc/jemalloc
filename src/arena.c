@@ -1954,9 +1954,6 @@ arena_init_huge(tsdn_t *tsdn, arena_t *a0) {
 		huge_arena_ind = narenas_total_get();
 		assert(huge_arena_ind != 0);
 		oversize_threshold = opt_oversize_threshold;
-		/* a0 init happened before malloc_conf_init. */
-		atomic_store_zu(&a0->pa_shard.pac.oversize_threshold,
-		    oversize_threshold, ATOMIC_RELAXED);
 		/* Initialize huge_arena_pac_thp fields. */
 		base_t *b0 = a0->base;
 		/* Make sure that b0 thp auto-switch won't happen concurrently here. */
@@ -1973,6 +1970,10 @@ arena_init_huge(tsdn_t *tsdn, arena_t *a0) {
 		malloc_mutex_unlock(tsdn, &b0->mtx);
 		huge_enabled = true;
 	}
+
+	/* a0 init happened before malloc_conf_init. */
+	atomic_store_zu(&a0->pa_shard.pac.oversize_threshold,
+	    oversize_threshold, ATOMIC_RELAXED);
 
 	return huge_enabled;
 }
