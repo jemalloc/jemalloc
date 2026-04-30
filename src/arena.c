@@ -47,7 +47,7 @@ static unsigned nbins_total;
  * that, the huge_arena_ind is updated to point to the actual huge arena,
  * which is the last one of the auto arenas.
  */
-unsigned  huge_arena_ind = 0;
+static unsigned huge_arena_ind = 0;
 bool      opt_huge_arena_pac_thp = false;
 pac_thp_t huge_arena_pac_thp = {.thp_madvise = false,
     .auto_thp_switched = false,
@@ -1976,6 +1976,11 @@ arena_init_huge(tsdn_t *tsdn, arena_t *a0) {
 	    oversize_threshold, ATOMIC_RELAXED);
 
 	return huge_enabled;
+}
+
+bool
+arena_ind_is_huge(unsigned ind) {
+	return huge_arena_ind != 0 && ind == huge_arena_ind;
 }
 
 bool

@@ -33,8 +33,6 @@ extern size_t oversize_threshold;
 extern bool      opt_huge_arena_pac_thp;
 extern pac_thp_t huge_arena_pac_thp;
 
-extern unsigned huge_arena_ind;
-
 /*
  * arena_bin_offsets[binind] is the offset of the first bin shard for size class
  * binind.
@@ -108,6 +106,7 @@ void     arena_nthreads_inc(arena_t *arena, bool internal);
 void     arena_nthreads_dec(arena_t *arena, bool internal);
 arena_t *arena_new(tsdn_t *tsdn, unsigned ind, const arena_config_t *config);
 bool     arena_init_huge(tsdn_t *tsdn, arena_t *a0);
+bool     arena_ind_is_huge(unsigned ind);
 arena_t *arena_choose_huge(tsd_t *tsd);
 size_t arena_fill_small_fresh(tsdn_t *tsdn, arena_t *arena, szind_t binind,
     void **ptrs, size_t nfill, bool zero);
