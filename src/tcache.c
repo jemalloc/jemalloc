@@ -1287,9 +1287,8 @@ tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena) {
 		}
 		if (i < SC_NBINS) {
 			bin_t *bin = bin_choose(tsdn, arena, i, NULL);
-			malloc_mutex_lock(tsdn, &bin->lock);
-			bin->stats.nrequests += cache_bin->tstats.nrequests;
-			malloc_mutex_unlock(tsdn, &bin->lock);
+			bin_stats_nrequests_add(tsdn, bin,
+			    cache_bin->tstats.nrequests);
 		} else {
 			arena_stats_large_flush_nrequests_add(tsdn,
 			    &arena->stats, i, cache_bin->tstats.nrequests);

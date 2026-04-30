@@ -101,6 +101,13 @@ bin_t *bin_choose(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 
 /* Stats. */
 static inline void
+bin_stats_nrequests_add(tsdn_t *tsdn, bin_t *bin, uint64_t n) {
+	malloc_mutex_lock(tsdn, &bin->lock);
+	bin->stats.nrequests += n;
+	malloc_mutex_unlock(tsdn, &bin->lock);
+}
+
+static inline void
 bin_stats_merge(tsdn_t *tsdn, bin_stats_data_t *dst_bin_stats, bin_t *bin) {
 	malloc_mutex_lock(tsdn, &bin->lock);
 	malloc_mutex_prof_accum(tsdn, &dst_bin_stats->mutex_data, &bin->lock);
