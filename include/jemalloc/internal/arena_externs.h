@@ -53,11 +53,11 @@ void arena_handle_deferred_work(tsdn_t *tsdn, arena_t *arena);
 edata_t *arena_extent_alloc_large(
     tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment, bool zero);
 void arena_extent_dalloc_large_prep(
-    tsdn_t *tsdn, arena_t *arena, edata_t *edata);
+    tsdn_t *tsdn, arena_t *arena, const edata_t *edata);
 void arena_extent_ralloc_large_shrink(
-    tsdn_t *tsdn, arena_t *arena, edata_t *edata, size_t oldusize);
+    tsdn_t *tsdn, arena_t *arena, const edata_t *edata, size_t oldusize);
 void arena_extent_ralloc_large_expand(
-    tsdn_t *tsdn, arena_t *arena, edata_t *edata, size_t oldusize);
+    tsdn_t *tsdn, arena_t *arena, const edata_t *edata, size_t oldusize);
 bool arena_decay_ms_set(
     tsdn_t *tsdn, arena_t *arena, extent_state_t state, ssize_t decay_ms);
 ssize_t arena_decay_ms_get(arena_t *arena, extent_state_t state);
@@ -90,12 +90,12 @@ bool  arena_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
 void *arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
     size_t size, size_t alignment, bool zero, bool slab, tcache_t *tcache,
     hook_ralloc_args_t *hook_args);
-dss_prec_t      arena_dss_prec_get(arena_t *arena);
-ehooks_t       *arena_get_ehooks(arena_t *arena);
+dss_prec_t      arena_dss_prec_get(const arena_t *arena);
+ehooks_t       *arena_get_ehooks(const arena_t *arena);
 extent_hooks_t *arena_set_extent_hooks(
     tsd_t *tsd, arena_t *arena, extent_hooks_t *extent_hooks);
 bool    arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec);
-void    arena_name_get(arena_t *arena, char *name);
+void    arena_name_get(const arena_t *arena, char *name);
 void    arena_name_set(arena_t *arena, const char *name);
 ssize_t arena_dirty_decay_ms_default_get(void);
 bool    arena_dirty_decay_ms_default_set(ssize_t decay_ms);
@@ -103,7 +103,7 @@ ssize_t arena_muzzy_decay_ms_default_get(void);
 bool    arena_muzzy_decay_ms_default_set(ssize_t decay_ms);
 bool    arena_retain_grow_limit_get_set(
        tsd_t *tsd, arena_t *arena, size_t *old_limit, size_t *new_limit);
-unsigned arena_nthreads_get(arena_t *arena, bool internal);
+unsigned arena_nthreads_get(const arena_t *arena, bool internal);
 void     arena_nthreads_inc(arena_t *arena, bool internal);
 void     arena_nthreads_dec(arena_t *arena, bool internal);
 arena_t *arena_new(tsdn_t *tsdn, unsigned ind, const arena_config_t *config);

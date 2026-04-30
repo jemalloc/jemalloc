@@ -20,7 +20,7 @@ arena_internal_sub(arena_t *arena, size_t size) {
 }
 
 static inline size_t
-arena_internal_get(arena_t *arena) {
+arena_internal_get(const arena_t *arena) {
 	return atomic_load_zu(&arena->stats.internal, ATOMIC_RELAXED);
 }
 

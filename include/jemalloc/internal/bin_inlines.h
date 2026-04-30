@@ -24,8 +24,8 @@ struct bin_dalloc_locked_info_s {
 
 /* Find the region index of a pointer within a slab. */
 JEMALLOC_ALWAYS_INLINE size_t
-bin_slab_regind_impl(
-    div_info_t *div_info, szind_t binind, edata_t *slab, const void *ptr) {
+bin_slab_regind_impl(const div_info_t *div_info, szind_t binind,
+    const edata_t *slab, const void *ptr) {
 	size_t diff, regind;
 
 	/* Freeing a pointer outside the slab can cause assertion failure. */
@@ -45,8 +45,8 @@ bin_slab_regind_impl(
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-bin_slab_regind(bin_dalloc_locked_info_t *info, szind_t binind,
-    edata_t *slab, const void *ptr) {
+bin_slab_regind(const bin_dalloc_locked_info_t *info, szind_t binind,
+    const edata_t *slab, const void *ptr) {
 	size_t regind = bin_slab_regind_impl(
 	    &info->div_info, binind, slab, ptr);
 	return regind;

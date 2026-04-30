@@ -343,7 +343,8 @@ arena_extent_alloc_large(
 }
 
 void
-arena_extent_dalloc_large_prep(tsdn_t *tsdn, arena_t *arena, edata_t *edata) {
+arena_extent_dalloc_large_prep(tsdn_t *tsdn, arena_t *arena,
+    const edata_t *edata) {
 	if (config_stats) {
 		arena_large_dalloc_stats_update(
 		    tsdn, arena, edata_usize_get(edata));
@@ -352,7 +353,7 @@ arena_extent_dalloc_large_prep(tsdn_t *tsdn, arena_t *arena, edata_t *edata) {
 
 void
 arena_extent_ralloc_large_shrink(
-    tsdn_t *tsdn, arena_t *arena, edata_t *edata, size_t oldusize) {
+    tsdn_t *tsdn, arena_t *arena, const edata_t *edata, size_t oldusize) {
 	size_t usize = edata_usize_get(edata);
 
 	if (config_stats) {
@@ -362,7 +363,7 @@ arena_extent_ralloc_large_shrink(
 
 void
 arena_extent_ralloc_large_expand(
-    tsdn_t *tsdn, arena_t *arena, edata_t *edata, size_t oldusize) {
+    tsdn_t *tsdn, arena_t *arena, const edata_t *edata, size_t oldusize) {
 	size_t usize = edata_usize_get(edata);
 
 	if (config_stats) {
@@ -1662,7 +1663,7 @@ arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
 }
 
 ehooks_t *
-arena_get_ehooks(arena_t *arena) {
+arena_get_ehooks(const arena_t *arena) {
 	return base_ehooks_get(arena->base);
 }
 
@@ -1685,7 +1686,7 @@ arena_set_extent_hooks(
 }
 
 dss_prec_t
-arena_dss_prec_get(arena_t *arena) {
+arena_dss_prec_get(const arena_t *arena) {
 	return (dss_prec_t)atomic_load_u(&arena->dss_prec, ATOMIC_ACQUIRE);
 }
 
@@ -1699,8 +1700,9 @@ arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec) {
 }
 
 void
-arena_name_get(arena_t *arena, char *name) {
-	char *end = (char *)memchr((void *)arena->name, '\0', ARENA_NAME_LEN);
+arena_name_get(const arena_t *arena, char *name) {
+	const char *end = (const char *)memchr(
+	    arena->name, '\0', ARENA_NAME_LEN);
 	assert(end != NULL);
 	size_t len = (uintptr_t)end - (uintptr_t)arena->name + 1;
 	assert(len > 0 && len <= ARENA_NAME_LEN);
@@ -1751,7 +1753,7 @@ arena_retain_grow_limit_get_set(
 }
 
 unsigned
-arena_nthreads_get(arena_t *arena, bool internal) {
+arena_nthreads_get(const arena_t *arena, bool internal) {
 	return atomic_load_u(&arena->nthreads[internal], ATOMIC_RELAXED);
 }
 

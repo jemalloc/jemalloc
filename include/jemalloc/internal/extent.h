@@ -91,7 +91,7 @@ extent_neighbor_head_state_mergeable(
 }
 
 JEMALLOC_ALWAYS_INLINE bool
-extent_can_acquire_neighbor(edata_t *edata, rtree_contents_t contents,
+extent_can_acquire_neighbor(const edata_t *edata, rtree_contents_t contents,
     extent_pai_t pai, extent_state_t expected_state, bool forward,
     bool expanding) {
 	edata_t *neighbor = contents.edata;

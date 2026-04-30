@@ -19,7 +19,7 @@ tcache_enabled_get(tsd_t *tsd) {
 }
 
 static inline unsigned
-tcache_nbins_get(tcache_slow_t *tcache_slow) {
+tcache_nbins_get(const tcache_slow_t *tcache_slow) {
 	assert(tcache_slow != NULL);
 	unsigned nbins = tcache_slow->tcache_nbins;
 	assert(nbins <= TCACHE_NBINS_MAX);
@@ -27,7 +27,7 @@ tcache_nbins_get(tcache_slow_t *tcache_slow) {
 }
 
 static inline size_t
-tcache_max_get(tcache_slow_t *tcache_slow) {
+tcache_max_get(const tcache_slow_t *tcache_slow) {
 	assert(tcache_slow != NULL);
 	size_t tcache_max = sz_index2size(tcache_nbins_get(tcache_slow) - 1);
 	assert(tcache_max <= TCACHE_MAXCLASS_LIMIT);

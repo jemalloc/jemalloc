@@ -98,7 +98,7 @@ arena_ichoose(tsd_t *tsd, arena_t *arena) {
 }
 
 static inline bool
-arena_is_auto(arena_t *arena) {
+arena_is_auto(const arena_t *arena) {
 	assert(narenas_auto > 0);
 
 	return (arena_ind_get(arena) < manual_arena_base);
