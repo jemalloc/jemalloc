@@ -110,12 +110,12 @@ ehooks_set_extent_hooks_ptr(ehooks_t *ehooks, extent_hooks_t *extent_hooks) {
 }
 
 static inline extent_hooks_t *
-ehooks_get_extent_hooks_ptr(ehooks_t *ehooks) {
+ehooks_get_extent_hooks_ptr(const ehooks_t *ehooks) {
 	return (extent_hooks_t *)atomic_load_p(&ehooks->ptr, ATOMIC_ACQUIRE);
 }
 
 static inline bool
-ehooks_are_default(ehooks_t *ehooks) {
+ehooks_are_default(const ehooks_t *ehooks) {
 	return ehooks_get_extent_hooks_ptr(ehooks)
 	    == &ehooks_default_extent_hooks;
 }
@@ -126,7 +126,7 @@ ehooks_are_default(ehooks_t *ehooks) {
  * include some checks for such cases.
  */
 static inline bool
-ehooks_dalloc_will_fail(ehooks_t *ehooks) {
+ehooks_dalloc_will_fail(const ehooks_t *ehooks) {
 	if (ehooks_are_default(ehooks)) {
 		return opt_retain;
 	} else {
@@ -135,17 +135,17 @@ ehooks_dalloc_will_fail(ehooks_t *ehooks) {
 }
 
 static inline bool
-ehooks_split_will_fail(ehooks_t *ehooks) {
+ehooks_split_will_fail(const ehooks_t *ehooks) {
 	return ehooks_get_extent_hooks_ptr(ehooks)->split == NULL;
 }
 
 static inline bool
-ehooks_merge_will_fail(ehooks_t *ehooks) {
+ehooks_merge_will_fail(const ehooks_t *ehooks) {
 	return ehooks_get_extent_hooks_ptr(ehooks)->merge == NULL;
 }
 
 static inline bool
-ehooks_guard_will_fail(ehooks_t *ehooks) {
+ehooks_guard_will_fail(const ehooks_t *ehooks) {
 	/*
 	 * Before the guard hooks are officially introduced, limit the use to
 	 * the default hooks only.

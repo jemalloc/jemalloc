@@ -645,7 +645,7 @@ edata_prof_recent_alloc_set_dont_call_directly(
 }
 
 static inline bool
-edata_is_head_get(edata_t *edata) {
+edata_is_head_get(const edata_t *edata) {
 	return (bool)((edata->e_bits & EDATA_BITS_IS_HEAD_MASK)
 	    >> EDATA_BITS_IS_HEAD_SHIFT);
 }

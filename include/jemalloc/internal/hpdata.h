@@ -209,7 +209,7 @@ hpdata_allow_hugify(hpdata_t *hpdata, nstime_t now) {
 }
 
 static inline nstime_t
-hpdata_time_hugify_allowed(hpdata_t *hpdata) {
+hpdata_time_hugify_allowed(const hpdata_t *hpdata) {
 	return hpdata->h_time_hugify_allowed;
 }
 
@@ -305,7 +305,7 @@ hpdata_ndirty_get(const hpdata_t *hpdata) {
 }
 
 static inline size_t
-hpdata_nretained_get(hpdata_t *hpdata) {
+hpdata_nretained_get(const hpdata_t *hpdata) {
 	return HUGEPAGE_PAGES - hpdata->h_ntouched;
 }
 
@@ -330,7 +330,7 @@ hpdata_purged_when_empty_and_huge_set(hpdata_t *hpdata, bool v) {
 }
 
 static inline void
-hpdata_assert_empty(hpdata_t *hpdata) {
+hpdata_assert_empty(const hpdata_t *hpdata) {
 	assert(fb_empty(hpdata->active_pages, HUGEPAGE_PAGES));
 	assert(hpdata->h_nactive == 0);
 }
@@ -341,7 +341,7 @@ hpdata_assert_empty(hpdata_t *hpdata) {
  * match computed ones).
  */
 static inline bool
-hpdata_consistent(hpdata_t *hpdata) {
+hpdata_consistent(const hpdata_t *hpdata) {
 	bool res = true;
 
 	const size_t active_urange_longest = fb_urange_longest(

@@ -73,12 +73,12 @@ pa_shard_postfork_child(tsdn_t *tsdn, pa_shard_t *shard) {
 }
 
 size_t
-pa_shard_nactive(pa_shard_t *shard) {
+pa_shard_nactive(const pa_shard_t *shard) {
 	return atomic_load_zu(&shard->nactive, ATOMIC_RELAXED);
 }
 
 size_t
-pa_shard_ndirty(pa_shard_t *shard) {
+pa_shard_ndirty(const pa_shard_t *shard) {
 	size_t ndirty = ecache_npages_get(&shard->pac.ecache_dirty);
 	if (shard->ever_used_hpa) {
 		ndirty += psset_ndirty(&shard->hpa_shard.psset);
@@ -87,13 +87,13 @@ pa_shard_ndirty(pa_shard_t *shard) {
 }
 
 size_t
-pa_shard_nmuzzy(pa_shard_t *shard) {
+pa_shard_nmuzzy(const pa_shard_t *shard) {
 	return ecache_npages_get(&shard->pac.ecache_muzzy);
 }
 
 void
 pa_shard_basic_stats_merge(
-    pa_shard_t *shard, size_t *nactive, size_t *ndirty, size_t *nmuzzy) {
+    const pa_shard_t *shard, size_t *nactive, size_t *ndirty, size_t *nmuzzy) {
 	*nactive += pa_shard_nactive(shard);
 	*ndirty += pa_shard_ndirty(shard);
 	*nmuzzy += pa_shard_nmuzzy(shard);

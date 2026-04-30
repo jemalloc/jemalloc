@@ -25,7 +25,7 @@ fb_init(fb_group_t *fb, size_t nbits) {
 }
 
 static inline bool
-fb_empty(fb_group_t *fb, size_t nbits) {
+fb_empty(const fb_group_t *fb, size_t nbits) {
 	size_t ngroups = FB_NGROUPS(nbits);
 	for (size_t i = 0; i < ngroups; i++) {
 		if (fb[i] != 0) {
@@ -36,7 +36,7 @@ fb_empty(fb_group_t *fb, size_t nbits) {
 }
 
 static inline bool
-fb_full(fb_group_t *fb, size_t nbits) {
+fb_full(const fb_group_t *fb, size_t nbits) {
 	size_t ngroups = FB_NGROUPS(nbits);
 	size_t trailing_bits = nbits % FB_GROUP_BITS;
 	size_t limit = (trailing_bits == 0 ? ngroups : ngroups - 1);
@@ -52,7 +52,7 @@ fb_full(fb_group_t *fb, size_t nbits) {
 }
 
 static inline bool
-fb_get(fb_group_t *fb, size_t nbits, size_t bit) {
+fb_get(const fb_group_t *fb, size_t nbits, size_t bit) {
 	assert(bit < nbits);
 	size_t group_ind = bit / FB_GROUP_BITS;
 	size_t bit_ind = bit % FB_GROUP_BITS;
@@ -156,15 +156,21 @@ fb_scount_visitor(void *ctx, fb_group_t *fb, fb_group_t mask) {
 
 /* Finds the number of set bit in the of length cnt starting at start. */
 JEMALLOC_ALWAYS_INLINE size_t
-fb_scount(fb_group_t *fb, size_t nbits, size_t start, size_t cnt) {
+fb_scount(const fb_group_t *fb, size_t nbits, size_t start, size_t cnt) {
 	size_t scount = 0;
-	fb_visit_impl(fb, nbits, &fb_scount_visitor, &scount, start, cnt);
+	/*
+	 * fb_visit_impl is shared with mutating visitors (e.g. fb_set_range),
+	 * so it takes a non-const fb.  fb_scount_visitor only reads, so the
+	 * cast is safe.
+	 */
+	fb_visit_impl((fb_group_t *)fb, nbits, &fb_scount_visitor, &scount,
+	    start, cnt);
 	return scount;
 }
 
 /* Finds the number of unset bit in the of length cnt starting at start. */
 JEMALLOC_ALWAYS_INLINE size_t
-fb_ucount(fb_group_t *fb, size_t nbits, size_t start, size_t cnt) {
+fb_ucount(const fb_group_t *fb, size_t nbits, size_t start, size_t cnt) {
 	size_t scount = fb_scount(fb, nbits, start, cnt);
 	return cnt - scount;
 }
@@ -176,8 +182,8 @@ fb_ucount(fb_group_t *fb, size_t nbits, size_t start, size_t cnt) {
  * Returns the number of bits in the bitmap if no such bit exists.
  */
 JEMALLOC_ALWAYS_INLINE ssize_t
-fb_find_impl(
-    fb_group_t *fb, size_t nbits, size_t start, bool val, bool forward) {
+fb_find_impl(const fb_group_t *fb, size_t nbits, size_t start, bool val,
+    bool forward) {
 	assert(start < nbits);
 	size_t  ngroups = FB_NGROUPS(nbits);
 	ssize_t group_ind = start / FB_GROUP_BITS;
@@ -226,14 +232,14 @@ fb_find_impl(
  * number of bits in the bitmap if no such bit exists.
  */
 static inline size_t
-fb_ffu(fb_group_t *fb, size_t nbits, size_t min_bit) {
+fb_ffu(const fb_group_t *fb, size_t nbits, size_t min_bit) {
 	return (size_t)fb_find_impl(fb, nbits, min_bit, /* val */ false,
 	    /* forward */ true);
 }
 
 /* The same, but looks for an unset bit. */
 static inline size_t
-fb_ffs(fb_group_t *fb, size_t nbits, size_t min_bit) {
+fb_ffs(const fb_group_t *fb, size_t nbits, size_t min_bit) {
 	return (size_t)fb_find_impl(fb, nbits, min_bit, /* val */ true,
 	    /* forward */ true);
 }
@@ -243,21 +249,21 @@ fb_ffs(fb_group_t *fb, size_t nbits, size_t min_bit) {
  * no such bit exists.
  */
 static inline ssize_t
-fb_flu(fb_group_t *fb, size_t nbits, size_t max_bit) {
+fb_flu(const fb_group_t *fb, size_t nbits, size_t max_bit) {
 	return fb_find_impl(fb, nbits, max_bit, /* val */ false,
 	    /* forward */ false);
 }
 
 static inline ssize_t
-fb_fls(fb_group_t *fb, size_t nbits, size_t max_bit) {
+fb_fls(const fb_group_t *fb, size_t nbits, size_t max_bit) {
 	return fb_find_impl(fb, nbits, max_bit, /* val */ true,
 	    /* forward */ false);
 }
 
 /* Returns whether or not we found a range. */
 JEMALLOC_ALWAYS_INLINE bool
-fb_iter_range_impl(fb_group_t *fb, size_t nbits, size_t start, size_t *r_begin,
-    size_t *r_len, bool val, bool forward) {
+fb_iter_range_impl(const fb_group_t *fb, size_t nbits, size_t start,
+    size_t *r_begin, size_t *r_len, bool val, bool forward) {
 	assert(start < nbits);
 	ssize_t next_range_begin = fb_find_impl(fb, nbits, start, val, forward);
 	if ((forward && next_range_begin == (ssize_t)nbits)
@@ -286,8 +292,8 @@ fb_iter_range_impl(fb_group_t *fb, size_t nbits, size_t start, size_t *r_begin,
  * touching *r_begin or *r_end).
  */
 static inline bool
-fb_srange_iter(fb_group_t *fb, size_t nbits, size_t start, size_t *r_begin,
-    size_t *r_len) {
+fb_srange_iter(const fb_group_t *fb, size_t nbits, size_t start,
+    size_t *r_begin, size_t *r_len) {
 	return fb_iter_range_impl(fb, nbits, start, r_begin, r_len,
 	    /* val */ true, /* forward */ true);
 }
@@ -297,30 +303,30 @@ fb_srange_iter(fb_group_t *fb, size_t nbits, size_t start, size_t *r_begin,
  * forwards.  (The position returned is still the earliest bit in the range).
  */
 static inline bool
-fb_srange_riter(fb_group_t *fb, size_t nbits, size_t start, size_t *r_begin,
-    size_t *r_len) {
+fb_srange_riter(const fb_group_t *fb, size_t nbits, size_t start,
+    size_t *r_begin, size_t *r_len) {
 	return fb_iter_range_impl(fb, nbits, start, r_begin, r_len,
 	    /* val */ true, /* forward */ false);
 }
 
 /* Similar to fb_srange_iter, but searches for unset bits. */
 static inline bool
-fb_urange_iter(fb_group_t *fb, size_t nbits, size_t start, size_t *r_begin,
-    size_t *r_len) {
+fb_urange_iter(const fb_group_t *fb, size_t nbits, size_t start,
+    size_t *r_begin, size_t *r_len) {
 	return fb_iter_range_impl(fb, nbits, start, r_begin, r_len,
 	    /* val */ false, /* forward */ true);
 }
 
 /* Similar to fb_srange_riter, but searches for unset bits. */
 static inline bool
-fb_urange_riter(fb_group_t *fb, size_t nbits, size_t start, size_t *r_begin,
-    size_t *r_len) {
+fb_urange_riter(const fb_group_t *fb, size_t nbits, size_t start,
+    size_t *r_begin, size_t *r_len) {
 	return fb_iter_range_impl(fb, nbits, start, r_begin, r_len,
 	    /* val */ false, /* forward */ false);
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-fb_range_longest_impl(fb_group_t *fb, size_t nbits, bool val) {
+fb_range_longest_impl(const fb_group_t *fb, size_t nbits, bool val) {
 	size_t begin = 0;
 	size_t longest_len = 0;
 	size_t len = 0;
@@ -336,12 +342,12 @@ fb_range_longest_impl(fb_group_t *fb, size_t nbits, bool val) {
 }
 
 static inline size_t
-fb_srange_longest(fb_group_t *fb, size_t nbits) {
+fb_srange_longest(const fb_group_t *fb, size_t nbits) {
 	return fb_range_longest_impl(fb, nbits, /* val */ true);
 }
 
 static inline size_t
-fb_urange_longest(fb_group_t *fb, size_t nbits) {
+fb_urange_longest(const fb_group_t *fb, size_t nbits) {
 	return fb_range_longest_impl(fb, nbits, /* val */ false);
 }
 

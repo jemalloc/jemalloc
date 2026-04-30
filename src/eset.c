@@ -32,17 +32,17 @@ eset_init(eset_t *eset, extent_state_t state) {
 }
 
 size_t
-eset_npages_get(eset_t *eset) {
+eset_npages_get(const eset_t *eset) {
 	return atomic_load_zu(&eset->npages, ATOMIC_RELAXED);
 }
 
 size_t
-eset_nextents_get(eset_t *eset, pszind_t pind) {
+eset_nextents_get(const eset_t *eset, pszind_t pind) {
 	return atomic_load_zu(&eset->bin_stats[pind].nextents, ATOMIC_RELAXED);
 }
 
 size_t
-eset_nbytes_get(eset_t *eset, pszind_t pind) {
+eset_nbytes_get(const eset_t *eset, pszind_t pind) {
 	return atomic_load_zu(&eset->bin_stats[pind].nbytes, ATOMIC_RELAXED);
 }
 

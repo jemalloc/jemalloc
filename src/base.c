@@ -112,7 +112,7 @@ label_done:
 }
 
 static inline bool
-base_edata_is_reused(edata_t *edata) {
+base_edata_is_reused(const edata_t *edata) {
 	/*
 	 * Borrow the guarded bit to indicate if the extent is a recycled one,
 	 * i.e. the ones returned to base for reuse; currently only tcache bin
@@ -133,8 +133,8 @@ base_edata_init(
 }
 
 static size_t
-base_get_num_blocks(base_t *base, bool with_new_block) {
-	base_block_t *b = base->blocks;
+base_get_num_blocks(const base_t *base, bool with_new_block) {
+	const base_block_t *b = base->blocks;
 	assert(b != NULL);
 
 	size_t n_blocks = with_new_block ? 2 : 1;

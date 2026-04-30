@@ -120,7 +120,7 @@ pa_shard_dont_decay_muzzy(pa_shard_t *shard) {
 }
 
 static inline ehooks_t *
-pa_shard_ehooks_get(pa_shard_t *shard) {
+pa_shard_ehooks_get(const pa_shard_t *shard) {
 	return base_ehooks_get(shard->base);
 }
 
@@ -221,12 +221,12 @@ void pa_shard_prefork5(tsdn_t *tsdn, pa_shard_t *shard);
 void pa_shard_postfork_parent(tsdn_t *tsdn, pa_shard_t *shard);
 void pa_shard_postfork_child(tsdn_t *tsdn, pa_shard_t *shard);
 
-size_t pa_shard_nactive(pa_shard_t *shard);
-size_t pa_shard_ndirty(pa_shard_t *shard);
-size_t pa_shard_nmuzzy(pa_shard_t *shard);
+size_t pa_shard_nactive(const pa_shard_t *shard);
+size_t pa_shard_ndirty(const pa_shard_t *shard);
+size_t pa_shard_nmuzzy(const pa_shard_t *shard);
 
 void pa_shard_basic_stats_merge(
-    pa_shard_t *shard, size_t *nactive, size_t *ndirty, size_t *nmuzzy);
+    const pa_shard_t *shard, size_t *nactive, size_t *ndirty, size_t *nmuzzy);
 
 void pa_shard_stats_merge(tsdn_t *tsdn, pa_shard_t *shard,
     pa_shard_stats_t *pa_shard_stats_out, pac_estats_t *estats_out,
