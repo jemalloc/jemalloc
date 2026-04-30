@@ -823,7 +823,7 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 
 	if (huge_arena_pac_thp.thp_madvise) {
 		/* Avoid using HUGEPAGE when the grow size is less than HUGEPAGE. */
-		if (ind != 0 && ind == huge_arena_ind
+		if (arena_ind_is_huge(ind)
 		    && ehooks_are_default(ehooks)
 		    && likely(alloc_size >= HUGEPAGE)) {
 			extent_handle_huge_arena_thp(tsdn, &huge_arena_pac_thp,
