@@ -648,6 +648,42 @@ TEST_BEGIN(test_bin_dalloc_slab_prepare) {
 TEST_END
 
 /*
+ * Test that bin_stats_nrequests_add accumulates under the bin lock.
+ */
+TEST_BEGIN(test_bin_stats_nrequests_add) {
+	tsdn_t *tsdn = tsdn_fetch();
+	bin_t bin;
+
+	bin_init(&bin);
+	if (config_stats) {
+		expect_u64_eq(bin.stats.nrequests, 0,
+		    "Fresh bin should have zero nrequests");
+	}
+
+	/* Single add. */
+	bin_stats_nrequests_add(tsdn, &bin, 7);
+	if (config_stats) {
+		expect_u64_eq(bin.stats.nrequests, 7,
+		    "nrequests should equal the added value");
+	}
+
+	/* Adds accumulate. */
+	bin_stats_nrequests_add(tsdn, &bin, 3);
+	if (config_stats) {
+		expect_u64_eq(bin.stats.nrequests, 10,
+		    "nrequests should accumulate across calls");
+	}
+
+	/* Adding zero is a no-op. */
+	bin_stats_nrequests_add(tsdn, &bin, 0);
+	if (config_stats) {
+		expect_u64_eq(bin.stats.nrequests, 10,
+		    "Adding zero should not change nrequests");
+	}
+}
+TEST_END
+
+/*
  * Test bin_shard_sizes_boot and bin_update_shard_size.
  */
 TEST_BEGIN(test_bin_shard_sizes) {
@@ -819,6 +855,7 @@ main(void) {
 	    test_bin_lower_slab_replaces_slabcur,
 	    test_bin_lower_slab_inserts_nonfull,
 	    test_bin_dalloc_slab_prepare,
+	    test_bin_stats_nrequests_add,
 	    test_bin_shard_sizes,
 	    test_bin_alloc_free_cycle,
 	    test_bin_multi_size_class);
