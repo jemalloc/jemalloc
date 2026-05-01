@@ -526,6 +526,58 @@ for (i = 0; i < nbins; i++) {
     8, 10, or 16, depending on prefix), and yet others have raw string
     values.</para>
   </refsect1>
+  <refsect1 id="delayed_memory_return">
+    <title>DELAYED MEMORY RETURN</title>
+    <para>Some jemalloc behavior delays the return of
+    <function>free()</function>d memory to the operating system.
+    This is an optimization to increase allocator speed (since
+    if the application needs memory again soon after,
+    the system calls to return it to the OS and to re-request it
+    can be skipped).
+    It comes at the the cost of retaining system memory, which is then
+    not available to other processes.
+    </para>
+    <para>This can lead to out-of-memory crashes:
+    For example, if the program completes a task that needed 70% of
+    the machine's memory, frees it (with delayed return),
+    and then invokes a child process that also needs
+    70% of memory, the total consumption is 140% of the machine's memory.
+    The operating system did not observe the program returning
+    the memory, so it could not allocate it to the child process.
+    </para>
+
+    <para>Delayed memory return is controlled by the option
+    <link linkend="opt.dirty_decay_ms"><mallctl>opt.dirty_decay_ms</mallctl></link>
+    which is enabled by default.
+    </para>
+
+    <para>Be aware that decay times > 0 will not be honored until the next relevant
+    call into jemalloc, unless you also
+    enable <link linkend="background_thread"><mallctl>background_thread</mallctl></link>.
+    Without <link linkend="background_thread"><mallctl>background_thread</mallctl></link>,
+    processes that are sleeping (e.g. because they call <function>sleep()</function>,
+    block on user input, network/file activity, or run subprocesses) will not purge memory
+    after the configured time, but at a potentially much later time
+    (seconds or hours or months, depending on how long the program blocks).
+    </para>
+
+    <para>It is thus recommended that if your program uses and frees significant
+    amounts of memory that other processes (including its own child processes)
+    may subsequently need, you should either set
+    <link linkend="opt.dirty_decay_ms"><mallctl>opt.dirty_decay_ms</mallctl></link>
+    to <quote>0</quote> if you need guarantees that the freed memory will be
+    immediately available to them, or that you enable
+    <link linkend="background_thread"><mallctl>background_thread</mallctl></link>
+    if you desire a delay that will be approximately honored.
+    Alternatively, a performance tradeoff in between is to set
+    <link linkend="opt.dirty_decay_ms"><mallctl>opt.dirty_decay_ms</mallctl></link>
+    to <quote>0</quote> and enable
+    <link linkend="opt.muzzy_decay_ms"><mallctl>opt.muzzy_decay_ms</mallctl></link>
+    (on platforms where it is supported); this will make freed memory
+    available immediately available to other processes with lower overheads,
+    but may negatively affect observability as documented for that option.
+    </para>
+  </refsect1>
   <refsect1 id="implementation_notes">
     <title>IMPLEMENTATION NOTES</title>
     <para>Traditionally, allocators have used
@@ -1157,7 +1209,14 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         purged according to a sigmoidal decay curve that starts and ends with
         zero purge rate.  A decay time of 0 causes all unused dirty pages to be
         purged immediately upon creation.  A decay time of -1 disables purging.
-        The default decay time is 10 seconds.  See <link
+        The default decay time is 10 seconds.
+        Be sure to read <link linkend="delayed_memory_return">DELAYED MEMORY RETURN</link>
+        for the adverse effect that this mechanism can have under memory pressure.
+        Be aware that decay times > 0 will not be honored
+        until the next relevant call into jemalloc,
+        unless <link linkend="background_thread"><mallctl>background_thread</mallctl></link>
+        is enabled; see <link linkend="delayed_memory_return">DELAYED MEMORY RETURN</link>.
+        See <link
         linkend="arenas.dirty_decay_ms"><mallctl>arenas.dirty_decay_ms</mallctl></link>
         and <link
         linkend="arena.i.dirty_decay_ms"><mallctl>arena.&lt;i&gt;.dirty_decay_ms</mallctl></link>
@@ -1181,11 +1240,21 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         subsequently purged in a manner that left them subject to the
         reclamation whims of the operating system (e.g.
         <function>madvise(<parameter>...</parameter><parameter><constant>MADV_FREE</constant></parameter>)</function>),
-        and therefore in an indeterminate state.  The pages are incrementally
+        and therefore in an indeterminate state.
+        A drawback of this method is reduced observability, since e.g. on Linux,
+        memory freed this way is still displayed as resident process memory (RSS)
+        in many tools that display memory usage, making it more difficult to check
+        how much memory a process is actually using.
+        The pages are incrementally
         purged according to a sigmoidal decay curve that starts and ends with
         zero purge rate.  A decay time of 0 causes all unused muzzy pages to be
         purged immediately upon creation.  A decay time of -1 disables purging.
-        Muzzy decay is disabled by default (with decay time 0).  See <link
+        Muzzy decay is disabled by default (with decay time 0).
+        Be aware that decay times > 0 will not be honored
+        until the next relevant call into jemalloc,
+        unless <link linkend="background_thread"><mallctl>background_thread</mallctl></link>
+        is enabled; see <link linkend="delayed_memory_return">DELAYED MEMORY RETURN</link>.
+        See <link
         linkend="arenas.muzzy_decay_ms"><mallctl>arenas.muzzy_decay_ms</mallctl></link>
         and <link
         linkend="arena.i.muzzy_decay_ms"><mallctl>arena.&lt;i&gt;.muzzy_decay_ms</mallctl></link>
