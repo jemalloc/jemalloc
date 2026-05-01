@@ -7,6 +7,7 @@
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/pai.h"
 #include "jemalloc/internal/sec_opts.h"
+#include "jemalloc/internal/tsd_types.h"
 
 /*
  * Small extent cache.
@@ -40,15 +41,6 @@ struct sec_stats_s {
 };
 
 static inline void
-sec_bin_stats_init(sec_bin_stats_t *stats) {
-	stats->ndalloc_flush = 0;
-	stats->nmisses = 0;
-	stats->nhits = 0;
-	stats->ndalloc_noflush = 0;
-	stats->noverfills = 0;
-}
-
-static inline void
 sec_bin_stats_accum(sec_bin_stats_t *dst, sec_bin_stats_t *src) {
 	dst->nmisses += src->nmisses;
 	dst->nhits += src->nhits;
@@ -67,16 +59,20 @@ sec_stats_accum(sec_stats_t *dst, sec_stats_t *src) {
 typedef struct sec_bin_s sec_bin_t;
 struct sec_bin_s {
 	/*
-	 * Protects the data members of the bin.
+	 * Protects the freelist and synchronizes counter updates.
 	 */
 	malloc_mutex_t mtx;
 
 	/*
 	 * Number of bytes in this particular bin.
 	 */
-	size_t              bytes_cur;
+	atomic_zu_t         bytes_cur;
 	edata_list_active_t freelist;
-	sec_bin_stats_t     stats;
+	atomic_zu_t         nmisses;
+	atomic_zu_t         nhits;
+	atomic_zu_t         ndalloc_flush;
+	atomic_zu_t         ndalloc_noflush;
+	atomic_zu_t         noverfills;
 };
 
 typedef struct sec_s sec_t;
@@ -96,10 +92,13 @@ sec_size_supported(sec_t *sec, size_t size) {
 	return sec_is_used(sec) && size <= sec->opts.max_alloc;
 }
 
+/* Initialize a per-thread SEC shard pick. */
+void sec_shard_init(tsd_t *tsd, size_t nshards, uint8_t *shardp);
+
 /* If sec does not have extent available, it will return NULL. */
-edata_t *sec_alloc(tsdn_t *tsdn, sec_t *sec, size_t size);
+edata_t *sec_alloc(tsdn_t *tsdn, sec_t *sec, size_t size, uint8_t shard);
 void     sec_fill(tsdn_t *tsdn, sec_t *sec, size_t size,
-        edata_list_active_t *result, size_t nallocs);
+        edata_list_active_t *result, size_t nallocs, uint8_t shard);
 
 /*
  * Upon return dalloc_list may be empty if edata is consumed by sec or non-empty
@@ -109,7 +108,8 @@ void     sec_fill(tsdn_t *tsdn, sec_t *sec, size_t size,
  * considered "hot" and preserved in the cache, while "colder" ones are
  * returned).
  */
-void sec_dalloc(tsdn_t *tsdn, sec_t *sec, edata_list_active_t *dalloc_list);
+void sec_dalloc(tsdn_t *tsdn, sec_t *sec, edata_list_active_t *dalloc_list,
+    uint8_t shard);
 
 bool sec_init(tsdn_t *tsdn, sec_t *sec, base_t *base, const sec_opts_t *opts);
 

@@ -3,6 +3,7 @@
 
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/san.h"
+#include "jemalloc/internal/sec.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/rtree.h"
 
@@ -245,6 +246,8 @@ tsd_data_init(tsd_t *tsd) {
 	tsd_prng_state_init(tsd);
 	tsd_te_init(tsd); /* event_init may use the prng state above. */
 	tsd_san_init(tsd);
+	sec_shard_init(
+	    tsd, opt_hpa_sec_opts.nshards, tsd_sec_shardp_get(tsd));
 	return tsd_tcache_enabled_data_init(tsd);
 }
 
@@ -273,6 +276,8 @@ tsd_data_init_nocleanup(tsd_t *tsd) {
 	tsd_prng_state_init(tsd);
 	tsd_te_init(tsd); /* event_init may use the prng state above. */
 	tsd_san_init(tsd);
+	sec_shard_init(
+	    tsd, opt_hpa_sec_opts.nshards, tsd_sec_shardp_get(tsd));
 	assert_tsd_data_cleanup_done(tsd);
 
 	return false;
