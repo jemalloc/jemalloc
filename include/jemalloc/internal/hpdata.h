@@ -27,7 +27,7 @@
  */
 #define PSSET_ENUMERATE_MAX_NUM 32
 typedef struct hpdata_s hpdata_t;
-ph_structs(hpdata_age_heap, hpdata_t, PSSET_ENUMERATE_MAX_NUM);
+ph_structs(hpdata_age_heap, hpdata_t, PSSET_ENUMERATE_MAX_NUM)
 struct hpdata_s {
 	/*
 	 * We likewise follow the edata convention of mangling names and forcing
@@ -136,7 +136,7 @@ TYPED_LIST(hpdata_empty_list, hpdata_t, ql_link_empty)
 TYPED_LIST(hpdata_purge_list, hpdata_t, ql_link_purge)
 TYPED_LIST(hpdata_hugify_list, hpdata_t, ql_link_hugify)
 
-ph_proto(, hpdata_age_heap, hpdata_t);
+ph_proto(, hpdata_age_heap, hpdata_t)
 
 static inline void *
 hpdata_addr_get(const hpdata_t *hpdata) {

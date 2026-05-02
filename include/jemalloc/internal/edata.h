@@ -95,8 +95,8 @@ struct edata_cmp_summary_s {
 
 /* Extent (span of pages).  Use accessor functions for e_* fields. */
 typedef struct edata_s edata_t;
-ph_structs(edata_avail, edata_t, ESET_ENUMERATE_MAX_NUM);
-ph_structs(edata_heap, edata_t, ESET_ENUMERATE_MAX_NUM);
+ph_structs(edata_avail, edata_t, ESET_ENUMERATE_MAX_NUM)
+ph_structs(edata_heap, edata_t, ESET_ENUMERATE_MAX_NUM)
 struct edata_s {
 	/*
 	 * Bitfield containing several fields:
