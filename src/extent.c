@@ -17,9 +17,8 @@ size_t opt_process_madvise_max_batch =
 #ifdef JEMALLOC_HAVE_PROCESS_MADVISE
     PROCESS_MADVISE_MAX_BATCH_DEFAULT;
 #else
-    0
+    0;
 #endif
-;
 
 static bool extent_commit_impl(tsdn_t *tsdn, ehooks_t *ehooks, edata_t *edata,
     size_t offset, size_t length, bool growing_retained);
