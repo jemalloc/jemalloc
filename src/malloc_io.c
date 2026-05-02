@@ -105,8 +105,7 @@ buferror(int err, char *buf, size_t buflen) {
     && defined(_GNU_SOURCE)
 	char *b = strerror_r(err, buf, buflen);
 	if (b != buf) {
-		strncpy(buf, b, buflen);
-		buf[buflen - 1] = '\0';
+		malloc_snprintf(buf, buflen, "%s", b);
 	}
 	return 0;
 #else
