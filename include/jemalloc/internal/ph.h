@@ -510,7 +510,7 @@ ph_enumerate_next(
 	typedef struct {                                                       \
 		void               *bfs_queue[a_max_queue_size];               \
 		ph_enumerate_vars_t vars;                                      \
-	} a_prefix##_enumerate_helper_t;
+	} a_prefix##_enumerate_helper_t
 
 /*
  * The ph_proto() macro generates function prototypes that correspond to the
@@ -530,7 +530,7 @@ ph_enumerate_next(
 	       a_prefix##_enumerate_helper_t *helper, uint16_t max_visit_num,  \
 	       uint16_t max_queue_size);                                       \
 	a_attr a_type *a_prefix##_enumerate_next(                              \
-	    a_prefix##_t *ph, a_prefix##_enumerate_helper_t *helper);
+	    a_prefix##_t *ph, a_prefix##_enumerate_helper_t *helper)
 
 /* The ph_gen() macro generates a type-specific pairing heap implementation. */
 #define ph_gen(a_attr, a_prefix, a_type, a_field, a_cmp)                       \
