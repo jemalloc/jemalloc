@@ -70,6 +70,7 @@ extent_may_force_decay(pac_t *pac) {
 static bool
 extent_try_delayed_coalesce(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
     ecache_t *ecache, edata_t *edata) {
+	malloc_mutex_assert_owner(tsdn, &ecache->mtx);
 	emap_update_edata_state(tsdn, pac->emap, edata, extent_state_active);
 
 	bool coalesced;
@@ -212,6 +213,7 @@ ecache_evict(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 	switch (ecache->state) {
 	case extent_state_dirty:
 	case extent_state_muzzy:
+	case extent_state_pinned:
 		emap_update_edata_state(
 		    tsdn, pac->emap, edata, extent_state_active);
 		break;
@@ -244,7 +246,11 @@ extents_abandon_vm(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 	}
 	/*
 	 * Leak extent after making sure its pages have already been purged, so
-	 * that this is only a virtual memory leak.
+	 * that this is only a virtual memory leak, except when the extent is
+	 * pinned/unpurgeable, for which a real memory leak happens.  This is
+	 * acceptable because reaching this path requires that an extent split
+	 * fail, which is already an exceptional condition (typically an OOM
+	 * on edata_t allocation).
 	 */
 	if (ecache->state == extent_state_dirty) {
 		if (extent_purge_lazy_impl(
@@ -434,8 +440,12 @@ extent_recycle_extract(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		 * then no longer satify a request for its original size.  To
 		 * limit this effect, when delayed coalescing is enabled, we
 		 * put a cap on how big an extent we can split for a request.
+		 *
+		 * Pinned extents are exempt: they are never purged, so the cap
+		 * doesn't apply.
 		 */
-		unsigned lg_max_fit = ecache->delay_coalesce
+		unsigned lg_max_fit = (ecache->delay_coalesce
+		    && ecache != &pac->ecache_pinned)
 		    ? (unsigned)opt_lg_extent_max_active_fit
 		    : SC_PTR_BITS;
 
@@ -448,7 +458,13 @@ extent_recycle_extract(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		 * allocations.
 		 */
 		bool exact_only = (!maps_coalesce && !opt_retain) || guarded;
-		edata = eset_fit(eset, size, alignment, exact_only, lg_max_fit);
+		/*
+		 * When selecting a pinned extent, avoid breaking larger extent
+		 * if a smaller one works.
+		 */
+		bool prefer_small = (ecache == &pac->ecache_pinned);
+		edata = eset_fit(eset, size, alignment, exact_only, lg_max_fit,
+		    prefer_small);
 	}
 	if (edata == NULL) {
 		return NULL;
@@ -733,10 +749,9 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 	}
 	bool zeroed = false;
 	bool committed = false;
-
-	void *ptr = ehooks_alloc(
-	    tsdn, ehooks, NULL, alloc_size, PAGE, &zeroed, &committed);
-
+	unsigned flags = 0;
+	void *ptr = ehooks_alloc(tsdn, ehooks, NULL, alloc_size, PAGE, &zeroed,
+	    &committed, &flags);
 	if (ptr == NULL) {
 		edata_cache_put(tsdn, pac->edata_cache, edata);
 		goto label_err;
@@ -746,6 +761,10 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 	edata_init(edata, ind, ptr, alloc_size, false, SC_NSIZES,
 	    extent_sn_next(pac), extent_state_active, zeroed, committed,
 	    EXTENT_PAI_PAC, EXTENT_IS_HEAD);
+	edata_hook_flags_init(edata, flags);
+	if (flags & EXTENT_ALLOC_FLAG_PINNED) {
+		atomic_store_b(&pac->has_pinned, true, ATOMIC_RELAXED);
+	}
 
 	if (extent_register_no_gdump_add(tsdn, pac, edata)) {
 		edata_cache_put(tsdn, pac->edata_cache, edata);
@@ -767,12 +786,10 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 
 	if (result == extent_split_interior_ok) {
 		if (lead != NULL) {
-			extent_record(
-			    tsdn, pac, ehooks, &pac->ecache_retained, lead);
+			pac_record_grown(tsdn, pac, ehooks, lead);
 		}
 		if (trail != NULL) {
-			extent_record(
-			    tsdn, pac, ehooks, &pac->ecache_retained, trail);
+			pac_record_grown(tsdn, pac, ehooks, trail);
 		}
 	} else {
 		/*
@@ -784,8 +801,7 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 			if (config_prof) {
 				extent_gdump_add(tsdn, to_salvage);
 			}
-			extent_record(tsdn, pac, ehooks, &pac->ecache_retained,
-			    to_salvage);
+			pac_record_grown(tsdn, pac, ehooks, to_salvage);
 		}
 		if (to_leak != NULL) {
 			extent_deregister_no_gdump_sub(tsdn, pac, to_leak);
@@ -796,6 +812,8 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 	}
 
 	if (*commit && !edata_committed_get(edata)) {
+		/* Pinned memory must be committed by the hook. */
+		assert(!edata_pinned_get(edata));
 		if (extent_commit_impl(
 		        tsdn, ehooks, edata, 0, edata_size_get(edata), true)) {
 			extent_record(
@@ -815,10 +833,13 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 
 	/*
 	 * Increment extent_grow_next if doing so wouldn't exceed the allowed
-	 * range.
+	 * range.  Skip for pinned: pinned memory is a finite resource;
+	 * oversized remnants waste it.
 	 */
 	/* All opportunities for failure are past. */
-	exp_grow_size_commit(&pac->exp_grow, exp_grow_skip);
+	if (!(flags & EXTENT_ALLOC_FLAG_PINNED)) {
+		exp_grow_size_commit(&pac->exp_grow, exp_grow_skip);
+	}
 	malloc_mutex_unlock(tsdn, &pac->grow_mtx);
 
 	if (huge_arena_pac_thp.thp_madvise) {
@@ -1020,11 +1041,13 @@ extent_record(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 		edata = extent_try_coalesce(
 		    tsdn, pac, ehooks, ecache, edata, &coalesced_unused);
 	} else if (edata_size_get(edata) >= SC_LARGE_MINCLASS) {
-		assert(ecache == &pac->ecache_dirty);
+		assert(edata_pinned_get(edata)
+		    ? (ecache == &pac->ecache_pinned)
+		    : (ecache == &pac->ecache_dirty));
 		/* Always coalesce large extents eagerly. */
 		/**
 		* Maximum size limit (max_size) for large extents waiting to be coalesced
-		* in dirty ecache.
+		* in pinned/dirty ecache.
 		*
 		* When set to a non-zero value, this parameter restricts the maximum size
 		* of large extents after coalescing. If the combined size of two extents
@@ -1056,7 +1079,9 @@ extent_record(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, ecache_t *ecache,
 			edata = extent_try_coalesce_large(tsdn, pac, ehooks,
 			    ecache, edata, max_size, &coalesced);
 		} while (coalesced);
-		if (edata_size_get(edata) >= atomic_load_zu(
+		/* Pinned extents cannot be purged; skip the oversize shortcut. */
+		if (ecache == &pac->ecache_dirty
+		    && edata_size_get(edata) >= atomic_load_zu(
 		        &pac->oversize_threshold, ATOMIC_RELAXED)
 		    && !background_thread_enabled()
 		    && extent_may_force_decay(pac)) {
@@ -1119,8 +1144,9 @@ extent_alloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, void *new_addr,
 		return NULL;
 	}
 	size_t palignment = ALIGNMENT_CEILING(alignment, PAGE);
-	void  *addr = ehooks_alloc(
-            tsdn, ehooks, new_addr, size, palignment, &zero, commit);
+	unsigned flags = 0;
+	void  *addr = ehooks_alloc(tsdn, ehooks, new_addr, size, palignment,
+	    &zero, commit, &flags);
 	if (addr == NULL) {
 		edata_cache_put(tsdn, pac->edata_cache, edata);
 		return NULL;
@@ -1129,6 +1155,10 @@ extent_alloc_wrapper(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, void *new_addr,
 	    /* slab */ false, SC_NSIZES, extent_sn_next(pac),
 	    extent_state_active, zero, *commit, EXTENT_PAI_PAC,
 	    opt_retain ? EXTENT_IS_HEAD : EXTENT_NOT_HEAD);
+	edata_hook_flags_init(edata, flags);
+	if (flags & EXTENT_ALLOC_FLAG_PINNED) {
+		atomic_store_b(&pac->has_pinned, true, ATOMIC_RELAXED);
+	}
 	/*
 	 * Retained memory is not counted towards gdump.  Only if an extent is
 	 * allocated as a separate mapping, i.e. growing_retained is false, then
@@ -1328,6 +1358,7 @@ extent_split_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, edata_t *edata,
 	    /* slab */ false, SC_NSIZES, edata_sn_get(edata),
 	    edata_state_get(edata), edata_zeroed_get(edata),
 	    edata_committed_get(edata), EXTENT_PAI_PAC, EXTENT_NOT_HEAD);
+	edata_hook_flags_init(trail, edata_alloc_flags_get(edata));
 	emap_prepare_t prepare;
 	bool           err = emap_split_prepare(
             tsdn, pac->emap, &prepare, edata, size_a, trail, size_b);
@@ -1411,6 +1442,8 @@ extent_merge_impl(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, edata_t *a,
 	    (edata_sn_get(a) < edata_sn_get(b)) ? edata_sn_get(a)
 	                                        : edata_sn_get(b));
 	edata_zeroed_set(a, edata_zeroed_get(a) && edata_zeroed_get(b));
+
+	assert(edata_pinned_get(a) == edata_pinned_get(b));
 
 	emap_merge_commit(tsdn, pac->emap, &prepare, a, b);
 

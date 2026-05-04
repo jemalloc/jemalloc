@@ -712,6 +712,8 @@ stats_arena_extents_print(emitter_t *emitter, unsigned i) {
 	COL_HDR(row, muzzy, NULL, right, 13, size)
 	COL_HDR(row, nretained, NULL, right, 13, size)
 	COL_HDR(row, retained, NULL, right, 13, size)
+	COL_HDR(row, npinned, NULL, right, 13, size)
+	COL_HDR(row, pinned, NULL, right, 13, size)
 	COL_HDR(row, ntotal, NULL, right, 13, size)
 	COL_HDR(row, total, NULL, right, 13, size)
 
@@ -728,22 +730,27 @@ stats_arena_extents_print(emitter_t *emitter, unsigned i) {
 
 	in_gap = false;
 	for (j = 0; j < SC_NPSIZES; j++) {
-		size_t ndirty, nmuzzy, nretained, total, dirty_bytes,
-		    muzzy_bytes, retained_bytes, total_bytes;
+		size_t ndirty, nmuzzy, nretained, npinned, total,
+		    dirty_bytes, muzzy_bytes, retained_bytes, pinned_bytes,
+		    total_bytes;
 		stats_arenas_mib[4] = j;
 
 		CTL_LEAF(stats_arenas_mib, 5, "ndirty", &ndirty, size_t);
 		CTL_LEAF(stats_arenas_mib, 5, "nmuzzy", &nmuzzy, size_t);
 		CTL_LEAF(stats_arenas_mib, 5, "nretained", &nretained, size_t);
+		CTL_LEAF(stats_arenas_mib, 5, "npinned", &npinned, size_t);
 		CTL_LEAF(
 		    stats_arenas_mib, 5, "dirty_bytes", &dirty_bytes, size_t);
 		CTL_LEAF(
 		    stats_arenas_mib, 5, "muzzy_bytes", &muzzy_bytes, size_t);
 		CTL_LEAF(stats_arenas_mib, 5, "retained_bytes", &retained_bytes,
 		    size_t);
+		CTL_LEAF(stats_arenas_mib, 5, "pinned_bytes", &pinned_bytes,
+		    size_t);
 
-		total = ndirty + nmuzzy + nretained;
-		total_bytes = dirty_bytes + muzzy_bytes + retained_bytes;
+		total = ndirty + nmuzzy + nretained + npinned;
+		total_bytes = dirty_bytes + muzzy_bytes + retained_bytes
+		    + pinned_bytes;
 
 		in_gap_prev = in_gap;
 		in_gap = (total == 0);
@@ -758,6 +765,8 @@ stats_arena_extents_print(emitter_t *emitter, unsigned i) {
 		emitter_json_kv(emitter, "nmuzzy", emitter_type_size, &nmuzzy);
 		emitter_json_kv(
 		    emitter, "nretained", emitter_type_size, &nretained);
+		emitter_json_kv(
+		    emitter, "npinned", emitter_type_size, &npinned);
 
 		emitter_json_kv(
 		    emitter, "dirty_bytes", emitter_type_size, &dirty_bytes);
@@ -765,6 +774,8 @@ stats_arena_extents_print(emitter_t *emitter, unsigned i) {
 		    emitter, "muzzy_bytes", emitter_type_size, &muzzy_bytes);
 		emitter_json_kv(emitter, "retained_bytes", emitter_type_size,
 		    &retained_bytes);
+		emitter_json_kv(emitter, "pinned_bytes", emitter_type_size,
+		    &pinned_bytes);
 		emitter_json_object_end(emitter);
 
 		col_size.size_val = sz_pind2sz(j);
@@ -775,6 +786,8 @@ stats_arena_extents_print(emitter_t *emitter, unsigned i) {
 		col_muzzy.size_val = muzzy_bytes;
 		col_nretained.size_val = nretained;
 		col_retained.size_val = retained_bytes;
+		col_npinned.size_val = npinned;
+		col_pinned.size_val = pinned_bytes;
 		col_ntotal.size_val = total;
 		col_total.size_val = total_bytes;
 
@@ -1166,7 +1179,7 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	unsigned    nthreads;
 	const char *dss;
 	ssize_t     dirty_decay_ms, muzzy_decay_ms;
-	size_t      page, pactive, pdirty, pmuzzy, mapped, retained;
+	size_t      page, pactive, pdirty, pmuzzy, mapped, retained, pinned;
 	size_t      base, internal, resident, metadata_edata, metadata_rtree,
 	    metadata_thp, extent_avail;
 	uint64_t dirty_npurge, dirty_nmadvise, dirty_purged;
@@ -1467,6 +1480,7 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 
 	GET_AND_EMIT_MEM_STAT(mapped)
 	GET_AND_EMIT_MEM_STAT(retained)
+	GET_AND_EMIT_MEM_STAT(pinned)
 	GET_AND_EMIT_MEM_STAT(base)
 	GET_AND_EMIT_MEM_STAT(internal)
 	GET_AND_EMIT_MEM_STAT(metadata_edata)
@@ -1872,7 +1886,7 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 	 * the transition to the emitter code.
 	 */
 	size_t allocated, active, metadata, metadata_edata, metadata_rtree,
-	    metadata_thp, resident, mapped, retained;
+	    metadata_thp, resident, mapped, retained, pinned;
 	size_t   num_background_threads;
 	size_t   zero_reallocs;
 	uint64_t background_thread_num_runs, background_thread_run_interval;
@@ -1886,6 +1900,7 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 	CTL_GET("stats.resident", &resident, size_t);
 	CTL_GET("stats.mapped", &mapped, size_t);
 	CTL_GET("stats.retained", &retained, size_t);
+	CTL_GET("stats.pinned", &pinned, size_t);
 
 	CTL_GET("stats.zero_reallocs", &zero_reallocs, size_t);
 
@@ -1916,15 +1931,16 @@ stats_print_helper(emitter_t *emitter, bool merged, bool destroyed,
 	emitter_json_kv(emitter, "resident", emitter_type_size, &resident);
 	emitter_json_kv(emitter, "mapped", emitter_type_size, &mapped);
 	emitter_json_kv(emitter, "retained", emitter_type_size, &retained);
+	emitter_json_kv(emitter, "pinned", emitter_type_size, &pinned);
 	emitter_json_kv(
 	    emitter, "zero_reallocs", emitter_type_size, &zero_reallocs);
 
 	emitter_table_printf(emitter,
 	    "Allocated: %zu, active: %zu, "
 	    "metadata: %zu (n_thp %zu, edata %zu, rtree %zu), resident: %zu, "
-	    "mapped: %zu, retained: %zu\n",
+	    "mapped: %zu, retained: %zu, pinned: %zu\n",
 	    allocated, active, metadata, metadata_thp, metadata_edata,
-	    metadata_rtree, resident, mapped, retained);
+	    metadata_rtree, resident, mapped, retained, pinned);
 
 	/* Strange behaviors */
 	emitter_table_printf(emitter,

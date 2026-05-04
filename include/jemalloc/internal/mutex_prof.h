@@ -30,6 +30,7 @@ typedef enum {
 	OP(extents_dirty)                                                      \
 	OP(extents_muzzy)                                                      \
 	OP(extents_retained)                                                   \
+	OP(extents_pinned)                                                     \
 	OP(decay_dirty)                                                        \
 	OP(decay_muzzy)                                                        \
 	OP(base)                                                               \

@@ -34,9 +34,10 @@ enum extent_state_e {
 	extent_state_dirty = 1,
 	extent_state_muzzy = 2,
 	extent_state_retained = 3,
-	extent_state_transition = 4, /* States below are intermediate. */
-	extent_state_merging = 5,
-	extent_state_max = 5 /* Sanity checking only. */
+	extent_state_pinned = 4,
+	extent_state_transition = 5, /* States below are intermediate. */
+	extent_state_merging = 6,
+	extent_state_max = 6 /* Sanity checking only. */
 };
 typedef enum extent_state_e extent_state_t;
 
@@ -110,8 +111,10 @@ struct edata_s {
 	 * i: szind
 	 * f: nfree
 	 * s: bin_shard
+	 * h: is_head
+	 * n: pinned
 	 *
-	 * 00000000 ... 0000ssss ssffffff ffffiiii iiiitttg zpcbaaaa aaaaaaaa
+	 * 00000000 ... 0nhsssss ssffffff ffffiiii iiiitttg zpcbaaaa aaaaaaaa
 	 *
 	 * arena_ind: Arena from which this extent came, or all 1 bits if
 	 *            unassociated.
@@ -145,6 +148,10 @@ struct edata_s {
 	 * nfree: Number of free regions in slab.
 	 *
 	 * bin_shard: the shard of the bin from which this extent came.
+	 *
+	 * is_head: see comments in ehooks_default_merge_impl().
+	 *
+	 * pinned: true if the alloc hook signaled non-reclaimable backing.
 	 */
 	uint64_t e_bits;
 #define MASK(CURRENT_FIELD_WIDTH, CURRENT_FIELD_SHIFT)                         \
@@ -209,6 +216,16 @@ struct edata_s {
 	(EDATA_BITS_BINSHARD_WIDTH + EDATA_BITS_BINSHARD_SHIFT)
 #define EDATA_BITS_IS_HEAD_MASK                                                \
 	MASK(EDATA_BITS_IS_HEAD_WIDTH, EDATA_BITS_IS_HEAD_SHIFT)
+
+#define EDATA_BITS_PINNED_WIDTH 1
+#define EDATA_BITS_PINNED_SHIFT                                                \
+	(EDATA_BITS_IS_HEAD_WIDTH + EDATA_BITS_IS_HEAD_SHIFT)
+#define EDATA_BITS_PINNED_MASK                                                 \
+	MASK(EDATA_BITS_PINNED_WIDTH, EDATA_BITS_PINNED_SHIFT)
+
+#if (EDATA_BITS_PINNED_SHIFT + EDATA_BITS_PINNED_WIDTH > 64)
+#error "edata_t e_bits overflow"
+#endif
 
 	/* Pointer to the extent that this structure is responsible for. */
 	void *e_addr;
@@ -538,6 +555,29 @@ edata_ps_set(edata_t *edata, hpdata_t *ps) {
 	edata->e_ps = ps;
 }
 
+static inline bool
+edata_pinned_get(const edata_t *edata) {
+	return (bool)((edata->e_bits & EDATA_BITS_PINNED_MASK)
+	    >> EDATA_BITS_PINNED_SHIFT);
+}
+
+static inline void
+edata_pinned_set(edata_t *edata, bool pinned) {
+	edata->e_bits = (edata->e_bits & ~EDATA_BITS_PINNED_MASK)
+	    | ((uint64_t)pinned << EDATA_BITS_PINNED_SHIFT);
+}
+
+static inline void
+edata_hook_flags_init(edata_t *edata, unsigned alloc_flags) {
+	edata_pinned_set(edata,
+	    (alloc_flags & EXTENT_ALLOC_FLAG_PINNED) != 0);
+}
+
+static inline unsigned
+edata_alloc_flags_get(const edata_t *edata) {
+	return edata_pinned_get(edata) ? EXTENT_ALLOC_FLAG_PINNED : 0;
+}
+
 static inline void
 edata_szind_set(edata_t *edata, szind_t szind) {
 	assert(szind <= SC_NSIZES); /* SC_NSIZES means "invalid". */
@@ -686,6 +726,7 @@ edata_init(edata_t *edata, unsigned arena_ind, void *addr, size_t size,
 	edata_committed_set(edata, committed);
 	edata_pai_set(edata, pai);
 	edata_is_head_set(edata, is_head == EXTENT_IS_HEAD);
+	edata_hook_flags_init(edata, 0);
 	if (config_prof) {
 		edata_prof_tctx_set(edata, NULL);
 	}
@@ -711,6 +752,7 @@ edata_binit(
 	 * wasting a state bit to encode this fact.
 	 */
 	edata_pai_set(edata, EXTENT_PAI_PAC);
+	edata_hook_flags_init(edata, 0);
 }
 
 static inline int
