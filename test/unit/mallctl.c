@@ -313,7 +313,6 @@ TEST_BEGIN(test_mallctl_opt) {
 	TEST_MALLCTL_OPT(size_t, hpa_sec_nshards, always);
 	TEST_MALLCTL_OPT(size_t, hpa_sec_max_alloc, always);
 	TEST_MALLCTL_OPT(size_t, hpa_sec_max_bytes, always);
-	TEST_MALLCTL_OPT(size_t, hpa_sec_batch_fill_extra, always);
 	TEST_MALLCTL_OPT(ssize_t, experimental_hpa_max_purge_nhp, always);
 	TEST_MALLCTL_OPT(size_t, hpa_purge_threshold, always);
 	TEST_MALLCTL_OPT(uint64_t, hpa_min_purge_delay_ms, always);

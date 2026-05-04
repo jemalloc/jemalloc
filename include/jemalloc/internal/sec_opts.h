@@ -27,16 +27,9 @@ struct sec_opts_s {
 	 * until we are 1/4 below max_bytes.
 	 */
 	size_t max_bytes;
-	/*
-	 * When we can't satisfy an allocation out of the SEC because there are
-	 * no available ones cached, allocator will allocate a batch with extra
-	 * batch_fill_extra extents of the same size.
-	 */
-	size_t batch_fill_extra;
 };
 
 #define SEC_OPTS_NSHARDS_DEFAULT 2
-#define SEC_OPTS_BATCH_FILL_EXTRA_DEFAULT 3
 #define SEC_OPTS_MAX_ALLOC_DEFAULT ((32 * 1024) < PAGE ? PAGE : (32 * 1024))
 #define SEC_OPTS_MAX_BYTES_DEFAULT                                             \
 	((256 * 1024) < (4 * SEC_OPTS_MAX_ALLOC_DEFAULT)                       \
@@ -45,6 +38,6 @@ struct sec_opts_s {
 
 #define SEC_OPTS_DEFAULT                                                       \
 	{SEC_OPTS_NSHARDS_DEFAULT, SEC_OPTS_MAX_ALLOC_DEFAULT,                 \
-	    SEC_OPTS_MAX_BYTES_DEFAULT, SEC_OPTS_BATCH_FILL_EXTRA_DEFAULT}
+	    SEC_OPTS_MAX_BYTES_DEFAULT}
 
 #endif /* JEMALLOC_INTERNAL_SEC_OPTS_H */
