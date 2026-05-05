@@ -99,7 +99,7 @@ typedef ql_elm(tsd_t) tsd_link_t;
 	    /* san_extents_until_guard_large */ 0, /* iarena */ NULL,          \
 	    /* arena */ NULL, /* arena_decay_ticker */                         \
 	    TICKER_GEOM_INIT(ARENA_DECAY_NTICKS_PER_UPDATE),                   \
-	    /* sec_shard */ (uint8_t) - 1,                                     \
+	    /* sec_shard */ 0,                                                 \
 	    /* binshards */ TSD_BINSHARDS_ZERO_INITIALIZER,                    \
 	    /* tsd_link */ {NULL}, /* in_hook */ false,                        \
 	    /* peak */ PEAK_INITIALIZER,                                       \

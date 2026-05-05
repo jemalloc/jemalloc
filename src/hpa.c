@@ -27,6 +27,31 @@ const char *const hpa_hugify_style_names[] = {"auto", "none", "eager", "lazy"};
 bool opt_experimental_hpa_start_huge_if_thp_always = true;
 bool opt_experimental_hpa_enforce_hugify = false;
 
+static inline uint8_t
+hpa_sec_shard_pick(tsdn_t *tsdn) {
+	if (tsdn_null(tsdn)) {
+		return 0;
+	}
+	return *tsdn_sec_shardp_get(tsdn);
+}
+
+static inline edata_t *
+hpa_sec_alloc(tsdn_t *tsdn, sec_t *sec, size_t size) {
+	return sec_alloc(tsdn, sec, size, hpa_sec_shard_pick(tsdn));
+}
+
+static inline void
+hpa_sec_fill(tsdn_t *tsdn, sec_t *sec, size_t size,
+    edata_list_active_t *result, size_t nallocs) {
+	sec_fill(tsdn, sec, size, result, nallocs, hpa_sec_shard_pick(tsdn));
+}
+
+static inline void
+hpa_sec_dalloc(tsdn_t *tsdn, sec_t *sec,
+    edata_list_active_t *dalloc_list) {
+	sec_dalloc(tsdn, sec, dalloc_list, hpa_sec_shard_pick(tsdn));
+}
+
 bool
 hpa_hugepage_size_exceeds_limit(void) {
 	return HUGEPAGE > HUGEPAGE_MAX_EXPECTED_SIZE;
@@ -882,7 +907,7 @@ hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
 	    && (size > shard->opts.slab_max_alloc)) {
 		return NULL;
 	}
-	edata_t *edata = sec_alloc(tsdn, &shard->sec, size);
+	edata_t *edata = hpa_sec_alloc(tsdn, &shard->sec, size);
 	if (edata != NULL) {
 		return edata;
 	}
@@ -903,7 +928,7 @@ hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
 	}
 	if (nsuccess > 0) {
 		assert(sec_size_supported(&shard->sec, size));
-		sec_fill(tsdn, &shard->sec, size, &results, nsuccess);
+		hpa_sec_fill(tsdn, &shard->sec, size, &results, nsuccess);
 		/* Unlikely rollback in case of overfill */
 		if (!edata_list_active_empty(&results)) {
 			hpa_dalloc_batch(
@@ -1013,7 +1038,7 @@ hpa_dalloc(
 	edata_list_active_append(&dalloc_list, edata);
 
 	hpa_shard_t *shard = hpa_from_pai(self);
-	sec_dalloc(tsdn, &shard->sec, &dalloc_list);
+	hpa_sec_dalloc(tsdn, &shard->sec, &dalloc_list);
 	if (edata_list_active_empty(&dalloc_list)) {
 		/* sec consumed the pointer */
 		*deferred_work_generated = false;

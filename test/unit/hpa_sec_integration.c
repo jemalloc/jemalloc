@@ -3,6 +3,16 @@
 #include "jemalloc/internal/hpa.h"
 #include "jemalloc/internal/nstime.h"
 
+/*
+ * Drive the HPA SEC through real opt_hpa_sec_opts so that the global state
+ * the eager TSD shard init reads matches the SEC instance the test
+ * exercises.  The byte counts are calibrated for a 4 KB PAGE; the test
+ * skips itself on configs where PAGE differs.
+ */
+const char *malloc_conf =
+    "hpa_sec_nshards:1,hpa_sec_max_alloc:8192,"
+    "hpa_sec_max_bytes:32768,hpa_sec_batch_fill_extra:4";
+
 #define SHARD_IND 111
 
 #define ALLOC_MAX (HUGEPAGE)
@@ -156,14 +166,15 @@ TEST_BEGIN(test_hpa_sec) {
 
 	hpa_shard_opts_t opts = test_hpa_shard_opts;
 
+	/*
+	 * The byte counts in malloc_conf are calibrated for a 4 KB PAGE.
+	 * Skip on configs where PAGE differs (e.g. --with-lg-page=16) so the
+	 * tight stats assertions below remain valid.
+	 */
 	enum { NALLOCS = 8 };
-	sec_opts_t sec_opts;
-	sec_opts.nshards = 1;
-	sec_opts.max_alloc = 2 * PAGE;
-	sec_opts.max_bytes = NALLOCS * PAGE;
-	sec_opts.batch_fill_extra = 4;
+	test_skip_if(opt_hpa_sec_opts.max_bytes != NALLOCS * PAGE);
 
-	hpa_shard_t *shard = create_test_data(&hooks, &opts, &sec_opts);
+	hpa_shard_t *shard = create_test_data(&hooks, &opts, &opt_hpa_sec_opts);
 	bool         deferred_work_generated = false;
 	tsdn_t      *tsdn = tsd_tsdn(tsd_fetch());
 
@@ -175,8 +186,9 @@ TEST_BEGIN(test_hpa_sec) {
 	memset(&hpa_stats, 0, sizeof(hpa_shard_stats_t));
 	hpa_shard_stats_merge(tsdn, shard, &hpa_stats);
 	expect_zu_eq(hpa_stats.psset_stats.merged.nactive,
-	    1 + sec_opts.batch_fill_extra, "");
-	expect_zu_eq(hpa_stats.secstats.bytes, PAGE * sec_opts.batch_fill_extra,
+	    1 + opt_hpa_sec_opts.batch_fill_extra, "");
+	expect_zu_eq(hpa_stats.secstats.bytes,
+	    PAGE * opt_hpa_sec_opts.batch_fill_extra,
 	    "sec should have fill extra pages");
 
 	/* Alloc/dealloc NALLOCS times and confirm extents are in sec. */
@@ -199,7 +211,7 @@ TEST_BEGIN(test_hpa_sec) {
 	hpa_shard_stats_merge(tsdn, shard, &hpa_stats);
 	expect_zu_eq(hpa_stats.psset_stats.merged.nactive, (2 + NALLOCS), "");
 	expect_zu_eq(
-	    hpa_stats.secstats.bytes, sec_opts.max_bytes, "sec should be full");
+	    hpa_stats.secstats.bytes, opt_hpa_sec_opts.max_bytes, "sec should be full");
 
 	/* this one should flush 1 + 0.25 * 8 = 3 extents */
 	pai_dalloc(
@@ -208,7 +220,7 @@ TEST_BEGIN(test_hpa_sec) {
 	hpa_shard_stats_merge(tsdn, shard, &hpa_stats);
 	expect_zu_eq(hpa_stats.psset_stats.merged.nactive, (NALLOCS - 1), "");
 	expect_zu_eq(hpa_stats.psset_stats.merged.ndirty, 3, "");
-	expect_zu_eq(hpa_stats.secstats.bytes, 0.75 * sec_opts.max_bytes,
+	expect_zu_eq(hpa_stats.secstats.bytes, 0.75 * opt_hpa_sec_opts.max_bytes,
 	    "sec should be full");
 
 	/* Next allocation should come from SEC and not increase active */
@@ -218,7 +230,7 @@ TEST_BEGIN(test_hpa_sec) {
 	memset(&hpa_stats, 0, sizeof(hpa_shard_stats_t));
 	hpa_shard_stats_merge(tsdn, shard, &hpa_stats);
 	expect_zu_eq(hpa_stats.psset_stats.merged.nactive, NALLOCS - 1, "");
-	expect_zu_eq(hpa_stats.secstats.bytes, 0.75 * sec_opts.max_bytes - PAGE,
+	expect_zu_eq(hpa_stats.secstats.bytes, 0.75 * opt_hpa_sec_opts.max_bytes - PAGE,
 	    "sec should have max_bytes minus one page that just came from it");
 
 	/* We return this one and it stays in the cache */
@@ -227,7 +239,7 @@ TEST_BEGIN(test_hpa_sec) {
 	hpa_shard_stats_merge(tsdn, shard, &hpa_stats);
 	expect_zu_eq(hpa_stats.psset_stats.merged.nactive, NALLOCS - 1, "");
 	expect_zu_eq(hpa_stats.psset_stats.merged.ndirty, 3, "");
-	expect_zu_eq(hpa_stats.secstats.bytes, 0.75 * sec_opts.max_bytes, "");
+	expect_zu_eq(hpa_stats.secstats.bytes, 0.75 * opt_hpa_sec_opts.max_bytes, "");
 
 	destroy_test_data(shard);
 }
