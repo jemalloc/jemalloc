@@ -330,3 +330,16 @@ bin_choose(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 	}
 	return arena_get_bin(arena, binind, binshard);
 }
+
+void *
+bin_current_slab_addr(tsdn_t *tsdn, bin_t *bin) {
+	malloc_mutex_lock(tsdn, &bin->lock);
+	edata_t *slab = (bin->slabcur != NULL)
+	    ? bin->slabcur
+	    : edata_heap_first(&bin->slabs_nonfull);
+	assert(slab != NULL || edata_heap_empty(&bin->slabs_nonfull));
+	void *ret = (slab != NULL) ? edata_addr_get(slab) : NULL;
+	assert(ret != NULL || slab == NULL);
+	malloc_mutex_unlock(tsdn, &bin->lock);
+	return ret;
+}
