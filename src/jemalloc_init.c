@@ -39,12 +39,14 @@ malloc_is_initializer(void) {
 #endif
 }
 
-bool
+#ifdef JEMALLOC_THREADED_INIT
+static bool
 malloc_initializer_is_set(void) {
 	return malloc_initializer != NO_INITIALIZER;
 }
+#endif
 
-void
+static void
 malloc_initializer_set(void) {
 	malloc_initializer = INITIALIZER;
 }

@@ -12,8 +12,6 @@ typedef enum malloc_init_e malloc_init_t;
 extern malloc_init_t malloc_init_state;
 
 bool malloc_is_initializer(void);
-bool malloc_initializer_is_set(void);
-void malloc_initializer_set(void);
 
 bool malloc_init_hard_a0(void);
 bool malloc_init_hard(void);

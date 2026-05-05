@@ -11,19 +11,6 @@ TEST_BEGIN(test_malloc_init_hard_idempotent) {
 }
 TEST_END
 
-TEST_BEGIN(test_malloc_initializer_set_idempotent_on_main) {
-	test_skip_if(!malloc_is_initializer());
-
-	malloc_initializer_set();
-
-	expect_true(malloc_is_initializer(),
-	    "malloc_is_initializer should still be true after re-setting "
-	    "from the same thread");
-	expect_true(malloc_initializer_is_set(),
-	    "malloc_initializer_is_set should still be true after re-setting");
-}
-TEST_END
-
 #ifdef JEMALLOC_THREADED_INIT
 static atomic_b_t initializer_worker_done;
 static atomic_b_t initializer_worker_result;
@@ -69,6 +56,5 @@ TEST_END
 int
 main(void) {
 	return test(test_malloc_init_hard_idempotent,
-	    test_malloc_initializer_set_idempotent_on_main,
 	    test_malloc_is_initializer_false_in_worker);
 }
