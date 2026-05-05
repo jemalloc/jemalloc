@@ -211,6 +211,14 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	}
 }
 
+void *
+arena_locality_hint(tsdn_t *tsdn, arena_t *arena, szind_t szind) {
+	assert(szind < SC_NBINS);
+	bin_t *bin = bin_choose(tsdn, arena, szind, NULL);
+	assert(bin != NULL);
+	return bin_current_slab_addr(tsdn, bin);
+}
+
 static void
 arena_background_thread_inactivity_check(
     tsdn_t *tsdn, arena_t *arena, bool is_background_thread) {

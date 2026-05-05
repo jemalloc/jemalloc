@@ -203,26 +203,6 @@ tcache_gc_item_delay_compute(szind_t szind) {
 	return (uint8_t)item_delay;
 }
 
-static inline void *
-tcache_gc_small_heuristic_addr_get(
-    tsd_t *tsd, tcache_slow_t *tcache_slow, szind_t szind) {
-	assert(szind < SC_NBINS);
-	tsdn_t *tsdn = tsd_tsdn(tsd);
-	bin_t  *bin = bin_choose(tsdn, tcache_slow->arena, szind, NULL);
-	assert(bin != NULL);
-
-	malloc_mutex_lock(tsdn, &bin->lock);
-	edata_t *slab = (bin->slabcur == NULL)
-	    ? edata_heap_first(&bin->slabs_nonfull)
-	    : bin->slabcur;
-	assert(slab != NULL || edata_heap_empty(&bin->slabs_nonfull));
-	void *ret = (slab != NULL) ? edata_addr_get(slab) : NULL;
-	assert(ret != NULL || slab == NULL);
-	malloc_mutex_unlock(tsdn, &bin->lock);
-
-	return ret;
-}
-
 static inline bool
 tcache_gc_is_addr_remote(void *addr, uintptr_t min, uintptr_t max) {
 	assert(addr != NULL);
@@ -417,9 +397,9 @@ tcache_gc_small(
 		goto label_flush;
 	}
 
-	/* Query arena binshard to get heuristic locality info. */
-	void *addr = tcache_gc_small_heuristic_addr_get(
-	    tsd, tcache_slow, szind);
+	/* Query arena for a locality anchor (small-bin slab address). */
+	void *addr = arena_locality_hint(tsd_tsdn(tsd), tcache_slow->arena,
+	    szind);
 	if (addr == NULL) {
 		goto label_flush;
 	}

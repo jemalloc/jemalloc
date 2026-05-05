@@ -95,6 +95,9 @@ bool  bin_refill_slabcur_no_fresh_slab(tsdn_t *tsdn, bool is_auto,
 void *bin_malloc_no_fresh_slab(tsdn_t *tsdn, bool is_auto, bin_t *bin,
     szind_t binind);
 
+/* Slab queries. */
+void *bin_current_slab_addr(tsdn_t *tsdn, bin_t *bin);
+
 /* Bin selection. */
 bin_t *bin_choose(tsdn_t *tsdn, arena_t *arena, szind_t binind,
     unsigned *binshard_p);
