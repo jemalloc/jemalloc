@@ -133,6 +133,24 @@ find_covering_edata(const void *addr, size_t max_bytes) {
 	return (back == fwd) ? back : NULL;
 }
 
+/*
+ * Smallest size whose dalloc bypasses PAC SEC and reaches ecache_pinned.
+ * Floors at SC_LARGE_MINCLASS so the alloc goes through the large path; bumps
+ * above pac_sec_max_alloc (which malloc_conf may have raised) to skip SEC.
+ */
+static size_t
+pinned_ecache_min_size(void) {
+	size_t pac_sec_max_alloc;
+	size_t sz = sizeof(pac_sec_max_alloc);
+	expect_d_eq(0, mallctl("opt.pac_sec_max_alloc", &pac_sec_max_alloc,
+	    &sz, NULL, 0), "opt.pac_sec_max_alloc read failed");
+	size_t base = SC_LARGE_MINCLASS;
+	if (base <= pac_sec_max_alloc) {
+		base = pac_sec_max_alloc + PAGE;
+	}
+	return base;
+}
+
 TEST_BEGIN(test_pinned_stats) {
 	test_skip_if(!config_stats);
 	pinned_hooks_reset();
@@ -146,8 +164,14 @@ TEST_BEGIN(test_pinned_stats) {
 	    &hooks_ptr, sizeof(hooks_ptr)),
 	    "arena creation failed");
 
-	/* Allocate and free to populate ecache_pinned. */
-	void *p = mallocx(PAGE * 4, MALLOCX_ARENA(arena_ind)
+	/*
+	 * Allocate and free a large extent to populate ecache_pinned.  The
+	 * size must exceed pac_sec_max_alloc so the freed extent bypasses
+	 * PAC SEC and lands directly in ecache_pinned where stats.pinned
+	 * can see it.
+	 */
+	size_t alloc_size = pinned_ecache_min_size();
+	void *p = mallocx(alloc_size, MALLOCX_ARENA(arena_ind)
 	    | MALLOCX_TCACHE_NONE);
 	expect_ptr_not_null(p, "alloc failed");
 	dallocx(p, MALLOCX_TCACHE_NONE);
@@ -323,10 +347,12 @@ TEST_BEGIN(test_pinned_reset) {
 
 	int flags = MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE;
 
+	size_t base = pinned_ecache_min_size();
+
 	/* Allocate several pinned extents, leave them live. */
 	void *ptrs[4];
 	for (int i = 0; i < 4; i++) {
-		ptrs[i] = mallocx(SC_LARGE_MINCLASS * (i + 1), flags);
+		ptrs[i] = mallocx(base * (i + 1), flags);
 		expect_ptr_not_null(ptrs[i], "alloc %d failed", i);
 	}
 
@@ -375,9 +401,10 @@ TEST_BEGIN(test_pinned_destroy) {
 
 	size_t mapped_initial = config_stats ? get_arena_mapped(arena_ind) : 0;
 
+	size_t base = pinned_ecache_min_size();
+
 	void *ptrs[4];
-	size_t sizes[4] = {PAGE * 4, SC_LARGE_MINCLASS,
-	    SC_LARGE_MINCLASS + PAGE, SC_LARGE_MINCLASS * 2};
+	size_t sizes[4] = {base, base + PAGE, base * 2, base * 3};
 	size_t total = 0;
 	for (int i = 0; i < 4; i++) {
 		ptrs[i] = mallocx(sizes[i], flags);

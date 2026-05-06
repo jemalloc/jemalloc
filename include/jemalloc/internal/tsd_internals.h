@@ -79,6 +79,7 @@ typedef ql_elm(tsd_t) tsd_link_t;
 	O(arena, arena_t *, arena_t *)                                         \
 	O(arena_decay_ticker, ticker_geom_t, ticker_geom_t)                    \
 	O(sec_shard, uint8_t, uint8_t)                                         \
+	O(pac_sec_shard, uint8_t, uint8_t)                                     \
 	O(binshards, tsd_binshards_t, tsd_binshards_t)                         \
 	O(tsd_link, tsd_link_t, tsd_link_t)                                    \
 	O(in_hook, bool, bool)                                                 \
@@ -100,6 +101,7 @@ typedef ql_elm(tsd_t) tsd_link_t;
 	    /* arena */ NULL, /* arena_decay_ticker */                         \
 	    TICKER_GEOM_INIT(ARENA_DECAY_NTICKS_PER_UPDATE),                   \
 	    /* sec_shard */ (uint8_t) - 1,                                     \
+	    /* pac_sec_shard */ (uint8_t) - 1,                                 \
 	    /* binshards */ TSD_BINSHARDS_ZERO_INITIALIZER,                    \
 	    /* tsd_link */ {NULL}, /* in_hook */ false,                        \
 	    /* peak */ PEAK_INITIALIZER,                                       \

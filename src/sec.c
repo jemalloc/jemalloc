@@ -57,22 +57,20 @@ sec_init(tsdn_t *tsdn, sec_t *sec, base_t *base, const sec_opts_t *opts) {
 	return false;
 }
 
-static uint8_t
-sec_shard_pick(tsdn_t *tsdn, sec_t *sec) {
+uint8_t
+sec_shard_pick(tsd_t *tsd, sec_t *sec, uint8_t *idxp) {
 	/*
 	 * Eventually, we should implement affinity, tracking source shard using
 	 * the edata_t's newly freed up fields.  For now, just randomly
 	 * distribute across all shards.
 	 */
-	if (tsdn_null(tsdn)) {
+	if (sec->opts.nshards <= 1) {
 		return 0;
 	}
-	tsd_t   *tsd = tsdn_tsd(tsdn);
-	uint8_t *idxp = tsd_sec_shardp_get(tsd);
 	if (*idxp == (uint8_t)-1) {
 		/*
 		 * First use; initialize using the trick from Daniel Lemire's
-		 * "A fast alternative to the modulo reduction.  Use a 64 bit
+		 * "A fast alternative to the modulo reduction".  Use a 64 bit
 		 * number to store 32 bits, since we'll deliberately overflow
 		 * when we multiply by the number of shards.
 		 */
@@ -103,7 +101,8 @@ sec_bin_alloc_locked(tsdn_t *tsdn, sec_t *sec, sec_bin_t *bin, size_t size) {
 		assert(!edata_list_active_empty(&bin->freelist));
 		edata_list_active_remove(&bin->freelist, edata);
 		size_t sz = edata_size_get(edata);
-		size_t bytes_cur = atomic_load_zu(&bin->bytes_cur, ATOMIC_RELAXED);
+		size_t bytes_cur = atomic_load_zu(
+		    &bin->bytes_cur, ATOMIC_RELAXED);
 		assert(sz <= bytes_cur && sz > 0);
 		bytes_cur -= sz;
 		atomic_store_zu(&bin->bytes_cur, bytes_cur, ATOMIC_RELAXED);
@@ -114,10 +113,10 @@ sec_bin_alloc_locked(tsdn_t *tsdn, sec_t *sec, sec_bin_t *bin, size_t size) {
 
 static edata_t *
 sec_multishard_trylock_alloc(
-    tsdn_t *tsdn, sec_t *sec, size_t size, pszind_t pszind) {
+    tsdn_t *tsdn, sec_t *sec, size_t size, pszind_t pszind, uint8_t shard) {
 	assert(sec->opts.nshards > 0);
 
-	uint8_t    cur_shard = sec_shard_pick(tsdn, sec);
+	uint8_t    cur_shard = shard;
 	sec_bin_t *bin;
 	for (size_t i = 0; i < sec->opts.nshards; ++i) {
 		bin = sec_bin_pick(sec, cur_shard, pszind);
@@ -141,7 +140,7 @@ sec_multishard_trylock_alloc(
 	 * declaring a miss.  That could recover more remote-shard hits under
 	 * contention, but it also changes the allocation latency policy.
 	 */
-	assert(cur_shard == sec_shard_pick(tsdn, sec));
+	assert(cur_shard == shard);
 	bin = sec_bin_pick(sec, cur_shard, pszind);
 	malloc_mutex_lock(tsdn, &bin->mtx);
 	edata_t *edata = sec_bin_alloc_locked(tsdn, sec, bin, size);
@@ -155,7 +154,7 @@ sec_multishard_trylock_alloc(
 }
 
 edata_t *
-sec_alloc(tsdn_t *tsdn, sec_t *sec, size_t size) {
+sec_alloc(tsdn_t *tsdn, sec_t *sec, size_t size, uint8_t shard) {
 	if (!sec_size_supported(sec, size)) {
 		return NULL;
 	}
@@ -179,7 +178,7 @@ sec_alloc(tsdn_t *tsdn, sec_t *sec, size_t size) {
 		    /* frequent_reuse */ 1);
 		return edata;
 	}
-	return sec_multishard_trylock_alloc(tsdn, sec, size, pszind);
+	return sec_multishard_trylock_alloc(tsdn, sec, size, pszind, shard);
 }
 
 static void
@@ -219,11 +218,11 @@ sec_bin_dalloc_locked(tsdn_t *tsdn, sec_t *sec, sec_bin_t *bin, size_t size,
 
 static void
 sec_multishard_trylock_dalloc(tsdn_t *tsdn, sec_t *sec, size_t size,
-    pszind_t pszind, edata_list_active_t *dalloc_list) {
+    pszind_t pszind, edata_list_active_t *dalloc_list, uint8_t shard) {
 	assert(sec->opts.nshards > 0);
 
 	/* Try to dalloc in this threads bin first */
-	uint8_t cur_shard = sec_shard_pick(tsdn, sec);
+	uint8_t cur_shard = shard;
 	for (size_t i = 0; i < sec->opts.nshards; ++i) {
 		sec_bin_t *bin = sec_bin_pick(sec, cur_shard, pszind);
 		if (!malloc_mutex_trylock(tsdn, &bin->mtx)) {
@@ -238,7 +237,7 @@ sec_multishard_trylock_dalloc(tsdn_t *tsdn, sec_t *sec, size_t size,
 		}
 	}
 	/* No bin had alloc or had the extent */
-	assert(cur_shard == sec_shard_pick(tsdn, sec));
+	assert(cur_shard == shard);
 	sec_bin_t *bin = sec_bin_pick(sec, cur_shard, pszind);
 	malloc_mutex_lock(tsdn, &bin->mtx);
 	sec_bin_dalloc_locked(tsdn, sec, bin, size, dalloc_list);
@@ -246,7 +245,8 @@ sec_multishard_trylock_dalloc(tsdn_t *tsdn, sec_t *sec, size_t size,
 }
 
 void
-sec_dalloc(tsdn_t *tsdn, sec_t *sec, edata_list_active_t *dalloc_list) {
+sec_dalloc(tsdn_t *tsdn, sec_t *sec, edata_list_active_t *dalloc_list,
+    uint8_t shard) {
 	if (!sec_is_used(sec)) {
 		return;
 	}
@@ -269,12 +269,13 @@ sec_dalloc(tsdn_t *tsdn, sec_t *sec, edata_list_active_t *dalloc_list) {
 		malloc_mutex_unlock(tsdn, &bin->mtx);
 		return;
 	}
-	sec_multishard_trylock_dalloc(tsdn, sec, size, pszind, dalloc_list);
+	sec_multishard_trylock_dalloc(tsdn, sec, size, pszind, dalloc_list,
+	    shard);
 }
 
 void
 sec_fill(tsdn_t *tsdn, sec_t *sec, size_t size, edata_list_active_t *result,
-    size_t nallocs) {
+    size_t nallocs, uint8_t shard) {
 	assert((size & PAGE_MASK) == 0);
 	assert(sec->opts.nshards != 0 && size <= sec->opts.max_alloc);
 	assert(nallocs > 0);
@@ -282,7 +283,7 @@ sec_fill(tsdn_t *tsdn, sec_t *sec, size_t size, edata_list_active_t *result,
 	pszind_t pszind = sz_psz2ind(size);
 	assert(pszind < sec->npsizes);
 
-	sec_bin_t *bin = sec_bin_pick(sec, sec_shard_pick(tsdn, sec), pszind);
+	sec_bin_t *bin = sec_bin_pick(sec, shard, pszind);
 	malloc_mutex_assert_not_owner(tsdn, &bin->mtx);
 	malloc_mutex_lock(tsdn, &bin->mtx);
 	size_t new_cached_bytes = nallocs * size;

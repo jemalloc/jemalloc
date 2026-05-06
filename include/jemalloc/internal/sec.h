@@ -91,10 +91,17 @@ sec_size_supported(sec_t *sec, size_t size) {
 	return sec_is_used(sec) && size <= sec->opts.max_alloc;
 }
 
+/*
+ * Lazily picks (and caches in *idxp) a shard for the calling thread.  Different
+ * SEC instances pass independent per-thread uint8_t slots, initialized to
+ * (uint8_t)-1.
+ */
+uint8_t sec_shard_pick(tsd_t *tsd, sec_t *sec, uint8_t *idxp);
+
 /* If sec does not have extent available, it will return NULL. */
-edata_t *sec_alloc(tsdn_t *tsdn, sec_t *sec, size_t size);
+edata_t *sec_alloc(tsdn_t *tsdn, sec_t *sec, size_t size, uint8_t shard);
 void     sec_fill(tsdn_t *tsdn, sec_t *sec, size_t size,
-        edata_list_active_t *result, size_t nallocs);
+        edata_list_active_t *result, size_t nallocs, uint8_t shard);
 
 /*
  * Upon return dalloc_list may be empty if edata is consumed by sec or non-empty
@@ -104,7 +111,8 @@ void     sec_fill(tsdn_t *tsdn, sec_t *sec, size_t size,
  * considered "hot" and preserved in the cache, while "colder" ones are
  * returned).
  */
-void sec_dalloc(tsdn_t *tsdn, sec_t *sec, edata_list_active_t *dalloc_list);
+void sec_dalloc(tsdn_t *tsdn, sec_t *sec, edata_list_active_t *dalloc_list,
+    uint8_t shard);
 
 bool sec_init(tsdn_t *tsdn, sec_t *sec, base_t *base, const sec_opts_t *opts);
 

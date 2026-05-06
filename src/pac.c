@@ -15,6 +15,15 @@ static void     pac_dalloc_impl(
         tsdn_t *tsdn, pai_t *self, edata_t *edata, bool *deferred_work_generated);
 static uint64_t pac_time_until_deferred_work(tsdn_t *tsdn, pai_t *self);
 
+static inline uint8_t
+pac_sec_shard_pick(tsdn_t *tsdn, sec_t *sec) {
+	if (tsdn_null(tsdn)) {
+		return 0;
+	}
+	tsd_t *tsd = tsdn_tsd(tsdn);
+	return sec_shard_pick(tsd, sec, tsd_pac_sec_shardp_get(tsd));
+}
+
 static inline void
 pac_decay_data_get(pac_t *pac, extent_state_t state, decay_t **r_decay,
     pac_decay_stats_t **r_decay_stats, ecache_t **r_ecache) {
@@ -109,6 +118,11 @@ pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
 	pac->pai.dalloc = &pac_dalloc_impl;
 	pac->pai.time_until_deferred_work = &pac_time_until_deferred_work;
 
+	if (sec_init(tsdn, &pac->sec, base, &opt_pac_sec_opts)) {
+		/* Fall back to no SEC on allocation failure. */
+		pac->sec.opts.nshards = 0;
+	}
+
 	return false;
 }
 
@@ -149,6 +163,15 @@ pac_alloc_real(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 	size_t newly_mapped_size = 0;
 
 	edata_t *edata = NULL;
+
+	if (sec_size_supported(&pac->sec, size) &&
+	    !guarded && !zero && alignment <= PAGE) {
+		edata = sec_alloc(tsdn, &pac->sec, size,
+		    pac_sec_shard_pick(tsdn, &pac->sec));
+		if (edata != NULL) {
+			return edata;
+		}
+	}
 
 	/*
 	 * Guarded allocations need surrounding guard pages, which the pinned
@@ -410,6 +433,30 @@ pac_dalloc_impl(
 			san_unguard_pages_two_sided(
 			    tsdn, ehooks, edata, pac->emap);
 		}
+	} else if (sec_size_supported(&pac->sec, edata_size_get(edata))) {
+		edata_zeroed_set(edata, false);
+		edata_list_active_t dalloc_list;
+		edata_list_active_init(&dalloc_list);
+		edata_list_active_append(&dalloc_list, edata);
+		sec_dalloc(tsdn, &pac->sec, &dalloc_list,
+		    pac_sec_shard_pick(tsdn, &pac->sec));
+		if (edata_list_active_empty(&dalloc_list)) {
+			*deferred_work_generated = false;
+			return;
+		}
+		/* Flush overflow extents back to the ecaches. */
+		edata_t *flush_edata;
+		*deferred_work_generated = false;
+		while ((flush_edata =
+		    edata_list_active_first(&dalloc_list)) != NULL) {
+			edata_list_active_remove(&dalloc_list,
+			    flush_edata);
+			if (!edata_pinned_get(flush_edata)) {
+				*deferred_work_generated = true;
+			}
+			pac_ecache_dalloc(tsdn, pac, ehooks, flush_edata);
+		}
+		return;
 	}
 
 	bool pinned = edata_pinned_get(edata);
@@ -762,16 +809,16 @@ pac_decay_ms_get(pac_t *pac, extent_state_t state) {
 
 void
 pac_reset(tsdn_t *tsdn, pac_t *pac) {
+	pac_sec_flush(tsdn, pac);
 	/*
-	 * No-op for now; purging is still done at the arena-level.  It should
-	 * get moved in here, though.
+	 * Purging is still done at the arena-level.  It should get moved in
+	 * here, though.
 	 */
-	(void)tsdn;
-	(void)pac;
 }
 
 void
 pac_destroy(tsdn_t *tsdn, pac_t *pac) {
+	pac_sec_flush(tsdn, pac);
 	assert(ecache_npages_get(&pac->ecache_dirty) == 0);
 	assert(ecache_npages_get(&pac->ecache_muzzy) == 0);
 	/*
@@ -831,4 +878,32 @@ pac_destroy(tsdn_t *tsdn, pac_t *pac) {
 	    != NULL) {
 		extent_destroy_wrapper(tsdn, pac, ehooks, edata);
 	}
+}
+
+void
+pac_sec_flush(tsdn_t *tsdn, pac_t *pac) {
+	ehooks_t *ehooks = pac_ehooks_get(pac);
+	edata_list_active_t to_flush;
+	edata_list_active_init(&to_flush);
+	sec_flush(tsdn, &pac->sec, &to_flush);
+	edata_t *edata;
+	while ((edata = edata_list_active_first(&to_flush)) != NULL) {
+		edata_list_active_remove(&to_flush, edata);
+		pac_ecache_dalloc(tsdn, pac, ehooks, edata);
+	}
+}
+
+void
+pac_prefork2(tsdn_t *tsdn, pac_t *pac) {
+	sec_prefork2(tsdn, &pac->sec);
+}
+
+void
+pac_postfork_parent(tsdn_t *tsdn, pac_t *pac) {
+	sec_postfork_parent(tsdn, &pac->sec);
+}
+
+void
+pac_postfork_child(tsdn_t *tsdn, pac_t *pac) {
+	sec_postfork_child(tsdn, &pac->sec);
 }

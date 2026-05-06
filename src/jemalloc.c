@@ -182,6 +182,16 @@ size_t opt_calloc_madvise_threshold = CALLOC_MADVISE_THRESHOLD_DEFAULT;
 bool             opt_hpa = false;
 hpa_shard_opts_t opt_hpa_opts = HPA_SHARD_OPTS_DEFAULT;
 sec_opts_t       opt_hpa_sec_opts = SEC_OPTS_DEFAULT;
+sec_opts_t       opt_pac_sec_opts = {
+    SEC_OPTS_NSHARDS_DEFAULT,
+    SEC_OPTS_MAX_ALLOC_DEFAULT,
+#if LG_SIZEOF_PTR == 2
+    (256 * 1024),	/* max_bytes: conservative on 32-bit */
+#else
+    (1024 * 1024),	/* max_bytes */
+#endif
+    0		/* batch_fill_extra: not wired up yet */
+};
 
 /* False should be the common case.  Set to true to trigger initialization. */
 bool malloc_slow = true;
