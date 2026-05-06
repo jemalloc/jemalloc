@@ -6,8 +6,12 @@
 
 static bool
 sec_bin_init(sec_bin_t *bin) {
-	bin->bytes_cur = 0;
-	sec_bin_stats_init(&bin->stats);
+	atomic_store_zu(&bin->bytes_cur, 0, ATOMIC_RELAXED);
+	atomic_store_zu(&bin->ndalloc_flush, 0, ATOMIC_RELAXED);
+	atomic_store_zu(&bin->nmisses, 0, ATOMIC_RELAXED);
+	atomic_store_zu(&bin->nhits, 0, ATOMIC_RELAXED);
+	atomic_store_zu(&bin->ndalloc_noflush, 0, ATOMIC_RELAXED);
+	atomic_store_zu(&bin->noverfills, 0, ATOMIC_RELAXED);
 	edata_list_active_init(&bin->freelist);
 	bool err = malloc_mutex_init(&bin->mtx, "sec_bin", WITNESS_RANK_SEC_BIN,
 	    malloc_mutex_rank_exclusive);
@@ -128,9 +132,11 @@ sec_bin_alloc_locked(tsdn_t *tsdn, sec_t *sec, sec_bin_t *bin, size_t size) {
 		assert(!edata_list_active_empty(&bin->freelist));
 		edata_list_active_remove(&bin->freelist, edata);
 		size_t sz = edata_size_get(edata);
-		assert(sz <= bin->bytes_cur && sz > 0);
-		bin->bytes_cur -= sz;
-		bin->stats.nhits++;
+		size_t bytes_cur = atomic_load_zu(&bin->bytes_cur, ATOMIC_RELAXED);
+		assert(sz <= bytes_cur && sz > 0);
+		bytes_cur -= sz;
+		atomic_store_zu(&bin->bytes_cur, bytes_cur, ATOMIC_RELAXED);
+		atomic_load_add_store_zu(&bin->nhits, 1);
 	}
 	return edata;
 }
@@ -170,7 +176,7 @@ sec_multishard_trylock_alloc(
 	edata_t *edata = sec_bin_alloc_locked(tsdn, sec, bin, size);
 	if (edata == NULL) {
 		/* Only now we know it is a miss. */
-		bin->stats.nmisses++;
+		atomic_load_add_store_zu(&bin->nmisses, 1);
 	}
 	malloc_mutex_unlock(tsdn, &bin->mtx);
 	JE_USDT(sec_alloc, 5, sec, bin, edata, size, /* frequent_reuse */ 1);
@@ -195,7 +201,7 @@ sec_alloc(tsdn_t *tsdn, sec_t *sec, size_t size) {
 		malloc_mutex_lock(tsdn, &bin->mtx);
 		edata_t *edata = sec_bin_alloc_locked(tsdn, sec, bin, size);
 		if (edata == NULL) {
-			bin->stats.nmisses++;
+			atomic_load_add_store_zu(&bin->nmisses, 1);
 		}
 		malloc_mutex_unlock(tsdn, &bin->mtx);
 		JE_USDT(sec_alloc, 5, sec, bin, edata, size,
@@ -210,7 +216,8 @@ sec_bin_dalloc_locked(tsdn_t *tsdn, sec_t *sec, sec_bin_t *bin, size_t size,
     edata_list_active_t *dalloc_list) {
 	malloc_mutex_assert_owner(tsdn, &bin->mtx);
 
-	bin->bytes_cur += size;
+	size_t bytes_cur = atomic_load_zu(&bin->bytes_cur, ATOMIC_RELAXED);
+	bytes_cur += size;
 	edata_t *edata = edata_list_active_first(dalloc_list);
 	assert(edata != NULL);
 	edata_list_active_remove(dalloc_list, edata);
@@ -219,22 +226,24 @@ sec_bin_dalloc_locked(tsdn_t *tsdn, sec_t *sec, sec_bin_t *bin, size_t size,
 	/* Single extent can be returned to SEC */
 	assert(edata_list_active_empty(dalloc_list));
 
-	if (bin->bytes_cur <= sec->opts.max_bytes) {
-		bin->stats.ndalloc_noflush++;
+	if (bytes_cur <= sec->opts.max_bytes) {
+		atomic_store_zu(&bin->bytes_cur, bytes_cur, ATOMIC_RELAXED);
+		atomic_load_add_store_zu(&bin->ndalloc_noflush, 1);
 		return;
 	}
-	bin->stats.ndalloc_flush++;
+	atomic_load_add_store_zu(&bin->ndalloc_flush, 1);
 	/* we want to flush 1/4 of max_bytes */
 	size_t bytes_target = sec->opts.max_bytes - (sec->opts.max_bytes >> 2);
-	while (bin->bytes_cur > bytes_target
+	while (bytes_cur > bytes_target
 	    && !edata_list_active_empty(&bin->freelist)) {
 		edata_t *cur = edata_list_active_last(&bin->freelist);
 		size_t   sz = edata_size_get(cur);
-		assert(sz <= bin->bytes_cur && sz > 0);
-		bin->bytes_cur -= sz;
+		assert(sz <= bytes_cur && sz > 0);
+		bytes_cur -= sz;
 		edata_list_active_remove(&bin->freelist, cur);
 		edata_list_active_append(dalloc_list, cur);
 	}
+	atomic_store_zu(&bin->bytes_cur, bytes_cur, ATOMIC_RELAXED);
 }
 
 static void
@@ -306,17 +315,19 @@ sec_fill(tsdn_t *tsdn, sec_t *sec, size_t size, edata_list_active_t *result,
 	malloc_mutex_assert_not_owner(tsdn, &bin->mtx);
 	malloc_mutex_lock(tsdn, &bin->mtx);
 	size_t new_cached_bytes = nallocs * size;
-	if (bin->bytes_cur + new_cached_bytes <= sec->opts.max_bytes) {
+	size_t bytes_cur = atomic_load_zu(&bin->bytes_cur, ATOMIC_RELAXED);
+	if (bytes_cur + new_cached_bytes <= sec->opts.max_bytes) {
 		assert(!edata_list_active_empty(result));
 		edata_list_active_concat(&bin->freelist, result);
-		bin->bytes_cur += new_cached_bytes;
+		atomic_store_zu(&bin->bytes_cur, bytes_cur + new_cached_bytes,
+		    ATOMIC_RELAXED);
 	} else {
 		/*
 		 * Unlikely case of many threads filling at the same time and
 		 * going above max.
 		 */
-		bin->stats.noverfills++;
-		while (bin->bytes_cur + size <= sec->opts.max_bytes) {
+		atomic_load_add_store_zu(&bin->noverfills, 1);
+		while (bytes_cur + size <= sec->opts.max_bytes) {
 			edata_t *edata = edata_list_active_first(result);
 			if (edata == NULL) {
 				break;
@@ -324,8 +335,9 @@ sec_fill(tsdn_t *tsdn, sec_t *sec, size_t size, edata_list_active_t *result,
 			edata_list_active_remove(result, edata);
 			assert(size == edata_size_get(edata));
 			edata_list_active_append(&bin->freelist, edata);
-			bin->bytes_cur += size;
+			bytes_cur += size;
 		}
+		atomic_store_zu(&bin->bytes_cur, bytes_cur, ATOMIC_RELAXED);
 	}
 	malloc_mutex_unlock(tsdn, &bin->mtx);
 }
@@ -339,14 +351,14 @@ sec_flush(tsdn_t *tsdn, sec_t *sec, edata_list_active_t *to_flush) {
 	for (pszind_t i = 0; i < ntotal_bins; i++) {
 		sec_bin_t *bin = &sec->bins[i];
 		malloc_mutex_lock(tsdn, &bin->mtx);
-		bin->bytes_cur = 0;
+		atomic_store_zu(&bin->bytes_cur, 0, ATOMIC_RELAXED);
 		edata_list_active_concat(to_flush, &bin->freelist);
 		malloc_mutex_unlock(tsdn, &bin->mtx);
 	}
 }
 
 void
-sec_stats_merge(tsdn_t *tsdn, sec_t *sec, sec_stats_t *stats) {
+sec_stats_merge(tsdn_t *tsdn, const sec_t *sec, sec_stats_t *stats) {
 	if (!sec_is_used(sec)) {
 		return;
 	}
@@ -354,10 +366,17 @@ sec_stats_merge(tsdn_t *tsdn, sec_t *sec, sec_stats_t *stats) {
 	size_t ntotal_bins = sec->opts.nshards * sec->npsizes;
 	for (pszind_t i = 0; i < ntotal_bins; i++) {
 		sec_bin_t *bin = &sec->bins[i];
-		malloc_mutex_lock(tsdn, &bin->mtx);
-		sum += bin->bytes_cur;
-		sec_bin_stats_accum(&stats->total, &bin->stats);
-		malloc_mutex_unlock(tsdn, &bin->mtx);
+		sum += atomic_load_zu(&bin->bytes_cur, ATOMIC_RELAXED);
+		stats->total.nmisses +=
+		    atomic_load_zu(&bin->nmisses, ATOMIC_RELAXED);
+		stats->total.nhits +=
+		    atomic_load_zu(&bin->nhits, ATOMIC_RELAXED);
+		stats->total.ndalloc_flush +=
+		    atomic_load_zu(&bin->ndalloc_flush, ATOMIC_RELAXED);
+		stats->total.ndalloc_noflush +=
+		    atomic_load_zu(&bin->ndalloc_noflush, ATOMIC_RELAXED);
+		stats->total.noverfills +=
+		    atomic_load_zu(&bin->noverfills, ATOMIC_RELAXED);
 	}
 	stats->bytes += sum;
 }
