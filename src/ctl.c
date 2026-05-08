@@ -3974,7 +3974,7 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 		MUTEX_PROF_RESET(arena->pa_shard.pac.ecache_pinned.mtx);
 		MUTEX_PROF_RESET(arena->pa_shard.pac.decay_dirty.mtx);
 		MUTEX_PROF_RESET(arena->pa_shard.pac.decay_muzzy.mtx);
-		MUTEX_PROF_RESET(arena->tcache_ql_mtx);
+		MUTEX_PROF_RESET(arena->cache_bin_array_descriptor_ql_mtx);
 		MUTEX_PROF_RESET(arena->base->mtx);
 
 		for (szind_t j = 0; j < SC_NBINS; j++) {

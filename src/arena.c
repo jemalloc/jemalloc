@@ -164,7 +164,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	/* Currently cached bytes and sanitizer-stashed bytes in tcache. */
 	astats->tcache_bytes = 0;
 	astats->tcache_stashed_bytes = 0;
-	malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
+	malloc_mutex_lock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
 	cache_bin_array_descriptor_t *descriptor;
 	ql_foreach (descriptor, &arena->cache_bin_array_descriptor_ql, link) {
 		for (szind_t i = 0; i < TCACHE_NBINS_MAX; i++) {
@@ -183,8 +183,8 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	}
 	malloc_mutex_prof_read(tsdn,
 	    &astats->mutex_prof_data[arena_prof_mutex_tcache_list],
-	    &arena->tcache_ql_mtx);
-	malloc_mutex_unlock(tsdn, &arena->tcache_ql_mtx);
+	    &arena->cache_bin_array_descriptor_ql_mtx);
+	malloc_mutex_unlock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
 
 #define READ_ARENA_MUTEX_PROF_DATA(mtx, ind)                                   \
 	malloc_mutex_lock(tsdn, &arena->mtx);                                  \
@@ -1809,10 +1809,11 @@ arena_new(tsdn_t *tsdn, unsigned ind, const arena_config_t *config) {
 			goto label_error;
 		}
 
-		ql_new(&arena->tcache_ql);
 		ql_new(&arena->cache_bin_array_descriptor_ql);
-		if (malloc_mutex_init(&arena->tcache_ql_mtx, "tcache_ql",
-		        WITNESS_RANK_TCACHE_QL, malloc_mutex_rank_exclusive)) {
+		if (malloc_mutex_init(&arena->cache_bin_array_descriptor_ql_mtx,
+		        "cache_bin_array_descriptor_ql",
+		        WITNESS_RANK_CACHE_BIN_ARRAY_DESCRIPTOR_QL,
+		        malloc_mutex_rank_exclusive)) {
 			goto label_error;
 		}
 	}
@@ -2022,7 +2023,7 @@ arena_prefork0(tsdn_t *tsdn, arena_t *arena) {
 void
 arena_prefork1(tsdn_t *tsdn, arena_t *arena) {
 	if (config_stats) {
-		malloc_mutex_prefork(tsdn, &arena->tcache_ql_mtx);
+		malloc_mutex_prefork(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
 	}
 }
 
@@ -2075,7 +2076,7 @@ arena_postfork_parent(tsdn_t *tsdn, arena_t *arena) {
 	base_postfork_parent(tsdn, arena->base);
 	pa_shard_postfork_parent(tsdn, &arena->pa_shard);
 	if (config_stats) {
-		malloc_mutex_postfork_parent(tsdn, &arena->tcache_ql_mtx);
+		malloc_mutex_postfork_parent(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
 	}
 }
 
@@ -2100,6 +2101,6 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	base_postfork_child(tsdn, arena->base);
 	pa_shard_postfork_child(tsdn, &arena->pa_shard);
 	if (config_stats) {
-		malloc_mutex_postfork_child(tsdn, &arena->tcache_ql_mtx);
+		malloc_mutex_postfork_child(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
 	}
 }
