@@ -219,6 +219,59 @@ arena_locality_hint(tsdn_t *tsdn, arena_t *arena, szind_t szind) {
 	return bin_current_slab_addr(tsdn, bin);
 }
 
+void
+arena_cache_bin_array_register(tsdn_t *tsdn, arena_t *arena,
+    cache_bin_array_descriptor_t *desc) {
+	cassert(config_stats);
+	malloc_mutex_lock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
+	ql_tail_insert(&arena->cache_bin_array_descriptor_ql, desc, link);
+	malloc_mutex_unlock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
+}
+
+void
+arena_cache_bin_array_unregister(tsdn_t *tsdn, arena_t *arena,
+    cache_bin_array_descriptor_t *desc) {
+	cassert(config_stats);
+	malloc_mutex_lock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
+	if (config_debug) {
+		bool                          in_ql = false;
+		cache_bin_array_descriptor_t *iter;
+		ql_foreach (iter, &arena->cache_bin_array_descriptor_ql, link) {
+			if (iter == desc) {
+				in_ql = true;
+				break;
+			}
+		}
+		assert(in_ql);
+	}
+	ql_remove(&arena->cache_bin_array_descriptor_ql, desc, link);
+	/*
+	 * Flush this descriptor's per-cache_bin request counts up to the
+	 * arena's bin/large stats before the owner forgets which arena
+	 * accumulated them. (Step 2 of this refactor will relocate
+	 * tcache_stats_merge into cache_bin.c.)
+	 */
+	tcache_stats_merge(tsdn, desc, arena);
+	malloc_mutex_unlock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
+}
+
+/*
+ * Postfork-child entry: child is single-threaded and the queue is rebuilt
+ * from scratch (descriptors held by other threads at fork time are gone).
+ * The mutex itself is reinitialized later in arena_postfork_child, so we
+ * cannot lock here.
+ */
+void
+arena_cache_bin_array_postfork_child(arena_t *arena,
+    cache_bin_array_descriptor_t *desc_or_null) {
+	cassert(config_stats);
+	ql_new(&arena->cache_bin_array_descriptor_ql);
+	if (desc_or_null != NULL) {
+		ql_tail_insert(&arena->cache_bin_array_descriptor_ql,
+		    desc_or_null, link);
+	}
+}
+
 static void
 arena_background_thread_inactivity_check(
     tsdn_t *tsdn, arena_t *arena, bool is_background_thread) {

@@ -720,30 +720,19 @@ tcache_bin_ncached_max_read(
 	return false;
 }
 
-/*
- * Caller must hold arena->cache_bin_array_descriptor_ql_mtx, OR be in the postfork-child path
- * (single-threaded, mutex re-init pending).
- */
-static void
-tcache_arena_link(arena_t *arena, tcache_slow_t *tcache_slow) {
-	assert(tcache_slow->tcache != NULL);
-	cache_bin_array_descriptor_init(
-	    &tcache_slow->cache_bin_array_descriptor,
-	    tcache_slow->tcache->bins);
-	ql_tail_insert(&arena->cache_bin_array_descriptor_ql,
-	    &tcache_slow->cache_bin_array_descriptor, link);
-}
-
 void
 tcache_arena_associate(tsdn_t *tsdn, tcache_slow_t *tcache_slow,
     arena_t *arena) {
 	assert(tcache_slow->arena == NULL);
+	assert(tcache_slow->tcache != NULL);
 	tcache_slow->arena = arena;
 
 	if (config_stats) {
-		malloc_mutex_lock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
-		tcache_arena_link(arena, tcache_slow);
-		malloc_mutex_unlock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
+		cache_bin_array_descriptor_init(
+		    &tcache_slow->cache_bin_array_descriptor,
+		    tcache_slow->tcache->bins);
+		arena_cache_bin_array_register(tsdn, arena,
+		    &tcache_slow->cache_bin_array_descriptor);
 	}
 }
 
@@ -752,25 +741,8 @@ tcache_arena_dissociate(tsdn_t *tsdn, tcache_slow_t *tcache_slow) {
 	arena_t *arena = tcache_slow->arena;
 	assert(arena != NULL);
 	if (config_stats) {
-		malloc_mutex_lock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
-		if (config_debug) {
-			bool                          in_ql = false;
-			cache_bin_array_descriptor_t *iter;
-			ql_foreach (iter,
-			    &arena->cache_bin_array_descriptor_ql, link) {
-				if (iter ==
-				    &tcache_slow->cache_bin_array_descriptor) {
-					in_ql = true;
-					break;
-				}
-			}
-			assert(in_ql);
-		}
-		ql_remove(&arena->cache_bin_array_descriptor_ql,
-		    &tcache_slow->cache_bin_array_descriptor, link);
-		tcache_stats_merge(tsdn,
-		    &tcache_slow->cache_bin_array_descriptor, arena);
-		malloc_mutex_unlock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
+		arena_cache_bin_array_unregister(tsdn, arena,
+		    &tcache_slow->cache_bin_array_descriptor);
 	}
 	tcache_slow->arena = NULL;
 }
@@ -787,11 +759,16 @@ tcache_arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	if (!config_stats) {
 		return;
 	}
-	ql_new(&arena->cache_bin_array_descriptor_ql);
+	cache_bin_array_descriptor_t *desc = NULL;
 	tcache_slow_t *tcache_slow = tcache_slow_get(tsdn_tsd(tsdn));
 	if (tcache_slow != NULL && tcache_slow->arena == arena) {
-		tcache_arena_link(arena, tcache_slow);
+		assert(tcache_slow->tcache != NULL);
+		cache_bin_array_descriptor_init(
+		    &tcache_slow->cache_bin_array_descriptor,
+		    tcache_slow->tcache->bins);
+		desc = &tcache_slow->cache_bin_array_descriptor;
 	}
+	arena_cache_bin_array_postfork_child(arena, desc);
 }
 
 static void

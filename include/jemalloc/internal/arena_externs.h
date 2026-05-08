@@ -112,6 +112,12 @@ size_t arena_fill_small_fresh(tsdn_t *tsdn, arena_t *arena, szind_t binind,
     void **ptrs, size_t nfill, bool zero);
 bool   arena_boot(sc_data_t *sc_data, base_t *base, bool hpa);
 void  *arena_locality_hint(tsdn_t *tsdn, arena_t *arena, szind_t szind);
+void   arena_cache_bin_array_register(tsdn_t *tsdn, arena_t *arena,
+       cache_bin_array_descriptor_t *desc);
+void   arena_cache_bin_array_unregister(tsdn_t *tsdn, arena_t *arena,
+       cache_bin_array_descriptor_t *desc);
+void   arena_cache_bin_array_postfork_child(arena_t *arena,
+       cache_bin_array_descriptor_t *desc_or_null);
 void   arena_prefork0(tsdn_t *tsdn, arena_t *arena);
 void   arena_prefork1(tsdn_t *tsdn, arena_t *arena);
 void   arena_prefork2(tsdn_t *tsdn, arena_t *arena);
