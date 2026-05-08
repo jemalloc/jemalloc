@@ -213,8 +213,87 @@ TEST_BEGIN(test_fork_multithreaded) {
 }
 TEST_END
 
+TEST_BEGIN(test_fork_postfork_descriptor_relink) {
+#ifndef _WIN32
+	test_skip_if(!config_stats);
+	test_skip_if(!tcache_available(tsd_fetch()));
+
+	/* Set up a manually managed arena bound to this thread. */
+	unsigned arena_ind;
+	size_t   sz = sizeof(unsigned);
+	expect_d_eq(mallctl("arenas.create", (void *)&arena_ind, &sz, NULL, 0),
+	    0, "Unexpected mallctl() failure");
+
+	unsigned old_arena_ind;
+	sz = sizeof(old_arena_ind);
+	expect_d_eq(mallctl("thread.arena", (void *)&old_arena_ind, &sz,
+	                (void *)&arena_ind, sizeof(arena_ind)),
+	    0, "Unexpected mallctl() failure");
+
+	/* Populate the cache_bin so the descriptor has cached bytes. */
+	void *p[16];
+	for (size_t i = 0; i < ARRAY_SIZE(p); i++) {
+		p[i] = malloc(8);
+		expect_ptr_not_null(p[i], "Unexpected malloc() failure");
+	}
+	for (size_t i = 0; i < ARRAY_SIZE(p); i++) {
+		free(p[i]);
+	}
+
+	/* Sanity: parent's stats walk finds cached bytes via the queue. */
+	uint64_t epoch = 1;
+	expect_d_eq(mallctl("epoch", NULL, NULL, &epoch, sizeof(uint64_t)),
+	    0, "epoch refresh failed");
+	char ctl[64];
+	malloc_snprintf(ctl, sizeof(ctl),
+	    "stats.arenas.%u.tcache_bytes", arena_ind);
+	size_t parent_bytes = 0;
+	size_t bsz = sizeof(parent_bytes);
+	expect_d_eq(mallctl(ctl, &parent_bytes, &bsz, NULL, 0),
+	    0, "read tcache_bytes pre-fork");
+	expect_zu_gt(parent_bytes, 0,
+	    "Parent should see cached bytes from cache_bin descriptor");
+
+	pid_t pid = fork();
+	if (pid == -1) {
+		test_fail("Unexpected fork() failure");
+	} else if (pid == 0) {
+		/*
+		 * Child: verify the surviving descriptor is still in the
+		 * arena's queue. If postfork relink failed, the stats walk
+		 * would find an empty queue and report 0 cached bytes.
+		 */
+		void *q = malloc(8);
+		if (q == NULL) {
+			_exit(1);
+		}
+		free(q);
+
+		uint64_t child_epoch = 1;
+		if (mallctl("epoch", NULL, NULL, &child_epoch,
+		        sizeof(uint64_t)) != 0) {
+			_exit(2);
+		}
+		size_t child_bytes = 0;
+		size_t cbsz = sizeof(child_bytes);
+		if (mallctl(ctl, &child_bytes, &cbsz, NULL, 0) != 0) {
+			_exit(3);
+		}
+		if (child_bytes == 0) {
+			_exit(4);
+		}
+		_exit(0);
+	} else {
+		wait_for_child_exit(pid);
+	}
+#else
+	test_skip("fork(2) is irrelevant to Windows");
+#endif
+}
+TEST_END
+
 int
 main(void) {
 	return test_no_reentrancy(test_fork, test_fork_child_usability,
-	    test_fork_multithreaded);
+	    test_fork_multithreaded, test_fork_postfork_descriptor_relink);
 }
