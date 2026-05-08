@@ -228,6 +228,27 @@ arena_cache_bin_array_register(tsdn_t *tsdn, arena_t *arena,
 	malloc_mutex_unlock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
 }
 
+static void
+arena_cache_bin_stats_flush(tsdn_t *tsdn, arena_t *arena,
+    cache_bin_array_descriptor_t *desc) {
+	cassert(config_stats);
+	for (unsigned i = 0; i < TCACHE_NBINS_MAX; i++) {
+		cache_bin_t *cache_bin = &desc->bins[i];
+		if (cache_bin_disabled(cache_bin)) {
+			continue;
+		}
+		if (i < SC_NBINS) {
+			bin_t *bin = bin_choose(tsdn, arena, i, NULL);
+			bin_stats_nrequests_add(tsdn, bin,
+			    cache_bin->tstats.nrequests);
+		} else {
+			arena_stats_large_flush_nrequests_add(tsdn,
+			    &arena->stats, i, cache_bin->tstats.nrequests);
+		}
+		cache_bin->tstats.nrequests = 0;
+	}
+}
+
 void
 arena_cache_bin_array_unregister(tsdn_t *tsdn, arena_t *arena,
     cache_bin_array_descriptor_t *desc) {
@@ -245,13 +266,7 @@ arena_cache_bin_array_unregister(tsdn_t *tsdn, arena_t *arena,
 		assert(in_ql);
 	}
 	ql_remove(&arena->cache_bin_array_descriptor_ql, desc, link);
-	/*
-	 * Flush this descriptor's per-cache_bin request counts up to the
-	 * arena's bin/large stats before the owner forgets which arena
-	 * accumulated them. (Step 2 of this refactor will relocate
-	 * tcache_stats_merge into cache_bin.c.)
-	 */
-	tcache_stats_merge(tsdn, desc, arena);
+	arena_cache_bin_stats_flush(tsdn, arena, desc);
 	malloc_mutex_unlock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
 }
 
@@ -270,6 +285,17 @@ arena_cache_bin_array_postfork_child(arena_t *arena,
 		ql_tail_insert(&arena->cache_bin_array_descriptor_ql,
 		    desc_or_null, link);
 	}
+}
+
+void
+arena_cache_bins_stats_merge(tsdn_t *tsdn, arena_t *arena) {
+	cassert(config_stats);
+	malloc_mutex_lock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
+	cache_bin_array_descriptor_t *desc;
+	ql_foreach (desc, &arena->cache_bin_array_descriptor_ql, link) {
+		arena_cache_bin_stats_flush(tsdn, arena, desc);
+	}
+	malloc_mutex_unlock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
 }
 
 static void
