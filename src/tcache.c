@@ -1248,28 +1248,6 @@ tcache_cleanup(tsd_t *tsd) {
 	memset(tcache->bins, 0, sizeof(cache_bin_t) * TCACHE_NBINS_MAX);
 }
 
-void
-tcache_stats_merge(tsdn_t *tsdn, cache_bin_array_descriptor_t *desc,
-    arena_t *arena) {
-	cassert(config_stats);
-
-	for (unsigned i = 0; i < TCACHE_NBINS_MAX; i++) {
-		cache_bin_t *cache_bin = &desc->bins[i];
-		if (cache_bin_disabled(cache_bin)) {
-			continue;
-		}
-		if (i < SC_NBINS) {
-			bin_t *bin = bin_choose(tsdn, arena, i, NULL);
-			bin_stats_nrequests_add(tsdn, bin,
-			    cache_bin->tstats.nrequests);
-		} else {
-			arena_stats_large_flush_nrequests_add(tsdn,
-			    &arena->stats, i, cache_bin->tstats.nrequests);
-		}
-		cache_bin->tstats.nrequests = 0;
-	}
-}
-
 static bool
 tcaches_create_prep(tsd_t *tsd, base_t *base) {
 	bool err;

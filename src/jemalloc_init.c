@@ -305,16 +305,7 @@ stats_print_atexit(void) {
 		for (i = 0, narenas = narenas_total_get(); i < narenas; i++) {
 			arena_t *arena = arena_get(tsdn, i, false);
 			if (arena != NULL) {
-				cache_bin_array_descriptor_t *desc;
-
-				malloc_mutex_lock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
-				ql_foreach (desc,
-				    &arena->cache_bin_array_descriptor_ql,
-				    link) {
-					tcache_stats_merge(tsdn, desc, arena);
-				}
-				malloc_mutex_unlock(
-				    tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
+				arena_cache_bins_stats_merge(tsdn, arena);
 			}
 		}
 	}
