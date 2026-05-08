@@ -150,7 +150,10 @@ jemalloc_postfork_child(void) {
 		arena_t *arena;
 
 		if ((arena = arena_get(tsd_tsdn(tsd), i, false)) != NULL) {
-			arena_postfork_child(tsd_tsdn(tsd), arena);
+			cache_bin_array_descriptor_t *desc =
+			    tcache_postfork_arena_descriptor(
+			        tsd_tsdn(tsd), arena);
+			arena_postfork_child(tsd_tsdn(tsd), arena, desc);
 		}
 	}
 	prof_postfork_child(tsd_tsdn(tsd));
