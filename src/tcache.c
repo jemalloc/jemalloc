@@ -754,21 +754,20 @@ tcache_arena_reassociate(tsdn_t *tsdn, tcache_slow_t *tcache_slow,
 	tcache_arena_associate(tsdn, tcache_slow, arena);
 }
 
-void
-tcache_arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
+cache_bin_array_descriptor_t *
+tcache_postfork_arena_descriptor(tsdn_t *tsdn, arena_t *arena) {
 	if (!config_stats) {
-		return;
+		return NULL;
 	}
-	cache_bin_array_descriptor_t *desc = NULL;
 	tcache_slow_t *tcache_slow = tcache_slow_get(tsdn_tsd(tsdn));
-	if (tcache_slow != NULL && tcache_slow->arena == arena) {
-		assert(tcache_slow->tcache != NULL);
-		cache_bin_array_descriptor_init(
-		    &tcache_slow->cache_bin_array_descriptor,
-		    tcache_slow->tcache->bins);
-		desc = &tcache_slow->cache_bin_array_descriptor;
+	if (tcache_slow == NULL || tcache_slow->arena != arena) {
+		return NULL;
 	}
-	arena_cache_bin_array_postfork_child(arena, desc);
+	assert(tcache_slow->tcache != NULL);
+	cache_bin_array_descriptor_init(
+	    &tcache_slow->cache_bin_array_descriptor,
+	    tcache_slow->tcache->bins);
+	return &tcache_slow->cache_bin_array_descriptor;
 }
 
 static void

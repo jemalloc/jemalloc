@@ -271,10 +271,9 @@ arena_cache_bin_array_unregister(tsdn_t *tsdn, arena_t *arena,
 }
 
 /*
- * Postfork-child entry: child is single-threaded and the queue is rebuilt
- * from scratch (descriptors held by other threads at fork time are gone).
- * The mutex itself is reinitialized later in arena_postfork_child, so we
- * cannot lock here.
+ * Postfork-child entry: child is single-threaded, so the queue is rebuilt
+ * from scratch (descriptors held by other threads at fork time are gone)
+ * without locking.
  */
 void
 arena_cache_bin_array_postfork_child(arena_t *arena,
@@ -2160,7 +2159,8 @@ arena_postfork_parent(tsdn_t *tsdn, arena_t *arena) {
 }
 
 void
-arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
+arena_postfork_child(tsdn_t *tsdn, arena_t *arena,
+    cache_bin_array_descriptor_t *surviving_desc) {
 	atomic_store_u(&arena->nthreads[0], 0, ATOMIC_RELAXED);
 	atomic_store_u(&arena->nthreads[1], 0, ATOMIC_RELAXED);
 	if (tsd_arena_get(tsdn_tsd(tsdn)) == arena) {
@@ -2169,7 +2169,11 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	if (tsd_iarena_get(tsdn_tsd(tsdn)) == arena) {
 		arena_nthreads_inc(arena, true);
 	}
-	tcache_arena_postfork_child(tsdn, arena);
+	if (config_stats) {
+		malloc_mutex_postfork_child(tsdn,
+		    &arena->cache_bin_array_descriptor_ql_mtx);
+		arena_cache_bin_array_postfork_child(arena, surviving_desc);
+	}
 
 	for (unsigned i = 0; i < nbins_total; i++) {
 		JEMALLOC_SUPPRESS_WARN_ON_USAGE(
@@ -2179,7 +2183,4 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	malloc_mutex_postfork_child(tsdn, &arena->large_mtx);
 	base_postfork_child(tsdn, arena->base);
 	pa_shard_postfork_child(tsdn, &arena->pa_shard);
-	if (config_stats) {
-		malloc_mutex_postfork_child(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
-	}
 }

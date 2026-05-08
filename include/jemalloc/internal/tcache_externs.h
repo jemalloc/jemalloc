@@ -72,7 +72,8 @@ void      tcaches_destroy(tsd_t *tsd, unsigned ind);
 bool      tcache_boot(tsdn_t *tsdn, base_t *base);
 void      tcache_arena_associate(
          tsdn_t *tsdn, tcache_slow_t *tcache_slow, arena_t *arena);
-void      tcache_arena_postfork_child(tsdn_t *tsdn, arena_t *arena);
+cache_bin_array_descriptor_t *tcache_postfork_arena_descriptor(
+         tsdn_t *tsdn, arena_t *arena);
 void tcache_prefork(tsdn_t *tsdn);
 void tcache_postfork_parent(tsdn_t *tsdn);
 void tcache_postfork_child(tsdn_t *tsdn);

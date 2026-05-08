@@ -129,6 +129,7 @@ void   arena_prefork6(tsdn_t *tsdn, arena_t *arena);
 void   arena_prefork7(tsdn_t *tsdn, arena_t *arena);
 void   arena_prefork8(tsdn_t *tsdn, arena_t *arena);
 void   arena_postfork_parent(tsdn_t *tsdn, arena_t *arena);
-void   arena_postfork_child(tsdn_t *tsdn, arena_t *arena);
+void   arena_postfork_child(tsdn_t *tsdn, arena_t *arena,
+       cache_bin_array_descriptor_t *surviving_desc);
 
 #endif /* JEMALLOC_INTERNAL_ARENA_EXTERNS_H */
