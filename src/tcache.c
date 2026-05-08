@@ -720,6 +720,22 @@ tcache_bin_ncached_max_read(
 	return false;
 }
 
+/*
+ * Insert tcache_slow into arena's tcache list.  Caller must hold
+ * arena->tcache_ql_mtx, OR be in the postfork-child path (single-threaded,
+ * mutex re-init pending).  config_stats must be true.
+ */
+static void
+tcache_arena_link(arena_t *arena, tcache_slow_t *tcache_slow,
+    tcache_t *tcache) {
+	ql_elm_new(tcache_slow, link);
+	ql_tail_insert(&arena->tcache_ql, tcache_slow, link);
+	cache_bin_array_descriptor_init(
+	    &tcache_slow->cache_bin_array_descriptor, tcache->bins);
+	ql_tail_insert(&arena->cache_bin_array_descriptor_ql,
+	    &tcache_slow->cache_bin_array_descriptor, link);
+}
+
 void
 tcache_arena_associate(tsdn_t *tsdn, tcache_slow_t *tcache_slow,
     tcache_t *tcache, arena_t *arena) {
@@ -727,16 +743,8 @@ tcache_arena_associate(tsdn_t *tsdn, tcache_slow_t *tcache_slow,
 	tcache_slow->arena = arena;
 
 	if (config_stats) {
-		/* Link into list of extant tcaches. */
 		malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
-
-		ql_elm_new(tcache_slow, link);
-		ql_tail_insert(&arena->tcache_ql, tcache_slow, link);
-		cache_bin_array_descriptor_init(
-		    &tcache_slow->cache_bin_array_descriptor, tcache->bins);
-		ql_tail_insert(&arena->cache_bin_array_descriptor_ql,
-		    &tcache_slow->cache_bin_array_descriptor, link);
-
+		tcache_arena_link(arena, tcache_slow, tcache);
 		malloc_mutex_unlock(tsdn, &arena->tcache_ql_mtx);
 	}
 }
@@ -774,6 +782,19 @@ tcache_arena_reassociate(tsdn_t *tsdn, tcache_slow_t *tcache_slow,
     tcache_t *tcache, arena_t *arena) {
 	tcache_arena_dissociate(tsdn, tcache_slow, tcache);
 	tcache_arena_associate(tsdn, tcache_slow, tcache, arena);
+}
+
+void
+tcache_arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
+	if (!config_stats) {
+		return;
+	}
+	ql_new(&arena->tcache_ql);
+	ql_new(&arena->cache_bin_array_descriptor_ql);
+	tcache_slow_t *tcache_slow = tcache_slow_get(tsdn_tsd(tsdn));
+	if (tcache_slow != NULL && tcache_slow->arena == arena) {
+		tcache_arena_link(arena, tcache_slow, tcache_slow->tcache);
+	}
 }
 
 static void

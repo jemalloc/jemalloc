@@ -2089,21 +2089,7 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	if (tsd_iarena_get(tsdn_tsd(tsdn)) == arena) {
 		arena_nthreads_inc(arena, true);
 	}
-	if (config_stats) {
-		ql_new(&arena->tcache_ql);
-		ql_new(&arena->cache_bin_array_descriptor_ql);
-		tcache_slow_t *tcache_slow = tcache_slow_get(tsdn_tsd(tsdn));
-		if (tcache_slow != NULL && tcache_slow->arena == arena) {
-			tcache_t *tcache = tcache_slow->tcache;
-			ql_elm_new(tcache_slow, link);
-			ql_tail_insert(&arena->tcache_ql, tcache_slow, link);
-			cache_bin_array_descriptor_init(
-			    &tcache_slow->cache_bin_array_descriptor,
-			    tcache->bins);
-			ql_tail_insert(&arena->cache_bin_array_descriptor_ql,
-			    &tcache_slow->cache_bin_array_descriptor, link);
-		}
-	}
+	tcache_arena_postfork_child(tsdn, arena);
 
 	for (unsigned i = 0; i < nbins_total; i++) {
 		JEMALLOC_SUPPRESS_WARN_ON_USAGE(
