@@ -19,9 +19,6 @@
  */
 
 struct tcache_slow_s {
-	/* Lets us track all the tcaches in an arena. */
-	ql_elm(tcache_slow_t) link;
-
 	/*
 	 * The descriptor lets the arena find our cache bins without seeing the
 	 * tcache definition.  This enables arenas to aggregate stats across

@@ -66,7 +66,8 @@ void tcache_arena_reassociate(
 tcache_t *tcache_create_explicit(tsd_t *tsd);
 bool      thread_tcache_max_set(tsd_t *tsd, size_t tcache_max);
 void      tcache_cleanup(tsd_t *tsd);
-void      tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena);
+void      tcache_stats_merge(tsdn_t *tsdn,
+         cache_bin_array_descriptor_t *desc, arena_t *arena);
 bool      tcaches_create(tsd_t *tsd, base_t *base, unsigned *r_ind);
 void      tcaches_flush(tsd_t *tsd, unsigned ind);
 void      tcaches_destroy(tsd_t *tsd, unsigned ind);

@@ -111,6 +111,24 @@ migrate_worker(void *unused) {
 	expect_ptr_not_null(a1, "arena1 should exist");
 	expect_ptr_not_null(a2, "arena2 should exist");
 
+	/*
+	 * Populate cache_bin tstats with explicit small allocs so the
+	 * migrate's flush has something to merge.
+	 */
+	szind_t test_binind = sz_size2index(8);
+	if (config_stats && tcache_available(tsd)) {
+		void *p[16];
+		for (size_t i = 0; i < ARRAY_SIZE(p); i++) {
+			p[i] = malloc(8);
+		}
+		for (size_t i = 0; i < ARRAY_SIZE(p); i++) {
+			free(p[i]);
+		}
+		cache_bin_t *cb = &tsd_tcachep_get(tsd)->bins[test_binind];
+		expect_u64_gt(cb->tstats.nrequests, 0,
+		    "Small allocs should accumulate cache_bin tstats");
+	}
+
 	thread_migrate_arena(tsd, a1, a2);
 
 	expect_ptr_eq(
@@ -119,6 +137,65 @@ migrate_worker(void *unused) {
 	if (tcache_available(tsd)) {
 		expect_ptr_eq(tsd_tcache_slowp_get(tsd)->arena, a2,
 		    "tcache should be reassociated with newarena");
+	}
+
+	if (config_stats && tcache_available(tsd)) {
+		cache_bin_t *cb = &tsd_tcachep_get(tsd)->bins[test_binind];
+		expect_u64_eq(cb->tstats.nrequests, 0,
+		    "cache_bin tstats should be 0 after migrate flush");
+	}
+
+	/*
+	 * Symmetric check: post-migrate allocations should accumulate against
+	 * a2, not a1.  Refresh stats, allocate N items, refresh again, and
+	 * verify a2's bin nrequests grew while a1's did not.
+	 */
+	if (config_stats && tcache_available(tsd)) {
+		char     ctl_a1[64], ctl_a2[64];
+		uint64_t a1_pre, a2_pre, a1_post, a2_post;
+		size_t   sz_u64 = sizeof(uint64_t);
+		uint64_t epoch = 1;
+
+		malloc_snprintf(ctl_a1, sizeof(ctl_a1),
+		    "stats.arenas.%u.bins.%u.nrequests",
+		    migrate_a1_ind, test_binind);
+		malloc_snprintf(ctl_a2, sizeof(ctl_a2),
+		    "stats.arenas.%u.bins.%u.nrequests",
+		    migrate_a2_ind, test_binind);
+
+		expect_d_eq(mallctl("epoch", NULL, NULL, &epoch,
+		    sizeof(uint64_t)), 0, "epoch refresh");
+		expect_d_eq(mallctl(ctl_a1, &a1_pre, &sz_u64, NULL, 0), 0,
+		    "read a1 nrequests baseline");
+		expect_d_eq(mallctl(ctl_a2, &a2_pre, &sz_u64, NULL, 0), 0,
+		    "read a2 nrequests baseline");
+
+		void *p[24];
+		for (size_t i = 0; i < ARRAY_SIZE(p); i++) {
+			p[i] = malloc(8);
+		}
+		for (size_t i = 0; i < ARRAY_SIZE(p); i++) {
+			free(p[i]);
+		}
+
+		/*
+		 * Flushing the tcache merges cache_bin tstats into the arena's
+		 * bin stats (epoch refresh alone does not).
+		 */
+		expect_d_eq(mallctl("thread.tcache.flush", NULL, NULL, NULL,
+		    0), 0, "thread.tcache.flush");
+
+		expect_d_eq(mallctl("epoch", NULL, NULL, &epoch,
+		    sizeof(uint64_t)), 0, "epoch refresh");
+		expect_d_eq(mallctl(ctl_a1, &a1_post, &sz_u64, NULL, 0), 0,
+		    "read a1 nrequests post");
+		expect_d_eq(mallctl(ctl_a2, &a2_post, &sz_u64, NULL, 0), 0,
+		    "read a2 nrequests post");
+
+		expect_u64_eq(a1_post, a1_pre,
+		    "a1 nrequests should be unchanged by post-migrate allocs");
+		expect_u64_ge(a2_post - a2_pre, (uint64_t)ARRAY_SIZE(p),
+		    "a2 nrequests should reflect post-migrate allocs");
 	}
 
 	atomic_store_b(&migrate_done, true, ATOMIC_RELEASE);
