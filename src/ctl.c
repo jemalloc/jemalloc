@@ -2320,13 +2320,7 @@ thread_arena_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 			ret = EAGAIN;
 			goto label_return;
 		}
-		/* Set new arena/tcache associations. */
-		arena_migrate(tsd, oldarena, newarena);
-		if (tcache_available(tsd)) {
-			tcache_arena_reassociate(tsd_tsdn(tsd),
-			    tsd_tcache_slowp_get(tsd), tsd_tcachep_get(tsd),
-			    newarena);
-		}
+		thread_migrate_arena(tsd, oldarena, newarena);
 	}
 
 	ret = 0;

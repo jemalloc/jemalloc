@@ -8,6 +8,16 @@
 #include "jemalloc/internal/jemalloc_internal_inlines_a.h"
 
 static inline void
+thread_migrate_arena(tsd_t *tsd, arena_t *oldarena, arena_t *newarena) {
+	arena_migrate(tsd, oldarena, newarena);
+	if (tcache_available(tsd)) {
+		tcache_arena_reassociate(tsd_tsdn(tsd),
+		    tsd_tcache_slowp_get(tsd), tsd_tcachep_get(tsd),
+		    newarena);
+	}
+}
+
+static inline void
 percpu_arena_update(tsd_t *tsd, unsigned cpu) {
 	assert(have_percpu_arena);
 	arena_t *oldarena = tsd_arena_get(tsd);
@@ -19,15 +29,7 @@ percpu_arena_update(tsd_t *tsd, unsigned cpu) {
 		arena_t *newarena = arena_get(tsd_tsdn(tsd), newind, true);
 		assert(newarena != NULL);
 
-		/* Set new arena/tcache associations. */
-		arena_migrate(tsd, oldarena, newarena);
-		tcache_t *tcache = tcache_get(tsd);
-		if (tcache != NULL) {
-			tcache_slow_t *tcache_slow = tsd_tcache_slowp_get(tsd);
-			assert(tcache_slow->arena != NULL);
-			tcache_arena_reassociate(
-			    tsd_tsdn(tsd), tcache_slow, tcache, newarena);
-		}
+		thread_migrate_arena(tsd, oldarena, newarena);
 	}
 }
 

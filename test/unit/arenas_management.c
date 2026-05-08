@@ -86,9 +86,10 @@ TEST_BEGIN(test_arena_init_idempotent_auto) {
 TEST_END
 
 /*
- * test_arena_migrate spawns one worker thread, binds it to arena1, then has
- * it migrate to arena2. We verify the nthreads counters on both arenas and
- * that the migrating thread's tsd_arena was re-pointed.
+ * test_thread_migrate_arena spawns one worker thread, binds it to arena1,
+ * then migrates it to arena2 via the thread-level helper.  We verify the
+ * nthreads counters on both arenas, that the migrating thread's tsd_arena
+ * was re-pointed, and that its tcache (if active) was reassociated.
  */
 static unsigned   migrate_a1_ind;
 static unsigned   migrate_a2_ind;
@@ -110,10 +111,15 @@ migrate_worker(void *unused) {
 	expect_ptr_not_null(a1, "arena1 should exist");
 	expect_ptr_not_null(a2, "arena2 should exist");
 
-	arena_migrate(tsd, a1, a2);
+	thread_migrate_arena(tsd, a1, a2);
 
 	expect_ptr_eq(
 	    tsd_arena_get(tsd), a2, "tsd_arena was not updated to newarena");
+
+	if (tcache_available(tsd)) {
+		expect_ptr_eq(tsd_tcache_slowp_get(tsd)->arena, a2,
+		    "tcache should be reassociated with newarena");
+	}
 
 	atomic_store_b(&migrate_done, true, ATOMIC_RELEASE);
 
@@ -123,7 +129,7 @@ migrate_worker(void *unused) {
 	return NULL;
 }
 
-TEST_BEGIN(test_arena_migrate) {
+TEST_BEGIN(test_thread_migrate_arena) {
 	atomic_store_b(&migrate_done, false, ATOMIC_RELEASE);
 	atomic_store_b(&migrate_go_exit, false, ATOMIC_RELEASE);
 
@@ -250,5 +256,5 @@ main(void) {
 	    test_narenas_total_set_roundtrip, test_narenas_auto_set_roundtrip,
 	    test_manual_arena_base_set_roundtrip, test_arena_set_roundtrip,
 	    test_arena_init_creates_arena, test_arena_init_idempotent_auto,
-	    test_arena_migrate, test_arena_cleanup, test_iarena_cleanup);
+	    test_thread_migrate_arena, test_arena_cleanup, test_iarena_cleanup);
 }
