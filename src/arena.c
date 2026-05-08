@@ -652,9 +652,7 @@ arena_dalloc_promoted_impl(
 	}
 	szind_t bumped_ind = sz_size2index(bumped_usize);
 	if (bumped_usize >= SC_LARGE_MINCLASS && tcache != NULL
-	    && bumped_ind < TCACHE_NBINS_MAX
-	    && !tcache_bin_disabled(
-	        bumped_ind, &tcache->bins[bumped_ind], tcache->tcache_slow)) {
+	    && tcache_can_cache_large(tcache, bumped_ind)) {
 		tcache_dalloc_large(
 		    tsdn_tsd(tsdn), tcache, ptr, bumped_ind, slow_path);
 	} else {

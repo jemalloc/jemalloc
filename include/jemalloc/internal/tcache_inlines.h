@@ -86,6 +86,13 @@ tcache_bin_disabled(szind_t ind, cache_bin_t *bin, tcache_slow_t *tcache_slow) {
 	return disabled;
 }
 
+JEMALLOC_ALWAYS_INLINE bool
+tcache_can_cache_large(tcache_t *tcache, szind_t ind) {
+	return ind < tcache_nbins_get(tcache->tcache_slow)
+	    && !tcache_bin_disabled(ind, &tcache->bins[ind],
+	        tcache->tcache_slow);
+}
+
 JEMALLOC_ALWAYS_INLINE void *
 tcache_alloc_small(tsd_t *tsd, arena_t *arena, tcache_t *tcache, size_t size,
     szind_t binind, bool zero, bool slow_path) {
