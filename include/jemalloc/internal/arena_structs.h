@@ -104,7 +104,11 @@ struct arena_s {
 	    "Do not use this field directly. "
 	    "Use `arena_get_bin` instead.")
 	JEMALLOC_ALIGNED(CACHELINE)
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
+	bin_t all_bins[];
+#else
 	bin_t all_bins[0];
+#endif
 };
 
 #endif /* JEMALLOC_INTERNAL_ARENA_STRUCTS_H */
