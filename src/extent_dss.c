@@ -33,11 +33,20 @@ static atomic_b_t dss_exhausted;
 /* Atomic current upper limit on DSS addresses. */
 static atomic_p_t dss_max;
 
+#ifdef JEMALLOC_JET
+extent_dss_sbrk_hook_t extent_dss_sbrk_hook = NULL;
+#endif
+
 /******************************************************************************/
 
 static void *
 extent_dss_sbrk(intptr_t increment) {
 #ifdef JEMALLOC_DSS
+#ifdef JEMALLOC_JET
+	if (extent_dss_sbrk_hook != NULL) {
+		return extent_dss_sbrk_hook(increment);
+	}
+#endif
 	return sbrk(increment);
 #else
 	not_implemented();

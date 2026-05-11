@@ -27,4 +27,9 @@ bool       extent_in_dss(void *addr);
 bool       extent_dss_mergeable(void *addr_a, void *addr_b);
 void       extent_dss_boot(void);
 
+#ifdef JEMALLOC_JET
+typedef void *(*extent_dss_sbrk_hook_t)(intptr_t);
+extern extent_dss_sbrk_hook_t extent_dss_sbrk_hook;
+#endif
+
 #endif /* JEMALLOC_INTERNAL_EXTENT_DSS_H */

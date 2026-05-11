@@ -231,6 +231,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/double_free.c \
 	$(srcroot)test/unit/edata_cache.c \
 	$(srcroot)test/unit/emitter.c \
+	$(srcroot)test/unit/extent_dss.c \
 	$(srcroot)test/unit/extent_quantize.c \
 	${srcroot}test/unit/fb.c \
 	$(srcroot)test/unit/fork.c \
