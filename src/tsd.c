@@ -81,7 +81,7 @@ void
 tsd_slow_update(tsd_t *tsd) {
 	assert(!tsd_booted_get() || tsd_get(false) == tsd
 	    || (tsd_get_allocates() && tsd_get(false) == NULL));
-	tsd_atomic_store(&tsd->state, tsd_state_compute(tsd), ATOMIC_RELAXED);
+	tsd->state = tsd_state_compute(tsd);
 
 	te_recompute_fast_threshold(tsd);
 }
@@ -90,8 +90,7 @@ void
 tsd_state_set(tsd_t *tsd, uint8_t new_state) {
 	assert(!tsd_booted_get() || tsd_get(false) == tsd
 	    || (tsd_get_allocates() && tsd_get(false) == NULL));
-	uint8_t old_state = tsd_atomic_load(&tsd->state, ATOMIC_RELAXED);
-	if (old_state <= tsd_state_nominal_max
+	if (tsd->state <= tsd_state_nominal_max
 	    && new_state <= tsd_state_nominal_max) {
 		/*
 		 * We're transitioning from one nominal state to another.
@@ -99,11 +98,10 @@ tsd_state_set(tsd_t *tsd, uint8_t new_state) {
 		 * than trusting the caller's requested nominal state.
 		 */
 		tsd_slow_update(tsd);
-		return;
 	} else {
-		tsd_atomic_store(&tsd->state, new_state, ATOMIC_RELAXED);
+		tsd->state = new_state;
+		te_recompute_fast_threshold(tsd);
 	}
-	te_recompute_fast_threshold(tsd);
 }
 
 static void
