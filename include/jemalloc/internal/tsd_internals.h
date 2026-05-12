@@ -126,7 +126,7 @@ typedef void (*test_callback_t)(int *);
 #define TSD_INITIALIZER                                                        \
 	{                                                                      \
 		TSD_DATA_SLOW_INITIALIZER                                      \
-		/* state */ ATOMIC_INIT(tsd_state_uninitialized),              \
+		/* state */ tsd_state_uninitialized,                           \
 		    TSD_DATA_FAST_INITIALIZER TSD_DATA_SLOWER_INITIALIZER      \
 	}
 
@@ -182,16 +182,6 @@ enum {
  */
 #define TSD_MANGLE(n) cant_access_tsd_items_directly_use_a_getter_or_setter_##n
 
-#ifdef JEMALLOC_U8_ATOMICS
-#	define tsd_state_t atomic_u8_t
-#	define tsd_atomic_load atomic_load_u8
-#	define tsd_atomic_store atomic_store_u8
-#else
-#	define tsd_state_t atomic_u32_t
-#	define tsd_atomic_load atomic_load_u32
-#	define tsd_atomic_store atomic_store_u32
-#endif
-
 /* The actual tsd. */
 struct tsd_s {
 	/*
@@ -203,11 +193,8 @@ struct tsd_s {
 #define O(n, t, nt) t TSD_MANGLE(n);
 
 	TSD_DATA_SLOW
-	/*
-	 * We manually limit the state to just a single byte.  Unless the 8-bit
-	 * atomics are unavailable (which is rare).
-	 */
-	tsd_state_t state;
+	/* Encodes one of tsd_state_*; mutated only by the owning thread. */
+	uint8_t state;
 	TSD_DATA_FAST
 	TSD_DATA_SLOWER
 #undef O
@@ -215,13 +202,7 @@ struct tsd_s {
 
 JEMALLOC_ALWAYS_INLINE uint8_t
 tsd_state_get(tsd_t *tsd) {
-	/*
-	 * This should be atomic.  Unfortunately, compilers right now can't tell
-	 * that this can be done as a memory comparison, and forces a load into
-	 * a register that hurts fast-path performance.
-	 */
-	/* return atomic_load_u8(&tsd->state, ATOMIC_RELAXED); */
-	return *(uint8_t *)&tsd->state;
+	return tsd->state;
 }
 
 /*
