@@ -956,6 +956,17 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			    "hpa_sec_batch_fill_extra", 1, HUGEPAGE_PAGES,
 			    CONF_CHECK_MIN, CONF_CHECK_MAX, true);
 
+			CONF_HANDLE_SIZE_T(opt_pac_sec_opts.nshards,
+			    "pac_sec_nshards", 0, 0, CONF_CHECK_MIN,
+			    CONF_DONT_CHECK_MAX, true);
+			CONF_HANDLE_SIZE_T(opt_pac_sec_opts.max_alloc,
+			    "pac_sec_max_alloc", PAGE,
+			    USIZE_GROW_SLOW_THRESHOLD, CONF_CHECK_MIN,
+			    CONF_CHECK_MAX, true);
+			CONF_HANDLE_SIZE_T(opt_pac_sec_opts.max_bytes,
+			    "pac_sec_max_bytes", SEC_OPTS_MAX_BYTES_DEFAULT, 0,
+			    CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
+
 			if (CONF_MATCH("slab_sizes")) {
 				if (CONF_MATCH_VALUE("default")) {
 					sc_data_init(sc_data);

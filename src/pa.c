@@ -94,6 +94,7 @@ pa_shard_reset(tsdn_t *tsdn, pa_shard_t *shard) {
 
 void
 pa_shard_flush(tsdn_t *tsdn, pa_shard_t *shard) {
+	pac_sec_flush(tsdn, &shard->pac);
 	if (shard->ever_used_hpa) {
 		hpa_shard_flush(tsdn, &shard->hpa_shard);
 	}
@@ -106,6 +107,7 @@ pa_shard_uses_hpa(pa_shard_t *shard) {
 
 void
 pa_shard_destroy(tsdn_t *tsdn, pa_shard_t *shard) {
+	pa_shard_flush(tsdn, shard);
 	pac_destroy(tsdn, &shard->pac);
 	if (shard->ever_used_hpa) {
 		hpa_shard_destroy(tsdn, &shard->hpa_shard);

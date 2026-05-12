@@ -8,6 +8,7 @@
 #include "jemalloc/internal/exp_grow.h"
 #include "jemalloc/internal/lockedint.h"
 #include "jemalloc/internal/pai.h"
+#include "jemalloc/internal/sec.h"
 #include "san_bump.h"
 
 /*
@@ -83,6 +84,9 @@ struct pac_stats_s {
 
 	/* VM space had to be leaked (undocumented).  Normally 0. */
 	atomic_zu_t abandoned_vm;
+
+	/* PAC SEC stats. Derived. */
+	sec_stats_t pac_sec_stats;
 };
 
 typedef struct pac_s pac_t;
@@ -92,6 +96,10 @@ struct pac_s {
 	 * pointer).  The handle to the allocation interface.
 	 */
 	pai_t pai;
+
+	/* Small extent cache, in front of the ecaches to reduce contention. */
+	sec_t sec;
+
 	/* True once pinned memory has been seen. */
 	atomic_b_t has_pinned;
 	/*
@@ -229,5 +237,10 @@ ssize_t pac_decay_ms_get(pac_t *pac, extent_state_t state);
 
 void pac_reset(tsdn_t *tsdn, pac_t *pac);
 void pac_destroy(tsdn_t *tsdn, pac_t *pac);
+
+void pac_sec_flush(tsdn_t *tsdn, pac_t *pac);
+void pac_prefork2(tsdn_t *tsdn, pac_t *pac);
+void pac_postfork_parent(tsdn_t *tsdn, pac_t *pac);
+void pac_postfork_child(tsdn_t *tsdn, pac_t *pac);
 
 #endif /* JEMALLOC_INTERNAL_PAC_H */

@@ -27,6 +27,15 @@ const char *const hpa_hugify_style_names[] = {"auto", "none", "eager", "lazy"};
 bool opt_experimental_hpa_start_huge_if_thp_always = true;
 bool opt_experimental_hpa_enforce_hugify = false;
 
+static inline uint8_t
+hpa_sec_shard_pick(tsdn_t *tsdn, sec_t *sec) {
+	if (tsdn_null(tsdn)) {
+		return 0;
+	}
+	tsd_t *tsd = tsdn_tsd(tsdn);
+	return sec_shard_pick(tsd, sec, tsd_sec_shardp_get(tsd));
+}
+
 bool
 hpa_hugepage_size_exceeds_limit(void) {
 	return HUGEPAGE > HUGEPAGE_MAX_EXPECTED_SIZE;
@@ -882,7 +891,8 @@ hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
 	    && (size > shard->opts.slab_max_alloc)) {
 		return NULL;
 	}
-	edata_t *edata = sec_alloc(tsdn, &shard->sec, size);
+	edata_t *edata = sec_alloc(tsdn, &shard->sec, size,
+	    hpa_sec_shard_pick(tsdn, &shard->sec));
 	if (edata != NULL) {
 		return edata;
 	}
@@ -903,7 +913,8 @@ hpa_alloc(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment, bool zero,
 	}
 	if (nsuccess > 0) {
 		assert(sec_size_supported(&shard->sec, size));
-		sec_fill(tsdn, &shard->sec, size, &results, nsuccess);
+		sec_fill(tsdn, &shard->sec, size, &results, nsuccess,
+		    hpa_sec_shard_pick(tsdn, &shard->sec));
 		/* Unlikely rollback in case of overfill */
 		if (!edata_list_active_empty(&results)) {
 			hpa_dalloc_batch(
@@ -1013,7 +1024,8 @@ hpa_dalloc(
 	edata_list_active_append(&dalloc_list, edata);
 
 	hpa_shard_t *shard = hpa_from_pai(self);
-	sec_dalloc(tsdn, &shard->sec, &dalloc_list);
+	sec_dalloc(tsdn, &shard->sec, &dalloc_list,
+	    hpa_sec_shard_pick(tsdn, &shard->sec));
 	if (edata_list_active_empty(&dalloc_list)) {
 		/* sec consumed the pointer */
 		*deferred_work_generated = false;
