@@ -124,7 +124,6 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/fxp.c \
 	$(srcroot)src/san.c \
 	$(srcroot)src/san_bump.c \
-	$(srcroot)src/hook.c \
 	$(srcroot)src/hpa.c \
 	$(srcroot)src/hpa_central.c \
 	$(srcroot)src/hpa_hooks.c \
@@ -239,7 +238,6 @@ TESTS_UNIT := \
 	${srcroot}test/unit/san.c \
 	${srcroot}test/unit/san_bump.c \
 	$(srcroot)test/unit/hash.c \
-	$(srcroot)test/unit/hook.c \
 	$(srcroot)test/unit/hpa.c \
 	$(srcroot)test/unit/hpa_sec_integration.c \
 	$(srcroot)test/unit/hpa_thp_always.c \
@@ -296,7 +294,6 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/safety_check.c \
 	$(srcroot)test/unit/sc.c \
 	$(srcroot)test/unit/sec.c \
-	$(srcroot)test/unit/seq.c \
 	$(srcroot)test/unit/SFMT.c \
 	$(srcroot)test/unit/size_check.c \
 	$(srcroot)test/unit/size_classes.c \
@@ -358,7 +355,6 @@ TESTS_ANALYZE := $(srcroot)test/analyze/prof_bias.c \
 	$(srcroot)test/analyze/sizes.c
 TESTS_STRESS := $(srcroot)test/stress/batch_alloc.c \
 	$(srcroot)test/stress/fill_flush.c \
-	$(srcroot)test/stress/hookbench.c \
 	$(srcroot)test/stress/large_microbench.c \
 	$(srcroot)test/stress/mallctl.c \
 	$(srcroot)test/stress/microbench.c

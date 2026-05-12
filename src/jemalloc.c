@@ -11,7 +11,6 @@
 #include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/fxp.h"
 #include "jemalloc/internal/san.h"
-#include "jemalloc/internal/hook.h"
 #include "jemalloc/internal/jemalloc_init.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/log.h"
@@ -776,14 +775,6 @@ malloc_default(size_t size) {
 	dopts.item_size = size;
 
 	imalloc(&sopts, &dopts);
-	/*
-	 * Note that this branch gets optimized away -- it immediately follows
-	 * the check on tsd_fast that sets sopts.slow.
-	 */
-	if (sopts.slow) {
-		uintptr_t args[3] = {size};
-		hook_invoke_alloc(hook_alloc_malloc, ret, (uintptr_t)ret, args);
-	}
 
 	return ret;
 }
@@ -832,12 +823,6 @@ JEMALLOC_ATTR(nonnull(1))
 	dopts.alignment = alignment;
 
 	ret = imalloc(&sopts, &dopts);
-	if (sopts.slow) {
-		uintptr_t args[3] = {
-		    (uintptr_t)memptr, (uintptr_t)alignment, (uintptr_t)size};
-		hook_invoke_alloc(
-		    hook_alloc_posix_memalign, *memptr, (uintptr_t)ret, args);
-	}
 
 	LOG("core.posix_memalign.exit", "result: %d, alloc ptr: %p", ret,
 	    *memptr);
@@ -875,11 +860,6 @@ JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(2)
 	dopts.alignment = alignment;
 
 	imalloc(&sopts, &dopts);
-	if (sopts.slow) {
-		uintptr_t args[3] = {(uintptr_t)alignment, (uintptr_t)size};
-		hook_invoke_alloc(
-		    hook_alloc_aligned_alloc, ret, (uintptr_t)ret, args);
-	}
 
 	LOG("core.aligned_alloc.exit", "result: %p", ret);
 
@@ -910,10 +890,6 @@ JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE2(1, 2)
 	dopts.zero = true;
 
 	imalloc(&sopts, &dopts);
-	if (sopts.slow) {
-		uintptr_t args[3] = {(uintptr_t)num, (uintptr_t)size};
-		hook_invoke_alloc(hook_alloc_calloc, ret, (uintptr_t)ret, args);
-	}
 
 	LOG("core.calloc.exit", "result: %p", ret);
 
@@ -1056,8 +1032,6 @@ free_default(void *ptr) {
 			tcache_t *tcache = tcache_get_from_ind(tsd,
 			    TCACHE_IND_AUTOMATIC, /* slow */ true,
 			    /* is_alloc */ false);
-			uintptr_t args_raw[3] = {(uintptr_t)ptr};
-			hook_invoke_dalloc(hook_dalloc_free, ptr, args_raw);
 			ifree(tsd, ptr, tcache, /* slow */ true);
 		}
 
@@ -1125,11 +1099,6 @@ JEMALLOC_ATTR(malloc) je_memalign(size_t alignment, size_t size) {
 	dopts.alignment = alignment;
 
 	imalloc(&sopts, &dopts);
-	if (sopts.slow) {
-		uintptr_t args[3] = {alignment, size};
-		hook_invoke_alloc(
-		    hook_alloc_memalign, ret, (uintptr_t)ret, args);
-	}
 
 	LOG("core.memalign.exit", "result: %p", ret);
 	return ret;
@@ -1163,10 +1132,6 @@ JEMALLOC_ATTR(malloc) je_valloc(size_t size) {
 	dopts.alignment = PAGE;
 
 	imalloc(&sopts, &dopts);
-	if (sopts.slow) {
-		uintptr_t args[3] = {size};
-		hook_invoke_alloc(hook_alloc_valloc, ret, (uintptr_t)ret, args);
-	}
 
 	LOG("core.valloc.exit", "result: %p\n", ret);
 	return ret;
@@ -1204,11 +1169,6 @@ JEMALLOC_ATTR(malloc) je_pvalloc(size_t size) {
 	dopts.alignment = PAGE;
 
 	imalloc(&sopts, &dopts);
-	if (sopts.slow) {
-		uintptr_t args[3] = {size};
-		hook_invoke_alloc(
-		    hook_alloc_pvalloc, ret, (uintptr_t)ret, args);
-	}
 
 	LOG("core.pvalloc.exit", "result: %p\n", ret);
 	return ret;
@@ -1397,11 +1357,6 @@ JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(1)
 	}
 
 	imalloc(&sopts, &dopts);
-	if (sopts.slow) {
-		uintptr_t args[3] = {size, flags};
-		hook_invoke_alloc(
-		    hook_alloc_mallocx, ret, (uintptr_t)ret, args);
-	}
 
 	LOG("core.mallocx.exit", "result: %p", ret);
 	return ret;
@@ -1410,7 +1365,7 @@ JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(1)
 static void *
 irallocx_prof_sample(tsdn_t *tsdn, void *old_ptr, size_t old_usize,
     size_t usize, size_t alignment, bool zero, tcache_t *tcache, arena_t *arena,
-    prof_tctx_t *tctx, hook_ralloc_args_t *hook_args) {
+    prof_tctx_t *tctx) {
 	void *p;
 
 	if (tctx == NULL) {
@@ -1427,15 +1382,14 @@ irallocx_prof_sample(tsdn_t *tsdn, void *old_ptr, size_t old_usize,
 		size_t bumped_usize = sz_sa2u(usize, alignment);
 		p = iralloct_explicit_slab(tsdn, old_ptr, old_usize,
 		    bumped_usize, alignment, zero, /* slab */ false, tcache,
-		    arena, hook_args);
+		    arena);
 		if (p == NULL) {
 			return NULL;
 		}
 		arena_prof_promote(tsdn, p, usize, bumped_usize);
 	} else {
 		p = iralloct_explicit_slab(tsdn, old_ptr, old_usize, usize,
-		    alignment, zero, /* slab */ false, tcache, arena,
-		    hook_args);
+		    alignment, zero, /* slab */ false, tcache, arena);
 	}
 	assert(prof_sample_aligned(p));
 
@@ -1445,7 +1399,7 @@ irallocx_prof_sample(tsdn_t *tsdn, void *old_ptr, size_t old_usize,
 JEMALLOC_ALWAYS_INLINE void *
 irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
     size_t alignment, size_t usize, bool zero, tcache_t *tcache, arena_t *arena,
-    emap_alloc_ctx_t *alloc_ctx, hook_ralloc_args_t *hook_args) {
+    emap_alloc_ctx_t *alloc_ctx) {
 	prof_info_t old_prof_info;
 	prof_info_get_and_reset_recent(tsd, old_ptr, alloc_ctx, &old_prof_info);
 	bool         prof_active = prof_active_get_unlocked();
@@ -1454,10 +1408,10 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 	void        *p;
 	if (unlikely(tctx != PROF_TCTX_SENTINEL)) {
 		p = irallocx_prof_sample(tsd_tsdn(tsd), old_ptr, old_usize,
-		    usize, alignment, zero, tcache, arena, tctx, hook_args);
+		    usize, alignment, zero, tcache, arena, tctx);
 	} else {
 		p = iralloct(tsd_tsdn(tsd), old_ptr, old_usize, size, alignment,
-		    usize, zero, tcache, arena, hook_args);
+		    usize, zero, tcache, arena);
 	}
 	if (unlikely(p == NULL)) {
 		prof_alloc_rollback(tsd, tctx);
@@ -1506,17 +1460,15 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 		goto label_oom;
 	}
 
-	hook_ralloc_args_t hook_args = {
-	    is_realloc, {(uintptr_t)ptr, size, flags, 0}};
 	if (config_prof && opt_prof) {
 		p = irallocx_prof(tsd, ptr, old_usize, size, alignment, usize,
-		    zero, tcache, arena, &alloc_ctx, &hook_args);
+		    zero, tcache, arena, &alloc_ctx);
 		if (unlikely(p == NULL)) {
 			goto label_oom;
 		}
 	} else {
 		p = iralloct(tsd_tsdn(tsd), ptr, old_usize, size, alignment,
-		    usize, zero, tcache, arena, &hook_args);
+		    usize, zero, tcache, arena);
 		if (unlikely(p == NULL)) {
 			goto label_oom;
 		}
@@ -1582,8 +1534,6 @@ do_realloc_nonnull_zero(void *ptr) {
 		tcache_t *tcache = tcache_get_from_ind(tsd,
 		    TCACHE_IND_AUTOMATIC, /* slow */ true,
 		    /* is_alloc */ false);
-		uintptr_t args[3] = {(uintptr_t)ptr, 0};
-		hook_invoke_dalloc(hook_dalloc_realloc, ptr, args);
 		ifree(tsd, ptr, tcache, true);
 
 		check_entry_exit_locking(tsd_tsdn(tsd));
@@ -1634,11 +1584,6 @@ JEMALLOC_ALLOC_SIZE(2) je_realloc(void *ptr, size_t size) {
 		dopts.item_size = size;
 
 		imalloc(&sopts, &dopts);
-		if (sopts.slow) {
-			uintptr_t args[3] = {(uintptr_t)ptr, size};
-			hook_invoke_alloc(
-			    hook_alloc_realloc, ret, (uintptr_t)ret, args);
-		}
 		LOG("core.realloc.exit", "result: %p", ret);
 		return ret;
 	}
@@ -1818,12 +1763,6 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 		junk_alloc_callback(excess_start, excess_len);
 	}
 label_not_resized:
-	if (unlikely(!tsd_fast(tsd))) {
-		uintptr_t args[4] = {(uintptr_t)ptr, size, extra, flags};
-		hook_invoke_expand(hook_expand_xallocx, ptr, old_usize, usize,
-		    (uintptr_t)usize, args);
-	}
-
 	UTRACE(ptr, size, ptr);
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
@@ -1877,8 +1816,6 @@ je_dallocx(void *ptr, int flags) {
 		tsd_assert_fast(tsd);
 		ifree(tsd, ptr, tcache, false);
 	} else {
-		uintptr_t args_raw[3] = {(uintptr_t)ptr, flags};
-		hook_invoke_dalloc(hook_dalloc_dallocx, ptr, args_raw);
 		ifree(tsd, ptr, tcache, true);
 	}
 	check_entry_exit_locking(tsd_tsdn(tsd));
@@ -1916,8 +1853,6 @@ sdallocx_default(void *ptr, size_t size, int flags) {
 		tsd_assert_fast(tsd);
 		isfree(tsd, ptr, usize, tcache, false);
 	} else {
-		uintptr_t args_raw[3] = {(uintptr_t)ptr, size, flags};
-		hook_invoke_dalloc(hook_dalloc_sdallocx, ptr, args_raw);
 		isfree(tsd, ptr, usize, tcache, true);
 	}
 	check_entry_exit_locking(tsd_tsdn(tsd));

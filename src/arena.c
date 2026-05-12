@@ -1610,8 +1610,7 @@ arena_ralloc_move_helper(tsdn_t *tsdn, arena_t *arena, size_t usize,
 
 void *
 arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
-    size_t size, size_t alignment, bool zero, bool slab, tcache_t *tcache,
-    hook_ralloc_args_t *hook_args) {
+    size_t size, size_t alignment, bool zero, bool slab, tcache_t *tcache) {
 	size_t usize = alignment == 0 ? sz_s2u(size) : sz_sa2u(size, alignment);
 	if (unlikely(usize == 0 || size > SC_LARGE_MAXCLASS)) {
 		return NULL;
@@ -1623,18 +1622,13 @@ arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
 		UNUSED size_t newsize;
 		if (!arena_ralloc_no_move(
 		        tsdn, ptr, oldsize, usize, 0, zero, &newsize)) {
-			hook_invoke_expand(hook_args->is_realloc
-			        ? hook_expand_realloc
-			        : hook_expand_rallocx,
-			    ptr, oldsize, usize, (uintptr_t)ptr,
-			    hook_args->args);
 			return ptr;
 		}
 	}
 
 	if (oldsize >= SC_LARGE_MINCLASS && usize >= SC_LARGE_MINCLASS) {
 		return large_ralloc(tsdn, arena, ptr, usize, alignment, zero,
-		    tcache, hook_args);
+		    tcache);
 	}
 
 	/*
@@ -1646,13 +1640,6 @@ arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
 	if (ret == NULL) {
 		return NULL;
 	}
-
-	hook_invoke_alloc(
-	    hook_args->is_realloc ? hook_alloc_realloc : hook_alloc_rallocx,
-	    ret, (uintptr_t)ret, hook_args->args);
-	hook_invoke_dalloc(
-	    hook_args->is_realloc ? hook_dalloc_realloc : hook_dalloc_rallocx,
-	    ptr, hook_args->args);
 
 	/*
 	 * Junk/zero-filling were already done by

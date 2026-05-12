@@ -3,7 +3,6 @@
 
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/edata.h"
-#include "jemalloc/internal/hook.h"
 
 void *large_malloc(tsdn_t *tsdn, arena_t *arena, size_t usize, bool zero);
 void *large_palloc(
@@ -11,8 +10,7 @@ void *large_palloc(
 bool  large_ralloc_no_move(tsdn_t *tsdn, edata_t *edata, size_t usize_min,
      size_t usize_max, bool zero);
 void *large_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t usize,
-    size_t alignment, bool zero, tcache_t *tcache,
-    hook_ralloc_args_t *hook_args);
+    size_t alignment, bool zero, tcache_t *tcache);
 
 void   large_dalloc_prep_locked(tsdn_t *tsdn, edata_t *edata);
 void   large_dalloc_finish(tsdn_t *tsdn, edata_t *edata);
