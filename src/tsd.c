@@ -124,20 +124,17 @@ tsd_state_compute(tsd_t *tsd) {
 
 void
 tsd_slow_update(tsd_t *tsd) {
-	uint8_t old_state;
-	do {
-		uint8_t new_state = tsd_state_compute(tsd);
-		old_state = tsd_atomic_exchange(
-		    &tsd->state, new_state, ATOMIC_ACQUIRE);
-	} while (old_state == tsd_state_nominal_recompute);
+	assert(!tsd_booted_get() || tsd_get(false) == tsd
+	    || (tsd_get_allocates() && tsd_get(false) == NULL));
+	tsd_atomic_store(&tsd->state, tsd_state_compute(tsd), ATOMIC_RELAXED);
 
 	te_recompute_fast_threshold(tsd);
 }
 
 void
 tsd_state_set(tsd_t *tsd, uint8_t new_state) {
-	/* Only the tsd module can change the state *to* recompute. */
-	assert(new_state != tsd_state_nominal_recompute);
+	assert(!tsd_booted_get() || tsd_get(false) == tsd
+	    || (tsd_get_allocates() && tsd_get(false) == NULL));
 	uint8_t old_state = tsd_atomic_load(&tsd->state, ATOMIC_RELAXED);
 	if (old_state > tsd_state_nominal_max) {
 		/*
@@ -162,10 +159,10 @@ tsd_state_set(tsd_t *tsd, uint8_t new_state) {
 			    &tsd->state, new_state, ATOMIC_RELAXED);
 		} else {
 			/*
-			 * This is the tricky case.  We're transitioning from
-			 * one nominal state to another.  The caller can't know
-			 * about any races that are occurring at the same time,
-			 * so we always have to recompute no matter what.
+			 * We're transitioning from one nominal state to
+			 * another.  Recompute the state from the underlying
+			 * slow-path data rather than trusting the caller's
+			 * requested nominal state.
 			 */
 			tsd_slow_update(tsd);
 		}
@@ -234,13 +231,10 @@ tsd_fetch_slow(tsd_t *tsd, bool minimal) {
 
 	if (tsd_state_get(tsd) == tsd_state_nominal_slow) {
 		/*
-		 * On slow path but no work needed.  Note that we can't
-		 * necessarily *assert* that we're slow, because we might be
-		 * slow because of an asynchronous modification to global state,
-		 * which might be asynchronously modified *back*.
+		 * On slow path but no work needed.  Local slow-path state may
+		 * have changed since we computed the TSD state, so don't assert
+		 * on the underlying cause here.
 		 */
-	} else if (tsd_state_get(tsd) == tsd_state_nominal_recompute) {
-		tsd_slow_update(tsd);
 	} else if (tsd_state_get(tsd) == tsd_state_uninitialized) {
 		if (!minimal) {
 			if (tsd_booted) {

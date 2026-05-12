@@ -158,38 +158,28 @@ enum {
 	/* Initialized but on slow path. */
 	tsd_state_nominal_slow = 1,
 	/*
-	 * Some thread has changed global state in such a way that all nominal
-	 * threads need to recompute their fast / slow status the next time they
-	 * get a chance.
-	 *
-	 * Any thread can change another thread's status *to* recompute, but
-	 * threads are the only ones who can change their status *from*
-	 * recompute.
-	 */
-	tsd_state_nominal_recompute = 2,
-	/*
 	 * The above nominal states should be lower values.  We use
 	 * tsd_nominal_max to separate nominal states from threads in the
 	 * process of being born / dying.
 	 */
-	tsd_state_nominal_max = 2,
+	tsd_state_nominal_max = 1,
 
 	/*
 	 * A thread might free() during its death as its only allocator action;
 	 * in such scenarios, we need tsd, but set up in such a way that no
 	 * cleanup is necessary.
 	 */
-	tsd_state_minimal_initialized = 3,
+	tsd_state_minimal_initialized = 2,
 	/* States during which we know we're in thread death. */
-	tsd_state_purgatory = 4,
-	tsd_state_reincarnated = 5,
+	tsd_state_purgatory = 3,
+	tsd_state_reincarnated = 4,
 	/*
 	 * What it says on the tin; tsd that hasn't been initialized.  Note
 	 * that even when the tsd struct lives in TLS, when need to keep track
 	 * of stuff like whether or not our pthread destructors have been
 	 * scheduled, so this really truly is different than the nominal state.
 	 */
-	tsd_state_uninitialized = 6
+	tsd_state_uninitialized = 5
 };
 
 /*
@@ -203,12 +193,10 @@ enum {
 #	define tsd_state_t atomic_u8_t
 #	define tsd_atomic_load atomic_load_u8
 #	define tsd_atomic_store atomic_store_u8
-#	define tsd_atomic_exchange atomic_exchange_u8
 #else
 #	define tsd_state_t atomic_u32_t
 #	define tsd_atomic_load atomic_load_u32
 #	define tsd_atomic_store atomic_store_u32
-#	define tsd_atomic_exchange atomic_exchange_u32
 #endif
 
 /* The actual tsd. */
