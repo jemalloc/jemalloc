@@ -63,9 +63,6 @@ typedef ql_head(tsd_t) tsd_list_t;
 static tsd_list_t     tsd_nominal_tsds = ql_head_initializer(tsd_nominal_tsds);
 static malloc_mutex_t tsd_nominal_tsds_lock;
 
-/* How many slow-path-enabling features are turned on. */
-static atomic_u32_t tsd_global_slow_count = ATOMIC_INIT(0);
-
 static bool
 tsd_in_nominal_list(tsd_t *tsd) {
 	tsd_t *tsd_list;
@@ -104,57 +101,10 @@ tsd_remove_nominal(tsd_t *tsd) {
 	malloc_mutex_unlock(tsd_tsdn(tsd), &tsd_nominal_tsds_lock);
 }
 
-static void
-tsd_force_recompute(tsdn_t *tsdn) {
-	/*
-	 * The stores to tsd->state here need to synchronize with the exchange
-	 * in tsd_slow_update.
-	 */
-	atomic_fence(ATOMIC_RELEASE);
-	malloc_mutex_lock(tsdn, &tsd_nominal_tsds_lock);
-	tsd_t *remote_tsd;
-	ql_foreach (remote_tsd, &tsd_nominal_tsds, TSD_MANGLE(tsd_link)) {
-		assert(tsd_atomic_load(&remote_tsd->state, ATOMIC_RELAXED)
-		    <= tsd_state_nominal_max);
-		tsd_atomic_store(&remote_tsd->state,
-		    tsd_state_nominal_recompute, ATOMIC_RELAXED);
-		/* See comments in te_recompute_fast_threshold(). */
-		atomic_fence(ATOMIC_SEQ_CST);
-		te_next_event_fast_set_non_nominal(remote_tsd);
-	}
-	malloc_mutex_unlock(tsdn, &tsd_nominal_tsds_lock);
-}
-
-void
-tsd_global_slow_inc(tsdn_t *tsdn) {
-	atomic_fetch_add_u32(&tsd_global_slow_count, 1, ATOMIC_RELAXED);
-	/*
-	 * We unconditionally force a recompute, even if the global slow count
-	 * was already positive.  If we didn't, then it would be possible for us
-	 * to return to the user, have the user synchronize externally with some
-	 * other thread, and then have that other thread not have picked up the
-	 * update yet (since the original incrementing thread might still be
-	 * making its way through the tsd list).
-	 */
-	tsd_force_recompute(tsdn);
-}
-
-void
-tsd_global_slow_dec(tsdn_t *tsdn) {
-	atomic_fetch_sub_u32(&tsd_global_slow_count, 1, ATOMIC_RELAXED);
-	/* See the note in ..._inc(). */
-	tsd_force_recompute(tsdn);
-}
-
 static bool
 tsd_local_slow(tsd_t *tsd) {
 	return !tsd_tcache_enabled_get(tsd)
 	    || tsd_reentrancy_level_get(tsd) > 0;
-}
-
-bool
-tsd_global_slow(void) {
-	return atomic_load_u32(&tsd_global_slow_count, ATOMIC_RELAXED) > 0;
 }
 
 /******************************************************************************/
@@ -165,7 +115,7 @@ tsd_state_compute(tsd_t *tsd) {
 		return tsd_state_get(tsd);
 	}
 	/* We're in *a* nominal state; but which one? */
-	if (malloc_slow || tsd_local_slow(tsd) || tsd_global_slow()) {
+	if (malloc_slow || tsd_local_slow(tsd)) {
 		return tsd_state_nominal_slow;
 	} else {
 		return tsd_state_nominal;

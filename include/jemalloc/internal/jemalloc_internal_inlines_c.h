@@ -5,7 +5,6 @@
 #include "jemalloc/internal/arena_externs.h"
 #include "jemalloc/internal/arena_inlines_b.h"
 #include "jemalloc/internal/emap.h"
-#include "jemalloc/internal/hook.h"
 #include "jemalloc/internal/jemalloc_init.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/log.h"
@@ -175,8 +174,7 @@ isdalloct(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
 
 JEMALLOC_ALWAYS_INLINE void *
 iralloct_realign(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
-    size_t alignment, bool zero, bool slab, tcache_t *tcache, arena_t *arena,
-    hook_ralloc_args_t *hook_args) {
+    size_t alignment, bool zero, bool slab, tcache_t *tcache, arena_t *arena) {
 	witness_assert_depth_to_rank(
 	    tsdn_witness_tsdp_get(tsdn), WITNESS_RANK_CORE, 0);
 	void  *p;
@@ -197,27 +195,13 @@ iralloct_realign(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
 	 */
 	copysize = (size < oldsize) ? size : oldsize;
 	memcpy(p, ptr, copysize);
-	hook_invoke_alloc(
-	    hook_args->is_realloc ? hook_alloc_realloc : hook_alloc_rallocx, p,
-	    (uintptr_t)p, hook_args->args);
-	hook_invoke_dalloc(
-	    hook_args->is_realloc ? hook_dalloc_realloc : hook_dalloc_rallocx,
-	    ptr, hook_args->args);
 	isdalloct(tsdn, ptr, oldsize, tcache, NULL, true);
 	return p;
 }
 
-/*
- * is_realloc threads through the knowledge of whether or not this call comes
- * from je_realloc (as opposed to je_rallocx); this ensures that we pass the
- * correct entry point into any hooks.
- * Note that these functions are all force-inlined, so no actual bool gets
- * passed-around anywhere.
- */
 JEMALLOC_ALWAYS_INLINE void *
 iralloct_explicit_slab(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
-    size_t alignment, bool zero, bool slab, tcache_t *tcache, arena_t *arena,
-    hook_ralloc_args_t *hook_args) {
+    size_t alignment, bool zero, bool slab, tcache_t *tcache, arena_t *arena) {
 	assert(ptr != NULL);
 	assert(size != 0);
 	witness_assert_depth_to_rank(
@@ -230,27 +214,26 @@ iralloct_explicit_slab(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
 		 * and copy.
 		 */
 		return iralloct_realign(tsdn, ptr, oldsize, size, alignment,
-		    zero, slab, tcache, arena, hook_args);
+		    zero, slab, tcache, arena);
 	}
 
 	return arena_ralloc(tsdn, arena, ptr, oldsize, size, alignment, zero,
-	    slab, tcache, hook_args);
+	    slab, tcache);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
 iralloct(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size, size_t alignment,
-    size_t usize, bool zero, tcache_t *tcache, arena_t *arena,
-    hook_ralloc_args_t *hook_args) {
+    size_t usize, bool zero, tcache_t *tcache, arena_t *arena) {
 	bool slab = sz_can_use_slab(usize);
 	return iralloct_explicit_slab(tsdn, ptr, oldsize, size, alignment, zero,
-	    slab, tcache, arena, hook_args);
+	    slab, tcache, arena);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
 iralloc(tsd_t *tsd, void *ptr, size_t oldsize, size_t size, size_t alignment,
-    size_t usize, bool zero, hook_ralloc_args_t *hook_args) {
+    size_t usize, bool zero) {
 	return iralloct(tsd_tsdn(tsd), ptr, oldsize, size, alignment, usize,
-	    zero, tcache_get(tsd), NULL, hook_args);
+	    zero, tcache_get(tsd), NULL);
 }
 
 JEMALLOC_ALWAYS_INLINE bool

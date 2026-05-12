@@ -81,7 +81,6 @@ typedef ql_elm(tsd_t) tsd_link_t;
 	O(sec_shard, uint8_t, uint8_t)                                         \
 	O(binshards, tsd_binshards_t, tsd_binshards_t)                         \
 	O(tsd_link, tsd_link_t, tsd_link_t)                                    \
-	O(in_hook, bool, bool)                                                 \
 	O(peak, peak_t, peak_t)                                                \
 	O(tcache_slow, tcache_slow_t, tcache_slow_t)                           \
 	O(rtree_ctx, rtree_ctx_t, rtree_ctx_t)
@@ -101,8 +100,7 @@ typedef ql_elm(tsd_t) tsd_link_t;
 	    TICKER_GEOM_INIT(ARENA_DECAY_NTICKS_PER_UPDATE),                   \
 	    /* sec_shard */ (uint8_t) - 1,                                     \
 	    /* binshards */ TSD_BINSHARDS_ZERO_INITIALIZER,                    \
-	    /* tsd_link */ {NULL}, /* in_hook */ false,                        \
-	    /* peak */ PEAK_INITIALIZER,                                       \
+	    /* tsd_link */ {NULL}, /* peak */ PEAK_INITIALIZER,                \
 	    /* tcache_slow */ TCACHE_SLOW_ZERO_INITIALIZER,                    \
 	    /* rtree_ctx */ RTREE_CTX_INITIALIZER,
 
@@ -151,14 +149,6 @@ void   tsd_slow_update(tsd_t *tsd);
 void   tsd_prefork(tsd_t *tsd);
 void   tsd_postfork_parent(tsd_t *tsd);
 void   tsd_postfork_child(tsd_t *tsd);
-
-/*
- * Call ..._inc when your module wants to take all threads down the slow paths,
- * and ..._dec when it no longer needs to.
- */
-void tsd_global_slow_inc(tsdn_t *tsdn);
-void tsd_global_slow_dec(tsdn_t *tsdn);
-bool tsd_global_slow(void);
 
 #define TSD_MIN_INIT_STATE_MAX_FETCHED (128)
 

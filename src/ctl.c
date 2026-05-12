@@ -361,8 +361,6 @@ CTL_PROTO(stats_retained)
 CTL_PROTO(stats_pinned)
 CTL_PROTO(stats_zero_reallocs)
 CTL_PROTO(approximate_stats_active)
-CTL_PROTO(experimental_hooks_install)
-CTL_PROTO(experimental_hooks_remove)
 CTL_PROTO(experimental_hooks_prof_backtrace)
 CTL_PROTO(experimental_hooks_prof_dump)
 CTL_PROTO(experimental_hooks_prof_sample)
@@ -887,8 +885,6 @@ static const ctl_named_node_t stats_node[] = {
 };
 
 static const ctl_named_node_t experimental_hooks_node[] = {
-    {NAME("install"), CTL(experimental_hooks_install)},
-    {NAME("remove"), CTL(experimental_hooks_remove)},
     {NAME("prof_backtrace"), CTL(experimental_hooks_prof_backtrace)},
     {NAME("prof_dump"), CTL(experimental_hooks_prof_dump)},
     {NAME("prof_sample"), CTL(experimental_hooks_prof_sample)},
@@ -4220,51 +4216,6 @@ stats_arenas_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t i) {
 	ret = super_stats_arenas_i_node;
 label_return:
 	malloc_mutex_unlock(tsdn, &ctl_mtx);
-	return ret;
-}
-
-static int
-experimental_hooks_install_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
-    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
-	if (oldp == NULL || oldlenp == NULL || newp == NULL) {
-		ret = EINVAL;
-		goto label_return;
-	}
-	/*
-	 * Note: this is a *private* struct.  This is an experimental interface;
-	 * forcing the user to know the jemalloc internals well enough to
-	 * extract the ABI hopefully ensures nobody gets too comfortable with
-	 * this API, which can change at a moment's notice.
-	 */
-	hooks_t hooks;
-	WRITE(hooks, hooks_t);
-	void *handle = hook_install(tsd_tsdn(tsd), &hooks);
-	if (handle == NULL) {
-		ret = EAGAIN;
-		goto label_return;
-	}
-	READ(handle, void *);
-
-	ret = 0;
-label_return:
-	return ret;
-}
-
-static int
-experimental_hooks_remove_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
-    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
-	WRITEONLY();
-	void *handle = NULL;
-	WRITE(handle, void *);
-	if (handle == NULL) {
-		ret = EINVAL;
-		goto label_return;
-	}
-	hook_remove(tsd_tsdn(tsd), handle);
-	ret = 0;
-label_return:
 	return ret;
 }
 
