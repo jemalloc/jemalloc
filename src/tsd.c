@@ -56,51 +56,6 @@ bool          tsd_booted = false;
 
 JEMALLOC_DIAGNOSTIC_POP
 
-/******************************************************************************/
-
-/* A list of all the tsds in the nominal state. */
-typedef ql_head(tsd_t) tsd_list_t;
-static tsd_list_t     tsd_nominal_tsds = ql_head_initializer(tsd_nominal_tsds);
-static malloc_mutex_t tsd_nominal_tsds_lock;
-
-static bool
-tsd_in_nominal_list(tsd_t *tsd) {
-	tsd_t *tsd_list;
-	bool   found = false;
-	/*
-	 * We don't know that tsd is nominal; it might not be safe to get data
-	 * out of it here.
-	 */
-	malloc_mutex_lock(TSDN_NULL, &tsd_nominal_tsds_lock);
-	ql_foreach (tsd_list, &tsd_nominal_tsds, TSD_MANGLE(tsd_link)) {
-		if (tsd == tsd_list) {
-			found = true;
-			break;
-		}
-	}
-	malloc_mutex_unlock(TSDN_NULL, &tsd_nominal_tsds_lock);
-	return found;
-}
-
-static void
-tsd_add_nominal(tsd_t *tsd) {
-	assert(!tsd_in_nominal_list(tsd));
-	assert(tsd_state_get(tsd) <= tsd_state_nominal_max);
-	ql_elm_new(tsd, TSD_MANGLE(tsd_link));
-	malloc_mutex_lock(tsd_tsdn(tsd), &tsd_nominal_tsds_lock);
-	ql_tail_insert(&tsd_nominal_tsds, tsd, TSD_MANGLE(tsd_link));
-	malloc_mutex_unlock(tsd_tsdn(tsd), &tsd_nominal_tsds_lock);
-}
-
-static void
-tsd_remove_nominal(tsd_t *tsd) {
-	assert(tsd_in_nominal_list(tsd));
-	assert(tsd_state_get(tsd) <= tsd_state_nominal_max);
-	malloc_mutex_lock(tsd_tsdn(tsd), &tsd_nominal_tsds_lock);
-	ql_remove(&tsd_nominal_tsds, tsd, TSD_MANGLE(tsd_link));
-	malloc_mutex_unlock(tsd_tsdn(tsd), &tsd_nominal_tsds_lock);
-}
-
 static bool
 tsd_local_slow(tsd_t *tsd) {
 	return !tsd_tcache_enabled_get(tsd)
@@ -136,36 +91,17 @@ tsd_state_set(tsd_t *tsd, uint8_t new_state) {
 	assert(!tsd_booted_get() || tsd_get(false) == tsd
 	    || (tsd_get_allocates() && tsd_get(false) == NULL));
 	uint8_t old_state = tsd_atomic_load(&tsd->state, ATOMIC_RELAXED);
-	if (old_state > tsd_state_nominal_max) {
+	if (old_state <= tsd_state_nominal_max
+	    && new_state <= tsd_state_nominal_max) {
 		/*
-		 * Not currently in the nominal list, but it might need to be
-		 * inserted there.
+		 * We're transitioning from one nominal state to another.
+		 * Recompute the state from the underlying slow-path data rather
+		 * than trusting the caller's requested nominal state.
 		 */
-		assert(!tsd_in_nominal_list(tsd));
-		tsd_atomic_store(&tsd->state, new_state, ATOMIC_RELAXED);
-		if (new_state <= tsd_state_nominal_max) {
-			tsd_add_nominal(tsd);
-		}
+		tsd_slow_update(tsd);
+		return;
 	} else {
-		/*
-		 * We're currently nominal.  If the new state is non-nominal,
-		 * great; we take ourselves off the list and just enter the new
-		 * state.
-		 */
-		assert(tsd_in_nominal_list(tsd));
-		if (new_state > tsd_state_nominal_max) {
-			tsd_remove_nominal(tsd);
-			tsd_atomic_store(
-			    &tsd->state, new_state, ATOMIC_RELAXED);
-		} else {
-			/*
-			 * We're transitioning from one nominal state to
-			 * another.  Recompute the state from the underlying
-			 * slow-path data rather than trusting the caller's
-			 * requested nominal state.
-			 */
-			tsd_slow_update(tsd);
-		}
+		tsd_atomic_store(&tsd->state, new_state, ATOMIC_RELAXED);
 	}
 	te_recompute_fast_threshold(tsd);
 }
@@ -198,7 +134,6 @@ tsd_data_init(tsd_t *tsd) {
 static void
 assert_tsd_data_cleanup_done(tsd_t *tsd) {
 	assert(!tsd_nominal(tsd));
-	assert(!tsd_in_nominal_list(tsd));
 	assert(*tsd_arenap_get_unsafe(tsd) == NULL);
 	assert(*tsd_iarenap_get_unsafe(tsd) == NULL);
 	assert(*tsd_tcache_enabledp_get_unsafe(tsd) == false);
@@ -400,10 +335,6 @@ malloc_tsd_boot0(void) {
 #if defined(JEMALLOC_MALLOC_THREAD_CLEANUP) || defined(_WIN32)
 	ncleanups = 0;
 #endif
-	if (malloc_mutex_init(&tsd_nominal_tsds_lock, "tsd_nominal_tsds_lock",
-	        WITNESS_RANK_OMIT, malloc_mutex_rank_exclusive)) {
-		return NULL;
-	}
 	if (tsd_boot0()) {
 		return NULL;
 	}
@@ -492,23 +423,3 @@ tsd_init_finish(tsd_init_head_t *head, tsd_init_block_t *block) {
 	malloc_mutex_unlock(TSDN_NULL, &head->lock);
 }
 #endif
-
-void
-tsd_prefork(tsd_t *tsd) {
-	malloc_mutex_prefork(tsd_tsdn(tsd), &tsd_nominal_tsds_lock);
-}
-
-void
-tsd_postfork_parent(tsd_t *tsd) {
-	malloc_mutex_postfork_parent(tsd_tsdn(tsd), &tsd_nominal_tsds_lock);
-}
-
-void
-tsd_postfork_child(tsd_t *tsd) {
-	malloc_mutex_postfork_child(tsd_tsdn(tsd), &tsd_nominal_tsds_lock);
-	ql_new(&tsd_nominal_tsds);
-
-	if (tsd_state_get(tsd) <= tsd_state_nominal_max) {
-		tsd_add_nominal(tsd);
-	}
-}

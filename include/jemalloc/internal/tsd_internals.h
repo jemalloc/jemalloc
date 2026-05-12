@@ -10,7 +10,6 @@
 #include "jemalloc/internal/jemalloc_internal_externs.h"
 #include "jemalloc/internal/peak.h"
 #include "jemalloc/internal/prof_types.h"
-#include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/rtree_tsd.h"
 #include "jemalloc/internal/tcache_structs.h"
 #include "jemalloc/internal/tcache_types.h"
@@ -57,8 +56,6 @@ typedef void (*test_callback_t)(int *);
 #	define MALLOC_TEST_TSD_INITIALIZER
 #endif
 
-typedef ql_elm(tsd_t) tsd_link_t;
-
 /*  O(name,			type,			nullable type) */
 #define TSD_DATA_SLOW                                                          \
 	O(tcache_enabled, bool, bool)                                          \
@@ -80,7 +77,6 @@ typedef ql_elm(tsd_t) tsd_link_t;
 	O(arena_decay_ticker, ticker_geom_t, ticker_geom_t)                    \
 	O(sec_shard, uint8_t, uint8_t)                                         \
 	O(binshards, tsd_binshards_t, tsd_binshards_t)                         \
-	O(tsd_link, tsd_link_t, tsd_link_t)                                    \
 	O(peak, peak_t, peak_t)                                                \
 	O(tcache_slow, tcache_slow_t, tcache_slow_t)                           \
 	O(rtree_ctx, rtree_ctx_t, rtree_ctx_t)
@@ -100,8 +96,8 @@ typedef ql_elm(tsd_t) tsd_link_t;
 	    TICKER_GEOM_INIT(ARENA_DECAY_NTICKS_PER_UPDATE),                   \
 	    /* sec_shard */ (uint8_t) - 1,                                     \
 	    /* binshards */ TSD_BINSHARDS_ZERO_INITIALIZER,                    \
-	    /* tsd_link */ {NULL}, /* peak */ PEAK_INITIALIZER,                \
-	    /* tcache_slow */ TCACHE_SLOW_ZERO_INITIALIZER,                    \
+	    /* peak */ PEAK_INITIALIZER, /* tcache_slow */                     \
+	    TCACHE_SLOW_ZERO_INITIALIZER,                                      \
 	    /* rtree_ctx */ RTREE_CTX_INITIALIZER,
 
 /*  O(name,			type,			nullable type) */
@@ -146,9 +142,6 @@ void   tsd_cleanup(void *arg);
 tsd_t *tsd_fetch_slow(tsd_t *tsd, bool minimal);
 void   tsd_state_set(tsd_t *tsd, uint8_t new_state);
 void   tsd_slow_update(tsd_t *tsd);
-void   tsd_prefork(tsd_t *tsd);
-void   tsd_postfork_parent(tsd_t *tsd);
-void   tsd_postfork_child(tsd_t *tsd);
 
 #define TSD_MIN_INIT_STATE_MAX_FETCHED (128)
 
