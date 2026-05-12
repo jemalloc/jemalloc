@@ -37,13 +37,12 @@ TSD_DATA_SLOWER
 JEMALLOC_ALWAYS_INLINE t *						\
 tsd_##n##p_get(tsd_t *tsd) {						\
 	/*								\
-	 * Because the state might change asynchronously if it's	\
-	 * nominal, we need to make sure that we only read it once.	\
+	 * Read the state once, so that a transition between		\
+	 * nominal states does not confuse this assertion.		\
 	 */								\
 	uint8_t state = tsd_state_get(tsd);				\
 	assert(state == tsd_state_nominal ||				\
 	    state == tsd_state_nominal_slow ||				\
-	    state == tsd_state_nominal_recompute ||			\
 	    state == tsd_state_reincarnated ||				\
 	    state == tsd_state_minimal_initialized);			\
 	return tsd_##n##p_get_unsafe(tsd);				\
@@ -95,11 +94,6 @@ TSD_DATA_SLOWER
 
 JEMALLOC_ALWAYS_INLINE void
 tsd_assert_fast(tsd_t *tsd) {
-	/*
-	 * Note that our fastness assertion does *not* include global slowness
-	 * counters; it's not in general possible to ensure that they won't
-	 * change asynchronously from underneath us.
-	 */
 	assert(!malloc_slow && tsd_tcache_enabled_get(tsd)
 	    && tsd_reentrancy_level_get(tsd) == 0);
 }
