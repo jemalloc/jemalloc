@@ -12,6 +12,17 @@
  * malloc during fork().
  */
 
+#ifdef JEMALLOC_MUTEX_INIT_CB
+/*
+ * FreeBSD's libthr calls _malloc_postfork for both parent and child
+ * (thr_fork.c), and pthread_atfork is not used (JEMALLOC_MUTEX_INIT_CB skips
+ * registration).  Detect the child by pid change so we can route to
+ * jemalloc_postfork_child, which resets per-arena state that the parent
+ * handler does not touch (nthreads, descriptor queues).
+ */
+static pid_t jemalloc_prefork_pid;
+#endif
+
 #ifndef JEMALLOC_MUTEX_INIT_CB
 void
 jemalloc_prefork(void)
@@ -30,6 +41,10 @@ _malloc_prefork(void)
 	}
 #endif
 	assert(malloc_initialized());
+
+#ifdef JEMALLOC_MUTEX_INIT_CB
+	jemalloc_prefork_pid = getpid();
+#endif
 
 	tsd = tsd_fetch();
 
@@ -103,6 +118,10 @@ _malloc_postfork(void)
 
 #ifdef JEMALLOC_MUTEX_INIT_CB
 	if (!malloc_initialized()) {
+		return;
+	}
+	if (getpid() != jemalloc_prefork_pid) {
+		jemalloc_postfork_child();
 		return;
 	}
 #endif
