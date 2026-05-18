@@ -101,7 +101,7 @@ sec_size_supported(sec_t *sec, size_t size) {
 #define SEC_MIN_NALLOCS 2
 
 /* Max number of extents we will allocate out of a single huge page. */
-#define SEC_MAX_NALLOCS 4
+#define SEC_MAX_NALLOCS 8
 
 /* Attempt to fill the SEC up to max_bytes / SEC_MAX_BYTES_DIV */
 #define SEC_MAX_BYTES_DIV 4
