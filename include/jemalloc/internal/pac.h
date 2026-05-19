@@ -8,6 +8,7 @@
 #include "jemalloc/internal/edata_cache.h"
 #include "jemalloc/internal/exp_grow.h"
 #include "jemalloc/internal/lockedint.h"
+#include "jemalloc/internal/sec.h"
 #include "jemalloc/internal/tsd_types.h"
 #include "san_bump.h"
 
@@ -84,12 +85,24 @@ struct pac_stats_s {
 
 	/* VM space had to be leaked (undocumented).  Normally 0. */
 	atomic_zu_t abandoned_vm;
+
+	/* PAC SEC stats.  Derived. */
+	sec_stats_t pac_sec_stats;
 };
 
 typedef struct pac_s pac_t;
 struct pac_s {
+	/* Small extent cache in front of PAC ecaches to reduce contention. */
+	sec_t sec;
+	/*
+	 * Runtime gate for PAC SEC.  0 disables (when SEC is not configured or
+	 * dirty_decay_ms == 0); otherwise mirrors sec.opts.max_alloc.
+	 */
+	atomic_zu_t sec_max_alloc;
+
 	/* True once pinned memory has been seen. */
 	atomic_b_t has_pinned;
+
 	/*
 	 * Collections of extents that were previously allocated.  These are
 	 * used when allocating extents, in an attempt to re-use address space.
@@ -235,5 +248,7 @@ bool    pac_decay_ms_set(tsdn_t *tsdn, pac_t *pac, extent_state_t state,
 ssize_t pac_decay_ms_get(pac_t *pac, extent_state_t state);
 
 void pac_destroy(tsdn_t *tsdn, pac_t *pac);
+
+void pac_sec_flush(tsdn_t *tsdn, pac_t *pac);
 
 #endif /* JEMALLOC_INTERNAL_PAC_H */

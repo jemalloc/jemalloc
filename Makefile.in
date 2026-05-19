@@ -272,6 +272,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/oversize_threshold.c \
 	$(srcroot)test/unit/pa.c \
 	$(srcroot)test/unit/pac.c \
+	$(srcroot)test/unit/pac_sec_integration.c \
 	$(srcroot)test/unit/pack.c \
 	$(srcroot)test/unit/pages.c \
 	$(srcroot)test/unit/peak.c \

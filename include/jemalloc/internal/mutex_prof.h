@@ -37,7 +37,8 @@ typedef enum {
 	OP(tcache_list)                                                        \
 	OP(hpa_shard)                                                          \
 	OP(hpa_shard_grow)                                                     \
-	OP(hpa_sec)
+	OP(hpa_sec)                                                            \
+	OP(pac_sec)
 
 typedef enum {
 #define OP(mtx) arena_prof_mutex_##mtx,

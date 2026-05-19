@@ -13,6 +13,17 @@ struct test_data_s {
 };
 
 static void
+edata_init_test(edata_t *edata) {
+	memset(edata, 0, sizeof(*edata));
+}
+
+static void
+edata_init_test_size(edata_t *edata, size_t size) {
+	edata_init_test(edata);
+	edata_size_set(edata, size);
+}
+
+static void
 test_data_init(tsdn_t *tsdn, test_data_t *tdata, const sec_opts_t *opts) {
 	tdata->base = base_new(TSDN_NULL, /* ind */ 123,
 	    &ehooks_default_extent_hooks, /* metadata_use_hooks */ true);
@@ -31,6 +42,32 @@ destroy_test_data(tsdn_t *tsdn, test_data_t *tdata) {
 	base_delete(tsdn, tdata->base);
 }
 
+static uint8_t
+test_sec_shard(tsdn_t *tsdn, sec_t *sec) {
+	if (tsdn_null(tsdn) || sec->opts.nshards <= 1) {
+		return 0;
+	}
+	tsd_t *tsd = tsdn_tsd(tsdn);
+	return sec_shard_pick(tsd, sec, tsd_sec_shardp_get(tsd));
+}
+
+static edata_t *
+sec_test_alloc(tsdn_t *tsdn, sec_t *sec, size_t size) {
+	return sec_alloc(tsdn, sec, size, test_sec_shard(tsdn, sec));
+}
+
+static void
+sec_test_fill(tsdn_t *tsdn, sec_t *sec, size_t size,
+    edata_list_active_t *result, size_t nallocs) {
+	sec_fill(tsdn, sec, size, result, nallocs, test_sec_shard(tsdn, sec));
+}
+
+static void
+sec_test_dalloc(tsdn_t *tsdn, sec_t *sec,
+    edata_list_active_t *dalloc_list) {
+	sec_dalloc(tsdn, sec, dalloc_list, test_sec_shard(tsdn, sec));
+}
+
 TEST_BEGIN(test_max_nshards_option_zero) {
 	test_data_t tdata;
 	sec_opts_t  opts;
@@ -41,7 +78,8 @@ TEST_BEGIN(test_max_nshards_option_zero) {
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 	test_data_init(tsdn, &tdata, &opts);
 
-	edata_t *edata = sec_alloc(tsdn, &tdata.sec, PAGE);
+	edata_t *edata = sec_size_supported(&tdata.sec, PAGE)
+	    ? sec_test_alloc(tsdn, &tdata.sec, PAGE) : NULL;
 	expect_ptr_null(edata, "SEC should be disabled when nshards==0");
 	destroy_test_data(tsdn, &tdata);
 }
@@ -57,7 +95,8 @@ TEST_BEGIN(test_max_alloc_option_too_small) {
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 	test_data_init(tsdn, &tdata, &opts);
 
-	edata_t *edata = sec_alloc(tsdn, &tdata.sec, 3 * PAGE);
+	edata_t *edata = sec_size_supported(&tdata.sec, 3 * PAGE)
+	    ? sec_test_alloc(tsdn, &tdata.sec, 3 * PAGE) : NULL;
 	expect_ptr_null(edata, "max_alloc is 2*PAGE, should not alloc 3*PAGE");
 	destroy_test_data(tsdn, &tdata);
 }
@@ -78,11 +117,11 @@ TEST_BEGIN(test_sec_fill) {
 	edata_list_active_t allocs;
 	edata_list_active_init(&allocs);
 	edata_t edata1, edata2;
-	edata_size_set(&edata1, PAGE);
-	edata_size_set(&edata2, PAGE);
+	edata_init_test_size(&edata1, PAGE);
+	edata_init_test_size(&edata2, PAGE);
 	edata_list_active_append(&allocs, &edata1);
 	edata_list_active_append(&allocs, &edata2);
-	sec_fill(tsdn, &tdata.sec, PAGE, &allocs, 2);
+	sec_test_fill(tsdn, &tdata.sec, PAGE, &allocs, 2);
 	sec_stats_merge(tsdn, &tdata.sec, &stats);
 	expect_zu_eq(stats.bytes, 2 * PAGE, "SEC should have what we filled");
 	expect_true(edata_list_active_empty(&allocs),
@@ -91,13 +130,13 @@ TEST_BEGIN(test_sec_fill) {
 	/* Try to overfill and confirm that max_bytes is respected. */
 	stats.bytes = 0;
 	edata_t edata5, edata4, edata3;
-	edata_size_set(&edata3, PAGE);
-	edata_size_set(&edata4, PAGE);
-	edata_size_set(&edata5, PAGE);
+	edata_init_test_size(&edata3, PAGE);
+	edata_init_test_size(&edata4, PAGE);
+	edata_init_test_size(&edata5, PAGE);
 	edata_list_active_append(&allocs, &edata3);
 	edata_list_active_append(&allocs, &edata4);
 	edata_list_active_append(&allocs, &edata5);
-	sec_fill(tsdn, &tdata.sec, PAGE, &allocs, 3);
+	sec_test_fill(tsdn, &tdata.sec, PAGE, &allocs, 3);
 	sec_stats_merge(tsdn, &tdata.sec, &stats);
 	expect_zu_eq(
 	    stats.bytes, opts.max_bytes, "SEC can't have more than max_bytes");
@@ -118,20 +157,20 @@ TEST_BEGIN(test_sec_alloc) {
 	test_data_init(tsdn, &tdata, &opts);
 
 	/* Alloc from empty cache returns NULL */
-	edata_t *edata = sec_alloc(tsdn, &tdata.sec, PAGE);
+	edata_t *edata = sec_test_alloc(tsdn, &tdata.sec, PAGE);
 	expect_ptr_null(edata, "SEC is empty");
 
 	/* Place two extents into the sec */
 	edata_list_active_t allocs;
 	edata_list_active_init(&allocs);
 	edata_t edata1, edata2;
-	edata_size_set(&edata1, PAGE);
+	edata_init_test_size(&edata1, PAGE);
 	edata_list_active_append(&allocs, &edata1);
-	sec_dalloc(tsdn, &tdata.sec, &allocs);
+	sec_test_dalloc(tsdn, &tdata.sec, &allocs);
 	expect_true(edata_list_active_empty(&allocs), "");
-	edata_size_set(&edata2, PAGE);
+	edata_init_test_size(&edata2, PAGE);
 	edata_list_active_append(&allocs, &edata2);
-	sec_dalloc(tsdn, &tdata.sec, &allocs);
+	sec_test_dalloc(tsdn, &tdata.sec, &allocs);
 	expect_true(edata_list_active_empty(&allocs), "");
 
 	sec_stats_t stats = {0};
@@ -141,20 +180,20 @@ TEST_BEGIN(test_sec_alloc) {
 	stats.bytes = 0;
 
 	/* Most recently cached extent should be used on alloc */
-	edata = sec_alloc(tsdn, &tdata.sec, PAGE);
+	edata = sec_test_alloc(tsdn, &tdata.sec, PAGE);
 	expect_ptr_eq(edata, &edata2, "edata2 is most recently used");
 	sec_stats_merge(tsdn, &tdata.sec, &stats);
 	expect_zu_eq(stats.bytes, PAGE, "One more item left in the cache");
 	stats.bytes = 0;
 
 	/* Alloc can still get extents from cache */
-	edata = sec_alloc(tsdn, &tdata.sec, PAGE);
+	edata = sec_test_alloc(tsdn, &tdata.sec, PAGE);
 	expect_ptr_eq(edata, &edata1, "SEC is not empty");
 	sec_stats_merge(tsdn, &tdata.sec, &stats);
 	expect_zu_eq(stats.bytes, 0, "No more items after last one is popped");
 
 	/* And cache is empty again */
-	edata = sec_alloc(tsdn, &tdata.sec, PAGE);
+	edata = sec_test_alloc(tsdn, &tdata.sec, PAGE);
 	expect_ptr_null(edata, "SEC is empty");
 	destroy_test_data(tsdn, &tdata);
 }
@@ -174,20 +213,20 @@ TEST_BEGIN(test_sec_dalloc) {
 	edata_list_active_t allocs;
 	edata_list_active_init(&allocs);
 	edata_t edata1;
-	edata_size_set(&edata1, PAGE);
+	edata_init_test_size(&edata1, PAGE);
 	edata_list_active_append(&allocs, &edata1);
 
 	/* SEC is empty, we return one pointer to it */
-	sec_dalloc(tsdn, &tdata.sec, &allocs);
+	sec_test_dalloc(tsdn, &tdata.sec, &allocs);
 	expect_true(
 	    edata_list_active_empty(&allocs), "extents should be consumed");
 
 	/* Return one more extent, so that we are at the limit */
 	edata_t edata2;
-	edata_size_set(&edata2, PAGE);
+	edata_init_test_size(&edata2, PAGE);
 	edata_list_active_append(&allocs, &edata2);
 	/* Sec can take one more as well and we will be exactly at max_bytes */
-	sec_dalloc(tsdn, &tdata.sec, &allocs);
+	sec_test_dalloc(tsdn, &tdata.sec, &allocs);
 	expect_true(
 	    edata_list_active_empty(&allocs), "extents should be consumed");
 
@@ -203,9 +242,9 @@ TEST_BEGIN(test_sec_dalloc) {
 	 * the one given in the input as it is the most recently used.
 	 */
 	edata_t edata3;
-	edata_size_set(&edata3, PAGE);
+	edata_init_test_size(&edata3, PAGE);
 	edata_list_active_append(&allocs, &edata3);
-	sec_dalloc(tsdn, &tdata.sec, &allocs);
+	sec_test_dalloc(tsdn, &tdata.sec, &allocs);
 	expect_false(
 	    edata_list_active_empty(&allocs), "extents should NOT be consumed");
 	expect_ptr_ne(
@@ -214,6 +253,65 @@ TEST_BEGIN(test_sec_dalloc) {
 	    edata_list_active_last(&allocs), &edata3, "edata3 is MRU");
 	sec_stats_merge(tsdn, &tdata.sec, &stats);
 	expect_zu_eq(PAGE, stats.bytes, "Should have flushed");
+	destroy_test_data(tsdn, &tdata);
+}
+TEST_END
+
+TEST_BEGIN(test_sec_pinned_stats) {
+	test_data_t tdata;
+	sec_opts_t  opts;
+	opts.nshards = 1;
+	opts.max_alloc = PAGE;
+	opts.max_bytes = 2 * PAGE;
+
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+	test_data_init(tsdn, &tdata, &opts);
+
+	edata_list_active_t allocs;
+	edata_list_active_init(&allocs);
+	edata_t pinned, unpinned;
+	edata_init_test_size(&pinned, PAGE);
+	edata_pinned_set(&pinned, true);
+	edata_init_test_size(&unpinned, PAGE);
+
+	edata_list_active_append(&allocs, &pinned);
+	sec_test_dalloc(tsdn, &tdata.sec, &allocs);
+	edata_list_active_append(&allocs, &unpinned);
+	sec_test_dalloc(tsdn, &tdata.sec, &allocs);
+
+	sec_stats_t stats = {0};
+	sec_stats_merge(tsdn, &tdata.sec, &stats);
+	expect_zu_eq(stats.bytes, 2 * PAGE, "");
+	expect_zu_eq(stats.bytes_pinned, PAGE, "");
+	sec_pszind_stats_t pszind_stats = {0};
+	sec_stats_merge_pszind(
+	    tsdn, &tdata.sec, sz_psz2ind(PAGE), &pszind_stats);
+	expect_zu_eq(pszind_stats.nextents, 2, "");
+	expect_zu_eq(pszind_stats.bytes, 2 * PAGE, "");
+	expect_zu_eq(pszind_stats.nextents_pinned, 1, "");
+	expect_zu_eq(pszind_stats.bytes_pinned, PAGE, "");
+
+	memset(&stats, 0, sizeof(stats));
+	expect_ptr_eq(sec_test_alloc(tsdn, &tdata.sec, PAGE), &unpinned,
+	    "Unpinned extent is the most recently cached");
+	sec_stats_merge(tsdn, &tdata.sec, &stats);
+	expect_zu_eq(stats.bytes, PAGE, "");
+	expect_zu_eq(stats.bytes_pinned, PAGE, "");
+	memset(&pszind_stats, 0, sizeof(pszind_stats));
+	sec_stats_merge_pszind(
+	    tsdn, &tdata.sec, sz_psz2ind(PAGE), &pszind_stats);
+	expect_zu_eq(pszind_stats.nextents, 1, "");
+	expect_zu_eq(pszind_stats.bytes, PAGE, "");
+	expect_zu_eq(pszind_stats.nextents_pinned, 1, "");
+	expect_zu_eq(pszind_stats.bytes_pinned, PAGE, "");
+
+	memset(&stats, 0, sizeof(stats));
+	expect_ptr_eq(sec_test_alloc(tsdn, &tdata.sec, PAGE), &pinned,
+	    "Pinned extent should be tracked until allocated");
+	sec_stats_merge(tsdn, &tdata.sec, &stats);
+	expect_zu_eq(stats.bytes, 0, "");
+	expect_zu_eq(stats.bytes_pinned, 0, "");
+
 	destroy_test_data(tsdn, &tdata);
 }
 TEST_END
@@ -232,11 +330,11 @@ TEST_BEGIN(test_max_bytes_too_low) {
 	edata_list_active_t allocs;
 	edata_list_active_init(&allocs);
 	edata_t edata1;
-	edata_size_set(&edata1, 3 * PAGE);
+	edata_init_test_size(&edata1, 3 * PAGE);
 	edata_list_active_append(&allocs, &edata1);
 
 	/* SEC is empty, we return one pointer to it */
-	sec_dalloc(tsdn, &tdata.sec, &allocs);
+	sec_test_dalloc(tsdn, &tdata.sec, &allocs);
 	expect_false(
 	    edata_list_active_empty(&allocs), "extents should not be consumed");
 	destroy_test_data(tsdn, &tdata);
@@ -262,13 +360,13 @@ TEST_BEGIN(test_sec_flush) {
 	edata_t edata1[NALLOCS];
 	edata_t edata4[NALLOCS];
 	for (int i = 0; i < NALLOCS; i++) {
-		edata_size_set(&edata1[i], PAGE);
-		edata_size_set(&edata4[i], 4 * PAGE);
+		edata_init_test_size(&edata1[i], PAGE);
+		edata_init_test_size(&edata4[i], 4 * PAGE);
 
 		edata_list_active_append(&allocs1, &edata1[i]);
-		sec_dalloc(tsdn, &tdata.sec, &allocs1);
+		sec_test_dalloc(tsdn, &tdata.sec, &allocs1);
 		edata_list_active_append(&allocs4, &edata4[i]);
-		sec_dalloc(tsdn, &tdata.sec, &allocs4);
+		sec_test_dalloc(tsdn, &tdata.sec, &allocs4);
 	}
 
 	sec_stats_t stats = {0};
@@ -301,23 +399,23 @@ TEST_BEGIN(test_sec_stats) {
 	edata_list_active_t allocs;
 	edata_list_active_init(&allocs);
 	edata_t edata1;
-	edata_size_set(&edata1, PAGE);
+	edata_init_test_size(&edata1, PAGE);
 	edata_list_active_append(&allocs, &edata1);
 
 	/* SEC is empty alloc fails. nmisses==1 */
-	edata_t *edata = sec_alloc(tsdn, &tdata.sec, PAGE);
+	edata_t *edata = sec_test_alloc(tsdn, &tdata.sec, PAGE);
 	expect_ptr_null(edata, "SEC should be empty");
 
 	/* SEC is empty, we return one pointer to it. ndalloc_noflush=1 */
-	sec_dalloc(tsdn, &tdata.sec, &allocs);
+	sec_test_dalloc(tsdn, &tdata.sec, &allocs);
 	expect_true(
 	    edata_list_active_empty(&allocs), "extents should be consumed");
 
 	edata_t edata2;
-	edata_size_set(&edata2, PAGE);
+	edata_init_test_size(&edata2, PAGE);
 	edata_list_active_append(&allocs, &edata2);
 	/* Sec can take one more, so ndalloc_noflush=2 */
-	sec_dalloc(tsdn, &tdata.sec, &allocs);
+	sec_test_dalloc(tsdn, &tdata.sec, &allocs);
 	expect_true(
 	    edata_list_active_empty(&allocs), "extents should be consumed");
 
@@ -335,9 +433,9 @@ TEST_BEGIN(test_sec_stats) {
 	 * the limit.  This will force flush, so ndalloc_flush = 1.
 	 */
 	edata_t edata3;
-	edata_size_set(&edata3, PAGE);
+	edata_init_test_size(&edata3, PAGE);
 	edata_list_active_append(&allocs, &edata3);
-	sec_dalloc(tsdn, &tdata.sec, &allocs);
+	sec_test_dalloc(tsdn, &tdata.sec, &allocs);
 	expect_false(
 	    edata_list_active_empty(&allocs), "extents should NOT be consumed");
 	sec_stats_merge(tsdn, &tdata.sec, &stats);
@@ -350,11 +448,6 @@ TEST_END
 
 #define NOPS_PER_THREAD 100
 #define NPREFILL 32
-
-static void
-edata_init_test(edata_t *edata) {
-	memset(edata, 0, sizeof(*edata));
-}
 
 typedef struct {
 	sec_t              *sec;
@@ -379,12 +472,12 @@ thd_trylock_test(void *varg) {
 	*shard_idx = arg->preferred_shard;
 
 	/* Fill the shard with some extents */
-	sec_fill(tsdn, arg->sec, PAGE, &arg->fill_list, arg->fill_list_sz);
+	sec_test_fill(tsdn, arg->sec, PAGE, &arg->fill_list, arg->fill_list_sz);
 	expect_true(edata_list_active_empty(&arg->fill_list), "");
 
 	for (unsigned i = 0; i < NOPS_PER_THREAD; i++) {
 		/* Try to allocate from SEC */
-		arg->edata[i] = sec_alloc(tsdn, arg->sec, PAGE);
+		arg->edata[i] = sec_test_alloc(tsdn, arg->sec, PAGE);
 		if (arg->edata[i] != NULL) {
 			expect_zu_eq(edata_size_get(arg->edata[i]), PAGE, "");
 		}
@@ -397,7 +490,7 @@ thd_trylock_test(void *varg) {
 			arg->nallocs++;
 			edata_list_active_append(&list, arg->edata[i]);
 			expect_zu_eq(edata_size_get(arg->edata[i]), PAGE, "");
-			sec_dalloc(tsdn, arg->sec, &list);
+			sec_test_dalloc(tsdn, arg->sec, &list);
 			if (edata_list_active_empty(&list)) {
 				arg->ndallocs++;
 			} else {
@@ -433,8 +526,7 @@ TEST_BEGIN(test_sec_multishard) {
 		edata_list_active_init(&args[i].fill_list);
 		for (unsigned j = 0; j < NPREFILL; ++j) {
 			size_t ind = i * NPREFILL + j;
-			edata_init_test(&all_edatas[ind]);
-			edata_size_set(&all_edatas[ind], PAGE);
+			edata_init_test_size(&all_edatas[ind], PAGE);
 			edata_list_active_append(
 			    &args[i].fill_list, &all_edatas[ind]);
 		}
@@ -487,6 +579,6 @@ int
 main(void) {
 	return test(test_max_nshards_option_zero,
 	    test_max_alloc_option_too_small, test_sec_fill, test_sec_alloc,
-	    test_sec_dalloc, test_max_bytes_too_low, test_sec_flush,
-	    test_sec_stats, test_sec_multishard);
+	    test_sec_dalloc, test_sec_pinned_stats, test_max_bytes_too_low,
+	    test_sec_flush, test_sec_stats, test_sec_multishard);
 }

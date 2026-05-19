@@ -83,6 +83,7 @@ typedef void (*test_callback_t)(int *);
 	O(arena, arena_t *, arena_t *)                                         \
 	O(arena_decay_ticker, ticker_geom_t, ticker_geom_t)                    \
 	O(sec_shard, uint8_t, uint8_t)                                         \
+	O(pac_sec_shard, uint8_t, uint8_t)                                     \
 	O(binshards, tsd_binshards_t, tsd_binshards_t)                         \
 	O(peak, peak_t, peak_t)                                                \
 	O(tcache_slow, tcache_slow_t, tcache_slow_t)                           \
@@ -102,6 +103,7 @@ typedef void (*test_callback_t)(int *);
 	    /* arena */ NULL, /* arena_decay_ticker */                         \
 	    TICKER_GEOM_INIT(ARENA_DECAY_NTICKS_PER_UPDATE),                   \
 	    /* sec_shard */ (uint8_t) - 1,                                     \
+	    /* pac_sec_shard */ (uint8_t) - 1,                                 \
 	    /* binshards */ TSD_BINSHARDS_ZERO_INITIALIZER,                    \
 	    /* peak */ PEAK_INITIALIZER, /* tcache_slow */                     \
 	    TCACHE_SLOW_ZERO_INITIALIZER,                                      \

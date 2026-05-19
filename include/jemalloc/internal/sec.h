@@ -35,9 +35,19 @@ typedef struct sec_stats_s sec_stats_t;
 struct sec_stats_s {
 	/* Sum of bytes_cur across all shards. */
 	size_t bytes;
+	/* Subset of bytes that are pinned. */
+	size_t bytes_pinned;
 
 	/* Totals of bin_stats. */
 	sec_bin_stats_t total;
+};
+
+typedef struct sec_pszind_stats_s sec_pszind_stats_t;
+struct sec_pszind_stats_s {
+	size_t nextents;
+	size_t bytes;
+	size_t nextents_pinned;
+	size_t bytes_pinned;
 };
 
 static inline void
@@ -52,6 +62,7 @@ sec_bin_stats_accum(sec_bin_stats_t *dst, sec_bin_stats_t *src) {
 static inline void
 sec_stats_accum(sec_stats_t *dst, sec_stats_t *src) {
 	dst->bytes += src->bytes;
+	dst->bytes_pinned += src->bytes_pinned;
 	sec_bin_stats_accum(&dst->total, &src->total);
 }
 
@@ -67,6 +78,7 @@ struct sec_bin_s {
 	 * Number of bytes in this particular bin.
 	 */
 	atomic_zu_t         bytes_cur;
+	atomic_zu_t         bytes_pinned_cur;
 	edata_list_active_t freelist;
 	atomic_zu_t         nmisses;
 	atomic_zu_t         nhits;
@@ -88,8 +100,8 @@ sec_is_used(const sec_t *sec) {
 }
 
 static inline bool
-sec_size_supported(sec_t *sec, size_t size) {
-	return sec_is_used(sec) && size <= sec->opts.max_alloc;
+sec_size_supported(const sec_t *sec, size_t size) {
+	return size <= sec->opts.max_alloc;
 }
 
 /* Min number of extents we will allocate when expanding the SEC. */
@@ -111,12 +123,21 @@ sec_size_supported(sec_t *sec, size_t size) {
 void sec_calc_nallocs_for_size(
     sec_t *sec, size_t size, size_t *min_nallocs, size_t *max_nallocs);
 
-/* If sec does not have extent available, it will return NULL. */
-edata_t *sec_alloc(tsdn_t *tsdn, sec_t *sec, size_t size);
+/*
+ * Lazily picks (and caches in *idxp) a shard for the calling thread.  Different
+ * SEC instances pass independent per-thread uint8_t slots, initialized to
+ * (uint8_t)-1.
+ */
+uint8_t sec_shard_pick(tsd_t *tsd, sec_t *sec, uint8_t *idxp);
+
+/* Callers must ensure sec_size_supported(sec, size). */
+edata_t *sec_alloc(tsdn_t *tsdn, sec_t *sec, size_t size, uint8_t shard);
 void     sec_fill(tsdn_t *tsdn, sec_t *sec, size_t size,
-        edata_list_active_t *result, size_t nallocs);
+        edata_list_active_t *result, size_t nallocs, uint8_t shard);
 
 /*
+ * Callers must ensure sec_size_supported(sec, edata_size).
+ *
  * Upon return dalloc_list may be empty if edata is consumed by sec or non-empty
  * if there are extents that need to be flushed from cache.  Please note, that
  * if we need to flush, extent(s) returned in the list to be deallocated
@@ -124,7 +145,8 @@ void     sec_fill(tsdn_t *tsdn, sec_t *sec, size_t size,
  * considered "hot" and preserved in the cache, while "colder" ones are
  * returned).
  */
-void sec_dalloc(tsdn_t *tsdn, sec_t *sec, edata_list_active_t *dalloc_list);
+void sec_dalloc(tsdn_t *tsdn, sec_t *sec, edata_list_active_t *dalloc_list,
+    uint8_t shard);
 
 bool sec_init(tsdn_t *tsdn, sec_t *sec, base_t *base, const sec_opts_t *opts);
 
@@ -138,6 +160,9 @@ void sec_flush(tsdn_t *tsdn, sec_t *sec, edata_list_active_t *to_flush);
  * split), which simplifies the stats management.
  */
 void sec_stats_merge(tsdn_t *tsdn, const sec_t *sec, sec_stats_t *stats);
+void sec_stats_merge_pszind(
+    tsdn_t *tsdn, const sec_t *sec, pszind_t pszind,
+    sec_pszind_stats_t *stats);
 void sec_mutex_stats_read(
     tsdn_t *tsdn, sec_t *sec, mutex_prof_data_t *mutex_prof_data);
 

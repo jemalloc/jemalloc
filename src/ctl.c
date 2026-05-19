@@ -147,6 +147,9 @@ CTL_PROTO(opt_hpa_dirty_mult)
 CTL_PROTO(opt_hpa_sec_nshards)
 CTL_PROTO(opt_hpa_sec_max_alloc)
 CTL_PROTO(opt_hpa_sec_max_bytes)
+CTL_PROTO(opt_experimental_pac_sec_nshards)
+CTL_PROTO(opt_experimental_pac_sec_max_alloc)
+CTL_PROTO(opt_experimental_pac_sec_max_bytes)
 CTL_PROTO(opt_huge_arena_pac_thp)
 CTL_PROTO(opt_metadata_thp)
 CTL_PROTO(opt_retain)
@@ -382,6 +385,11 @@ CTL_PROTO(stats_arenas_i_hpa_sec_misses)
 CTL_PROTO(stats_arenas_i_hpa_sec_dalloc_flush)
 CTL_PROTO(stats_arenas_i_hpa_sec_dalloc_noflush)
 CTL_PROTO(stats_arenas_i_hpa_sec_overfills)
+CTL_PROTO(stats_arenas_i_pac_sec_bytes)
+CTL_PROTO(stats_arenas_i_pac_sec_hits)
+CTL_PROTO(stats_arenas_i_pac_sec_misses)
+CTL_PROTO(stats_arenas_i_pac_sec_dalloc_flush)
+CTL_PROTO(stats_arenas_i_pac_sec_dalloc_noflush)
 INDEX_PROTO(stats_arenas_i)
 CTL_PROTO(stats_allocated)
 CTL_PROTO(stats_active)
@@ -520,6 +528,12 @@ static const ctl_named_node_t opt_node[] = {{NAME("abort"), CTL(opt_abort)},
     {NAME("hpa_sec_nshards"), CTL(opt_hpa_sec_nshards)},
     {NAME("hpa_sec_max_alloc"), CTL(opt_hpa_sec_max_alloc)},
     {NAME("hpa_sec_max_bytes"), CTL(opt_hpa_sec_max_bytes)},
+    {NAME("experimental_pac_sec_nshards"),
+        CTL(opt_experimental_pac_sec_nshards)},
+    {NAME("experimental_pac_sec_max_alloc"),
+        CTL(opt_experimental_pac_sec_max_alloc)},
+    {NAME("experimental_pac_sec_max_bytes"),
+        CTL(opt_experimental_pac_sec_max_bytes)},
     {NAME("huge_arena_pac_thp"), CTL(opt_huge_arena_pac_thp)},
     {NAME("metadata_thp"), CTL(opt_metadata_thp)},
     {NAME("retain"), CTL(opt_retain)}, {NAME("dss"), CTL(opt_dss)},
@@ -883,6 +897,12 @@ static const ctl_named_node_t stats_arenas_i_node[] = {
         CTL(stats_arenas_i_hpa_sec_dalloc_noflush)},
     {NAME("hpa_sec_dalloc_flush"), CTL(stats_arenas_i_hpa_sec_dalloc_flush)},
     {NAME("hpa_sec_overfills"), CTL(stats_arenas_i_hpa_sec_overfills)},
+    {NAME("pac_sec_bytes"), CTL(stats_arenas_i_pac_sec_bytes)},
+    {NAME("pac_sec_hits"), CTL(stats_arenas_i_pac_sec_hits)},
+    {NAME("pac_sec_misses"), CTL(stats_arenas_i_pac_sec_misses)},
+    {NAME("pac_sec_dalloc_noflush"),
+        CTL(stats_arenas_i_pac_sec_dalloc_noflush)},
+    {NAME("pac_sec_dalloc_flush"), CTL(stats_arenas_i_pac_sec_dalloc_flush)},
     {NAME("small"), CHILD(named, stats_arenas_i_small)},
     {NAME("large"), CHILD(named, stats_arenas_i_large)},
     {NAME("bins"), CHILD(indexed, stats_arenas_i_bins)},
@@ -1268,6 +1288,10 @@ ctl_arena_stats_sdmerge(
 		ctl_accum_atomic_zu(
 		    &sdstats->astats.pa_shard_stats.pac_stats.abandoned_vm,
 		    &astats->astats.pa_shard_stats.pac_stats.abandoned_vm);
+
+		sec_stats_accum(
+		    &sdstats->astats.pa_shard_stats.pac_stats.pac_sec_stats,
+		    &astats->astats.pa_shard_stats.pac_stats.pac_sec_stats);
 
 		sdstats->astats.tcache_bytes += astats->astats.tcache_bytes;
 		sdstats->astats.tcache_stashed_bytes +=
@@ -2235,6 +2259,12 @@ CTL_RO_NL_GEN(opt_hpa_slab_max_alloc, opt_hpa_opts.slab_max_alloc, size_t)
 CTL_RO_NL_GEN(opt_hpa_sec_nshards, opt_hpa_sec_opts.nshards, size_t)
 CTL_RO_NL_GEN(opt_hpa_sec_max_alloc, opt_hpa_sec_opts.max_alloc, size_t)
 CTL_RO_NL_GEN(opt_hpa_sec_max_bytes, opt_hpa_sec_opts.max_bytes, size_t)
+CTL_RO_NL_GEN(opt_experimental_pac_sec_nshards,
+    opt_pac_sec_opts.nshards, size_t)
+CTL_RO_NL_GEN(opt_experimental_pac_sec_max_alloc,
+    opt_pac_sec_opts.max_alloc, size_t)
+CTL_RO_NL_GEN(opt_experimental_pac_sec_max_bytes,
+    opt_pac_sec_opts.max_bytes, size_t)
 CTL_RO_NL_GEN(opt_huge_arena_pac_thp, opt_huge_arena_pac_thp, bool)
 CTL_RO_NL_GEN(
     opt_metadata_thp, metadata_thp_mode_names[opt_metadata_thp], const char *)
@@ -3828,6 +3858,27 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_sec_dalloc_noflush,
     arenas_i(mib[2])->astats->hpastats.secstats.total.ndalloc_noflush, size_t)
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_sec_overfills,
     arenas_i(mib[2])->astats->hpastats.secstats.total.noverfills, size_t)
+
+CTL_RO_CGEN(config_stats, stats_arenas_i_pac_sec_bytes,
+    arenas_i(mib[2])->astats->astats.pa_shard_stats.pac_stats
+	.pac_sec_stats.bytes,
+    size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_pac_sec_hits,
+    arenas_i(mib[2])->astats->astats.pa_shard_stats.pac_stats
+	.pac_sec_stats.total.nhits,
+    size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_pac_sec_misses,
+    arenas_i(mib[2])->astats->astats.pa_shard_stats.pac_stats
+	.pac_sec_stats.total.nmisses,
+    size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_pac_sec_dalloc_flush,
+    arenas_i(mib[2])->astats->astats.pa_shard_stats.pac_stats
+	.pac_sec_stats.total.ndalloc_flush,
+    size_t)
+CTL_RO_CGEN(config_stats, stats_arenas_i_pac_sec_dalloc_noflush,
+    arenas_i(mib[2])->astats->astats.pa_shard_stats.pac_stats
+	.pac_sec_stats.total.ndalloc_noflush,
+    size_t)
 
 CTL_RO_CGEN(config_stats, stats_arenas_i_small_allocated,
     arenas_i(mib[2])->astats->allocated_small, size_t)

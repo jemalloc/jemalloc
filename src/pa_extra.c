@@ -17,6 +17,7 @@ pa_shard_prefork0(tsdn_t *tsdn, pa_shard_t *shard) {
 
 void
 pa_shard_prefork2(tsdn_t *tsdn, pa_shard_t *shard) {
+	sec_prefork2(tsdn, &shard->pac.sec);
 	if (shard->ever_used_hpa) {
 		hpa_shard_prefork2(tsdn, &shard->hpa);
 	}
@@ -54,6 +55,7 @@ pa_shard_postfork_parent(tsdn_t *tsdn, pa_shard_t *shard) {
 	ecache_postfork_parent(tsdn, &shard->pac.ecache_retained);
 	ecache_postfork_parent(tsdn, &shard->pac.ecache_pinned);
 	malloc_mutex_postfork_parent(tsdn, &shard->pac.grow_mtx);
+	sec_postfork_parent(tsdn, &shard->pac.sec);
 	malloc_mutex_postfork_parent(tsdn, &shard->pac.decay_dirty.mtx);
 	malloc_mutex_postfork_parent(tsdn, &shard->pac.decay_muzzy.mtx);
 	if (shard->ever_used_hpa) {
@@ -69,6 +71,7 @@ pa_shard_postfork_child(tsdn_t *tsdn, pa_shard_t *shard) {
 	ecache_postfork_child(tsdn, &shard->pac.ecache_retained);
 	ecache_postfork_child(tsdn, &shard->pac.ecache_pinned);
 	malloc_mutex_postfork_child(tsdn, &shard->pac.grow_mtx);
+	sec_postfork_child(tsdn, &shard->pac.sec);
 	malloc_mutex_postfork_child(tsdn, &shard->pac.decay_dirty.mtx);
 	malloc_mutex_postfork_child(tsdn, &shard->pac.decay_muzzy.mtx);
 	if (shard->ever_used_hpa) {
@@ -82,12 +85,30 @@ pa_shard_nactive(const pa_shard_t *shard) {
 }
 
 static size_t
-pa_shard_ndirty(const pa_shard_t *shard) {
+pac_sec_pinned_bytes_get(const sec_stats_t *stats) {
+	return min_zu(stats->bytes_pinned, stats->bytes);
+}
+
+static size_t
+pac_sec_dirty_npages_get(const sec_stats_t *stats) {
+	return (stats->bytes - pac_sec_pinned_bytes_get(stats)) >> LG_PAGE;
+}
+
+static size_t
+pa_shard_ndirty_no_pac_sec(const pa_shard_t *shard) {
 	size_t ndirty = ecache_npages_get(&shard->pac.ecache_dirty);
 	if (shard->ever_used_hpa) {
 		ndirty += psset_ndirty(&shard->hpa.psset);
 	}
 	return ndirty;
+}
+
+static size_t
+pa_shard_ndirty(const pa_shard_t *shard) {
+	sec_stats_t pac_sec_stats = {0};
+	sec_stats_merge(TSDN_NULL, &shard->pac.sec, &pac_sec_stats);
+	return pa_shard_ndirty_no_pac_sec(shard)
+	    + pac_sec_dirty_npages_get(&pac_sec_stats);
 }
 
 static size_t
@@ -109,17 +130,29 @@ pa_shard_stats_merge(tsdn_t *tsdn, pa_shard_t *shard,
     hpa_shard_stats_t *hpa_stats_out, size_t *resident) {
 	cassert(config_stats);
 
+	sec_stats_t pac_sec_stats = {0};
+	sec_stats_merge(tsdn, &shard->pac.sec, &pac_sec_stats);
+	sec_stats_accum(&pa_shard_stats_out->pac_stats.pac_sec_stats,
+	    &pac_sec_stats);
+	size_t pac_sec_pinned_bytes = pac_sec_pinned_bytes_get(&pac_sec_stats);
+	size_t pac_sec_pinned_npages = pac_sec_pinned_bytes >> LG_PAGE;
+	size_t pac_sec_dirty_npages =
+	    pac_sec_dirty_npages_get(&pac_sec_stats);
+
 	pa_shard_stats_out->pac_stats.retained +=
 	    ecache_npages_get(&shard->pac.ecache_retained) << LG_PAGE;
 	pa_shard_stats_out->pac_stats.pinned +=
-	    ecache_npages_get(&shard->pac.ecache_pinned) << LG_PAGE;
+	    (ecache_npages_get(&shard->pac.ecache_pinned) << LG_PAGE)
+	    + pac_sec_pinned_bytes;
 	pa_shard_stats_out->edata_avail += atomic_load_zu(
 	    &shard->edata_cache.count, ATOMIC_RELAXED);
 
 	size_t resident_pgs = 0;
 	resident_pgs += pa_shard_nactive(shard);
-	resident_pgs += pa_shard_ndirty(shard);
+	resident_pgs += pa_shard_ndirty_no_pac_sec(shard);
+	resident_pgs += pac_sec_dirty_npages;
 	resident_pgs += ecache_npages_get(&shard->pac.ecache_pinned);
+	resident_pgs += pac_sec_pinned_npages;
 	*resident += (resident_pgs << LG_PAGE);
 
 	/* Dirty decay stats */
@@ -167,6 +200,16 @@ pa_shard_stats_merge(tsdn_t *tsdn, pa_shard_t *shard,
 		pinned_bytes = ecache_nbytes_get(
 		    &shard->pac.ecache_pinned, i);
 
+		sec_pszind_stats_t pac_sec_pszind_stats = {0};
+		sec_stats_merge_pszind(
+		    tsdn, &shard->pac.sec, i, &pac_sec_pszind_stats);
+		dirty += pac_sec_pszind_stats.nextents
+		    - pac_sec_pszind_stats.nextents_pinned;
+		dirty_bytes += pac_sec_pszind_stats.bytes
+		    - pac_sec_pszind_stats.bytes_pinned;
+		pinned += pac_sec_pszind_stats.nextents_pinned;
+		pinned_bytes += pac_sec_pszind_stats.bytes_pinned;
+
 		estats_out[i].ndirty = dirty;
 		estats_out[i].nmuzzy = muzzy;
 		estats_out[i].nretained = retained;
@@ -207,6 +250,9 @@ pa_shard_mtx_stats_read(tsdn_t *tsdn, pa_shard_t *shard,
 	    &shard->pac.decay_dirty.mtx, arena_prof_mutex_decay_dirty);
 	pa_shard_mtx_stats_read_single(tsdn, mutex_prof_data,
 	    &shard->pac.decay_muzzy.mtx, arena_prof_mutex_decay_muzzy);
+
+	sec_mutex_stats_read(tsdn, &shard->pac.sec,
+	    &mutex_prof_data[arena_prof_mutex_pac_sec]);
 
 	if (shard->ever_used_hpa) {
 		pa_shard_mtx_stats_read_single(tsdn, mutex_prof_data,

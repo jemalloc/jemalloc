@@ -7,6 +7,18 @@
 #include "jemalloc/internal/san.h"
 #include "jemalloc/internal/witness.h"
 
+static inline uint8_t
+pac_sec_shard_pick(tsdn_t *tsdn, sec_t *sec) {
+	if (sec->opts.nshards <= 1) {
+		return 0;
+	}
+	if (tsdn_null(tsdn)) {
+		return 0;
+	}
+	tsd_t *tsd = tsdn_tsd(tsdn);
+	return sec_shard_pick(tsd, sec, tsd_pac_sec_shardp_get(tsd));
+}
+
 static inline void
 pac_decay_data_get(pac_t *pac, extent_state_t state, decay_t **r_decay,
     pac_decay_stats_t **r_decay_stats, ecache_t **r_ecache) {
@@ -95,6 +107,16 @@ pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
 	pac->stats_mtx = stats_mtx;
 	atomic_store_zu(&pac->extent_sn_next, 0, ATOMIC_RELAXED);
 
+	if (sec_init(tsdn, &pac->sec, base, &opt_pac_sec_opts)) {
+		/* sec_init already zeroed nshards and max_alloc. */
+	}
+	if (!sec_is_used(&pac->sec) || dirty_decay_ms == 0) {
+		atomic_store_zu(&pac->sec_max_alloc, 0, ATOMIC_RELAXED);
+	} else {
+		atomic_store_zu(&pac->sec_max_alloc,
+		    pac->sec.opts.max_alloc, ATOMIC_RELAXED);
+	}
+
 	return false;
 }
 
@@ -135,6 +157,24 @@ pac_alloc_real(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 	size_t newly_mapped_size = 0;
 
 	edata_t *edata = NULL;
+
+	if (!guarded && !zero && alignment <= PAGE
+	    && size <= atomic_load_zu(&pac->sec_max_alloc, ATOMIC_RELAXED)) {
+		/*
+		 * sec_max_alloc mirrors sec.opts.max_alloc when SEC is
+		 * enabled, 0 when dirty decay is disabled.
+		 */
+		edata = sec_alloc(tsdn, &pac->sec, size,
+		    pac_sec_shard_pick(tsdn, &pac->sec));
+		if (edata != NULL) {
+			return edata;
+		}
+		/*
+		 * Unlike HPA, PAC has no batch allocation primitive; we
+		 * intentionally do not refill SEC on a miss.  Extents enter the
+		 * cache only through the dalloc path.
+		 */
+	}
 
 	/*
 	 * Guarded allocations need surrounding guard pages, which the pinned
@@ -398,6 +438,37 @@ pac_dalloc(tsdn_t *tsdn, pac_t *pac, edata_t *edata,
 			san_unguard_pages_two_sided(
 			    tsdn, ehooks, edata, pac->emap);
 		}
+	} else if (edata_size_get(edata)
+	    <= atomic_load_zu(&pac->sec_max_alloc, ATOMIC_RELAXED)) {
+		/*
+		 * A dalloc can race with disabling SEC and cache an extent after
+		 * the flush.  Avoid a hot-path gate lock; such extents remain
+		 * stats-tracked and are flushed by reset/destroy or a later
+		 * disable.
+		 */
+		edata_list_active_t dalloc_list;
+		edata_list_active_init(&dalloc_list);
+		edata_list_active_append(&dalloc_list, edata);
+		sec_dalloc(tsdn, &pac->sec, &dalloc_list,
+		    pac_sec_shard_pick(tsdn, &pac->sec));
+		if (edata_list_active_empty(&dalloc_list)) {
+			*deferred_work_generated = false;
+			return;
+		}
+		/* Flush overflow extents to their backing ecaches. */
+		bool any_deferred_work = false;
+		edata_t *flush_edata;
+		while ((flush_edata =
+		    edata_list_active_first(&dalloc_list)) != NULL) {
+			edata_list_active_remove(&dalloc_list,
+			    flush_edata);
+			if (!edata_pinned_get(flush_edata)) {
+				any_deferred_work = true;
+			}
+			pac_ecache_dalloc(tsdn, pac, ehooks, flush_edata);
+		}
+		*deferred_work_generated = any_deferred_work;
+		return;
 	}
 
 	bool pinned = edata_pinned_get(edata);
@@ -720,6 +791,13 @@ pac_decay_ms_set(tsdn_t *tsdn, pac_t *pac, extent_state_t state,
 		return true;
 	}
 
+	bool update_pac_sec = (state == extent_state_dirty)
+	    && sec_is_used(&pac->sec);
+	if (update_pac_sec && decay_ms == 0) {
+		atomic_store_zu(&pac->sec_max_alloc, 0, ATOMIC_RELAXED);
+		pac_sec_flush(tsdn, pac);
+	}
+
 	malloc_mutex_lock(tsdn, &decay->mtx);
 	/*
 	 * Restart decay backlog from scratch, which may cause many dirty pages
@@ -734,6 +812,11 @@ pac_decay_ms_set(tsdn_t *tsdn, pac_t *pac, extent_state_t state,
 	decay_reinit(decay, &cur_time, decay_ms);
 	pac_maybe_decay_purge(tsdn, pac, decay, decay_stats, ecache, eagerness);
 	malloc_mutex_unlock(tsdn, &decay->mtx);
+
+	if (update_pac_sec && decay_ms != 0) {
+		atomic_store_zu(&pac->sec_max_alloc,
+		    pac->sec.opts.max_alloc, ATOMIC_RELAXED);
+	}
 
 	return false;
 }
@@ -807,5 +890,18 @@ pac_destroy(tsdn_t *tsdn, pac_t *pac) {
 	    (edata = ecache_evict(tsdn, pac, ehooks, &pac->ecache_retained, 0))
 	    != NULL) {
 		extent_destroy_wrapper(tsdn, pac, ehooks, edata);
+	}
+}
+
+void
+pac_sec_flush(tsdn_t *tsdn, pac_t *pac) {
+	ehooks_t *ehooks = pac_ehooks_get(pac);
+	edata_list_active_t to_flush;
+	edata_list_active_init(&to_flush);
+	sec_flush(tsdn, &pac->sec, &to_flush);
+	edata_t *edata;
+	while ((edata = edata_list_active_first(&to_flush)) != NULL) {
+		edata_list_active_remove(&to_flush, edata);
+		pac_ecache_dalloc(tsdn, pac, ehooks, edata);
 	}
 }

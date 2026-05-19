@@ -181,7 +181,7 @@ static const size_t num_global_mutexes = sizeof(global_mutex_names)
 static const char  *arena_mutex_names[] = {"large", "extent_avail",
      "extents_dirty", "extents_muzzy", "extents_retained", "decay_dirty",
      "decay_muzzy", "base", "tcache_list", "hpa_shard", "hpa_shard_grow",
-     "hpa_sec"};
+     "hpa_sec", "pac_sec"};
 static const size_t num_arena_mutexes = sizeof(arena_mutex_names)
     / sizeof(arena_mutex_names[0]);
 

@@ -198,6 +198,9 @@ size_t opt_calloc_madvise_threshold = CALLOC_MADVISE_THRESHOLD_DEFAULT;
 bool             opt_hpa = false;
 hpa_shard_opts_t opt_hpa_opts = HPA_SHARD_OPTS_DEFAULT;
 sec_opts_t       opt_hpa_sec_opts = SEC_OPTS_DEFAULT;
+sec_opts_t       opt_pac_sec_opts = {0,
+    (32 * 1024) > (PAGE * 2) ? (32 * 1024) : (PAGE * 2),
+    SEC_OPTS_MAX_BYTES_DEFAULT};
 
 /* False should be the common case.  Set to true to trigger initialization. */
 bool malloc_slow = true;

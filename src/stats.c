@@ -839,6 +839,37 @@ stats_arena_hpa_shard_sec_print(emitter_t *emitter, unsigned i) {
 }
 
 static void
+stats_arena_pac_sec_print(emitter_t *emitter, unsigned i) {
+	size_t sec_bytes;
+	size_t sec_hits;
+	size_t sec_misses;
+	size_t sec_dalloc_flush;
+	size_t sec_dalloc_noflush;
+	CTL_M2_GET("stats.arenas.0.pac_sec_bytes", i, &sec_bytes, size_t);
+	emitter_kv(emitter, "pac_sec_bytes",
+	    "Bytes in PAC small extent cache",
+	    emitter_type_size, &sec_bytes);
+	CTL_M2_GET("stats.arenas.0.pac_sec_hits", i, &sec_hits, size_t);
+	emitter_kv(emitter, "pac_sec_hits",
+	    "Total hits in PAC small extent cache",
+	    emitter_type_size, &sec_hits);
+	CTL_M2_GET("stats.arenas.0.pac_sec_misses", i, &sec_misses, size_t);
+	emitter_kv(emitter, "pac_sec_misses",
+	    "Total misses in PAC small extent cache",
+	    emitter_type_size, &sec_misses);
+	CTL_M2_GET("stats.arenas.0.pac_sec_dalloc_noflush", i,
+	    &sec_dalloc_noflush, size_t);
+	emitter_kv(emitter, "pac_sec_dalloc_noflush",
+	    "Dalloc calls without flush in PAC small extent cache",
+	    emitter_type_size, &sec_dalloc_noflush);
+	CTL_M2_GET("stats.arenas.0.pac_sec_dalloc_flush", i, &sec_dalloc_flush,
+	    size_t);
+	emitter_kv(emitter, "pac_sec_dalloc_flush",
+	    "Dalloc calls with flush in PAC small extent cache",
+	    emitter_type_size, &sec_dalloc_flush);
+}
+
+static void
 stats_arena_hpa_shard_counters_print(
     emitter_t *emitter, unsigned i, uint64_t uptime) {
 	size_t npageslabs;
@@ -1570,6 +1601,10 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 	GET_AND_EMIT_MEM_STAT(extent_avail)
 #undef GET_AND_EMIT_MEM_STAT
 
+	if (opt_pac_sec_opts.nshards > 0) {
+		stats_arena_pac_sec_print(emitter, i);
+	}
+
 	if (mutex) {
 		stats_arena_mutexes_print(emitter, i, uptime);
 	}
@@ -1764,6 +1799,9 @@ stats_general_print(emitter_t *emitter) {
 	OPT_WRITE_SIZE_T("hpa_sec_nshards")
 	OPT_WRITE_SIZE_T("hpa_sec_max_alloc")
 	OPT_WRITE_SIZE_T("hpa_sec_max_bytes")
+	OPT_WRITE_SIZE_T("experimental_pac_sec_nshards")
+	OPT_WRITE_SIZE_T("experimental_pac_sec_max_alloc")
+	OPT_WRITE_SIZE_T("experimental_pac_sec_max_bytes")
 	OPT_WRITE_BOOL("huge_arena_pac_thp")
 	OPT_WRITE_CHAR_P("metadata_thp")
 	OPT_WRITE_INT64("mutex_max_spin")
