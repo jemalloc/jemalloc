@@ -1514,10 +1514,10 @@ arena_ptr_array_flush_impl(tsd_t *tsd, szind_t binind,
 	 * '...' is morally equivalent, the code itself needs slight tweaks.
 	 */
 	if (small) {
-		return arena_ptr_array_flush_impl_small(tsdn, binind, arr,
+		arena_ptr_array_flush_impl_small(tsdn, binind, arr,
 		    item_edata, nflush, stats_arena, merge_stats);
 	} else {
-		return arena_ptr_array_flush_impl_large(tsdn, binind, arr,
+		arena_ptr_array_flush_impl_large(tsdn, binind, arr,
 		    item_edata, nflush, stats_arena, merge_stats);
 	}
 }

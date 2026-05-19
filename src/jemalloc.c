@@ -1059,7 +1059,7 @@ je_free_sized(void *ptr, size_t size) {
 
 JEMALLOC_EXPORT void JEMALLOC_NOTHROW
 je_free_aligned_sized(void *ptr, size_t alignment, size_t size) {
-	return je_sdallocx(ptr, size, /* flags */ MALLOCX_ALIGN(alignment));
+	je_sdallocx(ptr, size, /* flags */ MALLOCX_ALIGN(alignment));
 }
 
 /*
