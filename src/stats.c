@@ -1708,10 +1708,9 @@ stats_general_print(emitter_t *emitter) {
 	MALLOC_CONF_WRITE("global_var", "Global variable malloc_conf");
 	MALLOC_CONF_WRITE("symlink", "Symbolic link malloc.conf");
 	MALLOC_CONF_WRITE("env_var", "Environment variable MALLOC_CONF");
-	/* As this config is unofficial, skip the output if it's NULL */
-	if (je_mallctl("opt.malloc_conf.global_var_2_conf_harder", (void *)&cpv,
-	        &cpsz, NULL, 0)
-	    == 0) {
+	/* As this config is unofficial, skip the output if it's NULL. */
+	if (je_malloc_conf_2_conf_harder != NULL) {
+		cpv = je_malloc_conf_2_conf_harder;
 		emitter_kv(emitter, "global_var_2_conf_harder",
 		    "Global "
 		    "variable malloc_conf_2_conf_harder",

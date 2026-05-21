@@ -46,6 +46,7 @@ extern bool                  opt_disable_large_size_classes;
 
 extern const char *opt_malloc_conf_symlink;
 extern const char *opt_malloc_conf_env_var;
+extern const char *je_malloc_conf_2_conf_harder;
 
 /* Escape free-fastpath when ptr & mask == 0 (for sanitization purpose). */
 extern uintptr_t san_cache_bin_nonfast_mask;

@@ -39,13 +39,6 @@ TEST_BEGIN(test_mallctl_global_var) {
 	expect_str_eq(mc, malloc_conf,
 	    "Unexpected value for the global variable "
 	    "malloc_conf");
-
-	expect_d_eq(mallctl("opt.malloc_conf.global_var_2_conf_harder",
-	                (void *)&mc, &sz, NULL, 0),
-	    0, "Unexpected mallctl() failure");
-	expect_str_eq(mc, malloc_conf_2_conf_harder,
-	    "Unexpected value for the "
-	    "global variable malloc_conf_2_conf_harder");
 }
 TEST_END
 
