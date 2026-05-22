@@ -3,10 +3,9 @@
 #include "test/jemalloc_test.h"
 
 /*
- * We can't test C++ in unit tests.  In order to intercept abort, use a secret
- * safety check abort hook in integration tests.
+ * We can't test C++ in unit tests.  In order to intercept abort, use the
+ * internal test hook in integration tests.
  */
-typedef void (*abort_hook_t)(const char *message);
 bool fake_abort_called;
 void
 fake_abort(const char *message) {
@@ -34,10 +33,7 @@ own_operator_new(void) {
 }
 
 TEST_BEGIN(test_failing_alloc) {
-	abort_hook_t abort_hook = &fake_abort;
-	expect_d_eq(mallctl("experimental.hooks.safety_check_abort", NULL, NULL,
-	                (void *)&abort_hook, sizeof(abort_hook)),
-	    0, "Unexpected mallctl failure setting abort hook");
+	test_hooks_safety_check_abort = &fake_abort;
 
 	/*
 	 * Not owning operator new is only expected to happen on MinGW which
@@ -57,6 +53,7 @@ TEST_BEGIN(test_failing_alloc) {
 	}
 	expect_ptr_null(ptr, "Allocation should have failed");
 	expect_b_eq(fake_abort_called, true, "Abort hook not invoked");
+	test_hooks_safety_check_abort = NULL;
 }
 TEST_END
 

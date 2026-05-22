@@ -150,6 +150,7 @@ p_test_impl(bool do_malloc_init, bool do_reentrant, test_t *t, va_list ap) {
 		/* Non-reentrant run. */
 		reentrancy = non_reentrant;
 		test_hooks_arena_new_hook = test_hooks_libc_hook = NULL;
+		test_hooks_safety_check_abort = NULL;
 		t();
 		if (test_status > ret) {
 			ret = test_status;
@@ -158,6 +159,7 @@ p_test_impl(bool do_malloc_init, bool do_reentrant, test_t *t, va_list ap) {
 		if (do_reentrant) {
 			reentrancy = libc_reentrant;
 			test_hooks_arena_new_hook = NULL;
+			test_hooks_safety_check_abort = NULL;
 			test_hooks_libc_hook = &libc_reentrancy_hook;
 			t();
 			if (test_status > ret) {
@@ -166,6 +168,7 @@ p_test_impl(bool do_malloc_init, bool do_reentrant, test_t *t, va_list ap) {
 
 			reentrancy = arena_new_reentrant;
 			test_hooks_libc_hook = NULL;
+			test_hooks_safety_check_abort = NULL;
 			test_hooks_arena_new_hook = &arena_new_reentrancy_hook;
 			t();
 			if (test_status > ret) {

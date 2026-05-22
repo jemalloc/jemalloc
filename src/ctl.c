@@ -372,7 +372,6 @@ CTL_PROTO(experimental_hooks_prof_dump)
 CTL_PROTO(experimental_hooks_prof_sample)
 CTL_PROTO(experimental_hooks_prof_sample_free)
 CTL_PROTO(experimental_hooks_thread_event)
-CTL_PROTO(experimental_hooks_safety_check_abort)
 CTL_PROTO(experimental_utilization_query)
 CTL_PROTO(experimental_utilization_batch_query)
 CTL_PROTO(experimental_arenas_i_pactivep)
@@ -910,7 +909,6 @@ static const ctl_named_node_t experimental_hooks_node[] = {
     {NAME("prof_dump"), CTL(experimental_hooks_prof_dump)},
     {NAME("prof_sample"), CTL(experimental_hooks_prof_sample)},
     {NAME("prof_sample_free"), CTL(experimental_hooks_prof_sample_free)},
-    {NAME("safety_check_abort"), CTL(experimental_hooks_safety_check_abort)},
     {NAME("thread_event"), CTL(experimental_hooks_thread_event)},
 };
 
@@ -3725,27 +3723,6 @@ experimental_hooks_thread_event_ctl(tsd_t *tsd, const size_t *mib,
 	WRITE(t_new, user_hook_object_t);
 	ret = te_register_user_handler(tsd_tsdn(tsd), &t_new);
 
-label_return:
-	return ret;
-}
-
-/* For integration test purpose only.  No plan to move out of experimental. */
-static int
-experimental_hooks_safety_check_abort_ctl(tsd_t *tsd, const size_t *mib,
-    size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
-
-	WRITEONLY();
-	if (newp != NULL) {
-		if (newlen != sizeof(safety_check_abort_hook_t)) {
-			ret = EINVAL;
-			goto label_return;
-		}
-		safety_check_abort_hook_t hook JEMALLOC_CC_SILENCE_INIT(NULL);
-		WRITE(hook, safety_check_abort_hook_t);
-		safety_check_set_abort(hook);
-	}
-	ret = 0;
 label_return:
 	return ret;
 }

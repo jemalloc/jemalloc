@@ -1,8 +1,6 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/jemalloc_internal_includes.h"
 
-static safety_check_abort_hook_t safety_check_abort;
-
 void
 safety_check_fail_sized_dealloc(bool current_dealloc, const void *ptr,
     size_t true_size, size_t input_size) {
@@ -19,23 +17,18 @@ safety_check_fail_sized_dealloc(bool current_dealloc, const void *ptr,
 	    true_size, input_size, ptr, src, suggest_debug_build);
 }
 
-void
-safety_check_set_abort(safety_check_abort_hook_t abort_fn) {
-	safety_check_abort = abort_fn;
-}
-
 /*
  * In addition to malloc_write, also embed hint msg in the abort function name
  * because there are cases only logging crash stack traces.
  */
 static void
 safety_check_detected_heap_corruption___run_address_sanitizer_build_to_debug(
-    const char *buf) {
-	if (safety_check_abort == NULL) {
+	const char *buf) {
+	if (test_hooks_safety_check_abort == NULL) {
 		malloc_write(buf);
 		abort();
 	} else {
-		safety_check_abort(buf);
+		test_hooks_safety_check_abort(buf);
 	}
 }
 
