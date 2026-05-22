@@ -211,7 +211,6 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/background_thread_enable.c \
 	$(srcroot)test/unit/background_thread_init.c \
 	$(srcroot)test/unit/base.c \
-	$(srcroot)test/unit/batch_alloc.c \
 	$(srcroot)test/unit/bin.c \
 	$(srcroot)test/unit/binshard.c \
 	$(srcroot)test/unit/bitmap.c \
@@ -319,8 +318,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/zero_reallocs.c
 ifeq (@enable_prof@, 1)
 TESTS_UNIT += \
-	$(srcroot)test/unit/arena_reset_prof.c \
-	$(srcroot)test/unit/batch_alloc_prof.c
+	$(srcroot)test/unit/arena_reset_prof.c
 endif
 TESTS_INTEGRATION := $(srcroot)test/integration/aligned_alloc.c \
 	$(srcroot)test/integration/allocated.c \
@@ -354,8 +352,7 @@ endif
 TESTS_ANALYZE := $(srcroot)test/analyze/prof_bias.c \
 	$(srcroot)test/analyze/rand.c \
 	$(srcroot)test/analyze/sizes.c
-TESTS_STRESS := $(srcroot)test/stress/batch_alloc.c \
-	$(srcroot)test/stress/fill_flush.c \
+TESTS_STRESS := $(srcroot)test/stress/fill_flush.c \
 	$(srcroot)test/stress/large_microbench.c \
 	$(srcroot)test/stress/mallctl.c \
 	$(srcroot)test/stress/microbench.c

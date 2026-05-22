@@ -52,34 +52,6 @@ do_flush_test(cache_bin_t *bin, void **ptrs, cache_bin_sz_t nfill,
 }
 
 static void
-do_batch_alloc_test(
-    cache_bin_t *bin, void **ptrs, cache_bin_sz_t nfill, size_t batch) {
-	assert_true(cache_bin_ncached_get_local(bin) == 0, "");
-	CACHE_BIN_PTR_ARRAY_DECLARE(arr, nfill);
-	cache_bin_init_ptr_array_for_fill(bin, &arr, nfill);
-	for (cache_bin_sz_t i = 0; i < nfill; i++) {
-		arr.ptr[i] = &ptrs[i];
-	}
-	cache_bin_finish_fill(bin, &arr, nfill);
-	assert_true(cache_bin_ncached_get_local(bin) == nfill, "");
-	cache_bin_low_water_set(bin);
-
-	void **out = malloc((batch + 1) * sizeof(void *));
-	size_t n = cache_bin_alloc_batch(bin, batch, out);
-	assert_true(n == ((size_t)nfill < batch ? (size_t)nfill : batch), "");
-	for (cache_bin_sz_t i = 0; i < (cache_bin_sz_t)n; i++) {
-		expect_ptr_eq(out[i], &ptrs[i], "");
-	}
-	expect_true(
-	    cache_bin_low_water_get(bin) == nfill - (cache_bin_sz_t)n, "");
-	while (cache_bin_ncached_get_local(bin) > 0) {
-		bool success;
-		cache_bin_alloc(bin, &success);
-	}
-	free(out);
-}
-
-static void
 test_bin_init(cache_bin_t *bin, cache_bin_info_t *info) {
 	size_t size;
 	size_t alignment;
@@ -224,29 +196,6 @@ TEST_BEGIN(test_cache_bin) {
 	do_flush_test(&bin, ptrs, ncached_max / 2, ncached_max / 2);
 	do_flush_test(&bin, ptrs, ncached_max / 2, ncached_max / 4);
 	do_flush_test(&bin, ptrs, ncached_max / 2, 0);
-
-	do_batch_alloc_test(&bin, ptrs, ncached_max, ncached_max);
-	do_batch_alloc_test(&bin, ptrs, ncached_max, ncached_max * 2);
-	do_batch_alloc_test(&bin, ptrs, ncached_max, ncached_max / 2);
-	do_batch_alloc_test(&bin, ptrs, ncached_max, 2);
-	do_batch_alloc_test(&bin, ptrs, ncached_max, 1);
-	do_batch_alloc_test(&bin, ptrs, ncached_max, 0);
-	do_batch_alloc_test(&bin, ptrs, ncached_max / 2, ncached_max / 2);
-	do_batch_alloc_test(&bin, ptrs, ncached_max / 2, ncached_max);
-	do_batch_alloc_test(&bin, ptrs, ncached_max / 2, ncached_max / 4);
-	do_batch_alloc_test(&bin, ptrs, ncached_max / 2, 2);
-	do_batch_alloc_test(&bin, ptrs, ncached_max / 2, 1);
-	do_batch_alloc_test(&bin, ptrs, ncached_max / 2, 0);
-	do_batch_alloc_test(&bin, ptrs, 2, ncached_max);
-	do_batch_alloc_test(&bin, ptrs, 2, 2);
-	do_batch_alloc_test(&bin, ptrs, 2, 1);
-	do_batch_alloc_test(&bin, ptrs, 2, 0);
-	do_batch_alloc_test(&bin, ptrs, 1, 2);
-	do_batch_alloc_test(&bin, ptrs, 1, 1);
-	do_batch_alloc_test(&bin, ptrs, 1, 0);
-	do_batch_alloc_test(&bin, ptrs, 0, 2);
-	do_batch_alloc_test(&bin, ptrs, 0, 1);
-	do_batch_alloc_test(&bin, ptrs, 0, 0);
 
 	free(ptrs);
 }

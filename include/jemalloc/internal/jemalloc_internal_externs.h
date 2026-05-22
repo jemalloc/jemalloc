@@ -56,7 +56,6 @@ extern unsigned ncpus;
 void    *bootstrap_malloc(size_t size);
 void    *bootstrap_calloc(size_t num, size_t size);
 void     bootstrap_free(void *ptr);
-size_t   batch_alloc(void **ptrs, size_t num, size_t size, int flags);
 void     sdallocx_default(void *ptr, size_t size, int flags);
 void     free_default(void *ptr);
 void    *malloc_default(size_t size);
