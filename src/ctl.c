@@ -3309,23 +3309,34 @@ arenas_lextent_i_index(
 }
 
 static int
-arenas_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
-    size_t *oldlenp, void *newp, size_t newlen) {
-	int      ret;
+ctl_arena_create(tsd_t *tsd, void *oldp, size_t *oldlenp,
+    const arena_config_t *config) {
+	int ret;
 	unsigned arena_ind;
 
-	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
-
-	VERIFY_READ(unsigned);
-	arena_config_t config = arena_config_default;
-	WRITE(config.extent_hooks, extent_hooks_t *);
-	if ((arena_ind = ctl_arena_init(tsd, &config)) == UINT_MAX) {
+	if ((arena_ind = ctl_arena_init(tsd, config)) == UINT_MAX) {
 		ret = EAGAIN;
 		goto label_return;
 	}
 	READ(arena_ind, unsigned);
 
 	ret = 0;
+label_return:
+	return ret;
+}
+
+static int
+arenas_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen) {
+	int ret;
+
+	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
+
+	VERIFY_READ(unsigned);
+	arena_config_t config = arena_config_default;
+	WRITE(config.extent_hooks, extent_hooks_t *);
+
+	ret = ctl_arena_create(tsd, oldp, oldlenp, &config);
 label_return:
 	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
 	return ret;
@@ -3334,8 +3345,7 @@ label_return:
 static int
 experimental_arenas_create_ext_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int      ret;
-	unsigned arena_ind;
+	int ret;
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 
@@ -3343,12 +3353,7 @@ experimental_arenas_create_ext_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 	VERIFY_READ(unsigned);
 	WRITE(config, arena_config_t);
 
-	if ((arena_ind = ctl_arena_init(tsd, &config)) == UINT_MAX) {
-		ret = EAGAIN;
-		goto label_return;
-	}
-	READ(arena_ind, unsigned);
-	ret = 0;
+	ret = ctl_arena_create(tsd, oldp, oldlenp, &config);
 label_return:
 	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
 	return ret;
