@@ -1,10 +1,6 @@
 #include "test/jemalloc_test.h"
 #include "test/bench.h"
 
-#define MIBLEN 8
-static size_t mib[MIBLEN];
-static size_t miblen = MIBLEN;
-
 #define TINY_BATCH 10
 #define TINY_BATCH_ITER (10 * 1000 * 1000)
 #define HUGE_BATCH (1000 * 1000)
@@ -17,30 +13,16 @@ static size_t item_ptrs_next = 0;
 
 #define SIZE 7
 
-typedef struct batch_alloc_packet_s batch_alloc_packet_t;
-struct batch_alloc_packet_s {
-	void **ptrs;
-	size_t num;
-	size_t size;
-	int    flags;
-};
-
 static void
 batch_alloc_wrapper(size_t batch) {
-	batch_alloc_packet_t batch_alloc_packet = {
-	    batch_ptrs + batch_ptrs_next, batch, SIZE, 0};
-	size_t filled;
-	size_t len = sizeof(size_t);
-	assert_d_eq(mallctlbymib(mib, miblen, &filled, &len,
-	                &batch_alloc_packet, sizeof(batch_alloc_packet)),
-	    0, "");
+	size_t filled = batch_alloc(batch_ptrs + batch_ptrs_next, batch, SIZE, 0);
 	assert_zu_eq(filled, batch, "");
 }
 
 static void
 item_alloc_wrapper(size_t batch) {
 	for (size_t i = item_ptrs_next, end = i + batch; i < end; ++i) {
-		item_ptrs[i] = malloc(SIZE);
+		item_ptrs[i] = jet_malloc(SIZE);
 	}
 }
 
@@ -49,7 +31,7 @@ release_and_clear(void **ptrs, size_t len) {
 	for (size_t i = 0; i < len; ++i) {
 		void *p = ptrs[i];
 		assert_ptr_not_null(p, "allocation failed");
-		sdallocx(p, SIZE, 0);
+		jet_sdallocx(p, SIZE, 0);
 		ptrs[i] = NULL;
 	}
 }
@@ -189,8 +171,6 @@ TEST_END
 
 int
 main(void) {
-	assert_d_eq(
-	    mallctlnametomib("experimental.batch_alloc", mib, &miblen), 0, "");
 	return test_no_reentrancy(test_tiny_batch_without_free,
 	    test_tiny_batch_with_free, test_huge_batch_without_free,
 	    test_huge_batch_with_free);

@@ -58,23 +58,9 @@ release_batch(void **ptrs, size_t batch, size_t size) {
 	}
 }
 
-typedef struct batch_alloc_packet_s batch_alloc_packet_t;
-struct batch_alloc_packet_s {
-	void **ptrs;
-	size_t num;
-	size_t size;
-	int    flags;
-};
-
 static size_t
 batch_alloc_wrapper(void **ptrs, size_t num, size_t size, int flags) {
-	batch_alloc_packet_t batch_alloc_packet = {ptrs, num, size, flags};
-	size_t               filled;
-	size_t               len = sizeof(size_t);
-	assert_d_eq(mallctl("experimental.batch_alloc", &filled, &len,
-	                &batch_alloc_packet, sizeof(batch_alloc_packet)),
-	    0, "");
-	return filled;
+	return batch_alloc(ptrs, num, size, flags);
 }
 
 static void
