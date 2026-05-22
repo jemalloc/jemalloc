@@ -334,9 +334,50 @@ TEST_BEGIN(test_prof_sample_hooks) {
 }
 TEST_END
 
+TEST_BEGIN(test_prof_hook_noop) {
+	test_skip_if(!config_prof);
+
+	const char *hooks[] = {"experimental.hooks.prof_backtrace",
+	    "experimental.hooks.prof_dump", "experimental.hooks.prof_sample",
+	    "experimental.hooks.prof_sample_free"};
+
+	/* Passing NULL for both oldp and newp must always return EINVAL. */
+	for (unsigned i = 0; i < sizeof(hooks) / sizeof(hooks[0]); i++) {
+		expect_d_eq(mallctl(hooks[i], NULL, NULL, NULL, 0), EINVAL,
+		    "Unexpected noop hook mallctl result");
+	}
+
+	/*
+	 * Passing a pointer to a NULL function pointer:
+	 *   prof_backtrace requires a non-NULL hook  -> EINVAL (unchanged)
+	 *   prof_dump / prof_sample / prof_sample_free allow unsetting -> 0
+	 *
+	 * For the latter, save and restore the prior value so this test
+	 * doesn't leak NULL hook state to any future test.
+	 */
+	prof_backtrace_hook_t bt_null = NULL;
+	expect_d_eq(mallctl(hooks[0], NULL, NULL, &bt_null, sizeof(bt_null)),
+	    EINVAL, "Incorrectly allowed NULL backtrace hook");
+
+	for (unsigned i = 1; i < sizeof(hooks) / sizeof(hooks[0]); i++) {
+		void  *saved    = NULL;
+		size_t saved_sz = sizeof(saved);
+		void  *new_hook = NULL;
+		/* Read current value into `saved`, write NULL in same call. */
+		expect_d_eq(mallctl(hooks[i], &saved, &saved_sz,
+		                &new_hook, sizeof(new_hook)),
+		    0, "Unexpected null-hook mallctl result");
+		/* Restore. */
+		expect_d_eq(mallctl(hooks[i], NULL, NULL,
+		                &saved, sizeof(saved)),
+		    0, "Failed to restore hook");
+	}
+}
+TEST_END
+
 int
 main(void) {
 	return test(test_prof_backtrace_hook_replace,
 	    test_prof_backtrace_hook_augment, test_prof_dump_hook,
-	    test_prof_sample_hooks);
+	    test_prof_sample_hooks, test_prof_hook_noop);
 }
