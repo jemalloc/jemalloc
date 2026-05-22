@@ -106,8 +106,6 @@ arena_t *arena_new(tsdn_t *tsdn, unsigned ind, const arena_config_t *config);
 bool     arena_init_huge(tsdn_t *tsdn, arena_t *a0);
 bool     arena_ind_is_huge(unsigned ind);
 arena_t *arena_choose_huge(tsd_t *tsd);
-size_t arena_fill_small_fresh(tsdn_t *tsdn, arena_t *arena, szind_t binind,
-    void **ptrs, size_t nfill, bool zero);
 bool   arena_boot(sc_data_t *sc_data, base_t *base, bool hpa);
 void  *arena_locality_hint(tsdn_t *tsdn, arena_t *arena, szind_t szind);
 void   arena_cache_bin_array_register(tsdn_t *tsdn, arena_t *arena,
