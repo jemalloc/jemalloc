@@ -374,8 +374,6 @@ CTL_PROTO(experimental_hooks_prof_sample_free)
 CTL_PROTO(experimental_hooks_thread_event)
 CTL_PROTO(experimental_utilization_query)
 CTL_PROTO(experimental_utilization_batch_query)
-CTL_PROTO(experimental_arenas_i_pactivep)
-INDEX_PROTO(experimental_arenas_i)
 CTL_PROTO(experimental_prof_recent_alloc_max)
 CTL_PROTO(experimental_prof_recent_alloc_dump)
 CTL_PROTO(experimental_arenas_create_ext)
@@ -916,14 +914,6 @@ static const ctl_named_node_t experimental_utilization_node[] = {
     {NAME("query"), CTL(experimental_utilization_query)},
     {NAME("batch_query"), CTL(experimental_utilization_batch_query)}};
 
-static const ctl_named_node_t experimental_arenas_i_node[] = {
-    {NAME("pactivep"), CTL(experimental_arenas_i_pactivep)}};
-static const ctl_named_node_t super_experimental_arenas_i_node[] = {
-    {NAME(""), CHILD(named, experimental_arenas_i)}};
-
-static const ctl_indexed_node_t experimental_arenas_node[] = {
-    {INDEX(experimental_arenas_i)}};
-
 static const ctl_named_node_t experimental_prof_recent_node[] = {
     {NAME("alloc_max"), CTL(experimental_prof_recent_alloc_max)},
     {NAME("alloc_dump"), CTL(experimental_prof_recent_alloc_dump)},
@@ -932,7 +922,6 @@ static const ctl_named_node_t experimental_prof_recent_node[] = {
 static const ctl_named_node_t experimental_node[] = {
     {NAME("hooks"), CHILD(named, experimental_hooks)},
     {NAME("utilization"), CHILD(named, experimental_utilization)},
-    {NAME("arenas"), CHILD(indexed, experimental_arenas)},
     {NAME("arenas_create_ext"), CTL(experimental_arenas_create_ext)},
     {NAME("prof_recent"), CHILD(named, experimental_prof_recent)}};
 
@@ -4495,59 +4484,6 @@ experimental_utilization_batch_query_ctl(tsd_t *tsd, const size_t *mib,
 	ret = 0;
 
 label_return:
-	return ret;
-}
-
-static const ctl_named_node_t *
-experimental_arenas_i_index(
-    tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t i) {
-	const ctl_named_node_t *ret;
-
-	malloc_mutex_lock(tsdn, &ctl_mtx);
-	if (ctl_arenas_i_verify(i, ctl_narenas_get(tsdn))) {
-		ret = NULL;
-		goto label_return;
-	}
-	ret = super_experimental_arenas_i_node;
-label_return:
-	malloc_mutex_unlock(tsdn, &ctl_mtx);
-	return ret;
-}
-
-static int
-experimental_arenas_i_pactivep_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
-    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	if (!config_stats) {
-		return ENOENT;
-	}
-	if (oldp == NULL || oldlenp == NULL || *oldlenp != sizeof(size_t *)) {
-		return EINVAL;
-	}
-
-	unsigned arena_ind;
-	arena_t *arena;
-	int      ret;
-	size_t  *pactivep;
-
-	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
-	READONLY();
-	MIB_UNSIGNED(arena_ind, 2);
-	if (arena_ind < narenas_total_get()
-	    && (arena = arena_get(tsd_tsdn(tsd), arena_ind, false)) != NULL) {
-#if defined(JEMALLOC_GCC_ATOMIC_ATOMICS) || defined(JEMALLOC_GCC_SYNC_ATOMICS) \
-    || defined(_MSC_VER)
-		/* Expose the underlying counter for fast read. */
-		pactivep = (size_t *)&(arena->pa_shard.nactive.repr);
-		READ(pactivep, size_t *);
-		ret = 0;
-#else
-		ret = EFAULT;
-#endif
-	} else {
-		ret = EFAULT;
-	}
-label_return:
-	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
 	return ret;
 }
 
