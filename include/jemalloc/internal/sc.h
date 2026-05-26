@@ -268,12 +268,17 @@
 #define SC_LARGE_MINCLASS ((size_t)1ULL << (LG_PAGE + SC_LG_NGROUP))
 #define SC_LG_LARGE_MINCLASS (LG_PAGE + SC_LG_NGROUP)
 
-/* Internal; only used for the definition of SC_LARGE_MAXCLASS. */
-#define SC_MAX_BASE ((size_t)1 << (SC_PTR_BITS - 2))
-#define SC_MAX_DELTA ((size_t)1 << (SC_PTR_BITS - 2 - SC_LG_NGROUP))
-
-/* The largest size class supported. */
-#define SC_LARGE_MAXCLASS (SC_MAX_BASE + (SC_NGROUP - 1) * SC_MAX_DELTA)
+/*
+ * The largest size class supported.  Spell this out directly to avoid
+ * expanding subtractive arithmetic at every use site.
+ */
+#if LG_SIZEOF_PTR == 3
+#	define SC_LARGE_MAXCLASS 0x7000000000000000ULL
+#elif LG_SIZEOF_PTR == 2
+#	define SC_LARGE_MAXCLASS 0x70000000ULL
+#else
+#	error "Unsupported pointer size"
+#endif
 
 /* Maximum number of regions in one slab. */
 #ifndef CONFIG_LG_SLAB_MAXREGS
