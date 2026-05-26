@@ -523,14 +523,13 @@ cache_bin_stash(cache_bin_t *bin, void *ptr) {
 /* Get the number of stashed pointers. */
 JEMALLOC_ALWAYS_INLINE cache_bin_sz_t
 cache_bin_nstashed_get_internal(cache_bin_t *bin) {
-	cache_bin_sz_t ncached_max = cache_bin_ncached_max_get(bin);
 	cache_bin_sz_t low_bits_low_bound = cache_bin_low_bits_low_bound_get(
 	    bin);
 
 	cache_bin_sz_t n = cache_bin_diff(
 	                       bin, low_bits_low_bound, bin->low_bits_full)
 	    / sizeof(void *);
-	assert(n <= ncached_max);
+	assert(n <= cache_bin_ncached_max_get(bin));
 	if (config_debug && n != 0) {
 		/* Below are for assertions only. */
 		void **low_bound = cache_bin_low_bound_get(bin);

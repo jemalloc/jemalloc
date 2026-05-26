@@ -10,8 +10,8 @@ const uintptr_t disabled_bin = JUNK_ADDR;
 void
 cache_bin_info_init(cache_bin_info_t *info, cache_bin_sz_t ncached_max) {
 	assert(ncached_max <= CACHE_BIN_NCACHED_MAX);
-	size_t stack_size = (size_t)ncached_max * sizeof(void *);
-	assert(stack_size < ((size_t)1 << (sizeof(cache_bin_sz_t) * 8)));
+	assert((size_t)ncached_max * sizeof(void *)
+	    < ((size_t)1 << (sizeof(cache_bin_sz_t) * 8)));
 	info->ncached_max = (cache_bin_sz_t)ncached_max;
 }
 
@@ -94,9 +94,8 @@ cache_bin_init(cache_bin_t *bin, const cache_bin_info_t *info, void *alloc,
 	bin->low_bits_full = (cache_bin_sz_t)(uintptr_t)full_position;
 	bin->low_bits_empty = (cache_bin_sz_t)(uintptr_t)empty_position;
 	cache_bin_info_init(&bin->bin_info, info->ncached_max);
-	cache_bin_sz_t free_spots = cache_bin_diff(bin, bin->low_bits_full,
-	    (cache_bin_sz_t)(uintptr_t)bin->stack_head);
-	assert(free_spots == bin_stack_size);
+	assert(cache_bin_diff(bin, bin->low_bits_full,
+	    (cache_bin_sz_t)(uintptr_t)bin->stack_head) == bin_stack_size);
 	if (!cache_bin_disabled(bin)) {
 		assert(cache_bin_ncached_get_local(bin) == 0);
 	}
