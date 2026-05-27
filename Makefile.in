@@ -228,7 +228,9 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/div.c \
 	$(srcroot)test/unit/double_free.c \
 	$(srcroot)test/unit/edata_cache.c \
+	$(srcroot)test/unit/emap.c \
 	$(srcroot)test/unit/emitter.c \
+	$(srcroot)test/unit/eset.c \
 	$(srcroot)test/unit/extent_dss.c \
 	$(srcroot)test/unit/extent_quantize.c \
 	${srcroot}test/unit/fb.c \
@@ -238,6 +240,7 @@ TESTS_UNIT := \
 	${srcroot}test/unit/san_bump.c \
 	$(srcroot)test/unit/hash.c \
 	$(srcroot)test/unit/hpa.c \
+	$(srcroot)test/unit/hpa_central.c \
 	$(srcroot)test/unit/hpa_sec_integration.c \
 	$(srcroot)test/unit/hpa_thp_always.c \
 	$(srcroot)test/unit/hpa_vectorized_madvise.c \
@@ -266,6 +269,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/ncached_max.c \
 	$(srcroot)test/unit/oversize_threshold.c \
 	$(srcroot)test/unit/pa.c \
+	$(srcroot)test/unit/pac.c \
 	$(srcroot)test/unit/pack.c \
 	$(srcroot)test/unit/pages.c \
 	$(srcroot)test/unit/peak.c \
@@ -305,6 +309,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/sz.c \
 	$(srcroot)test/unit/tcache_init.c \
 	$(srcroot)test/unit/tcache_max.c \
+	$(srcroot)test/unit/tcache_gc.c \
 	$(srcroot)test/unit/test_hooks.c \
 	$(srcroot)test/unit/thread_event.c \
 	$(srcroot)test/unit/ticker.c \

@@ -339,6 +339,55 @@ tcache_gc_small_bin_shuffle(cache_bin_t *cache_bin, cache_bin_sz_t nremote,
 	}
 }
 
+#ifdef JEMALLOC_JET
+/*
+ * The GC helpers above are static inline so they cannot be linked from a
+ * separate translation unit.  In JET builds we expose thin wrappers with a
+ * `_test` suffix so test/unit/tcache_gc.c can exercise them directly.  These
+ * symbols are absent from the production library.
+ */
+#define JET_WRAP_RET(ret, fn, params, args)	\
+	ret fn##_test params {			\
+		return fn args;			\
+	}
+#define JET_WRAP_VOID(fn, params, args)		\
+	void fn##_test params {			\
+		fn args;			\
+	}
+
+JET_WRAP_RET(cache_bin_sz_t, tcache_gc_small_nremote_get,
+    (cache_bin_t *cache_bin, void *addr, uintptr_t *addr_min,
+     uintptr_t *addr_max, szind_t szind, size_t nflush),
+    (cache_bin, addr, addr_min, addr_max, szind, nflush))
+
+JET_WRAP_VOID(tcache_gc_small_bin_shuffle,
+    (cache_bin_t *cache_bin, cache_bin_sz_t nremote,
+     uintptr_t addr_min, uintptr_t addr_max),
+    (cache_bin, nremote, addr_min, addr_max))
+
+JET_WRAP_RET(uint8_t, tcache_nfill_small_lg_div_get,
+    (tcache_slow_t *tcache_slow, szind_t szind),
+    (tcache_slow, szind))
+
+JET_WRAP_VOID(tcache_nfill_small_burst_prepare,
+    (tcache_slow_t *tcache_slow, szind_t szind),
+    (tcache_slow, szind))
+
+JET_WRAP_VOID(tcache_nfill_small_burst_reset,
+    (tcache_slow_t *tcache_slow, szind_t szind),
+    (tcache_slow, szind))
+
+JET_WRAP_VOID(tcache_nfill_small_gc_update,
+    (tcache_slow_t *tcache_slow, szind_t szind, cache_bin_sz_t limit),
+    (tcache_slow, szind, limit))
+
+JET_WRAP_RET(uint8_t, tcache_gc_item_delay_compute,
+    (szind_t szind), (szind))
+
+#undef JET_WRAP_RET
+#undef JET_WRAP_VOID
+#endif
+
 static bool
 tcache_gc_small(
     tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache, szind_t szind) {
