@@ -12,7 +12,7 @@
 
 /*
  * The following struct is for experimental purposes. See
- * experimental_utilization_batch_query_ctl in src/ctl.c.
+ * experimental_utilization_batch_query_ctl in src/ctl_utilization.c.
  */
 typedef struct inspect_extent_util_stats_s inspect_extent_util_stats_t;
 struct inspect_extent_util_stats_s {

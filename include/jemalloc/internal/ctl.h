@@ -115,7 +115,11 @@ bool ctl_boot(void);
 void ctl_prefork(tsdn_t *tsdn);
 void ctl_postfork_parent(tsdn_t *tsdn);
 void ctl_postfork_child(tsdn_t *tsdn);
+void ctl_mtx_lock(tsdn_t *tsdn);
+void ctl_mtx_unlock(tsdn_t *tsdn);
 void ctl_mtx_assert_held(tsdn_t *tsdn);
+void ctl_mtx_prof_read(tsdn_t *tsdn, mutex_prof_data_t *mutex_prof_data);
+void ctl_mtx_prof_data_reset(tsdn_t *tsdn);
 
 #define xmallctl(name, oldp, oldlenp, newp, newlen)                            \
 	do {                                                                   \

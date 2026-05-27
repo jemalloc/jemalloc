@@ -48,6 +48,15 @@
     <ClCompile Include="..\..\..\..\src\conf.c" />
     <ClCompile Include="..\..\..\..\src\counter.c" />
     <ClCompile Include="..\..\..\..\src\ctl.c" />
+    <ClCompile Include="..\..\..\..\src\ctl_arena.c" />
+    <ClCompile Include="..\..\..\..\src\ctl_background_thread.c" />
+    <ClCompile Include="..\..\..\..\src\ctl_config.c" />
+    <ClCompile Include="..\..\..\..\src\ctl_opt.c" />
+    <ClCompile Include="..\..\..\..\src\ctl_prof.c" />
+    <ClCompile Include="..\..\..\..\src\ctl_stats.c" />
+    <ClCompile Include="..\..\..\..\src\ctl_thread.c" />
+    <ClCompile Include="..\..\..\..\src\ctl_tcache.c" />
+    <ClCompile Include="..\..\..\..\src\ctl_utilization.c" />
     <ClCompile Include="..\..\..\..\src\decay.c" />
     <ClCompile Include="..\..\..\..\src\div.c" />
     <ClCompile Include="..\..\..\..\src\ecache.c" />

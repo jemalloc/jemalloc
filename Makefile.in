@@ -109,6 +109,15 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/ckh.c \
 	$(srcroot)src/counter.c \
 	$(srcroot)src/ctl.c \
+	$(srcroot)src/ctl_arena.c \
+	$(srcroot)src/ctl_background_thread.c \
+	$(srcroot)src/ctl_config.c \
+	$(srcroot)src/ctl_opt.c \
+	$(srcroot)src/ctl_prof.c \
+	$(srcroot)src/ctl_stats.c \
+	$(srcroot)src/ctl_thread.c \
+	$(srcroot)src/ctl_tcache.c \
+	$(srcroot)src/ctl_utilization.c \
 	$(srcroot)src/decay.c \
 	$(srcroot)src/div.c \
 	$(srcroot)src/ecache.c \

@@ -1,16 +1,15 @@
 #include "test/jemalloc_test.h"
 
 #include "jemalloc/internal/ctl.h"
+#include "jemalloc/internal/ctl_mallctl.h"
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/util.h"
 
-extern int ctl_mib_unsigned(
-    unsigned *dst, const size_t *mib, size_t mib_index);
-extern int ctl_verify_read(void *oldp, size_t *oldlenp,
-    size_t expected_size);
-extern int ctl_readonly(const void *newp, size_t newlen);
-extern int ctl_neither_read_nor_write(void *oldp, size_t *oldlenp,
-    const void *newp, size_t newlen);
+/*
+ * Most ctl mallctl helpers are static inline in ctl_mallctl.h (included above).
+ * ctl_read_xor_write has a single non-test user (ctl_thread.c), so it is
+ * JET_EXTERN there and reached via this declaration under JET.
+ */
 extern int ctl_read_xor_write(void *oldp, size_t *oldlenp, const void *newp,
     size_t newlen);
 
