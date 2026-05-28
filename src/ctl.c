@@ -372,7 +372,6 @@ CTL_PROTO(experimental_hooks_prof_dump)
 CTL_PROTO(experimental_hooks_prof_sample)
 CTL_PROTO(experimental_hooks_prof_sample_free)
 CTL_PROTO(experimental_hooks_thread_event)
-CTL_PROTO(experimental_utilization_query)
 CTL_PROTO(experimental_utilization_batch_query)
 CTL_PROTO(experimental_prof_recent_alloc_max)
 CTL_PROTO(experimental_prof_recent_alloc_dump)
@@ -911,7 +910,6 @@ static const ctl_named_node_t experimental_hooks_node[] = {
 };
 
 static const ctl_named_node_t experimental_utilization_node[] = {
-    {NAME("query"), CTL(experimental_utilization_query)},
     {NAME("batch_query"), CTL(experimental_utilization_batch_query)}};
 
 static const ctl_named_node_t experimental_prof_recent_node[] = {
@@ -4262,102 +4260,6 @@ stats_arenas_i_index(tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t i) {
 	ret = super_stats_arenas_i_node;
 label_return:
 	malloc_mutex_unlock(tsdn, &ctl_mtx);
-	return ret;
-}
-
-/*
- * Output six memory utilization entries for an input pointer, the first one of
- * type (void *) and the remaining five of type size_t, describing the following
- * (in the same order):
- *
- * (a) memory address of the extent a potential reallocation would go into,
- * == the five fields below describe about the extent the pointer resides in ==
- * (b) number of free regions in the extent,
- * (c) number of regions in the extent,
- * (d) size of the extent in terms of bytes,
- * (e) total number of free regions in the bin the extent belongs to, and
- * (f) total number of regions in the bin the extent belongs to.
- *
- * Note that "(e)" and "(f)" are only available when stats are enabled;
- * otherwise their values are undefined.
- *
- * This API is mainly intended for small class allocations, where extents are
- * used as slab.  Note that if the bin the extent belongs to is completely
- * full, "(a)" will be NULL.
- *
- * In case of large class allocations, "(a)" will be NULL, and "(e)" and "(f)"
- * will be zero (if stats are enabled; otherwise undefined).  The other three
- * fields will be properly set though the values are trivial: "(b)" will be 0,
- * "(c)" will be 1, and "(d)" will be the usable size.
- *
- * The input pointer and size are respectively passed in by newp and newlen,
- * and the output fields and size are respectively oldp and *oldlenp.
- *
- * It can be beneficial to define the following macros to make it easier to
- * access the output:
- *
- * #define SLABCUR_READ(out) (*(void **)out)
- * #define COUNTS(out) ((size_t *)((void **)out + 1))
- * #define NFREE_READ(out) COUNTS(out)[0]
- * #define NREGS_READ(out) COUNTS(out)[1]
- * #define SIZE_READ(out) COUNTS(out)[2]
- * #define BIN_NFREE_READ(out) COUNTS(out)[3]
- * #define BIN_NREGS_READ(out) COUNTS(out)[4]
- *
- * and then write e.g. NFREE_READ(oldp) to fetch the output.  See the unit test
- * test_query in test/unit/extent_util.c for an example.
- *
- * For a typical defragmentation workflow making use of this API for
- * understanding the fragmentation level, please refer to the comment for
- * experimental_utilization_batch_query_ctl.
- *
- * It's up to the application how to determine the significance of
- * fragmentation relying on the outputs returned.  Possible choices are:
- *
- * (a) if extent utilization ratio is below certain threshold,
- * (b) if extent memory consumption is above certain threshold,
- * (c) if extent utilization ratio is significantly below bin utilization ratio,
- * (d) if input pointer deviates a lot from potential reallocation address, or
- * (e) some selection/combination of the above.
- *
- * The caller needs to make sure that the input/output arguments are valid,
- * in particular, that the size of the output is correct, i.e.:
- *
- *     *oldlenp = sizeof(void *) + sizeof(size_t) * 5
- *
- * Otherwise, the function immediately returns EINVAL without touching anything.
- *
- * In the rare case where there's no associated extent found for the input
- * pointer, the function zeros out all output fields and return.  Please refer
- * to the comment for experimental_utilization_batch_query_ctl to understand the
- * motivation from C++.
- */
-static int
-experimental_utilization_query_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
-    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
-
-	assert(sizeof(inspect_extent_util_stats_verbose_t)
-	    == sizeof(void *) + sizeof(size_t) * 5);
-
-	if (oldp == NULL || oldlenp == NULL
-	    || *oldlenp != sizeof(inspect_extent_util_stats_verbose_t)
-	    || newp == NULL) {
-		ret = EINVAL;
-		goto label_return;
-	}
-
-	void *ptr = NULL;
-	WRITE(ptr, void *);
-	inspect_extent_util_stats_verbose_t *util_stats =
-	    (inspect_extent_util_stats_verbose_t *)oldp;
-	inspect_extent_util_stats_verbose_get(tsd_tsdn(tsd), ptr,
-	    &util_stats->nfree, &util_stats->nregs, &util_stats->size,
-	    &util_stats->bin_nfree, &util_stats->bin_nregs,
-	    &util_stats->slabcur_addr);
-	ret = 0;
-
-label_return:
 	return ret;
 }
 
