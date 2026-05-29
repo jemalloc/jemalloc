@@ -2,7 +2,7 @@
 #define JEMALLOC_INTERNAL_PROF_INLINES_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/arena_inlines_b.h"
+#include "jemalloc/internal/arena_inlines.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_c.h"
 #include "jemalloc/internal/prof.h"
 #include "jemalloc/internal/safety_check.h"

@@ -4,7 +4,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/bin.h"
-#include "jemalloc/internal/jemalloc_internal_inlines_b.h"
+#include "jemalloc/internal/arena_inlines.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/large.h"
 #include "jemalloc/internal/san.h"

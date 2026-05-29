@@ -1,8 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 
 #include "jemalloc/internal/arena.h"
-#include "jemalloc/internal/arena_inlines_a.h"
-#include "jemalloc/internal/arena_inlines_b.h"
+#include "jemalloc/internal/arena_inlines.h"
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/background_thread.h"
 #include "jemalloc/internal/background_thread_inlines.h"
@@ -12,7 +11,6 @@
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_a.h"
-#include "jemalloc/internal/jemalloc_internal_inlines_b.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_c.h"
 #include "jemalloc/internal/large.h"
 #include "jemalloc/internal/mutex.h"

@@ -4,7 +4,6 @@
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/background_thread.h"
 #include "jemalloc/internal/ckh.h"
-#include "jemalloc/internal/jemalloc_internal_inlines_b.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/prof.h"
 #include "jemalloc/internal/rtree.h"

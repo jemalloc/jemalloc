@@ -5,7 +5,6 @@
 #include "jemalloc/internal/background_thread.h"
 #include "jemalloc/internal/background_thread_inlines.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_a.h"
-#include "jemalloc/internal/jemalloc_internal_inlines_b.h"
 #include "jemalloc/internal/prof.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/witness.h"

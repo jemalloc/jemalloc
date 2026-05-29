@@ -6,7 +6,7 @@
 #include "jemalloc/internal/background_thread_inlines.h"
 #include "jemalloc/internal/jemalloc_init.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_a.h"
-#include "jemalloc/internal/jemalloc_internal_inlines_b.h"
+#include "jemalloc/internal/arena_inlines.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_c.h"
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/mutex.h"

@@ -1,31 +1,14 @@
-#ifndef JEMALLOC_INTERNAL_ARENA_INLINES_B_H
-#define JEMALLOC_INTERNAL_ARENA_INLINES_B_H
-
-/*
- * This split (arena_inlines_a.h + arena_inlines_b.h) is load-bearing, not
- * stylistic.  arena_inlines_a.h holds the cheap field accessors that only
- * depend on arena.h fields.  This file holds the larger inlines that depend
- * on arena_choose(), prof, large, and friends.
- *
- * Merging the two would create a real #include cycle through arena_choose():
- * jemalloc_internal_inlines_b.h defines arena_choose() and pulls in
- * arena_inlines_a.h at the top for the cheap accessors.  arena_choose() is
- * called from arena_choose_maybe_huge() in this file.  If that #include
- * resolved to a merged "arena_inlines.h", arena_choose_maybe_huge() would
- * be parsed before arena_choose() exists, and we would get an implicit
- * declaration error -- arena_inlines.h cannot pull in
- * jemalloc_internal_inlines_b.h to fix it (that file is mid-parse and its
- * include guard is already set).
- *
- * Keep this file separate from arena_inlines_a.h.
- */
+#ifndef JEMALLOC_INTERNAL_ARENA_INLINES_H
+#define JEMALLOC_INTERNAL_ARENA_INLINES_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/arena.h"
+#include "jemalloc/internal/arenas_management.h"
 #include "jemalloc/internal/bin_inlines.h"
 #include "jemalloc/internal/div.h"
 #include "jemalloc/internal/emap.h"
-#include "jemalloc/internal/jemalloc_internal_inlines_b.h"
+#include "jemalloc/internal/extent.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_a.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/large.h"
 #include "jemalloc/internal/mutex.h"
@@ -34,12 +17,137 @@
 #include "jemalloc/internal/safety_check.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/sz.h"
+#include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/ticker.h"
+
+/* Cheap field accessors. */
+
+static inline unsigned
+arena_ind_get(const arena_t *arena) {
+	return arena->ind;
+}
+
+static inline void
+arena_internal_add(arena_t *arena, size_t size) {
+	atomic_fetch_add_zu(&arena->stats.internal, size, ATOMIC_RELAXED);
+}
+
+static inline void
+arena_internal_sub(arena_t *arena, size_t size) {
+	atomic_fetch_sub_zu(&arena->stats.internal, size, ATOMIC_RELAXED);
+}
+
+static inline size_t
+arena_internal_get(const arena_t *arena) {
+	return atomic_load_zu(&arena->stats.internal, ATOMIC_RELAXED);
+}
+
+static inline bool
+arena_is_auto(const arena_t *arena) {
+	assert(narenas_auto > 0);
+
+	return (arena_ind_get(arena) < manual_arena_base);
+}
 
 static inline arena_t *
 arena_get_from_edata(const edata_t *edata) {
 	return (arena_t *)atomic_load_p(
 	    &arenas[edata_arena_ind_get(edata)], ATOMIC_RELAXED);
+}
+
+/* Arena selection and migration. */
+
+static inline void
+thread_migrate_arena(tsd_t *tsd, arena_t *oldarena, arena_t *newarena) {
+	assert(oldarena != NULL);
+	assert(newarena != NULL);
+
+	arena_migrate(tsd, oldarena, newarena);
+	if (tcache_available(tsd)) {
+		tcache_arena_reassociate(tsd_tsdn(tsd),
+		    tsd_tcache_slowp_get(tsd), newarena);
+	}
+}
+
+static inline void
+percpu_arena_update(tsd_t *tsd, unsigned cpu) {
+	assert(have_percpu_arena);
+	arena_t *oldarena = tsd_arena_get(tsd);
+	assert(oldarena != NULL);
+	unsigned oldind = arena_ind_get(oldarena);
+
+	if (oldind != cpu) {
+		unsigned newind = cpu;
+		arena_t *newarena = arena_get(tsd_tsdn(tsd), newind, true);
+		assert(newarena != NULL);
+
+		thread_migrate_arena(tsd, oldarena, newarena);
+	}
+}
+
+/* Choose an arena based on a per-thread value. */
+static inline arena_t *
+arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
+	arena_t *ret;
+
+	if (arena != NULL) {
+		return arena;
+	}
+
+	/* During reentrancy, arena 0 is the safest bet. */
+	if (unlikely(tsd_reentrancy_level_get(tsd) > 0)) {
+		return arena_get(tsd_tsdn(tsd), 0, true);
+	}
+
+	ret = internal ? tsd_iarena_get(tsd) : tsd_arena_get(tsd);
+	if (unlikely(ret == NULL)) {
+		ret = arena_choose_hard(tsd, internal);
+		assert(ret);
+		if (tcache_available(tsd)) {
+			tcache_slow_t *tcache_slow = tsd_tcache_slowp_get(tsd);
+			if (tcache_slow->arena != NULL) {
+				/* See comments in tsd_tcache_data_init().*/
+				assert(tcache_slow->arena
+				    == arena_get(tsd_tsdn(tsd), 0, false));
+				if (tcache_slow->arena != ret) {
+					tcache_arena_reassociate(tsd_tsdn(tsd),
+					    tcache_slow, ret);
+				}
+			} else {
+				tcache_arena_associate(
+				    tsd_tsdn(tsd), tcache_slow, ret);
+			}
+		}
+	}
+
+	/*
+	 * Note that for percpu arena, if the current arena is outside of the
+	 * auto percpu arena range, (i.e. thread is assigned to a manually
+	 * managed arena), then percpu arena is skipped.
+	 */
+	if (have_percpu_arena && PERCPU_ARENA_ENABLED(opt_percpu_arena)
+	    && !internal
+	    && (arena_ind_get(ret) < percpu_arena_ind_limit(opt_percpu_arena))
+	    && (ret->last_thd != tsd_tsdn(tsd))) {
+		unsigned ind = percpu_arena_choose();
+		if (arena_ind_get(ret) != ind) {
+			percpu_arena_update(tsd, ind);
+			ret = tsd_arena_get(tsd);
+		}
+		ret->last_thd = tsd_tsdn(tsd);
+	}
+
+	return ret;
+}
+
+static inline arena_t *
+arena_choose(tsd_t *tsd, arena_t *arena) {
+	return arena_choose_impl(tsd, arena, false);
+}
+
+static inline arena_t *
+arena_ichoose(tsd_t *tsd, arena_t *arena) {
+	return arena_choose_impl(tsd, arena, true);
 }
 
 JEMALLOC_ALWAYS_INLINE arena_t *
@@ -289,4 +397,4 @@ arena_get_bin(arena_t *arena, szind_t binind, unsigned binshard) {
 	return shard0 + binshard;
 }
 
-#endif /* JEMALLOC_INTERNAL_ARENA_INLINES_B_H */
+#endif /* JEMALLOC_INTERNAL_ARENA_INLINES_H */
