@@ -142,6 +142,23 @@ const char *const zero_realloc_mode_names[] = {
 };
 
 /*
+ * Check whether the next allocation would trip the prof sampler without
+ * advancing the event counter -- the counter only advances at the end
+ * of the alloc/dalloc call.  Lets the allocation path pre-compute the
+ * prof context before committing.
+ */
+JEMALLOC_ALWAYS_INLINE bool
+prof_sample_lookahead(tsd_t *tsd, size_t usize) {
+	if (unlikely(!tsd_nominal(tsd) || tsd_reentrancy_level_get(tsd) > 0)) {
+		return false;
+	}
+	/* The subtraction is intentionally susceptible to underflow. */
+	uint64_t accumbytes = tsd_thread_allocated_get(tsd) + usize
+	    - tsd_thread_allocated_last_event_get(tsd);
+	return accumbytes >= tsd_prof_sample_event_wait_get(tsd);
+}
+
+/*
  * These are the documented values for junk fill debugging facilities -- see the
  * man page.
  */
@@ -602,7 +619,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	/* If profiling is on, get our profiling context. */
 	if (config_prof && opt_prof) {
 		bool prof_active = prof_active_get_unlocked();
-		bool sample_event = te_prof_sample_event_lookahead(tsd, usize);
+		bool sample_event = prof_sample_lookahead(tsd, usize);
 		prof_tctx_t *tctx = prof_alloc_prep(
 		    tsd, prof_active, sample_event);
 
@@ -1404,7 +1421,7 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 	prof_info_t old_prof_info;
 	prof_info_get_and_reset_recent(tsd, old_ptr, alloc_ctx, &old_prof_info);
 	bool         prof_active = prof_active_get_unlocked();
-	bool         sample_event = te_prof_sample_event_lookahead(tsd, usize);
+	bool         sample_event = prof_sample_lookahead(tsd, usize);
 	prof_tctx_t *tctx = prof_alloc_prep(tsd, prof_active, sample_event);
 	void        *p;
 	if (unlikely(tctx != PROF_TCTX_SENTINEL)) {
@@ -1642,7 +1659,7 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 		usize_max = SC_LARGE_MAXCLASS;
 	}
 	bool prof_active = prof_active_get_unlocked();
-	bool sample_event = te_prof_sample_event_lookahead(tsd, usize_max);
+	bool sample_event = prof_sample_lookahead(tsd, usize_max);
 	prof_tctx_t *tctx = prof_alloc_prep(tsd, prof_active, sample_event);
 
 	size_t usize;
@@ -1677,7 +1694,7 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 		prof_info_get_and_reset_recent(
 		    tsd, ptr, &new_alloc_ctx, &prof_info);
 		assert(usize <= usize_max);
-		sample_event = te_prof_sample_event_lookahead(tsd, usize);
+		sample_event = prof_sample_lookahead(tsd, usize);
 		prof_realloc(tsd, ptr, size, usize, tctx, prof_active, ptr,
 		    old_usize, &prof_info, sample_event);
 	}

@@ -9,32 +9,6 @@
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/thread_event.h"
 
-/*
- * The lookahead functionality facilitates events to be able to lookahead, i.e.
- * without touching the event counters, to determine whether an event would be
- * triggered.  The event counters are not advanced until the end of the
- * allocation / deallocation calls, so the lookahead can be useful if some
- * preparation work for some event must be done early in the allocation /
- * deallocation calls.
- *
- * Currently only the profiling sampling event needs the lookahead
- * functionality, so we don't yet define general purpose lookahead functions.
- *
- * Defined here rather than prof.h because the inline body depends on tsd
- * accessors that aren't visible until tsd inlines are loaded.
- */
-
-JEMALLOC_ALWAYS_INLINE bool
-te_prof_sample_event_lookahead(tsd_t *tsd, size_t usize) {
-	if (unlikely(!tsd_nominal(tsd) || tsd_reentrancy_level_get(tsd) > 0)) {
-		return false;
-	}
-	/* The subtraction is intentionally susceptible to underflow. */
-	uint64_t accumbytes = tsd_thread_allocated_get(tsd) + usize
-	    - tsd_thread_allocated_last_event_get(tsd);
-	return accumbytes >= tsd_prof_sample_event_wait_get(tsd);
-}
-
 JEMALLOC_ALWAYS_INLINE void
 prof_active_assert(void) {
 	cassert(config_prof);
