@@ -1,8 +1,14 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
+#include "jemalloc/internal/base.h"
+#include "jemalloc/internal/edata.h"
 #include "jemalloc/internal/ehooks.h"
+#include "jemalloc/internal/emap.h"
+#include "jemalloc/internal/extent.h"
+#include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_a.h"
 
 void
 ehooks_init(ehooks_t *ehooks, extent_hooks_t *extent_hooks, unsigned ind) {

@@ -1,5 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
+
+#include "jemalloc/internal/malloc_io.h"
+#include "jemalloc/internal/safety_check.h"
 
 void
 safety_check_fail_sized_dealloc(bool current_dealloc, const void *ptr,

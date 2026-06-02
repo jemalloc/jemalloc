@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_PEAK_EVENT_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/thread_event_registry.h"
 #include "jemalloc/internal/tsd_types.h"
 
 /*

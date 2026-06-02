@@ -1,10 +1,16 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/arenas_management.h"
+#include "jemalloc/internal/background_thread.h"
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/jemalloc_fork.h"
 #include "jemalloc/internal/jemalloc_init.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_a.h"
+#include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/prof.h"
+#include "jemalloc/internal/tcache.h"
+#include "jemalloc/internal/tsd.h"
 
 /******************************************************************************/
 /*

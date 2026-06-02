@@ -1,8 +1,8 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
-#include "jemalloc/internal/san.h"
+#include "jemalloc/internal/background_thread.h"
 #include "jemalloc/internal/hpa.h"
+#include "jemalloc/internal/pa.h"
 
 static void
 pa_nactive_add(pa_shard_t *shard, size_t add_pages) {

@@ -3,6 +3,7 @@
 
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/bit_util.h"
+#include "jemalloc/internal/jemalloc_internal_externs.h"
 #include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/util.h"

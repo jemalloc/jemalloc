@@ -1,8 +1,11 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/background_thread.h"
+#include "jemalloc/internal/conf.h"
+#include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/fxp.h"
@@ -10,12 +13,11 @@
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/nstime.h"
-#include "jemalloc/internal/safety_check.h"
+#include "jemalloc/internal/prof.h"
 #include "jemalloc/internal/san.h"
 #include "jemalloc/internal/sc.h"
+#include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/util.h"
-
-#include "jemalloc/internal/conf.h"
 
 /* Whether encountered any invalid config options. */
 bool had_conf_error;

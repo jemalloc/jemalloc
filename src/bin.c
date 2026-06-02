@@ -1,6 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
+#include "jemalloc/internal/arena_inlines_b.h"
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/bin.h"
 #include "jemalloc/internal/sc.h"

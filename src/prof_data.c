@@ -1,11 +1,18 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
+#include "jemalloc/internal/arena_inlines_b.h"
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/ckh.h"
 #include "jemalloc/internal/hash.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_a.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_c.h"
 #include "jemalloc/internal/malloc_io.h"
+#include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/prof.h"
 #include "jemalloc/internal/prof_data.h"
+#include "jemalloc/internal/prof_inlines.h"
+#include "jemalloc/internal/witness.h"
 
 /*
  * This file defines and manages the core profiling data structures.

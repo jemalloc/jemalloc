@@ -1,7 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/fxp.h"
+#include "jemalloc/internal/malloc_io.h"
 
 static bool
 fxp_isdigit(char c) {

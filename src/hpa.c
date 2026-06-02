@@ -1,12 +1,10 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/background_thread.h"
 #include "jemalloc/internal/hpa.h"
 #include "jemalloc/internal/hpa_utils.h"
-
-#include "jemalloc/internal/fb.h"
-#include "jemalloc/internal/witness.h"
 #include "jemalloc/internal/jemalloc_probe.h"
+#include "jemalloc/internal/witness.h"
 
 static void hpa_dalloc_batch(tsdn_t *tsdn, hpa_shard_t *shard,
     edata_list_active_t *list, bool *deferred_work_generated);

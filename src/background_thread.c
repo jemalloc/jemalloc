@@ -1,7 +1,18 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
+#include "jemalloc/internal/arenas_management.h"
 #include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/background_thread.h"
+#include "jemalloc/internal/background_thread_inlines.h"
+#include "jemalloc/internal/ctl.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_a.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_b.h"
+#include "jemalloc/internal/malloc_io.h"
+#include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/prof.h"
+#include "jemalloc/internal/tcache.h"
+#include "jemalloc/internal/witness.h"
 
 JEMALLOC_DIAGNOSTIC_DISABLE_SPURIOUS
 

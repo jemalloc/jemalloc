@@ -1,10 +1,14 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/buf_writer.h"
 #include "jemalloc/internal/ctl.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_a.h"
 #include "jemalloc/internal/malloc_io.h"
+#include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/prof.h"
 #include "jemalloc/internal/prof_data.h"
+#include "jemalloc/internal/prof_inlines.h"
 #include "jemalloc/internal/prof_sys.h"
 
 #ifdef JEMALLOC_PROF_LIBUNWIND

@@ -1,12 +1,20 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/background_thread.h"
+#include "jemalloc/internal/background_thread_inlines.h"
+#include "jemalloc/internal/edata_cache.h"
 #include "jemalloc/internal/emap.h"
+#include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
-#include "jemalloc/internal/ph.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/pac.h"
+#include "jemalloc/internal/ph.h"
+#include "jemalloc/internal/prof.h"
+#include "jemalloc/internal/prof_inlines.h"
+#include "jemalloc/internal/witness.h"
 
 /******************************************************************************/
 /* Data. */

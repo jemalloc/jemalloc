@@ -1,8 +1,8 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
-#include "jemalloc/internal/sec.h"
 #include "jemalloc/internal/jemalloc_probe.h"
+#include "jemalloc/internal/sec.h"
+#include "jemalloc/internal/witness.h"
 
 static bool
 sec_bin_init(sec_bin_t *bin) {

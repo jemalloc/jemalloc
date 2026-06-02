@@ -1,7 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/emap.h"
+#include "jemalloc/internal/extent.h"
 
 enum emap_lock_result_e {
 	emap_lock_result_success,

@@ -1,5 +1,6 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
+
+#include "jemalloc/internal/pa.h"
 
 /*
  * This file is logically part of the PA module.  While pa.c contains the core

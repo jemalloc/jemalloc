@@ -1,10 +1,13 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/buf_writer.h"
 #include "jemalloc/internal/emitter.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_a.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_c.h"
+#include "jemalloc/internal/prof.h"
 #include "jemalloc/internal/prof_data.h"
+#include "jemalloc/internal/prof_inlines.h"
 #include "jemalloc/internal/prof_recent.h"
 
 ssize_t            opt_prof_recent_alloc_max = PROF_RECENT_ALLOC_MAX_DEFAULT;

@@ -1,11 +1,17 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/arenas_management.h"
+#include "jemalloc/internal/background_thread.h"
+#include "jemalloc/internal/background_thread_inlines.h"
 #include "jemalloc/internal/jemalloc_init.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_a.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_b.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_c.h"
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/sz.h"
+#include "jemalloc/internal/tcache.h"
 
 JEMALLOC_ALIGNED(CACHELINE)
 atomic_p_t arenas[MALLOCX_ARENA_LIMIT];

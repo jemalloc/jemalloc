@@ -1,8 +1,12 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
+#include "jemalloc/internal/arenas_management.h"
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/jemalloc_fork.h"
+#include "jemalloc/internal/jemalloc_init.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_a.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_c.h"
 
 #ifndef JEMALLOC_ZONE
 #	error "This source file is for zones on Darwin (OS X)."

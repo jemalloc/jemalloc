@@ -1,10 +1,9 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/ehooks.h"
+#include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/san.h"
-#include "jemalloc/internal/tsd.h"
 
 /* The sanitizer options. */
 size_t opt_san_guard_large = SAN_GUARD_LARGE_EVERY_N_EXTENTS_DEFAULT;

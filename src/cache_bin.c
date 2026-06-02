@@ -1,9 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
-#include "jemalloc/internal/bit_util.h"
+#include "jemalloc/internal/base.h"
 #include "jemalloc/internal/cache_bin.h"
-#include "jemalloc/internal/safety_check.h"
 
 const uintptr_t disabled_bin = JUNK_ADDR;
 

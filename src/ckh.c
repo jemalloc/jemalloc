@@ -38,10 +38,10 @@
 
 #include "jemalloc/internal/ckh.h"
 
-#include "jemalloc/internal/jemalloc_internal_includes.h"
-
+#include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/hash.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_c.h"
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/util.h"

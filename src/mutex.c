@@ -1,8 +1,8 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/malloc_io.h"
+#include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/spin.h"
 
 #if defined(_WIN32) && !defined(_CRT_SPINCOUNT)

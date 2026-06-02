@@ -1,6 +1,6 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/bin_info.h"
 
 bin_info_t bin_infos[SC_NBINS];

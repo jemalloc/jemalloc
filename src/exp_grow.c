@@ -1,5 +1,6 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
+
+#include "jemalloc/internal/exp_grow.h"
 
 void
 exp_grow_init(exp_grow_t *exp_grow) {

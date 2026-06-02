@@ -1,7 +1,9 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/base.h"
+#include "jemalloc/internal/ehooks.h"
 #include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/sz.h"

@@ -1,5 +1,9 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
+
+#include "jemalloc/internal/arena.h"
+#include "jemalloc/internal/bin_info.h"
+#include "jemalloc/internal/edata.h"
+#include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/inspect.h"
 
 void

@@ -7,7 +7,13 @@ extern "C" {
 #endif
 
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
+
+#include "jemalloc/internal/arena.h"
+#include "jemalloc/internal/jemalloc_internal_externs.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_b.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_c.h"
+#include "jemalloc/internal/prof.h"
+#include "jemalloc/internal/tcache.h"
 
 #ifdef __cplusplus
 }

@@ -1,12 +1,15 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
-#include "jemalloc/internal/thread_event.h"
-#include "jemalloc/internal/thread_event_registry.h"
-#include "jemalloc/internal/tcache.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_a.h"
+#include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/peak_event.h"
 #include "jemalloc/internal/prof.h"
 #include "jemalloc/internal/stats.h"
+#include "jemalloc/internal/tcache.h"
+#include "jemalloc/internal/thread_event.h"
+#include "jemalloc/internal/thread_event_registry.h"
+#include "jemalloc/internal/tsd.h"
+#include "jemalloc/internal/witness.h"
 
 static malloc_mutex_t uevents_mu;
 

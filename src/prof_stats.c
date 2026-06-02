@@ -1,6 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/prof.h"
 #include "jemalloc/internal/prof_stats.h"
 
 bool                opt_prof_stats = false;

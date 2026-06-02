@@ -1,9 +1,8 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
-
-#include "jemalloc/internal/psset.h"
 
 #include "jemalloc/internal/fb.h"
+#include "jemalloc/internal/psset.h"
+#include "jemalloc/internal/sz.h"
 
 void
 psset_init(psset_t *psset) {

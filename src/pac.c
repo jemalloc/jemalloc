@@ -1,8 +1,11 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
+#include "jemalloc/internal/background_thread.h"
+#include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/pac.h"
 #include "jemalloc/internal/san.h"
+#include "jemalloc/internal/witness.h"
 
 static inline void
 pac_decay_data_get(pac_t *pac, extent_state_t state, decay_t **r_decay,

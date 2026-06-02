@@ -1,13 +1,17 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/background_thread.h"
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/emitter.h"
 #include "jemalloc/internal/fxp.h"
-#include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_b.h"
 #include "jemalloc/internal/mutex_prof.h"
+#include "jemalloc/internal/prof.h"
+#include "jemalloc/internal/prof_inlines.h"
 #include "jemalloc/internal/prof_stats.h"
+#include "jemalloc/internal/tcache.h"
 
 static const char *const global_mutex_names[mutex_prof_num_global_mutexes] = {
 #define OP(mtx) #mtx,

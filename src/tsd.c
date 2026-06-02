@@ -1,10 +1,18 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arenas_management.h"
 #include "jemalloc/internal/assert.h"
-#include "jemalloc/internal/san.h"
+#include "jemalloc/internal/background_thread.h"
+#include "jemalloc/internal/ckh.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_b.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/prof.h"
 #include "jemalloc/internal/rtree.h"
+#include "jemalloc/internal/san.h"
+#include "jemalloc/internal/tcache.h"
+#include "jemalloc/internal/thread_event.h"
+#include "jemalloc/internal/tsd.h"
+#include "jemalloc/internal/witness.h"
 
 /******************************************************************************/
 /* Data. */

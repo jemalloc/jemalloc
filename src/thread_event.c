@@ -1,9 +1,12 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/jemalloc_internal_inlines_a.h"
+#include "jemalloc/internal/peak_event.h"
+#include "jemalloc/internal/prof.h"
+#include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/thread_event.h"
 #include "jemalloc/internal/thread_event_registry.h"
-#include "jemalloc/internal/peak_event.h"
+#include "jemalloc/internal/tsd.h"
 
 static bool
 te_ctx_has_active_events(te_ctx_t *ctx) {

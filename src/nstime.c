@@ -1,9 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
-
-#include "jemalloc/internal/nstime.h"
 
 #include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/nstime.h"
 
 #define BILLION UINT64_C(1000000000)
 #define MILLION UINT64_C(1000000)

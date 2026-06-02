@@ -1,5 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
+
+#include "jemalloc/internal/edata_cache.h"
+#include "jemalloc/internal/witness.h"
 
 bool
 edata_cache_init(edata_cache_t *edata_cache, base_t *base) {
