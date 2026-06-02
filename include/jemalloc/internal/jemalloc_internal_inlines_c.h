@@ -8,6 +8,7 @@
 #include "jemalloc/internal/jemalloc_init.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/log.h"
+#include "jemalloc/internal/malloc_dispatch_inlines.h"
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/thread_event.h"
 #include "jemalloc/internal/witness.h"
@@ -67,7 +68,7 @@ iallocztm_explicit_slab(tsdn_t *tsdn, size_t size, szind_t ind, bool zero,
 		    tsdn_witness_tsdp_get(tsdn), WITNESS_RANK_CORE, 0);
 	}
 
-	ret = arena_malloc(
+	ret = malloc_dispatch_malloc(
 	    tsdn, arena, size, ind, zero, slab, tcache, slow_path);
 	if (config_stats && is_internal && likely(ret != NULL)) {
 		arena_internal_add(iaalloc(tsdn, ret), isalloc(tsdn, ret));
@@ -102,7 +103,8 @@ ipallocztm_explicit_slab(tsdn_t *tsdn, size_t usize, size_t alignment,
 	witness_assert_depth_to_rank(
 	    tsdn_witness_tsdp_get(tsdn), WITNESS_RANK_CORE, 0);
 
-	ret = arena_palloc(tsdn, arena, usize, alignment, zero, slab, tcache);
+	ret = malloc_dispatch_palloc(
+	    tsdn, arena, usize, alignment, zero, slab, tcache);
 	assert(ALIGNMENT_ADDR2BASE(ret, alignment) == ret);
 	if (config_stats && is_internal && likely(ret != NULL)) {
 		arena_internal_add(iaalloc(tsdn, ret), isalloc(tsdn, ret));
@@ -156,7 +158,7 @@ idalloctm(tsdn_t *tsdn, void *ptr, tcache_t *tcache,
 	    && tsd_reentrancy_level_get(tsdn_tsd(tsdn)) != 0) {
 		assert(tcache == NULL);
 	}
-	arena_dalloc(tsdn, ptr, tcache, alloc_ctx, slow_path);
+	malloc_dispatch_dalloc(tsdn, ptr, tcache, alloc_ctx, slow_path);
 }
 
 JEMALLOC_ALWAYS_INLINE void
@@ -169,7 +171,7 @@ isdalloct(tsdn_t *tsdn, void *ptr, size_t size, tcache_t *tcache,
     emap_alloc_ctx_t *alloc_ctx, bool slow_path) {
 	witness_assert_depth_to_rank(
 	    tsdn_witness_tsdp_get(tsdn), WITNESS_RANK_CORE, 0);
-	arena_sdalloc(tsdn, ptr, size, tcache, alloc_ctx, slow_path);
+	malloc_dispatch_sdalloc(tsdn, ptr, size, tcache, alloc_ctx, slow_path);
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -217,8 +219,8 @@ iralloct_explicit_slab(tsdn_t *tsdn, void *ptr, size_t oldsize, size_t size,
 		    zero, slab, tcache, arena);
 	}
 
-	return arena_ralloc(tsdn, arena, ptr, oldsize, size, alignment, zero,
-	    slab, tcache);
+	return malloc_dispatch_ralloc(
+	    tsdn, arena, ptr, oldsize, size, alignment, zero, slab, tcache);
 }
 
 JEMALLOC_ALWAYS_INLINE void *

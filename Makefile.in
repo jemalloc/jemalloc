@@ -132,6 +132,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/inspect.c \
 	$(srcroot)src/large.c \
 	$(srcroot)src/log.c \
+	$(srcroot)src/malloc_dispatch.c \
 	$(srcroot)src/malloc_io.c \
 	$(srcroot)src/conf.c \
 	$(srcroot)src/mutex.c \
@@ -260,6 +261,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/log.c \
 	$(srcroot)test/unit/mallctl.c \
 	$(srcroot)test/unit/malloc_conf_2.c \
+	$(srcroot)test/unit/malloc_dispatch.c \
 	$(srcroot)test/unit/malloc_io.c \
 	$(srcroot)test/unit/math.c \
 	$(srcroot)test/unit/mpsc_queue.c \

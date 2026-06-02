@@ -61,6 +61,7 @@
 #include "jemalloc/internal/arena_externs.h"
 #include "jemalloc/internal/large_externs.h"
 #include "jemalloc/internal/tcache_externs.h"
+#include "jemalloc/internal/malloc_dispatch.h"
 #include "jemalloc/internal/prof_externs.h"
 #include "jemalloc/internal/background_thread_externs.h"
 
@@ -77,6 +78,7 @@
 #include "jemalloc/internal/jemalloc_internal_inlines_b.h"
 #include "jemalloc/internal/tcache_inlines.h"
 #include "jemalloc/internal/arena_inlines_b.h"
+#include "jemalloc/internal/malloc_dispatch_inlines.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_c.h"
 #include "jemalloc/internal/prof_inlines.h"
 #include "jemalloc/internal/background_thread_inlines.h"
