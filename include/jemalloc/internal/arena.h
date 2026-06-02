@@ -1,14 +1,181 @@
-#ifndef JEMALLOC_INTERNAL_ARENA_EXTERNS_H
-#define JEMALLOC_INTERNAL_ARENA_EXTERNS_H
+#ifndef JEMALLOC_INTERNAL_ARENA_H
+#define JEMALLOC_INTERNAL_ARENA_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/arena_decay_constants.h"
 #include "jemalloc/internal/arena_stats.h"
+#include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bin.h"
+#include "jemalloc/internal/bitmap.h"
+#include "jemalloc/internal/counter.h"
 #include "jemalloc/internal/div.h"
+#include "jemalloc/internal/ecache.h"
+#include "jemalloc/internal/edata_cache.h"
 #include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/extent_dss.h"
+#include "jemalloc/internal/jemalloc_internal_types.h"
+#include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/nstime.h"
+#include "jemalloc/internal/pa.h"
 #include "jemalloc/internal/pages.h"
+#include "jemalloc/internal/ql.h"
+#include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/stats.h"
+#include "jemalloc/internal/ticker.h"
+
+/******************************************************************************/
+/* TYPES */
+/******************************************************************************/
+
+/* Default decay times in milliseconds. */
+#define DIRTY_DECAY_MS_DEFAULT ZD(10 * 1000)
+#define MUZZY_DECAY_MS_DEFAULT (0)
+/* Maximum length of the arena name. */
+#define ARENA_NAME_LEN 32
+
+typedef enum {
+	percpu_arena_mode_names_base = 0, /* Used for options processing. */
+
+	/*
+	 * *_uninit are used only during bootstrapping, and must correspond
+	 * to initialized variant plus percpu_arena_mode_enabled_base.
+	 */
+	percpu_arena_uninit = 0,
+	per_phycpu_arena_uninit = 1,
+
+	/* All non-disabled modes must come after percpu_arena_disabled. */
+	percpu_arena_disabled = 2,
+
+	percpu_arena_mode_names_limit = 3, /* Used for options processing. */
+	percpu_arena_mode_enabled_base = 3,
+
+	percpu_arena = 3,
+	per_phycpu_arena = 4 /* Hyper threads share arena. */
+} percpu_arena_mode_t;
+
+#define PERCPU_ARENA_ENABLED(m) ((m) >= percpu_arena_mode_enabled_base)
+#define PERCPU_ARENA_DEFAULT percpu_arena_disabled
+
+/*
+ * When allocation_size >= oversize_threshold, use the dedicated huge arena
+ * (unless have explicitly spicified arena index).  0 disables the feature.
+ */
+#define OVERSIZE_THRESHOLD_DEFAULT (8 << 20)
+
+struct arena_config_s {
+	/* extent hooks to be used for the arena */
+	extent_hooks_t *extent_hooks;
+
+	/*
+	 * Use extent hooks for metadata (base) allocations when true.
+	 */
+	bool metadata_use_hooks;
+};
+
+typedef struct arena_config_s arena_config_t;
+
+extern const arena_config_t arena_config_default;
+
+/******************************************************************************/
+/* STRUCTS */
+/******************************************************************************/
+
+struct arena_s {
+	/*
+	 * Number of threads currently assigned to this arena.  Each thread has
+	 * two distinct assignments, one for application-serving allocation, and
+	 * the other for internal metadata allocation.  Internal metadata must
+	 * not be allocated from arenas explicitly created via the arenas.create
+	 * mallctl, because the arena.<i>.reset mallctl indiscriminately
+	 * discards all allocations for the affected arena.
+	 *
+	 *   0: Application allocation.
+	 *   1: Internal metadata allocation.
+	 *
+	 * Synchronization: atomic.
+	 */
+	atomic_u_t nthreads[2];
+
+	/* Next bin shard for binding new threads. Synchronization: atomic. */
+	atomic_u_t binshard_next;
+
+	/*
+	 * When percpu_arena is enabled, to amortize the cost of reading /
+	 * updating the current CPU id, track the most recent thread accessing
+	 * this arena, and only read CPU if there is a mismatch.
+	 */
+	tsdn_t *last_thd;
+
+	/* Synchronization: internal. */
+	arena_stats_t stats;
+
+	/*
+	 * List of cache_bin_array_descriptors for extant threads associated
+	 * with this arena.  Stats from these are merged incrementally, and at
+	 * exit if opt_stats_print is enabled.
+	 *
+	 * Synchronization: cache_bin_array_descriptor_ql_mtx.
+	 */
+	ql_head(cache_bin_array_descriptor_t) cache_bin_array_descriptor_ql;
+	malloc_mutex_t cache_bin_array_descriptor_ql_mtx;
+
+	/*
+	 * Represents a dss_prec_t, but atomically.
+	 *
+	 * Synchronization: atomic.
+	 */
+	atomic_u_t dss_prec;
+
+	/*
+	 * Extant large allocations.
+	 *
+	 * Synchronization: large_mtx.
+	 */
+	edata_list_active_t large;
+	/* Synchronizes all large allocation/update/deallocation. */
+	malloc_mutex_t large_mtx;
+
+	/* The page-level allocator shard this arena uses. */
+	pa_shard_t pa_shard;
+
+	/*
+	 * A cached copy of base->ind.  This can get accessed on hot paths;
+	 * looking it up in base requires an extra pointer hop / cache miss.
+	 */
+	unsigned ind;
+
+	/*
+	 * Base allocator, from which arena metadata are allocated.
+	 *
+	 * Synchronization: internal.
+	 */
+	base_t *base;
+	/* Used to determine uptime.  Read-only after initialization. */
+	nstime_t create_time;
+
+	/* The name of the arena. */
+	char name[ARENA_NAME_LEN];
+
+	/*
+	 * The arena is allocated alongside its bins; really this is a
+	 * dynamically sized array determined by the binshard settings.
+	 * Enforcing cacheline-alignment to minimize the number of cachelines
+	 * touched on the hot paths.
+	 */
+	JEMALLOC_WARN_ON_USAGE(
+	    "Do not use this field directly. "
+	    "Use `arena_get_bin` instead.")
+	JEMALLOC_ALIGNED(CACHELINE)
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
+	bin_t all_bins[];
+#else
+	bin_t all_bins[0];
+#endif
+};
+
+/******************************************************************************/
+/* EXTERNS */
+/******************************************************************************/
 
 /*
  * When the amount of pages to be purged exceeds this amount, deferred purge
@@ -123,4 +290,4 @@ void   arena_postfork_parent(tsdn_t *tsdn, arena_t *arena);
 void   arena_postfork_child(tsdn_t *tsdn, arena_t *arena,
        cache_bin_array_descriptor_t *surviving_desc);
 
-#endif /* JEMALLOC_INTERNAL_ARENA_EXTERNS_H */
+#endif /* JEMALLOC_INTERNAL_ARENA_H */

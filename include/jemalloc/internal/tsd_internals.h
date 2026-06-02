@@ -4,7 +4,7 @@
 #define JEMALLOC_INTERNAL_TSD_INTERNALS_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/arena_types.h"
+#include "jemalloc/internal/arena_decay_constants.h"
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/tsd_binshards.h"
 #include "jemalloc/internal/jemalloc_internal_externs.h"
@@ -16,7 +16,13 @@
 #include "jemalloc/internal/util.h"
 #include "jemalloc/internal/witness.h"
 
-/* Forward decl; tsd_internals.h only uses prof_tdata_t as a pointer type. */
+/*
+ * Forward decls.  tsd_internals.h cannot include arena.h / prof.h directly:
+ * those headers' STRUCTS-section includes trigger mutex.h -> tsd.h ->
+ * tsd_generic.h, which would re-enter this file before its body finishes.
+ * Each consumer here only uses these as pointer types.
+ */
+typedef struct arena_s      arena_t;
 typedef struct prof_tdata_s prof_tdata_t;
 
 /*

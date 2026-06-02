@@ -1,9 +1,27 @@
 #ifndef JEMALLOC_INTERNAL_ARENA_INLINES_B_H
 #define JEMALLOC_INTERNAL_ARENA_INLINES_B_H
 
+/*
+ * This split (arena_inlines_a.h + arena_inlines_b.h) is load-bearing, not
+ * stylistic.  arena_inlines_a.h holds the cheap field accessors that only
+ * depend on arena.h fields.  This file holds the larger inlines that depend
+ * on arena_choose(), prof, large, and friends.
+ *
+ * Merging the two would create a real #include cycle through arena_choose():
+ * jemalloc_internal_inlines_b.h defines arena_choose() and pulls in
+ * arena_inlines_a.h at the top for the cheap accessors.  arena_choose() is
+ * called from arena_choose_maybe_huge() in this file.  If that #include
+ * resolved to a merged "arena_inlines.h", arena_choose_maybe_huge() would
+ * be parsed before arena_choose() exists, and we would get an implicit
+ * declaration error -- arena_inlines.h cannot pull in
+ * jemalloc_internal_inlines_b.h to fix it (that file is mid-parse and its
+ * include guard is already set).
+ *
+ * Keep this file separate from arena_inlines_a.h.
+ */
+
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/arena_externs.h"
-#include "jemalloc/internal/arena_structs.h"
+#include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/bin_inlines.h"
 #include "jemalloc/internal/div.h"
 #include "jemalloc/internal/emap.h"

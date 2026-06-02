@@ -1,7 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_ARENAS_MANAGEMENT_H
 #define JEMALLOC_INTERNAL_ARENAS_MANAGEMENT_H
 
-#include "jemalloc/internal/arena_types.h"
+#include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/tsd_types.h"
 

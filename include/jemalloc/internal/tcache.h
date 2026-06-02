@@ -9,8 +9,9 @@
 #include "jemalloc/internal/thread_event_registry.h"
 #include "jemalloc/internal/ticker.h"
 
-/* Forward decl; only base_t * is used as a pointer arg below. */
-typedef struct base_s base_t;
+/* Forward decls; only used as pointer types below. */
+typedef struct arena_s arena_t;
+typedef struct base_s  base_t;
 
 /******************************************************************************/
 /* TYPES */

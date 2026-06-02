@@ -2,8 +2,7 @@
 #define JEMALLOC_INTERNAL_INLINES_A_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/arena_externs.h"
-#include "jemalloc/internal/arena_types.h"
+#include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/arenas_management.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bit_util.h"

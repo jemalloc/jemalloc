@@ -2,7 +2,7 @@
 #define JEMALLOC_INTERNAL_TCACHE_INLINES_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/arena_externs.h"
+#include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/bin.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_b.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"

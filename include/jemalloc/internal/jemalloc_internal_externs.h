@@ -1,7 +1,6 @@
 #ifndef JEMALLOC_INTERNAL_EXTERNS_H
 #define JEMALLOC_INTERNAL_EXTERNS_H
 
-#include "jemalloc/internal/arena_types.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/fxp.h"
 #include "jemalloc/internal/hpa_opts.h"

@@ -2,7 +2,7 @@
 
 #include "test/extent_hooks.h"
 
-#include "jemalloc/internal/arena_types.h"
+#include "jemalloc/internal/arena.h"
 
 static void
 test_extent_body(unsigned arena_ind) {

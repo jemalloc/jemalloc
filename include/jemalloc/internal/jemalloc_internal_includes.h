@@ -36,24 +36,13 @@
  * global jemalloc definitions, however.
  */
 
-/******************************************************************************/
-/* TYPES */
-/******************************************************************************/
-
-#include "jemalloc/internal/arena_types.h"
-
-/******************************************************************************/
-/* STRUCTS */
-/******************************************************************************/
-
-#include "jemalloc/internal/arena_structs.h"
+#include "jemalloc/internal/arena.h"
 
 /******************************************************************************/
 /* EXTERNS */
 /******************************************************************************/
 
 #include "jemalloc/internal/jemalloc_internal_externs.h"
-#include "jemalloc/internal/arena_externs.h"
 #include "jemalloc/internal/large.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/malloc_dispatch.h"

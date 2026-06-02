@@ -2,7 +2,7 @@
 #define JEMALLOC_INTERNAL_MALLOC_DISPATCH_INLINES_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/arena_externs.h"
+#include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/arena_inlines_b.h"
 #include "jemalloc/internal/bin_inlines.h"
 #include "jemalloc/internal/div.h"

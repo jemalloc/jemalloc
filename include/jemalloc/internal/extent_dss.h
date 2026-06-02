@@ -2,8 +2,10 @@
 #define JEMALLOC_INTERNAL_EXTENT_DSS_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/arena_types.h"
 #include "jemalloc/internal/tsd_types.h"
+
+/* Forward decl; arena.h includes us, so we can't include arena.h back. */
+typedef struct arena_s arena_t;
 
 typedef enum {
 	dss_prec_disabled = 0,
