@@ -9,7 +9,7 @@
 #include "jemalloc/internal/bit_util.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/sc.h"
-#include "jemalloc/internal/tcache_externs.h"
+#include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/ticker.h"
 
 JEMALLOC_ALWAYS_INLINE malloc_cpuid_t

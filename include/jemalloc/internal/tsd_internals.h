@@ -9,14 +9,15 @@
 #include "jemalloc/internal/tsd_binshards.h"
 #include "jemalloc/internal/jemalloc_internal_externs.h"
 #include "jemalloc/internal/peak.h"
-#include "jemalloc/internal/prof_types.h"
 #include "jemalloc/internal/rtree_tsd.h"
-#include "jemalloc/internal/tcache_structs.h"
-#include "jemalloc/internal/tcache_types.h"
+#include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/thread_event_registry.h"
 #include "jemalloc/internal/tsd_types.h"
 #include "jemalloc/internal/util.h"
 #include "jemalloc/internal/witness.h"
+
+/* Forward decl; tsd_internals.h only uses prof_tdata_t as a pointer type. */
+typedef struct prof_tdata_s prof_tdata_t;
 
 /*
  * Thread-Specific-Data layout

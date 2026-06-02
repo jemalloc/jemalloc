@@ -10,7 +10,7 @@
 #include "jemalloc/internal/san.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/sz.h"
-#include "jemalloc/internal/tcache_externs.h"
+#include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/util.h"
 
 static inline bool

@@ -3,9 +3,9 @@
 
 #include "jemalloc/internal/thread_event.h"
 #include "jemalloc/internal/thread_event_registry.h"
-#include "jemalloc/internal/tcache_externs.h"
+#include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/peak_event.h"
-#include "jemalloc/internal/prof_externs.h"
+#include "jemalloc/internal/prof.h"
 #include "jemalloc/internal/stats.h"
 
 static malloc_mutex_t uevents_mu;

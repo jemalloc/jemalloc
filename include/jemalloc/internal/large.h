@@ -4,6 +4,9 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/edata.h"
 
+/* Forward decl; only prof_info_t * is used as a pointer arg below. */
+typedef struct prof_info_s prof_info_t;
+
 void *large_malloc(tsdn_t *tsdn, arena_t *arena, size_t usize, bool zero);
 void *large_palloc(
     tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment, bool zero);
