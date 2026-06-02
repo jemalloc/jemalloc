@@ -36,6 +36,14 @@ static pa_central_t arena_pa_central_global;
 
 div_info_t arena_binind_div_info[SC_NBINS];
 
+JET_EXTERN void
+bin_dalloc_locked_begin(
+    bin_dalloc_locked_info_t *info, szind_t binind) {
+	info->div_info = arena_binind_div_info[binind];
+	info->nregs = bin_infos[binind].nregs;
+	info->ndalloc = 0;
+}
+
 size_t opt_oversize_threshold = OVERSIZE_THRESHOLD_DEFAULT;
 size_t oversize_threshold = OVERSIZE_THRESHOLD_DEFAULT;
 

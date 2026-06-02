@@ -1,5 +1,8 @@
 #include "test/jemalloc_test.h"
 
+extern void bin_dalloc_locked_begin(
+    bin_dalloc_locked_info_t *info, szind_t binind);
+
 #define INVALID_ARENA_IND ((1U << MALLOCX_ARENA_BITS) - 1)
 
 /* Create a page-aligned mock slab with all regions free. */

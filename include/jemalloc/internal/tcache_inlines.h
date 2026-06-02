@@ -6,7 +6,7 @@
 #include "jemalloc/internal/bin.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_b.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
-#include "jemalloc/internal/large_externs.h"
+#include "jemalloc/internal/large.h"
 #include "jemalloc/internal/san.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/sz.h"

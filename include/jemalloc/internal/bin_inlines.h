@@ -7,20 +7,33 @@
 #include "jemalloc/internal/bitmap.h"
 #include "jemalloc/internal/div.h"
 #include "jemalloc/internal/edata.h"
-#include "jemalloc/internal/sc.h"
+#include "jemalloc/internal/mutex.h"
 
-/*
- * The dalloc bin info contains just the information that the common paths need
- * during tcache flushes.  By force-inlining these paths, and using local copies
- * of data (so that the compiler knows it's constant), we avoid a whole bunch of
- * redundant loads and stores by leaving this information in registers.
- */
-typedef struct bin_dalloc_locked_info_s bin_dalloc_locked_info_t;
-struct bin_dalloc_locked_info_s {
-	div_info_t div_info;
-	uint32_t   nregs;
-	uint64_t   ndalloc;
-};
+/* Stats. */
+static inline void
+bin_stats_nrequests_add(tsdn_t *tsdn, bin_t *bin, uint64_t n) {
+	malloc_mutex_lock(tsdn, &bin->lock);
+	bin->stats.nrequests += n;
+	malloc_mutex_unlock(tsdn, &bin->lock);
+}
+
+static inline void
+bin_stats_merge(tsdn_t *tsdn, bin_stats_data_t *dst_bin_stats, bin_t *bin) {
+	malloc_mutex_lock(tsdn, &bin->lock);
+	malloc_mutex_prof_accum(tsdn, &dst_bin_stats->mutex_data, &bin->lock);
+	bin_stats_t *stats = &dst_bin_stats->stats_data;
+	stats->nmalloc += bin->stats.nmalloc;
+	stats->ndalloc += bin->stats.ndalloc;
+	stats->nrequests += bin->stats.nrequests;
+	stats->curregs += bin->stats.curregs;
+	stats->nfills += bin->stats.nfills;
+	stats->nflushes += bin->stats.nflushes;
+	stats->nslabs += bin->stats.nslabs;
+	stats->reslabs += bin->stats.reslabs;
+	stats->curslabs += bin->stats.curslabs;
+	stats->nonfull_slabs += bin->stats.nonfull_slabs;
+	malloc_mutex_unlock(tsdn, &bin->lock);
+}
 
 /* Find the region index of a pointer within a slab. */
 JEMALLOC_ALWAYS_INLINE size_t
@@ -50,14 +63,6 @@ bin_slab_regind(const bin_dalloc_locked_info_t *info, szind_t binind,
 	size_t regind = bin_slab_regind_impl(
 	    &info->div_info, binind, slab, ptr);
 	return regind;
-}
-
-JEMALLOC_ALWAYS_INLINE void
-bin_dalloc_locked_begin(
-    bin_dalloc_locked_info_t *info, szind_t binind) {
-	info->div_info = arena_binind_div_info[binind];
-	info->nregs = bin_infos[binind].nregs;
-	info->ndalloc = 0;
 }
 
 /*

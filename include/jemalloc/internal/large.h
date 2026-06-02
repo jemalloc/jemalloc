@@ -1,5 +1,5 @@
-#ifndef JEMALLOC_INTERNAL_LARGE_EXTERNS_H
-#define JEMALLOC_INTERNAL_LARGE_EXTERNS_H
+#ifndef JEMALLOC_INTERNAL_LARGE_H
+#define JEMALLOC_INTERNAL_LARGE_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/edata.h"
@@ -20,4 +20,4 @@ void   large_prof_info_get(
 void large_prof_tctx_reset(edata_t *edata);
 void large_prof_info_set(edata_t *edata, prof_tctx_t *tctx, size_t size);
 
-#endif /* JEMALLOC_INTERNAL_LARGE_EXTERNS_H */
+#endif /* JEMALLOC_INTERNAL_LARGE_H */

@@ -9,7 +9,7 @@
 #include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_b.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
-#include "jemalloc/internal/large_externs.h"
+#include "jemalloc/internal/large.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/prof_externs.h"
 #include "jemalloc/internal/prof_structs.h"
