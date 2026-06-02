@@ -3,7 +3,6 @@
 
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/ckh.h"
-#include "jemalloc/internal/edata.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/rb.h"

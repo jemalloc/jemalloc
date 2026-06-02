@@ -8,12 +8,15 @@
 #include "jemalloc/internal/hpdata.h"
 #include "jemalloc/internal/nstime.h"
 #include "jemalloc/internal/ph.h"
-#include "jemalloc/internal/prof_types.h"
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/slab_data.h"
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/typed_list.h"
+
+/* Opaque to edata; only stored as pointers in e_prof_info_t. */
+typedef struct prof_tctx_s   prof_tctx_t;
+typedef struct prof_recent_s prof_recent_t;
 
 /*
  * sizeof(edata_t) is 128 bytes on 64-bit architectures.  Ensure the alignment
