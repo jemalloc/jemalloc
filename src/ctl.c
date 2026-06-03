@@ -1860,99 +1860,99 @@ ctl_mtx_assert_held(tsdn_t *tsdn) {
 /******************************************************************************/
 /* *_ctl() functions. */
 
-#define READONLY()                                                             \
-	do {                                                                   \
-		if (newp != NULL || newlen != 0) {                             \
-			ret = EPERM;                                           \
-			goto label_return;                                     \
-		}                                                              \
-	} while (0)
+static inline int
+ctl_writeonly(void *oldp, size_t *oldlenp) {
+	if (oldp != NULL || oldlenp != NULL) {
+		return EPERM;
+	}
+	return 0;
+}
 
-#define WRITEONLY()                                                            \
-	do {                                                                   \
-		if (oldp != NULL || oldlenp != NULL) {                         \
-			ret = EPERM;                                           \
-			goto label_return;                                     \
-		}                                                              \
-	} while (0)
+static inline int
+ctl_assured_write(void *dst, size_t dst_size, const void *newp,
+    size_t newlen) {
+	if (newp == NULL || newlen != dst_size) {
+		return EINVAL;
+	}
+	memcpy(dst, newp, dst_size);
+	return 0;
+}
 
-/* Can read or write, but not both. */
-#define READ_XOR_WRITE()                                                       \
-	do {                                                                   \
-		if ((oldp != NULL && oldlenp != NULL)                          \
-		    && (newp != NULL || newlen != 0)) {                        \
-			ret = EPERM;                                           \
-			goto label_return;                                     \
-		}                                                              \
-	} while (0)
+static inline int
+ctl_read(void *oldp, size_t *oldlenp, const void *src, size_t src_size) {
+	if (oldp == NULL || oldlenp == NULL) {
+		return 0;
+	}
+	const size_t oldlen = *oldlenp;
+	if (oldlen != src_size) {
+		size_t copylen = (src_size <= oldlen) ? src_size : oldlen;
+		memcpy(oldp, src, copylen);
+		*oldlenp = copylen;
+		return EINVAL;
+	}
+	memcpy(oldp, src, src_size);
+	return 0;
+}
 
-/* Can neither read nor write. */
-#define NEITHER_READ_NOR_WRITE()                                               \
-	do {                                                                   \
-		if (oldp != NULL || oldlenp != NULL || newp != NULL            \
-		    || newlen != 0) {                                          \
-			ret = EPERM;                                           \
-			goto label_return;                                     \
-		}                                                              \
-	} while (0)
+static inline int
+ctl_write(void *dst, size_t dst_size, const void *newp, size_t newlen) {
+	if (newp == NULL) {
+		return 0;
+	}
+	if (newlen != dst_size) {
+		return EINVAL;
+	}
+	memcpy(dst, newp, dst_size);
+	return 0;
+}
 
-/* Verify that the space provided is enough. */
-#define VERIFY_READ(t)                                                         \
-	do {                                                                   \
-		if (oldp == NULL || oldlenp == NULL                            \
-		    || *oldlenp != sizeof(t)) {                                \
-			if (oldlenp != NULL) {                                 \
-				*oldlenp = 0;                                  \
-			}                                                      \
-			ret = EINVAL;                                          \
-			goto label_return;                                     \
-		}                                                              \
-	} while (0)
+JET_EXTERN int
+ctl_readonly(const void *newp, size_t newlen) {
+	if (newp != NULL || newlen != 0) {
+		return EPERM;
+	}
+	return 0;
+}
 
-#define READ(v, t)                                                             \
-	do {                                                                   \
-		if (oldp != NULL && oldlenp != NULL) {                         \
-			if (*oldlenp != sizeof(t)) {                           \
-				size_t copylen = (sizeof(t) <= *oldlenp)       \
-				    ? sizeof(t)                                \
-				    : *oldlenp;                                \
-				memcpy(oldp, (void *)&(v), copylen);           \
-				*oldlenp = copylen;                            \
-				ret = EINVAL;                                  \
-				goto label_return;                             \
-			}                                                      \
-			*(t *)oldp = (v);                                      \
-		}                                                              \
-	} while (0)
+JET_EXTERN int
+ctl_neither_read_nor_write(void *oldp, size_t *oldlenp, const void *newp,
+    size_t newlen) {
+	if (oldp != NULL || oldlenp != NULL || newp != NULL || newlen != 0) {
+		return EPERM;
+	}
+	return 0;
+}
 
-#define WRITE(v, t)                                                            \
-	do {                                                                   \
-		if (newp != NULL) {                                            \
-			if (newlen != sizeof(t)) {                             \
-				ret = EINVAL;                                  \
-				goto label_return;                             \
-			}                                                      \
-			(v) = *(t *)newp;                                      \
-		}                                                              \
-	} while (0)
+JET_EXTERN int
+ctl_read_xor_write(void *oldp, size_t *oldlenp, const void *newp,
+    size_t newlen) {
+	if ((oldp != NULL && oldlenp != NULL)
+	    && (newp != NULL || newlen != 0)) {
+		return EPERM;
+	}
+	return 0;
+}
 
-#define ASSURED_WRITE(v, t)                                                    \
-	do {                                                                   \
-		if (newp == NULL || newlen != sizeof(t)) {                     \
-			ret = EINVAL;                                          \
-			goto label_return;                                     \
-		}                                                              \
-		(v) = *(t *)newp;                                              \
-	} while (0)
+JET_EXTERN int
+ctl_verify_read(void *oldp, size_t *oldlenp, size_t expected_size) {
+	if (oldp == NULL || oldlenp == NULL || *oldlenp != expected_size) {
+		if (oldlenp != NULL) {
+			*oldlenp = 0;
+		}
+		return EINVAL;
+	}
+	return 0;
+}
 
-#define MIB_UNSIGNED(v, i)                                                     \
-	do {                                                                   \
-		if (mib[i] > UINT_MAX) {                                       \
-			ret = EFAULT;                                          \
-			goto label_return;                                     \
-		}                                                              \
-		v = (unsigned)mib[i];                                          \
-	} while (0)
+JET_EXTERN int
+ctl_mib_unsigned(unsigned *dst, const size_t *mib, size_t mib_index) {
+	const size_t value = mib[mib_index];
+	if (value > UINT_MAX) {
+		return EFAULT;
+	}
+	*dst = (unsigned)value;
+	return 0;
+}
 
 /*
  * There's a lot of code duplication in the following macros due to limitations
@@ -1961,19 +1961,15 @@ ctl_mtx_assert_held(tsdn_t *tsdn) {
 #define CTL_RO_CGEN(c, n, v, t)                                                \
 	static int n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,       \
 	    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {          \
-		int ret;                                                       \
-		t   oldval;                                                    \
-                                                                               \
 		if (!(c)) {                                                    \
 			return ENOENT;                                         \
 		}                                                              \
 		malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);                    \
-		READONLY();                                                    \
-		oldval = (v);                                                  \
-		READ(oldval, t);                                               \
-                                                                               \
-		ret = 0;                                                       \
-	label_return:                                                          \
+		int ret = ctl_readonly(newp, newlen);                          \
+		if (ret == 0) {                                                \
+			t oldval = (v);                                        \
+			ret = ctl_read(oldp, oldlenp, &oldval, sizeof(t));     \
+		}                                                              \
 		malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);                  \
 		return ret;                                                    \
 	}
@@ -1981,16 +1977,12 @@ ctl_mtx_assert_held(tsdn_t *tsdn) {
 #define CTL_RO_GEN(n, v, t)                                                    \
 	static int n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,       \
 	    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {          \
-		int ret;                                                       \
-		t   oldval;                                                    \
-                                                                               \
 		malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);                    \
-		READONLY();                                                    \
-		oldval = (v);                                                  \
-		READ(oldval, t);                                               \
-                                                                               \
-		ret = 0;                                                       \
-	label_return:                                                          \
+		int ret = ctl_readonly(newp, newlen);                          \
+		if (ret == 0) {                                                \
+			t oldval = (v);                                        \
+			ret = ctl_read(oldp, oldlenp, &oldval, sizeof(t));     \
+		}                                                              \
 		malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);                  \
 		return ret;                                                    \
 	}
@@ -2002,48 +1994,36 @@ ctl_mtx_assert_held(tsdn_t *tsdn) {
 #define CTL_RO_NL_CGEN(c, n, v, t)                                             \
 	static int n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,       \
 	    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {          \
-		int ret;                                                       \
-		t   oldval;                                                    \
-                                                                               \
 		if (!(c)) {                                                    \
 			return ENOENT;                                         \
 		}                                                              \
-		READONLY();                                                    \
-		oldval = (v);                                                  \
-		READ(oldval, t);                                               \
-                                                                               \
-		ret = 0;                                                       \
-	label_return:                                                          \
+		int ret = ctl_readonly(newp, newlen);                          \
+		if (ret == 0) {                                                \
+			t oldval = (v);                                        \
+			ret = ctl_read(oldp, oldlenp, &oldval, sizeof(t));     \
+		}                                                              \
 		return ret;                                                    \
 	}
 
 #define CTL_RO_NL_GEN(n, v, t)                                                 \
 	static int n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,       \
 	    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {          \
-		int ret;                                                       \
-		t   oldval;                                                    \
-                                                                               \
-		READONLY();                                                    \
-		oldval = (v);                                                  \
-		READ(oldval, t);                                               \
-                                                                               \
-		ret = 0;                                                       \
-	label_return:                                                          \
+		int ret = ctl_readonly(newp, newlen);                          \
+		if (ret == 0) {                                                \
+			t oldval = (v);                                        \
+			ret = ctl_read(oldp, oldlenp, &oldval, sizeof(t));     \
+		}                                                              \
 		return ret;                                                    \
 	}
 
 #define CTL_RO_CONFIG_GEN(n, t)                                                \
 	static int n##_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,       \
 	    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {          \
-		int ret;                                                       \
-		t   oldval;                                                    \
-                                                                               \
-		READONLY();                                                    \
-		oldval = n;                                                    \
-		READ(oldval, t);                                               \
-                                                                               \
-		ret = 0;                                                       \
-	label_return:                                                          \
+		int ret = ctl_readonly(newp, newlen);                          \
+		if (ret == 0) {                                                \
+			t oldval = n;                                          \
+			ret = ctl_read(oldp, oldlenp, &oldval, sizeof(t));     \
+		}                                                              \
 		return ret;                                                    \
 	}
 
@@ -2054,18 +2034,18 @@ CTL_RO_NL_GEN(version, JEMALLOC_VERSION, const char *)
 static int
 epoch_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int             ret;
 	UNUSED uint64_t newval;
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
-	WRITE(newval, uint64_t);
-	if (newp != NULL) {
-		ctl_refresh(tsd_tsdn(tsd));
+	int ret = ctl_write(&newval, sizeof(newval), newp, newlen);
+	if (ret == 0) {
+		if (newp != NULL) {
+			ctl_refresh(tsd_tsdn(tsd));
+		}
+		ret = ctl_read(oldp, oldlenp, &ctl_arenas->epoch,
+		    sizeof(ctl_arenas->epoch));
 	}
-	READ(ctl_arenas->epoch, uint64_t);
 
-	ret = 0;
-label_return:
 	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
 	return ret;
 }
@@ -2074,7 +2054,7 @@ static int
 background_thread_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
 	int  ret;
-	bool oldval;
+	bool oldval = false;
 
 	if (!have_background_thread) {
 		return ENOENT;
@@ -2083,37 +2063,31 @@ background_thread_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 	malloc_mutex_lock(tsd_tsdn(tsd), &background_thread_lock);
-	if (newp == NULL) {
-		oldval = background_thread_enabled();
-		READ(oldval, bool);
-	} else {
-		if (newlen != sizeof(bool)) {
-			ret = EINVAL;
-			goto label_return;
-		}
-		oldval = background_thread_enabled();
-		READ(oldval, bool);
 
-		bool newval = *(bool *)newp;
-		if (newval == oldval) {
-			ret = 0;
-			goto label_return;
-		}
+	if (newp != NULL && newlen != sizeof(bool)) {
+		ret = EINVAL;
+		goto label_return;
+	}
+	oldval = background_thread_enabled();
+	ret = ctl_read(oldp, oldlenp, &oldval, sizeof(oldval));
+	if (ret != 0 || newp == NULL) {
+		goto label_return;
+	}
 
+	bool newval;
+	memcpy(&newval, newp, sizeof(newval));
+	if (newval != oldval) {
 		background_thread_enabled_set(tsd_tsdn(tsd), newval);
 		if (newval) {
 			if (background_threads_enable(tsd)) {
 				ret = EFAULT;
-				goto label_return;
 			}
 		} else {
 			if (background_threads_disable(tsd)) {
 				ret = EFAULT;
-				goto label_return;
 			}
 		}
 	}
-	ret = 0;
 label_return:
 	malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
 	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
@@ -2125,7 +2099,7 @@ static int
 max_background_threads_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
 	int    ret;
-	size_t oldval;
+	size_t oldval = 0;
 
 	if (!have_background_thread) {
 		return ENOENT;
@@ -2134,44 +2108,41 @@ max_background_threads_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 	malloc_mutex_lock(tsd_tsdn(tsd), &background_thread_lock);
-	if (newp == NULL) {
-		oldval = max_background_threads;
-		READ(oldval, size_t);
-	} else {
-		if (newlen != sizeof(size_t)) {
-			ret = EINVAL;
-			goto label_return;
-		}
-		oldval = max_background_threads;
-		READ(oldval, size_t);
 
-		size_t newval = *(size_t *)newp;
-		if (newval == oldval) {
-			ret = 0;
-			goto label_return;
-		}
-		if (newval > opt_max_background_threads || newval == 0) {
-			ret = EINVAL;
-			goto label_return;
-		}
-
-		if (background_thread_enabled()) {
-			background_thread_enabled_set(tsd_tsdn(tsd), false);
-			if (background_threads_disable(tsd)) {
-				ret = EFAULT;
-				goto label_return;
-			}
-			max_background_threads = newval;
-			background_thread_enabled_set(tsd_tsdn(tsd), true);
-			if (background_threads_enable(tsd)) {
-				ret = EFAULT;
-				goto label_return;
-			}
-		} else {
-			max_background_threads = newval;
-		}
+	if (newp != NULL && newlen != sizeof(size_t)) {
+		ret = EINVAL;
+		goto label_return;
 	}
-	ret = 0;
+	oldval = max_background_threads;
+	ret = ctl_read(oldp, oldlenp, &oldval, sizeof(oldval));
+	if (ret != 0 || newp == NULL) {
+		goto label_return;
+	}
+
+	size_t newval;
+	memcpy(&newval, newp, sizeof(newval));
+	if (newval == oldval) {
+		goto label_return;
+	}
+	if (newval > opt_max_background_threads || newval == 0) {
+		ret = EINVAL;
+		goto label_return;
+	}
+	if (background_thread_enabled()) {
+		background_thread_enabled_set(tsd_tsdn(tsd), false);
+		if (background_threads_disable(tsd)) {
+			ret = EFAULT;
+			goto label_return;
+		}
+		max_background_threads = newval;
+		background_thread_enabled_set(tsd_tsdn(tsd), true);
+		if (background_threads_enable(tsd)) {
+			ret = EFAULT;
+			goto label_return;
+		}
+	} else {
+		max_background_threads = newval;
+	}
 label_return:
 	malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
 	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
@@ -2321,7 +2292,6 @@ CTL_RO_NL_CGEN(
 static int
 thread_arena_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int      ret;
 	arena_t *oldarena;
 	unsigned newind, oldind;
 
@@ -2330,43 +2300,42 @@ thread_arena_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 		return EAGAIN;
 	}
 	newind = oldind = arena_ind_get(oldarena);
-	WRITE(newind, unsigned);
-	READ(oldind, unsigned);
-
-	if (newind != oldind) {
-		arena_t *newarena;
-
-		if (newind >= narenas_total_get()) {
-			/* New arena index is out of range. */
-			ret = EFAULT;
-			goto label_return;
-		}
-
-		if (have_percpu_arena
-		    && PERCPU_ARENA_ENABLED(opt_percpu_arena)) {
-			if (newind < percpu_arena_ind_limit(opt_percpu_arena)) {
-				/*
-				 * If perCPU arena is enabled, thread_arena
-				 * control is not allowed for the auto arena
-				 * range.
-				 */
-				ret = EPERM;
-				goto label_return;
-			}
-		}
-
-		/* Initialize arena if necessary. */
-		newarena = arena_get(tsd_tsdn(tsd), newind, true);
-		if (newarena == NULL) {
-			ret = EAGAIN;
-			goto label_return;
-		}
-		thread_migrate_arena(tsd, oldarena, newarena);
+	int ret = ctl_write(&newind, sizeof(newind), newp, newlen);
+	if (ret != 0) {
+		return ret;
+	}
+	ret = ctl_read(oldp, oldlenp, &oldind, sizeof(oldind));
+	if (ret != 0) {
+		return ret;
 	}
 
-	ret = 0;
-label_return:
-	return ret;
+	if (newind == oldind) {
+		return 0;
+	}
+
+	if (newind >= narenas_total_get()) {
+		/* New arena index is out of range. */
+		return EFAULT;
+	}
+
+	if (have_percpu_arena && PERCPU_ARENA_ENABLED(opt_percpu_arena)) {
+		if (newind < percpu_arena_ind_limit(opt_percpu_arena)) {
+			/*
+			 * If perCPU arena is enabled, thread_arena control is
+			 * not allowed for the auto arena range.
+			 */
+			return EPERM;
+		}
+	}
+
+	/* Initialize arena if necessary. */
+	arena_t *newarena = arena_get(tsd_tsdn(tsd), newind, true);
+	if (newarena == NULL) {
+		return EAGAIN;
+	}
+	thread_migrate_arena(tsd, oldarena, newarena);
+
+	return 0;
 }
 
 CTL_RO_NL_GEN(thread_allocated, tsd_thread_allocated_get(tsd), uint64_t)
@@ -2375,70 +2344,60 @@ CTL_RO_NL_GEN(thread_allocatedp, tsd_thread_allocatedp_get(tsd), uint64_t *)
 static int
 thread_tcache_ncached_max_read_sizeclass_ctl(tsd_t *tsd, const size_t *mib,
     size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int    ret;
 	size_t bin_size = 0;
 
 	/* Read the bin size from newp. */
-	if (newp == NULL) {
-		ret = EINVAL;
-		goto label_return;
+	int ret = ctl_assured_write(&bin_size, sizeof(bin_size), newp, newlen);
+	if (ret != 0) {
+		return ret;
 	}
-	WRITE(bin_size, size_t);
 
 	cache_bin_sz_t ncached_max = 0;
 	if (tcache_bin_ncached_max_read(tsd, bin_size, &ncached_max)) {
-		ret = EINVAL;
-		goto label_return;
+		return EINVAL;
 	}
 	size_t result = (size_t)ncached_max;
-	READ(result, size_t);
-	ret = 0;
-label_return:
-	return ret;
+	return ctl_read(oldp, oldlenp, &result, sizeof(result));
 }
 
 static int
 thread_tcache_ncached_max_write_ctl(tsd_t *tsd, const size_t *mib,
     size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
-	WRITEONLY();
-	if (newp != NULL) {
-		if (!tcache_available(tsd)) {
-			ret = ENOENT;
-			goto label_return;
-		}
-		char *settings = NULL;
-		WRITE(settings, char *);
-		if (settings == NULL) {
-			ret = EINVAL;
-			goto label_return;
-		}
-		/* Get the length of the setting string safely. */
-		char *end = (char *)memchr(
-		    settings, '\0', CTL_MULTI_SETTING_MAX_LEN);
-		if (end == NULL) {
-			ret = EINVAL;
-			goto label_return;
-		}
-		/*
-		 * Exclude the last '\0' for len since it is not handled by
-		 * multi_setting_parse_next.
-		 */
-		size_t len = (uintptr_t)end - (uintptr_t)settings;
-		if (len == 0) {
-			ret = 0;
-			goto label_return;
-		}
-
-		if (tcache_bins_ncached_max_write(tsd, settings, len)) {
-			ret = EINVAL;
-			goto label_return;
-		}
+	int ret = ctl_writeonly(oldp, oldlenp);
+	if (ret != 0) {
+		return ret;
+	}
+	if (newp == NULL) {
+		return 0;
+	}
+	if (!tcache_available(tsd)) {
+		return ENOENT;
 	}
 
-	ret = 0;
-label_return:
-	return ret;
+	char *settings = NULL;
+	ret = ctl_write(&settings, sizeof(settings), newp, newlen);
+	if (ret != 0) {
+		return ret;
+	}
+	if (settings == NULL) {
+		return EINVAL;
+	}
+	/* Get the length of the setting string safely. */
+	char *end = (char *)memchr(
+	    settings, '\0', CTL_MULTI_SETTING_MAX_LEN);
+	if (end == NULL) {
+		return EINVAL;
+	}
+	/*
+	 * Exclude the last '\0' for len since it is not handled by
+	 * multi_setting_parse_next.
+	 */
+	size_t len = (uintptr_t)end - (uintptr_t)settings;
+	if (len == 0) {
+		return 0;
+	}
+
+	return tcache_bins_ncached_max_write(tsd, settings, len) ? EINVAL : 0;
 }
 
 CTL_RO_NL_GEN(thread_deallocated, tsd_thread_deallocated_get(tsd), uint64_t)
@@ -2447,43 +2406,39 @@ CTL_RO_NL_GEN(thread_deallocatedp, tsd_thread_deallocatedp_get(tsd), uint64_t *)
 static int
 thread_tcache_enabled_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int  ret;
-	bool oldval;
+	bool oldval = tcache_enabled_get(tsd);
 
-	oldval = tcache_enabled_get(tsd);
-	if (newp != NULL) {
-		if (newlen != sizeof(bool)) {
-			ret = EINVAL;
-			goto label_return;
-		}
-		tcache_enabled_set(tsd, *(bool *)newp);
+	bool newval = false;
+	int ret = ctl_write(&newval, sizeof(newval), newp, newlen);
+	if (ret == 0 && newp != NULL) {
+		tcache_enabled_set(tsd, newval);
 	}
-	READ(oldval, bool);
-
-	ret = 0;
-label_return:
+	if (ret == 0) {
+		ret = ctl_read(oldp, oldlenp, &oldval, sizeof(oldval));
+	}
 	return ret;
 }
 
 static int
 thread_tcache_max_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int    ret;
 	size_t oldval;
 
 	/* pointer to tcache_t always exists even with tcache disabled. */
 	tcache_t *tcache = tsd_tcachep_get(tsd);
 	assert(tcache != NULL);
 	oldval = tcache_max_get(tcache->tcache_slow);
-	READ(oldval, size_t);
+	int ret = ctl_read(oldp, oldlenp, &oldval, sizeof(oldval));
+	if (ret != 0) {
+		return ret;
+	}
 
+	size_t new_tcache_max = oldval;
+	ret = ctl_write(&new_tcache_max, sizeof(new_tcache_max), newp, newlen);
+	if (ret != 0) {
+		return ret;
+	}
 	if (newp != NULL) {
-		if (newlen != sizeof(size_t)) {
-			ret = EINVAL;
-			goto label_return;
-		}
-		size_t new_tcache_max = oldval;
-		WRITE(new_tcache_max, size_t);
 		if (new_tcache_max > TCACHE_MAXCLASS_LIMIT) {
 			new_tcache_max = TCACHE_MAXCLASS_LIMIT;
 		}
@@ -2493,129 +2448,109 @@ thread_tcache_max_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 		}
 	}
 
-	ret = 0;
-label_return:
-	return ret;
+	return 0;
 }
 
 static int
 thread_tcache_flush_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
-
 	if (!tcache_available(tsd)) {
-		ret = EFAULT;
-		goto label_return;
+		return EFAULT;
 	}
 
-	NEITHER_READ_NOR_WRITE();
-
-	tcache_flush(tsd);
-
-	ret = 0;
-label_return:
+	int ret = ctl_neither_read_nor_write(oldp, oldlenp, newp, newlen);
+	if (ret == 0) {
+		tcache_flush(tsd);
+	}
 	return ret;
 }
 
 static int
 thread_peak_read_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
 	if (!config_stats) {
 		return ENOENT;
 	}
-	READONLY();
-	peak_event_update(tsd);
-	uint64_t result = peak_event_max(tsd);
-	READ(result, uint64_t);
-	ret = 0;
-label_return:
+	int ret = ctl_readonly(newp, newlen);
+	if (ret == 0) {
+		peak_event_update(tsd);
+		uint64_t result = peak_event_max(tsd);
+		ret = ctl_read(oldp, oldlenp, &result, sizeof(result));
+	}
 	return ret;
 }
 
 static int
 thread_peak_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
 	if (!config_stats) {
 		return ENOENT;
 	}
-	NEITHER_READ_NOR_WRITE();
-	peak_event_zero(tsd);
-	ret = 0;
-label_return:
+	int ret = ctl_neither_read_nor_write(oldp, oldlenp, newp, newlen);
+	if (ret == 0) {
+		peak_event_zero(tsd);
+	}
 	return ret;
 }
 
 static int
 thread_prof_name_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
-
 	if (!config_prof || !opt_prof) {
 		return ENOENT;
 	}
 
-	READ_XOR_WRITE();
-
-	if (newp != NULL) {
-		const char *newval = *(const char **)newp;
-		if (newlen != sizeof(const char *) || newval == NULL) {
-			ret = EINVAL;
-			goto label_return;
+	int ret = ctl_read_xor_write(oldp, oldlenp, newp, newlen);
+	if (ret == 0 && newp != NULL) {
+		const char *newval = NULL;
+		ret = ctl_write(&newval, sizeof(newval), newp, newlen);
+		if (ret == 0) {
+			if (newval == NULL) {
+				ret = EINVAL;
+			} else {
+				ret = prof_thread_name_set(tsd, newval);
+			}
 		}
-
-		if ((ret = prof_thread_name_set(tsd, newval)) != 0) {
-			goto label_return;
-		}
-	} else {
+	} else if (ret == 0) {
 		const char *oldname = prof_thread_name_get(tsd);
-		READ(oldname, const char *);
+		ret = ctl_read(oldp, oldlenp, &oldname, sizeof(oldname));
 	}
-
-	ret = 0;
-label_return:
 	return ret;
 }
 
 static int
 thread_prof_active_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int  ret;
-	bool oldval;
-
 	if (!config_prof) {
 		return ENOENT;
 	}
 
-	oldval = opt_prof ? prof_thread_active_get(tsd) : false;
+	bool oldval = opt_prof ? prof_thread_active_get(tsd) : false;
+	int  ret = 0;
 	if (newp != NULL) {
 		if (!opt_prof) {
 			ret = ENOENT;
-			goto label_return;
-		}
-		if (newlen != sizeof(bool)) {
-			ret = EINVAL;
-			goto label_return;
-		}
-		if (prof_thread_active_set(tsd, *(bool *)newp)) {
-			ret = EAGAIN;
-			goto label_return;
+		} else {
+			bool newval;
+			ret = ctl_write(&newval, sizeof(newval), newp, newlen);
+			if (ret == 0 && prof_thread_active_set(tsd, newval)) {
+				ret = EAGAIN;
+			}
 		}
 	}
-	READ(oldval, bool);
-
-	ret = 0;
-label_return:
+	if (ret == 0) {
+		ret = ctl_read(oldp, oldlenp, &oldval, sizeof(oldval));
+	}
 	return ret;
 }
 
 static int
 thread_idle_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
-
-	NEITHER_READ_NOR_WRITE();
+	int ret = ctl_neither_read_nor_write(oldp, oldlenp, newp, newlen);
+	if (ret != 0) {
+		return ret;
+	}
 
 	if (tcache_available(tsd)) {
 		tcache_flush(tsd);
@@ -2637,9 +2572,7 @@ thread_idle_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 		 */
 	}
 
-	ret = 0;
-label_return:
-	return ret;
+	return 0;
 }
 
 /******************************************************************************/
@@ -2647,50 +2580,59 @@ label_return:
 static int
 tcache_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int      ret;
 	unsigned tcache_ind;
 
-	READONLY();
-	VERIFY_READ(unsigned);
-	if (tcaches_create(tsd, b0get(), &tcache_ind)) {
-		ret = EFAULT;
-		goto label_return;
+	int ret = ctl_readonly(newp, newlen);
+	if (ret == 0) {
+		ret = ctl_verify_read(oldp, oldlenp, sizeof(tcache_ind));
 	}
-	READ(tcache_ind, unsigned);
-
-	ret = 0;
-label_return:
+	if (ret == 0) {
+		if (tcaches_create(tsd, b0get(), &tcache_ind)) {
+			ret = EFAULT;
+		} else {
+			ret = ctl_read(oldp, oldlenp, &tcache_ind,
+			    sizeof(tcache_ind));
+		}
+	}
 	return ret;
 }
 
 static int
 tcache_flush_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int      ret;
 	unsigned tcache_ind;
 
-	WRITEONLY();
-	ASSURED_WRITE(tcache_ind, unsigned);
-	tcaches_flush(tsd, tcache_ind);
+	int ret = ctl_writeonly(oldp, oldlenp);
+	if (ret != 0) {
+		return ret;
+	}
 
-	ret = 0;
-label_return:
-	return ret;
+	ret = ctl_assured_write(&tcache_ind, sizeof(tcache_ind), newp, newlen);
+	if (ret != 0) {
+		return ret;
+	}
+
+	tcaches_flush(tsd, tcache_ind);
+	return 0;
 }
 
 static int
 tcache_destroy_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int      ret;
 	unsigned tcache_ind;
 
-	WRITEONLY();
-	ASSURED_WRITE(tcache_ind, unsigned);
-	tcaches_destroy(tsd, tcache_ind);
+	int ret = ctl_writeonly(oldp, oldlenp);
+	if (ret != 0) {
+		return ret;
+	}
 
-	ret = 0;
-label_return:
-	return ret;
+	ret = ctl_assured_write(&tcache_ind, sizeof(tcache_ind), newp, newlen);
+	if (ret != 0) {
+		return ret;
+	}
+
+	tcaches_destroy(tsd, tcache_ind);
+	return 0;
 }
 
 /******************************************************************************/
@@ -2698,22 +2640,21 @@ label_return:
 static int
 arena_i_initialized_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int      ret;
 	tsdn_t  *tsdn = tsd_tsdn(tsd);
-	unsigned arena_ind;
+	unsigned arena_ind = 0;
 	bool     initialized;
 
-	READONLY();
-	MIB_UNSIGNED(arena_ind, 1);
+	int ret = ctl_readonly(newp, newlen);
+	if (ret == 0) {
+		ret = ctl_mib_unsigned(&arena_ind, mib, 1);
+	}
+	if (ret == 0) {
+		malloc_mutex_lock(tsdn, &ctl_mtx);
+		initialized = arenas_i(arena_ind)->initialized;
+		malloc_mutex_unlock(tsdn, &ctl_mtx);
 
-	malloc_mutex_lock(tsdn, &ctl_mtx);
-	initialized = arenas_i(arena_ind)->initialized;
-	malloc_mutex_unlock(tsdn, &ctl_mtx);
-
-	READ(initialized, bool);
-
-	ret = 0;
-label_return:
+		ret = ctl_read(oldp, oldlenp, &initialized, sizeof(initialized));
+	}
 	return ret;
 }
 
@@ -2750,30 +2691,30 @@ arena_i_decay(tsdn_t *tsdn, unsigned arena_ind, bool all) {
 static int
 arena_i_decay_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int      ret;
-	unsigned arena_ind;
+	unsigned arena_ind = 0;
 
-	NEITHER_READ_NOR_WRITE();
-	MIB_UNSIGNED(arena_ind, 1);
-	arena_i_decay(tsd_tsdn(tsd), arena_ind, false);
-
-	ret = 0;
-label_return:
+	int ret = ctl_neither_read_nor_write(oldp, oldlenp, newp, newlen);
+	if (ret == 0) {
+		ret = ctl_mib_unsigned(&arena_ind, mib, 1);
+	}
+	if (ret == 0) {
+		arena_i_decay(tsd_tsdn(tsd), arena_ind, false);
+	}
 	return ret;
 }
 
 static int
 arena_i_purge_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int      ret;
-	unsigned arena_ind;
+	unsigned arena_ind = 0;
 
-	NEITHER_READ_NOR_WRITE();
-	MIB_UNSIGNED(arena_ind, 1);
-	arena_i_decay(tsd_tsdn(tsd), arena_ind, true);
-
-	ret = 0;
-label_return:
+	int ret = ctl_neither_read_nor_write(oldp, oldlenp, newp, newlen);
+	if (ret == 0) {
+		ret = ctl_mib_unsigned(&arena_ind, mib, 1);
+	}
+	if (ret == 0) {
+		arena_i_decay(tsd_tsdn(tsd), arena_ind, true);
+	}
 	return ret;
 }
 
@@ -2781,19 +2722,16 @@ static int
 arena_i_reset_destroy_helper(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen, unsigned *arena_ind,
     arena_t **arena) {
-	int ret;
-
-	NEITHER_READ_NOR_WRITE();
-	MIB_UNSIGNED(*arena_ind, 1);
-
-	*arena = arena_get(tsd_tsdn(tsd), *arena_ind, false);
-	if (*arena == NULL || arena_is_auto(*arena)) {
-		ret = EFAULT;
-		goto label_return;
+	int ret = ctl_neither_read_nor_write(oldp, oldlenp, newp, newlen);
+	if (ret == 0) {
+		ret = ctl_mib_unsigned(arena_ind, mib, 1);
 	}
-
-	ret = 0;
-label_return:
+	if (ret == 0) {
+		*arena = arena_get(tsd_tsdn(tsd), *arena_ind, false);
+		if (*arena == NULL || arena_is_auto(*arena)) {
+			ret = EFAULT;
+		}
+	}
 	return ret;
 }
 
@@ -2896,14 +2834,20 @@ label_return:
 static int
 arena_i_dss_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int         ret;
 	const char *dss = NULL;
-	unsigned    arena_ind;
+	unsigned    arena_ind = 0;
 	dss_prec_t  dss_prec = dss_prec_limit;
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
-	WRITE(dss, const char *);
-	MIB_UNSIGNED(arena_ind, 1);
+	int ret = ctl_write(&dss, sizeof(dss), newp, newlen);
+	if (ret != 0) {
+		goto label_return;
+	}
+	ret = ctl_mib_unsigned(&arena_ind, mib, 1);
+	if (ret != 0) {
+		goto label_return;
+	}
+
 	if (dss != NULL) {
 		int  i;
 		bool match = false;
@@ -2926,7 +2870,7 @@ arena_i_dss_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	 * Access via index narenas is deprecated, and scheduled for removal in
 	 * 6.0.0.
 	 */
-	dss_prec_t dss_prec_old;
+	dss_prec_t dss_prec_old = dss_prec_limit;
 	unsigned narenas = ctl_narenas_get(tsd_tsdn(tsd));
 	if (ctl_arena_ind_is_all(arena_ind, narenas)) {
 		if (dss_prec != dss_prec_limit
@@ -2947,9 +2891,7 @@ arena_i_dss_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	}
 
 	dss = dss_prec_names[dss_prec_old];
-	READ(dss, const char *);
-
-	ret = 0;
+	ret = ctl_read(oldp, oldlenp, &dss, sizeof(dss));
 label_return:
 	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
 	return ret;
@@ -2958,69 +2900,59 @@ label_return:
 static int
 arena_i_oversize_threshold_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
-
 	unsigned arena_ind;
-	MIB_UNSIGNED(arena_ind, 1);
+	int ret = ctl_mib_unsigned(&arena_ind, mib, 1);
+	if (ret != 0) {
+		return ret;
+	}
 
 	arena_t *arena = arena_get(tsd_tsdn(tsd), arena_ind, false);
 	if (arena == NULL) {
-		ret = EFAULT;
-		goto label_return;
+		return EFAULT;
 	}
 
-	if (oldp != NULL && oldlenp != NULL) {
-		size_t oldval = atomic_load_zu(
-		    &arena->pa_shard.pac.oversize_threshold, ATOMIC_RELAXED);
-		READ(oldval, size_t);
+	size_t oldval = atomic_load_zu(
+	    &arena->pa_shard.pac.oversize_threshold, ATOMIC_RELAXED);
+	ret = ctl_read(oldp, oldlenp, &oldval, sizeof(oldval));
+	if (ret != 0 || newp == NULL) {
+		return ret;
 	}
-	if (newp != NULL) {
-		if (newlen != sizeof(size_t)) {
-			ret = EINVAL;
-			goto label_return;
-		}
-		atomic_store_zu(&arena->pa_shard.pac.oversize_threshold,
-		    *(size_t *)newp, ATOMIC_RELAXED);
+
+	size_t newval;
+	ret = ctl_write(&newval, sizeof(newval), newp, newlen);
+	if (ret == 0) {
+		atomic_store_zu(&arena->pa_shard.pac.oversize_threshold, newval,
+		    ATOMIC_RELAXED);
 	}
-	ret = 0;
-label_return:
 	return ret;
 }
 
 static int
 arena_i_decay_ms_ctl_impl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen, bool dirty) {
-	int      ret;
 	unsigned arena_ind;
-	arena_t *arena;
+	int ret = ctl_mib_unsigned(&arena_ind, mib, 1);
+	if (ret != 0) {
+		return ret;
+	}
 
-	MIB_UNSIGNED(arena_ind, 1);
-	arena = arena_get(tsd_tsdn(tsd), arena_ind, false);
+	arena_t *arena = arena_get(tsd_tsdn(tsd), arena_ind, false);
 	if (arena == NULL) {
-		ret = EFAULT;
-		goto label_return;
+		return EFAULT;
 	}
+
 	extent_state_t state = dirty ? extent_state_dirty : extent_state_muzzy;
-
-	if (oldp != NULL && oldlenp != NULL) {
-		ssize_t oldval = arena_decay_ms_get(arena, state);
-		READ(oldval, ssize_t);
-	}
-	if (newp != NULL) {
-		if (newlen != sizeof(ssize_t)) {
-			ret = EINVAL;
-			goto label_return;
-		}
-
-		if (arena_decay_ms_set(
-		        tsd_tsdn(tsd), arena, state, *(ssize_t *)newp)) {
-			ret = EFAULT;
-			goto label_return;
-		}
+	ssize_t oldval = arena_decay_ms_get(arena, state);
+	ret = ctl_read(oldp, oldlenp, &oldval, sizeof(oldval));
+	if (ret != 0 || newp == NULL) {
+		return ret;
 	}
 
-	ret = 0;
-label_return:
+	ssize_t newval;
+	ret = ctl_write(&newval, sizeof(newval), newp, newlen);
+	if (ret == 0 && arena_decay_ms_set(tsd_tsdn(tsd), arena, state, newval)) {
+		ret = EFAULT;
+	}
 	return ret;
 }
 
@@ -3041,58 +2973,64 @@ arena_i_muzzy_decay_ms_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 static int
 arena_i_extent_hooks_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int      ret;
 	unsigned arena_ind;
 	arena_t *arena;
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
-	MIB_UNSIGNED(arena_ind, 1);
-	if (arena_ind < narenas_total_get()) {
+	int ret = ctl_mib_unsigned(&arena_ind, mib, 1);
+	if (ret == 0 && arena_ind >= narenas_total_get()) {
+		ret = EFAULT;
+	}
+	if (ret == 0) {
 		extent_hooks_t *old_extent_hooks;
 		arena = arena_get(tsd_tsdn(tsd), arena_ind, false);
 		if (arena == NULL) {
 			if (arena_ind >= narenas_auto) {
 				ret = EFAULT;
-				goto label_return;
+			} else {
+				old_extent_hooks =
+				    (extent_hooks_t *)&ehooks_default_extent_hooks;
+				ret = ctl_read(oldp, oldlenp, &old_extent_hooks,
+				    sizeof(extent_hooks_t *));
 			}
-			old_extent_hooks =
-			    (extent_hooks_t *)&ehooks_default_extent_hooks;
-			READ(old_extent_hooks, extent_hooks_t *);
-			if (newp != NULL) {
+			if (ret == 0 && newp != NULL) {
 				/* Initialize a new arena as a side effect. */
 				extent_hooks_t *new_extent_hooks
 				    JEMALLOC_CC_SILENCE_INIT(NULL);
-				WRITE(new_extent_hooks, extent_hooks_t *);
-				arena_config_t config = arena_config_default;
-				config.extent_hooks = new_extent_hooks;
+				ret = ctl_write(&new_extent_hooks,
+				    sizeof(extent_hooks_t *), newp, newlen);
+				if (ret == 0) {
+					arena_config_t config = arena_config_default;
+					config.extent_hooks = new_extent_hooks;
 
-				arena = arena_init(
-				    tsd_tsdn(tsd), arena_ind, &config);
-				if (arena == NULL) {
-					ret = EFAULT;
-					goto label_return;
+					arena = arena_init(
+					    tsd_tsdn(tsd), arena_ind, &config);
+					if (arena == NULL) {
+						ret = EFAULT;
+					}
 				}
 			}
 		} else {
 			if (newp != NULL) {
 				extent_hooks_t *new_extent_hooks
 				    JEMALLOC_CC_SILENCE_INIT(NULL);
-				WRITE(new_extent_hooks, extent_hooks_t *);
-				old_extent_hooks = arena_set_extent_hooks(
-				    tsd, arena, new_extent_hooks);
-				READ(old_extent_hooks, extent_hooks_t *);
+				ret = ctl_write(&new_extent_hooks,
+				    sizeof(extent_hooks_t *), newp, newlen);
+				if (ret == 0) {
+					old_extent_hooks = arena_set_extent_hooks(
+					    tsd, arena, new_extent_hooks);
+					ret = ctl_read(oldp, oldlenp,
+					    &old_extent_hooks,
+					    sizeof(extent_hooks_t *));
+				}
 			} else {
 				old_extent_hooks = ehooks_get_extent_hooks_ptr(
 				    arena_get_ehooks(arena));
-				READ(old_extent_hooks, extent_hooks_t *);
+				ret = ctl_read(oldp, oldlenp, &old_extent_hooks,
+				    sizeof(extent_hooks_t *));
 			}
 		}
-	} else {
-		ret = EFAULT;
-		goto label_return;
 	}
-	ret = 0;
-label_return:
 	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
 	return ret;
 }
@@ -3100,9 +3038,7 @@ label_return:
 static int
 arena_i_retain_grow_limit_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int      ret;
 	unsigned arena_ind;
-	arena_t *arena;
 
 	if (!opt_retain) {
 		/* Only relevant when retain is enabled. */
@@ -3110,25 +3046,31 @@ arena_i_retain_grow_limit_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 	}
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
-	MIB_UNSIGNED(arena_ind, 1);
-	if (arena_ind < narenas_total_get()
-	    && (arena = arena_get(tsd_tsdn(tsd), arena_ind, false)) != NULL) {
-		size_t old_limit, new_limit;
-		if (newp != NULL) {
-			WRITE(new_limit, size_t);
-		}
-		bool err = arena_retain_grow_limit_get_set(
-		    tsd, arena, &old_limit, newp != NULL ? &new_limit : NULL);
-		if (!err) {
-			READ(old_limit, size_t);
-			ret = 0;
-		} else {
+
+	int ret = ctl_mib_unsigned(&arena_ind, mib, 1);
+	arena_t *arena = NULL;
+	if (ret == 0) {
+		arena = arena_ind < narenas_total_get() ?
+		    arena_get(tsd_tsdn(tsd), arena_ind, false) : NULL;
+		if (arena == NULL) {
 			ret = EFAULT;
 		}
-	} else {
-		ret = EFAULT;
 	}
-label_return:
+
+	size_t old_limit;
+	size_t new_limit;
+	if (ret == 0) {
+		ret = ctl_write(&new_limit, sizeof(new_limit), newp, newlen);
+	}
+	if (ret == 0) {
+		bool err = arena_retain_grow_limit_get_set(
+		    tsd, arena, &old_limit, newp != NULL ? &new_limit : NULL);
+		ret = err ? EFAULT : 0;
+	}
+	if (ret == 0) {
+		ret = ctl_read(oldp, oldlenp, &old_limit, sizeof(old_limit));
+	}
+
 	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
 	return ret;
 }
@@ -3142,18 +3084,20 @@ label_return:
 static int
 arena_i_name_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int        ret;
-	unsigned   arena_ind;
-	char *name JEMALLOC_CLANG_ANALYZER_SILENCE_INIT(NULL);
+	unsigned arena_ind;
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
-	MIB_UNSIGNED(arena_ind, 1);
+
+	int ret = ctl_mib_unsigned(&arena_ind, mib, 1);
+	if (ret != 0) {
+		goto label_return;
+	}
 	unsigned narenas = ctl_narenas_get(tsd_tsdn(tsd));
-	if (ctl_arena_ind_is_all(arena_ind, narenas)
-	    || arena_ind > narenas) {
+	if (ctl_arena_ind_is_all(arena_ind, narenas) || arena_ind > narenas) {
 		ret = EINVAL;
 		goto label_return;
 	}
+
 	arena_t *arena = arena_get(tsd_tsdn(tsd), arena_ind, false);
 	if (arena == NULL) {
 		ret = EFAULT;
@@ -3170,20 +3114,24 @@ arena_i_name_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 			ret = EINVAL;
 			goto label_return;
 		}
-		name = *(char **)oldp;
-		arena_name_get(arena, name);
+		char *old_name = *(char **)oldp;
+		arena_name_get(arena, old_name);
 	}
 
+	char *new_name = NULL;
+	ret = ctl_write(&new_name, sizeof(new_name), newp, newlen);
+	if (ret != 0) {
+		goto label_return;
+	}
 	if (newp != NULL) {
-		/* Write the arena name. */
-		WRITE(name, char *);
-		if (name == NULL) {
+		if (new_name == NULL) {
 			ret = EINVAL;
 			goto label_return;
 		}
-		arena_name_set(arena, name);
+		/* Write the arena name. */
+		arena_name_set(arena, new_name);
 	}
-	ret = 0;
+
 label_return:
 	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
 	return ret;
@@ -3217,16 +3165,12 @@ label_return:
 static int
 arenas_narenas_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int      ret;
-	unsigned narenas;
-
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
-	READONLY();
-	narenas = ctl_narenas_get(tsd_tsdn(tsd));
-	READ(narenas, unsigned);
-
-	ret = 0;
-label_return:
+	int ret = ctl_readonly(newp, newlen);
+	if (ret == 0) {
+		unsigned narenas = ctl_narenas_get(tsd_tsdn(tsd));
+		ret = ctl_read(oldp, oldlenp, &narenas, sizeof(narenas));
+	}
 	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
 	return ret;
 }
@@ -3234,28 +3178,18 @@ label_return:
 static int
 arenas_decay_ms_ctl_impl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen, bool dirty) {
-	int ret;
-
-	if (oldp != NULL && oldlenp != NULL) {
-		ssize_t oldval = (dirty ? arena_dirty_decay_ms_default_get()
-		                        : arena_muzzy_decay_ms_default_get());
-		READ(oldval, ssize_t);
-	}
-	if (newp != NULL) {
-		if (newlen != sizeof(ssize_t)) {
-			ret = EINVAL;
-			goto label_return;
-		}
-		if (dirty
-		        ? arena_dirty_decay_ms_default_set(*(ssize_t *)newp)
-		        : arena_muzzy_decay_ms_default_set(*(ssize_t *)newp)) {
+	ssize_t oldval = dirty ? arena_dirty_decay_ms_default_get()
+	                       : arena_muzzy_decay_ms_default_get();
+	int ret = ctl_read(oldp, oldlenp, &oldval, sizeof(oldval));
+	if (ret == 0 && newp != NULL) {
+		ssize_t newval;
+		ret = ctl_write(&newval, sizeof(newval), newp, newlen);
+		if (ret == 0
+		    && (dirty ? arena_dirty_decay_ms_default_set(newval)
+		              : arena_muzzy_decay_ms_default_set(newval))) {
 			ret = EFAULT;
-			goto label_return;
 		}
 	}
-
-	ret = 0;
-label_return:
 	return ret;
 }
 
@@ -3306,33 +3240,28 @@ arenas_lextent_i_index(
 static int
 ctl_arena_create(tsd_t *tsd, void *oldp, size_t *oldlenp,
     const arena_config_t *config) {
-	int ret;
-	unsigned arena_ind;
-
-	if ((arena_ind = ctl_arena_init(tsd, config)) == UINT_MAX) {
-		ret = EAGAIN;
-		goto label_return;
+	unsigned arena_ind = ctl_arena_init(tsd, config);
+	if (arena_ind == UINT_MAX) {
+		return EAGAIN;
 	}
-	READ(arena_ind, unsigned);
-
-	ret = 0;
-label_return:
-	return ret;
+	return ctl_read(oldp, oldlenp, &arena_ind, sizeof(arena_ind));
 }
 
 static int
 arenas_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
-
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 
-	VERIFY_READ(unsigned);
+	int ret = ctl_verify_read(oldp, oldlenp, sizeof(unsigned));
 	arena_config_t config = arena_config_default;
-	WRITE(config.extent_hooks, extent_hooks_t *);
+	if (ret == 0) {
+		ret = ctl_write(&config.extent_hooks,
+		    sizeof(extent_hooks_t *), newp, newlen);
+	}
 
-	ret = ctl_arena_create(tsd, oldp, oldlenp, &config);
-label_return:
+	if (ret == 0) {
+		ret = ctl_arena_create(tsd, oldp, oldlenp, &config);
+	}
 	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
 	return ret;
 }
@@ -3340,16 +3269,17 @@ label_return:
 static int
 experimental_arenas_create_ext_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
-
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
 
 	arena_config_t config = arena_config_default;
-	VERIFY_READ(unsigned);
-	WRITE(config, arena_config_t);
+	int ret = ctl_verify_read(oldp, oldlenp, sizeof(unsigned));
+	if (ret == 0) {
+		ret = ctl_write(&config, sizeof(config), newp, newlen);
+	}
 
-	ret = ctl_arena_create(tsd, oldp, oldlenp, &config);
-label_return:
+	if (ret == 0) {
+		ret = ctl_arena_create(tsd, oldp, oldlenp, &config);
+	}
 	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
 	return ret;
 }
@@ -3357,33 +3287,33 @@ label_return:
 static int
 arenas_lookup_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int                   ret;
-	unsigned              arena_ind;
-	void                 *ptr;
-	emap_full_alloc_ctx_t alloc_ctx;
-	bool                  ptr_not_present;
-	arena_t              *arena;
+	void *ptr = NULL;
 
-	ptr = NULL;
-	ret = EINVAL;
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
-	WRITE(ptr, void *);
-	ptr_not_present = emap_full_alloc_ctx_try_lookup(
-	    tsd_tsdn(tsd), &arena_emap_global, ptr, &alloc_ctx);
-	if (ptr_not_present || alloc_ctx.edata == NULL) {
-		goto label_return;
+
+	int ret = ctl_write(&ptr, sizeof(ptr), newp, newlen);
+	emap_full_alloc_ctx_t alloc_ctx;
+	if (ret == 0) {
+		bool ptr_not_present = emap_full_alloc_ctx_try_lookup(
+		    tsd_tsdn(tsd), &arena_emap_global, ptr, &alloc_ctx);
+		if (ptr_not_present || alloc_ctx.edata == NULL) {
+			ret = EINVAL;
+		}
 	}
 
-	arena = arena_get_from_edata(alloc_ctx.edata);
-	if (arena == NULL) {
-		goto label_return;
+	arena_t *arena = NULL;
+	if (ret == 0) {
+		arena = arena_get_from_edata(alloc_ctx.edata);
+		if (arena == NULL) {
+			ret = EINVAL;
+		}
 	}
 
-	arena_ind = arena_ind_get(arena);
-	READ(arena_ind, unsigned);
+	if (ret == 0) {
+		unsigned arena_ind = arena_ind_get(arena);
+		ret = ctl_read(oldp, oldlenp, &arena_ind, sizeof(arena_ind));
+	}
 
-	ret = 0;
-label_return:
 	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
 	return ret;
 }
@@ -3393,130 +3323,119 @@ label_return:
 static int
 prof_thread_active_init_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int  ret;
-	bool oldval;
-
 	if (!config_prof) {
 		return ENOENT;
 	}
 
+	bool oldval = false;
+	int  ret = 0;
 	if (newp != NULL) {
 		if (!opt_prof) {
 			ret = ENOENT;
-			goto label_return;
+		} else {
+			bool newval;
+			ret = ctl_write(&newval, sizeof(newval), newp, newlen);
+			if (ret == 0) {
+				oldval = prof_thread_active_init_set(
+				    tsd_tsdn(tsd), newval);
+			}
 		}
-		if (newlen != sizeof(bool)) {
-			ret = EINVAL;
-			goto label_return;
-		}
-		oldval = prof_thread_active_init_set(
-		    tsd_tsdn(tsd), *(bool *)newp);
 	} else {
 		oldval = opt_prof ? prof_thread_active_init_get(tsd_tsdn(tsd))
 		                  : false;
 	}
-	READ(oldval, bool);
-
-	ret = 0;
-label_return:
+	if (ret == 0) {
+		ret = ctl_read(oldp, oldlenp, &oldval, sizeof(oldval));
+	}
 	return ret;
 }
 
 static int
 prof_active_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int  ret;
-	bool oldval;
-
 	if (!config_prof) {
-		ret = ENOENT;
-		goto label_return;
+		return ENOENT;
 	}
 
+	bool oldval = false;
+	int  ret = 0;
 	if (newp != NULL) {
-		if (newlen != sizeof(bool)) {
-			ret = EINVAL;
-			goto label_return;
-		}
-		bool val = *(bool *)newp;
-		if (!opt_prof) {
-			if (val) {
-				ret = ENOENT;
-				goto label_return;
+		bool val;
+		ret = ctl_write(&val, sizeof(val), newp, newlen);
+		if (ret == 0) {
+			if (!opt_prof) {
+				if (val) {
+					ret = ENOENT;
+				} else {
+					/* No change needed (already off). */
+					oldval = false;
+				}
 			} else {
-				/* No change needed (already off). */
-				oldval = false;
+				oldval = prof_active_set(tsd_tsdn(tsd), val);
 			}
-		} else {
-			oldval = prof_active_set(tsd_tsdn(tsd), val);
 		}
 	} else {
 		oldval = opt_prof ? prof_active_get(tsd_tsdn(tsd)) : false;
 	}
-	READ(oldval, bool);
-
-	ret = 0;
-label_return:
+	if (ret == 0) {
+		ret = ctl_read(oldp, oldlenp, &oldval, sizeof(oldval));
+	}
 	return ret;
 }
 
 static int
 prof_dump_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int         ret;
 	const char *filename = NULL;
 
 	if (!config_prof || !opt_prof) {
 		return ENOENT;
 	}
 
-	WRITEONLY();
-	WRITE(filename, const char *);
-
-	if (prof_mdump(tsd, filename)) {
-		ret = EFAULT;
-		goto label_return;
+	int ret = ctl_writeonly(oldp, oldlenp);
+	if (ret != 0) {
+		return ret;
 	}
 
-	ret = 0;
-label_return:
-	return ret;
+	ret = ctl_write(&filename, sizeof(filename), newp, newlen);
+	if (ret != 0) {
+		return ret;
+	}
+
+	return prof_mdump(tsd, filename) ? EFAULT : 0;
 }
 
 static int
 prof_gdump_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int  ret;
-	bool oldval;
-
 	if (!config_prof) {
 		return ENOENT;
 	}
 
+	bool oldval = false;
+	int  ret = 0;
 	if (newp != NULL) {
 		if (!opt_prof) {
 			ret = ENOENT;
-			goto label_return;
+		} else {
+			bool newval;
+			ret = ctl_write(&newval, sizeof(newval), newp, newlen);
+			if (ret == 0) {
+				oldval = prof_gdump_set(tsd_tsdn(tsd), newval);
+			}
 		}
-		if (newlen != sizeof(bool)) {
-			ret = EINVAL;
-			goto label_return;
-		}
-		oldval = prof_gdump_set(tsd_tsdn(tsd), *(bool *)newp);
 	} else {
 		oldval = opt_prof ? prof_gdump_get(tsd_tsdn(tsd)) : false;
 	}
-	READ(oldval, bool);
-
-	ret = 0;
-label_return:
+	if (ret == 0) {
+		ret = ctl_read(oldp, oldlenp, &oldval, sizeof(oldval));
+	}
 	return ret;
 }
 
 static int
 prof_prefix_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int         ret;
 	const char *prefix = NULL;
 
 	if (!config_prof || !opt_prof) {
@@ -3524,11 +3443,14 @@ prof_prefix_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	}
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
-	WRITEONLY();
-	WRITE(prefix, const char *);
+	int ret = ctl_writeonly(oldp, oldlenp);
+	if (ret == 0) {
+		ret = ctl_write(&prefix, sizeof(prefix), newp, newlen);
+	}
+	if (ret == 0) {
+		ret = prof_prefix_set(tsd_tsdn(tsd), prefix) ? EFAULT : 0;
+	}
 
-	ret = prof_prefix_set(tsd_tsdn(tsd), prefix) ? EFAULT : 0;
-label_return:
 	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
 	return ret;
 }
@@ -3536,24 +3458,27 @@ label_return:
 static int
 prof_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int    ret;
 	size_t lg_sample = lg_prof_sample;
 
 	if (!config_prof || !opt_prof) {
 		return ENOENT;
 	}
 
-	WRITEONLY();
-	WRITE(lg_sample, size_t);
+	int ret = ctl_writeonly(oldp, oldlenp);
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = ctl_write(&lg_sample, sizeof(lg_sample), newp, newlen);
+	if (ret != 0) {
+		return ret;
+	}
 	if (lg_sample >= (sizeof(uint64_t) << 3)) {
 		lg_sample = (sizeof(uint64_t) << 3) - 1;
 	}
 
 	prof_reset(tsd, lg_sample);
-
-	ret = 0;
-label_return:
-	return ret;
+	return 0;
 }
 
 CTL_RO_NL_CGEN(config_prof, prof_interval, prof_interval, uint64_t)
@@ -3562,25 +3487,23 @@ CTL_RO_NL_CGEN(config_prof, lg_prof_sample, lg_prof_sample, size_t)
 static int
 prof_log_start_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
-
 	const char *filename = NULL;
 
 	if (!config_prof || !opt_prof) {
 		return ENOENT;
 	}
 
-	WRITEONLY();
-	WRITE(filename, const char *);
-
-	if (prof_log_start(tsd_tsdn(tsd), filename)) {
-		ret = EFAULT;
-		goto label_return;
+	int ret = ctl_writeonly(oldp, oldlenp);
+	if (ret != 0) {
+		return ret;
 	}
 
-	ret = 0;
-label_return:
-	return ret;
+	ret = ctl_write(&filename, sizeof(filename), newp, newlen);
+	if (ret != 0) {
+		return ret;
+	}
+
+	return prof_log_start(tsd_tsdn(tsd), filename) ? EFAULT : 0;
 }
 
 static int
@@ -3600,131 +3523,134 @@ prof_log_stop_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 static int
 experimental_hooks_prof_backtrace_ctl(tsd_t *tsd, const size_t *mib,
     size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
-
 	if (oldp == NULL && newp == NULL) {
-		ret = EINVAL;
-		goto label_return;
+		return EINVAL;
 	}
+
+	int ret = 0;
 	if (oldp != NULL) {
 		prof_backtrace_hook_t old_hook = prof_backtrace_hook_get();
-		READ(old_hook, prof_backtrace_hook_t);
+		ret = ctl_read(oldp, oldlenp, &old_hook, sizeof(old_hook));
 	}
-	if (newp != NULL) {
+
+	prof_backtrace_hook_t new_hook = NULL;
+	if (ret == 0 && newp != NULL) {
 		if (!opt_prof) {
 			ret = ENOENT;
-			goto label_return;
+		} else {
+			ret = ctl_write(&new_hook, sizeof(new_hook), newp,
+			    newlen);
 		}
-		prof_backtrace_hook_t new_hook JEMALLOC_CC_SILENCE_INIT(NULL);
-		WRITE(new_hook, prof_backtrace_hook_t);
+	}
+	if (ret == 0 && newp != NULL) {
 		if (new_hook == NULL) {
 			ret = EINVAL;
-			goto label_return;
+		} else {
+			prof_backtrace_hook_set(new_hook);
 		}
-		prof_backtrace_hook_set(new_hook);
 	}
-	ret = 0;
-label_return:
+
 	return ret;
 }
 
 static int
 experimental_hooks_prof_dump_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
-
 	if (oldp == NULL && newp == NULL) {
-		ret = EINVAL;
-		goto label_return;
+		return EINVAL;
 	}
+
+	int ret = 0;
 	if (oldp != NULL) {
 		prof_dump_hook_t old_hook = prof_dump_hook_get();
-		READ(old_hook, prof_dump_hook_t);
+		ret = ctl_read(oldp, oldlenp, &old_hook, sizeof(old_hook));
 	}
-	if (newp != NULL) {
+
+	prof_dump_hook_t new_hook = NULL;
+	if (ret == 0 && newp != NULL) {
 		if (!opt_prof) {
 			ret = ENOENT;
-			goto label_return;
+		} else {
+			ret = ctl_write(&new_hook, sizeof(new_hook), newp,
+			    newlen);
 		}
-		prof_dump_hook_t new_hook JEMALLOC_CC_SILENCE_INIT(NULL);
-		WRITE(new_hook, prof_dump_hook_t);
+	}
+	if (ret == 0 && newp != NULL) {
 		prof_dump_hook_set(new_hook);
 	}
-	ret = 0;
-label_return:
+
 	return ret;
 }
 
 static int
 experimental_hooks_prof_sample_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
-
 	if (oldp == NULL && newp == NULL) {
-		ret = EINVAL;
-		goto label_return;
+		return EINVAL;
 	}
+
+	int ret = 0;
 	if (oldp != NULL) {
 		prof_sample_hook_t old_hook = prof_sample_hook_get();
-		READ(old_hook, prof_sample_hook_t);
+		ret = ctl_read(oldp, oldlenp, &old_hook, sizeof(old_hook));
 	}
-	if (newp != NULL) {
+
+	prof_sample_hook_t new_hook = NULL;
+	if (ret == 0 && newp != NULL) {
 		if (!opt_prof) {
 			ret = ENOENT;
-			goto label_return;
+		} else {
+			ret = ctl_write(&new_hook, sizeof(new_hook), newp,
+			    newlen);
 		}
-		prof_sample_hook_t new_hook JEMALLOC_CC_SILENCE_INIT(NULL);
-		WRITE(new_hook, prof_sample_hook_t);
+	}
+	if (ret == 0 && newp != NULL) {
 		prof_sample_hook_set(new_hook);
 	}
-	ret = 0;
-label_return:
+
 	return ret;
 }
 
 static int
 experimental_hooks_prof_sample_free_ctl(tsd_t *tsd, const size_t *mib,
     size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
-
 	if (oldp == NULL && newp == NULL) {
-		ret = EINVAL;
-		goto label_return;
+		return EINVAL;
 	}
+
+	int ret = 0;
 	if (oldp != NULL) {
 		prof_sample_free_hook_t old_hook = prof_sample_free_hook_get();
-		READ(old_hook, prof_sample_free_hook_t);
+		ret = ctl_read(oldp, oldlenp, &old_hook, sizeof(old_hook));
 	}
-	if (newp != NULL) {
+
+	prof_sample_free_hook_t new_hook = NULL;
+	if (ret == 0 && newp != NULL) {
 		if (!opt_prof) {
 			ret = ENOENT;
-			goto label_return;
+		} else {
+			ret = ctl_write(&new_hook, sizeof(new_hook), newp,
+			    newlen);
 		}
-		prof_sample_free_hook_t new_hook JEMALLOC_CC_SILENCE_INIT(NULL);
-		WRITE(new_hook, prof_sample_free_hook_t);
+	}
+	if (ret == 0 && newp != NULL) {
 		prof_sample_free_hook_set(new_hook);
 	}
-	ret = 0;
-label_return:
+
 	return ret;
 }
 
 static int
 experimental_hooks_thread_event_ctl(tsd_t *tsd, const size_t *mib,
     size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
+	user_hook_object_t t_new = {NULL, 0, false};
 
-	if (newp == NULL) {
-		ret = EINVAL;
-		goto label_return;
+	int ret = ctl_assured_write(&t_new, sizeof(t_new), newp, newlen);
+	if (ret != 0) {
+		return ret;
 	}
 
-	user_hook_object_t t_new = {NULL, 0, false};
-	WRITE(t_new, user_hook_object_t);
-	ret = te_register_user_handler(tsd_tsdn(tsd), &t_new);
-
-label_return:
-	return ret;
+	return te_register_user_handler(tsd_tsdn(tsd), &t_new);
 }
 
 /******************************************************************************/
@@ -3765,29 +3691,26 @@ CTL_RO_CGEN(config_stats, stats_zero_reallocs,
 static int
 approximate_stats_active_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int    ret;
-	size_t approximate_nactive = 0;
-	size_t approximate_active_bytes = 0;
+	int ret = ctl_readonly(newp, newlen);
+	if (ret == 0) {
+		tsdn_t  *tsdn = tsd_tsdn(tsd);
+		unsigned n = narenas_total_get();
 
-	READONLY();
-
-	tsdn_t  *tsdn = tsd_tsdn(tsd);
-	unsigned n = narenas_total_get();
-
-	for (unsigned i = 0; i < n; i++) {
-		arena_t *arena = arena_get(tsdn, i, false);
-		if (!arena) {
-			continue;
+		size_t approximate_nactive = 0;
+		for (unsigned i = 0; i < n; i++) {
+			arena_t *arena = arena_get(tsdn, i, false);
+			if (!arena) {
+				continue;
+			}
+			/* Accumulate nactive pages from each arena's pa_shard */
+			approximate_nactive +=
+			    pa_shard_nactive(&arena->pa_shard);
 		}
-		/* Accumulate nactive pages from each arena's pa_shard */
-		approximate_nactive += pa_shard_nactive(&arena->pa_shard);
+
+		size_t approximate_active_bytes = approximate_nactive << LG_PAGE;
+		ret = ctl_read(oldp, oldlenp, &approximate_active_bytes,
+		    sizeof(approximate_active_bytes));
 	}
-
-	approximate_active_bytes = approximate_nactive << LG_PAGE;
-	READ(approximate_active_bytes, size_t);
-
-	ret = 0;
-label_return:
 	return ret;
 }
 
@@ -4400,33 +4323,27 @@ label_return:
 static int
 experimental_prof_recent_alloc_max_ctl(tsd_t *tsd, const size_t *mib,
     size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
-
 	if (!(config_prof && opt_prof)) {
-		ret = ENOENT;
-		goto label_return;
+		return ENOENT;
 	}
 
-	ssize_t old_max;
+	ssize_t old_max = 0;
+	int     ret = 0;
 	if (newp != NULL) {
-		if (newlen != sizeof(ssize_t)) {
+		ssize_t max;
+		ret = ctl_write(&max, sizeof(max), newp, newlen);
+		if (ret == 0 && max < -1) {
 			ret = EINVAL;
-			goto label_return;
 		}
-		ssize_t max = *(ssize_t *)newp;
-		if (max < -1) {
-			ret = EINVAL;
-			goto label_return;
+		if (ret == 0) {
+			old_max = prof_recent_alloc_max_ctl_write(tsd, max);
 		}
-		old_max = prof_recent_alloc_max_ctl_write(tsd, max);
 	} else {
 		old_max = prof_recent_alloc_max_ctl_read();
 	}
-	READ(old_max, ssize_t);
-
-	ret = 0;
-
-label_return:
+	if (ret == 0) {
+		ret = ctl_read(oldp, oldlenp, &old_max, sizeof(old_max));
+	}
 	return ret;
 }
 
@@ -4439,77 +4356,74 @@ struct write_cb_packet_s {
 static int
 experimental_prof_recent_alloc_dump_ctl(tsd_t *tsd, const size_t *mib,
     size_t miblen, void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int ret;
-
 	if (!(config_prof && opt_prof)) {
-		ret = ENOENT;
-		goto label_return;
+		return ENOENT;
 	}
 
 	assert(sizeof(write_cb_packet_t) == sizeof(void *) * 2);
 
-	WRITEONLY();
+	int ret = ctl_writeonly(oldp, oldlenp);
+	if (ret != 0) {
+		return ret;
+	}
+
 	write_cb_packet_t write_cb_packet;
-	ASSURED_WRITE(write_cb_packet, write_cb_packet_t);
+	ret = ctl_assured_write(
+	    &write_cb_packet, sizeof(write_cb_packet), newp, newlen);
+	if (ret != 0) {
+		return ret;
+	}
 
 	prof_recent_alloc_dump(
 	    tsd, write_cb_packet.write_cb, write_cb_packet.cbopaque);
-
-	ret = 0;
-
-label_return:
-	return ret;
+	return 0;
 }
 
 static int
 prof_stats_bins_i_live_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int          ret;
-	unsigned     binind;
+	unsigned     binind = 0;
 	prof_stats_t stats;
 
 	if (!(config_prof && opt_prof && opt_prof_stats)) {
-		ret = ENOENT;
-		goto label_return;
+		return ENOENT;
 	}
 
-	READONLY();
-	MIB_UNSIGNED(binind, 3);
-	if (binind >= SC_NBINS) {
+	int ret = ctl_readonly(newp, newlen);
+	if (ret == 0) {
+		ret = ctl_mib_unsigned(&binind, mib, 3);
+	}
+	if (ret == 0 && binind >= SC_NBINS) {
 		ret = EINVAL;
-		goto label_return;
 	}
-	prof_stats_get_live(tsd, (szind_t)binind, &stats);
-	READ(stats, prof_stats_t);
-
-	ret = 0;
-label_return:
+	if (ret == 0) {
+		prof_stats_get_live(tsd, (szind_t)binind, &stats);
+		ret = ctl_read(oldp, oldlenp, &stats, sizeof(stats));
+	}
 	return ret;
 }
 
 static int
 prof_stats_bins_i_accum_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int          ret;
-	unsigned     binind;
+	unsigned     binind = 0;
 	prof_stats_t stats;
 
 	if (!(config_prof && opt_prof && opt_prof_stats)) {
-		ret = ENOENT;
-		goto label_return;
+		return ENOENT;
 	}
 
-	READONLY();
-	MIB_UNSIGNED(binind, 3);
-	if (binind >= SC_NBINS) {
+	int ret = ctl_readonly(newp, newlen);
+	if (ret == 0) {
+		ret = ctl_mib_unsigned(&binind, mib, 3);
+	}
+	if (ret == 0 && binind >= SC_NBINS) {
 		ret = EINVAL;
-		goto label_return;
 	}
-	prof_stats_get_accum(tsd, (szind_t)binind, &stats);
-	READ(stats, prof_stats_t);
-
-	ret = 0;
-label_return:
+	if (ret == 0) {
+		prof_stats_get_accum(tsd, (szind_t)binind, &stats);
+		ret = ctl_read(oldp, oldlenp, &stats, sizeof(stats));
+	}
 	return ret;
 }
 
@@ -4528,52 +4442,50 @@ prof_stats_bins_i_index(
 static int
 prof_stats_lextents_i_live_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int          ret;
-	unsigned     lextent_ind;
+	unsigned     lextent_ind = 0;
 	prof_stats_t stats;
 
 	if (!(config_prof && opt_prof && opt_prof_stats)) {
-		ret = ENOENT;
-		goto label_return;
+		return ENOENT;
 	}
 
-	READONLY();
-	MIB_UNSIGNED(lextent_ind, 3);
-	if (lextent_ind >= SC_NSIZES - SC_NBINS) {
+	int ret = ctl_readonly(newp, newlen);
+	if (ret == 0) {
+		ret = ctl_mib_unsigned(&lextent_ind, mib, 3);
+	}
+	if (ret == 0 && lextent_ind >= SC_NSIZES - SC_NBINS) {
 		ret = EINVAL;
-		goto label_return;
 	}
-	prof_stats_get_live(tsd, (szind_t)(lextent_ind + SC_NBINS), &stats);
-	READ(stats, prof_stats_t);
-
-	ret = 0;
-label_return:
+	if (ret == 0) {
+		prof_stats_get_live(
+		    tsd, (szind_t)(lextent_ind + SC_NBINS), &stats);
+		ret = ctl_read(oldp, oldlenp, &stats, sizeof(stats));
+	}
 	return ret;
 }
 
 static int
 prof_stats_lextents_i_accum_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
-	int          ret;
-	unsigned     lextent_ind;
+	unsigned     lextent_ind = 0;
 	prof_stats_t stats;
 
 	if (!(config_prof && opt_prof && opt_prof_stats)) {
-		ret = ENOENT;
-		goto label_return;
+		return ENOENT;
 	}
 
-	READONLY();
-	MIB_UNSIGNED(lextent_ind, 3);
-	if (lextent_ind >= SC_NSIZES - SC_NBINS) {
+	int ret = ctl_readonly(newp, newlen);
+	if (ret == 0) {
+		ret = ctl_mib_unsigned(&lextent_ind, mib, 3);
+	}
+	if (ret == 0 && lextent_ind >= SC_NSIZES - SC_NBINS) {
 		ret = EINVAL;
-		goto label_return;
 	}
-	prof_stats_get_accum(tsd, (szind_t)(lextent_ind + SC_NBINS), &stats);
-	READ(stats, prof_stats_t);
-
-	ret = 0;
-label_return:
+	if (ret == 0) {
+		prof_stats_get_accum(
+		    tsd, (szind_t)(lextent_ind + SC_NBINS), &stats);
+		ret = ctl_read(oldp, oldlenp, &stats, sizeof(stats));
+	}
 	return ret;
 }
 

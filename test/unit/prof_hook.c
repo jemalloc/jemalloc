@@ -108,6 +108,32 @@ TEST_BEGIN(test_prof_backtrace_hook_replace) {
 
 	prof_backtrace_hook_t current_hook;
 	size_t                current_hook_sz = sizeof(prof_backtrace_hook_t);
+	prof_backtrace_hook_t attempted_hook = &mock_bt_augmenting_hook;
+
+	current_hook_sz = sizeof(prof_backtrace_hook_t) - 1;
+	expect_d_eq(mallctl("experimental.hooks.prof_backtrace",
+	                (void *)&current_hook, &current_hook_sz,
+	                (void *)&attempted_hook, sizeof(attempted_hook)),
+	    EINVAL, "Unexpected mallctl success with malformed oldlen");
+
+	current_hook_sz = sizeof(prof_backtrace_hook_t);
+	expect_d_eq(mallctl("experimental.hooks.prof_backtrace",
+	                (void *)&current_hook, &current_hook_sz, NULL, 0),
+	    0, "Unexpected mallctl failure reading hook");
+	expect_ptr_eq(current_hook, hook,
+	    "Malformed oldlen should not update hook");
+
+	expect_d_eq(mallctl("experimental.hooks.prof_backtrace", NULL, NULL,
+	                (void *)&attempted_hook, sizeof(attempted_hook) - 1),
+	    EINVAL, "Unexpected mallctl success with malformed newlen");
+
+	current_hook_sz = sizeof(prof_backtrace_hook_t);
+	expect_d_eq(mallctl("experimental.hooks.prof_backtrace",
+	                (void *)&current_hook, &current_hook_sz, NULL, 0),
+	    0, "Unexpected mallctl failure reading hook");
+	expect_ptr_eq(current_hook, hook,
+	    "Malformed newlen should not update hook");
+
 	expect_d_eq(mallctl("experimental.hooks.prof_backtrace",
 	                (void *)&current_hook, &current_hook_sz,
 	                (void *)&default_bt_hook, sizeof(default_bt_hook)),
@@ -185,6 +211,32 @@ TEST_BEGIN(test_prof_dump_hook) {
 
 	prof_dump_hook_t current_hook;
 	size_t           current_hook_sz = sizeof(prof_dump_hook_t);
+	prof_dump_hook_t attempted_hook = NULL;
+
+	current_hook_sz = sizeof(prof_dump_hook_t) - 1;
+	expect_d_eq(mallctl("experimental.hooks.prof_dump",
+	                (void *)&current_hook, &current_hook_sz,
+	                (void *)&attempted_hook, sizeof(attempted_hook)),
+	    EINVAL, "Unexpected mallctl success with malformed oldlen");
+
+	current_hook_sz = sizeof(prof_dump_hook_t);
+	expect_d_eq(mallctl("experimental.hooks.prof_dump",
+	                (void *)&current_hook, &current_hook_sz, NULL, 0),
+	    0, "Unexpected mallctl failure reading hook");
+	expect_ptr_eq(current_hook, hook,
+	    "Malformed oldlen should not update hook");
+
+	expect_d_eq(mallctl("experimental.hooks.prof_dump", NULL, NULL,
+	                (void *)&attempted_hook, sizeof(attempted_hook) - 1),
+	    EINVAL, "Unexpected mallctl success with malformed newlen");
+
+	current_hook_sz = sizeof(prof_dump_hook_t);
+	expect_d_eq(mallctl("experimental.hooks.prof_dump",
+	                (void *)&current_hook, &current_hook_sz, NULL, 0),
+	    0, "Unexpected mallctl failure reading hook");
+	expect_ptr_eq(current_hook, hook,
+	    "Malformed newlen should not update hook");
+
 	expect_d_eq(mallctl("experimental.hooks.prof_dump",
 	                (void *)&current_hook, &current_hook_sz,
 	                (void *)&default_bt_hook, sizeof(default_bt_hook)),
@@ -304,6 +356,42 @@ TEST_BEGIN(test_prof_sample_hooks) {
 	write_prof_sample_free_hook(mock_prof_sample_free_hook);
 	check_prof_sample_hooks(true, true);
 
+	prof_sample_hook_t attempted_sample_hook = NULL;
+	prof_sample_hook_t sample_hook;
+	size_t             sample_hook_sz = sizeof(prof_sample_hook_t) - 1;
+	expect_d_eq(mallctl("experimental.hooks.prof_sample",
+	                (void *)&sample_hook, &sample_hook_sz,
+	                (void *)&attempted_sample_hook,
+	                sizeof(attempted_sample_hook)),
+	    EINVAL, "Unexpected mallctl success with malformed oldlen");
+	expect_ptr_eq(read_prof_sample_hook(), mock_prof_sample_hook,
+	    "Malformed oldlen should not update prof_sample hook");
+
+	expect_d_eq(mallctl("experimental.hooks.prof_sample", NULL, NULL,
+	                (void *)&attempted_sample_hook,
+	                sizeof(attempted_sample_hook) - 1),
+	    EINVAL, "Unexpected mallctl success with malformed newlen");
+	expect_ptr_eq(read_prof_sample_hook(), mock_prof_sample_hook,
+	    "Malformed newlen should not update prof_sample hook");
+
+	prof_sample_free_hook_t attempted_sample_free_hook = NULL;
+	prof_sample_free_hook_t sample_free_hook;
+	size_t sample_free_hook_sz = sizeof(prof_sample_free_hook_t) - 1;
+	expect_d_eq(mallctl("experimental.hooks.prof_sample_free",
+	                (void *)&sample_free_hook, &sample_free_hook_sz,
+	                (void *)&attempted_sample_free_hook,
+	                sizeof(attempted_sample_free_hook)),
+	    EINVAL, "Unexpected mallctl success with malformed oldlen");
+	expect_ptr_eq(read_prof_sample_free_hook(), mock_prof_sample_free_hook,
+	    "Malformed oldlen should not update prof_sample_free hook");
+
+	expect_d_eq(mallctl("experimental.hooks.prof_sample_free", NULL, NULL,
+	                (void *)&attempted_sample_free_hook,
+	                sizeof(attempted_sample_free_hook) - 1),
+	    EINVAL, "Unexpected mallctl success with malformed newlen");
+	expect_ptr_eq(read_prof_sample_free_hook(), mock_prof_sample_free_hook,
+	    "Malformed newlen should not update prof_sample_free hook");
+
 	write_prof_sample_hook(NULL);
 	check_prof_sample_hooks(false, true);
 
@@ -311,12 +399,10 @@ TEST_BEGIN(test_prof_sample_hooks) {
 	check_prof_sample_hooks(false, false);
 
 	/* Test read+write together. */
-	prof_sample_hook_t sample_hook;
 	read_write_prof_sample_hook(&sample_hook, true, mock_prof_sample_hook);
 	expect_ptr_null(sample_hook, "Unexpected non NULL default hook");
 	check_prof_sample_hooks(true, false);
 
-	prof_sample_free_hook_t sample_free_hook;
 	read_write_prof_sample_free_hook(
 	    &sample_free_hook, true, mock_prof_sample_free_hook);
 	expect_ptr_null(sample_free_hook, "Unexpected non NULL default hook");
