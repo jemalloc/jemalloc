@@ -66,20 +66,20 @@ void operator delete[](
 JEMALLOC_NOINLINE
 static void *
 handleOOM(std::size_t size, bool nothrow) {
-	if (opt_experimental_infallible_new) {
-		const char *huge_warning = (size >= ((std::size_t)1 << 30))
-		    ? "This may be caused by heap corruption, if the large size "
-		      "is unexpected (suggest building with sanitizers for "
-		      "debugging)."
-		    : "";
-
-		safety_check_fail(
-		    "<jemalloc>: Allocation of size %zu failed. "
-		    "%s opt.experimental_infallible_new is true. Aborting.\n",
-		    size, huge_warning);
+#ifdef JEMALLOC_INFALLIBLE_NEW
+	if (nothrow) {
 		return nullptr;
 	}
-
+	const char *huge_warning = (size >= ((std::size_t)1 << 30))
+	    ? "This may be caused by heap corruption, if the large size "
+	      "is unexpected (suggest building with sanitizers for "
+	      "debugging). "
+	    : "";
+	safety_check_fail(
+	    "<jemalloc>: Allocation of size %zu failed. %sAborting.\n",
+	    size, huge_warning);
+	return nullptr;
+#else
 	void *ptr = nullptr;
 
 	while (ptr == nullptr) {
@@ -108,6 +108,7 @@ handleOOM(std::size_t size, bool nothrow) {
 #endif
 	}
 	return ptr;
+#endif
 }
 
 template <bool IsNoExcept>

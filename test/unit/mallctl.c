@@ -266,6 +266,7 @@ TEST_BEGIN(test_mallctl_config) {
 	TEST_MALLCTL_CONFIG(cache_oblivious, bool);
 	TEST_MALLCTL_CONFIG(debug, bool);
 	TEST_MALLCTL_CONFIG(fill, bool);
+	TEST_MALLCTL_CONFIG(infallible_new, bool);
 	TEST_MALLCTL_CONFIG(lazy_lock, bool);
 	TEST_MALLCTL_CONFIG(malloc_conf, const char *);
 	TEST_MALLCTL_CONFIG(prof, bool);

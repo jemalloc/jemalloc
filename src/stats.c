@@ -1623,6 +1623,7 @@ stats_general_print(emitter_t *emitter) {
 	CONFIG_WRITE_BOOL(cache_oblivious);
 	CONFIG_WRITE_BOOL(debug);
 	CONFIG_WRITE_BOOL(fill);
+	CONFIG_WRITE_BOOL(infallible_new);
 	CONFIG_WRITE_BOOL(lazy_lock);
 	emitter_kv(emitter, "malloc_conf", "config.malloc_conf",
 	    emitter_type_string, &config_malloc_conf);
@@ -1774,7 +1775,6 @@ stats_general_print(emitter_t *emitter) {
 	OPT_WRITE_BOOL("zero")
 	OPT_WRITE_BOOL("utrace")
 	OPT_WRITE_BOOL("xmalloc")
-	OPT_WRITE_BOOL("experimental_infallible_new")
 	OPT_WRITE_BOOL("experimental_tcache_gc")
 	OPT_WRITE_BOOL("tcache")
 	OPT_WRITE_SIZE_T("tcache_max")

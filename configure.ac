@@ -396,8 +396,31 @@ if test "x$enable_cxx" = "x1"; then
     enable_cxx_exceptions="0"
   fi
 fi
+
+dnl Do not enable infallible-new by default. When enabled, the throwing
+dnl operator new aborts on OOM (with size logged) instead of throwing
+dnl std::bad_alloc; nothrow new still returns null. With LTO this lets the
+dnl compiler prove operator new doesn't throw and elide exception cleanup.
+AC_ARG_ENABLE([cxx-infallible-new],
+  [AS_HELP_STRING([--enable-cxx-infallible-new],
+    [Abort on OOM in throwing operator new instead of throwing std::bad_alloc])],
+[if test "x$enable_cxx_infallible_new" = "xno" ; then
+  enable_cxx_infallible_new="0"
+else
+  enable_cxx_infallible_new="1"
+fi
+],
+[enable_cxx_infallible_new="0"]
+)
+if test "x$enable_cxx" != "x1" ; then
+  enable_cxx_infallible_new="0"
+fi
+if test "x$enable_cxx_infallible_new" = "x1" ; then
+  AC_DEFINE([JEMALLOC_INFALLIBLE_NEW], [ ], [ ])
+fi
 AC_SUBST([enable_cxx])
 AC_SUBST([enable_cxx_exceptions])
+AC_SUBST([enable_cxx_infallible_new])
 AC_SUBST([CONFIGURE_CXXFLAGS])
 AC_SUBST([SPECIFIED_CXXFLAGS])
 AC_SUBST([EXTRA_CXXFLAGS])

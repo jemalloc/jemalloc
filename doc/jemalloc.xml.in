@@ -846,6 +846,16 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         build configuration.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="config.infallible_new">
+        <term>
+          <mallctl>config.infallible_new</mallctl>
+          (<type>bool</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para><option>--enable-cxx-infallible-new</option> was
+        specified during build configuration.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="config.lazy_lock">
         <term>
           <mallctl>config.lazy_lock</mallctl>

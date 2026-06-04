@@ -217,6 +217,15 @@ any of the following arguments (not a definitive list) to 'configure':
     Disable C++ integration.  This will cause new and delete operator
     implementations to be omitted.
 
+* `--enable-cxx-infallible-new`
+
+    Make the throwing `operator new` abort on allocation failure (logging the
+    requested size) instead of throwing `std::bad_alloc`; the `std::nothrow`
+    overloads still return null.  Disabled by default, and has no effect when
+    C++ integration is disabled (`--disable-cxx`).  When enabled, under LTO
+    this lets the compiler treat `operator new` as non-throwing and elide
+    exception-handling cleanup in callers.
+
 * `--with-xslroot=<path>`
 
     Specify where to find DocBook XSL stylesheets when building the

@@ -731,11 +731,6 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			if (config_xmalloc) {
 				CONF_HANDLE_BOOL(opt_xmalloc, "xmalloc")
 			}
-			if (config_enable_cxx) {
-				CONF_HANDLE_BOOL(
-				    opt_experimental_infallible_new,
-				    "experimental_infallible_new")
-			}
 
 			CONF_HANDLE_BOOL(opt_experimental_tcache_gc,
 			    "experimental_tcache_gc")

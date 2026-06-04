@@ -349,8 +349,11 @@ ifeq (@enable_cxx@, 1)
 CPP_SRCS := $(srcroot)src/jemalloc_cpp.cpp
 TESTS_INTEGRATION_CPP := $(srcroot)test/integration/cpp/basic.cpp
 ifeq (@enable_cxx_exceptions@, 1)
-TESTS_INTEGRATION_CPP += $(srcroot)test/integration/cpp/infallible_new_true.cpp \
-	$(srcroot)test/integration/cpp/infallible_new_false.cpp
+ifeq (@enable_cxx_infallible_new@, 1)
+TESTS_INTEGRATION_CPP += $(srcroot)test/integration/cpp/infallible_new.cpp
+else
+TESTS_INTEGRATION_CPP += $(srcroot)test/integration/cpp/failing_new.cpp
+endif
 endif
 else
 CPP_SRCS :=

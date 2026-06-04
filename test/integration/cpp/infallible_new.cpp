@@ -3,8 +3,9 @@
 #include "test/jemalloc_test.h"
 
 /*
- * We can't test C++ in unit tests.  In order to intercept abort, use the
- * internal test hook in integration tests.
+ * Verifies that, when jemalloc is built with --enable-cxx-infallible-new,
+ * throwing operator new on OOM aborts via safety_check_fail. The test hook
+ * intercepts the abort and asserts the size-bearing message prefix.
  */
 bool fake_abort_called;
 void

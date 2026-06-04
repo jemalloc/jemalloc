@@ -468,6 +468,13 @@
 /* Are C++ exceptions enabled? */
 #undef JEMALLOC_HAVE_CXX_EXCEPTIONS
 
+/*
+ * If defined, throwing operator new aborts on OOM (with size logged) instead
+ * of throwing std::bad_alloc. Nothrow new still returns null. With LTO this
+ * lets the compiler prove operator new is no-throw and elide exception cleanup.
+ */
+#undef JEMALLOC_INFALLIBLE_NEW
+
 /* Performs additional size checks when defined. */
 #undef JEMALLOC_OPT_SIZE_CHECKS
 
