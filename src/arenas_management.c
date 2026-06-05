@@ -166,6 +166,7 @@ arena_init(tsdn_t *tsdn, unsigned ind, const arena_config_t *config) {
 static void
 arena_bind(tsd_t *tsd, unsigned ind, bool internal) {
 	arena_t *arena = arena_get(tsd_tsdn(tsd), ind, false);
+	assert(arena != NULL);
 	arena_nthreads_inc(arena, internal);
 
 	if (internal) {

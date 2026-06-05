@@ -1375,6 +1375,7 @@ arena_ptr_array_flush_impl_large(tsdn_t *tsdn, szind_t binind,
 		edata_t *edata = item_edata[0].edata;
 		unsigned cur_arena_ind = edata_arena_ind_get(edata);
 		arena_t *cur_arena = arena_get(tsdn, cur_arena_ind, false);
+		assert(cur_arena != NULL);
 
 		if (!arena_is_auto(cur_arena)) {
 			malloc_mutex_lock(tsdn, &cur_arena->large_mtx);
@@ -1464,7 +1465,7 @@ arena_ptr_array_flush_impl(tsd_t *tsd, szind_t binind,
 	 * Checks for sized deallocation bugs, failing early rather than
 	 * corrupting metadata.
 	 */
-	size_t szind_sum = binind * nflush;
+	size_t szind_sum = (size_t)binind * nflush;
 	emap_edata_lookup_batch(tsd, &arena_emap_global, nflush,
 	    &arena_ptr_array_flush_ptr_getter, (void *)arr,
 	    &arena_ptr_array_flush_metadata_visitor, (void *)&szind_sum,

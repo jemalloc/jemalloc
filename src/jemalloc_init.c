@@ -642,6 +642,7 @@ malloc_init_hard(void) {
 		 * need it to set correct value for deferral_allowed.
 		 */
 		arena_t         *a0 = arena_get(tsd_tsdn(tsd), 0, false);
+		assert(a0 != NULL);
 		hpa_shard_opts_t hpa_shard_opts = opt_hpa_opts;
 		hpa_shard_opts.deferral_allowed = background_thread_enabled();
 		if (pa_shard_enable_hpa(tsd_tsdn(tsd), &a0->pa_shard,
