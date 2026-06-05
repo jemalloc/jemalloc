@@ -508,6 +508,16 @@ jobs:
               CXX: g++
               CONFIGURE_FLAGS: "--enable-debug --enable-experimental-smallocx --enable-stats --enable-prof"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: --enable-cxx-infallible-new
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-cxx-infallible-new --enable-debug"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
 
     steps:
     - uses: actions/checkout@v6
@@ -636,6 +646,11 @@ jobs:
               CC: gcc
               CXX: g++
               CONFIGURE_FLAGS: "--with-malloc-conf=background_thread:true"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: --enable-cxx-infallible-new
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
 
     steps:

@@ -60,6 +60,11 @@ jobs:
               CXX: g++
               CONFIGURE_FLAGS: "--with-malloc-conf=percpu_arena:percpu"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: --enable-cxx-infallible-new
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
 
     steps:
     - uses: actions/checkout@v6
@@ -161,6 +166,11 @@ jobs:
               CC: gcc
               CXX: g++
               CONFIGURE_FLAGS: "--with-malloc-conf=percpu_arena:percpu"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: --enable-cxx-infallible-new
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
 
     steps:

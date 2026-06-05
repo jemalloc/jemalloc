@@ -276,6 +276,24 @@ def generate_linux_job(arch):
         }
     ]
 
+    # --enable-cxx-infallible-new coverage. Plain variant runs on all arches;
+    # debug-combined variant runs only on AMD64 to bound matrix size.
+    infallible_new_entries = [
+        {
+            'CC': 'gcc',
+            'CXX': 'g++',
+            'CONFIGURE_FLAGS': '--enable-cxx-infallible-new',
+            'EXTRA_CFLAGS': '-Werror -Wno-array-bounds'
+        },
+    ]
+    if arch == AMD64:
+        infallible_new_entries.append({
+            'CC': 'gcc',
+            'CXX': 'g++',
+            'CONFIGURE_FLAGS': '--enable-cxx-infallible-new --enable-debug',
+            'EXTRA_CFLAGS': '-Werror -Wno-array-bounds'
+        })
+
     if arch == AMD64:
         for entry in manual_entries:
             job += "          - env:\n"
@@ -284,6 +302,14 @@ def generate_linux_job(arch):
                     job += f'              {key}: "{value}"\n'
                 else:
                     job += f"              {key}: {value}\n"
+
+    for entry in infallible_new_entries:
+        job += "          - env:\n"
+        for key, value in entry.items():
+            if ' ' in str(value):
+                job += f'              {key}: "{value}"\n'
+            else:
+                job += f"              {key}: {value}\n"
 
     job += f"""
     steps:
@@ -385,6 +411,24 @@ def generate_macos_job(arch):
             else:
                 job += f"              {key}: {value}\n"
 
+    # --enable-cxx-infallible-new coverage on macOS (both arches).
+    macos_extra_cflags = ' '.join(get_extra_cflags(OSX, GCC.value))
+    infallible_new_entries = [
+        {
+            'CC': 'gcc',
+            'CXX': 'g++',
+            'CONFIGURE_FLAGS': '--enable-cxx-infallible-new',
+            'EXTRA_CFLAGS': macos_extra_cflags
+        },
+    ]
+    for entry in infallible_new_entries:
+        job += "          - env:\n"
+        for key, value in entry.items():
+            if ' ' in str(value) or any(c in str(value) for c in [':', ',', '#']):
+                job += f'              {key}: "{value}"\n'
+            else:
+                job += f"              {key}: {value}\n"
+
     job += f"""
     steps:
     - uses: actions/checkout@v6
@@ -460,6 +504,24 @@ def generate_windows_job(arch):
 """
 
     for entry in matrix_entries:
+        job += "          - env:\n"
+        for key, value in entry.items():
+            if ' ' in str(value) or any(c in str(value) for c in [':', ',', '#']):
+                job += f'              {key}: "{value}"\n'
+            else:
+                job += f"              {key}: {value}\n"
+
+    # --enable-cxx-infallible-new coverage on Windows (MinGW-GCC only).
+    windows_mingw_cflags = ' '.join(get_extra_cflags(WINDOWS, GCC.value))
+    infallible_new_entries = [
+        {
+            'CC': 'gcc',
+            'CXX': 'g++',
+            'CONFIGURE_FLAGS': '--enable-cxx-infallible-new',
+            'EXTRA_CFLAGS': windows_mingw_cflags
+        },
+    ]
+    for entry in infallible_new_entries:
         job += "          - env:\n"
         for key, value in entry.items():
             if ' ' in str(value) or any(c in str(value) for c in [':', ',', '#']):
