@@ -325,11 +325,13 @@ sz_s2u_compute_using_delta(size_t size) {
 	    : x - SC_LG_NGROUP - 1;
 	size_t delta = ZU(1) << lg_delta;
 	size_t delta_mask = delta - 1;
-	if (unlikely(size > SIZE_T_MAX - delta_mask)) {
+
+	size_t usize = size + delta_mask;
+	if (unlikely(usize < size)) {
+		/* size_t overflow. */
 		return 0;
 	}
-
-	size_t usize = (size + delta_mask) & ~delta_mask;
+	usize &= ~delta_mask;
 	return usize;
 }
 
@@ -359,7 +361,12 @@ sz_s2u_compute(size_t size) {
 		 * multiple of PAGE to minimize the memory overhead, especially
 		 * when using hugepages.
 		 */
-		size_t usize = PAGE_CEILING(size);
+		size_t usize = size + PAGE_MASK;
+		if (unlikely(usize < size)) {
+			/* size_t overflow. */
+			return 0;
+		}
+		usize &= ~PAGE_MASK;
 		assert(usize - size < PAGE);
 		return usize;
 	}
@@ -416,10 +423,12 @@ sz_sa2u(size_t size, size_t alignment) {
 		 *    144 | 10100000 |  32
 		 *    192 | 11000000 |  64
 		 */
-		if (unlikely(size > SIZE_T_MAX - alignment_mask)) {
+		size_t rounded = size + alignment_mask;
+		if (unlikely(rounded < size)) {
+			/* size_t overflow. */
 			return 0;
 		}
-		usize = sz_s2u((size + alignment_mask) & ~alignment_mask);
+		usize = sz_s2u(rounded & ~alignment_mask);
 		if (usize < SC_LARGE_MINCLASS) {
 			return usize;
 		}
