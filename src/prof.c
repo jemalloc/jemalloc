@@ -295,7 +295,7 @@ prof_sample_new_event_wait(tsd_t *tsd) {
 #endif
 }
 
-void
+static void
 prof_sample_event_handler(tsd_t *tsd) {
 	cassert(config_prof);
 	if (prof_interval == 0 || !prof_active_get_unlocked()) {

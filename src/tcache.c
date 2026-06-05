@@ -112,12 +112,12 @@ tcache_salloc(tsdn_t *tsdn, const void *ptr) {
 	return arena_salloc(tsdn, ptr);
 }
 
-uint64_t
+static uint64_t
 tcache_gc_new_event_wait(tsd_t *tsd) {
 	return opt_tcache_gc_incr_bytes;
 }
 
-uint64_t
+static uint64_t
 tcache_gc_postponed_event_wait(tsd_t *tsd) {
 	return TE_MIN_START_WAIT;
 }

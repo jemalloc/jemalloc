@@ -783,7 +783,7 @@ os_overcommits_proc(void) {
 #endif
 
 static bool
-pages_should_skip_set_thp_state() {
+pages_should_skip_set_thp_state(void) {
 	if (opt_thp == thp_mode_do_nothing
 	    || (opt_thp == thp_mode_always
 	        && init_system_thp_mode == system_thp_mode_always)
