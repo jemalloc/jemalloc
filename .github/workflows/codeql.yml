@@ -1,0 +1,57 @@
+name: "CodeQL"
+
+# CodeQL static analysis for C/C++. Runs on GitHub's x86_64 runners with full
+# network access, so it works even when a contributor's devserver can't reach
+# github.com.
+#
+# Query suite: "security-and-quality" — GitHub's most comprehensive built-in
+# suite. It is a superset of "security-extended" (so it still includes
+# cpp/uncontrolled-arithmetic, the CWE-190/191 analog to the Veracode integer
+# overflow/underflow findings on sz.h) and additionally pulls in the
+# maintainability and reliability queries that high-quality repositories use to
+# catch a broader class of bugs.
+#
+# Build config: --enable-debug --enable-prof --enable-cxx. Debug makes
+# jemalloc's assert()s live (config_debug becomes a true const, not a no-op), so
+# CodeQL credits them as guards and trusts the invariants they document; prof
+# and cxx compile the profiling-only and C++ (operator new/delete) sources so
+# those are analyzed too. This config is already built/tested in linux-ci.yml.
+
+on:
+  push:
+    branches: [ dev, ci_travis ]
+  pull_request:
+    branches: [ dev ]
+
+jobs:
+  analyze:
+    name: Analyze C/C++
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write   # required to upload code-scanning results
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: sudo apt-get update && sudo apt-get install -y autoconf
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: c-cpp
+          queries: security-and-quality
+
+      - name: Build jemalloc
+        run: |
+          ./autogen.sh
+          ./configure --enable-debug --enable-prof --enable-cxx
+          make -j"$(nproc)"
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:c-cpp"
