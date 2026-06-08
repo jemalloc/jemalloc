@@ -57,13 +57,6 @@ bool ehooks_default_purge_lazy_impl(void *addr, size_t offset, size_t length);
 bool ehooks_default_purge_forced_impl(void *addr, size_t offset, size_t length);
 #endif
 bool ehooks_default_split_impl(void);
-/*
- * Merge is the only default extent hook we declare -- see the comment in
- * ehooks_merge.
- */
-bool ehooks_default_merge(extent_hooks_t *extent_hooks, void *addr_a,
-    size_t size_a, void *addr_b, size_t size_b, bool committed,
-    unsigned arena_ind);
 bool ehooks_default_merge_impl(tsdn_t *tsdn, void *addr_a, void *addr_b);
 void ehooks_default_zero_impl(void *addr, size_t size);
 void ehooks_default_guard_impl(void *guard1, void *guard2);

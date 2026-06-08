@@ -228,7 +228,7 @@ ehooks_default_merge_impl(tsdn_t *tsdn, void *addr_a, void *addr_b) {
 	return false;
 }
 
-bool
+static bool
 ehooks_default_merge(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
     void *addr_b, size_t size_b, bool committed, unsigned arena_ind) {
 	tsdn_t *tsdn = tsdn_fetch();
