@@ -748,16 +748,6 @@ pac_decay_ms_get(pac_t *pac, extent_state_t state) {
 }
 
 void
-pac_reset(tsdn_t *tsdn, pac_t *pac) {
-	/*
-	 * No-op for now; purging is still done at the arena-level.  It should
-	 * get moved in here, though.
-	 */
-	(void)tsdn;
-	(void)pac;
-}
-
-void
 pac_destroy(tsdn_t *tsdn, pac_t *pac) {
 	assert(ecache_npages_get(&pac->ecache_dirty) == 0);
 	assert(ecache_npages_get(&pac->ecache_muzzy) == 0);

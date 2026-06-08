@@ -240,7 +240,6 @@ void *arena_malloc_hard(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind,
 void  arena_prof_promote(
      tsdn_t *tsdn, void *ptr, size_t usize, size_t bumped_usize);
 size_t arena_prof_demote(tsdn_t *tsdn, edata_t *edata, const void *ptr);
-void arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, edata_t *slab);
 
 void  arena_dalloc_small(tsdn_t *tsdn, void *ptr);
 void  arena_ptr_array_flush(tsd_t *tsd, szind_t binind,
@@ -274,8 +273,6 @@ void   arena_cache_bin_array_register(tsdn_t *tsdn, arena_t *arena,
        cache_bin_array_descriptor_t *desc);
 void   arena_cache_bin_array_unregister(tsdn_t *tsdn, arena_t *arena,
        cache_bin_array_descriptor_t *desc);
-void   arena_cache_bin_array_postfork_child(arena_t *arena,
-       cache_bin_array_descriptor_t *desc_or_null);
 void   arena_cache_bins_stats_merge(tsdn_t *tsdn, arena_t *arena);
 void   arena_prefork0(tsdn_t *tsdn, arena_t *arena);
 void   arena_prefork1(tsdn_t *tsdn, arena_t *arena);

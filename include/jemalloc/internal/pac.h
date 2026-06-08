@@ -234,7 +234,6 @@ bool    pac_decay_ms_set(tsdn_t *tsdn, pac_t *pac, extent_state_t state,
        ssize_t decay_ms, pac_purge_eagerness_t eagerness);
 ssize_t pac_decay_ms_get(pac_t *pac, extent_state_t state);
 
-void pac_reset(tsdn_t *tsdn, pac_t *pac);
 void pac_destroy(tsdn_t *tsdn, pac_t *pac);
 
 #endif /* JEMALLOC_INTERNAL_PAC_H */

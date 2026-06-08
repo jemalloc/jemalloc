@@ -204,11 +204,6 @@ bool hpa_shard_init(tsdn_t *tsdn, hpa_shard_t *shard, hpa_central_t *central,
 edata_t *hpa_alloc(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
     size_t alignment, bool zero, bool guarded, bool frequent_reuse,
     bool *deferred_work_generated);
-bool hpa_expand(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata,
-    size_t old_size, size_t new_size, bool zero,
-    bool *deferred_work_generated);
-bool hpa_shrink(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata,
-    size_t old_size, size_t new_size, bool *deferred_work_generated);
 void hpa_dalloc(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata,
     bool *deferred_work_generated);
 uint64_t hpa_time_until_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard);

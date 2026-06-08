@@ -158,7 +158,7 @@ nstime_divide(const nstime_t *time, const nstime_t *divisor) {
 	return time->ns / divisor->ns;
 }
 
-uint64_t
+static uint64_t
 nstime_ns_between(const nstime_t *earlier, const nstime_t *later) {
 	nstime_assert_initialized(earlier);
 	nstime_assert_initialized(later);

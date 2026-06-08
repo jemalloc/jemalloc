@@ -81,7 +81,7 @@ pa_shard_nactive(const pa_shard_t *shard) {
 	return atomic_load_zu(&shard->nactive, ATOMIC_RELAXED);
 }
 
-size_t
+static size_t
 pa_shard_ndirty(const pa_shard_t *shard) {
 	size_t ndirty = ecache_npages_get(&shard->pac.ecache_dirty);
 	if (shard->ever_used_hpa) {
@@ -90,7 +90,7 @@ pa_shard_ndirty(const pa_shard_t *shard) {
 	return ndirty;
 }
 
-size_t
+static size_t
 pa_shard_nmuzzy(const pa_shard_t *shard) {
 	return ecache_npages_get(&shard->pac.ecache_muzzy);
 }

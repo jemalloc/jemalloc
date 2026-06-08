@@ -220,8 +220,6 @@ void pa_shard_postfork_parent(tsdn_t *tsdn, pa_shard_t *shard);
 void pa_shard_postfork_child(tsdn_t *tsdn, pa_shard_t *shard);
 
 size_t pa_shard_nactive(const pa_shard_t *shard);
-size_t pa_shard_ndirty(const pa_shard_t *shard);
-size_t pa_shard_nmuzzy(const pa_shard_t *shard);
 
 void pa_shard_basic_stats_merge(
     const pa_shard_t *shard, size_t *nactive, size_t *ndirty, size_t *nmuzzy);

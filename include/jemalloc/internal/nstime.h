@@ -40,7 +40,6 @@ void     nstime_isubtract(nstime_t *time, uint64_t subtrahend);
 void     nstime_imultiply(nstime_t *time, uint64_t multiplier);
 void     nstime_idivide(nstime_t *time, uint64_t divisor);
 uint64_t nstime_divide(const nstime_t *time, const nstime_t *divisor);
-uint64_t nstime_ns_between(const nstime_t *earlier, const nstime_t *later);
 uint64_t nstime_ms_between(const nstime_t *earlier, const nstime_t *later);
 uint64_t nstime_ns_since(const nstime_t *past);
 uint64_t nstime_ms_since(const nstime_t *past);

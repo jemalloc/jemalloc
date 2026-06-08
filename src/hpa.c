@@ -978,20 +978,6 @@ hpa_alloc(tsdn_t *tsdn, hpa_shard_t *shard, size_t size, size_t alignment,
 	return edata;
 }
 
-bool
-hpa_expand(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata, size_t old_size,
-    size_t new_size, bool zero, bool *deferred_work_generated) {
-	/* Expand not yet supported. */
-	return true;
-}
-
-bool
-hpa_shrink(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata, size_t old_size,
-    size_t new_size, bool *deferred_work_generated) {
-	/* Shrink not yet supported. */
-	return true;
-}
-
 static void
 hpa_dalloc_prepare_unlocked(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata) {
 	malloc_mutex_assert_not_owner(tsdn, &shard->mtx);

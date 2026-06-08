@@ -294,7 +294,7 @@ arena_cache_bin_array_unregister(tsdn_t *tsdn, arena_t *arena,
  * from scratch (descriptors held by other threads at fork time are gone)
  * without locking.
  */
-void
+static void
 arena_cache_bin_array_postfork_child(arena_t *arena,
     cache_bin_array_descriptor_t *desc_or_null) {
 	cassert(config_stats);
@@ -652,7 +652,7 @@ arena_do_deferred_work(tsdn_t *tsdn, arena_t *arena) {
 	pa_shard_do_deferred_work(tsdn, &arena->pa_shard);
 }
 
-void
+static void
 arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, edata_t *slab) {
 	bool deferred_work_generated = false;
 	pa_dalloc(tsdn, &arena->pa_shard, slab, &deferred_work_generated);
