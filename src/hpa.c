@@ -14,7 +14,7 @@ const char *const hpa_hugify_style_names[] = {"auto", "none", "eager", "lazy"};
 bool opt_experimental_hpa_start_huge_if_thp_always = true;
 bool opt_experimental_hpa_enforce_hugify = false;
 
-bool
+JET_EXTERN bool
 hpa_hugepage_size_exceeds_limit(void) {
 	return HUGEPAGE > HUGEPAGE_MAX_EXPECTED_SIZE;
 }

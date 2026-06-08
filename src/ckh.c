@@ -541,6 +541,7 @@ ckh_search(ckh_t *ckh, const void *searchkey, void **key, void **data) {
 	return true;
 }
 
+#ifdef JEMALLOC_JET
 void
 ckh_string_hash(const void *key, size_t r_hash[2]) {
 	hash(key, strlen((const char *)key), 0x94122f33U, r_hash);
@@ -570,3 +571,4 @@ bool
 ckh_pointer_keycomp(const void *k1, const void *k2) {
 	return (k1 == k2);
 }
+#endif

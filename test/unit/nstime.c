@@ -1,5 +1,8 @@
 #include "test/jemalloc_test.h"
 
+extern uint64_t nstime_ms(const nstime_t *time);
+extern void     nstime_isubtract(nstime_t *time, uint64_t subtrahend);
+
 #define BILLION UINT64_C(1000000000)
 
 TEST_BEGIN(test_nstime_init) {

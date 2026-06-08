@@ -2,6 +2,11 @@
 
 #include "jemalloc/internal/prof_recent.h"
 
+extern edata_t *prof_recent_alloc_edata_get_no_lock_test(
+    const prof_recent_t *node);
+extern prof_recent_t *edata_prof_recent_alloc_get_no_lock_test(
+    const edata_t *edata);
+
 /* As specified in the shell script */
 #define OPT_ALLOC_MAX 3
 

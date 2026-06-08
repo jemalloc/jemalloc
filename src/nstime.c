@@ -60,11 +60,13 @@ nstime_ns(const nstime_t *time) {
 	return time->ns;
 }
 
+#ifdef JEMALLOC_JET
 uint64_t
 nstime_ms(const nstime_t *time) {
 	nstime_assert_initialized(time);
 	return time->ns / MILLION;
 }
+#endif
 
 uint64_t
 nstime_sec(const nstime_t *time) {
@@ -119,6 +121,7 @@ nstime_subtract(nstime_t *time, const nstime_t *subtrahend) {
 	time->ns -= subtrahend->ns;
 }
 
+#ifdef JEMALLOC_JET
 void
 nstime_isubtract(nstime_t *time, uint64_t subtrahend) {
 	nstime_assert_initialized(time);
@@ -127,6 +130,7 @@ nstime_isubtract(nstime_t *time, uint64_t subtrahend) {
 	/* No initialize operand -- subtraction must be initialized. */
 	time->ns -= subtrahend;
 }
+#endif
 
 void
 nstime_imultiply(nstime_t *time, uint64_t multiplier) {

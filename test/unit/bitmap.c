@@ -2,6 +2,9 @@
 
 #include "test/nbits.h"
 
+extern void   bitmap_info_init(bitmap_info_t *binfo, size_t nbits);
+extern size_t bitmap_size(const bitmap_info_t *binfo);
+
 static void
 test_bitmap_initializer_body(const bitmap_info_t *binfo, size_t nbits) {
 	bitmap_info_t binfo_dyn;

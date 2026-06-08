@@ -29,9 +29,4 @@ void          prof_tdata_detach(tsd_t *tsd, prof_tdata_t *tdata);
 void          prof_reset(tsd_t *tsd, size_t lg_sample);
 void          prof_tctx_try_destroy(tsd_t *tsd, prof_tctx_t *tctx);
 
-/* Used in unit tests. */
-size_t prof_tdata_count(void);
-size_t prof_bt_count(void);
-void   prof_cnt_all(prof_cnt_t *cnt_all);
-
 #endif /* JEMALLOC_INTERNAL_PROF_DATA_H */

@@ -1,5 +1,6 @@
 #include "test/jemalloc_test.h"
 
+#include "test/prof_data.h"
 #include "jemalloc/internal/prof_data.h"
 
 TEST_BEGIN(test_prof_realloc) {

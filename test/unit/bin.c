@@ -2,6 +2,15 @@
 
 extern void bin_dalloc_locked_begin(
     bin_dalloc_locked_info_t *info, szind_t binind);
+extern void *bin_slab_reg_alloc(edata_t *slab, const bin_info_t *bin_info);
+extern void bin_slabs_nonfull_insert(bin_t *bin, edata_t *slab);
+extern void bin_slabs_nonfull_remove(bin_t *bin, edata_t *slab);
+extern edata_t *bin_slabs_nonfull_tryget(bin_t *bin);
+extern void bin_slabs_full_insert(bool is_auto, bin_t *bin, edata_t *slab);
+extern void bin_dissociate_slab(bool is_auto, edata_t *slab, bin_t *bin);
+extern void bin_lower_slab(
+    tsdn_t *tsdn, bool is_auto, edata_t *slab, bin_t *bin);
+extern void bin_dalloc_slab_prepare(tsdn_t *tsdn, edata_t *slab, bin_t *bin);
 
 #define INVALID_ARENA_IND ((1U << MALLOCX_ARENA_BITS) - 1)
 

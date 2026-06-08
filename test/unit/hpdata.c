@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "test/hpdata.h"
+
 #define HPDATA_ADDR ((void *)(10 * HUGEPAGE))
 #define HPDATA_AGE 123
 

@@ -5,8 +5,11 @@
 
 /******************************************************************************/
 
+JET_EXTERN size_t bitmap_size(const bitmap_info_t *binfo);
+
 #ifdef BITMAP_USE_TREE
 
+#ifdef JEMALLOC_JET
 void
 bitmap_info_init(bitmap_info_t *binfo, size_t nbits) {
 	unsigned i;
@@ -34,6 +37,7 @@ bitmap_info_init(bitmap_info_t *binfo, size_t nbits) {
 	binfo->nlevels = i;
 	binfo->nbits = nbits;
 }
+#endif
 
 static size_t
 bitmap_info_ngroups(const bitmap_info_t *binfo) {
@@ -82,6 +86,7 @@ bitmap_init(bitmap_t *bitmap, const bitmap_info_t *binfo, bool fill) {
 
 #else /* BITMAP_USE_TREE */
 
+#ifdef JEMALLOC_JET
 void
 bitmap_info_init(bitmap_info_t *binfo, size_t nbits) {
 	assert(nbits > 0);
@@ -90,6 +95,7 @@ bitmap_info_init(bitmap_info_t *binfo, size_t nbits) {
 	binfo->ngroups = BITMAP_BITS2GROUPS(nbits);
 	binfo->nbits = nbits;
 }
+#endif
 
 static size_t
 bitmap_info_ngroups(const bitmap_info_t *binfo) {
@@ -115,7 +121,7 @@ bitmap_init(bitmap_t *bitmap, const bitmap_info_t *binfo, bool fill) {
 
 #endif /* BITMAP_USE_TREE */
 
-size_t
+JET_EXTERN size_t
 bitmap_size(const bitmap_info_t *binfo) {
 	return (bitmap_info_ngroups(binfo) << LG_SIZEOF_BITMAP);
 }

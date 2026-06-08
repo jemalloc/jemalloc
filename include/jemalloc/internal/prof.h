@@ -419,7 +419,6 @@ void        prof_prefork1(tsdn_t *tsdn);
 void        prof_postfork_parent(tsdn_t *tsdn);
 void        prof_postfork_child(tsdn_t *tsdn);
 
-uint64_t prof_sample_new_event_wait(tsd_t *tsd);
 uint64_t tsd_prof_sample_event_wait_get(tsd_t *tsd);
 
 extern te_base_cb_t prof_sample_te_handler;

@@ -176,9 +176,7 @@ typedef struct bitmap_info_s {
 #endif /* BITMAP_USE_TREE */
 } bitmap_info_t;
 
-void   bitmap_info_init(bitmap_info_t *binfo, size_t nbits);
 void   bitmap_init(bitmap_t *bitmap, const bitmap_info_t *binfo, bool fill);
-size_t bitmap_size(const bitmap_info_t *binfo);
 
 static inline bool
 bitmap_full(const bitmap_t *bitmap, const bitmap_info_t *binfo) {

@@ -8,6 +8,8 @@
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/sz.h"
 
+JET_EXTERN ehooks_t *base_ehooks_get_for_metadata(base_t *base);
+
 /*
  * In auto mode, arenas switch to huge pages for the base allocator on the
  * second base block.  a0 switches to thp on the 5th block (after 20 megabytes
@@ -545,7 +547,7 @@ base_ehooks_get(base_t *base) {
 	return &base->ehooks;
 }
 
-ehooks_t *
+JET_EXTERN ehooks_t *
 base_ehooks_get_for_metadata(base_t *base) {
 	return &base->ehooks_base;
 }

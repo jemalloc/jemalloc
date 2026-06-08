@@ -190,7 +190,6 @@ struct hpa_shard_s {
 	nstime_t last_time_work_attempted;
 };
 
-bool hpa_hugepage_size_exceeds_limit(void);
 /*
  * Whether or not the HPA can be used given the current configuration.  This
  * is not necessarily a guarantee that it backs its allocations by hugepages,

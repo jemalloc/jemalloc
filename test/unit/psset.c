@@ -1,5 +1,8 @@
 #include "test/jemalloc_test.h"
 
+#include "test/hpa.h"
+#include "test/hpdata.h"
+
 #include "jemalloc/internal/psset.h"
 
 #define PAGESLAB_ADDR ((void *)(1234 * HUGEPAGE))

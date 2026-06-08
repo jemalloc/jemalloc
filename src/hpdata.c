@@ -46,6 +46,7 @@ ph_gen(, hpdata_age_heap, hpdata_t, age_link, hpdata_age_comp)
 	hpdata_assert_consistent(hpdata);
 }
 
+#ifdef JEMALLOC_JET
 void *
 hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz) {
 	hpdata_assert_consistent(hpdata);
@@ -138,6 +139,7 @@ hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz) {
 	return (
 	    void *)((byte_t *)hpdata_addr_get(hpdata) + (result << LG_PAGE));
 }
+#endif
 
 void
 hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz) {

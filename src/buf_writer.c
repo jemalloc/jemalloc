@@ -68,7 +68,7 @@ buf_writer_init(tsdn_t *tsdn, buf_writer_t *buf_writer, write_cb_t *write_cb,
 	return buf_writer->buf == NULL;
 }
 
-void
+JET_EXTERN void
 buf_writer_flush(buf_writer_t *buf_writer) {
 	buf_writer_assert(buf_writer);
 	if (buf_writer->buf == NULL) {

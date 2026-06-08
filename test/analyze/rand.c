@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+extern uint64_t prof_sample_new_event_wait(tsd_t *tsd);
+
 /******************************************************************************/
 
 /*

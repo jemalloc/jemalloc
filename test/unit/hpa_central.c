@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "test/hpa.h"
+
 #include "jemalloc/internal/hpa.h"
 #include "jemalloc/internal/hpa_central.h"
 

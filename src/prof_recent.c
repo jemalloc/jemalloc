@@ -108,11 +108,13 @@ prof_recent_alloc_edata_get_no_lock(const prof_recent_t *n) {
 	return (edata_t *)atomic_load_p(&n->alloc_edata, ATOMIC_ACQUIRE);
 }
 
+#ifdef JEMALLOC_JET
 edata_t *
 prof_recent_alloc_edata_get_no_lock_test(const prof_recent_t *n) {
 	cassert(config_prof);
 	return prof_recent_alloc_edata_get_no_lock(n);
 }
+#endif
 
 static inline edata_t *
 prof_recent_alloc_edata_get(tsd_t *tsd, const prof_recent_t *n) {
@@ -138,11 +140,13 @@ edata_prof_recent_alloc_get_no_lock(const edata_t *edata) {
 	return edata_prof_recent_alloc_get_dont_call_directly(edata);
 }
 
+#ifdef JEMALLOC_JET
 prof_recent_t *
 edata_prof_recent_alloc_get_no_lock_test(const edata_t *edata) {
 	cassert(config_prof);
 	return edata_prof_recent_alloc_get_no_lock(edata);
 }
+#endif
 
 static inline prof_recent_t *
 edata_prof_recent_alloc_get(tsd_t *tsd, const edata_t *edata) {

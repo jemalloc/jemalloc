@@ -425,11 +425,6 @@ hpdata_full(const hpdata_t *hpdata) {
 
 void hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age, bool is_huge);
 
-/*
- * Given an hpdata which can serve an allocation request, pick and reserve an
- * offset within that allocation.
- */
-void *hpdata_reserve_alloc(hpdata_t *hpdata, size_t sz);
 void  hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz);
 
 /*

@@ -249,7 +249,7 @@ prof_tctx_create(tsd_t *tsd) {
  * (e.g.
  * -mno-sse) in order for the workaround to be complete.
  */
-uint64_t
+JET_EXTERN uint64_t
 prof_sample_new_event_wait(tsd_t *tsd) {
 #ifdef JEMALLOC_PROF
 	if (lg_prof_sample == 0) {
