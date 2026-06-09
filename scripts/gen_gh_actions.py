@@ -694,6 +694,34 @@ def generate_freebsd_job(arch):
     return job
 
 
+def generate_linux_lto_job():
+    """Dedicated lane: whole-program ThinLTO + the je_ public prefix, statically
+    linked.  This is the configuration under which the tcache_fiber_migration
+    reproducer (issue #2890) actually exercises the bug -- the allocator
+    fastpath must be inlined next to the swapcontext, which only happens with
+    static linking under LTO.  llvm-ar/nm/ranlib are needed to archive the LTO
+    bitcode; -fuse-ld=lld to link it."""
+    return """  test-linux-lto:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install clang, lld and llvm
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang lld llvm
+
+    - name: Build and test (whole-program ThinLTO, je_ prefix)
+      run: |
+        autoconf
+        CC=clang AR=llvm-ar NM=llvm-nm RANLIB=llvm-ranlib \\
+          ./configure --with-jemalloc-prefix=je_ EXTRA_CFLAGS=-flto=thin
+        make -j3 EXTRA_LDFLAGS="-flto=thin -fuse-ld=lld"
+        make -j3 tests EXTRA_LDFLAGS="-flto=thin -fuse-ld=lld"
+        make check
+"""
+
+
 def main():
     import sys
 
@@ -704,6 +732,7 @@ def main():
         jobs = '\n'.join((
             generate_linux_job(AMD64),
             generate_linux_job(ARM64),
+            generate_linux_lto_job(),
         ))
         print(GITHUB_ACTIONS_TEMPLATE.format(name='Linux CI', jobs=jobs))
 
@@ -727,6 +756,7 @@ def main():
         linux_jobs = '\n'.join((
             generate_linux_job(AMD64),
             generate_linux_job(ARM64),
+            generate_linux_lto_job(),
         ))
         macos_jobs = '\n'.join((
             generate_macos_job(AMD64),   # Intel

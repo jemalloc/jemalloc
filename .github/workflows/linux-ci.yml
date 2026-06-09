@@ -707,4 +707,23 @@ jobs:
         make check
 
 
+  test-linux-lto:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install clang, lld and llvm
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang lld llvm
+
+    - name: Build and test (whole-program ThinLTO, je_ prefix)
+      run: |
+        autoconf
+        CC=clang AR=llvm-ar NM=llvm-nm RANLIB=llvm-ranlib \
+          ./configure --with-jemalloc-prefix=je_ EXTRA_CFLAGS=-flto=thin
+        make -j3 EXTRA_LDFLAGS="-flto=thin -fuse-ld=lld"
+        make -j3 tests EXTRA_LDFLAGS="-flto=thin -fuse-ld=lld"
+        make check
+
 
