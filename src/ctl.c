@@ -27,6 +27,29 @@
 #include "jemalloc/internal/witness.h"
 
 /******************************************************************************/
+/*
+ * File layout.  Each section below is introduced by a matching banner comment
+ * lower in the file; search the section text to jump to it.
+ *
+ *   Data
+ *   Helpers for named and indexed nodes
+ *   Function prototypes for non-inline static functions
+ *   mallctl tree
+ *   Arena stats accumulation
+ *   ctl engine: arena indexing, refresh/init, lookup, boot/fork
+ *   *_ctl() functions          (shared helpers + read-only generators)
+ *   Top-level handlers          (version, epoch, background_thread)
+ *   config.* handlers
+ *   opt.* handlers
+ *   thread.* handlers
+ *   tcache.* handlers
+ *   arena.<i>.* handlers
+ *   arenas.* handlers
+ *   prof.* and experimental.hooks.* handlers
+ *   stats.* handlers          (+ index callbacks and experimental/prof.stats tail)
+ */
+
+/******************************************************************************/
 /* Data. */
 
 /*
@@ -952,6 +975,7 @@ static const ctl_named_node_t super_root_node[] = {
 #undef INDEX
 
 /******************************************************************************/
+/* Arena stats accumulation. */
 
 /*
  * Sets *dst + *src non-atomically.  This is safe, since everything is
@@ -970,6 +994,7 @@ ctl_accum_atomic_zu(atomic_zu_t *dst, atomic_zu_t *src) {
 }
 
 /******************************************************************************/
+/* ctl engine: arena indexing, refresh/init, lookup, boot/fork. */
 
 /*
  * Historical compatibility for treating arena.<narenas> as the merged
@@ -2028,6 +2053,7 @@ ctl_mib_unsigned(unsigned *dst, const size_t *mib, size_t mib_index) {
 	}
 
 /******************************************************************************/
+/* Top-level handlers: version, epoch, background_thread. */
 
 CTL_RO_NL_GEN(version, JEMALLOC_VERSION, const char *)
 
@@ -2151,6 +2177,7 @@ label_return:
 }
 
 /******************************************************************************/
+/* config.* handlers. */
 
 CTL_RO_CONFIG_GEN(config_cache_oblivious, bool)
 CTL_RO_CONFIG_GEN(config_debug, bool)
@@ -2168,6 +2195,7 @@ CTL_RO_CONFIG_GEN(config_utrace, bool)
 CTL_RO_CONFIG_GEN(config_xmalloc, bool)
 
 /******************************************************************************/
+/* opt.* handlers. */
 
 CTL_RO_NL_GEN(opt_abort, opt_abort, bool)
 CTL_RO_NL_GEN(opt_abort_conf, opt_abort_conf, bool)
@@ -2287,6 +2315,7 @@ CTL_RO_NL_CGEN(
     je_malloc_conf, opt_malloc_conf_global_var, je_malloc_conf, const char *)
 
 /******************************************************************************/
+/* thread.* handlers. */
 
 static int
 thread_arena_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
@@ -2575,6 +2604,7 @@ thread_idle_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 }
 
 /******************************************************************************/
+/* tcache.* handlers. */
 
 static int
 tcache_create_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
@@ -2635,6 +2665,7 @@ tcache_destroy_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 }
 
 /******************************************************************************/
+/* arena.<i>.* handlers. */
 
 static int
 arena_i_initialized_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
@@ -3160,6 +3191,7 @@ label_return:
 }
 
 /******************************************************************************/
+/* arenas.* handlers. */
 
 static int
 arenas_narenas_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
@@ -3318,6 +3350,7 @@ arenas_lookup_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 }
 
 /******************************************************************************/
+/* prof.* and experimental.hooks.* handlers. */
 
 static int
 prof_thread_active_init_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
@@ -3653,6 +3686,7 @@ experimental_hooks_thread_event_ctl(tsd_t *tsd, const size_t *mib,
 }
 
 /******************************************************************************/
+/* stats.* handlers (+ index callbacks and experimental/prof.stats tail). */
 
 CTL_RO_CGEN(config_stats, stats_allocated, ctl_stats->allocated, size_t)
 CTL_RO_CGEN(config_stats, stats_active, ctl_stats->active, size_t)
