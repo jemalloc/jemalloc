@@ -27,12 +27,12 @@ The script can generate workflows for different platforms:
 
 ### Linux CI (`linux-ci.yml`)
 - **test-linux** (AMD64): `ubuntu-latest` (x86_64)
-  - ~96 configurations covering GCC, Clang, various flags
+  - ~98 configurations covering GCC, Clang, various flags
 - **test-linux-arm64** (ARM64): `ubuntu-24.04-arm` (aarch64)
   - ~14 configurations including large hugepage tests
   - **Note:** Free ARM64 runners (Public Preview) - may have longer queue times during peak hours
 
-**Total:** 110 configurations
+**Total:** 112 configurations
 
 ### macOS CI (`macos-ci.yml`)
 - **test-macos** (Intel): `macos-15-intel` (x86_64)
@@ -161,7 +161,7 @@ The Windows workflow uses:
 ### Linux Build Process
 - Ubuntu Latest for AMD64, Ubuntu 24.04 for ARM64
 - Installs 32-bit cross-compilation dependencies when needed
-- Most comprehensive test matrix (110 configurations)
+- Most comprehensive test matrix (112 configurations)
 
 ## Relationship to Travis CI
 
@@ -178,4 +178,3 @@ To regenerate all workflows after modifying `gen_gh_actions.py`:
 ```
 
 **Note**: The generated files should not be edited by hand. All changes should be made to `gen_gh_actions.py` and then regenerated.
-

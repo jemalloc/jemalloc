@@ -1025,12 +1025,50 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 	thread_dalloc_event(tsd, usize);
 }
 
+JEMALLOC_ALWAYS_INLINE bool
+dealloc_no_tsd(void *ptr) {
+	/*
+	 * On the generic pthread_getspecific() TSD path, a deallocation can run
+	 * after the thread's TSD has been torn down.  Using tsd_fetch_min() here
+	 * would allocate and publish a fresh TSD wrapper mid-teardown,
+	 * reincarnating the state teardown just released (the crashes this change
+	 * fixes).  Instead we hand the object straight back to its arena via
+	 * idalloctm() with a NULL tsdn.
+	 *
+	 * This deliberately bypasses the per-thread bookkeeping that the normal
+	 * ifree()/isfree() slow path performs, none of which is available or
+	 * meaningful without a live TSD.  The trade-offs, all acceptable for
+	 * these rare teardown-time frees (the memory itself is still correctly
+	 * returned to the arena):
+	 *   - Profiling: prof_free() is skipped, so a sampled object is not
+	 *     unregistered from its prof context; its bytes stay counted as live
+	 *     in prof stats and in any final heap/leak dump.
+	 *   - Junk filling: opt_junk_free is not applied to the freed region.
+	 *   - Sized dealloc: for sdallocx() the caller-supplied size is ignored
+	 *     (szind is looked up from the extent map), so the sized-dealloc
+	 *     safety check does not run.
+	 *   - Thread events: thread_dalloc_event() does not fire, so this free
+	 *     does not advance decay / tcache GC or dalloc stats.
+	 */
+	if (!tsd_teardown_done()) {
+		return false;
+	}
+
+	idalloctm(TSDN_NULL, ptr, /* tcache */ NULL, /* alloc_ctx */ NULL,
+	    /* is_internal */ false, /* slow_path */ true);
+	return true;
+}
+
 JEMALLOC_NOINLINE
 void
 free_default(void *ptr) {
 	UTRACE(ptr, 0, 0);
 	if (likely(ptr != NULL)) {
 		int saved_errno = get_errno();
+		if (unlikely(dealloc_no_tsd(ptr))) {
+			set_errno(saved_errno);
+			return;
+		}
 		/*
 		 * We avoid setting up tsd fully (e.g. tcache, arena binding)
 		 * based on only free() calls -- other activities trigger the
@@ -1568,6 +1606,9 @@ do_realloc_nonnull_zero(void *ptr) {
 		return do_rallocx(ptr, 1, MALLOCX_TCACHE_NONE, true);
 	} else if (opt_zero_realloc_action == zero_realloc_action_free) {
 		UTRACE(ptr, 0, 0);
+		if (unlikely(dealloc_no_tsd(ptr))) {
+			return NULL;
+		}
 		tsd_t *tsd = tsd_fetch();
 		check_entry_exit_locking(tsd_tsdn(tsd));
 
@@ -1843,6 +1884,12 @@ je_dallocx(void *ptr, int flags) {
 	assert(ptr != NULL);
 	assert(malloc_initialized() || malloc_is_initializer());
 
+	UTRACE(ptr, 0, 0);
+	if (unlikely(dealloc_no_tsd(ptr))) {
+		LOG("core.dallocx.exit", "");
+		return;
+	}
+
 	tsd_t *tsd = tsd_fetch_min();
 	bool   fast = tsd_fast(tsd);
 	check_entry_exit_locking(tsd_tsdn(tsd));
@@ -1851,7 +1898,6 @@ je_dallocx(void *ptr, int flags) {
 	tcache_t *tcache = tcache_get_from_ind(tsd, tcache_ind, !fast,
 	    /* is_alloc */ false);
 
-	UTRACE(ptr, 0, 0);
 	if (likely(fast)) {
 		tsd_assert_fast(tsd);
 		ifree(tsd, ptr, tcache, false);
@@ -1879,6 +1925,12 @@ sdallocx_default(void *ptr, size_t size, int flags) {
 	assert(ptr != NULL);
 	assert(malloc_initialized() || malloc_is_initializer());
 
+	UTRACE(ptr, 0, 0);
+	if (unlikely(dealloc_no_tsd(ptr))) {
+		set_errno(saved_errno);
+		return;
+	}
+
 	tsd_t *tsd = tsd_fetch_min();
 	bool   fast = tsd_fast(tsd);
 	size_t usize = inallocx(tsd_tsdn(tsd), size, flags);
@@ -1888,7 +1940,6 @@ sdallocx_default(void *ptr, size_t size, int flags) {
 	tcache_t *tcache = tcache_get_from_ind(tsd, tcache_ind, !fast,
 	    /* is_alloc */ false);
 
-	UTRACE(ptr, 0, 0);
 	if (likely(fast)) {
 		tsd_assert_fast(tsd);
 		isfree(tsd, ptr, usize, tcache, false);

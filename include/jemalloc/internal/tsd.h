@@ -4,7 +4,8 @@
 /*
  * We put the platform-specific data declarations and inlines into their own
  * header files to avoid cluttering this file.  They define tsd_boot0,
- * tsd_boot1, tsd_boot, tsd_booted_get, tsd_get_allocates, tsd_get, and tsd_set.
+ * tsd_boot1, tsd_boot, tsd_booted_get, tsd_get_allocates,
+ * tsd_teardown_done, tsd_get, and tsd_set.
  */
 #ifdef JEMALLOC_MALLOC_THREAD_CLEANUP
 #	include "jemalloc/internal/jemalloc_preamble.h"

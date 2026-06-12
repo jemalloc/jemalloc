@@ -146,6 +146,11 @@ tsd_get_allocates(void) {
 	return true;
 }
 
+JEMALLOC_ALWAYS_INLINE bool
+tsd_teardown_done(void) {
+	return false;
+}
+
 /* Get/set. */
 JEMALLOC_ALWAYS_INLINE tsd_t *
 tsd_get(bool init) {
@@ -217,6 +222,11 @@ tsd_booted_get(void) {
 
 JEMALLOC_ALWAYS_INLINE bool
 tsd_get_allocates(void) {
+	return false;
+}
+
+JEMALLOC_ALWAYS_INLINE bool
+tsd_teardown_done(void) {
 	return false;
 }
 

@@ -273,6 +273,18 @@ def generate_linux_job(arch):
             'CXX': 'g++',
             'CONFIGURE_FLAGS': '--enable-debug --enable-experimental-smallocx --enable-stats --enable-prof',
             'EXTRA_CFLAGS': '-Werror -Wno-array-bounds'
+        },
+        {
+            'CC': 'gcc',
+            'CXX': 'g++',
+            'CONFIGURE_FLAGS': 'force_tls=0',
+            'EXTRA_CFLAGS': '-Werror -Wno-array-bounds'
+        },
+        {
+            'CC': 'gcc',
+            'CXX': 'g++',
+            'CONFIGURE_FLAGS': 'force_tls=0 --enable-debug',
+            'EXTRA_CFLAGS': '-Werror -Wno-array-bounds'
         }
     ]
 
