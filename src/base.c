@@ -19,6 +19,17 @@ JET_EXTERN ehooks_t *base_ehooks_get_for_metadata(base_t *base);
 #define BASE_AUTO_THP_THRESHOLD 2
 #define BASE_AUTO_THP_THRESHOLD_A0 5
 
+/*
+ * Cap the base-block growth heuristic in base_block_alloc().  The
+ * growth heuristic reduces the number of disjoint VM ranges when new base
+ * blocks are rare, but high thread churn can cause many parallel misses for
+ * metadata allocations.  Without a cap, those misses can advance
+ * base->pind_last causing small requests to mmap multi-TiB blocks and exhaust
+ * the address space.  Large individual requests still use min_block_size and
+ * can exceed this cap.
+ */
+#define BASE_BLOCK_GROWTH_MAX ((size_t)128 << 20) /* 128 MiB */
+
 /******************************************************************************/
 /* Data. */
 
@@ -376,7 +387,11 @@ base_block_alloc(tsdn_t *tsdn, base_t *base, ehooks_t *ehooks, unsigned ind,
 	pszind_t pind_next = (*pind_last + 1 < sz_psz2ind(SC_LARGE_MAXCLASS))
 	    ? *pind_last + 1
 	    : *pind_last;
-	size_t   next_block_size = base_block_size_ceil(sz_pind2sz(pind_next));
+	size_t next_block_size = base_block_size_ceil(sz_pind2sz(pind_next));
+	size_t max_block_size = base_block_size_ceil(BASE_BLOCK_GROWTH_MAX);
+	next_block_size = (next_block_size < max_block_size)
+	    ? next_block_size
+	    : max_block_size;
 	size_t   block_size = (min_block_size > next_block_size)
 	      ? min_block_size
 	      : next_block_size;
