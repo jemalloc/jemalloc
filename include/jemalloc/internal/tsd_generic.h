@@ -27,6 +27,7 @@ void *tsd_init_check_recursion(tsd_init_head_t *head, tsd_init_block_t *block);
 void  tsd_init_finish(tsd_init_head_t *head, tsd_init_block_t *block);
 
 extern pthread_key_t   tsd_tsd;
+extern pthread_key_t   tsd_thread_initialized_tsd;
 extern tsd_init_head_t tsd_init_head;
 extern tsd_wrapper_t   tsd_boot_wrapper;
 extern bool            tsd_booted;
@@ -51,6 +52,12 @@ tsd_cleanup_wrapper(void *arg) {
 			return;
 		}
 	}
+	/*
+	 * Leave tsd_thread_initialized_tsd set.  It has no destructor and
+	 * intentionally outlives the TSD wrapper, so later jemalloc calls can
+	 * distinguish this fully-torn-down thread from one that has never
+	 * initialized TSD.
+	 */
 	malloc_tsd_dalloc(wrapper);
 }
 
@@ -60,6 +67,11 @@ tsd_wrapper_set(tsd_wrapper_t *wrapper) {
 		return;
 	}
 	if (pthread_setspecific(tsd_tsd, (void *)wrapper) != 0) {
+		malloc_write("<jemalloc>: Error setting TSD\n");
+		abort();
+	}
+	if (pthread_setspecific(tsd_thread_initialized_tsd,
+	    (void *)&tsd_thread_initialized_tsd) != 0) {
 		malloc_write("<jemalloc>: Error setting TSD\n");
 		abort();
 	}
@@ -116,6 +128,15 @@ tsd_boot0(void) {
 	if (pthread_key_create(&tsd_tsd, tsd_cleanup_wrapper) != 0) {
 		return true;
 	}
+	/*
+	 * This key has no destructor.  It records that the current thread once
+	 * had jemalloc TSD, so a later NULL tsd_tsd value means teardown has
+	 * finished rather than initialization not having happened yet.
+	 */
+	if (pthread_key_create(&tsd_thread_initialized_tsd, NULL) != 0) {
+		pthread_key_delete(tsd_tsd);
+		return true;
+	}
 	tsd_booted = true;
 	tsd_wrapper_set(&tsd_boot_wrapper);
 	tsd_init_finish(&tsd_init_head, &block);
@@ -158,6 +179,12 @@ tsd_booted_get(void) {
 JEMALLOC_ALWAYS_INLINE bool
 tsd_get_allocates(void) {
 	return true;
+}
+
+JEMALLOC_ALWAYS_INLINE bool
+tsd_teardown_done(void) {
+	return tsd_booted && pthread_getspecific(tsd_tsd) == NULL
+	    && pthread_getspecific(tsd_thread_initialized_tsd) != NULL;
 }
 
 /* Get/set. */

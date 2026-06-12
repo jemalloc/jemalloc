@@ -511,6 +511,16 @@ jobs:
           - env:
               CC: gcc
               CXX: g++
+              CONFIGURE_FLAGS: force_tls=0
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "force_tls=0 --enable-debug"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
               CONFIGURE_FLAGS: --enable-cxx-infallible-new
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:

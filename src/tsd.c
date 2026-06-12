@@ -54,6 +54,7 @@ struct tsd_init_head_s {
 };
 
 pthread_key_t   tsd_tsd;
+pthread_key_t   tsd_thread_initialized_tsd;
 tsd_init_head_t tsd_init_head = {
     ql_head_initializer(blocks), MALLOC_MUTEX_INITIALIZER};
 

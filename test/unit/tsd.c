@@ -250,6 +250,308 @@ TEST_BEGIN(test_tsd_sub_thread_dalloc_only) {
 }
 TEST_END
 
+#if !defined(JEMALLOC_MALLOC_THREAD_CLEANUP) && !defined(JEMALLOC_TLS) \
+    && !defined(_WIN32)
+#define TEST_TSD_AFTER_TEARDOWN
+static const bool skip_tsd_after_teardown = false;
+#else
+static const bool skip_tsd_after_teardown = true;
+#endif
+
+static void *
+tsd_raw_get(void) {
+#ifdef TEST_TSD_AFTER_TEARDOWN
+	return pthread_getspecific(tsd_tsd);
+#else
+	return NULL;
+#endif
+}
+
+static bool
+tsd_raw_clear(void) {
+#ifdef TEST_TSD_AFTER_TEARDOWN
+	return pthread_setspecific(tsd_tsd, NULL) == 0;
+#else
+	return true;
+#endif
+}
+
+static void
+tsd_teardown_for_test(void) {
+	tsd_t *tsd = tsd_fetch();
+	void *tsd_wrapper = tsd_raw_get();
+	expect_ptr_not_null(tsd_wrapper, "TSD wrapper should exist after malloc");
+
+	/*
+	 * Emulate a jemalloc call after the pthread-key destructor has finished
+	 * with the generic TSD wrapper.  This is the state seen by cleanup code
+	 * that runs late in thread teardown on pthread_getspecific()-based
+	 * builds: the first cleanup call moves a nominal TSD to purgatory, where
+	 * deallocation is handled by the existing reincarnation path; the second
+	 * cleanup call emulates the final destructor round, after which the
+	 * wrapper is released and no TSD remains to reincarnate.
+	 */
+	tsd_cleanup(tsd);
+	tsd_cleanup(tsd);
+	malloc_tsd_dalloc(tsd_wrapper);
+	expect_true(tsd_raw_clear(), "Unexpected TSD key clear failure");
+	expect_ptr_null(tsd_raw_get(),
+	    "TSD key should be clear before the late jemalloc call");
+}
+
+static void *
+thd_start_free_after_teardown(void *arg) {
+	(void)arg;
+
+	void *keep = malloc(32);
+	expect_ptr_not_null(keep, "Unexpected malloc() failure");
+	void *free_victim = malloc(32);
+	expect_ptr_not_null(free_victim, "Unexpected malloc() failure");
+	void *dallocx_victim = mallocx(32, 0);
+	expect_ptr_not_null(dallocx_victim, "Unexpected mallocx() failure");
+	void *sdallocx_victim = mallocx(32, 0);
+	expect_ptr_not_null(sdallocx_victim, "Unexpected mallocx() failure");
+
+	tsd_teardown_for_test();
+
+	free(free_victim);
+	expect_ptr_null(tsd_raw_get(),
+	    "free() after TSD teardown must not re-create TSD");
+	dallocx(dallocx_victim, 0);
+	expect_ptr_null(tsd_raw_get(),
+	    "dallocx() after TSD teardown must not re-create TSD");
+	sdallocx(sdallocx_victim, 32, 0);
+	expect_ptr_null(tsd_raw_get(),
+	    "sdallocx() after TSD teardown must not re-create TSD");
+
+	free(keep);
+	return NULL;
+}
+
+TEST_BEGIN(test_tsd_free_after_teardown) {
+	test_skip_if(skip_tsd_after_teardown);
+
+	thd_t thd;
+	thd_create(&thd, thd_start_free_after_teardown, NULL);
+	thd_join(thd, NULL);
+}
+TEST_END
+
+static void
+expect_tsd_recreated(void *p, const char *func) {
+	expect_ptr_not_null(p, "%s() after TSD teardown should still allocate",
+	    func);
+	expect_ptr_not_null(tsd_raw_get(),
+	    "%s() after TSD teardown should preserve TSD reincarnation", func);
+}
+
+static void *
+thd_start_malloc_after_teardown(void *arg) {
+	(void)arg;
+
+	void *keep = malloc(32);
+	expect_ptr_not_null(keep, "Unexpected malloc() failure");
+
+	tsd_teardown_for_test();
+
+	void *p = malloc(32);
+	expect_tsd_recreated(p, "malloc");
+	if (p != NULL) {
+		free(p);
+	}
+
+	free(keep);
+	return NULL;
+}
+
+static void *
+thd_start_mallocx_after_teardown(void *arg) {
+	(void)arg;
+
+	void *keep = malloc(32);
+	expect_ptr_not_null(keep, "Unexpected malloc() failure");
+
+	tsd_teardown_for_test();
+
+	void *p = mallocx(32, 0);
+	expect_tsd_recreated(p, "mallocx");
+	if (p != NULL) {
+		dallocx(p, 0);
+	}
+
+	free(keep);
+	return NULL;
+}
+
+static void *
+thd_start_calloc_after_teardown(void *arg) {
+	(void)arg;
+
+	void *keep = malloc(32);
+	expect_ptr_not_null(keep, "Unexpected malloc() failure");
+
+	tsd_teardown_for_test();
+
+	void *p = calloc(1, 32);
+	expect_tsd_recreated(p, "calloc");
+	if (p != NULL) {
+		free(p);
+	}
+
+	free(keep);
+	return NULL;
+}
+
+static void *
+thd_start_aligned_alloc_after_teardown(void *arg) {
+	(void)arg;
+
+	void *keep = malloc(32);
+	expect_ptr_not_null(keep, "Unexpected malloc() failure");
+
+	tsd_teardown_for_test();
+
+	void *p = aligned_alloc(sizeof(void *), 32);
+	expect_tsd_recreated(p, "aligned_alloc");
+	if (p != NULL) {
+		free(p);
+	}
+
+	free(keep);
+	return NULL;
+}
+
+static void *
+thd_start_posix_memalign_after_teardown(void *arg) {
+	(void)arg;
+
+	void *keep = malloc(32);
+	expect_ptr_not_null(keep, "Unexpected malloc() failure");
+
+	tsd_teardown_for_test();
+
+	void *p = NULL;
+	expect_d_eq(posix_memalign(&p, sizeof(void *), 32), 0,
+	    "posix_memalign() after TSD teardown should still allocate");
+	expect_tsd_recreated(p, "posix_memalign");
+	if (p != NULL) {
+		free(p);
+	}
+
+	free(keep);
+	return NULL;
+}
+
+static void *
+thd_start_realloc_after_teardown(void *arg) {
+	(void)arg;
+
+	void *p = malloc(32);
+	expect_ptr_not_null(p, "Unexpected malloc() failure");
+
+	tsd_teardown_for_test();
+
+	void *ret = realloc(p, 64);
+	expect_tsd_recreated(ret, "realloc");
+	if (ret != NULL) {
+		p = ret;
+	}
+	free(p);
+	return NULL;
+}
+
+static void *
+thd_start_rallocx_after_teardown(void *arg) {
+	(void)arg;
+
+	void *p = mallocx(32, 0);
+	expect_ptr_not_null(p, "Unexpected mallocx() failure");
+
+	tsd_teardown_for_test();
+
+	void *ret = rallocx(p, 64, 0);
+	expect_tsd_recreated(ret, "rallocx");
+	if (ret != NULL) {
+		p = ret;
+	}
+	dallocx(p, 0);
+	return NULL;
+}
+
+static void *
+thd_start_xallocx_after_teardown(void *arg) {
+	(void)arg;
+
+	void *p = mallocx(32, 0);
+	expect_ptr_not_null(p, "Unexpected mallocx() failure");
+	size_t old_usize = sallocx(p, 0);
+
+	tsd_teardown_for_test();
+
+	expect_zu_ge(xallocx(p, 64, 0, 0), old_usize,
+	    "xallocx() after TSD teardown should preserve behavior");
+	expect_ptr_not_null(tsd_raw_get(),
+	    "xallocx() after TSD teardown should preserve TSD reincarnation");
+	dallocx(p, 0);
+	return NULL;
+}
+
+static void *
+thd_start_realloc_zero_after_teardown(void *arg) {
+	(void)arg;
+
+	void *p = malloc(32);
+	expect_ptr_not_null(p, "Unexpected malloc() failure");
+
+	tsd_teardown_for_test();
+
+	if (opt_zero_realloc_action == zero_realloc_action_abort) {
+		free(p);
+		expect_ptr_null(tsd_raw_get(),
+		    "free() after TSD teardown must not re-create TSD");
+		return NULL;
+	}
+
+	void *ret = realloc(p, 0);
+	if (opt_zero_realloc_action == zero_realloc_action_free) {
+		expect_ptr_null(ret, "realloc(ptr, 0) should return NULL");
+		expect_ptr_null(tsd_raw_get(),
+		    "realloc(ptr, 0) after TSD teardown must not re-create TSD");
+	} else {
+		expect_tsd_recreated(ret, "realloc(ptr, 0)");
+		if (ret != NULL) {
+			p = ret;
+		}
+		free(p);
+	}
+	return NULL;
+}
+
+TEST_BEGIN(test_tsd_malloc_after_teardown) {
+	test_skip_if(skip_tsd_after_teardown);
+
+	thd_t thd;
+	thd_create(&thd, thd_start_malloc_after_teardown, NULL);
+	thd_join(thd, NULL);
+	thd_create(&thd, thd_start_mallocx_after_teardown, NULL);
+	thd_join(thd, NULL);
+	thd_create(&thd, thd_start_calloc_after_teardown, NULL);
+	thd_join(thd, NULL);
+	thd_create(&thd, thd_start_aligned_alloc_after_teardown, NULL);
+	thd_join(thd, NULL);
+	thd_create(&thd, thd_start_posix_memalign_after_teardown, NULL);
+	thd_join(thd, NULL);
+	thd_create(&thd, thd_start_realloc_after_teardown, NULL);
+	thd_join(thd, NULL);
+	thd_create(&thd, thd_start_rallocx_after_teardown, NULL);
+	thd_join(thd, NULL);
+	thd_create(&thd, thd_start_xallocx_after_teardown, NULL);
+	thd_join(thd, NULL);
+	thd_create(&thd, thd_start_realloc_zero_after_teardown, NULL);
+	thd_join(thd, NULL);
+}
+TEST_END
+
 int
 main(void) {
 	/* Ensure tsd bootstrapped. */
@@ -260,5 +562,6 @@ main(void) {
 
 	return test_no_reentrancy(test_tsd_main_thread, test_tsd_sub_thread,
 	    test_tsd_sub_thread_dalloc_only, test_tsd_reincarnation,
-	    test_tsd_reentrant_bootstrap);
+	    test_tsd_reentrant_bootstrap,
+	    test_tsd_free_after_teardown, test_tsd_malloc_after_teardown);
 }
