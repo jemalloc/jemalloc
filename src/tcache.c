@@ -148,7 +148,7 @@ tcache_bin_fill_ctl_get(tcache_slow_t *tcache_slow, szind_t szind) {
  * The base is adjusted during GC based on the traffic within a period of time,
  * while the offset is updated in real time to handle the immediate traffic.
  */
-static inline uint8_t
+JET_EXTERN_INLINE uint8_t
 tcache_nfill_small_lg_div_get(tcache_slow_t *tcache_slow, szind_t szind) {
 	cache_bin_fill_ctl_t *ctl = tcache_bin_fill_ctl_get(tcache_slow, szind);
 	return (ctl->base - (opt_experimental_tcache_gc ? ctl->offset : 0));
@@ -159,7 +159,7 @@ tcache_nfill_small_lg_div_get(tcache_slow_t *tcache_slow, szind_t szind) {
  * offset is increased so that (base - offset) is decreased,
  * which in return increases the number of items to be filled.
  */
-static inline void
+JET_EXTERN_INLINE void
 tcache_nfill_small_burst_prepare(tcache_slow_t *tcache_slow, szind_t szind) {
 	cache_bin_fill_ctl_t *ctl = tcache_bin_fill_ctl_get(tcache_slow, szind);
 	if (ctl->offset + 1 < ctl->base) {
@@ -167,7 +167,7 @@ tcache_nfill_small_burst_prepare(tcache_slow_t *tcache_slow, szind_t szind) {
 	}
 }
 
-static inline void
+JET_EXTERN_INLINE void
 tcache_nfill_small_burst_reset(tcache_slow_t *tcache_slow, szind_t szind) {
 	cache_bin_fill_ctl_t *ctl = tcache_bin_fill_ctl_get(tcache_slow, szind);
 	ctl->offset = 0;
@@ -180,7 +180,7 @@ tcache_nfill_small_burst_reset(tcache_slow_t *tcache_slow, szind_t szind) {
  * limit != 0: limit is set to ncached_max, indicating that the fill
  * count should be decreased, i.e. lg_div(base) should be increased.
  */
-static inline void
+JET_EXTERN_INLINE void
 tcache_nfill_small_gc_update(
     tcache_slow_t *tcache_slow, szind_t szind, cache_bin_sz_t limit) {
 	cache_bin_fill_ctl_t *ctl = tcache_bin_fill_ctl_get(tcache_slow, szind);
@@ -201,7 +201,7 @@ tcache_nfill_small_gc_update(
 	ctl->offset = 0;
 }
 
-static uint8_t
+JET_EXTERN uint8_t
 tcache_gc_item_delay_compute(szind_t szind) {
 	assert(szind < SC_NBINS);
 	size_t sz = sz_index2size(szind);
@@ -220,7 +220,7 @@ tcache_gc_is_addr_remote(void *addr, uintptr_t min, uintptr_t max) {
 	return ((uintptr_t)addr < min || (uintptr_t)addr >= max);
 }
 
-static inline cache_bin_sz_t
+JET_EXTERN_INLINE cache_bin_sz_t
 tcache_gc_small_nremote_get(cache_bin_t *cache_bin, void *addr,
     uintptr_t *addr_min, uintptr_t *addr_max, szind_t szind, size_t nflush) {
 	assert(addr != NULL && addr_min != NULL && addr_max != NULL);
@@ -277,7 +277,7 @@ tcache_gc_small_nremote_get(cache_bin_t *cache_bin, void *addr,
 }
 
 /* Shuffle the ptrs in the bin to put the remote pointers at the bottom. */
-static inline void
+JET_EXTERN_INLINE void
 tcache_gc_small_bin_shuffle(cache_bin_t *cache_bin, cache_bin_sz_t nremote,
     uintptr_t addr_min, uintptr_t addr_max) {
 	void         **swap = NULL;
@@ -349,55 +349,6 @@ tcache_gc_small_bin_shuffle(cache_bin_t *cache_bin, cache_bin_sz_t nremote,
 		        && tcache_gc_is_addr_remote(*cur, addr_min, addr_max)));
 	}
 }
-
-#ifdef JEMALLOC_JET
-/*
- * The GC helpers above are static inline so they cannot be linked from a
- * separate translation unit.  In JET builds we expose thin wrappers with a
- * `_test` suffix so test/unit/tcache_gc.c can exercise them directly.  These
- * symbols are absent from the production library.
- */
-#define JET_WRAP_RET(ret, fn, params, args)	\
-	ret fn##_test params {			\
-		return fn args;			\
-	}
-#define JET_WRAP_VOID(fn, params, args)		\
-	void fn##_test params {			\
-		fn args;			\
-	}
-
-JET_WRAP_RET(cache_bin_sz_t, tcache_gc_small_nremote_get,
-    (cache_bin_t *cache_bin, void *addr, uintptr_t *addr_min,
-     uintptr_t *addr_max, szind_t szind, size_t nflush),
-    (cache_bin, addr, addr_min, addr_max, szind, nflush))
-
-JET_WRAP_VOID(tcache_gc_small_bin_shuffle,
-    (cache_bin_t *cache_bin, cache_bin_sz_t nremote,
-     uintptr_t addr_min, uintptr_t addr_max),
-    (cache_bin, nremote, addr_min, addr_max))
-
-JET_WRAP_RET(uint8_t, tcache_nfill_small_lg_div_get,
-    (tcache_slow_t *tcache_slow, szind_t szind),
-    (tcache_slow, szind))
-
-JET_WRAP_VOID(tcache_nfill_small_burst_prepare,
-    (tcache_slow_t *tcache_slow, szind_t szind),
-    (tcache_slow, szind))
-
-JET_WRAP_VOID(tcache_nfill_small_burst_reset,
-    (tcache_slow_t *tcache_slow, szind_t szind),
-    (tcache_slow, szind))
-
-JET_WRAP_VOID(tcache_nfill_small_gc_update,
-    (tcache_slow_t *tcache_slow, szind_t szind, cache_bin_sz_t limit),
-    (tcache_slow, szind, limit))
-
-JET_WRAP_RET(uint8_t, tcache_gc_item_delay_compute,
-    (szind_t szind), (szind))
-
-#undef JET_WRAP_RET
-#undef JET_WRAP_VOID
-#endif
 
 static bool
 tcache_gc_small(

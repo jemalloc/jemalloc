@@ -1,19 +1,19 @@
 #include "test/jemalloc_test.h"
 
-extern cache_bin_sz_t tcache_gc_small_nremote_get_test(
+extern cache_bin_sz_t tcache_gc_small_nremote_get(
     cache_bin_t *cache_bin, void *addr, uintptr_t *addr_min,
     uintptr_t *addr_max, szind_t szind, size_t nflush);
-extern void tcache_gc_small_bin_shuffle_test(cache_bin_t *cache_bin,
+extern void tcache_gc_small_bin_shuffle(cache_bin_t *cache_bin,
     cache_bin_sz_t nremote, uintptr_t addr_min, uintptr_t addr_max);
-extern uint8_t tcache_nfill_small_lg_div_get_test(
+extern uint8_t tcache_nfill_small_lg_div_get(
     tcache_slow_t *tcache_slow, szind_t szind);
-extern void tcache_nfill_small_burst_prepare_test(
+extern void tcache_nfill_small_burst_prepare(
     tcache_slow_t *tcache_slow, szind_t szind);
-extern void tcache_nfill_small_burst_reset_test(
+extern void tcache_nfill_small_burst_reset(
     tcache_slow_t *tcache_slow, szind_t szind);
-extern void tcache_nfill_small_gc_update_test(
+extern void tcache_nfill_small_gc_update(
     tcache_slow_t *tcache_slow, szind_t szind, cache_bin_sz_t limit);
-extern uint8_t tcache_gc_item_delay_compute_test(szind_t szind);
+extern uint8_t tcache_gc_item_delay_compute(szind_t szind);
 
 static void *
 test_cache_bin_init(cache_bin_t *bin, cache_bin_info_t *info,
@@ -65,7 +65,7 @@ TEST_BEGIN(test_tcache_gc_small_remote_count_and_shuffle) {
 
 	uintptr_t addr_min;
 	uintptr_t addr_max;
-	cache_bin_sz_t nremote = tcache_gc_small_nremote_get_test(&bin,
+	cache_bin_sz_t nremote = tcache_gc_small_nremote_get(&bin,
 	    (void *)anchor, &addr_min, &addr_max, szind, 2);
 	expect_zu_eq(2, nremote,
 	    "Should count pointers outside the local slab");
@@ -73,7 +73,7 @@ TEST_BEGIN(test_tcache_gc_small_remote_count_and_shuffle) {
 	expect_zu_eq(anchor + slab_size, addr_max,
 	    "Expected slab-local upper bound");
 
-	tcache_gc_small_bin_shuffle_test(&bin, nremote, addr_min, addr_max);
+	tcache_gc_small_bin_shuffle(&bin, nremote, addr_min, addr_max);
 	expect_ptr_eq(ptrs[0], bin.stack_head[0],
 	    "Local pointer order should be preserved");
 	expect_ptr_eq(ptrs[2], bin.stack_head[1],
@@ -89,7 +89,7 @@ TEST_BEGIN(test_tcache_gc_small_remote_count_and_shuffle) {
 		cache_bin_alloc(&bin, &success);
 	}
 	cache_bin_fill_ptrs(&bin, ptrs, 4);
-	nremote = tcache_gc_small_nremote_get_test(&bin, (void *)anchor,
+	nremote = tcache_gc_small_nremote_get(&bin, (void *)anchor,
 	    &addr_min, &addr_max, szind, 1);
 	expect_zu_eq(1, nremote,
 	    "Neighbor filtering should be used when it satisfies nflush");
@@ -116,42 +116,42 @@ TEST_BEGIN(test_tcache_gc_fill_control_and_delay) {
 	size_t old_tcache_gc_delay_bytes = opt_tcache_gc_delay_bytes;
 
 	opt_experimental_tcache_gc = true;
-	expect_u_eq(3, tcache_nfill_small_lg_div_get_test(
+	expect_u_eq(3, tcache_nfill_small_lg_div_get(
 	    &tcache_slow, szind), "Unexpected initial fill divisor");
-	tcache_nfill_small_burst_prepare_test(&tcache_slow, szind);
-	expect_u_eq(2, tcache_nfill_small_lg_div_get_test(
+	tcache_nfill_small_burst_prepare(&tcache_slow, szind);
+	expect_u_eq(2, tcache_nfill_small_lg_div_get(
 	    &tcache_slow, szind), "Burst load should increase fill count");
-	tcache_nfill_small_burst_prepare_test(&tcache_slow, szind);
-	expect_u_eq(1, tcache_nfill_small_lg_div_get_test(
+	tcache_nfill_small_burst_prepare(&tcache_slow, szind);
+	expect_u_eq(1, tcache_nfill_small_lg_div_get(
 	    &tcache_slow, szind), "Burst load should cap at divisor 1");
-	tcache_nfill_small_burst_prepare_test(&tcache_slow, szind);
-	expect_u_eq(1, tcache_nfill_small_lg_div_get_test(
+	tcache_nfill_small_burst_prepare(&tcache_slow, szind);
+	expect_u_eq(1, tcache_nfill_small_lg_div_get(
 	    &tcache_slow, szind), "Burst offset should not reach base");
 
-	tcache_nfill_small_burst_reset_test(&tcache_slow, szind);
-	expect_u_eq(3, tcache_nfill_small_lg_div_get_test(
+	tcache_nfill_small_burst_reset(&tcache_slow, szind);
+	expect_u_eq(3, tcache_nfill_small_lg_div_get(
 	    &tcache_slow, szind), "Burst reset should clear offset");
 
-	tcache_nfill_small_gc_update_test(&tcache_slow, szind, 0);
+	tcache_nfill_small_gc_update(&tcache_slow, szind, 0);
 	expect_u_eq(2, ctl->base,
 	    "Refill during a GC period should increase future fill count");
 	expect_u_eq(0, ctl->offset, "GC update should reset burst offset");
 
-	tcache_nfill_small_gc_update_test(&tcache_slow, szind, 64);
+	tcache_nfill_small_gc_update(&tcache_slow, szind, 64);
 	expect_u_eq(3, ctl->base,
 	    "Low-water pressure should reduce future fill count");
 
 	ctl->offset = 2;
 	opt_experimental_tcache_gc = false;
-	expect_u_eq(3, tcache_nfill_small_lg_div_get_test(
+	expect_u_eq(3, tcache_nfill_small_lg_div_get(
 	    &tcache_slow, szind), "Legacy GC should ignore burst offset");
 
 	size_t sz = sz_index2size(szind);
 	opt_tcache_gc_delay_bytes = 3 * sz;
-	expect_u_eq(3, tcache_gc_item_delay_compute_test(szind),
+	expect_u_eq(3, tcache_gc_item_delay_compute(szind),
 	    "Delay should convert bytes to items");
 	opt_tcache_gc_delay_bytes = SIZE_T_MAX;
-	expect_u_eq(UINT8_MAX, tcache_gc_item_delay_compute_test(szind),
+	expect_u_eq(UINT8_MAX, tcache_gc_item_delay_compute(szind),
 	    "Delay should saturate at uint8 max");
 
 	opt_experimental_tcache_gc = old_experimental_tcache_gc;
