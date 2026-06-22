@@ -59,6 +59,7 @@ enable_autogen := @enable_autogen@
 enable_doc := @enable_doc@
 enable_shared := @enable_shared@
 enable_static := @enable_static@
+have_ucontext := @have_ucontext@
 enable_prof := @enable_prof@
 enable_zone_allocator := @enable_zone_allocator@
 enable_experimental_smallocx := @enable_experimental_smallocx@
@@ -345,6 +346,24 @@ ifeq (@enable_experimental_smallocx@, 1)
 TESTS_INTEGRATION += \
   $(srcroot)test/integration/smallocx.c
 endif
+# tcache_fiber_migration is a standalone LTO reproducer (issue #2890): the
+# dedicated rule below links it against the static archive (--whole-archive) so
+# the allocator fastpath inlines next to the swapcontext.  It needs the static
+# archive, GNU-ld --whole-archive semantics (the ELF gate), and working
+# ucontext fibers -- have_ucontext is a configure link test because musl
+# declares getcontext/makecontext/swapcontext but does not implement them, so
+# the ELF gate alone would break `make check` on Alpine/musl.  Built only when
+# the build uses LTO (-flto in CFLAGS): without inlining across the swapcontext
+# the bug cannot reproduce.
+ifeq (elf, $(ABI))
+ifeq ($(enable_static), 1)
+ifeq (1, $(have_ucontext))
+ifneq (,$(findstring -flto,$(CFLAGS)))
+TESTS_INTEGRATION += $(srcroot)test/integration/tcache_fiber_migration.c
+endif
+endif
+endif
+endif
 ifeq (@enable_cxx@, 1)
 CPP_SRCS := $(srcroot)src/jemalloc_cpp.cpp
 TESTS_INTEGRATION_CPP := $(srcroot)test/integration/cpp/basic.cpp
@@ -577,6 +596,14 @@ $(objroot)test/unit/%$(EXE): $(objroot)test/unit/%.$(O) $(C_JET_OBJS) $(C_TESTLI
 $(objroot)test/integration/%$(EXE): $(objroot)test/integration/%.$(O) $(C_TESTLIB_INTEGRATION_OBJS) $(C_UTIL_INTEGRATION_OBJS) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
 	@mkdir -p $(@D)
 	$(CC) $(TEST_LD_MODE) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(LJEMALLOC) $(LDFLAGS) $(filter-out -lm,$(filter -lrt -pthread -lstdc++,$(LIBS))) $(LM) $(EXTRA_LDFLAGS)
+
+# tcache_fiber_migration (issue #2890) must inline the allocator next to the
+# swapcontext, so link jemalloc statically (--whole-archive), without the test
+# harness/shared lib; whole-program LTO (from the build's flags) does the
+# inlining.  Explicit rule -- overrides the generic integration rule above.
+$(objroot)test/integration/tcache_fiber_migration$(EXE): $(objroot)test/integration/tcache_fiber_migration.$(O) $(objroot)lib/$(LIBJEMALLOC).$(A)
+	@mkdir -p $(@D)
+	$(CC) $(LDTARGET) $(objroot)test/integration/tcache_fiber_migration.$(O) -Wl,--whole-archive $(objroot)lib/$(LIBJEMALLOC).$(A) -Wl,--no-whole-archive $(LDFLAGS) -pthread $(filter-out -lm,$(LIBS)) $(LM) $(EXTRA_LDFLAGS)
 
 $(objroot)test/integration/cpp/%$(EXE): $(objroot)test/integration/cpp/%.$(O) $(C_TESTLIB_INTEGRATION_OBJS) $(C_UTIL_INTEGRATION_OBJS) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
 	@mkdir -p $(@D)
