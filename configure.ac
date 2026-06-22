@@ -2841,6 +2841,8 @@ if test "x${je_cv_tls_model}" = "xyes" -a \
   AC_DEFINE([JEMALLOC_TLS_MODEL],
             [__attribute__((tls_model("initial-exec")))],
             [ ])
+  AC_DEFINE([JEMALLOC_TLS_MODEL_INITIAL_EXEC], [ ],
+            [Defined when the TSD thread-locals use the initial-exec (static) TLS model, i.e. live at a fixed offset from the thread pointer.])
 else
   AC_DEFINE([JEMALLOC_TLS_MODEL], [ ], [ ])
 fi
