@@ -13,6 +13,13 @@ extern JEMALLOC_TSD_TYPE_ATTR(tsd_t) tsd_tls;
 extern JEMALLOC_TSD_TYPE_ATTR(bool) tsd_initialized;
 extern bool tsd_booted;
 
+JEMALLOC_TLS_ADDR_DECLARE(tsd_tls)
+JEMALLOC_TLS_ADDR_DECLARE(tsd_initialized)
+#ifdef JEMALLOC_TSD_C_
+JEMALLOC_TLS_ADDR_DEFINE(tsd_tls)
+JEMALLOC_TLS_ADDR_DEFINE(tsd_initialized)
+#endif
+
 /* Initialization/cleanup. */
 JEMALLOC_ALWAYS_INLINE bool
 tsd_cleanup_wrapper(void) {
@@ -53,13 +60,15 @@ tsd_get_allocates(void) {
 /* Get/set. */
 JEMALLOC_ALWAYS_INLINE tsd_t *
 tsd_get(bool init) {
-	return &tsd_tls;
+	return JEMALLOC_TLS_ADDR(tsd_tls);
 }
 JEMALLOC_ALWAYS_INLINE void
 tsd_set(tsd_t *val) {
+	tsd_t *tsd = JEMALLOC_TLS_ADDR(tsd_tls);
+
 	assert(tsd_booted);
-	if (likely(&tsd_tls != val)) {
-		tsd_tls = (*val);
+	if (likely(tsd != val)) {
+		*tsd = (*val);
 	}
-	tsd_initialized = true;
+	*JEMALLOC_TLS_ADDR(tsd_initialized) = true;
 }

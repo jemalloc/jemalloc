@@ -26,6 +26,40 @@ typedef struct arena_s      arena_t;
 typedef struct prof_tdata_s prof_tdata_t;
 
 /*
+ * JEMALLOC_TLS_ADDR(tlsvar): take a thread-local's address so the compiler
+ * cannot cache it across a user-space context switch.  A raw `&tlsvar` is
+ * loop-invariant; inlined into malloc/free under LTO it can be hoisted across a
+ * swapcontext and reused on the OS thread a fiber migrated to -- a stale
+ * tsd/tcache.  Route all tsd access through this macro; never take `&tsd_tls`
+ * raw.  See https://github.com/jemalloc/jemalloc/issues/2890
+ *
+ * The accessor takes the address behind a noinline `memory` barrier, opaque to
+ * the optimizer.  MSVC has no inline asm, so it keeps the plain address; an MSVC
+ * build whose fibers run under /GL must instead compile with /GT (fiber-safe
+ * TLS).  DECLARE is emitted in every TU;
+ * DEFINE (the out-of-line body) only under JEMALLOC_TSD_C_, i.e. once in
+ * src/tsd.c.  Both must be invoked directly, not forwarded through another
+ * macro, or `##tlsvar` pastes the macro-expanded `je_tsd_tls` instead of the
+ * literal name.
+ */
+#if defined(__GNUC__)
+#  define JEMALLOC_TLS_ADDR_DECLARE(tlsvar)                                    \
+	__typeof__(&(tlsvar)) jemalloc_tls_addr_##tlsvar(void);
+#  define JEMALLOC_TLS_ADDR_DEFINE(tlsvar)                                     \
+	JEMALLOC_NOINLINE __typeof__(&(tlsvar))                                       \
+	jemalloc_tls_addr_##tlsvar(void) {                                            \
+		__typeof__(&(tlsvar)) tls_addr = &(tlsvar);                                  \
+		__asm__ __volatile__("" : "+r"(tls_addr) : : "memory");                      \
+		return tls_addr;                                                             \
+	}
+#  define JEMALLOC_TLS_ADDR(tlsvar) (jemalloc_tls_addr_##tlsvar())
+#else
+#  define JEMALLOC_TLS_ADDR_DECLARE(tlsvar)
+#  define JEMALLOC_TLS_ADDR_DEFINE(tlsvar)
+#  define JEMALLOC_TLS_ADDR(tlsvar) (&(tlsvar))
+#endif
+
+/*
  * Thread-Specific-Data layout
  *
  * At least some thread-local data gets touched on the fast-path of almost all

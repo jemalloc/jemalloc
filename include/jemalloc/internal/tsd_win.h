@@ -178,6 +178,11 @@ tsd_set(tsd_t *val) {
 extern JEMALLOC_TSD_TYPE_ATTR(tsd_wrapper_t) tsd_wrapper_tls;
 extern bool tsd_booted;
 
+JEMALLOC_TLS_ADDR_DECLARE(tsd_wrapper_tls)
+#ifdef JEMALLOC_TSD_C_
+JEMALLOC_TLS_ADDR_DEFINE(tsd_wrapper_tls)
+#endif
+
 /* Initialization/cleanup. */
 JEMALLOC_ALWAYS_INLINE bool
 tsd_cleanup_wrapper(void) {
@@ -223,16 +228,18 @@ tsd_get_allocates(void) {
 /* Get/set. */
 JEMALLOC_ALWAYS_INLINE tsd_t *
 tsd_get(bool init) {
-	return &(tsd_wrapper_tls.val);
+	return &(JEMALLOC_TLS_ADDR(tsd_wrapper_tls)->val);
 }
 
 JEMALLOC_ALWAYS_INLINE void
 tsd_set(tsd_t *val) {
+	tsd_wrapper_t *wrapper = JEMALLOC_TLS_ADDR(tsd_wrapper_tls);
+
 	assert(tsd_booted);
-	if (likely(&(tsd_wrapper_tls.val) != val)) {
-		tsd_wrapper_tls.val = (*val);
+	if (likely(&wrapper->val != val)) {
+		wrapper->val = (*val);
 	}
-	tsd_wrapper_tls.initialized = true;
+	wrapper->initialized = true;
 }
 
 #endif // defined(JEMALLOC_LEGACY_WINDOWS_SUPPORT) || !defined(_MSC_VER)
