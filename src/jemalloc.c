@@ -1069,14 +1069,35 @@ JEMALLOC_EXPORT void JEMALLOC_NOTHROW
 je_free_sized(void *ptr, size_t size) {
 	LOG("core.free_sized.entry", "ptr: %p, size: %zu", ptr, size);
 
-	je_sdallocx_noflags(ptr, size);
+	/*
+	 * free_sized(NULL, size) is a no-op, like free(NULL).  Do the NULL
+	 * check here rather than deferring to the je_free_impl() fallback:
+	 * without a size hint, free_fastpath() does an emap lookup that NULL
+	 * fails, so it reaches free_default(), which handles NULL.  With a
+	 * size hint, the fast path skips that lookup and falls through to
+	 * sdallocx_default(), which expects a non-NULL pointer.
+	 */
+	if (likely(ptr != NULL)) {
+		je_sdallocx_noflags(ptr, size);
+	}
 
 	LOG("core.free_sized.exit", "");
 }
 
 JEMALLOC_EXPORT void JEMALLOC_NOTHROW
 je_free_aligned_sized(void *ptr, size_t alignment, size_t size) {
-	je_sdallocx(ptr, size, /* flags */ MALLOCX_ALIGN(alignment));
+	LOG("core.free_aligned_sized.entry",
+	    "ptr: %p, alignment: %zu, size: %zu", ptr, alignment, size);
+
+	/*
+	 * Same as je_free_sized() above: the sdallocx path expects a non-NULL
+	 * pointer, so handle the C23 free_aligned_sized(NULL, ...) no-op here.
+	 */
+	if (likely(ptr != NULL)) {
+		je_sdallocx_impl(ptr, size, /* flags */ MALLOCX_ALIGN(alignment));
+	}
+
+	LOG("core.free_aligned_sized.exit", "");
 }
 
 /*

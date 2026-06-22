@@ -231,12 +231,11 @@ operator delete[](void *ptr, const std::nothrow_t &) noexcept {
 JEMALLOC_ALWAYS_INLINE
 void
 sizedDeleteImpl(void *ptr, std::size_t size) noexcept {
-	if (unlikely(ptr == nullptr)) {
-		return;
-	}
 	LOG("core.operator_delete.entry", "ptr: %p, size: %zu", ptr, size);
 
-	je_sdallocx_noflags(ptr, size);
+	if (likely(ptr != nullptr)) {
+		je_sdallocx_noflags(ptr, size);
+	}
 
 	LOG("core.operator_delete.exit", "");
 }
@@ -262,13 +261,12 @@ alignedSizedDeleteImpl(
 	if (config_debug) {
 		assert(((size_t)alignment & ((size_t)alignment - 1)) == 0);
 	}
-	if (unlikely(ptr == nullptr)) {
-		return;
-	}
 	LOG("core.operator_delete.entry", "ptr: %p, size: %zu, alignment: %zu",
 	    ptr, size, alignment);
 
-	je_sdallocx_impl(ptr, size, MALLOCX_ALIGN(alignment));
+	if (likely(ptr != nullptr)) {
+		je_sdallocx_impl(ptr, size, MALLOCX_ALIGN(alignment));
+	}
 
 	LOG("core.operator_delete.exit", "");
 }
