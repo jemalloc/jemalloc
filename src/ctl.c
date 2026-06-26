@@ -139,7 +139,6 @@ CTL_PROTO(opt_hpa_hugification_threshold)
 CTL_PROTO(opt_hpa_hugify_delay_ms)
 CTL_PROTO(opt_hpa_hugify_sync)
 CTL_PROTO(opt_hpa_min_purge_interval_ms)
-CTL_PROTO(opt_experimental_hpa_max_purge_nhp)
 CTL_PROTO(opt_hpa_purge_threshold)
 CTL_PROTO(opt_hpa_min_purge_delay_ms)
 CTL_PROTO(opt_hpa_hugify_style)
@@ -519,8 +518,6 @@ static const ctl_named_node_t opt_node[] = {{NAME("abort"), CTL(opt_abort)},
     {NAME("hpa_hugify_delay_ms"), CTL(opt_hpa_hugify_delay_ms)},
     {NAME("hpa_hugify_sync"), CTL(opt_hpa_hugify_sync)},
     {NAME("hpa_min_purge_interval_ms"), CTL(opt_hpa_min_purge_interval_ms)},
-    {NAME("experimental_hpa_max_purge_nhp"),
-        CTL(opt_experimental_hpa_max_purge_nhp)},
     {NAME("hpa_purge_threshold"), CTL(opt_hpa_purge_threshold)},
     {NAME("hpa_min_purge_delay_ms"), CTL(opt_hpa_min_purge_delay_ms)},
     {NAME("hpa_hugify_style"), CTL(opt_hpa_hugify_style)},
@@ -2241,8 +2238,6 @@ CTL_RO_NL_GEN(opt_hpa_hugify_delay_ms, opt_hpa_opts.hugify_delay_ms, uint64_t)
 CTL_RO_NL_GEN(opt_hpa_hugify_sync, opt_hpa_opts.hugify_sync, bool)
 CTL_RO_NL_GEN(
     opt_hpa_min_purge_interval_ms, opt_hpa_opts.min_purge_interval_ms, uint64_t)
-CTL_RO_NL_GEN(opt_experimental_hpa_max_purge_nhp,
-    opt_hpa_opts.experimental_max_purge_nhp, ssize_t)
 CTL_RO_NL_GEN(opt_hpa_purge_threshold, opt_hpa_opts.purge_threshold, size_t)
 CTL_RO_NL_GEN(
     opt_hpa_min_purge_delay_ms, opt_hpa_opts.min_purge_delay_ms, uint64_t)

@@ -634,22 +634,8 @@ hpa_shard_maybe_do_deferred_work(
 	 * too frequently.
 	 */
 	if (hpa_min_purge_interval_passed(tsdn, shard)) {
-		size_t max_purges = max_ops;
-		/*
-		 * Limit number of hugepages (slabs) to purge.
-		 * When experimental_max_purge_nhp option is used, there is no
-		 * guarantee we'll always respect dirty_mult option.  Option
-		 * experimental_max_purge_nhp provides a way to configure same
-		 * behavior as was possible before, with buggy implementation
-		 * of purging algorithm.
-		 */
-		ssize_t max_purge_nhp = shard->opts.experimental_max_purge_nhp;
-		if (max_purge_nhp != -1 && max_purges > (size_t)max_purge_nhp) {
-			max_purges = max_purge_nhp;
-		}
-
 		malloc_mutex_assert_owner(tsdn, &shard->mtx);
-		nops += hpa_purge(tsdn, shard, max_purges);
+		nops += hpa_purge(tsdn, shard, max_ops);
 		malloc_mutex_assert_owner(tsdn, &shard->mtx);
 	}
 

@@ -101,7 +101,6 @@ static hpa_shard_opts_t g_hpa_opts = {
 	/* hugify_delay_ms */           7804,
 	/* hugify_sync */               false,
 	/* min_purge_interval_ms */     5 * 1000,
-	/* experimental_max_purge_nhp */ -1,
 	/* purge_threshold */           HUGEPAGE,
 	/* min_purge_delay_ms */        0,
 	/* hugify_style */              hpa_hugify_style_eager

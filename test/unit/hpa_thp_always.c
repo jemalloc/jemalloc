@@ -36,8 +36,6 @@ static hpa_shard_opts_t test_hpa_shard_opts_aggressive = {
     false,
     /* min_purge_interval_ms */
     5,
-    /* experimental_max_purge_nhp */
-    -1,
     /* purge_threshold */
     HUGEPAGE - 5 * PAGE,
     /* min_purge_delay_ms */
