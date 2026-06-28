@@ -1,6 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 
 #include "jemalloc/internal/background_thread.h"
+#include "jemalloc/internal/deferral.h"
 #include "jemalloc/internal/hpa.h"
 #include "jemalloc/internal/hpa_utils.h"
 #include "jemalloc/internal/jemalloc_probe.h"
@@ -1081,7 +1082,7 @@ hpa_dalloc(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata,
  */
 uint64_t
 hpa_time_until_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard) {
-	uint64_t time_ns = BACKGROUND_THREAD_DEFERRED_MAX;
+	uint64_t time_ns = DEFERRED_WORK_MAX;
 
 	malloc_mutex_lock(tsdn, &shard->mtx);
 
@@ -1101,7 +1102,7 @@ hpa_time_until_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard) {
 			time_ns *= 1000 * 1000;
 		} else {
 			malloc_mutex_unlock(tsdn, &shard->mtx);
-			return BACKGROUND_THREAD_DEFERRED_MIN;
+			return DEFERRED_WORK_MIN;
 		}
 	}
 
@@ -1112,7 +1113,7 @@ hpa_time_until_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard) {
 		 */
 		if (shard->stats.npurge_passes == 0) {
 			malloc_mutex_unlock(tsdn, &shard->mtx);
-			return BACKGROUND_THREAD_DEFERRED_MIN;
+			return DEFERRED_WORK_MIN;
 		}
 		uint64_t since_last_purge_ms = shard->central->hooks.ms_since(
 		    &shard->last_purge);
@@ -1127,7 +1128,7 @@ hpa_time_until_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard) {
 				time_ns = until_purge_ns;
 			}
 		} else {
-			time_ns = BACKGROUND_THREAD_DEFERRED_MIN;
+			time_ns = DEFERRED_WORK_MIN;
 		}
 	}
 	malloc_mutex_unlock(tsdn, &shard->mtx);

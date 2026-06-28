@@ -6,6 +6,7 @@
 #include "jemalloc/internal/background_thread.h"
 #include "jemalloc/internal/background_thread_inlines.h"
 #include "jemalloc/internal/ctl.h"
+#include "jemalloc/internal/deferral.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_a.h"
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/mutex.h"
@@ -298,7 +299,7 @@ background_thread_pause_check(tsdn_t *tsdn, background_thread_info_t *info) {
 static inline void
 background_work_sleep_once(
     tsdn_t *tsdn, background_thread_info_t *info, unsigned ind) {
-	uint64_t ns_until_deferred = BACKGROUND_THREAD_DEFERRED_MAX;
+	uint64_t ns_until_deferred = DEFERRED_WORK_MAX;
 	unsigned narenas = narenas_total_get();
 	bool     slept_indefinitely = background_thread_indefinite_sleep(info);
 
@@ -327,7 +328,7 @@ background_work_sleep_once(
 	}
 
 	uint64_t sleep_ns;
-	if (ns_until_deferred == BACKGROUND_THREAD_DEFERRED_MAX) {
+	if (ns_until_deferred == DEFERRED_WORK_MAX) {
 		sleep_ns = BACKGROUND_THREAD_INDEFINITE_SLEEP;
 	} else {
 		sleep_ns = (ns_until_deferred

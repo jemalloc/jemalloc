@@ -13,6 +13,14 @@
 #include "jemalloc/internal/psset.h"
 #include "jemalloc/internal/sec.h"
 
+/*
+ * HPA-specific deferral interval bounds (currently unused).  Deferral tuning
+ * is per-allocator policy, so it lives in the HPA header; see deferral.h for
+ * the shared deferred-work contract.
+ */
+#define HPA_INTERVAL_MAX_UNINITIALIZED (-2)
+#define HPA_INTERVAL_MAX_DEFAULT_WHEN_ENABLED 5000
+
 typedef struct hpa_shard_nonderived_stats_s hpa_shard_nonderived_stats_t;
 struct hpa_shard_nonderived_stats_s {
 	/*

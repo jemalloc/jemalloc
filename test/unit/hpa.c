@@ -1,5 +1,6 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/deferral.h"
 #include "jemalloc/internal/hpa.h"
 #include "jemalloc/internal/nstime.h"
 
@@ -1131,14 +1132,14 @@ TEST_BEGIN(test_deferred_until_time) {
 	/* Current time = 900ms, purge_eligible at 1300ms */
 	nstime_init(&defer_curtime, 900UL * 1000 * 1000);
 	uint64_t until_ns = hpa_time_until_deferred_work(tsdn, shard);
-	expect_u64_eq(until_ns, BACKGROUND_THREAD_DEFERRED_MIN,
+	expect_u64_eq(until_ns, DEFERRED_WORK_MIN,
 	    "First pass did not happen");
 
 	/* Fake that first pass happened more than min_purge_interval_ago */
 	nstime_init(&shard->last_purge, 350UL * 1000 * 1000);
 	shard->stats.npurge_passes = 1;
 	until_ns = hpa_time_until_deferred_work(tsdn, shard);
-	expect_u64_eq(until_ns, BACKGROUND_THREAD_DEFERRED_MIN,
+	expect_u64_eq(until_ns, DEFERRED_WORK_MIN,
 	    "No need to heck anything it is more than interval");
 
 	nstime_init(&shard->last_purge, 900UL * 1000 * 1000);
