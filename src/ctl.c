@@ -2798,37 +2798,6 @@ arena_i_reset_destroy_helper(tsd_t *tsd, const size_t *mib, size_t miblen,
 	return ret;
 }
 
-static void
-arena_reset_prepare_background_thread(tsd_t *tsd, unsigned arena_ind) {
-	/* Temporarily disable the background thread during arena reset. */
-	if (have_background_thread) {
-		malloc_mutex_lock(tsd_tsdn(tsd), &background_thread_lock);
-		if (background_thread_enabled()) {
-			background_thread_info_t *info =
-			    background_thread_info_get(arena_ind);
-			assert(info->state == background_thread_started);
-			malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
-			info->state = background_thread_paused;
-			malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
-		}
-	}
-}
-
-static void
-arena_reset_finish_background_thread(tsd_t *tsd, unsigned arena_ind) {
-	if (have_background_thread) {
-		if (background_thread_enabled()) {
-			background_thread_info_t *info =
-			    background_thread_info_get(arena_ind);
-			assert(info->state == background_thread_paused);
-			malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
-			info->state = background_thread_started;
-			malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
-		}
-		malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
-	}
-}
-
 static int
 arena_i_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
@@ -2842,9 +2811,9 @@ arena_i_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 		return ret;
 	}
 
-	arena_reset_prepare_background_thread(tsd, arena_ind);
+	background_thread_arena_reset_begin(tsd, arena_ind);
 	arena_reset(tsd, arena);
-	arena_reset_finish_background_thread(tsd, arena_ind);
+	background_thread_arena_reset_finish(tsd, arena_ind);
 
 	return ret;
 }
@@ -2871,7 +2840,7 @@ arena_i_destroy_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 		goto label_return;
 	}
 
-	arena_reset_prepare_background_thread(tsd, arena_ind);
+	background_thread_arena_reset_begin(tsd, arena_ind);
 	/* Merge stats after resetting and purging arena. */
 	arena_reset(tsd, arena);
 	arena_decay(tsd_tsdn(tsd), arena, false, true);
@@ -2885,7 +2854,7 @@ arena_i_destroy_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	/* Record arena index for later recycling via arenas.create. */
 	ql_elm_new(ctl_arena, destroyed_link);
 	ql_tail_insert(&ctl_arenas->destroyed, ctl_arena, destroyed_link);
-	arena_reset_finish_background_thread(tsd, arena_ind);
+	background_thread_arena_reset_finish(tsd, arena_ind);
 
 	assert(ret == 0);
 label_return:

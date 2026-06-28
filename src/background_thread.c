@@ -35,6 +35,72 @@ size_t     max_background_threads;
 background_thread_info_t *background_thread_info;
 
 /******************************************************************************/
+/*
+ * Config-independent lifecycle/state-ownership helpers.  Defined
+ * unconditionally and gated at runtime on have_background_thread, so callers in
+ * ctl.c / arena.c never touch background_thread_lock or info->state directly;
+ * they compile to runtime no-ops when !have_background_thread.
+ */
+
+void
+background_thread_arena_reset_begin(tsd_t *tsd, unsigned arena_ind) {
+	/* Temporarily disable the background thread during arena reset. */
+	if (have_background_thread) {
+		/*
+		 * Hold background_thread_lock across the whole arena-reset
+		 * body (acquired here, released in _finish) so a concurrent
+		 * background_threads_enable() cannot start a background
+		 * thread mid-reset.  This must happen whenever the feature
+		 * is compiled in (have_background_thread), even when the
+		 * thread is not currently enabled; the state transition
+		 * below is separately gated on background_thread_enabled().
+		 */
+		malloc_mutex_lock(tsd_tsdn(tsd), &background_thread_lock);
+		if (background_thread_enabled()) {
+			background_thread_info_t *info =
+			    background_thread_info_get(arena_ind);
+			assert(info->state == background_thread_started);
+			malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
+			info->state = background_thread_paused;
+			malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
+		}
+	}
+}
+
+void
+background_thread_arena_reset_finish(tsd_t *tsd, unsigned arena_ind) {
+	if (have_background_thread) {
+		if (background_thread_enabled()) {
+			background_thread_info_t *info =
+			    background_thread_info_get(arena_ind);
+			assert(info->state == background_thread_paused);
+			malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
+			info->state = background_thread_started;
+			malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
+		}
+		malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
+	}
+}
+
+void
+background_thread_serialize_lock(tsd_t *tsd, unsigned arena_ind) {
+	if (have_background_thread) {
+		background_thread_info_t *info =
+		    background_thread_info_get(arena_ind);
+		malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
+	}
+}
+
+void
+background_thread_serialize_unlock(tsd_t *tsd, unsigned arena_ind) {
+	if (have_background_thread) {
+		background_thread_info_t *info =
+		    background_thread_info_get(arena_ind);
+		malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
+	}
+}
+
+/******************************************************************************/
 
 #ifdef JEMALLOC_PTHREAD_CREATE_WRAPPER
 

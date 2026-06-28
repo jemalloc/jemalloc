@@ -1427,17 +1427,17 @@ arena_get_ehooks(const arena_t *arena) {
 extent_hooks_t *
 arena_set_extent_hooks(
     tsd_t *tsd, arena_t *arena, extent_hooks_t *extent_hooks) {
-	background_thread_info_t *info;
-	if (have_background_thread) {
-		info = arena_background_thread_info_get(arena);
-		malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
-	}
+	/*
+	 * Serialize disabling the HPA against the background thread via the
+	 * module-owned bracket (have_background_thread-gated internally) rather
+	 * than reaching into info->mtx directly.
+	 */
+	unsigned arena_ind = arena_ind_get(arena);
+	background_thread_serialize_lock(tsd, arena_ind);
 	/* No using the HPA now that we have the custom hooks. */
 	pa_shard_disable_hpa(tsd_tsdn(tsd), &arena->pa_shard);
 	extent_hooks_t *ret = base_extent_hooks_set(arena->base, extent_hooks);
-	if (have_background_thread) {
-		malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
-	}
+	background_thread_serialize_unlock(tsd, arena_ind);
 
 	return ret;
 }

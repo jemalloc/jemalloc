@@ -76,6 +76,25 @@ bool background_thread_stats_read(
     tsdn_t *tsdn, background_thread_stats_t *stats);
 void background_thread_ctl_init(tsdn_t *tsdn);
 
+/*
+ * Arena-reset lifecycle bracket (owned by the bg-thread module so the
+ * started<->paused state machine is mutated only inside the module).  begin()
+ * acquires the global background_thread_lock and RETURNS WITH IT HELD;
+ * finish() releases it.  The lock intentionally spans the whole arena-reset
+ * body across the two calls.  Pass arena_ind (not an arena_t *): the destroy
+ * path frees the arena before calling finish().
+ */
+void background_thread_arena_reset_begin(tsd_t *tsd, unsigned arena_ind);
+void background_thread_arena_reset_finish(tsd_t *tsd, unsigned arena_ind);
+
+/*
+ * Serialize a rare admin operation against the background thread by holding the
+ * per-arena info mutex (have_background_thread-gated).  Used by
+ * arena_set_extent_hooks to fence pa_shard_disable_hpa.
+ */
+void background_thread_serialize_lock(tsd_t *tsd, unsigned arena_ind);
+void background_thread_serialize_unlock(tsd_t *tsd, unsigned arena_ind);
+
 #ifdef JEMALLOC_PTHREAD_CREATE_WRAPPER
 extern int pthread_create_wrapper(pthread_t *__restrict, const pthread_attr_t *,
     void *(*)(void *), void *__restrict);
