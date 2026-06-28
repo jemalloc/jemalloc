@@ -250,7 +250,15 @@ pa_shard_set_deferral_allowed(
 }
 
 void
-pa_shard_do_deferred_work(tsdn_t *tsdn, pa_shard_t *shard) {
+pa_shard_do_deferred_work(
+    tsdn_t *tsdn, pa_shard_t *shard, pac_purge_eagerness_t eagerness) {
+	/*
+	 * The PAC result is only consumed on the application notification path,
+	 * which calls pac_do_deferred_work directly.  This facade just drives the
+	 * work, so the result stays local.
+	 */
+	pac_deferred_work_result_t result;
+	pac_do_deferred_work(tsdn, &shard->pac, eagerness, &result);
 	if (pa_shard_uses_hpa(shard)) {
 		hpa_shard_do_deferred_work(tsdn, &shard->hpa);
 	}

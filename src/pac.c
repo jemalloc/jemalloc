@@ -779,6 +779,68 @@ pac_maybe_decay_purge(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
 	return epoch_advanced;
 }
 
+/*
+ * Run the deferred (non-forced) decay-purge for a single decay state, taking
+ * decay->mtx via trylock.  Sets *contended when the lock could not be acquired
+ * (in which case the return is false and *npages_new is untouched).  Returns
+ * whether the epoch advanced; when it did, *npages_new is set to the fresh
+ * backlog delta.
+ */
+static bool
+pac_decay_deferred_one(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
+    pac_decay_stats_t *decay_stats, ecache_t *ecache,
+    pac_purge_eagerness_t eagerness, bool *contended, size_t *npages_new) {
+	if (malloc_mutex_trylock(tsdn, &decay->mtx)) {
+		/* No need to wait if another thread is in progress. */
+		*contended = true;
+		return false;
+	}
+	*contended = false;
+	bool epoch_advanced = pac_maybe_decay_purge(
+	    tsdn, pac, decay, decay_stats, ecache, eagerness);
+	if (epoch_advanced) {
+		/* Backlog is updated on epoch advance. */
+		*npages_new = decay_epoch_npages_delta(decay);
+	}
+	malloc_mutex_unlock(tsdn, &decay->mtx);
+	return epoch_advanced;
+}
+
+void
+pac_do_deferred_work(tsdn_t *tsdn, pac_t *pac,
+    pac_purge_eagerness_t eagerness, pac_deferred_work_result_t *result) {
+	memset(result, 0, sizeof(*result));
+
+	bool contended;
+	result->dirty_epoch_advanced = pac_decay_deferred_one(tsdn, pac,
+	    &pac->decay_dirty, &pac->stats->decay_dirty, &pac->ecache_dirty,
+	    eagerness, &contended, &result->dirty_npages_new);
+	if (contended) {
+		/* When dirty decay is contended, don't wait on muzzy. */
+		return;
+	}
+
+	if (!pac_should_decay_muzzy(pac)) {
+		return;
+	}
+	result->muzzy_epoch_advanced = pac_decay_deferred_one(tsdn, pac,
+	    &pac->decay_muzzy, &pac->stats->decay_muzzy, &pac->ecache_muzzy,
+	    eagerness, &contended, &result->muzzy_npages_new);
+}
+
+void
+pac_decay_all_now(tsdn_t *tsdn, pac_t *pac, extent_state_t state) {
+	decay_t           *decay;
+	pac_decay_stats_t *decay_stats;
+	ecache_t          *ecache;
+	pac_decay_data_get(pac, state, &decay, &decay_stats, &ecache);
+
+	malloc_mutex_lock(tsdn, &decay->mtx);
+	pac_decay_all(
+	    tsdn, pac, decay, decay_stats, ecache, /* fully_decay */ true);
+	malloc_mutex_unlock(tsdn, &decay->mtx);
+}
+
 bool
 pac_decay_ms_set(tsdn_t *tsdn, pac_t *pac, extent_state_t state,
     ssize_t decay_ms, pac_purge_eagerness_t eagerness) {

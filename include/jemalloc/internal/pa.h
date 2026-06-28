@@ -111,12 +111,6 @@ struct pa_shard_s {
 	pac_t pac;
 };
 
-static inline bool
-pa_shard_dont_decay_muzzy(pa_shard_t *shard) {
-	return ecache_npages_get(&shard->pac.ecache_muzzy) == 0
-	    && pac_decay_ms_get(&shard->pac, extent_state_muzzy) <= 0;
-}
-
 static inline ehooks_t *
 pa_shard_ehooks_get(const pa_shard_t *shard) {
 	return base_ehooks_get(shard->base);
@@ -188,15 +182,14 @@ bool    pa_decay_ms_set(tsdn_t *tsdn, pa_shard_t *shard, extent_state_t state,
 ssize_t pa_decay_ms_get(pa_shard_t *shard, extent_state_t state);
 
 /*
- * Do deferred work on this PA shard.
- *
- * Morally, this should do both PAC decay and the HPA deferred work.  For now,
- * though, the arena, background thread, and PAC modules are tightly interwoven
- * in a way that's tricky to extricate, so we only do the HPA-specific parts.
+ * Do deferred work on this PA shard: both PAC decay and the HPA deferred work
+ * symetrically.  The only exception in the symetry is PAC decay-purge policy
+ * requires the eagerness, which is passed in from the arena.
  */
 void pa_shard_set_deferral_allowed(
     tsdn_t *tsdn, pa_shard_t *shard, bool deferral_allowed);
-void     pa_shard_do_deferred_work(tsdn_t *tsdn, pa_shard_t *shard);
+void     pa_shard_do_deferred_work(
+    tsdn_t *tsdn, pa_shard_t *shard, pac_purge_eagerness_t eagerness);
 void     pa_shard_try_deferred_work(tsdn_t *tsdn, pa_shard_t *shard);
 uint64_t pa_shard_time_until_deferred_work(tsdn_t *tsdn, pa_shard_t *shard);
 
