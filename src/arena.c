@@ -83,8 +83,6 @@ const arena_config_t arena_config_default = {
  * definition.
  */
 
-static bool arena_decay_dirty(
-    tsdn_t *tsdn, arena_t *arena, bool is_background_thread, bool all);
 static void arena_maybe_do_deferred_work(
     tsdn_t *tsdn, arena_t *arena, decay_t *decay, size_t npages_new);
 
@@ -339,7 +337,7 @@ arena_handle_deferred_work(tsdn_t *tsdn, arena_t *arena) {
 	    tsdn_witness_tsdp_get(tsdn), WITNESS_RANK_CORE, 0);
 
 	if (decay_immediately(&arena->pa_shard.pac.decay_dirty)) {
-		arena_decay_dirty(tsdn, arena, false, true);
+		pac_decay_all_now(tsdn, &arena->pa_shard.pac, extent_state_dirty);
 	}
 	arena_background_thread_inactivity_check(tsdn, arena, false);
 }
@@ -506,74 +504,67 @@ arena_decay_ms_get(arena_t *arena, extent_state_t state) {
 	return pa_decay_ms_get(&arena->pa_shard, state);
 }
 
-static bool
-arena_decay_impl(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
-    pac_decay_stats_t *decay_stats, ecache_t *ecache, bool is_background_thread,
-    bool all) {
-	if (all) {
-		malloc_mutex_lock(tsdn, &decay->mtx);
-		pac_decay_all(tsdn, &arena->pa_shard.pac, decay, decay_stats,
-		    ecache, /* fully_decay */ all);
-		malloc_mutex_unlock(tsdn, &decay->mtx);
-		return false;
-	}
-
-	if (malloc_mutex_trylock(tsdn, &decay->mtx)) {
-		/* No need to wait if another thread is in progress. */
-		return true;
-	}
-	pac_purge_eagerness_t eagerness = arena_decide_unforced_purge_eagerness(
-	    is_background_thread);
-	bool epoch_advanced = pac_maybe_decay_purge(
-	    tsdn, &arena->pa_shard.pac, decay, decay_stats, ecache, eagerness);
-	size_t npages_new JEMALLOC_CLANG_ANALYZER_SILENCE_INIT(0);
-	if (epoch_advanced) {
-		/* Backlog is updated on epoch advance. */
-		npages_new = decay_epoch_npages_delta(decay);
-	}
-	malloc_mutex_unlock(tsdn, &decay->mtx);
-
-	if (have_background_thread && background_thread_enabled()
-	    && epoch_advanced && !is_background_thread) {
-		arena_maybe_do_deferred_work(tsdn, arena, decay, npages_new);
-	}
-
-	return false;
-}
-
-static bool
-arena_decay_dirty(
-    tsdn_t *tsdn, arena_t *arena, bool is_background_thread, bool all) {
-	return arena_decay_impl(tsdn, arena, &arena->pa_shard.pac.decay_dirty,
-	    &arena->pa_shard.pac.stats->decay_dirty,
-	    &arena->pa_shard.pac.ecache_dirty, is_background_thread, all);
-}
-
-static bool
-arena_decay_muzzy(
-    tsdn_t *tsdn, arena_t *arena, bool is_background_thread, bool all) {
-	if (pa_shard_dont_decay_muzzy(&arena->pa_shard)) {
-		return false;
-	}
-	return arena_decay_impl(tsdn, arena, &arena->pa_shard.pac.decay_muzzy,
-	    &arena->pa_shard.pac.stats->decay_muzzy,
-	    &arena->pa_shard.pac.ecache_muzzy, is_background_thread, all);
-}
-
 void
 arena_decay(tsdn_t *tsdn, arena_t *arena, bool is_background_thread, bool all) {
 	if (all) {
 		/*
 		 * We should take a purge of "all" to mean "save as much memory
 		 * as possible", including flushing any caches (for situations
-		 * like thread death, or manual purge calls).
+		 * like thread death, or manual purge calls).  This blocking
+		 * flush-and-fully-decay path is kept separate from the deferred
+		 * (all=false) path below.
 		 */
 		pa_shard_flush(tsdn, &arena->pa_shard);
-	}
-	if (arena_decay_dirty(tsdn, arena, is_background_thread, all)) {
+		pac_decay_all_now(
+		    tsdn, &arena->pa_shard.pac, extent_state_dirty);
+		if (pac_should_decay_muzzy(&arena->pa_shard.pac)) {
+			pac_decay_all_now(
+			    tsdn, &arena->pa_shard.pac, extent_state_muzzy);
+		}
 		return;
 	}
-	arena_decay_muzzy(tsdn, arena, is_background_thread, all);
+
+	/*
+	 * Deferred (non-forced) decay-purge.  The PAC layer owns the decay
+	 * orchestration (lock acquisition, dirty-before-muzzy ordering, the
+	 * dirty-contended-skip-muzzy and muzzy short-circuit rules).   We call
+	 * it with the eagerness decided here and then notify the background
+	 * thread per decay state for any epoch that advanced.
+	 *
+	 * A concurrent background_thread enable/disable (mallctl) can race
+	 * this path: the enable state is read lock-free twice below (for the
+	 * eagerness decision, then the notify guard), so the two reads may
+	 * disagree.  Worst case is benign and self-healing:
+	 *   disabled->enabled: purged immediately, plus a possibly-redundant
+	 *     wake;
+	 *   enabled->disabled: deferred but not notified this pass -- the
+	 *     pages stay in the decay backlog and are reclaimed on the next
+	 *     decay tick or by the bg thread before it stops.
+	 * It stays safe regardless: info is allocated once and never freed;
+	 * the wake is gated by info->mtx + background_thread_is_started() (so
+	 * we never signal a not-yet-running thread); the bg-thread locks here
+	 * are trylocks; and the purge runs under decay->mtx, which the toggle
+	 * never touches.
+	 */
+	pac_purge_eagerness_t eagerness = arena_decide_unforced_purge_eagerness(
+	    is_background_thread);
+	pac_deferred_work_result_t result;
+	pac_do_deferred_work(
+	    tsdn, &arena->pa_shard.pac, eagerness, &result);
+
+	if (have_background_thread && background_thread_enabled()
+	    && !is_background_thread) {
+		if (result.dirty_epoch_advanced) {
+			arena_maybe_do_deferred_work(tsdn, arena,
+			    &arena->pa_shard.pac.decay_dirty,
+			    result.dirty_npages_new);
+		}
+		if (result.muzzy_epoch_advanced) {
+			arena_maybe_do_deferred_work(tsdn, arena,
+			    &arena->pa_shard.pac.decay_muzzy,
+			    result.muzzy_npages_new);
+		}
+	}
 }
 
 static bool
@@ -648,8 +639,13 @@ label_done:
 /* Called from background threads. */
 void
 arena_do_deferred_work(tsdn_t *tsdn, arena_t *arena) {
-	arena_decay(tsdn, arena, true, false);
-	pa_shard_do_deferred_work(tsdn, &arena->pa_shard);
+	/*
+	 * The background thread forces decay (PAC_PURGE_ALWAYS) and drives both
+	 * PAC and HPA deferred work through the symmetric pa_shard facade.  No
+	 * PAC result is needed here to notify background thread for an early
+	 * wake because this function should be called in background thread.
+	 */
+	pa_shard_do_deferred_work(tsdn, &arena->pa_shard, PAC_PURGE_ALWAYS);
 }
 
 static void

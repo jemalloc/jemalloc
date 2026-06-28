@@ -232,6 +232,32 @@ bool pac_maybe_decay_purge(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
     pac_purge_eagerness_t eagerness);
 
 /*
+ * Result of a pac_do_deferred_work() pass.  Reported per decay state so the
+ * caller (on the user-inline path) can decide, per state, whether to notify the
+ * background thread.  npages_new is the per-state epoch backlog delta, only
+ * meaningful when the corresponding *_epoch_advanced is true.
+ */
+typedef struct pac_deferred_work_result_s pac_deferred_work_result_t;
+struct pac_deferred_work_result_s {
+	size_t dirty_npages_new;
+	size_t muzzy_npages_new;
+	bool   dirty_epoch_advanced;
+	bool   muzzy_epoch_advanced;
+};
+
+/*
+ * Non-forced deferred decay work for both the dirty and muzzy states.
+ * Corresponding decay->mtx are acquired internally.
+ */
+void pac_do_deferred_work(tsdn_t *tsdn, pac_t *pac,
+    pac_purge_eagerness_t eagerness, pac_deferred_work_result_t *result);
+
+/*
+ * Fully decay the extents of the given state, acquiring decay->mtx internally.
+ */
+void pac_decay_all_now(tsdn_t *tsdn, pac_t *pac, extent_state_t state);
+
+/*
  * Gets / sets the maximum amount that we'll grow an arena down the
  * grow-retained pathways (unless forced to by an allocaction request).
  *
@@ -246,6 +272,13 @@ bool pac_retain_grow_limit_get_set(
 bool    pac_decay_ms_set(tsdn_t *tsdn, pac_t *pac, extent_state_t state,
        ssize_t decay_ms, pac_purge_eagerness_t eagerness);
 ssize_t pac_decay_ms_get(pac_t *pac, extent_state_t state);
+
+/* Whether the muzzy decay path is relevant (muzzy pages exist, or decay is on). */
+static inline bool
+pac_should_decay_muzzy(pac_t *pac) {
+	return ecache_npages_get(&pac->ecache_muzzy) != 0
+	    || pac_decay_ms_get(pac, extent_state_muzzy) > 0;
+}
 
 void pac_destroy(tsdn_t *tsdn, pac_t *pac);
 
