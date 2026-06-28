@@ -1622,13 +1622,14 @@ arena_name_get(const arena_t *arena, char *name) {
 	size_t len = (uintptr_t)end - (uintptr_t)arena->name + 1;
 	assert(len > 0 && len <= ARENA_NAME_LEN);
 
-	strncpy(name, arena->name, len);
+	memcpy(name, arena->name, len);
 }
 
 void
 arena_name_set(arena_t *arena, const char *name) {
-	strncpy(arena->name, name, ARENA_NAME_LEN);
-	arena->name[ARENA_NAME_LEN - 1] = '\0';
+	size_t len = strnlen(name, ARENA_NAME_LEN - 1);
+	memcpy(arena->name, name, len);
+	arena->name[len] = '\0';
 }
 
 ssize_t
@@ -1814,7 +1815,9 @@ arena_create_huge_arena(tsd_t *tsd, unsigned ind) {
 	}
 
 	char *huge_arena_name = "auto_oversize";
-	strncpy(huge_arena->name, huge_arena_name, ARENA_NAME_LEN);
+	size_t huge_name_len = strnlen(huge_arena_name, ARENA_NAME_LEN - 1);
+	memcpy(huge_arena->name, huge_arena_name, huge_name_len);
+	huge_arena->name[huge_name_len] = '\0';
 	huge_arena->name[ARENA_NAME_LEN - 1] = '\0';
 
 	/*
