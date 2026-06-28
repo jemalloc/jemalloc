@@ -1,6 +1,8 @@
 #include "test/jemalloc_test.h"
 #include "test/arena_util.h"
 
+#include "jemalloc/internal/deferral.h"
+#include "jemalloc/internal/pac.h"
 #include "jemalloc/internal/ticker.h"
 
 static nstime_monotonic_t *nstime_monotonic_orig;
@@ -439,8 +441,35 @@ TEST_BEGIN(test_decay_never) {
 }
 TEST_END
 
+/*
+ * pac_time_until_deferred_work is the public PAC scheduling entry the
+ * background thread uses to decide its next wakeup.  Exercised here on a real
+ * arena through the public interface (no direct decay-state manipulation).
+ */
+TEST_BEGIN(test_pac_time_until_deferred_work) {
+	test_skip_if(is_background_thread_enabled());
+	test_skip_if(opt_hpa);
+
+	unsigned arena_ind = do_arena_create(1000, -1);
+	tsdn_t  *tsdn = tsd_tsdn(tsd_fetch());
+	pac_t   *pac = &arena_get(tsdn, arena_ind, false)->pa_shard.pac;
+
+	/* Idle: nothing pending -> the scheduler reports the maximum wait. */
+	expect_u64_eq(pac_time_until_deferred_work(tsdn, pac), DEFERRED_WORK_MAX,
+	    "Idle PAC should defer for the maximum interval");
+
+	/* Dirty pages under a finite decay_ms -> a finite wait is scheduled. */
+	generate_dirty(arena_ind, PAGE);
+	expect_u64_lt(pac_time_until_deferred_work(tsdn, pac), DEFERRED_WORK_MAX,
+	    "Pending dirty decay should schedule a finite deferred-work time");
+
+	do_arena_destroy(arena_ind);
+}
+TEST_END
+
 int
 main(void) {
 	return test(test_decay_ticks, test_decay_ticker,
-	    test_decay_nonmonotonic, test_decay_now, test_decay_never);
+	    test_decay_nonmonotonic, test_decay_now, test_decay_never,
+	    test_pac_time_until_deferred_work);
 }
