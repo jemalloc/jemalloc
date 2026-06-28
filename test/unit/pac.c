@@ -2,6 +2,13 @@
 
 #include "jemalloc/internal/pa.h"
 
+/*
+ * pac_decay_deferred is JET_EXTERN (test-only; see src/pac.c) and has no public
+ * header declaration, so declare it locally for the deterministic test below.
+ */
+extern void pac_decay_deferred(tsdn_t *tsdn, pac_t *pac,
+    pac_purge_eagerness_t eagerness, pac_deferred_work_result_t *result);
+
 #define PAC_TEST_ARENA_IND 124
 
 static bool pac_test_dalloc_fail;
@@ -114,12 +121,14 @@ pac_test_data_init(bool custom_hooks, ssize_t dirty_decay_ms,
 
 	nstime_t time;
 	nstime_init(&time, 0);
-	assert_false(pa_central_init(&data->central, data->base, /* hpa */ false,
-	    &hpa_hooks_default), "Unexpected pa_central_init failure");
+	assert_false(pa_central_init(&data->central, data->base,
+	    /* hpa */ false, &hpa_hooks_default),
+	    "Unexpected pa_central_init failure");
 	assert_false(pa_shard_init(tsdn, &data->shard, &data->central,
 	    &data->emap, data->base, PAC_TEST_ARENA_IND, &data->stats,
 	    &data->stats_mtx, &time, SC_LARGE_MAXCLASS + PAGE,
-	    dirty_decay_ms, muzzy_decay_ms), "Unexpected pa_shard_init failure");
+	    dirty_decay_ms, muzzy_decay_ms),
+	    "Unexpected pa_shard_init failure");
 
 	return data;
 }
@@ -382,6 +391,45 @@ TEST_BEGIN(test_pac_large_guarded_dalloc_unguards_before_caching) {
 }
 TEST_END
 
+TEST_BEGIN(test_pac_deferred_never_does_not_purge) {
+	/*
+	 * PAC_PURGE_NEVER is the eagerness the application free path selects
+	 * when a background thread is enabled, meaning current thread does not
+	 * purge.  It is only reachable through the exposed pac_decay_deferred
+	 * primitive (the production entry pac_do_deferred_work picks eagerness
+	 * itself), so this is a deliberate internal test of that critical,
+	 * stable edge.
+	 */
+	pac_test_hooks_reset();
+	/*
+	 * Finite dirty decay so a purge is gated by eagerness, not decay_ms<=0.
+	 */
+	pac_test_data_t *data = pac_test_data_init(
+	    /* custom_hooks */ true, /* dirty_decay_ms */ 100 * 1000, -1);
+	pac_t *pac = &data->shard.pac;
+
+	edata_t *edata = pac_alloc_expect(data, PAGE, /* guarded */ false);
+	size_t ndirty_before_dalloc = ecache_npages_get(&pac->ecache_dirty);
+
+	/* Dalloc caches the extent as dirty and requests deferred work. */
+	bool deferred_work_generated = false;
+	pac_dalloc(tsdn_fetch(), pac, edata, &deferred_work_generated);
+	expect_true(deferred_work_generated,
+	    "Non-pinned dalloc should request deferred work");
+	size_t ndirty_after_dalloc = ecache_npages_get(&pac->ecache_dirty);
+	expect_zu_gt(ndirty_after_dalloc, ndirty_before_dalloc,
+	    "Dalloc should add dirty pages");
+
+	/* PAC_PURGE_NEVER must leave the dirty pages untouched. */
+	pac_deferred_work_result_t result;
+	pac_decay_deferred(tsdn_fetch(), pac, PAC_PURGE_NEVER, &result);
+	expect_zu_eq(ecache_npages_get(&pac->ecache_dirty), ndirty_after_dalloc,
+	    "PAC_PURGE_NEVER must not purge any dirty pages");
+
+	pac_test_data_destroy(data);
+}
+TEST_END
+
 int
 main(void) {
 	return test_no_reentrancy(test_pac_dirty_muzzy_alloc_priority,
@@ -391,5 +439,6 @@ main(void) {
 	    test_pac_decay_retains_when_dalloc_fails,
 	    test_pac_non_pinned_dalloc_signals_deferred_work,
 	    test_pac_non_pinned_shrink_signals_deferred_work,
-	    test_pac_large_guarded_dalloc_unguards_before_caching);
+	    test_pac_large_guarded_dalloc_unguards_before_caching,
+	    test_pac_deferred_never_does_not_purge);
 }

@@ -204,7 +204,6 @@ C_UTIL_CPP_SRCS := $(srcroot)src/nstime.c $(srcroot)src/malloc_io.c
 endif
 TESTS_UNIT := \
 	$(srcroot)test/unit/a0.c \
-	$(srcroot)test/unit/arena_decay.c \
 	$(srcroot)test/unit/arena_reset.c \
 	$(srcroot)test/unit/arenas_management.c \
 	$(srcroot)test/unit/atomic.c \
@@ -272,6 +271,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/oversize_threshold.c \
 	$(srcroot)test/unit/pa.c \
 	$(srcroot)test/unit/pac.c \
+	$(srcroot)test/unit/pac_decay.c \
 	$(srcroot)test/unit/pac_sec_integration.c \
 	$(srcroot)test/unit/pack.c \
 	$(srcroot)test/unit/pages.c \
