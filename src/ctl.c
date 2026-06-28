@@ -1920,10 +1920,10 @@ ctl_writeonly(void *oldp, size_t *oldlenp) {
 static inline int
 ctl_assured_write(void *dst, size_t dst_size, const void *newp,
     size_t newlen) {
-	if (newp == NULL || newlen != dst_size) {
+	if (newp == NULL || newlen > dst_size) {
 		return EINVAL;
 	}
-	memcpy(dst, newp, dst_size);
+	memcpy(dst, newp, newlen);
 	return 0;
 }
 
