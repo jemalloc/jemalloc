@@ -2,6 +2,7 @@
 
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/background_thread.h"
+#include "jemalloc/internal/deferral.h"
 #include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/pac.h"
 #include "jemalloc/internal/san.h"
@@ -482,10 +483,10 @@ static inline uint64_t
 pac_ns_until_purge(tsdn_t *tsdn, decay_t *decay, size_t npages) {
 	if (malloc_mutex_trylock(tsdn, &decay->mtx)) {
 		/* Use minimal interval if decay is contended. */
-		return BACKGROUND_THREAD_DEFERRED_MIN;
+		return DEFERRED_WORK_MIN;
 	}
 	uint64_t result = decay_ns_until_purge(
-	    decay, npages, ARENA_DEFERRED_PURGE_NPAGES_THRESHOLD);
+	    decay, npages, PAC_DECAY_PURGE_NPAGES_THRESHOLD);
 
 	malloc_mutex_unlock(tsdn, &decay->mtx);
 	return result;
@@ -497,7 +498,7 @@ pac_time_until_deferred_work(tsdn_t *tsdn, pac_t *pac) {
 
 	time = pac_ns_until_purge(
 	    tsdn, &pac->decay_dirty, ecache_npages_get(&pac->ecache_dirty));
-	if (time == BACKGROUND_THREAD_DEFERRED_MIN) {
+	if (time == DEFERRED_WORK_MIN) {
 		return time;
 	}
 

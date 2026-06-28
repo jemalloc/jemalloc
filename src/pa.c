@@ -1,6 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 
 #include "jemalloc/internal/background_thread.h"
+#include "jemalloc/internal/deferral.h"
 #include "jemalloc/internal/hpa.h"
 #include "jemalloc/internal/pa.h"
 
@@ -272,7 +273,7 @@ pa_shard_do_deferred_work(
 uint64_t
 pa_shard_time_until_deferred_work(tsdn_t *tsdn, pa_shard_t *shard) {
 	uint64_t time = pac_time_until_deferred_work(tsdn, &shard->pac);
-	if (time == BACKGROUND_THREAD_DEFERRED_MIN) {
+	if (time == DEFERRED_WORK_MIN) {
 		return time;
 	}
 

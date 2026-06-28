@@ -595,7 +595,7 @@ arena_should_decay_early(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
 	}
 	malloc_mutex_unlock(tsdn, &decay->mtx);
 	return info->npages_to_purge_new
-	    > ARENA_DEFERRED_PURGE_NPAGES_THRESHOLD;
+	    > PAC_DECAY_PURGE_NPAGES_THRESHOLD;
 }
 
 /*

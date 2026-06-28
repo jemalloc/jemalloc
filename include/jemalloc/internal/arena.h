@@ -177,12 +177,6 @@ struct arena_s {
 /* EXTERNS */
 /******************************************************************************/
 
-/*
- * When the amount of pages to be purged exceeds this amount, deferred purge
- * should happen.
- */
-#define ARENA_DEFERRED_PURGE_NPAGES_THRESHOLD UINT64_C(1024)
-
 extern ssize_t opt_dirty_decay_ms;
 extern ssize_t opt_muzzy_decay_ms;
 

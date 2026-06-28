@@ -13,7 +13,7 @@
 #include "san_bump.h"
 
 /*
- * Page allocator classic; an implementation of the PAI interface that:
+ * Page allocator classic (PAC), a page-level allocator that:
  * - Can be used for arenas with custom extent hooks.
  * - Can always satisfy any allocation request (including highly-fragmentary
  *   ones).
@@ -27,6 +27,14 @@ enum pac_purge_eagerness_e {
 	PAC_PURGE_ON_EPOCH_ADVANCE
 };
 typedef enum pac_purge_eagerness_e pac_purge_eagerness_t;
+
+/*
+ * When a decay sweep would purge more than this many pages, its purge is
+ * treated as due (worth waking the background thread for) instead of left
+ * to accumulate.  PAC decay policy; the HPA defers on time intervals, not
+ * on a page count, so this constant is PAC-only.
+ */
+#define PAC_DECAY_PURGE_NPAGES_THRESHOLD UINT64_C(1024)
 
 typedef struct pac_decay_stats_s pac_decay_stats_t;
 struct pac_decay_stats_s {
