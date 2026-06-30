@@ -2,6 +2,7 @@
 
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/background_thread.h"
+#include "jemalloc/internal/background_thread_inlines.h"
 #include "jemalloc/internal/deferral.h"
 #include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/pac.h"
@@ -807,8 +808,14 @@ pac_decay_deferred_one(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
 	return epoch_advanced;
 }
 
-void
-pac_do_deferred_work(tsdn_t *tsdn, pac_t *pac,
+/*
+ * Non-forced deferred decay-purge for both the dirty and muzzy states, at the
+ * given eagerness; corresponding decay->mtx are acquired internally.  Reports
+ * per-state epoch-advance in *result.  JET_EXTERN: exposed for deterministic
+ * unit testing only; production callers use pac_do_deferred_work.
+ */
+JET_EXTERN void
+pac_decay_deferred(tsdn_t *tsdn, pac_t *pac,
     pac_purge_eagerness_t eagerness, pac_deferred_work_result_t *result) {
 	memset(result, 0, sizeof(*result));
 
@@ -829,6 +836,151 @@ pac_do_deferred_work(tsdn_t *tsdn, pac_t *pac,
 	    eagerness, &contended, &result->muzzy_npages_new);
 }
 
+/*
+ * This is the single, deliberate place where PAC reaches jointly into both a
+ * decay_t and a background_thread_info_t.  It is intentionally NOT decoupled
+ * further, for two reasons:
+ *   (a) The early-wake decision is intrinsically a JOINT info+decay
+ *       computation: holding info->mtx (outer) we trylock decay->mtx (inner)
+ *       to read remaining_sleep = wakeup_time - decay->epoch and the
+ *       decay_npages_purge_in() estimate atomically against epoch advance.
+ *       Splitting it would require copying these values across a new API while
+ *       still holding both locks, adding interface surface for no behavioral
+ *       gain.
+ *   (b) It runs on the application FREE path (pac_do_deferred_work ->
+ *       pac_maybe_wake_bg), where perf parity matters most.
+ *
+ * The info->mtx-outer / decay->mtx-inner trylock nesting is load-bearing for
+ * lock ordering; keep it.
+ *
+ * Parity trap: when npages_new == 0 (e.g. an epoch advanced with no new
+ * backlog) the accumulation below is skipped, but the THRESHOLD compare on the
+ * EXISTING info->npages_to_purge_new backlog still runs and can still trigger
+ * an early wakeup.  Do not "simplify" by early-returning when npages_new == 0.
+ */
+static bool
+pac_decay_should_wake_early(tsdn_t *tsdn, decay_t *decay,
+    background_thread_info_t *info, nstime_t *remaining_sleep,
+    size_t npages_new) {
+	malloc_mutex_assert_owner(tsdn, &info->mtx);
+
+	if (malloc_mutex_trylock(tsdn, &decay->mtx)) {
+		return false;
+	}
+	if (!decay_gradually(decay)) {
+		malloc_mutex_unlock(tsdn, &decay->mtx);
+		return false;
+	}
+	nstime_init(remaining_sleep, background_thread_wakeup_time_get(info));
+	if (nstime_compare(remaining_sleep, &decay->epoch) <= 0) {
+		malloc_mutex_unlock(tsdn, &decay->mtx);
+		return false;
+	}
+	nstime_subtract(remaining_sleep, &decay->epoch);
+	if (npages_new > 0) {
+		uint64_t npurge_new = decay_npages_purge_in(
+		    decay, remaining_sleep, npages_new);
+		info->npages_to_purge_new += npurge_new;
+	}
+	malloc_mutex_unlock(tsdn, &decay->mtx);
+	return info->npages_to_purge_new
+	    > PAC_DECAY_PURGE_NPAGES_THRESHOLD;
+}
+
+/*
+ * The PAC's base index is, under the current PA/PAC construction contract, the
+ * owning arena index (pa_shard_init asserts base_ind_get(base) == ind).  This
+ * is a current construction invariant, not a permanent PAC guarantee.
+ */
+static unsigned
+pac_ind_get(const pac_t *pac) {
+	return base_ind_get(pac->base);
+}
+
+/*
+ * Notify the background thread that a decay epoch advanced: if it sleeps
+ * indefinitely, wake it now; otherwise wake it early when the projected backlog
+ * crosses the purge threshold before its next scheduled wakeup.  Non-blocking
+ * (trylocks info->mtx) to keep the application free path cheap.
+ */
+static void
+pac_maybe_wake_bg(tsdn_t *tsdn, pac_t *pac, decay_t *decay, size_t npages_new) {
+	background_thread_info_t *info =
+	    background_thread_info_get(pac_ind_get(pac));
+	if (malloc_mutex_trylock(tsdn, &info->mtx)) {
+		/*
+		 * The background thread may hold the mutex for a while; keep this
+		 * non-blocking and leave the work to a future epoch.
+		 */
+		return;
+	}
+	if (!background_thread_is_started(info)) {
+		goto label_done;
+	}
+	nstime_t remaining_sleep;
+	if (background_thread_indefinite_sleep(info)) {
+		background_thread_wakeup_early(info, NULL);
+	} else if (pac_decay_should_wake_early(tsdn, decay, info,
+	               &remaining_sleep, npages_new)) {
+		info->npages_to_purge_new = 0;
+		background_thread_wakeup_early(info, &remaining_sleep);
+	}
+label_done:
+	malloc_mutex_unlock(tsdn, &info->mtx);
+}
+
+/*
+ * A hook prepared for calling in pa: after a deferred work generated, wake the
+ * background thread only when it looks idle (lock-free acquire read of
+ * indefinite_sleep), then run the full early-wake decision under info->mtx.
+ */
+void
+pac_wake_bg_on_deferred(tsdn_t *tsdn, pac_t *pac) {
+	background_thread_info_t *info =
+	    background_thread_info_get(pac_ind_get(pac));
+	if (background_thread_indefinite_sleep(info)) {
+		pac_maybe_wake_bg(
+		    tsdn, pac, &pac->decay_dirty, /* npages_new */ 0);
+	}
+}
+
+static pac_purge_eagerness_t pac_decide_purge_eagerness(
+    bool is_background_thread);
+
+void
+pac_do_deferred_work(tsdn_t *tsdn, pac_t *pac, bool is_background_thread) {
+	/*
+	 * A concurrent background_thread enable/disable (mallctl) can race this
+	 * path: the enable state is read lock-free twice below (for the eagerness
+	 * decision, then the notify guard), so the two reads may disagree.  Worst
+	 * case is benign and self-healing:
+	 *   disabled->enabled: purged immediately, plus a possibly-redundant wake;
+	 *   enabled->disabled: deferred but not notified this pass -- the pages
+	 *     stay in the decay backlog and are reclaimed on the next decay tick or
+	 *     by the bg thread before it stops.
+	 * It stays safe regardless: info is allocated once and never freed; the
+	 * wake is gated by info->mtx + background_thread_is_started(); the bg-thread
+	 * locks here are trylocks; and the purge runs under decay->mtx, which the
+	 * toggle never touches.
+	 */
+	pac_purge_eagerness_t eagerness =
+	    pac_decide_purge_eagerness(is_background_thread);
+	pac_deferred_work_result_t result;
+	pac_decay_deferred(tsdn, pac, eagerness, &result);
+
+	if (have_background_thread && background_thread_enabled()
+	    && !is_background_thread) {
+		if (result.dirty_epoch_advanced) {
+			pac_maybe_wake_bg(tsdn, pac, &pac->decay_dirty,
+			    result.dirty_npages_new);
+		}
+		if (result.muzzy_epoch_advanced) {
+			pac_maybe_wake_bg(tsdn, pac, &pac->decay_muzzy,
+			    result.muzzy_npages_new);
+		}
+	}
+}
+
 void
 pac_decay_all_now(tsdn_t *tsdn, pac_t *pac, extent_state_t state) {
 	decay_t           *decay;
@@ -842,9 +994,25 @@ pac_decay_all_now(tsdn_t *tsdn, pac_t *pac, extent_state_t state) {
 	malloc_mutex_unlock(tsdn, &decay->mtx);
 }
 
+/*
+ * Decide the unforced decay-purge eagerness.  On the background thread, force
+ * the purge; on an application thread, defer to the background thread when it is
+ * enabled, otherwise purge on the current thread on epoch advance.
+ */
+static pac_purge_eagerness_t
+pac_decide_purge_eagerness(bool is_background_thread) {
+	if (is_background_thread) {
+		return PAC_PURGE_ALWAYS;
+	} else if (background_thread_enabled()) {
+		return PAC_PURGE_NEVER;
+	} else {
+		return PAC_PURGE_ON_EPOCH_ADVANCE;
+	}
+}
+
 bool
 pac_decay_ms_set(tsdn_t *tsdn, pac_t *pac, extent_state_t state,
-    ssize_t decay_ms, pac_purge_eagerness_t eagerness) {
+    ssize_t decay_ms) {
 	decay_t           *decay;
 	pac_decay_stats_t *decay_stats;
 	ecache_t          *ecache;
@@ -873,6 +1041,12 @@ pac_decay_ms_set(tsdn_t *tsdn, pac_t *pac, extent_state_t state,
 	nstime_t cur_time;
 	nstime_init_update(&cur_time);
 	decay_reinit(decay, &cur_time, decay_ms);
+	/*
+	 * decay_ms is only ever set from a non-background thread (mallctl or
+	 * arena init), so decide the eagerness here rather than threading it in.
+	 */
+	pac_purge_eagerness_t eagerness =
+	    pac_decide_purge_eagerness(/* is_background_thread */ false);
 	pac_maybe_decay_purge(tsdn, pac, decay, decay_stats, ecache, eagerness);
 	malloc_mutex_unlock(tsdn, &decay->mtx);
 
