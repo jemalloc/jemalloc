@@ -152,8 +152,12 @@ void pa_shard_reset(tsdn_t *tsdn, pa_shard_t *shard);
  */
 void pa_shard_destroy(tsdn_t *tsdn, pa_shard_t *shard);
 
-/* Flush any caches used by shard */
-void pa_shard_flush(tsdn_t *tsdn, pa_shard_t *shard);
+/*
+ * Flush the shard's front caches (SEC + HPA) back to the ecaches.  If all is
+ * true, also fully decay-purge the PAC dirty (and muzzy, unless skipped) extents
+ * to the OS -- the "save as much memory as possible" path.
+ */
+void pa_shard_flush(tsdn_t *tsdn, pa_shard_t *shard, bool all);
 
 /* Gets an edata for the given allocation. */
 edata_t *pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size,
@@ -178,20 +182,34 @@ bool pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 void    pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
        bool *deferred_work_generated);
 bool    pa_decay_ms_set(tsdn_t *tsdn, pa_shard_t *shard, extent_state_t state,
-       ssize_t decay_ms, pac_purge_eagerness_t eagerness);
+       ssize_t decay_ms);
 ssize_t pa_decay_ms_get(pa_shard_t *shard, extent_state_t state);
 
-/*
- * Do deferred work on this PA shard: both PAC decay and the HPA deferred work
- * symetrically.  The only exception in the symetry is PAC decay-purge policy
- * requires the eagerness, which is passed in from the arena.
- */
 void pa_shard_set_deferral_allowed(
     tsdn_t *tsdn, pa_shard_t *shard, bool deferral_allowed);
+/*
+ * Do deferred work on this PA shard: dispatch to PAC (decay-purge) then HPA.
+ * Each allocator owns its own policy -- PAC decides eagerness from
+ * is_background_thread and, on the application path, notifies the background
+ * thread; the bg-thread driver passes is_background_thread=true and is never
+ * self-notified.
+ */
 void     pa_shard_do_deferred_work(
-    tsdn_t *tsdn, pa_shard_t *shard, pac_purge_eagerness_t eagerness);
+    tsdn_t *tsdn, pa_shard_t *shard, bool is_background_thread);
 void     pa_shard_try_deferred_work(tsdn_t *tsdn, pa_shard_t *shard);
 uint64_t pa_shard_time_until_deferred_work(tsdn_t *tsdn, pa_shard_t *shard);
+
+/*
+ * Called on the application path after a pa operation (alloc/expand/shrink/
+ * dalloc) reports deferred_work_generated -- i.e. it left PAC decay due or
+ * HPA work (hugify/dehugify/purge) pending.  If PAC dirty decay is immediate
+ * (dirty_decay_ms == 0), purge dirty synchronously; then, if a background
+ * thread is enabled but idle (sleeping indefinitely), wake it early so the
+ * pending work runs promptly rather than at the next scheduled wakeup.
+ *
+ * Application thread only; must never be called on the background thread.
+ */
+void pa_shard_handle_deferred_work(tsdn_t *tsdn, pa_shard_t *shard);
 
 /******************************************************************************/
 /*
