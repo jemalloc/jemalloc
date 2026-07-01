@@ -199,11 +199,8 @@ background_thread_sleep(
 	}
 	info->npages_to_purge_new = 0;
 
-	struct timeval tv;
-	/* Specific clock required by timedwait. */
-	gettimeofday(&tv, NULL);
 	nstime_t before_sleep;
-	nstime_init2(&before_sleep, tv.tv_sec, tv.tv_usec * 1000);
+	nstime_init_update(&before_sleep);
 
 	int ret;
 	if (interval == BACKGROUND_THREAD_INDEFINITE_SLEEP) {
@@ -235,9 +232,8 @@ background_thread_sleep(
 		assert(ret == ETIMEDOUT || ret == 0);
 	}
 	if (config_stats) {
-		gettimeofday(&tv, NULL);
 		nstime_t after_sleep;
-		nstime_init2(&after_sleep, tv.tv_sec, tv.tv_usec * 1000);
+		nstime_init_update(&after_sleep);
 		if (nstime_compare(&after_sleep, &before_sleep) > 0) {
 			nstime_subtract(&after_sleep, &before_sleep);
 			nstime_add(&info->tot_sleep_time, &after_sleep);
@@ -751,7 +747,27 @@ background_thread_postfork_child(tsdn_t *tsdn) {
 		background_thread_info_t *info = &background_thread_info[i];
 		malloc_mutex_lock(tsdn, &info->mtx);
 		info->state = background_thread_stopped;
+#if defined(JEMALLOC_HAVE_CLOCK_MONOTONIC_COARSE) || defined(JEMALLOC_HAVE_CLOCK_MONOTONIC)
+		int ret;
+		pthread_condattr_t cond_attr;
+		if (pthread_condattr_init(&cond_attr)) {
+			ret = pthread_cond_init(&info->cond, NULL);
+		} else if (pthread_condattr_setclock(&cond_attr,
+		    CLOCK_MONOTONIC)) {
+			/*
+			 * Fall back to default (CLOCK_REALTIME)
+			 * attributes if setclock fails.
+			 */
+			pthread_condattr_destroy(&cond_attr);
+			ret = pthread_cond_init(&info->cond, NULL);
+		} else {
+			ret = pthread_cond_init(&info->cond,
+			    &cond_attr);
+			pthread_condattr_destroy(&cond_attr);
+		}
+#else
 		int ret = pthread_cond_init(&info->cond, NULL);
+#endif
 		assert(ret == 0);
 		background_thread_info_init(tsdn, info);
 		malloc_mutex_unlock(tsdn, &info->mtx);
@@ -869,9 +885,28 @@ background_thread_boot1(tsdn_t *tsdn, base_t *base) {
 		        malloc_mutex_address_ordered)) {
 			return true;
 		}
+#if defined(JEMALLOC_HAVE_CLOCK_MONOTONIC_COARSE) || defined(JEMALLOC_HAVE_CLOCK_MONOTONIC)
+		{
+			pthread_condattr_t cond_attr;
+			if (pthread_condattr_init(&cond_attr)) {
+				return true;
+			}
+			if (pthread_condattr_setclock(&cond_attr,
+			    CLOCK_MONOTONIC)) {
+				pthread_condattr_destroy(&cond_attr);
+				return true;
+			}
+			if (pthread_cond_init(&info->cond, &cond_attr)) {
+				pthread_condattr_destroy(&cond_attr);
+				return true;
+			}
+			pthread_condattr_destroy(&cond_attr);
+		}
+#else
 		if (pthread_cond_init(&info->cond, NULL)) {
 			return true;
 		}
+#endif
 		malloc_mutex_lock(tsdn, &info->mtx);
 		info->state = background_thread_stopped;
 		background_thread_info_init(tsdn, info);
