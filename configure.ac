@@ -1511,8 +1511,8 @@ if test "x$backtrace_method" = "x" -a "x$enable_prof_libunwind" = "x1" ; then
   fi
 fi
 
-if test `uname -s` = "Linux"
-then
+case "${host_os}" in
+  linux*)
   AC_ARG_ENABLE([prof-frameptr],
     [AS_HELP_STRING([--enable-prof-frameptr], [Use optimized frame pointer unwinder for backtracing (Linux only)])],
   [if test "x$enable_prof_frameptr" = "xno" ; then
@@ -1534,9 +1534,11 @@ then
   else
     enable_prof_frameptr="0"
   fi
-else
+  ;;
+  *)
   enable_prof_frameptr="0"
-fi
+  ;;
+esac
 
 AC_ARG_ENABLE([prof-libgcc],
   [AS_HELP_STRING([--disable-prof-libgcc],
