@@ -1051,6 +1051,9 @@ tsd_tcache_enabled_data_init(tsd_t *tsd) {
 	 */
 	tcache_default_settings_init(tsd_tcache_slowp_get(tsd));
 	tsd_slow_update(tsd);
+	if (test_hooks_tsd_bootstrap_hook != NULL) {
+		test_hooks_tsd_bootstrap_hook();
+	}
 
 	if (opt_tcache) {
 		/* Trigger tcache init. */
