@@ -182,7 +182,9 @@ tsd_fetch_slow(tsd_t *tsd, bool minimal) {
 				tsd_slow_update(tsd);
 				/* Trigger cleanup handler registration. */
 				tsd_set(tsd);
+				tsd_pre_reentrancy_raw(tsd);
 				tsd_data_init(tsd);
+				tsd_post_reentrancy_raw(tsd);
 			}
 		} else {
 			tsd_state_set(tsd, tsd_state_minimal_initialized);
@@ -210,9 +212,9 @@ tsd_fetch_slow(tsd_t *tsd, bool minimal) {
 			/* Switch to fully initialized. */
 			tsd_state_set(tsd, tsd_state_nominal);
 			assert(*tsd_reentrancy_levelp_get(tsd) >= 1);
-			(*tsd_reentrancy_levelp_get(tsd))--;
 			tsd_slow_update(tsd);
 			tsd_data_init(tsd);
+			tsd_post_reentrancy_raw(tsd);
 		} else {
 			assert_tsd_data_cleanup_done(tsd);
 		}
