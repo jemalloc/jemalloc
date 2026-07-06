@@ -14,5 +14,7 @@ void (*test_hooks_libc_hook)(void) = NULL;
 JEMALLOC_EXPORT
 void (*test_hooks_safety_check_abort)(const char *) = NULL;
 
+#if defined(JEMALLOC_JET) || defined(JEMALLOC_UNIT_TEST)
 JEMALLOC_EXPORT
 void (*test_hooks_tsd_bootstrap_hook)(void) = NULL;
+#endif
