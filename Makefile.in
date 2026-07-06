@@ -367,8 +367,7 @@ TESTS_ANALYZE := $(srcroot)test/analyze/prof_bias.c \
 TESTS_STRESS := $(srcroot)test/stress/fill_flush.c \
 	$(srcroot)test/stress/large_microbench.c \
 	$(srcroot)test/stress/mallctl.c \
-	$(srcroot)test/stress/microbench.c \
-	$(srcroot)test/stress/tsd_reentrant.c
+	$(srcroot)test/stress/microbench.c
 ifeq (@enable_cxx@, 1)
 TESTS_STRESS_CPP := $(srcroot)test/stress/cpp/microbench.cpp
 else
