@@ -308,7 +308,7 @@ arena_decay_ticks(tsdn_t *tsdn, arena_t *arena, unsigned nticks) {
 	uint64_t      *prng_state = tsd_prng_statep_get(tsd);
 	if (unlikely(ticker_geom_ticks(decay_ticker, prng_state, nticks,
 	        tsd_reentrancy_level_get(tsd) > 0))) {
-		arena_decay(tsdn, arena, false, false);
+		pa_shard_do_deferred_work(tsdn, &arena->pa_shard, false);
 	}
 }
 

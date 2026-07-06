@@ -2616,7 +2616,7 @@ thread_idle_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	if (opt_narenas > ncpus * 2) {
 		arena_t *arena = arena_choose(tsd, NULL);
 		if (arena != NULL) {
-			arena_decay(tsd_tsdn(tsd), arena, false, true);
+			pa_shard_flush(tsd_tsdn(tsd), &arena->pa_shard, true);
 		}
 		/*
 		 * The missing arena case is not actually an error; a thread
@@ -2738,7 +2738,13 @@ arena_i_decay(tsdn_t *tsdn, unsigned arena_ind, bool all) {
 
 	for (unsigned i = 0; i < count; i++) {
 		if (tarenas[i] != NULL) {
-			arena_decay(tsdn, tarenas[i], false, all);
+			if (all) {
+				pa_shard_flush(tsdn, &tarenas[i]->pa_shard,
+				    true);
+			} else {
+				pa_shard_do_deferred_work(
+				    tsdn, &tarenas[i]->pa_shard, false);
+			}
 		}
 	}
 }
@@ -2835,7 +2841,7 @@ arena_i_destroy_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	background_thread_arena_reset_begin(tsd, arena_ind);
 	/* Merge stats after resetting and purging arena. */
 	arena_reset(tsd, arena);
-	arena_decay(tsd_tsdn(tsd), arena, false, true);
+	pa_shard_flush(tsd_tsdn(tsd), &arena->pa_shard, true);
 	ctl_darena = arenas_i(MALLCTL_ARENAS_DESTROYED);
 	ctl_darena->initialized = true;
 	ctl_arena_refresh(tsd_tsdn(tsd), arena, ctl_darena, arena_ind, true);
@@ -2966,7 +2972,7 @@ arena_i_decay_ms_ctl_impl(tsd_t *tsd, const size_t *mib, size_t miblen,
 	}
 
 	extent_state_t state = dirty ? extent_state_dirty : extent_state_muzzy;
-	ssize_t oldval = arena_decay_ms_get(arena, state);
+	ssize_t oldval = pa_decay_ms_get(&arena->pa_shard, state);
 	ret = ctl_read(oldp, oldlenp, &oldval, sizeof(oldval));
 	if (ret != 0 || newp == NULL) {
 		return ret;
@@ -2974,7 +2980,8 @@ arena_i_decay_ms_ctl_impl(tsd_t *tsd, const size_t *mib, size_t miblen,
 
 	ssize_t newval;
 	ret = ctl_write(&newval, sizeof(newval), newp, newlen);
-	if (ret == 0 && arena_decay_ms_set(tsd_tsdn(tsd), arena, state, newval)) {
+	if (ret == 0 && pa_decay_ms_set(tsd_tsdn(tsd), &arena->pa_shard,
+	    state, newval)) {
 		ret = EFAULT;
 	}
 	return ret;

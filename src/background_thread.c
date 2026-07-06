@@ -344,7 +344,8 @@ background_work_sleep_once(
 		 * work that caused this thread to wake up is scheduled for.
 		 */
 		if (!slept_indefinitely) {
-			arena_do_deferred_work(tsdn, arena);
+			pa_shard_do_deferred_work(tsdn, &arena->pa_shard,
+			    /* is_background_thread */ true);
 		}
 		if (ns_until_deferred <= BACKGROUND_THREAD_MIN_INTERVAL_NS) {
 			/* Min interval will be used. */
