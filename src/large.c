@@ -78,7 +78,7 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, edata_t *edata, size_t usize) {
 		return true;
 	}
 	if (deferred_work_generated) {
-		arena_handle_deferred_work(tsdn, arena);
+		pa_shard_handle_deferred_work(tsdn, &arena->pa_shard);
 	}
 	arena_extent_ralloc_large_shrink(tsdn, arena, edata, old_usize);
 
@@ -101,7 +101,7 @@ large_ralloc_no_move_expand(
 	    szind, zero, &deferred_work_generated);
 
 	if (deferred_work_generated) {
-		arena_handle_deferred_work(tsdn, arena);
+		pa_shard_handle_deferred_work(tsdn, &arena->pa_shard);
 	}
 
 	if (err) {
@@ -247,7 +247,7 @@ large_dalloc_finish_impl(tsdn_t *tsdn, arena_t *arena, edata_t *edata) {
 	bool deferred_work_generated = false;
 	pa_dalloc(tsdn, &arena->pa_shard, edata, &deferred_work_generated);
 	if (deferred_work_generated) {
-		arena_handle_deferred_work(tsdn, arena);
+		pa_shard_handle_deferred_work(tsdn, &arena->pa_shard);
 	}
 }
 

@@ -1234,17 +1234,18 @@ tcache_destroy(tsd_t *tsd, tcache_t *tcache, bool tsd_tcache) {
 	 * tsd).  Manually trigger decay to avoid pathological cases.  Also
 	 * include arena 0 because the tcache array is allocated from it.
 	 */
-	arena_decay(
-	    tsd_tsdn(tsd), arena_get(tsd_tsdn(tsd), 0, false), false, false);
+	pa_shard_do_deferred_work(tsd_tsdn(tsd),
+	    &arena_get(tsd_tsdn(tsd), 0, false)->pa_shard,
+	    /* is_background_thread */ false);
 
 	if (arena_nthreads_get(arena, false) == 0
 	    && !background_thread_enabled()) {
 		/* Force purging when no threads assigned to the arena anymore. */
-		arena_decay(tsd_tsdn(tsd), arena,
-		    /* is_background_thread */ false, /* all */ true);
+		pa_shard_flush(tsd_tsdn(tsd), &arena->pa_shard,
+		    /* all */ true);
 	} else {
-		arena_decay(tsd_tsdn(tsd), arena,
-		    /* is_background_thread */ false, /* all */ false);
+		pa_shard_do_deferred_work(tsd_tsdn(tsd), &arena->pa_shard,
+		    /* is_background_thread */ false);
 	}
 }
 

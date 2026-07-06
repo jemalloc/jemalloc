@@ -202,8 +202,8 @@ arena_migrate(tsd_t *tsd, arena_t *oldarena, arena_t *newarena) {
 		 * Purge if the old arena has no associated threads anymore and
 		 * no background threads.
 		 */
-		arena_decay(tsd_tsdn(tsd), oldarena,
-		    /* is_background_thread */ false, /* all */ true);
+		pa_shard_flush(tsd_tsdn(tsd), &oldarena->pa_shard,
+		    /* all */ true);
 	}
 }
 
