@@ -18,15 +18,26 @@ malloc_getcpu(void) {
 	return GetCurrentProcessorNumber();
 #elif defined(JEMALLOC_HAVE_SCHED_GETCPU)
 	return (malloc_cpuid_t)sched_getcpu();
+#elif defined(__APPLE__)
+	/* No sched_getcpu() on macOS; read the CPU number like _os_cpu_number(), see
+	 * https://github.com/apple-oss-distributions/xnu/blob/main/libsyscall/os/tsd.h
+	 * (it is no longer in tpidrro_el0's low bits on Apple Silicon). */
+#  if defined(__aarch64__)
+	uint64_t cpu;
+	__asm__ __volatile__("mrs %0, tpidr_el0" : "=r"(cpu));
+	return (malloc_cpuid_t)(cpu & 0xfff);
+#  elif defined(__x86_64__) || defined(__i386__)
+	struct { uintptr_t p1, p2; } idtr;
+	__asm__ __volatile__("sidt %0" : "=m"(idtr));
+	return (malloc_cpuid_t)(idtr.p1 & 0xfff);
+#  else
+	not_reached();
+	return -1;
+#  endif
 #elif defined(JEMALLOC_HAVE_RDTSCP)
 	unsigned int ecx;
 	asm volatile("rdtscp" : "=c"(ecx)::"eax", "edx");
 	return (malloc_cpuid_t)(ecx & 0xfff);
-#elif defined(__aarch64__) && defined(__APPLE__)
-	/* Other oses most likely use tpidr_el0 instead */
-	uintptr_t c;
-	asm volatile("mrs %x0, tpidrro_el0" : "=r"(c)::"memory");
-	return (malloc_cpuid_t)(c & (1 << 3) - 1);
 #else
 	not_reached();
 	return -1;
