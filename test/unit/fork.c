@@ -568,10 +568,98 @@ TEST_BEGIN(test_fork_postfork_double_fork) {
 }
 TEST_END
 
+#ifndef _WIN32
+static bool
+get_background_thread_enabled(void) {
+	bool   enabled = false;
+	size_t sz = sizeof(enabled);
+	if (mallctl("background_thread", (void *)&enabled, &sz, NULL, 0) != 0) {
+		return false;
+	}
+	return enabled;
+}
+
+static bool
+set_background_thread_enabled(bool enabled) {
+	return mallctl("background_thread", NULL, NULL, &enabled,
+	           sizeof(enabled)) == 0;
+}
+#endif
+
+TEST_BEGIN(test_fork_background_thread) {
+#ifndef _WIN32
+	test_skip_if(!have_background_thread);
+
+	/* Enable the background thread in the parent. */
+	bool enabled = true;
+	expect_d_eq(mallctl("background_thread", NULL, NULL, &enabled,
+	                sizeof(enabled)),
+	    0, "Unexpected mallctl() failure");
+	expect_zu_gt(n_background_threads, 0,
+	    "Number of background threads should be non zero after enabling.");
+
+	pid_t pid = fork();
+	if (pid == -1) {
+		test_fail("Unexpected fork() failure");
+	} else if (pid == 0) {
+		/*
+		 * Child: postfork_child disables the background thread, but the
+		 * allocator must remain usable and re-init capable.
+		 */
+		if (get_background_thread_enabled()) {
+			/* Should report disabled in the child. */
+			_exit(1);
+		}
+
+		/* Several malloc/free round-trips to confirm usability. */
+		for (unsigned i = 0; i < 16; i++) {
+			void *p = mallocx(64, MALLOCX_TCACHE_NONE);
+			if (p == NULL) {
+				_exit(2);
+			}
+			dallocx(p, MALLOCX_TCACHE_NONE);
+		}
+
+		void *q = malloc(128);
+		if (q == NULL) {
+			_exit(3);
+		}
+		free(q);
+
+		/* Re-enable the background thread in the child. */
+		if (!set_background_thread_enabled(true)) {
+			_exit(4);
+		}
+		if (!get_background_thread_enabled()) {
+			_exit(5);
+		}
+
+		/* And confirm allocation still works afterwards. */
+		void *r = mallocx(256, MALLOCX_TCACHE_NONE);
+		if (r == NULL) {
+			_exit(6);
+		}
+		dallocx(r, MALLOCX_TCACHE_NONE);
+
+		_exit(0);
+	} else {
+		/* Parent: keeps its background threads across the fork. */
+		wait_for_child_exit(pid);
+		expect_true(get_background_thread_enabled(),
+		    "Parent should still have background thread enabled.");
+		expect_zu_gt(n_background_threads, 0,
+		    "Parent should still have background threads after fork.");
+	}
+#else
+	test_skip("fork(2) is irrelevant to Windows");
+#endif
+}
+TEST_END
+
 int
 main(void) {
 	return test_no_reentrancy(test_fork, test_fork_child_usability,
 	    test_fork_multithreaded, test_fork_postfork_descriptor_relink,
 	    test_fork_postfork_descriptor_relink_multithreaded,
-	    test_fork_postfork_double_fork);
+	    test_fork_postfork_double_fork, test_fork_background_thread);
 }

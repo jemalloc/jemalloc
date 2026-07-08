@@ -96,7 +96,52 @@ TEST_BEGIN(test_max_background_threads) {
 }
 TEST_END
 
+static atomic_b_t stress_stop;
+
+static void
+set_background_thread(bool enable) {
+	size_t sz = sizeof(bool);
+	expect_d_eq(mallctl("background_thread", NULL, NULL, &enable, sz), 0,
+	    "Failed to set background_thread");
+}
+
+static void *
+stress_worker(void *arg) {
+	(void)arg;
+	while (!atomic_load_b(&stress_stop, ATOMIC_RELAXED)) {
+		void *p = mallocx(PAGE, MALLOCX_TCACHE_NONE);
+		if (p != NULL) {
+			dallocx(p, MALLOCX_TCACHE_NONE);
+		}
+	}
+	return NULL;
+}
+
+TEST_BEGIN(test_toggle_stress_with_concurrent_alloc) {
+	test_skip_if(!have_background_thread);
+
+	atomic_store_b(&stress_stop, false, ATOMIC_RELAXED);
+	thd_t thd;
+	thd_create(&thd, stress_worker, NULL);
+
+	for (unsigned i = 0; i < 200; i++) {
+		set_background_thread(true);
+		expect_zu_gt(n_background_threads, 0,
+		    "Background threads should be non-zero after enable "
+		    "(cycle %u)", i);
+		set_background_thread(false);
+		expect_zu_eq(n_background_threads, 0,
+		    "Background threads should be zero after disable "
+		    "(cycle %u)", i);
+	}
+
+	atomic_store_b(&stress_stop, true, ATOMIC_RELAXED);
+	thd_join(thd, NULL);
+}
+TEST_END
+
 int
 main(void) {
-	return test_no_reentrancy(test_deferred, test_max_background_threads);
+	return test_no_reentrancy(test_deferred, test_max_background_threads,
+	    test_toggle_stress_with_concurrent_alloc);
 }
