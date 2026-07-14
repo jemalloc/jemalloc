@@ -191,6 +191,50 @@ background_thread_cond_wait(
 	return ret;
 }
 
+static int
+background_thread_cond_init(pthread_cond_t *cond) {
+#ifdef JEMALLOC_HAVE_PTHREAD_COND_TIMEDWAIT_MONOTONIC
+	pthread_condattr_t cond_attr;
+	int ret = pthread_condattr_init(&cond_attr);
+	if (ret != 0) {
+		return ret;
+	}
+	ret = pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
+	if (ret != 0) {
+		pthread_condattr_destroy(&cond_attr);
+		return ret;
+	}
+	ret = pthread_cond_init(cond, &cond_attr);
+	pthread_condattr_destroy(&cond_attr);
+	return ret;
+#else
+	return pthread_cond_init(cond, NULL);
+#endif
+}
+
+/*
+ * Fill in the absolute deadline for pthread_cond_timedwait.  The clock read
+ * here MUST match the clock the condvar was initialized with in
+ * background_thread_cond_init, otherwise the deadline is interpreted against
+ * the wrong epoch.
+ */
+static void
+background_thread_wakeup_ts_init(struct timespec *ts, uint64_t interval) {
+	nstime_t wakeup;
+#ifdef JEMALLOC_HAVE_PTHREAD_COND_TIMEDWAIT_MONOTONIC
+	struct timespec now;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	nstime_init2(&wakeup, now.tv_sec, now.tv_nsec);
+#else
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	nstime_init2(&wakeup, tv.tv_sec, tv.tv_usec * 1000);
+#endif
+	nstime_iadd(&wakeup, interval);
+	ts->tv_sec = (size_t)nstime_sec(&wakeup);
+	ts->tv_nsec = (size_t)nstime_nsec(&wakeup);
+}
+
 static void
 background_thread_sleep(
     tsdn_t *tsdn, background_thread_info_t *info, uint64_t interval) {
@@ -220,12 +264,8 @@ background_thread_sleep(
 		background_thread_wakeup_time_set(
 		    tsdn, info, nstime_ns(&next_wakeup));
 
-		nstime_t ts_wakeup;
-		nstime_copy(&ts_wakeup, &before_sleep);
-		nstime_iadd(&ts_wakeup, interval);
 		struct timespec ts;
-		ts.tv_sec = (size_t)nstime_sec(&ts_wakeup);
-		ts.tv_nsec = (size_t)nstime_nsec(&ts_wakeup);
+		background_thread_wakeup_ts_init(&ts, interval);
 
 		assert(!background_thread_indefinite_sleep(info));
 		ret = background_thread_cond_wait(info, &ts);
@@ -747,27 +787,7 @@ background_thread_postfork_child(tsdn_t *tsdn) {
 		background_thread_info_t *info = &background_thread_info[i];
 		malloc_mutex_lock(tsdn, &info->mtx);
 		info->state = background_thread_stopped;
-#if defined(JEMALLOC_HAVE_CLOCK_MONOTONIC_COARSE) || defined(JEMALLOC_HAVE_CLOCK_MONOTONIC)
-		int ret;
-		pthread_condattr_t cond_attr;
-		if (pthread_condattr_init(&cond_attr)) {
-			ret = pthread_cond_init(&info->cond, NULL);
-		} else if (pthread_condattr_setclock(&cond_attr,
-		    CLOCK_MONOTONIC)) {
-			/*
-			 * Fall back to default (CLOCK_REALTIME)
-			 * attributes if setclock fails.
-			 */
-			pthread_condattr_destroy(&cond_attr);
-			ret = pthread_cond_init(&info->cond, NULL);
-		} else {
-			ret = pthread_cond_init(&info->cond,
-			    &cond_attr);
-			pthread_condattr_destroy(&cond_attr);
-		}
-#else
-		int ret = pthread_cond_init(&info->cond, NULL);
-#endif
+		int ret = background_thread_cond_init(&info->cond);
 		assert(ret == 0);
 		background_thread_info_init(tsdn, info);
 		malloc_mutex_unlock(tsdn, &info->mtx);
@@ -885,28 +905,9 @@ background_thread_boot1(tsdn_t *tsdn, base_t *base) {
 		        malloc_mutex_address_ordered)) {
 			return true;
 		}
-#if defined(JEMALLOC_HAVE_CLOCK_MONOTONIC_COARSE) || defined(JEMALLOC_HAVE_CLOCK_MONOTONIC)
-		{
-			pthread_condattr_t cond_attr;
-			if (pthread_condattr_init(&cond_attr)) {
-				return true;
-			}
-			if (pthread_condattr_setclock(&cond_attr,
-			    CLOCK_MONOTONIC)) {
-				pthread_condattr_destroy(&cond_attr);
-				return true;
-			}
-			if (pthread_cond_init(&info->cond, &cond_attr)) {
-				pthread_condattr_destroy(&cond_attr);
-				return true;
-			}
-			pthread_condattr_destroy(&cond_attr);
-		}
-#else
-		if (pthread_cond_init(&info->cond, NULL)) {
+		if (background_thread_cond_init(&info->cond)) {
 			return true;
 		}
-#endif
 		malloc_mutex_lock(tsdn, &info->mtx);
 		info->state = background_thread_stopped;
 		background_thread_info_init(tsdn, info);
