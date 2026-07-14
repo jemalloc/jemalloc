@@ -2224,6 +2224,43 @@ dnl Check if we have dlsym support.
   if test "x${je_cv_pthread_get_name_np}" = "xyes" ; then
     AC_DEFINE([JEMALLOC_HAVE_PTHREAD_GET_NAME_NP], [ ], [ ])
   fi
+  dnl Runtime-check pthread_condattr_setclock and clock_gettime with
+  dnl CLOCK_MONOTONIC to confirm the kernel actually supports the
+  dnl monotonic clock.
+  AC_CACHE_CHECK([whether pthread_condattr_setclock with CLOCK_MONOTONIC is usable],
+                 [je_cv_pthread_cond_timedwait_monotonic],
+                 AC_RUN_IFELSE([AC_LANG_PROGRAM(
+[[
+#include <pthread.h>
+#include <time.h>
+]], [[
+  pthread_condattr_t attr;
+  pthread_cond_t cond;
+  struct timespec ts;
+  int ret = pthread_condattr_init(&attr);
+  if (ret != 0) {
+    return 1;
+  }
+  ret = pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
+  if (ret != 0) {
+    pthread_condattr_destroy(&attr);
+    return 1;
+  }
+  ret = pthread_cond_init(&cond, &attr);
+  pthread_condattr_destroy(&attr);
+  if (ret != 0) {
+    return 1;
+  }
+  ret = clock_gettime(CLOCK_MONOTONIC, &ts);
+  pthread_cond_destroy(&cond);
+  return ret != 0;
+]])],
+                 [je_cv_pthread_cond_timedwait_monotonic=yes],
+                 [je_cv_pthread_cond_timedwait_monotonic=no],
+                 [je_cv_pthread_cond_timedwait_monotonic=no]))
+  if test "x${je_cv_pthread_cond_timedwait_monotonic}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_HAVE_PTHREAD_COND_TIMEDWAIT_MONOTONIC], [ ], [ ])
+  fi
 fi
 
 JE_APPEND_VS(CPPFLAGS, -D_REENTRANT)
