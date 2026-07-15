@@ -533,13 +533,14 @@ esac
 AC_DEFINE_UNQUOTED([HAVE_CPU_SPINWAIT], [$HAVE_CPU_SPINWAIT], [ ])
 AC_DEFINE_UNQUOTED([CPU_SPINWAIT], [$CPU_SPINWAIT], [ ])
 
+dnl LG_VADDR: number of significant virtual address bits. Auto-detected when --with-lg-vaddr is left unset.
 AC_ARG_WITH([lg_vaddr],
   [AS_HELP_STRING([--with-lg-vaddr=<lg-vaddr>], [Number of significant virtual address bits])],
   [LG_VADDR="$with_lg_vaddr"], [LG_VADDR="detect"])
 
-case "${host_cpu}" in
-  aarch64)
-    if test "x$LG_VADDR" = "xdetect"; then
+if test "x$LG_VADDR" = "xdetect"; then
+  case "${host_cpu}" in
+    aarch64)
       AC_MSG_CHECKING([number of significant virtual address bits])
       if test "x${LG_SIZEOF_PTR}" = "x2" ; then
         #aarch64 ILP32
@@ -549,10 +550,8 @@ case "${host_cpu}" in
         LG_VADDR=48
       fi
       AC_MSG_RESULT([$LG_VADDR])
-    fi
-    ;;
-  x86_64)
-    if test "x$LG_VADDR" = "xdetect"; then
+      ;;
+    x86_64)
       AC_CACHE_CHECK([number of significant virtual address bits],
                      [je_cv_lg_vaddr],
                      AC_RUN_IFELSE([AC_LANG_PROGRAM(
@@ -592,15 +591,33 @@ typedef unsigned __int32 uint32_t;
                    [je_cv_lg_vaddr=`cat conftest.out`],
                    [je_cv_lg_vaddr=error],
                    [je_cv_lg_vaddr=57]))
+      if test "x${je_cv_lg_vaddr}" = "xerror" ; then
+        AC_MSG_ERROR([cannot determine number of significant virtual address bits])
+      fi
       if test "x${je_cv_lg_vaddr}" != "x" ; then
         LG_VADDR="${je_cv_lg_vaddr}"
       fi
-      if test "x${LG_VADDR}" != "xerror" ; then
-        AC_DEFINE_UNQUOTED([LG_VADDR], [$LG_VADDR], [ ])
+      ;;
+    *)
+      AC_MSG_CHECKING([number of significant virtual address bits])
+      if test "x${LG_SIZEOF_PTR}" = "x3" ; then
+        LG_VADDR=64
+      elif test "x${LG_SIZEOF_PTR}" = "x2" ; then
+        LG_VADDR=32
+      elif test "x${LG_SIZEOF_PTR}" = "xLG_SIZEOF_PTR_WIN" ; then
+        LG_VADDR="(1U << (LG_SIZEOF_PTR_WIN+3))"
       else
-        AC_MSG_ERROR([cannot determine number of significant virtual address bits])
+        AC_MSG_ERROR([Unsupported lg(pointer size): ${LG_SIZEOF_PTR}])
       fi
-    fi
+      AC_MSG_RESULT([$LG_VADDR])
+      ;;
+  esac
+fi
+AC_DEFINE_UNQUOTED([LG_VADDR], [$LG_VADDR], [ ])
+
+dnl rdtscp feature probe for x86_64
+case "${host_cpu}" in
+  x86_64)
     AC_CACHE_CHECK([rdtscp support],
 		   [je_cv_rdtscp],
 		   AC_RUN_IFELSE([AC_LANG_PROGRAM(
@@ -619,23 +636,8 @@ typedef unsigned __int32 uint32_t;
       AC_DEFINE([JEMALLOC_HAVE_RDTSCP], [ ], [ ])
     fi
     ;;
-  *)
-    if test "x$LG_VADDR" = "xdetect"; then
-      AC_MSG_CHECKING([number of significant virtual address bits])
-      if test "x${LG_SIZEOF_PTR}" = "x3" ; then
-        LG_VADDR=64
-      elif test "x${LG_SIZEOF_PTR}" = "x2" ; then
-        LG_VADDR=32
-      elif test "x${LG_SIZEOF_PTR}" = "xLG_SIZEOF_PTR_WIN" ; then
-        LG_VADDR="(1U << (LG_SIZEOF_PTR_WIN+3))"
-      else
-        AC_MSG_ERROR([Unsupported lg(pointer size): ${LG_SIZEOF_PTR}])
-      fi
-      AC_MSG_RESULT([$LG_VADDR])
-    fi
-    ;;
 esac
-AC_DEFINE_UNQUOTED([LG_VADDR], [$LG_VADDR], [ ])
+
 AC_CACHE_CHECK([asm volatile support],
                [je_cv_asm_volatile],
                AC_RUN_IFELSE([AC_LANG_PROGRAM(
