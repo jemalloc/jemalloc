@@ -2374,10 +2374,18 @@ thread_arena_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	if (have_percpu_arena && PERCPU_ARENA_ENABLED(opt_percpu_arena)) {
 		if (newind < percpu_arena_ind_limit(opt_percpu_arena)) {
 			/*
-			 * If perCPU arena is enabled, thread_arena control is
-			 * not allowed for the auto arena range.
+			 * Setting thread.arena to an arena in the auto range
+			 * means "resume automatic per-CPU selection" rather than
+			 * pinning to a specific per-CPU arena. This lets a caller
+			 * that temporarily switched to a manually managed arena
+			 * (e.g. a scoped guard) hand the thread back to per-CPU
+			 * management. It is otherwise impossible: a thread bound
+			 * to a manual arena is never reclaimed by percpu (see
+			 * arena_choose_impl), so without this it would stay
+			 * pinned forever.
 			 */
-			return EPERM;
+			percpu_arena_update(tsd, percpu_arena_choose());
+			return 0;
 		}
 	}
 
