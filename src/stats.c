@@ -1114,7 +1114,7 @@ stats_arena_extents_print(emitter_t *emitter, unsigned i) {
 		char size_buf[48];
 		stats_size_col_set(&col_size, sz_pind2sz(j),
 		    j > 0 ? sz_pind2sz(j - 1) : 0, size_buf, sizeof(size_buf));
-		col_ind.size_val = j;
+		col_ind.unsigned_val = j;
 		col_ndirty.size_val = e.ndirty;
 		col_dirty.size_val = e.dirty_bytes;
 		col_nmuzzy.size_val = e.nmuzzy;
@@ -1423,7 +1423,7 @@ stats_arena_hpa_shard_slabs_print(emitter_t *emitter, unsigned i) {
 		char size_buf[48];
 		stats_size_col_set(&col_size, sz_pind2sz(j),
 		    j > 0 ? sz_pind2sz(j - 1) : 0, size_buf, sizeof(size_buf));
-		col_ind.size_val = j;
+		col_ind.unsigned_val = j;
 		col_npageslabs_huge.size_val = s.npageslabs_huge;
 		col_nactive_huge.size_val = s.nactive_huge;
 		col_ndirty_huge.size_val = s.ndirty_huge;
