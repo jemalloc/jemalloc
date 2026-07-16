@@ -1839,8 +1839,6 @@ stats_general_print(emitter_t *emitter) {
 	OPT_WRITE_BOOL("prof_leak_error")
 	OPT_WRITE_BOOL("stats_print")
 	OPT_WRITE_CHAR_P("stats_print_opts")
-	OPT_WRITE_BOOL("stats_print")
-	OPT_WRITE_CHAR_P("stats_print_opts")
 	OPT_WRITE_INT64("stats_interval")
 	OPT_WRITE_CHAR_P("stats_interval_opts")
 	OPT_WRITE_CHAR_P("zero_realloc")
