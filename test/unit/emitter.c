@@ -498,13 +498,13 @@ emit_table_row(emitter_t *emitter) {
 	emitter_begin(emitter);
 	emitter_row_t row;
 	emitter_col_t abc = {
-	    emitter_justify_left, 10, emitter_type_title, {0}, {0, 0}};
+	    emitter_justify_left, 10, emitter_type_title};
 	abc.str_val = "ABC title";
 	emitter_col_t def = {
-	    emitter_justify_right, 15, emitter_type_title, {0}, {0, 0}};
+	    emitter_justify_right, 15, emitter_type_title};
 	def.str_val = "DEF title";
 	emitter_col_t ghi = {
-	    emitter_justify_right, 5, emitter_type_title, {0}, {0, 0}};
+	    emitter_justify_right, 5, emitter_type_title};
 	ghi.str_val = "GHI";
 
 	emitter_row_init(&row);
@@ -548,6 +548,126 @@ static const char *table_row_table =
     "789                 false 1011\n"
     "\"a string\"          false  ghi\n";
 
+/*
+ * emitter_row(): columns that carry a json_key render both to the aligned
+ * table (all columns) and, in JSON mode, to "json_key": value pairs in column
+ * order; columns without a json_key are table-only.
+ */
+static void
+emit_row(emitter_t *emitter) {
+	emitter_begin(emitter);
+
+	emitter_row_t row;
+	emitter_row_init(&row);
+
+	/* Table-only column (no json_key set). */
+	emitter_col_t col_label;
+	emitter_col_init(&col_label, &row);
+	col_label.justify = emitter_justify_left;
+	col_label.width = 6;
+	col_label.type = emitter_type_title;
+	col_label.str_val = "row:";
+
+	/* Dual columns: rendered in both table and JSON. */
+	emitter_col_t col_x;
+	emitter_col_init(&col_x, &row);
+	col_x.justify = emitter_justify_right;
+	col_x.width = 6;
+	col_x.type = emitter_type_unsigned;
+	col_x.unsigned_val = 10;
+	col_x.json_key = "x";
+
+	emitter_col_t col_y;
+	emitter_col_init(&col_y, &row);
+	col_y.justify = emitter_justify_right;
+	col_y.width = 6;
+	col_y.type = emitter_type_unsigned;
+	col_y.unsigned_val = 20;
+	col_y.json_key = "y";
+
+	emitter_json_object_kv_begin(emitter, "obj");
+	emitter_row(emitter, &row);
+	emitter_json_object_end(emitter);
+
+	emitter_end(emitter);
+}
+
+static const char *row_json =
+    "{\n"
+    "\t\"obj\": {\n"
+    "\t\t\"x\": 10,\n"
+    "\t\t\"y\": 20\n"
+    "\t}\n"
+    "}\n";
+static const char *row_json_compact = "{\"obj\":{\"x\":10,\"y\":20}}";
+static const char *row_table = "row:      10    20\n";
+
+/*
+ * emitter_sparse_row(): the table side collapses runs of all-zero ("gap") rows
+ * to a single "---" separator (on a gap->non-gap transition and at a trailing
+ * gap), while the JSON side still emits every row's json-keyed columns.
+ */
+static void
+emit_sparse_row(emitter_t *emitter) {
+	emitter_begin(emitter);
+
+	emitter_row_t row;
+	emitter_row_init(&row);
+	emitter_col_t col_v;
+	emitter_col_init(&col_v, &row);
+	col_v.justify = emitter_justify_right;
+	col_v.width = 6;
+	col_v.type = emitter_type_unsigned;
+	col_v.json_key = "v";
+
+	unsigned vals[] = {1, 0, 0, 2, 0, 0};
+	bool     gap[] = {false, true, true, false, true, true};
+
+	emitter_json_array_kv_begin(emitter, "arr");
+	emitter_table_sparse_begin(emitter);
+	for (unsigned i = 0; i < sizeof(vals) / sizeof(vals[0]); i++) {
+		col_v.unsigned_val = vals[i];
+		emitter_json_object_begin(emitter);
+		emitter_sparse_row(emitter, &row, gap[i]);
+		emitter_json_object_end(emitter);
+	}
+	emitter_table_sparse_end(emitter);
+	emitter_json_array_end(emitter);
+
+	emitter_end(emitter);
+}
+
+static const char *sparse_row_json =
+    "{\n"
+    "\t\"arr\": [\n"
+    "\t\t{\n"
+    "\t\t\t\"v\": 1\n"
+    "\t\t},\n"
+    "\t\t{\n"
+    "\t\t\t\"v\": 0\n"
+    "\t\t},\n"
+    "\t\t{\n"
+    "\t\t\t\"v\": 0\n"
+    "\t\t},\n"
+    "\t\t{\n"
+    "\t\t\t\"v\": 2\n"
+    "\t\t},\n"
+    "\t\t{\n"
+    "\t\t\t\"v\": 0\n"
+    "\t\t},\n"
+    "\t\t{\n"
+    "\t\t\t\"v\": 0\n"
+    "\t\t}\n"
+    "\t]\n"
+    "}\n";
+static const char *sparse_row_json_compact =
+    "{\"arr\":[{\"v\":1},{\"v\":0},{\"v\":0},{\"v\":2},{\"v\":0},{\"v\":0}]}";
+static const char *sparse_row_table =
+    "     1\n"
+    "                     ---\n"
+    "     2\n"
+    "                     ---\n";
+
 #define GENERATE_TEST(feature)                                                 \
 	TEST_BEGIN(test_##feature) {                                           \
 		expect_emit_output(emit_##feature, feature##_json,             \
@@ -563,10 +683,12 @@ GENERATE_TEST(modal)
 GENERATE_TEST(json_array)
 GENERATE_TEST(json_nested_array)
 GENERATE_TEST(table_row)
+GENERATE_TEST(row)
+GENERATE_TEST(sparse_row)
 
 int
 main(void) {
 	return test_no_reentrancy(test_dict, test_table_printf,
 	    test_nested_dict, test_types, test_modal, test_json_array,
-	    test_json_nested_array, test_table_row);
+	    test_json_nested_array, test_table_row, test_row, test_sparse_row);
 }
