@@ -702,6 +702,26 @@ mutex_stats_emit(emitter_t *emitter, emitter_row_t *row,
 #undef EMITTER_TYPE_uint64_t
 }
 
+/*
+ * Set a per-size-class row's "size" column.  Above the slow-growth threshold,
+ * display the bucket bounds as "(prev_size,size]".  This notation does not
+ * imply that every integer in the interval is a valid usable size.  Smaller
+ * classes are displayed as a single size.  buf must outlive row emission.
+ * (This is table labeling only; the ordered JSON arrays imply the bounds.)
+ */
+static void
+stats_size_col_set(emitter_col_t *col, size_t size, size_t prev_size, char *buf,
+    size_t bufsz) {
+	if (size > USIZE_GROW_SLOW_THRESHOLD) {
+		malloc_snprintf(buf, bufsz, "(%zu,%zu]", prev_size, size);
+		col->type = emitter_type_title;
+		col->str_val = buf;
+	} else {
+		col->type = emitter_type_size;
+		col->size_val = size;
+	}
+}
+
 JEMALLOC_COLD
 static void
 stats_arena_bins_print(
@@ -1012,6 +1032,15 @@ stats_arena_lextents_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 		CTL_LEAF_PREPARE(prof_stats_mib, 0, "prof.stats.lextents");
 	}
 
+	/*
+	 * Carry the previous size class's size forward for the "(prev,size]"
+	 * range label instead of looking it up by a large size-class index:
+	 * with large size classes disabled (the default) that index may be out
+	 * of range, and indexing sz_index2size_tab there would be unsafe.  The
+	 * class before the first large one is the last bin; sz_index2size_compute
+	 * derives it arithmetically (no table access).
+	 */
+	size_t prev_size = sz_index2size_compute(nbins - 1);
 	emitter_table_sparse_begin(emitter);
 	for (j = 0; j < nlextents; j++) {
 		stats_arena_lextent_t lext;
@@ -1020,7 +1049,10 @@ stats_arena_lextents_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 
 		bool is_gap = (lext.nrequests == 0);
 
-		col_size.size_val = lext.lextent_size;
+		char size_buf[48];
+		stats_size_col_set(&col_size, lext.lextent_size, prev_size,
+		    size_buf, sizeof(size_buf));
+		prev_size = lext.lextent_size;
 		col_ind.unsigned_val = nbins + j;
 		col_allocated.size_val = lext.curlextents * lext.lextent_size;
 		col_nmalloc.uint64_val = lext.nmalloc;
@@ -1106,7 +1138,9 @@ stats_arena_extents_print(emitter_t *emitter, unsigned i) {
 		    &e.pinned_bytes);
 		emitter_json_object_end(emitter);
 
-		col_size.size_val = sz_pind2sz(j);
+		char size_buf[48];
+		stats_size_col_set(&col_size, sz_pind2sz(j),
+		    j > 0 ? sz_pind2sz(j - 1) : 0, size_buf, sizeof(size_buf));
 		col_ind.size_val = j;
 		col_ndirty.size_val = e.ndirty;
 		col_dirty.size_val = e.dirty_bytes;
@@ -1413,7 +1447,9 @@ stats_arena_hpa_shard_slabs_print(emitter_t *emitter, unsigned i) {
 
 		bool is_gap = (s.npageslabs_huge == 0 && s.npageslabs_nonhuge == 0);
 
-		col_size.size_val = sz_pind2sz(j);
+		char size_buf[48];
+		stats_size_col_set(&col_size, sz_pind2sz(j),
+		    j > 0 ? sz_pind2sz(j - 1) : 0, size_buf, sizeof(size_buf));
 		col_ind.size_val = j;
 		col_npageslabs_huge.size_val = s.npageslabs_huge;
 		col_nactive_huge.size_val = s.nactive_huge;
