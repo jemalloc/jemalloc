@@ -58,6 +58,11 @@ struct emitter_col_s {
 		ssize_t     ssize_val;
 		const char *str_val;
 	};
+	/*
+	 * Optional JSON key.  When set, emitter_row() emits this column as a
+	 * "json_key": value pair in JSON mode; columns left NULL are table-only.
+	 */
+	const char *json_key;
 
 	/* Filled in by initialization. */
 	ql_elm(emitter_col_t) link;
@@ -79,6 +84,8 @@ struct emitter_s {
 	bool item_at_depth;
 	/* True if we emitted a key and will emit corresponding value next. */
 	bool emitted_key;
+	/* Gap-collapsing state for the emitter_table_sparse_row() bracket. */
+	bool table_sparse_in_gap;
 };
 
 static inline bool
@@ -270,6 +277,7 @@ emitter_init(emitter_t *emitter, emitter_output_t emitter_output,
 	emitter->item_at_depth = false;
 	emitter->emitted_key = false;
 	emitter->nesting_depth = 0;
+	emitter->table_sparse_in_gap = false;
 }
 
 /******************************************************************************/
@@ -447,6 +455,46 @@ static inline void
 emitter_col_init(emitter_col_t *col, emitter_row_t *row) {
 	ql_elm_new(col, link);
 	ql_tail_insert(&row->cols, col, link);
+	col->json_key = NULL;
+}
+
+/*
+ * Sparse table rows.  Some tables have one row per size class but most rows
+ * are all-zero; in table output those runs are collapsed to a single "---"
+ * separator.  Bracket such a table with emitter_table_sparse_begin() /
+ * _end() and emit each row with emitter_table_sparse_row(), passing whether
+ * that row is a gap (all-zero).  The emitter prints the separator on a
+ * gap->non-gap transition and at a trailing gap, and suppresses the gap rows
+ * themselves; callers no longer track gap state.  Table output only -- a
+ * no-op in JSON, where callers emit every row's object separately.
+ */
+static inline void
+emitter_table_sparse_begin(emitter_t *emitter) {
+	emitter->table_sparse_in_gap = false;
+}
+
+static inline void
+emitter_table_sparse_row(emitter_t *emitter, emitter_row_t *row, bool is_gap) {
+	if (emitter->output != emitter_output_table) {
+		return;
+	}
+	bool prev_in_gap = emitter->table_sparse_in_gap;
+	emitter->table_sparse_in_gap = is_gap;
+	if (prev_in_gap && !is_gap) {
+		emitter_printf(emitter, "                     ---\n");
+	}
+	if (!is_gap) {
+		emitter_table_row(emitter, row);
+	}
+}
+
+static inline void
+emitter_table_sparse_end(emitter_t *emitter) {
+	if (emitter->output == emitter_output_table
+	    && emitter->table_sparse_in_gap) {
+		emitter_printf(emitter, "                     ---\n");
+	}
+	emitter->table_sparse_in_gap = false;
 }
 
 /******************************************************************************/
@@ -496,6 +544,49 @@ emitter_dict_end(emitter_t *emitter) {
 		emitter_json_object_end(emitter);
 	} else {
 		emitter_table_dict_end(emitter);
+	}
+}
+
+/* Internal: emit a row's json-keyed columns as JSON kvs, in column order. */
+static inline void
+emitter_row_json(emitter_t *emitter, emitter_row_t *row) {
+	emitter_col_t *col;
+	ql_foreach (col, &row->cols, link) {
+		if (col->json_key != NULL) {
+			emitter_json_kv(emitter, col->json_key, col->type,
+			    (const void *)&col->bool_val);
+		}
+	}
+}
+
+/*
+ * Emit a row of columns to whichever format is active.  In table mode, prints
+ * the aligned table row (see emitter_table_row).  In JSON mode, emits each
+ * column that has a non-NULL json_key as a "json_key": value pair, in column
+ * order (columns without a json_key are table-only).  This lets a caller
+ * describe a row once and render it to either format.  For JSON objects (one
+ * per row), wrap the call in emitter_json_object_begin()/_end().
+ */
+static inline void
+emitter_row(emitter_t *emitter, emitter_row_t *row) {
+	emitter_table_row(emitter, row);
+	if (emitter_outputs_json(emitter)) {
+		emitter_row_json(emitter, row);
+	}
+}
+
+/*
+ * Sparse counterpart of emitter_row() for per-size-class tables: the table
+ * side collapses all-zero ("gap") rows (see emitter_table_sparse_row), while
+ * the JSON side still emits every row's json-keyed columns.  Bracket the loop
+ * with emitter_table_sparse_begin()/_end(), and wrap each row's JSON in
+ * emitter_json_object_begin()/_end() when the rows form an array of objects.
+ */
+static inline void
+emitter_sparse_row(emitter_t *emitter, emitter_row_t *row, bool is_gap) {
+	emitter_table_sparse_row(emitter, row, is_gap);
+	if (emitter_outputs_json(emitter)) {
+		emitter_row_json(emitter, row);
 	}
 }
 
