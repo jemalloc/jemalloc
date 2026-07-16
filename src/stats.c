@@ -1313,18 +1313,8 @@ stats_arena_hpa_shard_counters_print(
 }
 
 static void
-stats_emit_arena_hpa_slab(emitter_t *emitter, const stats_arena_hpa_slab_t *s,
-    const char *label, const char *json_key) {
-	emitter_table_printf(emitter,
-	    "  In %s slabs:\n"
-	    "      npageslabs: %zu huge, %zu nonhuge\n"
-	    "      nactive: %zu huge, %zu nonhuge \n"
-	    "      ndirty: %zu huge, %zu nonhuge \n"
-	    "      nretained: 0 huge, %zu nonhuge \n",
-	    label, s->npageslabs_huge, s->npageslabs_nonhuge, s->nactive_huge,
-	    s->nactive_nonhuge, s->ndirty_huge, s->ndirty_nonhuge,
-	    s->nretained_nonhuge);
-
+stats_emit_arena_hpa_slab_json(emitter_t *emitter,
+    const stats_arena_hpa_slab_t *s, const char *json_key) {
 	emitter_json_object_kv_begin(emitter, json_key);
 	emitter_json_kv(
 	    emitter, "npageslabs_huge", emitter_type_size, &s->npageslabs_huge);
@@ -1340,7 +1330,23 @@ stats_emit_arena_hpa_slab(emitter_t *emitter, const stats_arena_hpa_slab_t *s,
 	    emitter, "ndirty_nonhuge", emitter_type_size, &s->ndirty_nonhuge);
 	emitter_json_kv(emitter, "nretained_nonhuge", emitter_type_size,
 	    &s->nretained_nonhuge);
-	emitter_json_object_end(emitter); /* End "full_slabs"/"empty_slabs" */
+	emitter_json_object_end(emitter);
+}
+
+/* Fill the shared count columns of one pageslab row from s. */
+static void
+stats_hpa_slab_cols_set(const stats_arena_hpa_slab_t *s,
+    emitter_col_t *npageslabs_huge, emitter_col_t *nactive_huge,
+    emitter_col_t *ndirty_huge, emitter_col_t *npageslabs_nonhuge,
+    emitter_col_t *nactive_nonhuge, emitter_col_t *ndirty_nonhuge,
+    emitter_col_t *nretained_nonhuge) {
+	npageslabs_huge->size_val = s->npageslabs_huge;
+	nactive_huge->size_val = s->nactive_huge;
+	ndirty_huge->size_val = s->ndirty_huge;
+	npageslabs_nonhuge->size_val = s->npageslabs_nonhuge;
+	nactive_nonhuge->size_val = s->nactive_nonhuge;
+	ndirty_nonhuge->size_val = s->ndirty_nonhuge;
+	nretained_nonhuge->size_val = s->nretained_nonhuge;
 }
 
 static void
@@ -1350,20 +1356,6 @@ stats_arena_hpa_shard_slabs_print(emitter_t *emitter, unsigned i) {
 	emitter_row_t row;
 	emitter_row_init(&row);
 
-	stats_arena_hpa_slab_t sfull;
-	stats_gather_arena_hpa_slab(i, "full_slabs", &sfull);
-	stats_emit_arena_hpa_slab(emitter, &sfull, "full", "full_slabs");
-
-	stats_arena_hpa_slab_t sempty;
-	stats_gather_arena_hpa_slab(i, "empty_slabs", &sempty);
-	stats_emit_arena_hpa_slab(emitter, &sempty, "empty", "empty_slabs");
-
-	/*
-	 * Nonfull slabs: a per-size-class streaming table (gather one row,
-	 * emit one row, collapsing all-zero-row runs to "---"), so gather and
-	 * emit are necessarily interleaved -- like the bins/lextents/extents
-	 * tables.
-	 */
 	COL_HDR(row, size, NULL, right, 20, size)
 	COL_HDR(row, ind, NULL, right, 4, unsigned)
 	COL_HDR(row, npageslabs_huge, NULL, right, 16, size)
@@ -1374,13 +1366,45 @@ stats_arena_hpa_shard_slabs_print(emitter_t *emitter, unsigned i) {
 	COL_HDR(row, ndirty_nonhuge, NULL, right, 20, size)
 	COL_HDR(row, nretained_nonhuge, NULL, right, 20, size)
 
+	emitter_table_printf(emitter, "pageslabs:\n");
+	emitter_table_row(emitter, &header_row);
+
+	/*
+	 * Full and empty pageslabs are shown as two symbolic rows (size =
+	 * "full"/"empty", no size-class index) at the top of the table; their
+	 * JSON stays in the separate full_slabs / empty_slabs objects.
+	 */
+	col_ind.type = emitter_type_title;
+	col_ind.str_val = "-";
+	col_size.type = emitter_type_title;
+
+	stats_arena_hpa_slab_t sfull;
+	stats_gather_arena_hpa_slab(i, "full_slabs", &sfull);
+	stats_emit_arena_hpa_slab_json(emitter, &sfull, "full_slabs");
+	col_size.str_val = "full";
+	stats_hpa_slab_cols_set(&sfull, &col_npageslabs_huge, &col_nactive_huge,
+	    &col_ndirty_huge, &col_npageslabs_nonhuge, &col_nactive_nonhuge,
+	    &col_ndirty_nonhuge, &col_nretained_nonhuge);
+	emitter_table_row(emitter, &row);
+
+	stats_arena_hpa_slab_t sempty;
+	stats_gather_arena_hpa_slab(i, "empty_slabs", &sempty);
+	stats_emit_arena_hpa_slab_json(emitter, &sempty, "empty_slabs");
+	col_size.str_val = "empty";
+	stats_hpa_slab_cols_set(&sempty, &col_npageslabs_huge, &col_nactive_huge,
+	    &col_ndirty_huge, &col_npageslabs_nonhuge, &col_nactive_nonhuge,
+	    &col_ndirty_nonhuge, &col_nretained_nonhuge);
+	emitter_table_row(emitter, &row);
+
+	/* Numeric size/ind for the per-size-class rows below. */
+	col_size.type = emitter_type_size;
+	col_ind.type = emitter_type_unsigned;
+
 	size_t stats_arenas_mib[CTL_MAX_DEPTH];
 	CTL_LEAF_PREPARE(stats_arenas_mib, 0, "stats.arenas");
 	stats_arenas_mib[2] = i;
 	CTL_LEAF_PREPARE(stats_arenas_mib, 3, "hpa_shard.nonfull_slabs");
 
-	emitter_table_printf(emitter, "  In nonfull slabs:\n");
-	emitter_table_row(emitter, &header_row);
 	emitter_json_array_kv_begin(emitter, "nonfull_slabs");
 	emitter_table_sparse_begin(emitter);
 	for (pszind_t j = 0; j < PSSET_NPSIZES && j < SC_NPSIZES; j++) {
