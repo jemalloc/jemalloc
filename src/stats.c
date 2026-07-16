@@ -1178,60 +1178,49 @@ stats_arena_pac_sec_print(emitter_t *emitter, unsigned i) {
 static void
 stats_emit_arena_hpa_counters(emitter_t *emitter,
     const stats_arena_hpa_counters_t *c, uint64_t uptime) {
-	emitter_table_printf(emitter,
-	    "HPA shard stats:\n"
-	    "  Pageslabs: %zu (%zu huge, %zu nonhuge)\n"
-	    "  Active pages: %zu (%zu huge, %zu nonhuge)\n"
-	    "  Dirty pages: %zu (%zu huge, %zu nonhuge)\n"
-	    "  Retained pages: %zu\n"
-	    "  Purge passes: %" FMTu64 " (%" FMTu64
-	    " / sec)\n"
-	    "  Purges: %" FMTu64 " (%" FMTu64
-	    " / sec)\n"
-	    "  Hugeifies: %" FMTu64 " (%" FMTu64
-	    " / sec)\n"
-	    "  Hugify failures: %" FMTu64 " (%" FMTu64
-	    " / sec)\n"
-	    "  Dehugifies: %" FMTu64 " (%" FMTu64 " / sec)\n",
-	    c->npageslabs, c->npageslabs_huge, c->npageslabs_nonhuge, c->nactive,
-	    c->nactive_huge, c->nactive_nonhuge, c->ndirty, c->ndirty_huge,
-	    c->ndirty_nonhuge, c->nretained_nonhuge, c->npurge_passes,
-	    rate_per_second(c->npurge_passes, uptime), c->npurges,
-	    rate_per_second(c->npurges, uptime), c->nhugifies,
-	    rate_per_second(c->nhugifies, uptime), c->nhugify_failures,
-	    rate_per_second(c->nhugify_failures, uptime), c->ndehugifies,
-	    rate_per_second(c->ndehugifies, uptime));
+	/* Merged pageslab / page counts (broken down by huginess below). */
+	emitter_kv(emitter, "npageslabs", "npageslabs", emitter_type_size,
+	    &c->npageslabs);
+	emitter_kv(emitter, "nactive", "nactive", emitter_type_size,
+	    &c->nactive);
+	emitter_kv(emitter, "ndirty", "ndirty", emitter_type_size, &c->ndirty);
 
-	emitter_json_kv(emitter, "npageslabs", emitter_type_size, &c->npageslabs);
-	emitter_json_kv(emitter, "nactive", emitter_type_size, &c->nactive);
-	emitter_json_kv(emitter, "ndirty", emitter_type_size, &c->ndirty);
+	uint64_t npurge_passes_ps = rate_per_second(c->npurge_passes, uptime);
+	uint64_t npurges_ps = rate_per_second(c->npurges, uptime);
+	uint64_t nhugifies_ps = rate_per_second(c->nhugifies, uptime);
+	uint64_t nhugify_failures_ps =
+	    rate_per_second(c->nhugify_failures, uptime);
+	uint64_t ndehugifies_ps = rate_per_second(c->ndehugifies, uptime);
+	emitter_kv_note(emitter, "npurge_passes", "npurge_passes",
+	    emitter_type_uint64, &c->npurge_passes, "per_sec",
+	    emitter_type_uint64, &npurge_passes_ps);
+	emitter_kv_note(emitter, "npurges", "npurges", emitter_type_uint64,
+	    &c->npurges, "per_sec", emitter_type_uint64, &npurges_ps);
+	emitter_kv_note(emitter, "nhugifies", "nhugifies", emitter_type_uint64,
+	    &c->nhugifies, "per_sec", emitter_type_uint64, &nhugifies_ps);
+	emitter_kv_note(emitter, "nhugify_failures", "nhugify_failures",
+	    emitter_type_uint64, &c->nhugify_failures, "per_sec",
+	    emitter_type_uint64, &nhugify_failures_ps);
+	emitter_kv_note(emitter, "ndehugifies", "ndehugifies",
+	    emitter_type_uint64, &c->ndehugifies, "per_sec",
+	    emitter_type_uint64, &ndehugifies_ps);
 
-	emitter_json_kv(
-	    emitter, "npurge_passes", emitter_type_uint64, &c->npurge_passes);
-	emitter_json_kv(emitter, "npurges", emitter_type_uint64, &c->npurges);
-	emitter_json_kv(emitter, "nhugifies", emitter_type_uint64, &c->nhugifies);
-	emitter_json_kv(emitter, "nhugify_failures", emitter_type_uint64,
-	    &c->nhugify_failures);
-	emitter_json_kv(
-	    emitter, "ndehugifies", emitter_type_uint64, &c->ndehugifies);
-
-	emitter_json_object_kv_begin(emitter, "slabs");
-	emitter_json_kv(emitter, "npageslabs_nonhuge", emitter_type_size,
-	    &c->npageslabs_nonhuge);
-	emitter_json_kv(
-	    emitter, "nactive_nonhuge", emitter_type_size, &c->nactive_nonhuge);
-	emitter_json_kv(
-	    emitter, "ndirty_nonhuge", emitter_type_size, &c->ndirty_nonhuge);
-	emitter_json_kv(emitter, "nretained_nonhuge", emitter_type_size,
-	    &c->nretained_nonhuge);
-
-	emitter_json_kv(
-	    emitter, "npageslabs_huge", emitter_type_size, &c->npageslabs_huge);
-	emitter_json_kv(
-	    emitter, "nactive_huge", emitter_type_size, &c->nactive_huge);
-	emitter_json_kv(
-	    emitter, "ndirty_huge", emitter_type_size, &c->ndirty_huge);
-	emitter_json_object_end(emitter); /* End "slabs" */
+	emitter_dict_begin(emitter, "slabs", "slabs");
+	emitter_kv(emitter, "npageslabs_nonhuge", "npageslabs_nonhuge",
+	    emitter_type_size, &c->npageslabs_nonhuge);
+	emitter_kv(emitter, "nactive_nonhuge", "nactive_nonhuge",
+	    emitter_type_size, &c->nactive_nonhuge);
+	emitter_kv(emitter, "ndirty_nonhuge", "ndirty_nonhuge",
+	    emitter_type_size, &c->ndirty_nonhuge);
+	emitter_kv(emitter, "nretained_nonhuge", "nretained_nonhuge",
+	    emitter_type_size, &c->nretained_nonhuge);
+	emitter_kv(emitter, "npageslabs_huge", "npageslabs_huge",
+	    emitter_type_size, &c->npageslabs_huge);
+	emitter_kv(emitter, "nactive_huge", "nactive_huge", emitter_type_size,
+	    &c->nactive_huge);
+	emitter_kv(emitter, "ndirty_huge", "ndirty_huge", emitter_type_size,
+	    &c->ndirty_huge);
+	emitter_dict_end(emitter);
 }
 
 static void
