@@ -579,40 +579,13 @@ mutex_stats_init_cols(emitter_row_t *row, const char *table_name,
 	col_uint64_t[mutex_counter_total_wait_time_ps].width = 10;
 }
 
+/*
+ * Read one mutex's counters (leaf "name" under the prepared mib) into the
+ * emitter columns.  Shared by the global and per-arena mutex tables, whose rows
+ * differ only in the mib and mutex name they pass.
+ */
 static void
-mutex_stats_read_global(size_t mib[], size_t miblen, const char *name,
-    emitter_col_t *col_name,
-    emitter_col_t  col_uint64_t[mutex_prof_num_uint64_t_counters],
-    emitter_col_t  col_uint32_t[mutex_prof_num_uint32_t_counters],
-    uint64_t       uptime) {
-	CTL_LEAF_PREPARE(mib, miblen, name);
-	size_t miblen_name = miblen + 1;
-
-	col_name->str_val = name;
-
-	emitter_col_t *dst;
-#define EMITTER_TYPE_uint32_t emitter_type_uint32
-#define EMITTER_TYPE_uint64_t emitter_type_uint64
-#define OP(counter, counter_type, human, derived, base_counter)                \
-	dst = &col_##counter_type[mutex_counter_##counter];                    \
-	dst->type = EMITTER_TYPE_##counter_type;                               \
-	if (!derived) {                                                        \
-		CTL_LEAF(mib, miblen_name, #counter,                           \
-		    (counter_type *)&dst->bool_val, counter_type);             \
-	} else {                                                               \
-		emitter_col_t *base =                                          \
-		    &col_##counter_type[mutex_counter_##base_counter];         \
-		dst->counter_type##_val = (counter_type)rate_per_second(       \
-		    base->counter_type##_val, uptime);                         \
-	}
-	MUTEX_PROF_COUNTERS
-#undef OP
-#undef EMITTER_TYPE_uint32_t
-#undef EMITTER_TYPE_uint64_t
-}
-
-static void
-mutex_stats_read_arena(size_t mib[], size_t miblen, const char *name,
+mutex_stats_read(size_t mib[], size_t miblen, const char *name,
     emitter_col_t *col_name,
     emitter_col_t  col_uint64_t[mutex_prof_num_uint64_t_counters],
     emitter_col_t  col_uint32_t[mutex_prof_num_uint32_t_counters],
@@ -1518,7 +1491,7 @@ stats_arena_mutexes_print(
 	    i++) {
 		const char *name = arena_mutex_names[i];
 		emitter_json_object_kv_begin(emitter, name);
-		mutex_stats_read_arena(
+		mutex_stats_read(
 		    stats_arenas_mib, 4, name, &col_name, col64, col32, uptime);
 		mutex_stats_emit(emitter, &row, col64, col32);
 		emitter_json_object_end(emitter); /* Close the mutex dict. */
@@ -2309,7 +2282,7 @@ stats_global_mutexes_print(emitter_t *emitter) {
 	size_t stats_mutexes_mib[CTL_MAX_DEPTH];
 	CTL_LEAF_PREPARE(stats_mutexes_mib, 0, "stats.mutexes");
 	for (int i = 0; i < mutex_prof_num_global_mutexes; i++) {
-		mutex_stats_read_global(stats_mutexes_mib, 2,
+		mutex_stats_read(stats_mutexes_mib, 2,
 		    global_mutex_names[i], &name, col64, col32, uptime);
 		emitter_json_object_kv_begin(emitter, global_mutex_names[i]);
 		mutex_stats_emit(emitter, &row, col64, col32);
