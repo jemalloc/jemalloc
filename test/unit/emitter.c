@@ -668,6 +668,111 @@ static const char *sparse_row_table =
     "     2\n"
     "                     ---\n";
 
+typedef struct {
+	size_t   size;
+	uint64_t count;
+	uint64_t prof_count;
+	uint64_t requests;
+} col_table_test_row_t;
+
+#define COL_TABLE_TEST_GETTER(name, member, value_member)                     \
+	static void                                                            \
+	col_table_test_get_##name(const void *vrow, emitter_col_t *col) {       \
+		const col_table_test_row_t *row = vrow;                          \
+		col->value_member = row->member;                                 \
+	}
+COL_TABLE_TEST_GETTER(size, size, size_val)
+COL_TABLE_TEST_GETTER(count, count, uint64_val)
+COL_TABLE_TEST_GETTER(prof_count, prof_count, uint64_val)
+COL_TABLE_TEST_GETTER(requests, requests, uint64_val)
+#undef COL_TABLE_TEST_GETTER
+
+enum {
+	COL_TABLE_TEST_SIZE,
+	COL_TABLE_TEST_COUNT,
+	COL_TABLE_TEST_PROF_COUNT,
+	COL_TABLE_TEST_REQUESTS,
+	COL_TABLE_TEST_NCOLS
+};
+
+#define COL_TABLE_TEST_FLAG_PROF (1U << 0)
+
+static const emitter_col_desc_t col_table_test_descs[] = {
+	{NULL, "size", emitter_justify_right, 8, emitter_type_size, 0,
+	    col_table_test_get_size},
+	{"count", "count", emitter_justify_right, 8, emitter_type_uint64,
+	    0, col_table_test_get_count},
+	{"prof_count", "prof", emitter_justify_right, 6, emitter_type_uint64,
+	    COL_TABLE_TEST_FLAG_PROF, col_table_test_get_prof_count},
+	{"requests", "requests", emitter_justify_right, 10,
+	    emitter_type_uint64, 0, col_table_test_get_requests},
+};
+_Static_assert(
+    sizeof(col_table_test_descs) / sizeof(col_table_test_descs[0]) ==
+    COL_TABLE_TEST_NCOLS,
+    "col_table_test_descs must match COL_TABLE_TEST_NCOLS");
+
+TEST_BEGIN(test_col_desc_flags) {
+	expect_true(emitter_col_desc_active(
+	    &col_table_test_descs[COL_TABLE_TEST_COUNT], 0),
+	    "A column without requirements should always be active");
+	expect_false(emitter_col_desc_active(
+	    &col_table_test_descs[COL_TABLE_TEST_PROF_COUNT], 0),
+	    "A column with an unmet requirement should be inactive");
+	expect_true(emitter_col_desc_active(
+	    &col_table_test_descs[COL_TABLE_TEST_PROF_COUNT],
+	    COL_TABLE_TEST_FLAG_PROF),
+	    "A column with a satisfied requirement should be active");
+}
+TEST_END
+
+static const unsigned col_table_test_json_order[] = {
+	COL_TABLE_TEST_REQUESTS,
+	COL_TABLE_TEST_PROF_COUNT,
+	COL_TABLE_TEST_COUNT,
+};
+
+static void
+emit_col_table(emitter_t *emitter) {
+	col_table_test_row_t value = {42, 7, 100, 9};
+	emitter_row_t row, header_row;
+	emitter_col_t cols[COL_TABLE_TEST_NCOLS];
+	emitter_col_t header_cols[COL_TABLE_TEST_NCOLS];
+
+	emitter_begin(emitter);
+	emitter_col_table_build(col_table_test_descs, COL_TABLE_TEST_NCOLS,
+	    COL_TABLE_TEST_FLAG_PROF, &row, cols, &header_row, header_cols);
+	emitter_col_table_header(
+	    emitter, &header_row, &header_cols[0], "mock:", "rows");
+	emitter_col_table_fill(col_table_test_descs, COL_TABLE_TEST_NCOLS,
+	    COL_TABLE_TEST_FLAG_PROF, cols, &value);
+	emitter_json_object_begin(emitter);
+	emitter_col_table_emit_json(emitter, col_table_test_descs,
+	    COL_TABLE_TEST_NCOLS, COL_TABLE_TEST_FLAG_PROF, cols,
+	    col_table_test_json_order, sizeof(col_table_test_json_order) /
+	        sizeof(col_table_test_json_order[0]));
+	emitter_json_object_end(emitter);
+	emitter_table_row(emitter, &row);
+	emitter_json_array_end(emitter);
+	emitter_end(emitter);
+}
+
+static const char *col_table_json =
+    "{\n"
+    "\t\"rows\": [\n"
+    "\t\t{\n"
+    "\t\t\t\"requests\": 9,\n"
+    "\t\t\t\"prof_count\": 100,\n"
+    "\t\t\t\"count\": 7\n"
+    "\t\t}\n"
+    "\t]\n"
+    "}\n";
+static const char *col_table_json_compact =
+    "{\"rows\":[{\"requests\":9,\"prof_count\":100,\"count\":7}]}";
+static const char *col_table_table =
+    "mock:size   count  prof  requests\n"
+    "      42       7   100         9\n";
+
 #define GENERATE_TEST(feature)                                                 \
 	TEST_BEGIN(test_##feature) {                                           \
 		expect_emit_output(emit_##feature, feature##_json,             \
@@ -685,10 +790,12 @@ GENERATE_TEST(json_nested_array)
 GENERATE_TEST(table_row)
 GENERATE_TEST(row)
 GENERATE_TEST(sparse_row)
+GENERATE_TEST(col_table)
 
 int
 main(void) {
 	return test_no_reentrancy(test_dict, test_table_printf,
 	    test_nested_dict, test_types, test_modal, test_json_array,
-	    test_json_nested_array, test_table_row, test_row, test_sparse_row);
+	    test_json_nested_array, test_table_row, test_row, test_sparse_row,
+	    test_col_table, test_col_desc_flags);
 }

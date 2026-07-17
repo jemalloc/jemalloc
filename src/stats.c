@@ -695,18 +695,223 @@ stats_size_col_set(emitter_col_t *col, size_t size, size_t prev_size, char *buf,
 	}
 }
 
+enum {
+	STATS_COL_FLAG_NONE = 0,
+	STATS_COL_FLAG_PROF = 1U << 0,
+};
+
+static unsigned
+stats_col_active_flags(bool prof_stats_on) {
+	return prof_stats_on ? STATS_COL_FLAG_PROF : STATS_COL_FLAG_NONE;
+}
+
+typedef struct {
+	const stats_arena_bin_t *bin;
+	unsigned                 ind;
+	size_t                   page;
+	uint64_t                 uptime;
+	const char              *util;
+} stats_arena_bin_emit_row_t;
+
+#define BIN_COL_GET(name, value_member, field)                                \
+	static void                                                            \
+	stats_bin_col_get_##name(const void *vrow, emitter_col_t *col) {        \
+		const stats_arena_bin_emit_row_t *row = vrow;                    \
+		col->value_member = row->bin->field;                              \
+	}
+#define BIN_COL_GET_RATE(name, field)                                         \
+	static void                                                            \
+	stats_bin_col_get_##name(const void *vrow, emitter_col_t *col) {        \
+		const stats_arena_bin_emit_row_t *row = vrow;                    \
+		col->uint64_val = rate_per_second(                               \
+		    row->bin->field, row->uptime);                                \
+	}
+BIN_COL_GET(size, size_val, reg_size)
+BIN_COL_GET(nmalloc, uint64_val, nmalloc)
+BIN_COL_GET(ndalloc, uint64_val, ndalloc)
+BIN_COL_GET(nrequests, uint64_val, nrequests)
+BIN_COL_GET(prof_live_requested, uint64_val, prof_live.req_sum)
+BIN_COL_GET(prof_live_count, uint64_val, prof_live.count)
+BIN_COL_GET(prof_accum_requested, uint64_val, prof_accum.req_sum)
+BIN_COL_GET(prof_accum_count, uint64_val, prof_accum.count)
+BIN_COL_GET(nshards, unsigned_val, nshards)
+BIN_COL_GET(curregs, size_val, curregs)
+BIN_COL_GET(curslabs, size_val, curslabs)
+BIN_COL_GET(nonfull_slabs, size_val, nonfull_slabs)
+BIN_COL_GET(regs, unsigned_val, nregs)
+BIN_COL_GET(nfills, uint64_val, nfills)
+BIN_COL_GET(nflushes, uint64_val, nflushes)
+BIN_COL_GET(nslabs, uint64_val, nslabs)
+BIN_COL_GET(nreslabs, uint64_val, nreslabs)
+BIN_COL_GET_RATE(nmalloc_ps, nmalloc)
+BIN_COL_GET_RATE(ndalloc_ps, ndalloc)
+BIN_COL_GET_RATE(nrequests_ps, nrequests)
+BIN_COL_GET_RATE(nfills_ps, nfills)
+BIN_COL_GET_RATE(nflushes_ps, nflushes)
+BIN_COL_GET_RATE(nreslabs_ps, nreslabs)
+#undef BIN_COL_GET
+#undef BIN_COL_GET_RATE
+
+static void
+stats_bin_col_get_ind(const void *vrow, emitter_col_t *col) {
+	const stats_arena_bin_emit_row_t *row = vrow;
+	col->unsigned_val = row->ind;
+}
+
+static void
+stats_bin_col_get_allocated(const void *vrow, emitter_col_t *col) {
+	const stats_arena_bin_emit_row_t *row = vrow;
+	col->size_val = row->bin->curregs * row->bin->reg_size;
+}
+
+static void
+stats_bin_col_get_pgs(const void *vrow, emitter_col_t *col) {
+	const stats_arena_bin_emit_row_t *row = vrow;
+	col->size_val = row->bin->slab_size / row->page;
+}
+
+static void
+stats_bin_col_get_spacer(const void *vrow, emitter_col_t *col) {
+	(void)vrow;
+	col->str_val = " ";
+}
+
+static void
+stats_bin_col_get_util(const void *vrow, emitter_col_t *col) {
+	const stats_arena_bin_emit_row_t *row = vrow;
+	col->str_val = row->util;
+}
+
+enum {
+	BIN_COL_SIZE,
+	BIN_COL_IND,
+	BIN_COL_ALLOCATED,
+	BIN_COL_NMALLOC,
+	BIN_COL_NMALLOC_PS,
+	BIN_COL_NDALLOC,
+	BIN_COL_NDALLOC_PS,
+	BIN_COL_NREQUESTS,
+	BIN_COL_NREQUESTS_PS,
+	BIN_COL_PROF_LIVE_REQUESTED,
+	BIN_COL_PROF_LIVE_COUNT,
+	BIN_COL_PROF_ACCUM_REQUESTED,
+	BIN_COL_PROF_ACCUM_COUNT,
+	BIN_COL_NSHARDS,
+	BIN_COL_CURREGS,
+	BIN_COL_CURSLABS,
+	BIN_COL_NONFULL_SLABS,
+	BIN_COL_REGS,
+	BIN_COL_PGS,
+	BIN_COL_SPACER,
+	BIN_COL_UTIL,
+	BIN_COL_NFILLS,
+	BIN_COL_NFILLS_PS,
+	BIN_COL_NFLUSHES,
+	BIN_COL_NFLUSHES_PS,
+	BIN_COL_NSLABS,
+	BIN_COL_NRESLABS,
+	BIN_COL_NRESLABS_PS,
+	BIN_COL_COUNT
+};
+
+#define BIN_DESC(key, label, width, type, flags, name)                        \
+	{key, label, emitter_justify_right, width, emitter_type_##type, flags,   \
+	    stats_bin_col_get_##name}
+static const emitter_col_desc_t stats_bin_cols[] = {
+	BIN_DESC(NULL, "size", 20, size, STATS_COL_FLAG_NONE, size),
+	BIN_DESC(NULL, "ind", 4, unsigned, STATS_COL_FLAG_NONE, ind),
+	BIN_DESC(NULL, "allocated", 14, size, STATS_COL_FLAG_NONE, allocated),
+	BIN_DESC("nmalloc", "nmalloc", 14, uint64, STATS_COL_FLAG_NONE,
+	    nmalloc),
+	BIN_DESC(NULL, "(#/sec)", 8, uint64, STATS_COL_FLAG_NONE, nmalloc_ps),
+	BIN_DESC("ndalloc", "ndalloc", 14, uint64, STATS_COL_FLAG_NONE,
+	    ndalloc),
+	BIN_DESC(NULL, "(#/sec)", 8, uint64, STATS_COL_FLAG_NONE, ndalloc_ps),
+	BIN_DESC("nrequests", "nrequests", 15, uint64, STATS_COL_FLAG_NONE,
+	    nrequests),
+	BIN_DESC(NULL, "(#/sec)", 10, uint64, STATS_COL_FLAG_NONE,
+	    nrequests_ps),
+	BIN_DESC("prof_live_requested", "prof_live_requested", 21, uint64,
+	    STATS_COL_FLAG_PROF, prof_live_requested),
+	BIN_DESC("prof_live_count", "prof_live_count", 17, uint64,
+	    STATS_COL_FLAG_PROF, prof_live_count),
+	BIN_DESC("prof_accum_requested", "prof_accum_requested", 21, uint64,
+	    STATS_COL_FLAG_PROF, prof_accum_requested),
+	BIN_DESC("prof_accum_count", "prof_accum_count", 17, uint64,
+	    STATS_COL_FLAG_PROF, prof_accum_count),
+	BIN_DESC(NULL, "nshards", 9, unsigned, STATS_COL_FLAG_NONE, nshards),
+	BIN_DESC("curregs", "curregs", 13, size, STATS_COL_FLAG_NONE, curregs),
+	BIN_DESC("curslabs", "curslabs", 13, size, STATS_COL_FLAG_NONE,
+	    curslabs),
+	BIN_DESC("nonfull_slabs", "nonfull_slabs", 15, size,
+	    STATS_COL_FLAG_NONE,
+	    nonfull_slabs),
+	BIN_DESC(NULL, "regs", 5, unsigned, STATS_COL_FLAG_NONE, regs),
+	BIN_DESC(NULL, "pgs", 4, size, STATS_COL_FLAG_NONE, pgs),
+	BIN_DESC(NULL, " ", 1, title, STATS_COL_FLAG_NONE, spacer),
+	BIN_DESC(NULL, "util", 6, title, STATS_COL_FLAG_NONE, util),
+	BIN_DESC("nfills", "nfills", 13, uint64, STATS_COL_FLAG_NONE, nfills),
+	BIN_DESC(NULL, "(#/sec)", 8, uint64, STATS_COL_FLAG_NONE, nfills_ps),
+	BIN_DESC("nflushes", "nflushes", 13, uint64, STATS_COL_FLAG_NONE,
+	    nflushes),
+	BIN_DESC(NULL, "(#/sec)", 8, uint64, STATS_COL_FLAG_NONE,
+	    nflushes_ps),
+	BIN_DESC(NULL, "nslabs", 13, uint64, STATS_COL_FLAG_NONE, nslabs),
+	BIN_DESC("nreslabs", "nreslabs", 13, uint64, STATS_COL_FLAG_NONE,
+	    nreslabs),
+	BIN_DESC(NULL, "(#/sec)", 8, uint64, STATS_COL_FLAG_NONE,
+	    nreslabs_ps),
+};
+#undef BIN_DESC
+_Static_assert(sizeof(stats_bin_cols) / sizeof(stats_bin_cols[0]) ==
+    BIN_COL_COUNT, "stats_bin_cols must match BIN_COL_COUNT");
+
+static const unsigned stats_bin_json_order[] = {
+	BIN_COL_NMALLOC,
+	BIN_COL_NDALLOC,
+	BIN_COL_CURREGS,
+	BIN_COL_NREQUESTS,
+	BIN_COL_PROF_LIVE_REQUESTED,
+	BIN_COL_PROF_LIVE_COUNT,
+	BIN_COL_PROF_ACCUM_REQUESTED,
+	BIN_COL_PROF_ACCUM_COUNT,
+	BIN_COL_NFILLS,
+	BIN_COL_NFLUSHES,
+	BIN_COL_NRESLABS,
+	BIN_COL_CURSLABS,
+	BIN_COL_NONFULL_SLABS,
+};
+
+static void
+stats_emit_arena_bin_row(emitter_t *emitter, emitter_row_t *table_row,
+    emitter_col_t *cols, const stats_arena_bin_emit_row_t *row,
+    bool prof_stats_on, bool mutex, emitter_col_t *mutex64,
+    emitter_col_t *mutex32, bool is_gap) {
+	unsigned active_flags = stats_col_active_flags(prof_stats_on);
+	emitter_col_table_fill(
+	    stats_bin_cols, BIN_COL_COUNT, active_flags, cols, row);
+	emitter_json_object_begin(emitter);
+	emitter_col_table_emit_json(emitter, stats_bin_cols, BIN_COL_COUNT,
+	    active_flags, cols, stats_bin_json_order,
+	    sizeof(stats_bin_json_order) / sizeof(stats_bin_json_order[0]));
+	if (mutex) {
+		emitter_json_object_kv_begin(emitter, "mutex");
+		mutex_stats_emit(emitter, NULL, mutex64, mutex32);
+		emitter_json_object_end(emitter);
+	}
+	emitter_json_object_end(emitter);
+	emitter_table_sparse_row(emitter, table_row, is_gap);
+}
+
 JEMALLOC_COLD
 static void
 stats_arena_bins_print(
     emitter_t *emitter, bool mutex, unsigned i, uint64_t uptime) {
 	/*
-	 * Streaming table (deviates from the gather/emit split): the SC_NBINS
-	 * rows are gathered and emitted one at a time (stats_gather_arena_bin
-	 * per row + inline emit, with all-zero runs collapsed to "---").  This
-	 * preserves O(1) memory.  Full gather-all-rows-before-emit separation
-	 * would require buffering the table; a separate per-row emit helper
-	 * would not.  The lextents / extents / hpa-nonfull tables follow the
-	 * same pattern.
+	 * Process one size-class row at a time to preserve O(1) memory.  Full
+	 * gather-all-rows-before-emit separation would require buffering the
+	 * table, so gathering and emission remain interleaved across rows.  The
+	 * lextents, extents, and HPA nonfull tables follow the same pattern.
 	 */
 	size_t   page;
 	unsigned nbins, j;
@@ -715,54 +920,13 @@ stats_arena_bins_print(
 
 	CTL_GET("arenas.nbins", &nbins, unsigned);
 
-	emitter_row_t header_row;
-	emitter_row_init(&header_row);
-
-	emitter_row_t row;
-	emitter_row_init(&row);
-
 	bool prof_stats_on = config_prof && opt_prof && opt_prof_stats
 	    && i == MALLCTL_ARENAS_ALL;
-
-	COL_HDR(row, size, NULL, right, 20, size)
-	COL_HDR(row, ind, NULL, right, 4, unsigned)
-	COL_HDR(row, allocated, NULL, right, 14, size)
-	COL_HDR(row, nmalloc, NULL, right, 14, uint64)
-	COL_HDR(row, nmalloc_ps, "(#/sec)", right, 8, uint64)
-	COL_HDR(row, ndalloc, NULL, right, 14, uint64)
-	COL_HDR(row, ndalloc_ps, "(#/sec)", right, 8, uint64)
-	COL_HDR(row, nrequests, NULL, right, 15, uint64)
-	COL_HDR(row, nrequests_ps, "(#/sec)", right, 10, uint64)
-	COL_HDR_DECLARE(prof_live_requested);
-	COL_HDR_DECLARE(prof_live_count);
-	COL_HDR_DECLARE(prof_accum_requested);
-	COL_HDR_DECLARE(prof_accum_count);
-	if (prof_stats_on) {
-		COL_HDR_INIT(row, prof_live_requested, NULL, right, 21, uint64)
-		COL_HDR_INIT(row, prof_live_count, NULL, right, 17, uint64)
-		COL_HDR_INIT(row, prof_accum_requested, NULL, right, 21, uint64)
-		COL_HDR_INIT(row, prof_accum_count, NULL, right, 17, uint64)
-	}
-	COL_HDR(row, nshards, NULL, right, 9, unsigned)
-	COL_HDR(row, curregs, NULL, right, 13, size)
-	COL_HDR(row, curslabs, NULL, right, 13, size)
-	COL_HDR(row, nonfull_slabs, NULL, right, 15, size)
-	COL_HDR(row, regs, NULL, right, 5, unsigned)
-	COL_HDR(row, pgs, NULL, right, 4, size)
-	/* To buffer a right- and left-justified column. */
-	COL_HDR(row, justify_spacer, NULL, right, 1, title)
-	COL_HDR(row, util, NULL, right, 6, title)
-	COL_HDR(row, nfills, NULL, right, 13, uint64)
-	COL_HDR(row, nfills_ps, "(#/sec)", right, 8, uint64)
-	COL_HDR(row, nflushes, NULL, right, 13, uint64)
-	COL_HDR(row, nflushes_ps, "(#/sec)", right, 8, uint64)
-	COL_HDR(row, nslabs, NULL, right, 13, uint64)
-	COL_HDR(row, nreslabs, NULL, right, 13, uint64)
-	COL_HDR(row, nreslabs_ps, "(#/sec)", right, 8, uint64)
-
-	/* Don't want to actually print the name. */
-	header_justify_spacer.str_val = " ";
-	col_justify_spacer.str_val = " ";
+	emitter_row_t row, header_row;
+	emitter_col_t cols[BIN_COL_COUNT], header_cols[BIN_COL_COUNT];
+	emitter_col_table_build(stats_bin_cols, BIN_COL_COUNT,
+	    stats_col_active_flags(prof_stats_on), &row, cols, &header_row,
+	    header_cols);
 
 	emitter_col_t col_mutex64[mutex_prof_num_uint64_t_counters];
 	emitter_col_t col_mutex32[mutex_prof_num_uint32_t_counters];
@@ -777,14 +941,8 @@ stats_arena_bins_print(
 		    &header_row, NULL, NULL, header_mutex64, header_mutex32);
 	}
 
-	/*
-	 * We print a "bins:" header as part of the table row; we need to adjust
-	 * the header size column to compensate.
-	 */
-	header_size.width -= 5;
-	emitter_table_printf(emitter, "bins:");
-	emitter_table_row(emitter, &header_row);
-	emitter_json_array_kv_begin(emitter, "bins");
+	emitter_col_table_header(emitter, &header_row,
+	    &header_cols[BIN_COL_SIZE], "bins:", "bins");
 
 	size_t stats_arenas_mib[CTL_MAX_DEPTH];
 	CTL_LEAF_PREPARE(stats_arenas_mib, 0, "stats.arenas");
@@ -827,58 +985,13 @@ stats_arena_bins_print(
 			continue;
 		}
 
-		/*
-		 * Per-size-class tables stream: gather one row, emit it, reuse
-		 * buffers.  Full gather-all-rows-before-emit separation would
-		 * require table-sized storage, so gathering and emission remain
-		 * interleaved across rows.  In particular the per-bin mutex
-		 * counters are read here (the mutex subsystem reads straight into
-		 * emitter columns) rather than up front.  A separate per-row emit
-		 * helper could further decouple the code without buffering.
-		 */
+		/* Mutex counters still gather directly into their emitter columns. */
 		stats_gather_arena_bin(stats_arenas_mib, arenas_bin_mib, &bin);
 
 		if (mutex) {
 			mutex_stats_read_arena_bin(stats_arenas_mib, 5,
 			    col_mutex64, col_mutex32, uptime);
 		}
-
-		emitter_json_object_begin(emitter);
-		emitter_json_kv(
-		    emitter, "nmalloc", emitter_type_uint64, &bin.nmalloc);
-		emitter_json_kv(
-		    emitter, "ndalloc", emitter_type_uint64, &bin.ndalloc);
-		emitter_json_kv(
-		    emitter, "curregs", emitter_type_size, &bin.curregs);
-		emitter_json_kv(
-		    emitter, "nrequests", emitter_type_uint64, &bin.nrequests);
-		if (prof_stats_on) {
-			emitter_json_kv(emitter, "prof_live_requested",
-			    emitter_type_uint64, &bin.prof_live.req_sum);
-			emitter_json_kv(emitter, "prof_live_count",
-			    emitter_type_uint64, &bin.prof_live.count);
-			emitter_json_kv(emitter, "prof_accum_requested",
-			    emitter_type_uint64, &bin.prof_accum.req_sum);
-			emitter_json_kv(emitter, "prof_accum_count",
-			    emitter_type_uint64, &bin.prof_accum.count);
-		}
-		emitter_json_kv(
-		    emitter, "nfills", emitter_type_uint64, &bin.nfills);
-		emitter_json_kv(
-		    emitter, "nflushes", emitter_type_uint64, &bin.nflushes);
-		emitter_json_kv(
-		    emitter, "nreslabs", emitter_type_uint64, &bin.nreslabs);
-		emitter_json_kv(
-		    emitter, "curslabs", emitter_type_size, &bin.curslabs);
-		emitter_json_kv(emitter, "nonfull_slabs", emitter_type_size,
-		    &bin.nonfull_slabs);
-		if (mutex) {
-			emitter_json_object_kv_begin(emitter, "mutex");
-			mutex_stats_emit(
-			    emitter, NULL, col_mutex64, col_mutex32);
-			emitter_json_object_end(emitter);
-		}
-		emitter_json_object_end(emitter);
 
 		size_t availregs = bin.nregs * bin.curslabs;
 		char   util[6];
@@ -899,48 +1012,138 @@ stats_arena_bins_print(
 			}
 		}
 
-		col_size.size_val = bin.reg_size;
-		col_ind.unsigned_val = j;
-		col_allocated.size_val = bin.curregs * bin.reg_size;
-		col_nmalloc.uint64_val = bin.nmalloc;
-		col_nmalloc_ps.uint64_val = rate_per_second(bin.nmalloc, uptime);
-		col_ndalloc.uint64_val = bin.ndalloc;
-		col_ndalloc_ps.uint64_val = rate_per_second(bin.ndalloc, uptime);
-		col_nrequests.uint64_val = bin.nrequests;
-		col_nrequests_ps.uint64_val = rate_per_second(
-		    bin.nrequests, uptime);
-		if (prof_stats_on) {
-			col_prof_live_requested.uint64_val = bin.prof_live.req_sum;
-			col_prof_live_count.uint64_val = bin.prof_live.count;
-			col_prof_accum_requested.uint64_val =
-			    bin.prof_accum.req_sum;
-			col_prof_accum_count.uint64_val = bin.prof_accum.count;
-		}
-		col_nshards.unsigned_val = bin.nshards;
-		col_curregs.size_val = bin.curregs;
-		col_curslabs.size_val = bin.curslabs;
-		col_nonfull_slabs.size_val = bin.nonfull_slabs;
-		col_regs.unsigned_val = bin.nregs;
-		col_pgs.size_val = bin.slab_size / page;
-		col_util.str_val = util;
-		col_nfills.uint64_val = bin.nfills;
-		col_nfills_ps.uint64_val = rate_per_second(bin.nfills, uptime);
-		col_nflushes.uint64_val = bin.nflushes;
-		col_nflushes_ps.uint64_val = rate_per_second(bin.nflushes, uptime);
-		col_nslabs.uint64_val = bin.nslabs;
-		col_nreslabs.uint64_val = bin.nreslabs;
-		col_nreslabs_ps.uint64_val = rate_per_second(bin.nreslabs, uptime);
-
-		/*
-		 * Note that mutex columns were initialized above, if mutex ==
-		 * true.
-		 */
-
-		emitter_table_sparse_row(emitter, &row, is_gap);
+		stats_arena_bin_emit_row_t emit_row = {
+		    &bin, j, page, uptime, util};
+		stats_emit_arena_bin_row(emitter, &row, cols, &emit_row,
+		    prof_stats_on, mutex, col_mutex64, col_mutex32, is_gap);
 	}
 	emitter_json_array_end(emitter); /* Close "bins". */
 
 	emitter_table_sparse_end(emitter);
+}
+
+typedef struct {
+	const stats_arena_lextent_t *lextent;
+	unsigned                     ind;
+	uint64_t                     uptime;
+} stats_arena_lextent_emit_row_t;
+
+#define LEXTENT_COL_GET(name, value_member, field)                            \
+	static void                                                            \
+	stats_lextent_col_get_##name(const void *vrow, emitter_col_t *col) {    \
+		const stats_arena_lextent_emit_row_t *row = vrow;                \
+		col->value_member = row->lextent->field;                          \
+	}
+#define LEXTENT_COL_GET_RATE(name, field)                                     \
+	static void                                                            \
+	stats_lextent_col_get_##name(const void *vrow, emitter_col_t *col) {    \
+		const stats_arena_lextent_emit_row_t *row = vrow;                \
+		col->uint64_val = rate_per_second(                               \
+		    row->lextent->field, row->uptime);                            \
+	}
+LEXTENT_COL_GET(size, size_val, lextent_size)
+LEXTENT_COL_GET(nmalloc, uint64_val, nmalloc)
+LEXTENT_COL_GET(ndalloc, uint64_val, ndalloc)
+LEXTENT_COL_GET(nrequests, uint64_val, nrequests)
+LEXTENT_COL_GET(prof_live_requested, uint64_val, prof_live.req_sum)
+LEXTENT_COL_GET(prof_live_count, uint64_val, prof_live.count)
+LEXTENT_COL_GET(prof_accum_requested, uint64_val, prof_accum.req_sum)
+LEXTENT_COL_GET(prof_accum_count, uint64_val, prof_accum.count)
+LEXTENT_COL_GET(curlextents, size_val, curlextents)
+LEXTENT_COL_GET_RATE(nmalloc_ps, nmalloc)
+LEXTENT_COL_GET_RATE(ndalloc_ps, ndalloc)
+LEXTENT_COL_GET_RATE(nrequests_ps, nrequests)
+#undef LEXTENT_COL_GET
+#undef LEXTENT_COL_GET_RATE
+
+static void
+stats_lextent_col_get_ind(const void *vrow, emitter_col_t *col) {
+	const stats_arena_lextent_emit_row_t *row = vrow;
+	col->unsigned_val = row->ind;
+}
+
+static void
+stats_lextent_col_get_allocated(const void *vrow, emitter_col_t *col) {
+	const stats_arena_lextent_emit_row_t *row = vrow;
+	col->size_val = row->lextent->curlextents * row->lextent->lextent_size;
+}
+
+enum {
+	LEXTENT_COL_SIZE,
+	LEXTENT_COL_IND,
+	LEXTENT_COL_ALLOCATED,
+	LEXTENT_COL_NMALLOC,
+	LEXTENT_COL_NMALLOC_PS,
+	LEXTENT_COL_NDALLOC,
+	LEXTENT_COL_NDALLOC_PS,
+	LEXTENT_COL_NREQUESTS,
+	LEXTENT_COL_NREQUESTS_PS,
+	LEXTENT_COL_PROF_LIVE_REQUESTED,
+	LEXTENT_COL_PROF_LIVE_COUNT,
+	LEXTENT_COL_PROF_ACCUM_REQUESTED,
+	LEXTENT_COL_PROF_ACCUM_COUNT,
+	LEXTENT_COL_CURLEXTENTS,
+	LEXTENT_COL_COUNT
+};
+
+#define LEXTENT_DESC(key, label, width, type, flags, name)                    \
+	{key, label, emitter_justify_right, width, emitter_type_##type, flags,   \
+	    stats_lextent_col_get_##name}
+static const emitter_col_desc_t stats_lextent_cols[] = {
+	LEXTENT_DESC(NULL, "size", 20, size, STATS_COL_FLAG_NONE, size),
+	LEXTENT_DESC(NULL, "ind", 4, unsigned, STATS_COL_FLAG_NONE, ind),
+	LEXTENT_DESC(NULL, "allocated", 13, size, STATS_COL_FLAG_NONE,
+	    allocated),
+	LEXTENT_DESC(NULL, "nmalloc", 13, uint64, STATS_COL_FLAG_NONE, nmalloc),
+	LEXTENT_DESC(NULL, "(#/sec)", 8, uint64, STATS_COL_FLAG_NONE,
+	    nmalloc_ps),
+	LEXTENT_DESC(NULL, "ndalloc", 13, uint64, STATS_COL_FLAG_NONE, ndalloc),
+	LEXTENT_DESC(NULL, "(#/sec)", 8, uint64, STATS_COL_FLAG_NONE,
+	    ndalloc_ps),
+	LEXTENT_DESC(NULL, "nrequests", 13, uint64, STATS_COL_FLAG_NONE,
+	    nrequests),
+	LEXTENT_DESC(NULL, "(#/sec)", 8, uint64, STATS_COL_FLAG_NONE,
+	    nrequests_ps),
+	LEXTENT_DESC("prof_live_requested", "prof_live_requested", 21, uint64,
+	    STATS_COL_FLAG_PROF, prof_live_requested),
+	LEXTENT_DESC("prof_live_count", "prof_live_count", 17, uint64,
+	    STATS_COL_FLAG_PROF, prof_live_count),
+	LEXTENT_DESC("prof_accum_requested", "prof_accum_requested", 21,
+	    uint64, STATS_COL_FLAG_PROF, prof_accum_requested),
+	LEXTENT_DESC("prof_accum_count", "prof_accum_count", 17, uint64,
+	    STATS_COL_FLAG_PROF, prof_accum_count),
+	LEXTENT_DESC("curlextents", "curlextents", 13, size,
+	    STATS_COL_FLAG_NONE, curlextents),
+};
+#undef LEXTENT_DESC
+_Static_assert(sizeof(stats_lextent_cols) / sizeof(stats_lextent_cols[0]) ==
+    LEXTENT_COL_COUNT, "stats_lextent_cols must match LEXTENT_COL_COUNT");
+
+static const unsigned stats_lextent_json_order[] = {
+	LEXTENT_COL_PROF_LIVE_REQUESTED,
+	LEXTENT_COL_PROF_LIVE_COUNT,
+	LEXTENT_COL_PROF_ACCUM_REQUESTED,
+	LEXTENT_COL_PROF_ACCUM_COUNT,
+	LEXTENT_COL_CURLEXTENTS,
+};
+
+static void
+stats_emit_arena_lextent_row(emitter_t *emitter, emitter_row_t *table_row,
+    emitter_col_t *cols, const stats_arena_lextent_emit_row_t *row,
+    bool prof_stats_on, size_t prev_size, char *size_buf,
+    size_t size_buf_size, bool is_gap) {
+	unsigned active_flags = stats_col_active_flags(prof_stats_on);
+	emitter_col_table_fill(stats_lextent_cols, LEXTENT_COL_COUNT,
+	    active_flags, cols, row);
+	stats_size_col_set(&cols[LEXTENT_COL_SIZE], row->lextent->lextent_size,
+	    prev_size, size_buf, size_buf_size);
+	emitter_json_object_begin(emitter);
+	emitter_col_table_emit_json(emitter, stats_lextent_cols,
+	    LEXTENT_COL_COUNT, active_flags, cols, stats_lextent_json_order,
+	    sizeof(stats_lextent_json_order) /
+	        sizeof(stats_lextent_json_order[0]));
+	emitter_table_sparse_row(emitter, table_row, is_gap);
+	emitter_json_object_end(emitter);
 }
 
 JEMALLOC_COLD
@@ -952,45 +1155,16 @@ stats_arena_lextents_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 	CTL_GET("arenas.nbins", &nbins, unsigned);
 	CTL_GET("arenas.nlextents", &nlextents, unsigned);
 
-	emitter_row_t header_row;
-	emitter_row_init(&header_row);
-	emitter_row_t row;
-	emitter_row_init(&row);
-
 	bool prof_stats_on = config_prof && opt_prof && opt_prof_stats
 	    && i == MALLCTL_ARENAS_ALL;
-
-	COL_HDR(row, size, NULL, right, 20, size)
-	COL_HDR(row, ind, NULL, right, 4, unsigned)
-	COL_HDR(row, allocated, NULL, right, 13, size)
-	COL_HDR(row, nmalloc, NULL, right, 13, uint64)
-	COL_HDR(row, nmalloc_ps, "(#/sec)", right, 8, uint64)
-	COL_HDR(row, ndalloc, NULL, right, 13, uint64)
-	COL_HDR(row, ndalloc_ps, "(#/sec)", right, 8, uint64)
-	COL_HDR(row, nrequests, NULL, right, 13, uint64)
-	COL_HDR(row, nrequests_ps, "(#/sec)", right, 8, uint64)
-	COL_HDR_DECLARE(prof_live_requested)
-	COL_HDR_DECLARE(prof_live_count)
-	COL_HDR_DECLARE(prof_accum_requested)
-	COL_HDR_DECLARE(prof_accum_count)
-	if (prof_stats_on) {
-		COL_HDR_INIT(row, prof_live_requested, NULL, right, 21, uint64)
-		COL_HDR_INIT(row, prof_live_count, NULL, right, 17, uint64)
-		COL_HDR_INIT(row, prof_accum_requested, NULL, right, 21, uint64)
-		COL_HDR_INIT(row, prof_accum_count, NULL, right, 17, uint64)
-		col_prof_live_requested.json_key = "prof_live_requested";
-		col_prof_live_count.json_key = "prof_live_count";
-		col_prof_accum_requested.json_key = "prof_accum_requested";
-		col_prof_accum_count.json_key = "prof_accum_count";
-	}
-	COL_HDR(row, curlextents, NULL, right, 13, size)
-	col_curlextents.json_key = "curlextents";
-
-	/* As with bins, we label the large extents table. */
-	header_size.width -= 6;
-	emitter_table_printf(emitter, "large:");
-	emitter_table_row(emitter, &header_row);
-	emitter_json_array_kv_begin(emitter, "lextents");
+	emitter_row_t row, header_row;
+	emitter_col_t cols[LEXTENT_COL_COUNT], header_cols[LEXTENT_COL_COUNT];
+	char size_buf[48];
+	emitter_col_table_build(stats_lextent_cols, LEXTENT_COL_COUNT,
+	    stats_col_active_flags(prof_stats_on), &row, cols, &header_row,
+	    header_cols);
+	emitter_col_table_header(emitter, &header_row,
+	    &header_cols[LEXTENT_COL_SIZE], "large:", "lextents");
 
 	size_t stats_arenas_mib[CTL_MAX_DEPTH];
 	CTL_LEAF_PREPARE(stats_arenas_mib, 0, "stats.arenas");
@@ -1022,34 +1196,117 @@ stats_arena_lextents_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 
 		bool is_gap = (lext.nrequests == 0);
 
-		char size_buf[48];
-		stats_size_col_set(&col_size, lext.lextent_size, prev_size,
-		    size_buf, sizeof(size_buf));
+		stats_arena_lextent_emit_row_t emit_row = {
+		    &lext, nbins + j, uptime};
+		stats_emit_arena_lextent_row(emitter, &row, cols, &emit_row,
+		    prof_stats_on, prev_size, size_buf, sizeof(size_buf), is_gap);
 		prev_size = lext.lextent_size;
-		col_ind.unsigned_val = nbins + j;
-		col_allocated.size_val = lext.curlextents * lext.lextent_size;
-		col_nmalloc.uint64_val = lext.nmalloc;
-		col_nmalloc_ps.uint64_val = rate_per_second(lext.nmalloc, uptime);
-		col_ndalloc.uint64_val = lext.ndalloc;
-		col_ndalloc_ps.uint64_val = rate_per_second(lext.ndalloc, uptime);
-		col_nrequests.uint64_val = lext.nrequests;
-		col_nrequests_ps.uint64_val = rate_per_second(
-		    lext.nrequests, uptime);
-		if (prof_stats_on) {
-			col_prof_live_requested.uint64_val = lext.prof_live.req_sum;
-			col_prof_live_count.uint64_val = lext.prof_live.count;
-			col_prof_accum_requested.uint64_val =
-			    lext.prof_accum.req_sum;
-			col_prof_accum_count.uint64_val = lext.prof_accum.count;
-		}
-		col_curlextents.size_val = lext.curlextents;
-
-		emitter_json_object_begin(emitter);
-		emitter_sparse_row(emitter, &row, is_gap);
-		emitter_json_object_end(emitter);
 	}
 	emitter_json_array_end(emitter); /* Close "lextents". */
 	emitter_table_sparse_end(emitter);
+}
+
+typedef struct {
+	const stats_arena_extent_t *extent;
+	unsigned                    ind;
+	size_t                      size;
+} stats_arena_extent_emit_row_t;
+
+#define EXTENT_COL_GET(name, field)                                           \
+	static void                                                            \
+	stats_extent_col_get_##name(const void *vrow, emitter_col_t *col) {     \
+		const stats_arena_extent_emit_row_t *row = vrow;                 \
+		col->size_val = row->extent->field;                              \
+	}
+EXTENT_COL_GET(ndirty, ndirty)
+EXTENT_COL_GET(dirty, dirty_bytes)
+EXTENT_COL_GET(nmuzzy, nmuzzy)
+EXTENT_COL_GET(muzzy, muzzy_bytes)
+EXTENT_COL_GET(nretained, nretained)
+EXTENT_COL_GET(retained, retained_bytes)
+EXTENT_COL_GET(npinned, npinned)
+EXTENT_COL_GET(pinned, pinned_bytes)
+EXTENT_COL_GET(ntotal, ntotal)
+EXTENT_COL_GET(total, total_bytes)
+#undef EXTENT_COL_GET
+
+static void
+stats_extent_col_get_size(const void *vrow, emitter_col_t *col) {
+	const stats_arena_extent_emit_row_t *row = vrow;
+	col->size_val = row->size;
+}
+
+static void
+stats_extent_col_get_ind(const void *vrow, emitter_col_t *col) {
+	const stats_arena_extent_emit_row_t *row = vrow;
+	col->unsigned_val = row->ind;
+}
+
+enum {
+	EXTENT_COL_SIZE,
+	EXTENT_COL_IND,
+	EXTENT_COL_NDIRTY,
+	EXTENT_COL_DIRTY,
+	EXTENT_COL_NMUZZY,
+	EXTENT_COL_MUZZY,
+	EXTENT_COL_NRETAINED,
+	EXTENT_COL_RETAINED,
+	EXTENT_COL_NPINNED,
+	EXTENT_COL_PINNED,
+	EXTENT_COL_NTOTAL,
+	EXTENT_COL_TOTAL,
+	EXTENT_COL_COUNT
+};
+
+#define EXTENT_DESC(key, label, name)                                         \
+	{key, label, emitter_justify_right, 13, emitter_type_size,               \
+	    STATS_COL_FLAG_NONE, stats_extent_col_get_##name}
+static const emitter_col_desc_t stats_extent_cols[] = {
+	{NULL, "size", emitter_justify_right, 20, emitter_type_size,
+	    STATS_COL_FLAG_NONE, stats_extent_col_get_size},
+	{NULL, "ind", emitter_justify_right, 4, emitter_type_unsigned,
+	    STATS_COL_FLAG_NONE, stats_extent_col_get_ind},
+	EXTENT_DESC("ndirty", "ndirty", ndirty),
+	EXTENT_DESC("dirty_bytes", "dirty", dirty),
+	EXTENT_DESC("nmuzzy", "nmuzzy", nmuzzy),
+	EXTENT_DESC("muzzy_bytes", "muzzy", muzzy),
+	EXTENT_DESC("nretained", "nretained", nretained),
+	EXTENT_DESC("retained_bytes", "retained", retained),
+	EXTENT_DESC("npinned", "npinned", npinned),
+	EXTENT_DESC("pinned_bytes", "pinned", pinned),
+	EXTENT_DESC(NULL, "ntotal", ntotal),
+	EXTENT_DESC(NULL, "total", total),
+};
+#undef EXTENT_DESC
+_Static_assert(sizeof(stats_extent_cols) / sizeof(stats_extent_cols[0]) ==
+    EXTENT_COL_COUNT, "stats_extent_cols must match EXTENT_COL_COUNT");
+
+static const unsigned stats_extent_json_order[] = {
+	EXTENT_COL_NDIRTY,
+	EXTENT_COL_NMUZZY,
+	EXTENT_COL_NRETAINED,
+	EXTENT_COL_NPINNED,
+	EXTENT_COL_DIRTY,
+	EXTENT_COL_MUZZY,
+	EXTENT_COL_RETAINED,
+	EXTENT_COL_PINNED,
+};
+
+static void
+stats_emit_arena_extent_row(emitter_t *emitter, emitter_row_t *table_row,
+    emitter_col_t *cols, const stats_arena_extent_emit_row_t *row,
+    size_t prev_size, char *size_buf, size_t size_buf_size, bool is_gap) {
+	emitter_col_table_fill(stats_extent_cols, EXTENT_COL_COUNT,
+	    STATS_COL_FLAG_NONE, cols, row);
+	stats_size_col_set(&cols[EXTENT_COL_SIZE], row->size, prev_size,
+	    size_buf, size_buf_size);
+	emitter_json_object_begin(emitter);
+	emitter_col_table_emit_json(emitter, stats_extent_cols, EXTENT_COL_COUNT,
+	    STATS_COL_FLAG_NONE, cols, stats_extent_json_order,
+	    sizeof(stats_extent_json_order) /
+	        sizeof(stats_extent_json_order[0]));
+	emitter_json_object_end(emitter);
+	emitter_table_sparse_row(emitter, table_row, is_gap);
 }
 
 JEMALLOC_COLD
@@ -1057,29 +1314,13 @@ static void
 stats_arena_extents_print(emitter_t *emitter, unsigned i) {
 	/* Streaming table; see stats_arena_bins_print for the rationale. */
 	unsigned      j;
-	emitter_row_t header_row;
-	emitter_row_init(&header_row);
-	emitter_row_t row;
-	emitter_row_init(&row);
-
-	COL_HDR(row, size, NULL, right, 20, size)
-	COL_HDR(row, ind, NULL, right, 4, unsigned)
-	COL_HDR(row, ndirty, NULL, right, 13, size)
-	COL_HDR(row, dirty, NULL, right, 13, size)
-	COL_HDR(row, nmuzzy, NULL, right, 13, size)
-	COL_HDR(row, muzzy, NULL, right, 13, size)
-	COL_HDR(row, nretained, NULL, right, 13, size)
-	COL_HDR(row, retained, NULL, right, 13, size)
-	COL_HDR(row, npinned, NULL, right, 13, size)
-	COL_HDR(row, pinned, NULL, right, 13, size)
-	COL_HDR(row, ntotal, NULL, right, 13, size)
-	COL_HDR(row, total, NULL, right, 13, size)
-
-	/* Label this section. */
-	header_size.width -= 8;
-	emitter_table_printf(emitter, "extents:");
-	emitter_table_row(emitter, &header_row);
-	emitter_json_array_kv_begin(emitter, "extents");
+	emitter_row_t row, header_row;
+	emitter_col_t cols[EXTENT_COL_COUNT], header_cols[EXTENT_COL_COUNT];
+	char size_buf[48];
+	emitter_col_table_build(stats_extent_cols, EXTENT_COL_COUNT,
+	    STATS_COL_FLAG_NONE, &row, cols, &header_row, header_cols);
+	emitter_col_table_header(emitter, &header_row,
+	    &header_cols[EXTENT_COL_SIZE], "extents:", "extents");
 
 	size_t stats_arenas_mib[CTL_MAX_DEPTH];
 	CTL_LEAF_PREPARE(stats_arenas_mib, 0, "stats.arenas");
@@ -1093,40 +1334,10 @@ stats_arena_extents_print(emitter_t *emitter, unsigned i) {
 
 		bool is_gap = (e.ntotal == 0);
 
-		emitter_json_object_begin(emitter);
-		emitter_json_kv(emitter, "ndirty", emitter_type_size, &e.ndirty);
-		emitter_json_kv(emitter, "nmuzzy", emitter_type_size, &e.nmuzzy);
-		emitter_json_kv(
-		    emitter, "nretained", emitter_type_size, &e.nretained);
-		emitter_json_kv(
-		    emitter, "npinned", emitter_type_size, &e.npinned);
-
-		emitter_json_kv(
-		    emitter, "dirty_bytes", emitter_type_size, &e.dirty_bytes);
-		emitter_json_kv(
-		    emitter, "muzzy_bytes", emitter_type_size, &e.muzzy_bytes);
-		emitter_json_kv(emitter, "retained_bytes", emitter_type_size,
-		    &e.retained_bytes);
-		emitter_json_kv(emitter, "pinned_bytes", emitter_type_size,
-		    &e.pinned_bytes);
-		emitter_json_object_end(emitter);
-
-		char size_buf[48];
-		stats_size_col_set(&col_size, sz_pind2sz(j),
-		    j > 0 ? sz_pind2sz(j - 1) : 0, size_buf, sizeof(size_buf));
-		col_ind.unsigned_val = j;
-		col_ndirty.size_val = e.ndirty;
-		col_dirty.size_val = e.dirty_bytes;
-		col_nmuzzy.size_val = e.nmuzzy;
-		col_muzzy.size_val = e.muzzy_bytes;
-		col_nretained.size_val = e.nretained;
-		col_retained.size_val = e.retained_bytes;
-		col_npinned.size_val = e.npinned;
-		col_pinned.size_val = e.pinned_bytes;
-		col_ntotal.size_val = e.ntotal;
-		col_total.size_val = e.total_bytes;
-
-		emitter_table_sparse_row(emitter, &row, is_gap);
+		stats_arena_extent_emit_row_t emit_row = {&e, j, sz_pind2sz(j)};
+		stats_emit_arena_extent_row(emitter, &row, cols, &emit_row,
+		    j > 0 ? sz_pind2sz(j - 1) : 0, size_buf, sizeof(size_buf),
+		    is_gap);
 	}
 	emitter_json_array_end(emitter); /* Close "extents". */
 	emitter_table_sparse_end(emitter);
@@ -1319,59 +1530,133 @@ stats_arena_hpa_shard_counters_print(
 	emitter_json_array_end(emitter); /* End "alloc_batch" */
 }
 
+typedef struct {
+	const stats_arena_hpa_slab_t *slab;
+	const char                   *size_title;
+	size_t                        size;
+	size_t                        prev_size;
+	unsigned                      ind;
+} stats_arena_hpa_slab_emit_row_t;
+
+#define HPA_SLAB_COL_GET(name)                                                \
+	static void                                                            \
+	stats_hpa_slab_col_get_##name(const void *vrow, emitter_col_t *col) {   \
+		const stats_arena_hpa_slab_emit_row_t *row = vrow;               \
+		col->size_val = row->slab->name;                                 \
+	}
+HPA_SLAB_COL_GET(npageslabs_huge)
+HPA_SLAB_COL_GET(nactive_huge)
+HPA_SLAB_COL_GET(ndirty_huge)
+HPA_SLAB_COL_GET(npageslabs_nonhuge)
+HPA_SLAB_COL_GET(nactive_nonhuge)
+HPA_SLAB_COL_GET(ndirty_nonhuge)
+HPA_SLAB_COL_GET(nretained_nonhuge)
+#undef HPA_SLAB_COL_GET
+
 static void
-stats_emit_arena_hpa_slab_json(emitter_t *emitter,
-    const stats_arena_hpa_slab_t *s, const char *json_key) {
-	emitter_json_object_kv_begin(emitter, json_key);
-	emitter_json_kv(
-	    emitter, "npageslabs_huge", emitter_type_size, &s->npageslabs_huge);
-	emitter_json_kv(
-	    emitter, "nactive_huge", emitter_type_size, &s->nactive_huge);
-	emitter_json_kv(
-	    emitter, "ndirty_huge", emitter_type_size, &s->ndirty_huge);
-	emitter_json_kv(emitter, "npageslabs_nonhuge", emitter_type_size,
-	    &s->npageslabs_nonhuge);
-	emitter_json_kv(
-	    emitter, "nactive_nonhuge", emitter_type_size, &s->nactive_nonhuge);
-	emitter_json_kv(
-	    emitter, "ndirty_nonhuge", emitter_type_size, &s->ndirty_nonhuge);
-	emitter_json_kv(emitter, "nretained_nonhuge", emitter_type_size,
-	    &s->nretained_nonhuge);
-	emitter_json_object_end(emitter);
+stats_hpa_slab_col_get_size(const void *vrow, emitter_col_t *col) {
+	const stats_arena_hpa_slab_emit_row_t *row = vrow;
+	if (row->size_title != NULL) {
+		col->type = emitter_type_title;
+		col->str_val = row->size_title;
+	} else {
+		col->size_val = row->size;
+	}
 }
 
-/* Fill the shared count columns of one pageslab row from s. */
 static void
-stats_hpa_slab_cols_set(const stats_arena_hpa_slab_t *s,
-    emitter_col_t *npageslabs_huge, emitter_col_t *nactive_huge,
-    emitter_col_t *ndirty_huge, emitter_col_t *npageslabs_nonhuge,
-    emitter_col_t *nactive_nonhuge, emitter_col_t *ndirty_nonhuge,
-    emitter_col_t *nretained_nonhuge) {
-	npageslabs_huge->size_val = s->npageslabs_huge;
-	nactive_huge->size_val = s->nactive_huge;
-	ndirty_huge->size_val = s->ndirty_huge;
-	npageslabs_nonhuge->size_val = s->npageslabs_nonhuge;
-	nactive_nonhuge->size_val = s->nactive_nonhuge;
-	ndirty_nonhuge->size_val = s->ndirty_nonhuge;
-	nretained_nonhuge->size_val = s->nretained_nonhuge;
+stats_hpa_slab_col_get_ind(const void *vrow, emitter_col_t *col) {
+	const stats_arena_hpa_slab_emit_row_t *row = vrow;
+	if (row->size_title != NULL) {
+		col->type = emitter_type_title;
+		col->str_val = "-";
+	} else {
+		col->unsigned_val = row->ind;
+	}
+}
+
+enum {
+	HPA_SLAB_COL_SIZE,
+	HPA_SLAB_COL_IND,
+	HPA_SLAB_COL_NPAGESLABS_HUGE,
+	HPA_SLAB_COL_NACTIVE_HUGE,
+	HPA_SLAB_COL_NDIRTY_HUGE,
+	HPA_SLAB_COL_NPAGESLABS_NONHUGE,
+	HPA_SLAB_COL_NACTIVE_NONHUGE,
+	HPA_SLAB_COL_NDIRTY_NONHUGE,
+	HPA_SLAB_COL_NRETAINED_NONHUGE,
+	HPA_SLAB_COL_COUNT
+};
+
+#define HPA_SLAB_DESC(name, width)                                            \
+	{#name, #name, emitter_justify_right, width, emitter_type_size,          \
+	    STATS_COL_FLAG_NONE, stats_hpa_slab_col_get_##name}
+static const emitter_col_desc_t stats_hpa_slab_cols[] = {
+	{NULL, "size", emitter_justify_right, 20, emitter_type_size,
+	    STATS_COL_FLAG_NONE, stats_hpa_slab_col_get_size},
+	{NULL, "ind", emitter_justify_right, 4, emitter_type_unsigned,
+	    STATS_COL_FLAG_NONE, stats_hpa_slab_col_get_ind},
+	HPA_SLAB_DESC(npageslabs_huge, 16),
+	HPA_SLAB_DESC(nactive_huge, 16),
+	HPA_SLAB_DESC(ndirty_huge, 16),
+	HPA_SLAB_DESC(npageslabs_nonhuge, 20),
+	HPA_SLAB_DESC(nactive_nonhuge, 20),
+	HPA_SLAB_DESC(ndirty_nonhuge, 20),
+	HPA_SLAB_DESC(nretained_nonhuge, 20),
+};
+#undef HPA_SLAB_DESC
+_Static_assert(
+    sizeof(stats_hpa_slab_cols) / sizeof(stats_hpa_slab_cols[0]) ==
+    HPA_SLAB_COL_COUNT,
+    "stats_hpa_slab_cols must match HPA_SLAB_COL_COUNT");
+
+static const unsigned stats_hpa_slab_json_order[] = {
+	HPA_SLAB_COL_NPAGESLABS_HUGE,
+	HPA_SLAB_COL_NACTIVE_HUGE,
+	HPA_SLAB_COL_NDIRTY_HUGE,
+	HPA_SLAB_COL_NPAGESLABS_NONHUGE,
+	HPA_SLAB_COL_NACTIVE_NONHUGE,
+	HPA_SLAB_COL_NDIRTY_NONHUGE,
+	HPA_SLAB_COL_NRETAINED_NONHUGE,
+};
+
+static void
+stats_emit_arena_hpa_slab_row(emitter_t *emitter,
+    emitter_row_t *table_row, emitter_col_t *cols,
+    const stats_arena_hpa_slab_emit_row_t *row, const char *json_key,
+    char *size_buf, size_t size_buf_size, bool sparse, bool is_gap) {
+	emitter_col_table_fill(stats_hpa_slab_cols, HPA_SLAB_COL_COUNT,
+	    STATS_COL_FLAG_NONE, cols, row);
+	if (row->size_title == NULL) {
+		stats_size_col_set(&cols[HPA_SLAB_COL_SIZE], row->size,
+		    row->prev_size, size_buf, size_buf_size);
+	}
+	if (json_key != NULL) {
+		emitter_json_object_kv_begin(emitter, json_key);
+	} else {
+		emitter_json_object_begin(emitter);
+	}
+	emitter_col_table_emit_json(emitter, stats_hpa_slab_cols,
+	    HPA_SLAB_COL_COUNT, STATS_COL_FLAG_NONE, cols,
+	    stats_hpa_slab_json_order,
+	    sizeof(stats_hpa_slab_json_order) /
+	        sizeof(stats_hpa_slab_json_order[0]));
+	emitter_json_object_end(emitter);
+	if (sparse) {
+		emitter_table_sparse_row(emitter, table_row, is_gap);
+	} else {
+		emitter_table_row(emitter, table_row);
+	}
 }
 
 static void
 stats_arena_hpa_shard_slabs_print(emitter_t *emitter, unsigned i) {
-	emitter_row_t header_row;
-	emitter_row_init(&header_row);
-	emitter_row_t row;
-	emitter_row_init(&row);
-
-	COL_HDR(row, size, NULL, right, 20, size)
-	COL_HDR(row, ind, NULL, right, 4, unsigned)
-	COL_HDR(row, npageslabs_huge, NULL, right, 16, size)
-	COL_HDR(row, nactive_huge, NULL, right, 16, size)
-	COL_HDR(row, ndirty_huge, NULL, right, 16, size)
-	COL_HDR(row, npageslabs_nonhuge, NULL, right, 20, size)
-	COL_HDR(row, nactive_nonhuge, NULL, right, 20, size)
-	COL_HDR(row, ndirty_nonhuge, NULL, right, 20, size)
-	COL_HDR(row, nretained_nonhuge, NULL, right, 20, size)
+	emitter_row_t row, header_row;
+	emitter_col_t cols[HPA_SLAB_COL_COUNT];
+	emitter_col_t header_cols[HPA_SLAB_COL_COUNT];
+	char size_buf[48];
+	emitter_col_table_build(stats_hpa_slab_cols, HPA_SLAB_COL_COUNT,
+	    STATS_COL_FLAG_NONE, &row, cols, &header_row, header_cols);
 
 	emitter_table_printf(emitter, "pageslabs:\n");
 	emitter_table_row(emitter, &header_row);
@@ -1381,31 +1666,19 @@ stats_arena_hpa_shard_slabs_print(emitter_t *emitter, unsigned i) {
 	 * "full"/"empty", no size-class index) at the top of the table; their
 	 * JSON stays in the separate full_slabs / empty_slabs objects.
 	 */
-	col_ind.type = emitter_type_title;
-	col_ind.str_val = "-";
-	col_size.type = emitter_type_title;
-
 	stats_arena_hpa_slab_t sfull;
 	stats_gather_arena_hpa_slab(i, "full_slabs", &sfull);
-	stats_emit_arena_hpa_slab_json(emitter, &sfull, "full_slabs");
-	col_size.str_val = "full";
-	stats_hpa_slab_cols_set(&sfull, &col_npageslabs_huge, &col_nactive_huge,
-	    &col_ndirty_huge, &col_npageslabs_nonhuge, &col_nactive_nonhuge,
-	    &col_ndirty_nonhuge, &col_nretained_nonhuge);
-	emitter_table_row(emitter, &row);
+	stats_arena_hpa_slab_emit_row_t full_row = {
+	    &sfull, "full", 0, 0, 0};
+	stats_emit_arena_hpa_slab_row(emitter, &row, cols, &full_row,
+	    "full_slabs", size_buf, sizeof(size_buf), false, false);
 
 	stats_arena_hpa_slab_t sempty;
 	stats_gather_arena_hpa_slab(i, "empty_slabs", &sempty);
-	stats_emit_arena_hpa_slab_json(emitter, &sempty, "empty_slabs");
-	col_size.str_val = "empty";
-	stats_hpa_slab_cols_set(&sempty, &col_npageslabs_huge, &col_nactive_huge,
-	    &col_ndirty_huge, &col_npageslabs_nonhuge, &col_nactive_nonhuge,
-	    &col_ndirty_nonhuge, &col_nretained_nonhuge);
-	emitter_table_row(emitter, &row);
-
-	/* Numeric size/ind for the per-size-class rows below. */
-	col_size.type = emitter_type_size;
-	col_ind.type = emitter_type_unsigned;
+	stats_arena_hpa_slab_emit_row_t empty_row = {
+	    &sempty, "empty", 0, 0, 0};
+	stats_emit_arena_hpa_slab_row(emitter, &row, cols, &empty_row,
+	    "empty_slabs", size_buf, sizeof(size_buf), false, false);
 
 	size_t stats_arenas_mib[CTL_MAX_DEPTH];
 	CTL_LEAF_PREPARE(stats_arenas_mib, 0, "stats.arenas");
@@ -1420,35 +1693,11 @@ stats_arena_hpa_shard_slabs_print(emitter_t *emitter, unsigned i) {
 
 		bool is_gap = (s.npageslabs_huge == 0 && s.npageslabs_nonhuge == 0);
 
-		char size_buf[48];
-		stats_size_col_set(&col_size, sz_pind2sz(j),
-		    j > 0 ? sz_pind2sz(j - 1) : 0, size_buf, sizeof(size_buf));
-		col_ind.unsigned_val = j;
-		col_npageslabs_huge.size_val = s.npageslabs_huge;
-		col_nactive_huge.size_val = s.nactive_huge;
-		col_ndirty_huge.size_val = s.ndirty_huge;
-		col_npageslabs_nonhuge.size_val = s.npageslabs_nonhuge;
-		col_nactive_nonhuge.size_val = s.nactive_nonhuge;
-		col_ndirty_nonhuge.size_val = s.ndirty_nonhuge;
-		col_nretained_nonhuge.size_val = s.nretained_nonhuge;
-		emitter_table_sparse_row(emitter, &row, is_gap);
-
-		emitter_json_object_begin(emitter);
-		emitter_json_kv(emitter, "npageslabs_huge", emitter_type_size,
-		    &s.npageslabs_huge);
-		emitter_json_kv(
-		    emitter, "nactive_huge", emitter_type_size, &s.nactive_huge);
-		emitter_json_kv(
-		    emitter, "ndirty_huge", emitter_type_size, &s.ndirty_huge);
-		emitter_json_kv(emitter, "npageslabs_nonhuge",
-		    emitter_type_size, &s.npageslabs_nonhuge);
-		emitter_json_kv(emitter, "nactive_nonhuge", emitter_type_size,
-		    &s.nactive_nonhuge);
-		emitter_json_kv(emitter, "ndirty_nonhuge", emitter_type_size,
-		    &s.ndirty_nonhuge);
-		emitter_json_kv(emitter, "nretained_nonhuge", emitter_type_size,
-		    &s.nretained_nonhuge);
-		emitter_json_object_end(emitter);
+		stats_arena_hpa_slab_emit_row_t emit_row = {
+		    &s, NULL, sz_pind2sz(j),
+		    j > 0 ? sz_pind2sz(j - 1) : 0, j};
+		stats_emit_arena_hpa_slab_row(emitter, &row, cols, &emit_row,
+		    NULL, size_buf, sizeof(size_buf), true, is_gap);
 	}
 	emitter_json_array_end(emitter); /* End "nonfull_slabs" */
 	emitter_table_sparse_end(emitter);
