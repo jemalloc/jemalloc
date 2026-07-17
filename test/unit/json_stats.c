@@ -442,6 +442,95 @@ expect_json_uint_eq(json_fragment_t object, const char *key,
 	    key);
 }
 
+static void
+expect_json_string_eq(json_fragment_t object, const char *key,
+    const char *expected, const char *name) {
+	json_fragment_t value;
+	bool missing = json_object_member(object, key, &value);
+	expect_false(missing, "%s is missing %s", name, key);
+	if (missing) {
+		return;
+	}
+	expect_true(json_fragment_string_eq(value, expected),
+	    "%s.%s has an unexpected value", name, key);
+}
+
+static uint64_t
+expected_rate(uint64_t value, uint64_t uptime_ns) {
+	const uint64_t billion = 1000000000;
+	if (uptime_ns == 0 || value == 0) {
+		return 0;
+	}
+	return uptime_ns < billion ? value : value / (uptime_ns / billion);
+}
+
+static void
+expected_utilization(size_t curregs, size_t availregs, char result[6]) {
+	if (availregs == 0) {
+		malloc_snprintf(result, 6, "1");
+		return;
+	}
+	assert_zu_le(curregs, availregs, "Cached bin stats should be consistent");
+	unsigned n = (unsigned)(((uint64_t)curregs * 1000) / availregs);
+	if (n < 10) {
+		malloc_snprintf(result, 6, "0.00%u", n);
+	} else if (n < 100) {
+		malloc_snprintf(result, 6, "0.0%u", n);
+	} else if (n < 1000) {
+		malloc_snprintf(result, 6, "0.%u", n);
+	} else {
+		malloc_snprintf(result, 6, "1");
+	}
+}
+
+static size_t
+read_size_ctl(const char *name) {
+	size_t value;
+	size_t sz = sizeof(value);
+	assert_d_eq(mallctl(name, &value, &sz, NULL, 0), 0,
+	    "mallctl failed for %s", name);
+	return value;
+}
+
+static uint64_t
+read_uint64_ctl(const char *name) {
+	uint64_t value;
+	size_t sz = sizeof(value);
+	assert_d_eq(mallctl(name, &value, &sz, NULL, 0), 0,
+	    "mallctl failed for %s", name);
+	return value;
+}
+
+static uint32_t
+read_uint32_ctl(const char *name) {
+	uint32_t value;
+	size_t sz = sizeof(value);
+	assert_d_eq(mallctl(name, &value, &sz, NULL, 0), 0,
+	    "mallctl failed for %s", name);
+	return value;
+}
+
+static size_t
+read_size_field(const char *prefix, const char *suffix) {
+	char name[192];
+	malloc_snprintf(name, sizeof(name), "%s.%s", prefix, suffix);
+	return read_size_ctl(name);
+}
+
+static uint64_t
+read_uint64_field(const char *prefix, const char *suffix) {
+	char name[192];
+	malloc_snprintf(name, sizeof(name), "%s.%s", prefix, suffix);
+	return read_uint64_ctl(name);
+}
+
+static uint32_t
+read_uint32_field(const char *prefix, const char *suffix) {
+	char name[192];
+	malloc_snprintf(name, sizeof(name), "%s.%s", prefix, suffix);
+	return read_uint32_ctl(name);
+}
+
 static bool
 stats_json_print_opts(stats_buf_t *sbuf, const char *opts,
     json_fragment_t *jemalloc) {
@@ -886,12 +975,20 @@ static const ctl_field_t hpa_slab_fields[] = {
 static const char *const hpa_slab_keys[] = {"npageslabs_huge",
 	"nactive_huge", "ndirty_huge", "npageslabs_nonhuge",
 	"nactive_nonhuge", "ndirty_nonhuge", "nretained_nonhuge"};
+static const char *const hpa_slab_row_keys[] = {"size", "ind"};
 
 static void
 expect_hpa_slab(json_fragment_t slab, const char *ctl_prefix,
-    const char *name) {
-	expect_json_object_keys(
+    const char *name, bool table_row) {
+	expect_zu_eq(json_object_size(slab), ARRAY_COUNT(hpa_slab_keys)
+	        + (table_row ? ARRAY_COUNT(hpa_slab_row_keys) : 0),
+	    "%s has an unexpected number of keys", name);
+	expect_json_object_has_keys(
 	    slab, hpa_slab_keys, ARRAY_COUNT(hpa_slab_keys), name);
+	if (table_row) {
+		expect_json_object_has_keys(slab, hpa_slab_row_keys,
+		    ARRAY_COUNT(hpa_slab_row_keys), name);
+	}
 	expect_json_ctl_fields(slab, ctl_prefix, hpa_slab_fields,
 	    ARRAY_COUNT(hpa_slab_fields));
 
@@ -972,7 +1069,7 @@ TEST_BEGIN(test_json_stats_hpa) {
 	char slab_prefix[128];
 	malloc_snprintf(
 	    slab_prefix, sizeof(slab_prefix), "%s.slabs", hpa_prefix);
-	expect_hpa_slab(slabs, slab_prefix, "hpa_shard.slabs");
+	expect_hpa_slab(slabs, slab_prefix, "hpa_shard.slabs", false);
 
 	const char *const summary_names[] = {"full_slabs", "empty_slabs"};
 	for (size_t i = 0; i < ARRAY_COUNT(summary_names); i++) {
@@ -981,7 +1078,10 @@ TEST_BEGIN(test_json_stats_hpa) {
 		    "hpa_shard is missing %s", summary_names[i]);
 		malloc_snprintf(slab_prefix, sizeof(slab_prefix), "%s.%s",
 		    hpa_prefix, summary_names[i]);
-		expect_hpa_slab(summary, slab_prefix, summary_names[i]);
+		expect_hpa_slab(summary, slab_prefix, summary_names[i], true);
+		expect_json_string_eq(
+		    summary, "size", i == 0 ? "full" : "empty", summary_names[i]);
+		expect_json_string_eq(summary, "ind", "-", summary_names[i]);
 	}
 
 	json_fragment_t nonfull;
@@ -1000,7 +1100,10 @@ TEST_BEGIN(test_json_stats_hpa) {
 		char row_name[64];
 		malloc_snprintf(
 		    row_name, sizeof(row_name), "nonfull_slabs[%zu]", i);
-		expect_hpa_slab(slab, slab_prefix, row_name);
+		expect_hpa_slab(slab, slab_prefix, row_name, true);
+		expect_json_uint_eq(
+		    slab, "size", sz_pind2sz((pszind_t)i), row_name);
+		expect_json_uint_eq(slab, "ind", i, row_name);
 	}
 
 	json_fragment_t distribution;
@@ -1036,18 +1139,26 @@ static const ctl_field_t bin_fields[] = {
 	{"nrequests", "nrequests", ctl_field_uint64},
 	{"nfills", "nfills", ctl_field_uint64},
 	{"nflushes", "nflushes", ctl_field_uint64},
+	{"nslabs", "nslabs", ctl_field_uint64},
 	{"nreslabs", "nreslabs", ctl_field_uint64},
 	{"curslabs", "curslabs", ctl_field_size},
 	{"nonfull_slabs", "nonfull_slabs", ctl_field_size},
 };
-static const char *const bin_keys[] = {"nmalloc", "ndalloc", "curregs",
-	"nrequests", "nfills", "nflushes", "nreslabs", "curslabs",
-	"nonfull_slabs", "mutex"};
+static const char *const bin_keys[] = {"size", "ind", "allocated",
+	"nmalloc", "nmalloc_ps", "ndalloc", "ndalloc_ps", "nrequests",
+	"nrequests_ps", "nshards", "curregs", "curslabs", "nonfull_slabs",
+	"regs", "pgs", "util", "nfills", "nfills_ps", "nflushes",
+	"nflushes_ps", "nslabs", "nreslabs", "nreslabs_ps", "mutex"};
 
 static const ctl_field_t lextent_fields[] = {
+	{"nmalloc", "nmalloc", ctl_field_uint64},
+	{"ndalloc", "ndalloc", ctl_field_uint64},
+	{"nrequests", "nrequests", ctl_field_uint64},
 	{"curlextents", "curlextents", ctl_field_size},
 };
-static const char *const lextent_keys[] = {"curlextents"};
+static const char *const lextent_keys[] = {"size", "ind", "allocated",
+	"nmalloc", "nmalloc_ps", "ndalloc", "ndalloc_ps", "nrequests",
+	"nrequests_ps", "curlextents"};
 
 static const ctl_field_t extent_fields[] = {
 	{"ndirty", "ndirty", ctl_field_size},
@@ -1059,9 +1170,10 @@ static const ctl_field_t extent_fields[] = {
 	{"retained_bytes", "retained_bytes", ctl_field_size},
 	{"pinned_bytes", "pinned_bytes", ctl_field_size},
 };
-static const char *const extent_keys[] = {"ndirty", "nmuzzy", "nretained",
-	"npinned", "dirty_bytes", "muzzy_bytes", "retained_bytes",
-	"pinned_bytes"};
+static const char *const extent_keys[] = {"size", "ind", "ndirty",
+	"dirty_bytes", "nmuzzy", "muzzy_bytes", "nretained",
+	"retained_bytes", "npinned", "pinned_bytes", "ntotal",
+	"total_bytes"};
 
 static const char *const prof_keys[] = {"prof_live_requested",
 	"prof_live_count", "prof_accum_requested", "prof_accum_count"};
@@ -1109,6 +1221,10 @@ TEST_BEGIN(test_json_stats_arena_tables) {
 	sz = sizeof(nlextents);
 	expect_d_eq(mallctl("arenas.nlextents", &nlextents, &sz, NULL, 0), 0,
 	    "mallctl failed for arenas.nlextents");
+	char arena_prefix[64];
+	malloc_snprintf(arena_prefix, sizeof(arena_prefix), "stats.arenas.%u",
+	    MALLCTL_ARENAS_ALL);
+	uint64_t uptime = read_uint64_field(arena_prefix, "uptime");
 
 	json_fragment_t bins;
 	expect_false(json_object_member(merged, "bins", &bins),
@@ -1136,6 +1252,44 @@ TEST_BEGIN(test_json_stats_arena_tables) {
 		    "stats.arenas.%u.bins.%u", MALLCTL_ARENAS_ALL, i);
 		expect_json_ctl_fields(
 		    bin, ctl_prefix, bin_fields, ARRAY_COUNT(bin_fields));
+
+		char meta_prefix[64];
+		malloc_snprintf(
+		    meta_prefix, sizeof(meta_prefix), "arenas.bin.%u", i);
+		size_t bin_size = read_size_field(meta_prefix, "size");
+		uint32_t nregs = read_uint32_field(meta_prefix, "nregs");
+		size_t slab_size = read_size_field(meta_prefix, "slab_size");
+		uint32_t nshards = read_uint32_field(meta_prefix, "nshards");
+		size_t curregs = read_size_field(ctl_prefix, "curregs");
+		size_t curslabs = read_size_field(ctl_prefix, "curslabs");
+		uint64_t nmalloc = read_uint64_field(ctl_prefix, "nmalloc");
+		uint64_t ndalloc = read_uint64_field(ctl_prefix, "ndalloc");
+		uint64_t nrequests = read_uint64_field(ctl_prefix, "nrequests");
+		uint64_t nfills = read_uint64_field(ctl_prefix, "nfills");
+		uint64_t nflushes = read_uint64_field(ctl_prefix, "nflushes");
+		uint64_t nreslabs = read_uint64_field(ctl_prefix, "nreslabs");
+		expect_json_uint_eq(bin, "size", bin_size, row_name);
+		expect_json_uint_eq(bin, "ind", i, row_name);
+		expect_json_uint_eq(
+		    bin, "allocated", curregs * bin_size, row_name);
+		expect_json_uint_eq(bin, "nmalloc_ps",
+		    expected_rate(nmalloc, uptime), row_name);
+		expect_json_uint_eq(bin, "ndalloc_ps",
+		    expected_rate(ndalloc, uptime), row_name);
+		expect_json_uint_eq(bin, "nrequests_ps",
+		    expected_rate(nrequests, uptime), row_name);
+		expect_json_uint_eq(bin, "nshards", nshards, row_name);
+		expect_json_uint_eq(bin, "regs", nregs, row_name);
+		expect_json_uint_eq(bin, "pgs", slab_size / PAGE, row_name);
+		expect_json_uint_eq(bin, "nfills_ps",
+		    expected_rate(nfills, uptime), row_name);
+		expect_json_uint_eq(bin, "nflushes_ps",
+		    expected_rate(nflushes, uptime), row_name);
+		expect_json_uint_eq(bin, "nreslabs_ps",
+		    expected_rate(nreslabs, uptime), row_name);
+		char util[6];
+		expected_utilization(curregs, nregs * curslabs, util);
+		expect_json_string_eq(bin, "util", util, row_name);
 		if (prof_stats_present) {
 			expect_json_object_has_keys(
 			    bin, prof_keys, ARRAY_COUNT(prof_keys), row_name);
@@ -1175,6 +1329,24 @@ TEST_BEGIN(test_json_stats_arena_tables) {
 		    "stats.arenas.%u.lextents.%u", MALLCTL_ARENAS_ALL, i);
 		expect_json_ctl_fields(lextent, ctl_prefix, lextent_fields,
 		    ARRAY_COUNT(lextent_fields));
+		char meta_prefix[64];
+		malloc_snprintf(meta_prefix, sizeof(meta_prefix),
+		    "arenas.lextent.%u", i);
+		size_t lextent_size = read_size_field(meta_prefix, "size");
+		size_t curlextents = read_size_field(ctl_prefix, "curlextents");
+		uint64_t nmalloc = read_uint64_field(ctl_prefix, "nmalloc");
+		uint64_t ndalloc = read_uint64_field(ctl_prefix, "ndalloc");
+		uint64_t nrequests = read_uint64_field(ctl_prefix, "nrequests");
+		expect_json_uint_eq(lextent, "size", lextent_size, row_name);
+		expect_json_uint_eq(lextent, "ind", nbins + i, row_name);
+		expect_json_uint_eq(lextent, "allocated",
+		    curlextents * lextent_size, row_name);
+		expect_json_uint_eq(lextent, "nmalloc_ps",
+		    expected_rate(nmalloc, uptime), row_name);
+		expect_json_uint_eq(lextent, "ndalloc_ps",
+		    expected_rate(ndalloc, uptime), row_name);
+		expect_json_uint_eq(lextent, "nrequests_ps",
+		    expected_rate(nrequests, uptime), row_name);
 		if (prof_stats_present) {
 			expect_json_object_has_keys(lextent, prof_keys,
 			    ARRAY_COUNT(prof_keys), row_name);
@@ -1203,6 +1375,22 @@ TEST_BEGIN(test_json_stats_arena_tables) {
 		    "stats.arenas.%u.extents.%u", MALLCTL_ARENAS_ALL, i);
 		expect_json_ctl_fields(extent, ctl_prefix, extent_fields,
 		    ARRAY_COUNT(extent_fields));
+		size_t ndirty = read_size_field(ctl_prefix, "ndirty");
+		size_t nmuzzy = read_size_field(ctl_prefix, "nmuzzy");
+		size_t nretained = read_size_field(ctl_prefix, "nretained");
+		size_t npinned = read_size_field(ctl_prefix, "npinned");
+		size_t dirty_bytes = read_size_field(ctl_prefix, "dirty_bytes");
+		size_t muzzy_bytes = read_size_field(ctl_prefix, "muzzy_bytes");
+		size_t retained_bytes = read_size_field(
+		    ctl_prefix, "retained_bytes");
+		size_t pinned_bytes = read_size_field(ctl_prefix, "pinned_bytes");
+		expect_json_uint_eq(extent, "size", sz_pind2sz(i), row_name);
+		expect_json_uint_eq(extent, "ind", i, row_name);
+		expect_json_uint_eq(extent, "ntotal",
+		    ndirty + nmuzzy + nretained + npinned, row_name);
+		expect_json_uint_eq(extent, "total_bytes",
+		    dirty_bytes + muzzy_bytes + retained_bytes + pinned_bytes,
+		    row_name);
 	}
 
 	stats_buf_fini(&sbuf);

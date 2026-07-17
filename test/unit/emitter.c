@@ -669,10 +669,11 @@ static const char *sparse_row_table =
     "                     ---\n";
 
 typedef struct {
-	size_t   size;
-	uint64_t count;
-	uint64_t prof_count;
-	uint64_t requests;
+	size_t      size;
+	uint64_t    count;
+	uint64_t    prof_count;
+	const char *label;
+	uint64_t    requests;
 } col_table_test_row_t;
 
 #define COL_TABLE_TEST_GETTER(name, member, value_member)                     \
@@ -684,6 +685,7 @@ typedef struct {
 COL_TABLE_TEST_GETTER(size, size, size_val)
 COL_TABLE_TEST_GETTER(count, count, uint64_val)
 COL_TABLE_TEST_GETTER(prof_count, prof_count, uint64_val)
+COL_TABLE_TEST_GETTER(label, label, str_val)
 COL_TABLE_TEST_GETTER(requests, requests, uint64_val)
 #undef COL_TABLE_TEST_GETTER
 
@@ -691,6 +693,7 @@ enum {
 	COL_TABLE_TEST_SIZE,
 	COL_TABLE_TEST_COUNT,
 	COL_TABLE_TEST_PROF_COUNT,
+	COL_TABLE_TEST_LABEL,
 	COL_TABLE_TEST_REQUESTS,
 	COL_TABLE_TEST_NCOLS
 };
@@ -704,6 +707,8 @@ static const emitter_col_desc_t col_table_test_descs[] = {
 	    0, col_table_test_get_count},
 	{"prof_count", "prof", emitter_justify_right, 6, emitter_type_uint64,
 	    COL_TABLE_TEST_FLAG_PROF, col_table_test_get_prof_count},
+	{"label", "label", emitter_justify_right, 7, emitter_type_title, 0,
+	    col_table_test_get_label},
 	{"requests", "requests", emitter_justify_right, 10,
 	    emitter_type_uint64, 0, col_table_test_get_requests},
 };
@@ -726,15 +731,9 @@ TEST_BEGIN(test_col_desc_flags) {
 }
 TEST_END
 
-static const unsigned col_table_test_json_order[] = {
-	COL_TABLE_TEST_REQUESTS,
-	COL_TABLE_TEST_PROF_COUNT,
-	COL_TABLE_TEST_COUNT,
-};
-
 static void
 emit_col_table(emitter_t *emitter) {
-	col_table_test_row_t value = {42, 7, 100, 9};
+	col_table_test_row_t value = {42, 7, 100, "row", 9};
 	emitter_row_t row, header_row;
 	emitter_col_t cols[COL_TABLE_TEST_NCOLS];
 	emitter_col_t header_cols[COL_TABLE_TEST_NCOLS];
@@ -748,9 +747,7 @@ emit_col_table(emitter_t *emitter) {
 	    COL_TABLE_TEST_FLAG_PROF, cols, &value);
 	emitter_json_object_begin(emitter);
 	emitter_col_table_emit_json(emitter, col_table_test_descs,
-	    COL_TABLE_TEST_NCOLS, COL_TABLE_TEST_FLAG_PROF, cols,
-	    col_table_test_json_order, sizeof(col_table_test_json_order) /
-	        sizeof(col_table_test_json_order[0]));
+	    COL_TABLE_TEST_NCOLS, COL_TABLE_TEST_FLAG_PROF, cols);
 	emitter_json_object_end(emitter);
 	emitter_table_row(emitter, &row);
 	emitter_json_array_end(emitter);
@@ -761,17 +758,19 @@ static const char *col_table_json =
     "{\n"
     "\t\"rows\": [\n"
     "\t\t{\n"
-    "\t\t\t\"requests\": 9,\n"
+    "\t\t\t\"count\": 7,\n"
     "\t\t\t\"prof_count\": 100,\n"
-    "\t\t\t\"count\": 7\n"
+    "\t\t\t\"label\": \"row\",\n"
+    "\t\t\t\"requests\": 9\n"
     "\t\t}\n"
     "\t]\n"
     "}\n";
 static const char *col_table_json_compact =
-    "{\"rows\":[{\"requests\":9,\"prof_count\":100,\"count\":7}]}";
+    "{\"rows\":[{\"count\":7,\"prof_count\":100,\"label\":\"row\","
+    "\"requests\":9}]}";
 static const char *col_table_table =
-    "mock:size   count  prof  requests\n"
-    "      42       7   100         9\n";
+    "mock:size   count  prof  label  requests\n"
+    "      42       7   100    row         9\n";
 
 #define GENERATE_TEST(feature)                                                 \
 	TEST_BEGIN(test_##feature) {                                           \

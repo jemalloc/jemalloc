@@ -591,13 +591,12 @@ emitter_sparse_row(emitter_t *emitter, emitter_row_t *row, bool is_gap) {
 }
 
 /*
- * Descriptor-driven column tables.  A descriptor array defines table order;
- * callers provide a separate index array when JSON requires a different
- * subset or ordering.  The getter lets one engine serve different row types
- * while keeping derived values (rates, utilization, and so on) with the
- * table-specific code.  A column is active when all its required_flags are
- * present in the active_flags supplied by the caller; the emitter assigns no
- * domain-specific meaning to those bits.
+ * Descriptor-driven column tables.  A descriptor array defines table and JSON
+ * order; columns with a NULL json_key are table-only.  The getter lets one
+ * engine serve different row types while keeping derived values (rates,
+ * utilization, and so on) with the table-specific code.  A column is active
+ * when all its required_flags are present in the active_flags supplied by the
+ * caller; the emitter assigns no domain-specific meaning to those bits.
  */
 typedef struct emitter_col_desc_s emitter_col_desc_t;
 struct emitter_col_desc_s {
@@ -666,20 +665,21 @@ emitter_col_table_fill(const emitter_col_desc_t *descs, size_t ndescs,
 static inline void
 emitter_col_table_emit_json(emitter_t *emitter,
     const emitter_col_desc_t *descs, size_t ndescs, unsigned active_flags,
-    emitter_col_t *cols, const unsigned *json_order, size_t json_order_len) {
+    emitter_col_t *cols) {
 	if (!emitter_outputs_json(emitter)) {
 		return;
 	}
-	for (size_t i = 0; i < json_order_len; i++) {
-		unsigned col_ind = json_order[i];
-		assert(col_ind < ndescs);
-		const emitter_col_desc_t *desc = &descs[col_ind];
+	for (size_t i = 0; i < ndescs; i++) {
+		const emitter_col_desc_t *desc = &descs[i];
 		if (!emitter_col_desc_active(desc, active_flags)) {
 			continue;
 		}
-		assert(desc->json_key != NULL);
-		emitter_json_kv(emitter, desc->json_key, cols[col_ind].type,
-		    (const void *)&cols[col_ind].bool_val);
+		if (desc->json_key != NULL) {
+			emitter_type_t json_type = cols[i].type == emitter_type_title
+			    ? emitter_type_string : cols[i].type;
+			emitter_json_kv(emitter, desc->json_key, json_type,
+			    (const void *)&cols[i].bool_val);
+		}
 	}
 }
 
