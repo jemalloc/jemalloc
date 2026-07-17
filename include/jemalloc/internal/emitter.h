@@ -590,6 +590,99 @@ emitter_sparse_row(emitter_t *emitter, emitter_row_t *row, bool is_gap) {
 	}
 }
 
+/*
+ * Descriptor-driven column tables.  A descriptor array defines table order;
+ * callers provide a separate index array when JSON requires a different
+ * subset or ordering.  The getter lets one engine serve different row types
+ * while keeping derived values (rates, utilization, and so on) with the
+ * table-specific code.  A column is active when all its required_flags are
+ * present in the active_flags supplied by the caller; the emitter assigns no
+ * domain-specific meaning to those bits.
+ */
+typedef struct emitter_col_desc_s emitter_col_desc_t;
+struct emitter_col_desc_s {
+	const char       *json_key;
+	const char       *table_label;
+	emitter_justify_t justify;
+	int               width;
+	emitter_type_t    type;
+	unsigned          required_flags;
+	void            (*get)(const void *row, emitter_col_t *col);
+};
+
+static inline bool
+emitter_col_desc_active(const emitter_col_desc_t *desc,
+    unsigned active_flags) {
+	return (desc->required_flags & ~active_flags) == 0;
+}
+
+static inline void
+emitter_col_table_build(const emitter_col_desc_t *descs, size_t ndescs,
+    unsigned active_flags, emitter_row_t *row, emitter_col_t *cols,
+    emitter_row_t *header_row, emitter_col_t *header_cols) {
+	emitter_row_init(row);
+	emitter_row_init(header_row);
+	for (size_t i = 0; i < ndescs; i++) {
+		if (!emitter_col_desc_active(&descs[i], active_flags)) {
+			continue;
+		}
+
+		emitter_col_init(&cols[i], row);
+		cols[i].justify = descs[i].justify;
+		cols[i].width = descs[i].width;
+		cols[i].type = descs[i].type;
+
+		emitter_col_init(&header_cols[i], header_row);
+		header_cols[i].justify = descs[i].justify;
+		header_cols[i].width = descs[i].width;
+		header_cols[i].type = emitter_type_title;
+		header_cols[i].str_val = descs[i].table_label != NULL
+		    ? descs[i].table_label : descs[i].json_key;
+	}
+}
+
+static inline void
+emitter_col_table_header(emitter_t *emitter, emitter_row_t *header_row,
+    emitter_col_t *first_header_col, const char *table_prefix,
+    const char *json_key) {
+	first_header_col->width -= (int)strlen(table_prefix);
+	emitter_table_printf(emitter, "%s", table_prefix);
+	emitter_table_row(emitter, header_row);
+	emitter_json_array_kv_begin(emitter, json_key);
+}
+
+static inline void
+emitter_col_table_fill(const emitter_col_desc_t *descs, size_t ndescs,
+    unsigned active_flags, emitter_col_t *cols, const void *row) {
+	for (size_t i = 0; i < ndescs; i++) {
+		if (!emitter_col_desc_active(&descs[i], active_flags)) {
+			continue;
+		}
+		cols[i].type = descs[i].type;
+		descs[i].get(row, &cols[i]);
+	}
+}
+
+static inline void
+emitter_col_table_emit_json(emitter_t *emitter,
+    const emitter_col_desc_t *descs, size_t ndescs, unsigned active_flags,
+    emitter_col_t *cols, const unsigned *json_order, size_t json_order_len) {
+	if (!emitter_outputs_json(emitter)) {
+		return;
+	}
+	for (size_t i = 0; i < json_order_len; i++) {
+		unsigned col_ind = json_order[i];
+		assert(col_ind < ndescs);
+		const emitter_col_desc_t *desc = &descs[col_ind];
+		if (!emitter_col_desc_active(desc, active_flags)) {
+			continue;
+		}
+		assert(desc->json_key != NULL);
+		emitter_json_kv(emitter, desc->json_key, cols[col_ind].type,
+		    (const void *)&cols[col_ind].bool_val);
+	}
+}
+
 static inline void
 emitter_begin(emitter_t *emitter) {
 	if (emitter_outputs_json(emitter)) {
