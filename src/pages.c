@@ -826,8 +826,16 @@ init_thp_state(void) {
 	static const char sys_state_never[] = "always madvise [never]\n";
 	char              buf[sizeof(sys_state_madvise)];
 
+#	if defined(O_CLOEXEC)
+	int fd = malloc_open(
+	    "/sys/kernel/mm/transparent_hugepage/enabled", O_RDONLY | O_CLOEXEC);
+#	else
 	int fd = malloc_open(
 	    "/sys/kernel/mm/transparent_hugepage/enabled", O_RDONLY);
+	if (fd != -1) {
+		fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
+	}
+#	endif
 	if (fd == -1) {
 		goto label_error;
 	}
