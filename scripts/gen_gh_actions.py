@@ -224,8 +224,11 @@ def generate_linux_job(arch):
     if arch != ARM64:
         exclude += [LARGE_HUGEPAGE]
 
+    linux_configure_flags = list(configure_flag_unusuals)
+    linux_configure_flags.append(Option.as_configure_flag("--enable-prof --enable-prof-libunwind"))
+
     linux_unusuals = (compilers_unusual + feature_unusuals
-                    + configure_flag_unusuals + malloc_conf_unusuals)
+                    + linux_configure_flags + malloc_conf_unusuals)
 
     matrix_entries = generate_job_matrix_entries(os, arch, exclude, max_unusual_opts, linux_unusuals)
 
@@ -338,6 +341,11 @@ def generate_linux_job(arch):
         echo ""
         echo "=== CPU Info ==="
         lscpu | grep -E "Architecture|CPU op-mode|Byte Order|CPU\\(s\\):" || true
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libunwind-dev
 
     - name: Install dependencies (32-bit)
       if: matrix.env.CROSS_COMPILE_32BIT == 'yes'

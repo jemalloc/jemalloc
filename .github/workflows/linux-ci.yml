@@ -63,7 +63,7 @@ jobs:
           - env:
               CC: gcc
               CXX: g++
-              CONFIGURE_FLAGS: "--enable-prof --enable-prof-frameptr"
+              CONFIGURE_FLAGS: "--enable-prof --enable-prof-libunwind"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:
               CC: gcc
@@ -124,7 +124,7 @@ jobs:
           - env:
               CC: clang
               CXX: clang++
-              CONFIGURE_FLAGS: "--enable-prof --enable-prof-frameptr"
+              CONFIGURE_FLAGS: "--enable-prof --enable-prof-libunwind"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
           - env:
               CC: clang
@@ -193,7 +193,7 @@ jobs:
               CXX: g++
               CROSS_COMPILE_32BIT: yes
               COMPILER_FLAGS: -m32
-              CONFIGURE_FLAGS: "--enable-prof --enable-prof-frameptr"
+              CONFIGURE_FLAGS: "--enable-prof --enable-prof-libunwind"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:
               CC: gcc
@@ -251,7 +251,7 @@ jobs:
           - env:
               CC: gcc
               CXX: g++
-              CONFIGURE_FLAGS: "--enable-debug --enable-prof --enable-prof-frameptr"
+              CONFIGURE_FLAGS: "--enable-debug --enable-prof --enable-prof-libunwind"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:
               CC: gcc
@@ -296,7 +296,7 @@ jobs:
           - env:
               CC: gcc
               CXX: g++
-              CONFIGURE_FLAGS: "--enable-prof --enable-prof --enable-prof-frameptr"
+              CONFIGURE_FLAGS: "--enable-prof --enable-prof --enable-prof-libunwind"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:
               CC: gcc
@@ -336,7 +336,7 @@ jobs:
           - env:
               CC: gcc
               CXX: g++
-              CONFIGURE_FLAGS: "--disable-stats --enable-prof --enable-prof-frameptr"
+              CONFIGURE_FLAGS: "--disable-stats --enable-prof --enable-prof-libunwind"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:
               CC: gcc
@@ -371,7 +371,7 @@ jobs:
           - env:
               CC: gcc
               CXX: g++
-              CONFIGURE_FLAGS: "--disable-libdl --enable-prof --enable-prof-frameptr"
+              CONFIGURE_FLAGS: "--disable-libdl --enable-prof --enable-prof-libunwind"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:
               CC: gcc
@@ -401,7 +401,7 @@ jobs:
           - env:
               CC: gcc
               CXX: g++
-              CONFIGURE_FLAGS: "--enable-opt-safety-checks --enable-prof --enable-prof-frameptr"
+              CONFIGURE_FLAGS: "--enable-opt-safety-checks --enable-prof --enable-prof-libunwind"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:
               CC: gcc
@@ -426,7 +426,7 @@ jobs:
           - env:
               CC: gcc
               CXX: g++
-              CONFIGURE_FLAGS: "--with-lg-page=16 --enable-prof --enable-prof-frameptr"
+              CONFIGURE_FLAGS: "--with-lg-page=16 --enable-prof --enable-prof-libunwind"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:
               CC: gcc
@@ -451,22 +451,22 @@ jobs:
           - env:
               CC: gcc
               CXX: g++
-              CONFIGURE_FLAGS: "--enable-prof --enable-prof-frameptr --with-malloc-conf=tcache:false"
+              CONFIGURE_FLAGS: "--enable-prof --enable-prof-libunwind --with-malloc-conf=tcache:false"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:
               CC: gcc
               CXX: g++
-              CONFIGURE_FLAGS: "--enable-prof --enable-prof-frameptr --with-malloc-conf=dss:primary"
+              CONFIGURE_FLAGS: "--enable-prof --enable-prof-libunwind --with-malloc-conf=dss:primary"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:
               CC: gcc
               CXX: g++
-              CONFIGURE_FLAGS: "--enable-prof --enable-prof-frameptr --with-malloc-conf=percpu_arena:percpu"
+              CONFIGURE_FLAGS: "--enable-prof --enable-prof-libunwind --with-malloc-conf=percpu_arena:percpu"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:
               CC: gcc
               CXX: g++
-              CONFIGURE_FLAGS: "--enable-prof --enable-prof-frameptr --with-malloc-conf=background_thread:true"
+              CONFIGURE_FLAGS: "--enable-prof --enable-prof-libunwind --with-malloc-conf=background_thread:true"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:
               CC: gcc
@@ -546,6 +546,11 @@ jobs:
         echo ""
         echo "=== CPU Info ==="
         lscpu | grep -E "Architecture|CPU op-mode|Byte Order|CPU\(s\):" || true
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libunwind-dev
 
     - name: Install dependencies (32-bit)
       if: matrix.env.CROSS_COMPILE_32BIT == 'yes'
@@ -635,7 +640,7 @@ jobs:
           - env:
               CC: gcc
               CXX: g++
-              CONFIGURE_FLAGS: "--enable-prof --enable-prof-frameptr"
+              CONFIGURE_FLAGS: "--enable-prof --enable-prof-libunwind"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:
               CC: gcc
@@ -680,6 +685,11 @@ jobs:
         echo ""
         echo "=== CPU Info ==="
         lscpu | grep -E "Architecture|CPU op-mode|Byte Order|CPU\(s\):" || true
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libunwind-dev
 
     - name: Install dependencies (32-bit)
       if: matrix.env.CROSS_COMPILE_32BIT == 'yes'
