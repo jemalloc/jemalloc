@@ -264,8 +264,11 @@ def generate_linux(arch):
     if arch != ARM64:
         exclude += [LARGE_HUGEPAGE]
 
+    linux_configure_flags = list(configure_flag_unusuals)
+    linux_configure_flags.append(Option.as_configure_flag("--enable-prof --enable-prof-libunwind"))
+
     linux_unusuals = (compilers_unusual + feature_unusuals
-                    + configure_flag_unusuals + malloc_conf_unusuals)
+                    + linux_configure_flags + malloc_conf_unusuals)
 
     return generate_jobs(os, arch, exclude, max_unusual_opts, linux_unusuals)
 
