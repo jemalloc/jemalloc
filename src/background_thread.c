@@ -59,8 +59,8 @@ background_thread_arena_reset_begin(tsd_t *tsd, unsigned arena_ind) {
 		if (background_thread_enabled()) {
 			background_thread_info_t *info =
 			    background_thread_info_get(arena_ind);
-			assert(info->state == background_thread_started);
 			malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
+			assert(info->state == background_thread_started);
 			info->state = background_thread_paused;
 			malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
 		}
@@ -73,9 +73,12 @@ background_thread_arena_reset_finish(tsd_t *tsd, unsigned arena_ind) {
 		if (background_thread_enabled()) {
 			background_thread_info_t *info =
 			    background_thread_info_get(arena_ind);
-			assert(info->state == background_thread_paused);
 			malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
+			assert(info->state == background_thread_paused);
 			info->state = background_thread_started;
+#ifdef JEMALLOC_BACKGROUND_THREAD
+			pthread_cond_signal(&info->cond);
+#endif
 			malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
 		}
 		malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
@@ -351,11 +354,10 @@ background_thread_sleep(
 static bool
 background_thread_pause_check(tsdn_t *tsdn, background_thread_info_t *info) {
 	if (unlikely(info->state == background_thread_paused)) {
-		malloc_mutex_unlock(tsdn, &info->mtx);
-		/* Wait on global lock to update status. */
-		malloc_mutex_lock(tsdn, &background_thread_lock);
-		malloc_mutex_unlock(tsdn, &background_thread_lock);
-		malloc_mutex_lock(tsdn, &info->mtx);
+		while (info->state == background_thread_paused) {
+			int ret = background_thread_cond_wait(info, NULL);
+			assert(ret == 0);
+		}
 		return true;
 	}
 

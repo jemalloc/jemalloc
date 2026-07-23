@@ -16,7 +16,7 @@
 typedef enum {
 	background_thread_stopped,
 	background_thread_started,
-	/* Thread waits on the global lock when paused (for arena_reset). */
+	/* Thread waits on its condition variable when paused (arena_reset). */
 	background_thread_paused,
 } background_thread_state_t;
 
