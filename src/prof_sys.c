@@ -6,6 +6,7 @@
 #include "jemalloc/internal/jemalloc_internal_inlines_a.h"
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/os.h"
 #include "jemalloc/internal/prof.h"
 #include "jemalloc/internal/prof_data.h"
 #include "jemalloc/internal/prof_inlines.h"
@@ -484,11 +485,7 @@ prof_sys_thread_name_fetch(tsd_t *tsd) {
 
 int
 prof_getpid(void) {
-#ifdef _WIN32
-	return GetCurrentProcessId();
-#else
-	return getpid();
-#endif
+	return os_process_id();
 }
 
 static long
