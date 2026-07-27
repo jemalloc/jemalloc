@@ -36,6 +36,7 @@ sec_init(tsdn_t *tsdn, sec_t *sec, base_t *base, const sec_opts_t *opts) {
 		sec->opts.max_alloc = 0;
 		return false;
 	}
+	assert(opts->nshards <= 255);
 	assert(opts->max_alloc >= PAGE);
 
 	/*
