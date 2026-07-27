@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+#include "jemalloc/internal/os.h"
+
 extern uint64_t nstime_ms(const nstime_t *time);
 extern void     nstime_isubtract(nstime_t *time, uint64_t subtrahend);
 
@@ -250,7 +252,34 @@ TEST_BEGIN(test_nstime_ms_since) {
 TEST_END
 
 TEST_BEGIN(test_nstime_monotonic) {
-	nstime_monotonic();
+	bool monotonic = nstime_monotonic();
+
+	/* This is a static platform property; it must not change mid-run. */
+	for (unsigned i = 0; i < 8; i++) {
+		expect_b_eq(nstime_monotonic(), monotonic,
+		    "nstime_monotonic() should be stable across calls");
+	}
+
+	/*
+	 * decay.c's decay_maybe_update_time() relies on nstime_monotonic():
+	 * when true, it skips its backward-jump tolerance path and instead
+	 * asserts time never goes backwards.  Add tests for that assumption
+	 * by stress testing here: sample os_time_get() (not nstime_update(),
+	 * which silently clamps backward jumps and so would pass regardless
+	 * of whether the underlying clock is really monotonic) back-to-back
+	 * and confirm it never decreases.
+	 */
+	if (monotonic) {
+		nstime_t prev;
+		os_time_get(&prev);
+		for (unsigned i = 0; i < 10000; i++) {
+			nstime_t cur;
+			os_time_get(&cur);
+			expect_d_ge(nstime_compare(&cur, &prev), 0,
+			    "Clock claiming to be monotonic went backwards");
+			nstime_copy(&prev, &cur);
+		}
+	}
 }
 TEST_END
 
