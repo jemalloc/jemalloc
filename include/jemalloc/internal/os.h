@@ -31,4 +31,7 @@
 /* File I/O */
 #include "jemalloc/internal/os/file.h"
 
+/* Time */
+#include "jemalloc/internal/os/time.h"
+
 #endif /* JEMALLOC_INTERNAL_OS_H */
