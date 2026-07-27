@@ -1,5 +1,9 @@
 #include "test/jemalloc_test.h"
 
+#ifndef O_BINARY
+#  define O_BINARY 0
+#endif
+
 TEST_BEGIN(test_malloc_strtoumax_no_endptr) {
 	int err;
 
@@ -269,9 +273,145 @@ TEST_BEGIN(test_malloc_snprintf_zero_size) {
 }
 TEST_END
 
+/*
+ * Exercised via malloc_open()/malloc_close() (existing, already
+ * cross-platform malloc_io.h wrappers) rather than an anonymous pipe: this
+ * mirrors how malloc_write_fd()/malloc_read_fd() are actually used in
+ * production (pages.c, prof_stack_range.c both read/write real files;
+ * nothing in jemalloc ever pipes through them). Written and read back via
+ * separate malloc_open() calls rather than a shared fd + seek-to-0, since
+ * malloc_lseek() (like the os_file_lseek() removed earlier) has no
+ * production caller either.
+ *
+ * The file itself is created via fopen()/fclose(), not malloc_open(): the
+ * latter is never called with O_CREAT in production (only O_RDONLY, on
+ * files that already exist), and its 2-arg signature has no mode_t
+ * parameter to pass along if it were -- calling the underlying variadic
+ * open() with O_CREAT but no mode gives the new file garbage permissions.
+ */
+static const char *test_io_filename = "malloc_io_test_file.tmp";
+
+static void
+create_empty_test_io_file(void) {
+	FILE *fp = fopen(test_io_filename, "wb");
+	assert_ptr_not_null(fp, "Unexpected fopen() failure");
+	fclose(fp);
+}
+
+TEST_BEGIN(test_malloc_write_read_fd_roundtrip) {
+	create_empty_test_io_file();
+	int fd = malloc_open(test_io_filename, O_WRONLY | O_BINARY);
+	assert_d_ne(fd, -1, "Unexpected malloc_open() failure");
+
+	static const char data[] =
+	    "malloc_write_fd()/malloc_read_fd() round-trip test payload.";
+
+	ssize_t written = malloc_write_fd(fd, data, sizeof(data));
+	expect_zd_eq(written, (ssize_t)sizeof(data),
+	    "malloc_write_fd() should write the full buffer");
+	malloc_close(fd);
+
+	fd = malloc_open(test_io_filename, O_RDONLY | O_BINARY);
+	assert_d_ne(fd, -1, "Unexpected malloc_open() failure");
+
+	char buf[sizeof(data)];
+	memset(buf, 0, sizeof(buf));
+	ssize_t nread = malloc_read_fd(fd, buf, sizeof(buf));
+	expect_zd_eq(nread, (ssize_t)sizeof(data),
+	    "malloc_read_fd() should read back everything that was written");
+	expect_d_eq(memcmp(buf, data, sizeof(data)), 0,
+	    "Round-tripped data should be unchanged");
+
+	malloc_close(fd);
+	remove(test_io_filename);
+}
+TEST_END
+
+TEST_BEGIN(test_malloc_read_fd_eof) {
+	create_empty_test_io_file();
+	int fd = malloc_open(test_io_filename, O_RDONLY | O_BINARY);
+	assert_d_ne(fd, -1, "Unexpected malloc_open() failure");
+
+	char buf[8];
+	ssize_t nread = malloc_read_fd(fd, buf, sizeof(buf));
+	expect_zd_eq(nread, 0,
+	    "malloc_read_fd() should report an empty file as a zero-length "
+	    "read (EOF)");
+
+	malloc_close(fd);
+	remove(test_io_filename);
+}
+TEST_END
+
+TEST_BEGIN(test_malloc_write_read_fd_accumulate) {
+	create_empty_test_io_file();
+	int fd = malloc_open(test_io_filename, O_WRONLY | O_BINARY);
+	assert_d_ne(fd, -1, "Unexpected malloc_open() failure");
+
+	static const char part1[] = "0123456789";
+	static const char part2[] = "abcdefghij";
+	size_t full_len = sizeof(part1) - 1 + sizeof(part2) - 1;
+
+	/*
+	 * Two separate writes, read back with a single malloc_read_fd() call
+	 * for the combined length.  This verifies that data written in
+	 * separate calls comes back in order and undamaged; it's also the
+	 * scenario malloc_read_fd()'s accumulate-until-count-satisfied loop
+	 * exists to handle, on platforms/fds where one read() doesn't return
+	 * everything at once.
+	 */
+	expect_zd_eq(malloc_write_fd(fd, part1, sizeof(part1) - 1),
+	    (ssize_t)sizeof(part1) - 1, "Unexpected short write");
+	expect_zd_eq(malloc_write_fd(fd, part2, sizeof(part2) - 1),
+	    (ssize_t)sizeof(part2) - 1, "Unexpected short write");
+	malloc_close(fd);
+
+	fd = malloc_open(test_io_filename, O_RDONLY | O_BINARY);
+	assert_d_ne(fd, -1, "Unexpected malloc_open() failure");
+
+	char buf[64];
+	memset(buf, 0, sizeof(buf));
+	ssize_t nread = malloc_read_fd(fd, buf, full_len);
+	expect_zd_eq(nread, (ssize_t)full_len,
+	    "malloc_read_fd() should return the full combined length");
+	expect_d_eq(memcmp(buf, part1, sizeof(part1) - 1), 0,
+	    "Unexpected content for the first part");
+	expect_d_eq(memcmp(buf + sizeof(part1) - 1, part2, sizeof(part2) - 1),
+	    0, "Unexpected content for the second part");
+
+	malloc_close(fd);
+	remove(test_io_filename);
+}
+TEST_END
+
+TEST_BEGIN(test_malloc_write_read_fd_bad_fd) {
+#ifndef _WIN32
+	/*
+	 * -1 is never a valid fd, on any platform; both wrappers should
+	 * propagate the error rather than loop forever. Not run on Windows:
+	 * the MSVC CRT's _read()/_write() route an invalid fd through
+	 * _invalid_parameter_handler(), which can raise a debug assertion
+	 * instead of returning -1/EBADF like POSIX guarantees. So
+	 * "negative return for a bad fd" isn't actually a portable contract
+	 * to test against on that CRT.
+	 */
+	expect_zd_lt(
+	    malloc_write_fd(-1, "x", 1), (ssize_t)0, "Expected write error");
+	char buf[1];
+	expect_zd_lt(malloc_read_fd(-1, buf, sizeof(buf)), (ssize_t)0,
+	    "Expected read error");
+#else
+	test_skip("Invalid-fd handling is not a portable contract on the "
+	    "MSVC CRT; see comment above");
+#endif
+}
+TEST_END
+
 int
 main(void) {
 	return test(test_malloc_strtoumax_no_endptr, test_malloc_strtoumax,
 	    test_malloc_snprintf_truncated, test_malloc_snprintf,
-	    test_malloc_snprintf_zero_size);
+	    test_malloc_snprintf_zero_size, test_malloc_write_read_fd_roundtrip,
+	    test_malloc_read_fd_eof, test_malloc_write_read_fd_accumulate,
+	    test_malloc_write_read_fd_bad_fd);
 }
