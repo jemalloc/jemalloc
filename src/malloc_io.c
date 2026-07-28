@@ -91,26 +91,9 @@ malloc_write(const char *s) {
 	}
 }
 
-/*
- * glibc provides a non-standard strerror_r() when _GNU_SOURCE is defined, so
- * provide a wrapper.
- */
 int
 buferror(int err, char *buf, size_t buflen) {
-#ifdef _WIN32
-	FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM, NULL, err, 0, (LPSTR)buf,
-	    (DWORD)buflen, NULL);
-	return 0;
-#elif defined(JEMALLOC_STRERROR_R_RETURNS_CHAR_WITH_GNU_SOURCE)                \
-    && defined(_GNU_SOURCE)
-	char *b = strerror_r(err, buf, buflen);
-	if (b != buf) {
-		malloc_snprintf(buf, buflen, "%s", b);
-	}
-	return 0;
-#else
-	return strerror_r(err, buf, buflen);
-#endif
+	return os_strerror(err, buf, buflen);
 }
 
 uintmax_t

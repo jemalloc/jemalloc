@@ -49,4 +49,11 @@
 /* VM */
 #include "jemalloc/internal/os/vm.h"
 
+/*
+ * Error codes. util.h includes os/error.h directly (not via this umbrella)
+ * since it's reachable too early in the include graph for the full os.h.
+ * Included here too for discoverability.
+ */
+#include "jemalloc/internal/os/error.h"
+
 #endif /* JEMALLOC_INTERNAL_OS_H */
