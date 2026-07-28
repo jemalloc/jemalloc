@@ -2,6 +2,8 @@
 #define JEMALLOC_INTERNAL_OS_POSIX_VM_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/malloc_io.h"
+#include "jemalloc/internal/os/overcommit.h"
 
 #include "jemalloc/internal/bit_util.h"
 
@@ -24,10 +26,6 @@
 #endif
 #define PAGES_PROT_COMMIT   (PROT_READ | PROT_WRITE)
 #define PAGES_PROT_DECOMMIT (PROT_NONE)
-
-/* mmap flags assembled by pages_boot(); MAP_PRIVATE | MAP_ANON (+ MAP_NORESERVE
- * when the kernel overcommits). */
-extern int mmap_flags;
 
 #ifdef JEMALLOC_PAGEID
 JEMALLOC_ALWAYS_INLINE int
@@ -284,6 +282,23 @@ os_vm_purge_lazy(void *addr, size_t size) {
 	(void)addr;
 	(void)size;
 	not_reached();
+#endif
+}
+
+JEMALLOC_ALWAYS_INLINE size_t
+os_vm_page_size(void) {
+#ifdef __FreeBSD__
+	/*
+	 * This returns the value obtained from
+	 * the auxv vector, avoiding a syscall.
+	 */
+	return getpagesize();
+#else
+	long result = sysconf(_SC_PAGESIZE);
+	if (result == -1) {
+		return PAGE;
+	}
+	return (size_t)result;
 #endif
 }
 

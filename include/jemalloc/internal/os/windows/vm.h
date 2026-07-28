@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_OS_WINDOWS_VM_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/os/overcommit.h"
 
 JEMALLOC_ALWAYS_INLINE void *
 os_vm_reserve(void *hint, size_t size, size_t alignment, bool *commit) {
@@ -110,6 +111,13 @@ JEMALLOC_ALWAYS_INLINE bool
 os_vm_purge_lazy(void *addr, size_t size) {
 	VirtualAlloc(addr, size, MEM_RESET, PAGE_READWRITE);
 	return false;
+}
+
+JEMALLOC_ALWAYS_INLINE size_t
+os_vm_page_size(void) {
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
+	return (size_t)si.dwPageSize;
 }
 
 #endif /* JEMALLOC_INTERNAL_OS_WINDOWS_VM_H */

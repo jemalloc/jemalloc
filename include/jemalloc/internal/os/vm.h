@@ -5,6 +5,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/os/detect.h"
+#include "jemalloc/internal/os/overcommit.h"
 #include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/sc.h"
 
@@ -16,10 +17,10 @@
  * themselves.
  * Default: posix/.  Override: Windows (VirtualAlloc/VirtualFree).
  *
- * State: `os_overcommits`, set by pages_boot(), read directly by the
- * backends below.
+ * `os_overcommits` (read by os_vm_reserve/os_vm_commit_impl below) is
+ * declared and set by os/overcommit.h, a separate module -- boot-time
+ * kernel-policy detection isn't itself a VM reserve/commit primitive.
  */
-extern bool os_overcommits;
 
 /* Functions required for implementation in each backend. */
 JEMALLOC_ALWAYS_INLINE void *os_vm_reserve(
@@ -32,6 +33,7 @@ JEMALLOC_ALWAYS_INLINE bool os_vm_decommit(void *addr, size_t size);
 JEMALLOC_ALWAYS_INLINE void os_vm_mark_guards(void *head, void *tail);
 JEMALLOC_ALWAYS_INLINE void os_vm_unmark_guards(void *head, void *tail);
 JEMALLOC_ALWAYS_INLINE bool os_vm_purge_lazy(void *addr, size_t size);
+JEMALLOC_ALWAYS_INLINE size_t os_vm_page_size(void);
 
 #if defined(_WIN32)
 #  include "jemalloc/internal/os/windows/vm.h"

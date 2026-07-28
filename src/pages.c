@@ -8,22 +8,15 @@
 #include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/sc.h"
 
-#ifdef JEMALLOC_SYSCTL_VM_OVERCOMMIT
-#	include <sys/sysctl.h>
-#	ifdef __FreeBSD__
-#		include <vm/vm_param.h>
-#	endif
-#endif
-
 /******************************************************************************/
 /* Data. */
 
 /* Actual operating system page size, detected during bootstrap, <= PAGE. */
 size_t os_page;
 
-/* Set here. Consumed by os_vm_reserve/os_vm_commit in os/posix/vm.h. */
+/* Set here. Consumed by os_vm_reserve/os_vm_commit_impl in os/posix/vm.h. */
 int mmap_flags;
-/* Set here, consumed directly by the os/vm.h backends. */
+/* Set here, consumed directly by the os/overcommit.h and os/vm.h backends. */
 bool os_overcommits;
 
 const char *const thp_mode_names[] = {
@@ -37,56 +30,9 @@ system_thp_mode_t init_system_thp_mode;
 static bool pages_can_purge_lazy_runtime = true;
 
 #ifdef JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS
-static int madvise_dont_need_zeros_is_faulty = -1;
-/**
- * Check that MADV_DONTNEED will actually zero pages on subsequent access.
- *
- * Since qemu does not support this, yet [1], and you can get very tricky
- * assert if you will run program with jemalloc in use under qemu:
- *
- *     <jemalloc>: ../contrib/jemalloc/src/extent.c:1195: Failed assertion: "p[i] == 0"
- *
- *   [1]: https://patchwork.kernel.org/patch/10576637/
- */
-static int
-madvise_MADV_DONTNEED_zeroes_pages(void) {
-	size_t size = PAGE;
-
-	void *addr = mmap(NULL, size, PROT_READ | PROT_WRITE,
-	    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-
-	if (addr == MAP_FAILED) {
-		malloc_write(
-		    "<jemalloc>: Cannot allocate memory for "
-		    "MADV_DONTNEED check\n");
-		if (opt_abort) {
-			abort();
-		}
-	}
-
-	memset(addr, 'A', size);
-	int works;
-	if (madvise(addr, size, MADV_DONTNEED) == 0) {
-		works = memchr(addr, 'A', size) == NULL;
-	} else {
-		/*
-		 * If madvise() does not support MADV_DONTNEED, then we can
-		 * call it anyway, and use it's return code.
-		 */
-		works = 1;
-	}
-
-	if (munmap(addr, size) != 0) {
-		malloc_write(
-		    "<jemalloc>: Cannot deallocate memory for "
-		    "MADV_DONTNEED check\n");
-		if (opt_abort) {
-			abort();
-		}
-	}
-
-	return works;
-}
+/* Set by os_overcommit_boot()'s madvise_MADV_DONTNEED_zeroes_pages() probe
+ * (os/posix/overcommit.h), consumed by pages_purge_forced() below. */
+int madvise_dont_need_zeros_is_faulty = -1;
 #endif
 
 /******************************************************************************/
@@ -414,88 +360,6 @@ pages_purge_process_madvise(void *vec, size_t vec_len, size_t total_bytes) {
 	return pages_purge_process_madvise_impl(vec, vec_len, total_bytes);
 }
 
-static size_t
-os_page_detect(void) {
-#ifdef _WIN32
-	SYSTEM_INFO si;
-	GetSystemInfo(&si);
-	return si.dwPageSize;
-#elif defined(__FreeBSD__)
-	/*
-	 * This returns the value obtained from
-	 * the auxv vector, avoiding a syscall.
-	 */
-	return getpagesize();
-#else
-	long result = sysconf(_SC_PAGESIZE);
-	if (result == -1) {
-		return PAGE;
-	}
-	return (size_t)result;
-#endif
-}
-
-#ifdef JEMALLOC_SYSCTL_VM_OVERCOMMIT
-static bool
-os_overcommits_sysctl(void) {
-	int    vm_overcommit;
-	size_t sz;
-
-	sz = sizeof(vm_overcommit);
-#	if defined(__FreeBSD__) && defined(VM_OVERCOMMIT)
-	int mib[2];
-
-	mib[0] = CTL_VM;
-	mib[1] = VM_OVERCOMMIT;
-	if (sysctl(mib, 2, &vm_overcommit, &sz, NULL, 0) != 0) {
-		return false; /* Error. */
-	}
-#	else
-	if (sysctlbyname("vm.overcommit", &vm_overcommit, &sz, NULL, 0) != 0) {
-		return false; /* Error. */
-	}
-#	endif
-
-	return ((vm_overcommit & 0x3) == 0);
-}
-#endif
-
-#ifdef JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY
-static bool
-os_overcommits_proc(void) {
-	int  fd;
-	char buf[1];
-
-#	if defined(O_CLOEXEC)
-	fd = malloc_open(
-	    "/proc/sys/vm/overcommit_memory", O_RDONLY | O_CLOEXEC);
-#	else
-	fd = malloc_open("/proc/sys/vm/overcommit_memory", O_RDONLY);
-	if (fd != -1) {
-		fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
-	}
-#	endif
-
-	if (fd == -1) {
-		return false; /* Error. */
-	}
-
-	ssize_t nread = malloc_read_fd(fd, &buf, sizeof(buf));
-	malloc_close(fd);
-
-	if (nread < 1) {
-		return false; /* Error. */
-	}
-	/*
-	 * /proc/sys/vm/overcommit_memory meanings:
-	 * 0: Heuristic overcommit.
-	 * 1: Always overcommit.
-	 * 2: Never overcommit.
-	 */
-	return (buf[0] == '0' || buf[0] == '1');
-}
-#endif
-
 static bool
 pages_should_skip_set_thp_state(void) {
 	if (opt_thp == thp_mode_do_nothing
@@ -591,7 +455,7 @@ label_error:
 
 bool
 pages_boot(void) {
-	os_page = os_page_detect();
+	os_page = os_vm_page_size();
 	if (os_page > PAGE) {
 		malloc_write("<jemalloc>: Unsupported system page size\n");
 		if (opt_abort) {
@@ -600,41 +464,9 @@ pages_boot(void) {
 		return true;
 	}
 
-#ifdef JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS
-	if (!opt_trust_madvise) {
-		madvise_dont_need_zeros_is_faulty =
-		    !madvise_MADV_DONTNEED_zeroes_pages();
-		if (madvise_dont_need_zeros_is_faulty) {
-			malloc_write(
-			    "<jemalloc>: MADV_DONTNEED does not work (memset will be used instead)\n");
-			malloc_write(
-			    "<jemalloc>: (This is the expected behaviour if you are running under QEMU)\n");
-		}
-	} else {
-		/* In case opt_trust_madvise is disable,
-		 * do not do runtime check */
-		madvise_dont_need_zeros_is_faulty = 0;
+	if (os_overcommit_boot()) {
+		return true;
 	}
-#endif
-
-#ifndef _WIN32
-	mmap_flags = MAP_PRIVATE | MAP_ANON;
-#endif
-
-#ifdef JEMALLOC_SYSCTL_VM_OVERCOMMIT
-	os_overcommits = os_overcommits_sysctl();
-#elif defined(JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY)
-	os_overcommits = os_overcommits_proc();
-#	ifdef MAP_NORESERVE
-	if (os_overcommits) {
-		mmap_flags |= MAP_NORESERVE;
-	}
-#	endif
-#elif defined(__NetBSD__)
-	os_overcommits = true;
-#else
-	os_overcommits = false;
-#endif
 
 	init_thp_state();
 
