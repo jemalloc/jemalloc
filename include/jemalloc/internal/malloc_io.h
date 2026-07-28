@@ -3,36 +3,15 @@
 
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
-
-#ifdef _WIN32
-#	ifdef _WIN64
-#		define FMT64_PREFIX "ll"
-#		define FMTPTR_PREFIX "ll"
-#	else
-#		define FMT64_PREFIX "ll"
-#		define FMTPTR_PREFIX ""
-#	endif
-#	define FMTd32 "d"
-#	define FMTu32 "u"
-#	define FMTx32 "x"
-#	define FMTd64 FMT64_PREFIX "d"
-#	define FMTu64 FMT64_PREFIX "u"
-#	define FMTx64 FMT64_PREFIX "x"
-#	define FMTdPTR FMTPTR_PREFIX "d"
-#	define FMTuPTR FMTPTR_PREFIX "u"
-#	define FMTxPTR FMTPTR_PREFIX "x"
-#else
-#	include <inttypes.h>
-#	define FMTd32 PRId32
-#	define FMTu32 PRIu32
-#	define FMTx32 PRIx32
-#	define FMTd64 PRId64
-#	define FMTu64 PRIu64
-#	define FMTx64 PRIx64
-#	define FMTdPTR PRIdPTR
-#	define FMTuPTR PRIuPTR
-#	define FMTxPTR PRIxPTR
-#endif
+/*
+ * os/fmt.h directly (not the os.h umbrella): this header is itself included
+ * from os/posix/error.h (for malloc_snprintf's declaration), so pulling in
+ * the full os.h here would risk the same circular-include hazard os/error.h
+ * avoids by not going through the umbrella either. os/fmt.h is a leaf module
+ * (macros only, no dependency back on malloc_io.h or anything else), so
+ * including it alone is safe.
+ */
+#include "jemalloc/internal/os/fmt.h"
 
 /* Size of stack-allocated buffer passed to buferror(). */
 #define BUFERROR_BUF 64

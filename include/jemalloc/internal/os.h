@@ -56,4 +56,11 @@
  */
 #include "jemalloc/internal/os/error.h"
 
+/*
+ * Printf format-specifier macros. malloc_io.h includes os/fmt.h directly
+ * (not via this umbrella) for the same early-reachability reason as
+ * os/error.h above. Included here too for discoverability.
+ */
+#include "jemalloc/internal/os/fmt.h"
+
 #endif /* JEMALLOC_INTERNAL_OS_H */
