@@ -11,6 +11,12 @@
 
 /* Functions required for implementation in each backend. */
 JEMALLOC_ALWAYS_INLINE int os_process_id(void);
+/*
+ * Install fork handlers, returning true on failure.  A no-op returning false
+ * where fork handler registration doesn't apply.
+ */
+JEMALLOC_ALWAYS_INLINE bool os_process_register_atfork(
+    void (*prepare)(void), void (*parent)(void), void (*child)(void));
 
 #if defined(_WIN32)
 #  include "jemalloc/internal/os/windows/process.h"
