@@ -55,10 +55,14 @@ malloc_initializer_set(void) {
 }
 
 /* Used to avoid initialization races. */
-#ifdef _WIN32
-#	if _WIN32_WINNT >= 0x0600
-static malloc_mutex_t init_lock = SRWLOCK_INIT;
-#	else
+#if !OS_MUTEX_HAS_STATIC_INIT
+/*
+ * This target's os_mutex_t has no static initializer (currently: pre-Vista
+ * Windows CRITICAL_SECTION; see os/windows/mutex.h), so MALLOC_MUTEX_
+ * INITIALIZER is empty -- init_lock needs its own lazy-init workaround
+ * instead, being the one static malloc_mutex_t that must be usable before
+ * any other code runs.
+ */
 static malloc_mutex_t init_lock;
 static bool           init_lock_initialized = false;
 
@@ -82,12 +86,11 @@ _init_init_lock(void) {
 	init_lock_initialized = true;
 }
 
-#		ifdef _MSC_VER
-#			pragma section(".CRT$XCU", read)
+#	ifdef _MSC_VER
+#		pragma section(".CRT$XCU", read)
 JEMALLOC_SECTION(".CRT$XCU")
 JEMALLOC_ATTR(used)
 static const void(WINAPI *init_init_lock)(void) = _init_init_lock;
-#		endif
 #	endif
 #else
 static malloc_mutex_t init_lock = MALLOC_MUTEX_INITIALIZER;
@@ -599,7 +602,7 @@ malloc_init_hard(void) {
 	 */
 	assert(SC_NTINY == 0 || SC_LG_TINY_MAXCLASS <= SC_LG_LARGE_MINCLASS);
 
-#if defined(_WIN32) && _WIN32_WINNT < 0x0600
+#if !OS_MUTEX_HAS_STATIC_INIT
 	_init_init_lock();
 #endif
 	malloc_mutex_lock(TSDN_NULL, &init_lock);

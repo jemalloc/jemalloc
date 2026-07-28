@@ -5,10 +5,6 @@
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/spin.h"
 
-#if defined(_WIN32) && !defined(_CRT_SPINCOUNT)
-#	define _CRT_SPINCOUNT 4000
-#endif
-
 /*
  * Based on benchmark results, a fixed spin with this amount of retries works
  * well for our critical sections.
@@ -141,18 +137,17 @@ bool
 malloc_mutex_init(malloc_mutex_t *mutex, const char *name, witness_rank_t rank,
     malloc_mutex_lock_order_t lock_order) {
 	mutex_prof_data_init(&mutex->prof_data);
-#ifdef _WIN32
-#	if _WIN32_WINNT >= 0x0600
-	InitializeSRWLock(&mutex->lock);
-#	else
-	if (!InitializeCriticalSectionAndSpinCount(
-	        &mutex->lock, _CRT_SPINCOUNT)) {
-		return true;
-	}
-#	endif
-#elif (defined(JEMALLOC_OS_UNFAIR_LOCK))
-	mutex->lock = OS_UNFAIR_LOCK_INIT;
-#elif (defined(JEMALLOC_MUTEX_INIT_CB))
+#ifdef JEMALLOC_MUTEX_INIT_CB
+	/*
+	 * Targets platforms with _pthread_mutex_init_calloc_cb(), which is
+	 * currently just FreeBSD/libthr: its pthread_mutex_init() can calloc()
+	 * internally, which would recurse back into jemalloc before it is safe
+	 * safe to allocate.  Until malloc_mutex_boot() runs, defer real
+	 * initialization by queuing the mutex here instead; malloc_mutex_boot()
+	 * later drains the queue, calling _pthread_mutex_init_calloc_cb() with
+	 * bootstrap_calloc (jemalloc's own early-bootstrap allocation path) as
+	 * the callback, once that's safe to use.
+	 */
 	if (postpone_init) {
 		mutex->postponed_next = postponed_mutexes;
 		postponed_mutexes = mutex;
@@ -164,17 +159,9 @@ malloc_mutex_init(malloc_mutex_t *mutex, const char *name, witness_rank_t rank,
 		}
 	}
 #else
-	pthread_mutexattr_t attr;
-
-	if (pthread_mutexattr_init(&attr) != 0) {
+	if (os_mutex_init(&mutex->lock)) {
 		return true;
 	}
-	pthread_mutexattr_settype(&attr, MALLOC_MUTEX_TYPE);
-	if (pthread_mutex_init(&mutex->lock, &attr) != 0) {
-		pthread_mutexattr_destroy(&attr);
-		return true;
-	}
-	pthread_mutexattr_destroy(&attr);
 #endif
 	if (config_debug) {
 		mutex->lock_order = lock_order;
