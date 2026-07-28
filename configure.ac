@@ -805,7 +805,6 @@ case "${host}" in
   *-*-freebsd*)
 	JE_APPEND_VS(CPPFLAGS, -D_BSD_SOURCE)
 	abi="elf"
-	AC_DEFINE([JEMALLOC_SYSCTL_VM_OVERCOMMIT], [ ], [ ])
 	force_lazy_lock="1"
 	;;
   *-*-dragonfly*)
@@ -825,7 +824,6 @@ case "${host}" in
 	glibc="0"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS], [ ], [ ])
 	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H], [ ], [ ])
-	AC_DEFINE([JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY], [ ], [ ])
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ], [ ])
 	AC_DEFINE([JEMALLOC_C11_ATOMICS], [ ], [ ])
 	force_tls="0"
@@ -840,7 +838,6 @@ case "${host}" in
 	abi="elf"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS], [ ], [ ])
 	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H], [ ], [ ])
-	AC_DEFINE([JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY], [ ], [ ])
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ], [ ])
 	if test "${LG_SIZEOF_PTR}" = "3"; then
 	  default_retain="1"
@@ -854,7 +851,6 @@ case "${host}" in
 	glibc="1"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS], [ ], [ ])
 	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H], [ ], [ ])
-	AC_DEFINE([JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY], [ ], [ ])
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ], [ ])
 	AC_DEFINE([JEMALLOC_USE_CXX_THROW], [ ], [ ])
 	if test "${LG_SIZEOF_PTR}" = "3"; then
@@ -867,7 +863,6 @@ case "${host}" in
 	JE_APPEND_VS(CPPFLAGS, -D_GNU_SOURCE)
 	abi="elf"
 	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H], [ ], [ ])
-	AC_DEFINE([JEMALLOC_SYSCTL_VM_OVERCOMMIT], [ ], [ ])
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ], [ ])
 	AC_DEFINE([JEMALLOC_USE_CXX_THROW], [ ], [ ])
 	;;
