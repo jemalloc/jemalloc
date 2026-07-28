@@ -46,4 +46,7 @@
 /* CPU */
 #include "jemalloc/internal/os/cpu.h"
 
+/* VM */
+#include "jemalloc/internal/os/vm.h"
+
 #endif /* JEMALLOC_INTERNAL_OS_H */
