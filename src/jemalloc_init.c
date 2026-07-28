@@ -16,6 +16,7 @@
 #include "jemalloc/internal/jemalloc_init.h"
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/os.h"
 #include "jemalloc/internal/san.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/spin.h"
@@ -124,8 +125,6 @@ malloc_slow_flag_init(void) {
 }
 
 static void stats_print_atexit(void);
-static unsigned malloc_ncpus(void);
-static bool malloc_cpu_count_is_deterministic(void);
 
 static bool
 malloc_init_hard_needed(void) {
@@ -243,7 +242,7 @@ malloc_init_hard_a0_locked(void) {
 	experimental_thread_events_boot();
 	/*
 	 * Create enough scaffolding to allow recursive allocation in
-	 * malloc_ncpus().
+	 * os_cpu_ncpus().
 	 */
 	narenas_auto_set(1);
 	manual_arena_base_set(narenas_auto + 1);
@@ -317,90 +316,15 @@ stats_print_atexit(void) {
 	je_malloc_stats_print(NULL, NULL, opt_stats_print_opts);
 }
 
-static unsigned
-malloc_ncpus(void) {
-	long result;
-
-#ifdef _WIN32
-	SYSTEM_INFO si;
-	GetSystemInfo(&si);
-	result = si.dwNumberOfProcessors;
-#elif defined(CPU_COUNT)
-	/*
-	 * glibc >= 2.6 has the CPU_COUNT macro.
-	 *
-	 * glibc's sysconf() uses isspace().  glibc allocates for the first time
-	 * *before* setting up the isspace tables.  Therefore we need a
-	 * different method to get the number of CPUs.
-	 *
-	 * The getaffinity approach is also preferred when only a subset of CPUs
-	 * is available, to avoid using more arenas than necessary.
-	 */
-	{
-#	if defined(__FreeBSD__) || defined(__DragonFly__)
-		cpuset_t set;
-#	else
-		cpu_set_t set;
-#	endif
-#	if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
-		sched_getaffinity(0, sizeof(set), &set);
-#	else
-		pthread_getaffinity_np(pthread_self(), sizeof(set), &set);
-#	endif
-		result = CPU_COUNT(&set);
-	}
-#else
-	result = sysconf(_SC_NPROCESSORS_ONLN);
-#endif
-	return ((result == -1) ? 1 : (unsigned)result);
-}
-
-/*
- * Ensure that number of CPUs is determistinc, i.e. it is the same based on:
- * - sched_getaffinity()
- * - _SC_NPROCESSORS_ONLN
- * - _SC_NPROCESSORS_CONF
- * Since otherwise tricky things is possible with percpu arenas in use.
- */
-static bool
-malloc_cpu_count_is_deterministic(void) {
-#ifdef _WIN32
-	return true;
-#else
-	long cpu_onln = sysconf(_SC_NPROCESSORS_ONLN);
-	long cpu_conf = sysconf(_SC_NPROCESSORS_CONF);
-	if (cpu_onln != cpu_conf) {
-		return false;
-	}
-#	if defined(CPU_COUNT)
-#		if defined(__FreeBSD__) || defined(__DragonFly__)
-	cpuset_t set;
-#		else
-	cpu_set_t set;
-#		endif /* __FreeBSD__ */
-#		if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
-	sched_getaffinity(0, sizeof(set), &set);
-#		else  /* !JEMALLOC_HAVE_SCHED_SETAFFINITY */
-	pthread_getaffinity_np(pthread_self(), sizeof(set), &set);
-#		endif /* JEMALLOC_HAVE_SCHED_SETAFFINITY */
-	long cpu_affinity = CPU_COUNT(&set);
-	if (cpu_affinity != cpu_conf) {
-		return false;
-	}
-#	endif         /* CPU_COUNT */
-	return true;
-#endif
-}
-
 /* Initialize data structures which may trigger recursive allocation. */
 static bool
 malloc_init_hard_recursible(void) {
 	malloc_init_state = malloc_init_recursible;
 
-	ncpus = malloc_ncpus();
+	ncpus = os_cpu_ncpus();
 	if (opt_percpu_arena != percpu_arena_disabled) {
 		bool cpu_count_is_deterministic =
-		    malloc_cpu_count_is_deterministic();
+		    os_cpu_count_is_deterministic();
 		if (!cpu_count_is_deterministic) {
 			/*
 			 * If # of CPU is not deterministic, and narenas not
