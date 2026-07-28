@@ -7,6 +7,7 @@
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bit_util.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
+#include "jemalloc/internal/os.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/ticker.h"
@@ -14,42 +15,7 @@
 JEMALLOC_ALWAYS_INLINE malloc_cpuid_t
 malloc_getcpu(void) {
 	assert(have_percpu_arena);
-#if defined(_WIN32)
-	return GetCurrentProcessorNumber();
-#elif defined(JEMALLOC_HAVE_SCHED_GETCPU)
-	return (malloc_cpuid_t)sched_getcpu();
-#elif defined(__APPLE__)
-	/*
-	 * No sched_getcpu() on macOS; read the CPU number like _os_cpu_number()
-	 * does, from the low 12 bits of tpidr_el0 (arm64) or the IDT base (x86).
-	 * The 0xfff mask is xnu's __TPIDR_CPU_NUM_MASK, kept in sync with
-	 * _os_cpu_number in libsyscall/os/tsd.h (the kernel counterpart is
-	 * MACHDEP_TPIDR_CPUNUM_MASK in osfmk/arm64/machine_machdep.h):
-	 * https://github.com/apple-oss-distributions/xnu/blob/main/libsyscall/os/tsd.h
-	 * This requires macOS 12+: on macOS 11 and earlier arm64 kept the CPU
-	 * number in tpidrro_el0's low 3 bits instead, so it would be misread here.
-	 * Those releases are retired by Apple, so only the current layout is handled.
-	 */
-#  if defined(__aarch64__)
-	uint64_t cpu;
-	__asm__ __volatile__("mrs %0, tpidr_el0" : "=r"(cpu));
-	return (malloc_cpuid_t)(cpu & 0xfff);
-#  elif defined(__x86_64__) || defined(__i386__)
-	struct { uintptr_t p1, p2; } idtr;
-	__asm__ __volatile__("sidt %0" : "=m"(idtr));
-	return (malloc_cpuid_t)(idtr.p1 & 0xfff);
-#  else
-	not_reached();
-	return -1;
-#  endif
-#elif defined(JEMALLOC_HAVE_RDTSCP)
-	unsigned int ecx;
-	asm volatile("rdtscp" : "=c"(ecx)::"eax", "edx");
-	return (malloc_cpuid_t)(ecx & 0xfff);
-#else
-	not_reached();
-	return -1;
-#endif
+	return (malloc_cpuid_t)os_cpu_current();
 }
 
 /* Return the chosen arena index based on current cpu. */

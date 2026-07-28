@@ -43,4 +43,7 @@
 /* Sigmask (POSIX background thread only) */
 #include "jemalloc/internal/os/sigmask.h"
 
+/* CPU */
+#include "jemalloc/internal/os/cpu.h"
+
 #endif /* JEMALLOC_INTERNAL_OS_H */
