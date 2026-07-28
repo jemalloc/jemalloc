@@ -34,4 +34,13 @@
 /* Time */
 #include "jemalloc/internal/os/time.h"
 
+/* Sync (mutex) */
+#include "jemalloc/internal/os/mutex.h"
+
+/* Cond (POSIX background thread only) */
+#include "jemalloc/internal/os/cond.h"
+
+/* Sigmask (POSIX background thread only) */
+#include "jemalloc/internal/os/sigmask.h"
+
 #endif /* JEMALLOC_INTERNAL_OS_H */

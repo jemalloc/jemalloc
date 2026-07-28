@@ -4,6 +4,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/base.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/os.h"
 
 #if defined(JEMALLOC_BACKGROUND_THREAD) || defined(JEMALLOC_LAZY_LOCK)
 #	define JEMALLOC_PTHREAD_CREATE_WRAPPER
@@ -23,8 +24,8 @@ typedef enum {
 struct background_thread_info_s {
 #ifdef JEMALLOC_BACKGROUND_THREAD
 	/* Background thread is pthread specific. */
-	pthread_t      thread;
-	pthread_cond_t cond;
+	pthread_t thread;
+	os_cond_t cond;
 #endif
 	malloc_mutex_t            mtx;
 	background_thread_state_t state;
