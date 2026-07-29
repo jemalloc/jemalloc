@@ -14,8 +14,12 @@ max_test_narenas(void) {
 	 */
 	unsigned ret = 10 * ncpus;
 
-	/* Limit the max to avoid VM exhaustion on 32-bit . */
-	return ret > 256 ? 256 : ret;
+	/*
+	 * These arenas remain live for the rest of the test process.  Leave
+	 * enough address space for the worker thread in the toggle stress test,
+	 * particularly on 32-bit platforms where its stack allocation can fail.
+	 */
+	return ret > 64 ? 64 : ret;
 }
 
 TEST_BEGIN(test_deferred) {
