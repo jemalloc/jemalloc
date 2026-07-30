@@ -14,6 +14,14 @@
 JEMALLOC_ALWAYS_INLINE ssize_t
 os_file_write_once(int fd, const void *buf, size_t bytes) {
 #if defined(JEMALLOC_USE_SYSCALL) && defined(SYS_write)
+	/*
+	 * Use syscall(2) rather than write(2) when possible in order to avoid
+	 * the possibility of memory allocation within libc.  This is necessary
+	 * on FreeBSD; most operating systems do not have this problem though.
+	 *
+	 * syscall() returns long or int, depending on platform, so capture the
+	 * result in the widest plausible type to avoid compiler warnings.
+	 */
 	return (ssize_t)syscall(SYS_write, fd, buf, bytes);
 #else
 	return (ssize_t)write(fd, buf, bytes);
