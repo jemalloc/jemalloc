@@ -342,6 +342,10 @@ if test "x$enable_cxx" = "x1" ; then
   if test "x${HAVE_CXX14}" = "x1" -o "x${HAVE_CXX17}" = "x1"; then
     JE_CXXFLAGS_ADD([-Wall])
     JE_CXXFLAGS_ADD([-Wextra])
+    dnl Mirror the C flags: this warning fires on the universal zero
+    dnl initializer idiom (e.g. the tcache/TSD static initializers) that is
+    dnl shared with the C++ sources via the internal headers.
+    JE_CXXFLAGS_ADD([-Wno-missing-braces])
     JE_CXXFLAGS_ADD([-g3])
 
     SAVED_LIBS="${LIBS}"

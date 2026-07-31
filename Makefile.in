@@ -36,6 +36,10 @@ CXXFLAGS := $(strip $(CONFIGURE_CXXFLAGS) $(SPECIFIED_CXXFLAGS) $(EXTRA_CXXFLAGS
 LDFLAGS := @LDFLAGS@
 EXTRA_LDFLAGS := @EXTRA_LDFLAGS@
 LIBS := @LIBS@
+# $(CXX) links the C++ standard library itself, so passing it again explicitly
+# is redundant and makes some linkers (e.g. Apple ld) warn about a duplicate
+# library.  Strip it from links performed with $(CXX).
+CXX_LIBS := $(filter-out -lstdc++,$(LIBS))
 RPATH_EXTRA := @RPATH_EXTRA@
 SO := @so@
 IMPORTLIB := @importlib@
@@ -559,7 +563,7 @@ endif
 $(objroot)lib/$(LIBJEMALLOC).$(SOREV) : $(if $(PIC_CFLAGS),$(C_PIC_OBJS),$(C_OBJS)) $(if $(PIC_CFLAGS),$(CPP_PIC_OBJS),$(CPP_OBJS))
 	@mkdir -p $(@D)
 ifeq (@enable_cxx@, 1)
-	$(CXX) $(DSO_LDFLAGS) $(call RPATH,$(RPATH_EXTRA)) $(LDTARGET) $+ $(LDFLAGS) $(LIBS) $(EXTRA_LDFLAGS)
+	$(CXX) $(DSO_LDFLAGS) $(call RPATH,$(RPATH_EXTRA)) $(LDTARGET) $+ $(LDFLAGS) $(CXX_LIBS) $(EXTRA_LDFLAGS)
 else
 	$(CC) $(DSO_LDFLAGS) $(call RPATH,$(RPATH_EXTRA)) $(LDTARGET) $+ $(LDFLAGS) $(LIBS) $(EXTRA_LDFLAGS)
 endif
@@ -582,7 +586,7 @@ $(objroot)test/integration/%$(EXE): $(objroot)test/integration/%.$(O) $(C_TESTLI
 
 $(objroot)test/integration/cpp/%$(EXE): $(objroot)test/integration/cpp/%.$(O) $(C_TESTLIB_INTEGRATION_OBJS) $(C_UTIL_INTEGRATION_OBJS) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB)
 	@mkdir -p $(@D)
-	$(CXX) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB) $(LDFLAGS) $(filter-out -lm,$(LIBS)) -lm $(EXTRA_LDFLAGS)
+	$(CXX) $(LDTARGET) $(filter %.$(O),$^) $(call RPATH,$(objroot)lib) $(objroot)lib/$(LIBJEMALLOC).$(IMPORTLIB) $(LDFLAGS) $(filter-out -lm,$(CXX_LIBS)) -lm $(EXTRA_LDFLAGS)
 
 $(objroot)test/analyze/%$(EXE): $(objroot)test/analyze/%.$(O) $(C_JET_OBJS) $(C_TESTLIB_ANALYZE_OBJS)
 	@mkdir -p $(@D)
@@ -594,7 +598,7 @@ $(objroot)test/stress/%$(EXE): $(objroot)test/stress/%.$(O) $(C_JET_OBJS) $(C_TE
 
 $(objroot)test/stress/pa/pa_data_preprocessor$(EXE): $(objroot)test/stress/pa/pa_data_preprocessor.$(O)
 	@mkdir -p $(@D)
-	$(CXX) $(LDTARGET) $(filter %.$(O),$^) $(LDFLAGS) $(filter-out -lm,$(LIBS)) $(LM) $(EXTRA_LDFLAGS)
+	$(CXX) $(LDTARGET) $(filter %.$(O),$^) $(LDFLAGS) $(filter-out -lm,$(CXX_LIBS)) $(LM) $(EXTRA_LDFLAGS)
 
 $(objroot)test/stress/pa/pa_microbench$(EXE): $(objroot)test/stress/pa/pa_microbench.$(O) $(C_JET_OBJS) $(C_TESTLIB_STRESS_OBJS)
 	@mkdir -p $(@D)
