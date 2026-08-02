@@ -2854,7 +2854,7 @@ fi
 ],
 [enable_pageid="0"]
 )
-if test "x$enable_pageid" = "x1" ; then
+if test "x$enable_pageid" = "x1" -a "x$have_prctl" = "x1" ; then
   AC_DEFINE([JEMALLOC_PAGEID], [ ], [ ])
 fi
 
