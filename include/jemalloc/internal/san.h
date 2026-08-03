@@ -101,7 +101,7 @@ san_large_extent_decide_guard(
 		*tsd_san_extents_until_guard_largep_get(tsd) = n - 1;
 	}
 
-	if (n == 1 && (alignment <= PAGE)
+	if (n == 1 && (size >= SC_LARGE_MINCLASS) && (alignment <= PAGE)
 	    && (san_two_side_guarded_sz(size) <= SC_LARGE_MAXCLASS)) {
 		*tsd_san_extents_until_guard_largep_get(
 		    tsd) = opt_san_guard_large;
