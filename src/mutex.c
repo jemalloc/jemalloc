@@ -25,10 +25,12 @@ static malloc_mutex_t *postponed_mutexes = NULL;
 /******************************************************************************/
 /*
  * We intercept pthread_create() calls in order to toggle isthreaded if the
- * process goes multi-threaded.
+ * process goes multi-threaded.  Note JEMALLOC_LAZY_LOCK is already
+ * force-disabled in configure.ac for all Windows so no extra _WIN32 check
+ * is needed here.
  */
 
-#if defined(JEMALLOC_LAZY_LOCK) && !defined(_WIN32)
+#ifdef JEMALLOC_LAZY_LOCK
 JEMALLOC_EXPORT int
 pthread_create(pthread_t *__restrict thread,
     const pthread_attr_t *__restrict attr, void *(*start_routine)(void *),
