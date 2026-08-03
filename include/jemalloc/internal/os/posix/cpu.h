@@ -123,4 +123,9 @@ os_cpu_set_affinity(int cpu) {
 #endif
 }
 
+JEMALLOC_ALWAYS_INLINE void
+os_cpu_yield(void) {
+	sched_yield();
+}
+
 #endif /* JEMALLOC_INTERNAL_OS_POSIX_CPU_H */

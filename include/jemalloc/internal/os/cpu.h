@@ -5,15 +5,15 @@
 #include "jemalloc/internal/os/detect.h"
 
 /*
- * CPU interface: counts and current-CPU queries used for arena / tcache
- * sizing.
+ * CPU interface: counts, current-CPU queries, affinity, and yielding.
  * Default: posix/.  Override: Windows (GetSystemInfo /
- * GetCurrentProcessorNumber), Darwin (os_cpu_current() has no sched_getcpu()
- * to fall back on, so it reads the CPU index directly out of a CPU register
- * -- substantial enough, and different enough per-arch, to warrant its own
- * file rather than an inline #ifdef in posix/cpu.h; os_cpu_ncpus() and
- * os_cpu_count_is_deterministic() are identical to POSIX, so darwin/cpu.h
- * reuses posix/cpu.h for those instead of duplicating them).
+ * GetCurrentProcessorNumber / SwitchToThread; os_cpu_set_affinity() is an
+ * unreachable no-op), Darwin (os_cpu_current() has no sched_getcpu() to fall
+ * back on, so it reads the CPU index directly out of a CPU register;
+ * os_cpu_set_affinity() is an unreachable no-op; os_cpu_ncpus(),
+ * os_cpu_count_is_deterministic(), and os_cpu_yield() are identical to
+ * posix/'s, duplicated rather than shared via #include, matching every
+ * other os/<os>/<module>.h backend).
  */
 
 /* Functions required for implementation in each backend. */
@@ -26,6 +26,8 @@ JEMALLOC_ALWAYS_INLINE int os_cpu_current(void);
  * compiled out on both), so their backends are no-ops.
  */
 JEMALLOC_ALWAYS_INLINE bool os_cpu_set_affinity(int cpu);
+/* Yield the current thread's remaining timeslice to the scheduler. */
+JEMALLOC_ALWAYS_INLINE void os_cpu_yield(void);
 
 #if defined(_WIN32)
 #  include "jemalloc/internal/os/windows/cpu.h"

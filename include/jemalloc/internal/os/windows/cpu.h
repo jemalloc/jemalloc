@@ -26,4 +26,9 @@ os_cpu_set_affinity(int cpu) {
 	return false;
 }
 
+JEMALLOC_ALWAYS_INLINE void
+os_cpu_yield(void) {
+	SwitchToThread();
+}
+
 #endif /* JEMALLOC_INTERNAL_OS_WINDOWS_CPU_H */
