@@ -61,12 +61,12 @@ extern size_t os_page;
  * re-commit, but doing so is racy, and if re-commit fails it's a pain to
  * propagate the "poisoned" memory state.  Since we typically decommit as the
  * next step after purging on Windows anyway, there's no point in adding such
- * complexity.
+ * complexity.  Neither condition can be true on Windows, so no Windows
+ * detection is needed here.
  */
-#if !defined(_WIN32)                                                           \
-    && ((defined(JEMALLOC_PURGE_MADVISE_DONTNEED)                              \
-            && defined(JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS))                 \
-        || defined(JEMALLOC_MAPS_COALESCE))
+#if (defined(JEMALLOC_PURGE_MADVISE_DONTNEED)                                  \
+        && defined(JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS))                     \
+    || defined(JEMALLOC_MAPS_COALESCE)
 #	define PAGES_CAN_PURGE_FORCED
 #endif
 
