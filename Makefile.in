@@ -240,6 +240,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/fork.c \
 	${srcroot}test/unit/fxp.c \
 	${srcroot}test/unit/san.c \
+	${srcroot}test/unit/san_prof.c \
 	${srcroot}test/unit/san_bump.c \
 	$(srcroot)test/unit/hash.c \
 	$(srcroot)test/unit/hpa.c \
