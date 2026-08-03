@@ -49,6 +49,9 @@
 /* VM */
 #include "jemalloc/internal/os/vm.h"
 
+/* Process maps (profiling) */
+#include "jemalloc/internal/os/proc_maps.h"
+
 /*
  * Error codes. util.h includes os/error.h directly (not via this umbrella)
  * since it's reachable too early in the include graph for the full os.h.
