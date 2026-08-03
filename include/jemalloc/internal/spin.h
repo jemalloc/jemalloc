@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_SPIN_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/os.h"
 
 #define SPIN_INITIALIZER                                                       \
 	{ 0U }
@@ -30,11 +31,7 @@ spin_adaptive(spin_t *spin) {
 		}
 		spin->iteration++;
 	} else {
-#ifdef _WIN32
-		SwitchToThread();
-#else
-		sched_yield();
-#endif
+		os_cpu_yield();
 	}
 }
 

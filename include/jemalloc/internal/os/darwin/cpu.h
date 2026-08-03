@@ -2,13 +2,15 @@
 #define JEMALLOC_INTERNAL_OS_DARWIN_CPU_H
 
 /*
- * Darwin CPU backend. os_cpu_ncpus()/os_cpu_count_is_deterministic() are
- * identical to posix/cpu.h's (macOS has no CPU_COUNT/sched_getaffinity()
- * either, so both already fall through to the same sysconf() path) --
+ * Darwin CPU backend. os_cpu_ncpus(), os_cpu_count_is_deterministic(), and
+ * os_cpu_yield() are identical to posix/cpu.h's (macOS has no
+ * CPU_COUNT/sched_getaffinity() either, so the first two already fall
+ * through to the same sysconf() path, and sched_yield() is standard POSIX),
  * duplicated here rather than shared via #include, matching every other
  * os/<os>/<module>.h backend (each is self-contained; see os/darwin/mutex.h).
  * os_cpu_current() is genuinely different: no sched_getcpu() on macOS, so it
  * reads the CPU index directly out of a CPU register instead.
+ * os_cpu_set_affinity() is an unreachable no-op (see os/cpu.h).
  */
 #include "jemalloc/internal/jemalloc_preamble.h"
 
@@ -89,6 +91,11 @@ JEMALLOC_ALWAYS_INLINE bool
 os_cpu_set_affinity(int cpu) {
 	(void)cpu;
 	return false;
+}
+
+JEMALLOC_ALWAYS_INLINE void
+os_cpu_yield(void) {
+	sched_yield();
 }
 
 #endif /* JEMALLOC_INTERNAL_OS_DARWIN_CPU_H */
