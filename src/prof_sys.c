@@ -488,41 +488,6 @@ prof_getpid(void) {
 	return os_process_id();
 }
 
-static long
-prof_get_pid_namespace(void) {
-	long ret = 0;
-
-#if defined(_WIN32) || defined(__APPLE__)
-	// Not supported, do nothing.
-#else
-	char        buf[PATH_MAX];
-	const char *linkname =
-#	if defined(__FreeBSD__) || defined(__DragonFly__)
-	    "/proc/curproc/ns/pid"
-#	else
-	    "/proc/self/ns/pid"
-#	endif
-	    ;
-	ssize_t linklen =
-#	ifndef JEMALLOC_READLINKAT
-	    readlink(linkname, buf, PATH_MAX)
-#	else
-	    readlinkat(AT_FDCWD, linkname, buf, PATH_MAX)
-#	endif
-	    ;
-
-	// namespace string is expected to be like pid:[4026531836]
-	if (linklen > 0) {
-		// Trim the trailing "]"
-		buf[linklen - 1] = '\0';
-		char *index = strtok(buf, "pid:[");
-		ret = atol(index);
-	}
-#endif
-
-	return ret;
-}
-
 /*
  * This buffer is rather large for stack allocation, so use a single buffer for
  * all profile dumps; protected by prof_dump_mtx.
@@ -609,142 +574,21 @@ prof_dump_close(prof_dump_arg_t *arg) {
 	}
 }
 
-#ifdef __APPLE__
-#	include <mach-o/dyld.h>
-
-#	ifdef __LP64__
-typedef struct mach_header_64     mach_header_t;
-typedef struct segment_command_64 segment_command_t;
-#		define MH_MAGIC_VALUE MH_MAGIC_64
-#		define MH_CIGAM_VALUE MH_CIGAM_64
-#		define LC_SEGMENT_VALUE LC_SEGMENT_64
-#	else
-typedef struct mach_header     mach_header_t;
-typedef struct segment_command segment_command_t;
-#		define MH_MAGIC_VALUE MH_MAGIC
-#		define MH_CIGAM_VALUE MH_CIGAM
-#		define LC_SEGMENT_VALUE LC_SEGMENT
-#	endif
-
-static void
-prof_dump_dyld_image_vmaddr(buf_writer_t *buf_writer, uint32_t image_index) {
-	const mach_header_t *header = (const mach_header_t *)
-	    _dyld_get_image_header(image_index);
-	if (header == NULL
-	    || (header->magic != MH_MAGIC_VALUE
-	        && header->magic != MH_CIGAM_VALUE)) {
-		// Invalid header
-		return;
-	}
-
-	intptr_t             slide = _dyld_get_image_vmaddr_slide(image_index);
-	const char          *name = _dyld_get_image_name(image_index);
-	struct load_command *load_cmd = (struct load_command *)((char *)header
-	    + sizeof(mach_header_t));
-	for (uint32_t i = 0; load_cmd && (i < header->ncmds); i++) {
-		if (load_cmd->cmd == LC_SEGMENT_VALUE) {
-			const segment_command_t *segment_cmd =
-			    (const segment_command_t *)load_cmd;
-			if (!strcmp(segment_cmd->segname, "__TEXT")) {
-				char buffer[PATH_MAX + 1];
-				malloc_snprintf(buffer, sizeof(buffer),
-				    "%016llx-%016llx: %s\n",
-				    segment_cmd->vmaddr + slide,
-				    segment_cmd->vmaddr + slide
-				        + segment_cmd->vmsize,
-				    name);
-				buf_writer_cb(buf_writer, buffer);
-				return;
-			}
-		}
-		load_cmd = (struct load_command *)((char *)load_cmd
-		    + load_cmd->cmdsize);
-	}
-}
-
-static void
-prof_dump_dyld_maps(buf_writer_t *buf_writer) {
-	uint32_t image_count = _dyld_image_count();
-	for (uint32_t i = 0; i < image_count; i++) {
-		prof_dump_dyld_image_vmaddr(buf_writer, i);
-	}
-}
-
+#ifdef JEMALLOC_OS_PROF_NO_OPEN_MAPS
+/*
+ * No fd-based maps file to read on this platform (os_prof_dump_maps() below
+ * doesn't consult this hook at all); left NULL so tests that mock it know to
+ * skip themselves.
+ */
 prof_dump_open_maps_t *JET_MUTABLE prof_dump_open_maps = NULL;
+#else
+prof_dump_open_maps_t *JET_MUTABLE prof_dump_open_maps = os_prof_open_maps;
+#endif
 
 static void
 prof_dump_maps(buf_writer_t *buf_writer) {
-	buf_writer_cb(buf_writer, "\nMAPPED_LIBRARIES:\n");
-	/* No proc map file to read on MacOS, dump dyld maps for backtrace. */
-	prof_dump_dyld_maps(buf_writer);
+	os_prof_dump_maps(buf_writer, prof_dump_open_maps);
 }
-#else /* !__APPLE__ */
-#	ifndef _WIN32
-JEMALLOC_FORMAT_PRINTF(1, 2)
-static int
-prof_open_maps_internal(const char *format, ...) {
-	int     mfd;
-	va_list ap;
-	char    filename[PATH_MAX + 1];
-
-	va_start(ap, format);
-	malloc_vsnprintf(filename, sizeof(filename), format, ap);
-	va_end(ap);
-
-#		if defined(O_CLOEXEC)
-	mfd = open(filename, O_RDONLY | O_CLOEXEC);
-#		else
-	mfd = open(filename, O_RDONLY);
-	if (mfd != -1) {
-		fcntl(mfd, F_SETFD, fcntl(mfd, F_GETFD) | FD_CLOEXEC);
-	}
-#		endif
-
-	return mfd;
-}
-#	endif
-
-static int
-prof_dump_open_maps_impl(void) {
-	int mfd;
-
-	cassert(config_prof);
-#	if defined(__FreeBSD__) || defined(__DragonFly__)
-	mfd = prof_open_maps_internal("/proc/curproc/map");
-#	elif defined(_WIN32)
-	mfd = -1; // Not implemented
-#	else
-	int pid = prof_getpid();
-
-	mfd = prof_open_maps_internal("/proc/%d/task/%d/maps", pid, pid);
-	if (mfd == -1) {
-		mfd = prof_open_maps_internal("/proc/%d/maps", pid);
-	}
-#	endif
-	return mfd;
-}
-prof_dump_open_maps_t *JET_MUTABLE prof_dump_open_maps =
-    prof_dump_open_maps_impl;
-
-static ssize_t
-prof_dump_read_maps_cb(void *read_cbopaque, void *buf, size_t limit) {
-	int mfd = *(int *)read_cbopaque;
-	assert(mfd != -1);
-	return malloc_read_fd(mfd, buf, limit);
-}
-
-static void
-prof_dump_maps(buf_writer_t *buf_writer) {
-	int mfd = prof_dump_open_maps();
-	if (mfd == -1) {
-		return;
-	}
-
-	buf_writer_cb(buf_writer, "\nMAPPED_LIBRARIES:\n");
-	buf_writer_pipe(buf_writer, prof_dump_read_maps_cb, &mfd);
-	close(mfd);
-}
-#endif /* __APPLE__ */
 
 static bool
 prof_dump(
@@ -827,7 +671,7 @@ prof_dump_filename(tsd_t *tsd, char *filename, char v, uint64_t vseq) {
 			/* "<prefix>.<pid_namespace>.<pid>.<seq>.v<vseq>.heap" */
 			malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
 			    "%s.%ld.%d.%" FMTu64 ".%c%" FMTu64 ".heap", prefix,
-			    prof_get_pid_namespace(), prof_getpid(),
+			    os_prof_pid_namespace(), prof_getpid(),
 			    prof_dump_seq, v, vseq);
 		} else {
 			/* "<prefix>.<pid>.<seq>.v<vseq>.heap" */
@@ -840,7 +684,7 @@ prof_dump_filename(tsd_t *tsd, char *filename, char v, uint64_t vseq) {
 			/* "<prefix>.<pid_namespace>.<pid>.<seq>.<v>.heap" */
 			malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
 			    "%s.%ld.%d.%" FMTu64 ".%c.heap", prefix,
-			    prof_get_pid_namespace(), prof_getpid(),
+			    os_prof_pid_namespace(), prof_getpid(),
 			    prof_dump_seq, v);
 		} else {
 			/* "<prefix>.<pid>.<seq>.<v>.heap" */
@@ -858,7 +702,7 @@ prof_get_default_filename(tsdn_t *tsdn, char *filename, uint64_t ind) {
 	if (opt_prof_pid_namespace) {
 		malloc_snprintf(filename, PROF_DUMP_FILENAME_LEN,
 		    "%s.%ld.%d.%" FMTu64 ".json", prof_prefix_get(tsdn),
-		    prof_get_pid_namespace(), prof_getpid(), ind);
+		    os_prof_pid_namespace(), prof_getpid(), ind);
 	} else {
 		malloc_snprintf(filename, PROF_DUMP_FILENAME_LEN,
 		    "%s.%d.%" FMTu64 ".json", prof_prefix_get(tsdn),
