@@ -20,4 +20,10 @@ os_cpu_current(void) {
 	return (int)GetCurrentProcessorNumber();
 }
 
+JEMALLOC_ALWAYS_INLINE bool
+os_cpu_set_affinity(int cpu) {
+	(void)cpu;
+	return false;
+}
+
 #endif /* JEMALLOC_INTERNAL_OS_WINDOWS_CPU_H */

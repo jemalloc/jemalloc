@@ -20,6 +20,12 @@
 JEMALLOC_ALWAYS_INLINE unsigned os_cpu_ncpus(void);
 JEMALLOC_ALWAYS_INLINE bool os_cpu_count_is_deterministic(void);
 JEMALLOC_ALWAYS_INLINE int os_cpu_current(void);
+/*
+ * Pin the calling thread to cpu, returning true on failure. Windows and
+ * Darwin never actually run this (background_thread.c, its only caller, is
+ * compiled out on both), so their backends are no-ops.
+ */
+JEMALLOC_ALWAYS_INLINE bool os_cpu_set_affinity(int cpu);
 
 #if defined(_WIN32)
 #  include "jemalloc/internal/os/windows/cpu.h"
