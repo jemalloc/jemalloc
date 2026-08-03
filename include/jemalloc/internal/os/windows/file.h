@@ -49,4 +49,13 @@ os_file_read(int fd, void *buf, size_t bytes) {
 	return bytes_read;
 }
 
+JEMALLOC_ALWAYS_INLINE ssize_t
+os_readlink(const char *path, char *buf, size_t bufsize) {
+	/* No symlink concept used here on Windows. */
+	(void)path;
+	(void)buf;
+	(void)bufsize;
+	return -1;
+}
+
 #endif /* JEMALLOC_INTERNAL_OS_WINDOWS_FILE_H */

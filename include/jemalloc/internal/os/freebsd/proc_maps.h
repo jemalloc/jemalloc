@@ -3,18 +3,13 @@
 
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/malloc_io.h"
+#include "jemalloc/internal/os/file.h"
 
 JEMALLOC_ALWAYS_INLINE long
 os_prof_pid_namespace(void) {
 	long ret = 0;
 	char buf[PATH_MAX];
-	ssize_t linklen =
-#ifndef JEMALLOC_READLINKAT
-	    readlink("/proc/curproc/ns/pid", buf, PATH_MAX)
-#else
-	    readlinkat(AT_FDCWD, "/proc/curproc/ns/pid", buf, PATH_MAX)
-#endif
-	    ;
+	ssize_t linklen = os_readlink("/proc/curproc/ns/pid", buf, PATH_MAX);
 
 	/* namespace string is expected to be like pid:[4026531836] */
 	if (linklen > 0) {

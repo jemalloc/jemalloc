@@ -330,34 +330,26 @@ obtain_malloc_conf(unsigned which_source, char readlink_buf[PATH_MAX + 1]) {
 		ret = NULL;
 		break;
 #else
-		ssize_t linklen = 0;
-#	ifndef _WIN32
 		int         saved_errno = errno;
 		const char *linkname =
-#		ifdef JEMALLOC_PREFIX
+#	ifdef JEMALLOC_PREFIX
 		    "/etc/" JEMALLOC_PREFIX "malloc.conf"
-#		else
+#	else
 		    "/etc/malloc.conf"
-#		endif
+#	endif
 		    ;
 
 		/*
 		 * Try to use the contents of the "/etc/malloc.conf" symbolic
 		 * link's name.
 		 */
-#		ifndef JEMALLOC_READLINKAT
-		linklen = readlink(linkname, readlink_buf, PATH_MAX);
-#		else
-		linklen = readlinkat(
-		    AT_FDCWD, linkname, readlink_buf, PATH_MAX);
-#		endif
+		ssize_t linklen = os_readlink(linkname, readlink_buf, PATH_MAX);
 		if (linklen == -1) {
 			/* No configuration specified. */
 			linklen = 0;
 			/* Restore errno. */
 			set_errno(saved_errno);
 		}
-#	endif
 		readlink_buf[linklen] = '\0';
 		ret = readlink_buf;
 		break;

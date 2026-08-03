@@ -24,6 +24,9 @@ JEMALLOC_ALWAYS_INLINE ssize_t os_file_read_once(int fd, void *buf,
 JEMALLOC_ALWAYS_INLINE ssize_t os_file_write(int fd, const void *buf,
     size_t bytes);
 JEMALLOC_ALWAYS_INLINE ssize_t os_file_read(int fd, void *buf, size_t bytes);
+/* Read the target of the symlink at path into buf. */
+JEMALLOC_ALWAYS_INLINE ssize_t os_readlink(const char *path, char *buf,
+    size_t bufsize);
 
 #if defined(_WIN32)
 #  include "jemalloc/internal/os/windows/file.h"

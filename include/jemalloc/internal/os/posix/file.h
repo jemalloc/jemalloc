@@ -73,4 +73,13 @@ os_file_read(int fd, void *buf, size_t bytes) {
 	return bytes_read;
 }
 
+JEMALLOC_ALWAYS_INLINE ssize_t
+os_readlink(const char *path, char *buf, size_t bufsize) {
+#ifndef JEMALLOC_READLINKAT
+	return readlink(path, buf, bufsize);
+#else
+	return readlinkat(AT_FDCWD, path, buf, bufsize);
+#endif
+}
+
 #endif /* JEMALLOC_INTERNAL_OS_POSIX_FILE_H */
