@@ -199,45 +199,6 @@ background_thread_info_init(tsdn_t *tsdn, background_thread_info_t *info) {
 	}
 }
 
-static inline bool
-set_current_thread_affinity(int cpu) {
-#	if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)                           \
-	    || defined(JEMALLOC_HAVE_PTHREAD_SETAFFINITY_NP)
-#		if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
-	cpu_set_t cpuset;
-#		else
-#			ifndef __NetBSD__
-	cpuset_t cpuset;
-#			else
-	cpuset_t *cpuset;
-#			endif
-#		endif
-
-#		ifndef __NetBSD__
-	CPU_ZERO(&cpuset);
-	CPU_SET(cpu, &cpuset);
-#		else
-	cpuset = cpuset_create();
-#		endif
-
-#		if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
-	return (sched_setaffinity(0, sizeof(cpu_set_t), &cpuset) != 0);
-#		else
-#			ifndef __NetBSD__
-	int ret = pthread_setaffinity_np(
-	    pthread_self(), sizeof(cpuset_t), &cpuset);
-#			else
-	int ret = pthread_setaffinity_np(
-	    pthread_self(), cpuset_size(cpuset), cpuset);
-	cpuset_destroy(cpuset);
-#			endif
-	return ret != 0;
-#		endif
-#	else
-	return false;
-#	endif
-}
-
 #	define BILLION UINT64_C(1000000000)
 /* Minimal sleep interval 100 ms. */
 #	define BACKGROUND_THREAD_MIN_INTERVAL_NS (BILLION / 10)
@@ -601,7 +562,7 @@ background_thread_entry(void *ind_arg) {
 	pthread_set_name_np(pthread_self(), "jemalloc_bg_thd");
 #	endif
 	if (opt_percpu_arena != percpu_arena_disabled) {
-		set_current_thread_affinity((int)thread_ind);
+		os_cpu_set_affinity((int)thread_ind);
 	}
 	/*
 	 * Start periodic background work.  We use internal tsd which avoids
