@@ -393,6 +393,18 @@ _tls_callback(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
 			    linker, "/INCLUDE:" STRINGIFY(tls_callback))
 #		endif
 #		pragma section(".CRT$XLY", long, read)
+#	elif defined(__GNUC__)
+/*
+ * MinGW analog of the MSVC "/INCLUDE:_tls_used" directives above.  Referencing
+ * _tls_used forces the linker to pull in the CRT's TLS support (tlssup), which
+ * emits the PE TLS directory so the loader actually invokes our .CRT$XLY
+ * callback (_tls_callback) on DLL_THREAD_DETACH.  Without it, a statically
+ * linked MinGW binary (e.g. the unit tests) never runs per-thread TSD cleanup
+ * on thread exit.  The compiler applies the correct symbol decoration, so this
+ * works for both 32- and 64-bit targets.
+ */
+extern char _tls_used;
+JEMALLOC_ATTR(used) static char *const tls_used_ref = &_tls_used;
 #	endif
 JEMALLOC_SECTION(".CRT$XLY")
 JEMALLOC_ATTR(used) BOOL(WINAPI *const tls_callback)(
