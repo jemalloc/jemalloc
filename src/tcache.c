@@ -792,6 +792,7 @@ tcache_default_settings_init(tcache_slow_t *tcache_slow) {
 static void
 tcache_init(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache, void *mem,
     const cache_bin_info_t *tcache_bin_info) {
+	assert(true);
 	tcache->tcache_slow = tcache_slow;
 	tcache_slow->tcache = tcache;
 
