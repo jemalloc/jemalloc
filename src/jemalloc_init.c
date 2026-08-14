@@ -162,6 +162,19 @@ malloc_init_hard_a0_locked(void) {
 	sc_data_t sc_data = {0};
 	JEMALLOC_DIAGNOSTIC_POP
 
+	const char *opts_cache[MALLOC_CONF_NSOURCES] = {
+	    NULL, NULL, NULL, NULL, NULL};
+	char readlink_buf[PATH_MAX + 1];
+	readlink_buf[0] = '\0';
+
+	/* This initializes opt_abort so it can be used in pages_pre_boot(). */
+	malloc_conf_init_pre(opts_cache, readlink_buf);
+
+	/* The page size needs to be set as early as possible. */
+	if (pages_pre_boot()) {
+		return true;
+	}
+
 	/*
 	 * Ordering here is somewhat tricky; we need sc_boot() first, since that
 	 * determines what the size classes will be, and then
@@ -180,9 +193,7 @@ malloc_init_hard_a0_locked(void) {
 	if (config_prof) {
 		prof_boot0();
 	}
-	char readlink_buf[PATH_MAX + 1];
-	readlink_buf[0] = '\0';
-	malloc_conf_init(&sc_data, bin_shard_sizes, readlink_buf);
+	malloc_conf_init(&sc_data, bin_shard_sizes, opts_cache);
 	san_init(opt_lg_san_uaf_align);
 	sz_boot(&sc_data, opt_cache_oblivious);
 	bin_info_boot(&sc_data, bin_shard_sizes);
