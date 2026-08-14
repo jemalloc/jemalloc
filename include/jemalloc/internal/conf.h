@@ -3,8 +3,13 @@
 
 #include "jemalloc/internal/sc.h"
 
-void malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
+/* Number of sources for initializing malloc_conf, should be used for opts_cache */
+#define MALLOC_CONF_NSOURCES 5
+
+void malloc_conf_init_pre(const char *opts_cache[MALLOC_CONF_NSOURCES],
     char readlink_buf[PATH_MAX + 1]);
+void malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
+    const char *opts_cache[MALLOC_CONF_NSOURCES]);
 void malloc_abort_invalid_conf(void);
 
 extern bool had_conf_error;

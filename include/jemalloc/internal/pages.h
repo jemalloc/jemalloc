@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_PAGES_EXTERNS_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 
 /* Actual operating system page size, detected during bootstrap, <= PAGE. */
@@ -19,6 +20,59 @@ extern size_t os_page;
 #define PAGE_CEILING(s) (((s) + PAGE_MASK) & ~PAGE_MASK)
 /* Return the largest pagesize multiple that is <=s. */
 #define PAGE_FLOOR(s) ((s) & ~PAGE_MASK)
+
+#ifdef DYNAMIC_PAGE_SIZE
+#	define MIN_PAGE ((size_t)(1U << MIN_LG_PAGE))
+#	define MAX_PAGE ((size_t)(1U << MAX_LG_PAGE))
+
+/*
+ * Either MIN/MAX (dynamic page size) or LG_PAGE (no dynamic page size).
+ * This pattern is required in a few places. Using these macros
+ * eliminates the need to add more #ifdef's in the code.
+ */
+#	define LG_PAGE_OR_MIN MIN_LG_PAGE
+#	define LG_PAGE_OR_MAX MAX_LG_PAGE
+
+/* log of page size, only used when dynamic page size is enabled */
+extern unsigned lg_page;
+
+/* page size based on lg_page, only used when dynamic page size is enabled */
+extern size_t page_size;
+
+#	ifdef JEMALLOC_DEBUG
+/* Used in debug builds to check that lg_page and page have been initialized. */
+
+JEMALLOC_ALWAYS_INLINE unsigned
+get_lg_page() {
+	assert(lg_page != 0);
+	return lg_page;
+}
+
+JEMALLOC_ALWAYS_INLINE size_t
+get_page_size() {
+	assert(page_size != 0);
+	return page_size;
+}
+#	endif /* JEMALLOC_DEBUG */
+
+/*
+ * Temporary macros to allow us to migrate some values to non-constant
+ * expressions. These will be eventually removed and replaced with PAGE and LG_PAGE.
+ */
+#	ifdef JEMALLOC_DEBUG
+#		define DYNAMIC_LG_PAGE get_lg_page()
+#		define DYNAMIC_PAGE get_page_size()
+#	else /* JEMALLOC_DEBUG */
+#		define DYNAMIC_LG_PAGE lg_page
+#		define DYNAMIC_PAGE page_size
+#	endif /* JEMALLOC_DEBUG */
+#else          /* DYNAMIC_PAGE_SIZE */
+#	define LG_PAGE_OR_MIN LG_PAGE
+#	define LG_PAGE_OR_MAX LG_PAGE
+
+#	define DYNAMIC_LG_PAGE LG_PAGE
+#	define DYNAMIC_PAGE PAGE
+#endif /* DYNAMIC_PAGE_SIZE */
 
 /* Huge page size.  LG_HUGEPAGE is determined by the configure script. */
 #define HUGEPAGE ((size_t)(1U << LG_HUGEPAGE))
@@ -135,6 +189,7 @@ bool pages_nohuge(void *addr, size_t size);
 bool pages_collapse(void *addr, size_t size);
 bool pages_dontdump(void *addr, size_t size);
 bool pages_dodump(void *addr, size_t size);
+bool pages_pre_boot(void);
 bool pages_boot(void);
 void pages_set_thp_state(void *ptr, size_t size);
 void pages_mark_guards(void *head, void *tail);

@@ -295,9 +295,6 @@ conf_handle_char_p(const char *v, size_t vlen, char *dest, size_t dest_sz) {
 
 JEMALLOC_DIAGNOSTIC_POP
 
-/* Number of sources for initializing malloc_conf */
-#define MALLOC_CONF_NSOURCES 5
-
 static const char *
 obtain_malloc_conf(unsigned which_source, char readlink_buf[PATH_MAX + 1]) {
 	if (config_debug) {
@@ -554,11 +551,11 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			bool cur_opt_valid = true;
 
 			CONF_HANDLE_BOOL(opt_confirm_conf, "confirm_conf")
+			CONF_HANDLE_BOOL(opt_abort, "abort")
 			if (initial_call) {
 				continue;
 			}
 
-			CONF_HANDLE_BOOL(opt_abort, "abort")
 			CONF_HANDLE_BOOL(opt_abort_conf, "abort_conf")
 			CONF_HANDLE_BOOL(opt_cache_oblivious, "cache_oblivious")
 			CONF_HANDLE_BOOL(opt_trust_madvise, "trust_madvise")
@@ -1160,6 +1157,8 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			/* Re-enable diagnostic "-Wtype-limits" */
 			JEMALLOC_DIAGNOSTIC_POP
 		}
+	}
+	if (!initial_call) {
 		validate_hpa_settings();
 		if (opt_abort_conf && had_conf_error) {
 			malloc_abort_invalid_conf();
@@ -1185,13 +1184,15 @@ malloc_conf_init_check_deps(void) {
 }
 
 void
-malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
-    char readlink_buf[PATH_MAX + 1]) {
-	const char *opts_cache[MALLOC_CONF_NSOURCES] = {
-	    NULL, NULL, NULL, NULL, NULL};
-
-	/* The first call only set the confirm_conf option and opts_cache */
+malloc_conf_init_pre(const char *opts_cache[MALLOC_CONF_NSOURCES],
+	char readlink_buf[PATH_MAX + 1]) {
+	/* The first call only sets the confirm_conf and abort options and opts_cache */
 	malloc_conf_init_helper(NULL, NULL, true, opts_cache, readlink_buf);
+}
+
+void
+malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
+    const char *opts_cache[MALLOC_CONF_NSOURCES]) {
 	malloc_conf_init_helper(
 	    sc_data, bin_shard_sizes, false, opts_cache, NULL);
 	if (malloc_conf_init_check_deps()) {
@@ -1201,5 +1202,3 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 		}
 	}
 }
-
-#undef MALLOC_CONF_NSOURCES

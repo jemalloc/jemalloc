@@ -1901,6 +1901,57 @@ if test "x$enable_uaf_detection" = "x1" ; then
 fi
 AC_SUBST([enable_uaf_detection])
 
+dnl Enable dynamic page size by default: no.
+AC_ARG_ENABLE([dynamic-page-size],
+  [AS_HELP_STRING([--enable-dynamic-page-size],
+  [Enable dynamic page size])],
+[if test "x$enable_dynamic_page_size" = "xno" ; then
+  enable_dynamic_page_size="0"
+else
+  enable_dynamic_page_size="1"
+fi
+],
+[enable_dynamic_page_size="0"]
+)
+if test "x$enable_dynamic_page_size" = "x1" ; then
+  AC_DEFINE([DYNAMIC_PAGE_SIZE], [ ], [ ])
+fi
+AC_SUBST([enable_dynamic_page_size])
+
+AC_ARG_WITH([min_lg_page],
+  [AS_HELP_STRING([--with-min-lg-page=<min-lg-page>],
+   [Base 2 log of minimum dynamic page size])],
+  [MIN_LG_PAGE="$with_min_lg_page"
+   if test "x$enable_dynamic_page_size" = "x0" ; then
+     AC_MSG_ERROR([--with-min-lg-page should only be used with --enable-dynamic-page-size])
+   fi],
+  [MIN_LG_PAGE="12"])
+case "${MIN_LG_PAGE}" in
+  12|13|14|15|16) ;;
+  *) AC_MSG_ERROR([bad value ${MIN_LG_PAGE} for --with-min-lg-page; must be 12, 13, 14, 15, or 16]) ;;
+esac
+AC_DEFINE_UNQUOTED([MIN_LG_PAGE], [$MIN_LG_PAGE], [ ])
+AC_SUBST([MIN_LG_PAGE])
+
+AC_ARG_WITH([max_lg_page],
+  [AS_HELP_STRING([--with-max-lg-page=<max-lg-page>],
+   [Base 2 log of maximum dynamic page size])],
+  [MAX_LG_PAGE="$with_max_lg_page"
+   if test "x$enable_dynamic_page_size" = "x0" ; then
+     AC_MSG_ERROR([--with-max-lg-page should only be used with --enable-dynamic-page-size])
+   fi],
+  [MAX_LG_PAGE="16"])
+case "${MAX_LG_PAGE}" in
+  12|13|14|15|16) ;;
+  *) AC_MSG_ERROR([bad value ${MAX_LG_PAGE} for --with-max-lg-page; must be 12, 13, 14, 15, or 16]) ;;
+esac
+AC_DEFINE_UNQUOTED([MAX_LG_PAGE], [$MAX_LG_PAGE], [ ])
+AC_SUBST([MAX_LG_PAGE])
+
+if test "${MIN_LG_PAGE}" -gt "${MAX_LG_PAGE}" ; then
+  AC_MSG_ERROR([MIN_LG_PAGE (${MIN_LG_PAGE}) must not be greater than MAX_LG_PAGE (${MAX_LG_PAGE})])
+fi
+
 JE_COMPILABLE([a program using __builtin_unreachable], [
 void foo (void) {
   __builtin_unreachable();
@@ -2095,6 +2146,13 @@ fi
 if test "x${LG_PAGE}" != "xundefined" -a \
         "${je_cv_lg_hugepage}" -lt "${LG_PAGE}" ; then
   AC_MSG_ERROR([Huge page size (2^${je_cv_lg_hugepage}) must be at least page size (2^${LG_PAGE})])
+fi
+dnl With a dynamic page size the runtime page size can grow to 2^MAX_LG_PAGE,
+dnl so that, rather than LG_PAGE, is what has to fit inside a huge page.
+dnl Otherwise HUGEPAGE_PAGES becomes 0 and the HPA bitmaps degenerate.
+if test "x${enable_dynamic_page_size}" = "x1" -a \
+        "${je_cv_lg_hugepage}" -lt "${MAX_LG_PAGE}" ; then
+  AC_MSG_ERROR([Huge page size (2^${je_cv_lg_hugepage}) must be at least max page size (2^${MAX_LG_PAGE})])
 fi
 AC_DEFINE_UNQUOTED([LG_HUGEPAGE], [${je_cv_lg_hugepage}], [ ])
 
@@ -3137,7 +3195,12 @@ AC_MSG_RESULT([INCLUDEDIR         : ${INCLUDEDIR}])
 AC_MSG_RESULT([LIBDIR             : ${LIBDIR}])
 AC_MSG_RESULT([MANDIR             : ${MANDIR}])
 AC_MSG_RESULT([])
-AC_MSG_RESULT([LG_PAGE            : ${LG_PAGE}])
+if test "x${enable_dynamic_page_size}" = "x0" ; then
+  AC_MSG_RESULT([LG_PAGE            : ${LG_PAGE}])
+else
+  AC_MSG_RESULT([MIN_LG_PAGE        : ${MIN_LG_PAGE}])
+  AC_MSG_RESULT([MAX_LG_PAGE        : ${MAX_LG_PAGE}])
+fi
 AC_MSG_RESULT([])
 AC_MSG_RESULT([srcroot            : ${srcroot}])
 AC_MSG_RESULT([abs_srcroot        : ${abs_srcroot}])

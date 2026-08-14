@@ -11,6 +11,11 @@
 /******************************************************************************/
 /* Data. */
 
+#ifdef DYNAMIC_PAGE_SIZE
+unsigned lg_page;
+size_t   page_size;
+#endif /* DYNAMIC_PAGE_SIZE */
+
 /* Actual operating system page size, detected during bootstrap, <= PAGE. */
 size_t os_page;
 
@@ -454,15 +459,86 @@ label_error:
 }
 
 bool
-pages_boot(void) {
+pages_pre_boot(void) {
 	os_page = os_vm_page_size();
-	if (os_page > PAGE) {
-		malloc_write("<jemalloc>: Unsupported system page size\n");
+
+#ifdef DYNAMIC_PAGE_SIZE
+	if (os_page == 0 || (os_page & (os_page - 1)) != 0) {
+		malloc_write("<jemalloc>: Invalid system page size\n");
 		if (opt_abort) {
 			abort();
 		}
 		return true;
 	}
+
+	if (os_page < MIN_PAGE) {
+		malloc_write(
+		    "<jemalloc>: Unsupported system page size (smaller than min page size)\n");
+		if (opt_abort) {
+			abort();
+		}
+		return true;
+	}
+
+	if (os_page > MAX_PAGE) {
+		malloc_write(
+		    "<jemalloc>: Unsupported system page size (larger than max page size)\n");
+		if (opt_abort) {
+			abort();
+		}
+		return true;
+	}
+
+	/*
+	 * As we incrementally migrate the code to use a dynamic page size,
+	 * we'll fix the dynamic lg page to be same as LG_PAGE. This way,
+	 * we can migrate parts of the code to the dynamic version without
+	 * breaking anything. When all the changes are done, we'll update this to:
+	 *   lg_page = lg_floor(os_page)
+	 * or read it from the config.
+	 */
+	lg_page = LG_PAGE;
+	page_size = (1U << lg_page);
+
+	/* mainly to exercise the macros. */
+	assert(lg_page == DYNAMIC_LG_PAGE);
+	assert(page_size == DYNAMIC_PAGE);
+
+	if (page_size < MIN_PAGE) {
+		malloc_write(
+		    "<jemalloc>: Unsupported page size (smaller than min page size)\n");
+		if (opt_abort) {
+			abort();
+		}
+		return true;
+	}
+
+	if (page_size > MAX_PAGE) {
+		malloc_write(
+		    "<jemalloc>: Unsupported page size (larger than max page size)\n");
+		if (opt_abort) {
+			abort();
+		}
+		return true;
+	}
+#endif /* DYNAMIC_PAGE_SIZE */
+
+	if (os_page > DYNAMIC_PAGE) {
+		malloc_write(
+		    "<jemalloc>: Unsupported system page size (larger than page size)\n");
+		if (opt_abort) {
+			abort();
+		}
+		return true;
+	}
+
+	return false;
+}
+
+bool
+pages_boot(void) {
+	/* pages_pre_boot() should have been called */
+	assert(os_page != 0);
 
 	if (os_overcommit_boot()) {
 		return true;
