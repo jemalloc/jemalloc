@@ -213,11 +213,12 @@ TEST_BEGIN(test_more_regions_purged_from_one_page) {
 	nstime_init(&defer_curtime, 0);
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 
-	enum { NALLOCS = 8 * HUGEPAGE_PAGES };
-	edata_t *edatas[NALLOCS];
-	for (int i = 0; i < NALLOCS; i++) {
-		edatas[i] = hpa_alloc(tsdn, shard, PAGE, PAGE, false,
-		    false, false, &deferred_work_generated);
+	const int nallocs = (int)(8 * HUGEPAGE_PAGES);
+	edata_t **edatas = malloc(nallocs * sizeof(edata_t *));
+	assert_ptr_not_null(edatas, "Unexpected malloc failure");
+	for (int i = 0; i < nallocs; i++) {
+		edatas[i] = hpa_alloc(tsdn, shard, PAGE, PAGE, false, false,
+		    false, &deferred_work_generated);
 		expect_ptr_not_null(edatas[i], "Unexpected null edata");
 	}
 	/* Deallocate almost 3 pages out of 8, and to force batching
@@ -226,8 +227,8 @@ TEST_BEGIN(test_more_regions_purged_from_one_page) {
 	for (int i = 0; i < 3 * (int)HUGEPAGE_PAGES; i++) {
 		int j = i % HUGEPAGE_PAGES;
 		if (j != 1 && j != 3) {
-			hpa_dalloc(tsdn, shard, edatas[i],
-			    &deferred_work_generated);
+			hpa_dalloc(
+			    tsdn, shard, edatas[i], &deferred_work_generated);
 		}
 	}
 
@@ -251,6 +252,7 @@ TEST_BEGIN(test_more_regions_purged_from_one_page) {
 	ndefer_vec_purge_calls = 0;
 
 	destroy_test_data(shard);
+	free(edatas);
 }
 TEST_END
 

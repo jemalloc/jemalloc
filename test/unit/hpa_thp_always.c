@@ -170,13 +170,14 @@ TEST_BEGIN(test_hpa_hugify_style_none_huge_no_syscall_thp_always) {
 	system_thp_mode_t old_mode = init_system_thp_mode;
 	init_system_thp_mode = system_thp_mode_always;
 
-	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
-	enum { NALLOCS = HUGEPAGE_PAGES };
-	edata_t *edatas[NALLOCS];
+	tsdn_t   *tsdn = tsd_tsdn(tsd_fetch());
+	const int nallocs = (int)HUGEPAGE_PAGES;
+	edata_t **edatas = malloc(nallocs * sizeof(edata_t *));
+	assert_ptr_not_null(edatas, "Unexpected malloc failure");
 	ndefer_purge_calls = 0;
-	for (int i = 0; i < NALLOCS / 2; i++) {
-		edatas[i] = hpa_alloc(tsdn, shard, PAGE, PAGE, false,
-		    false, false, &deferred_work_generated);
+	for (int i = 0; i < nallocs / 2; i++) {
+		edatas[i] = hpa_alloc(tsdn, shard, PAGE, PAGE, false, false,
+		    false, &deferred_work_generated);
 		expect_ptr_not_null(edatas[i], "Unexpected null edata");
 	}
 	hpdata_t *ps = psset_pick_alloc(&shard->psset, PAGE);
@@ -191,6 +192,7 @@ TEST_BEGIN(test_hpa_hugify_style_none_huge_no_syscall_thp_always) {
 	expect_zu_eq(ndefer_purge_calls, 1, "purge should happen");
 
 	destroy_test_data(shard);
+	free(edatas);
 	init_system_thp_mode = old_mode;
 }
 TEST_END
