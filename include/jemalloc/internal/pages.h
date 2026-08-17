@@ -39,8 +39,11 @@ extern unsigned lg_page;
 /* page size based on lg_page, only used when dynamic page size is enabled */
 extern size_t page_size;
 
+/* number of pages per hugepage, only used when dynamic page size is enabled */
+extern size_t hugepage_pages;
+
 #	ifdef JEMALLOC_DEBUG
-/* Used in debug builds to check that lg_page and page have been initialized. */
+/* Used in debug builds to check that the globals have been initialized. */
 
 JEMALLOC_ALWAYS_INLINE unsigned
 get_lg_page() {
@@ -52,6 +55,12 @@ JEMALLOC_ALWAYS_INLINE size_t
 get_page_size() {
 	assert(page_size != 0);
 	return page_size;
+}
+
+JEMALLOC_ALWAYS_INLINE size_t
+get_hugepage_pages() {
+	assert(hugepage_pages != 0);
+	return hugepage_pages;
 }
 #	endif /* JEMALLOC_DEBUG */
 
@@ -87,7 +96,17 @@ get_page_size() {
 #define HUGEPAGE_MAX_EXPECTED_SIZE ((size_t)(16U << 20))
 
 #if LG_HUGEPAGE != 0
-#	define HUGEPAGE_PAGES (HUGEPAGE / PAGE)
+#	ifdef DYNAMIC_PAGE_SIZE
+#		ifdef JEMALLOC_DEBUG
+#			define HUGEPAGE_PAGES get_hugepage_pages()
+#		else /* JEMALLOC_DEBUG */
+#			define HUGEPAGE_PAGES hugepage_pages
+#		endif /* JEMALLOC_DEBUG */
+#		define HUGEPAGE_PAGES_MAX (HUGEPAGE / MIN_PAGE)
+#	else /* DYNAMIC_PAGE_SIZE */
+#		define HUGEPAGE_PAGES (HUGEPAGE / PAGE)
+#		define HUGEPAGE_PAGES_MAX HUGEPAGE_PAGES
+#	endif /* DYNAMIC_PAGE_SIZE */
 #else
 /*
  * It's convenient to define arrays (or bitmaps) of HUGEPAGE_PAGES lengths.  If
@@ -97,6 +116,7 @@ get_page_size() {
  * hpa_supported() returns false in this case.
  */
 #	define HUGEPAGE_PAGES 1
+#	define HUGEPAGE_PAGES_MAX HUGEPAGE_PAGES
 #endif
 
 /* Return the huge page base address for the huge page containing address a. */

@@ -14,6 +14,7 @@
 #ifdef DYNAMIC_PAGE_SIZE
 unsigned lg_page;
 size_t   page_size;
+size_t   hugepage_pages;
 #endif /* DYNAMIC_PAGE_SIZE */
 
 /* Actual operating system page size, detected during bootstrap, <= PAGE. */
@@ -521,7 +522,6 @@ pages_pre_boot(void) {
 		}
 		return true;
 	}
-#endif /* DYNAMIC_PAGE_SIZE */
 
 	if (os_page > DYNAMIC_PAGE) {
 		malloc_write(
@@ -531,6 +531,13 @@ pages_pre_boot(void) {
 		}
 		return true;
 	}
+
+#	if LG_HUGEPAGE != 0
+	hugepage_pages = HUGEPAGE / page_size;
+#	else
+	hugepage_pages = 1;
+#	endif
+#endif /* DYNAMIC_PAGE_SIZE */
 
 	return false;
 }
