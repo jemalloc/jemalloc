@@ -291,6 +291,7 @@ hpdata_post_reserve_alloc_offsets(hpdata_t *hpdata, size_t sz,
 	size_t       longest_len = max_zu(
             offsets[nallocs - 1].longest_len, len_before - npages);
 
+	assert(start <= HUGEPAGE_PAGES);
 	const size_t rest = HUGEPAGE_PAGES - start;
 	/*
 	 * Only look at the rest if we think we'll find a range longer than what
@@ -382,7 +383,7 @@ hpdata_purge_begin(
 	 * fb_group_t is 64 bits, so this is 64 bytes, spread across 8
 	 * fb_group_ts.
 	 */
-	fb_group_t dirty_pages[FB_NGROUPS(HUGEPAGE_PAGES)];
+	fb_group_t dirty_pages[FB_NGROUPS(HUGEPAGE_PAGES_MAX)];
 	fb_init(dirty_pages, HUGEPAGE_PAGES);
 	fb_bit_not(dirty_pages, hpdata->active_pages, HUGEPAGE_PAGES);
 	fb_bit_and(
