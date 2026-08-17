@@ -14,6 +14,7 @@
 #ifdef DYNAMIC_PAGE_SIZE
 unsigned lg_page;
 size_t   page_size;
+size_t   hugepage_pages;
 #endif /* DYNAMIC_PAGE_SIZE */
 
 /* Actual operating system page size, detected during bootstrap, <= PAGE. */
@@ -525,6 +526,10 @@ pages_pre_boot(void) {
 		}
 		return true;
 	}
+
+	/* the invariant page_size <= MAX_PAGE should ensure this */
+	assert(page_size < HUGEPAGE);
+	hugepage_pages = HUGEPAGE / page_size;
 #endif /* DYNAMIC_PAGE_SIZE */
 
 	if (os_page > DYNAMIC_PAGE) {
