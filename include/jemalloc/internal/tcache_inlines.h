@@ -22,7 +22,7 @@ static inline unsigned
 tcache_nbins_get(const tcache_slow_t *tcache_slow) {
 	assert(tcache_slow != NULL);
 	unsigned nbins = tcache_slow->tcache_nbins;
-	assert(nbins <= TCACHE_NBINS_MAX);
+	assert(nbins <= TCACHE_NBINS);
 	return nbins;
 }
 
@@ -43,8 +43,8 @@ tcache_max_set(tcache_slow_t *tcache_slow, size_t tcache_max) {
 
 static inline void
 tcache_bin_settings_backup(
-    tcache_t *tcache, cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX]) {
-	for (unsigned i = 0; i < TCACHE_NBINS_MAX; i++) {
+    tcache_t *tcache, cache_bin_info_t tcache_bin_info[]) {
+	for (unsigned i = 0; i < TCACHE_NBINS; i++) {
 		cache_bin_info_init(&tcache_bin_info[i],
 		    cache_bin_ncached_max_get_unsafe(&tcache->bins[i]));
 	}
@@ -53,7 +53,7 @@ tcache_bin_settings_backup(
 JEMALLOC_ALWAYS_INLINE bool
 tcache_bin_disabled(szind_t ind, cache_bin_t *bin, tcache_slow_t *tcache_slow) {
 	assert(bin != NULL);
-	assert(ind < TCACHE_NBINS_MAX);
+	assert(ind < TCACHE_NBINS);
 	bool disabled = cache_bin_disabled(bin);
 
 	/*

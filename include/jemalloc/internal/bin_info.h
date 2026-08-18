@@ -44,8 +44,8 @@ struct bin_info_s {
 	bitmap_info_t bitmap_info;
 };
 
-extern bin_info_t bin_infos[SC_NBINS];
+extern bin_info_t bin_infos[SC_NBINS_MAX];
 
-void bin_info_boot(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]);
+void bin_info_boot(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS_MAX]);
 
 #endif /* JEMALLOC_INTERNAL_BIN_INFO_H */

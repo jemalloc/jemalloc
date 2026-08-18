@@ -417,7 +417,7 @@ validate_hpa_settings(void) {
 }
 
 static void
-malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
+malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS_MAX],
     bool initial_call, const char *opts_cache[MALLOC_CONF_NSOURCES],
     char readlink_buf[PATH_MAX + 1]) {
 	static const char *opts_explain[MALLOC_CONF_NSOURCES] = {
@@ -1191,7 +1191,7 @@ malloc_conf_init_pre(const char *opts_cache[MALLOC_CONF_NSOURCES],
 }
 
 void
-malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
+malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS_MAX],
     const char *opts_cache[MALLOC_CONF_NSOURCES]) {
 	malloc_conf_init_helper(
 	    sc_data, bin_shard_sizes, false, opts_cache, NULL);
