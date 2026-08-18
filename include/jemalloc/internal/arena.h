@@ -150,7 +150,7 @@ struct arena_s {
 extern ssize_t opt_dirty_decay_ms;
 extern ssize_t opt_muzzy_decay_ms;
 
-extern div_info_t arena_binind_div_info[SC_NBINS];
+extern div_info_t arena_binind_div_info[SC_NBINS_MAX];
 
 extern emap_t arena_emap_global;
 
@@ -164,7 +164,7 @@ extern pac_thp_t huge_arena_pac_thp;
  * arena_bin_offsets[binind] is the offset of the first bin shard for size class
  * binind.
  */
-extern uint32_t arena_bin_offsets[SC_NBINS];
+extern uint32_t arena_bin_offsets[SC_NBINS_MAX];
 
 void arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     const char **dss, ssize_t *dirty_decay_ms, ssize_t *muzzy_decay_ms,
