@@ -34,7 +34,7 @@ typedef unsigned szind_t;
  * sz_pind2sz_tab encodes the same information as could be computed by
  * sz_pind2sz_compute().
  */
-extern size_t sz_pind2sz_tab[SC_NPSIZES + 1];
+extern size_t sz_pind2sz_tab[SC_NPSIZES_MAX + 1];
 /*
  * sz_index2size_tab encodes the same information as could be computed (at
  * unacceptable cost in some code paths) by sz_index2size_compute().
