@@ -3,7 +3,7 @@
 #include "jemalloc/internal/sz.h"
 
 JEMALLOC_ALIGNED(CACHELINE)
-size_t sz_pind2sz_tab[SC_NPSIZES + 1];
+size_t sz_pind2sz_tab[SC_NPSIZES_MAX + 1];
 size_t sz_large_pad;
 
 size_t

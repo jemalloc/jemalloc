@@ -38,12 +38,12 @@ struct eset_bin_stats_s {
 typedef struct eset_s eset_t;
 struct eset_s {
 	/* Bitmap for which set bits correspond to non-empty heaps. */
-	fb_group_t bitmap[FB_NGROUPS(SC_NPSIZES + 1)];
+	fb_group_t bitmap[FB_NGROUPS(SC_NPSIZES_MAX + 1)];
 
 	/* Quantized per size class heaps of extents. */
-	eset_bin_t bins[SC_NPSIZES + 1];
+	eset_bin_t bins[SC_NPSIZES_MAX + 1];
 
-	eset_bin_stats_t bin_stats[SC_NPSIZES + 1];
+	eset_bin_stats_t bin_stats[SC_NPSIZES_MAX + 1];
 
 	/* LRU of all extents in heaps. */
 	edata_list_inactive_t lru;

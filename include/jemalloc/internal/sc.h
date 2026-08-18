@@ -222,9 +222,12 @@
  *
  * This gives us the quantity we seek.
  */
-#define SC_NPSIZES                                                             \
-	(SC_NGROUP + (SC_LG_BASE_MAX - (LG_PAGE + SC_LG_NGROUP)) * SC_NGROUP   \
+#define SC_NPSIZES_FOR(_lg_page)                                               \
+	(SC_NGROUP                                                             \
+	    + (SC_LG_BASE_MAX - ((_lg_page) + SC_LG_NGROUP)) * SC_NGROUP       \
 	    + SC_NGROUP - 1)
+#define SC_NPSIZES SC_NPSIZES_FOR(DYNAMIC_LG_PAGE)
+#define SC_NPSIZES_MAX SC_NPSIZES_FOR(LG_PAGE_OR_MIN)
 
 /*
  * We declare a size class is binnable if size < page size * group. Or, in other
