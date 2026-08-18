@@ -322,7 +322,7 @@ tcache_check(void *arg) {
 	expect_zu_eq(old_tcache_max, TCACHE_MAXCLASS_LIMIT,
 	    "Unexpected value for tcache_max");
 	tcache_nbins = tcache_nbins_get(tcache_slow);
-	expect_zu_eq(tcache_nbins, TCACHE_NBINS_MAX,
+	expect_zu_eq(tcache_nbins, TCACHE_NBINS,
 	    "Unexpected value for tcache_nbins");
 	assert_d_eq(mallctl("thread.tcache.max", (void *)&old_tcache_max, &sz,
 	                (void *)&min_tcache_max, sz),

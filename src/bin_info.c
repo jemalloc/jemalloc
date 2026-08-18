@@ -3,11 +3,11 @@
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/bin_info.h"
 
-bin_info_t bin_infos[SC_NBINS];
+bin_info_t bin_infos[SC_NBINS_MAX];
 
 static void
-bin_infos_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
-    bin_info_t infos[SC_NBINS]) {
+bin_infos_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS_MAX],
+    bin_info_t infos[SC_NBINS_MAX]) {
 	for (unsigned i = 0; i < SC_NBINS; i++) {
 		bin_info_t *bin_info = &infos[i];
 		sc_t       *sc = &sc_data->sc[i];
@@ -24,7 +24,7 @@ bin_infos_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 }
 
 void
-bin_info_boot(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS]) {
+bin_info_boot(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS_MAX]) {
 	assert(sc_data->initialized);
 	bin_infos_init(sc_data, bin_shard_sizes, bin_infos);
 }

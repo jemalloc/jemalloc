@@ -239,7 +239,7 @@ size_classes(
 	assert(sc_data->lg_tiny_maxclass == SC_LG_TINY_MAXCLASS);
 	assert(sc_data->small_maxclass == SC_SMALL_MAXCLASS);
 	assert(sc_data->large_minclass == SC_LARGE_MINCLASS);
-	assert(sc_data->lg_large_minclass == SC_LG_LARGE_MINCLASS);
+	assert(sc_data->lg_large_minclass == (int)SC_LG_LARGE_MINCLASS);
 	assert(sc_data->large_maxclass == SC_LARGE_MAXCLASS);
 
 	/*

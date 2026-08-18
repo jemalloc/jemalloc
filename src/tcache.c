@@ -681,7 +681,7 @@ tcache_init(tsd_t *tsd, tcache_slow_t *tcache_slow, tcache_t *tcache, void *mem,
 	 * store the ncached_max in the bin_info for future usage.  The adaptive
 	 * bins are reset here as well.
 	 */
-	for (unsigned i = tcache_nbins; i < TCACHE_NBINS_MAX; i++) {
+	for (unsigned i = tcache_nbins; i < TCACHE_NBINS; i++) {
 		cache_bin_t *cache_bin = &tcache->bins[i];
 		if (i < SC_NBINS) {
 			tcache_slow->bin_nfill[i] = 1;
@@ -744,7 +744,7 @@ tcache_bin_info_compute(cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX]) {
 	 * Compute the values for each bin, but for bins with indices larger
 	 * than tcache_nbins, no items will be cached.
 	 */
-	for (szind_t i = 0; i < TCACHE_NBINS_MAX; i++) {
+	for (szind_t i = 0; i < TCACHE_NBINS; i++) {
 		unsigned ncached_max = tcache_get_default_ncached_max_set(i)
 		    ? (unsigned)tcache_get_default_ncached_max()[i].ncached_max
 		    : tcache_ncached_max_compute(i);
@@ -1094,7 +1094,7 @@ tcache_cleanup(tsd_t *tsd) {
 
 	tcache_destroy(tsd, tcache, true);
 	/* Make sure all bins used are reinitialized to the clean state. */
-	memset(tcache->bins, 0, sizeof(cache_bin_t) * TCACHE_NBINS_MAX);
+	memset(tcache->bins, 0, sizeof(cache_bin_t) * TCACHE_NBINS);
 }
 
 static bool

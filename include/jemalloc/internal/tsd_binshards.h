@@ -18,7 +18,7 @@
 
 typedef struct tsd_binshards_s tsd_binshards_t;
 struct tsd_binshards_s {
-	uint8_t binshard[SC_NBINS];
+	uint8_t binshard[SC_NBINS_MAX];
 };
 
 #endif /* JEMALLOC_INTERNAL_TSD_BINSHARDS_H */

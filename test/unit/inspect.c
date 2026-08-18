@@ -29,13 +29,16 @@
 #define TEST_MAX_SIZE (1 << 20)
 
 TEST_BEGIN(test_batch) {
+	assert_zu_lt(SC_SMALL_MAXCLASS + 100000, TEST_MAX_SIZE,
+	    "Test case cannot cover large classes");
+
 	size_t sz;
 	/*
 	 * Select some sizes that can span both small and large sizes, and are
 	 * numerically unrelated to any size boundaries.
 	 */
 	for (sz = 17; sz <= TEST_MAX_SIZE && sz <= SC_LARGE_MAXCLASS;
-	     sz += (sz <= SC_SMALL_MAXCLASS ? 1019 : 99991)) {
+	    sz += (sz <= SC_SMALL_MAXCLASS ? 1019 : 99991)) {
 		void  *p = mallocx(sz, 0);
 		void  *q = mallocx(sz, 0);
 		void  *in[] = {p, q};
@@ -130,7 +133,5 @@ TEST_END
 
 int
 main(void) {
-	assert_zu_lt(SC_SMALL_MAXCLASS + 100000, TEST_MAX_SIZE,
-	    "Test case cannot cover large classes");
 	return test(test_batch);
 }

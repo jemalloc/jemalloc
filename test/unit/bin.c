@@ -741,7 +741,7 @@ TEST_END
  * Test bin_shard_sizes_boot and bin_update_shard_size.
  */
 TEST_BEGIN(test_bin_shard_sizes) {
-	unsigned shard_sizes[SC_NBINS];
+	unsigned shard_sizes[SC_NBINS_MAX];
 	unsigned i;
 	bool err;
 	szind_t ind1, ind2;

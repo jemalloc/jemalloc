@@ -18,7 +18,7 @@ check_bins_info(cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX]) {
 	expect_d_eq(mallctlnametomib(get_name, mib_get, &mib_get_len), 0,
 	    "Unexpected mallctlnametomib() failure");
 
-	for (szind_t i = 0; i < TCACHE_NBINS_MAX; i++) {
+	for (szind_t i = 0; i < TCACHE_NBINS; i++) {
 		size_t bin_size = sz_index2size(i);
 		expect_d_eq(
 		    mallctlbymib(mib_get, mib_get_len, (void *)&ncached_max,
@@ -51,7 +51,7 @@ ncached_max_check(void *args) {
 	memcpy(
 	    tcache_bin_info_backup, tcache_bin_info, sizeof(tcache_bin_info));
 	/* Check ncached_max set by malloc_conf. */
-	for (szind_t i = 0; i < TCACHE_NBINS_MAX; i++) {
+	for (szind_t i = 0; i < TCACHE_NBINS; i++) {
 		bool           first_range = (i >= sz_size2index(256)
                     && i <= sz_size2index(1024));
 		bool           second_range = (i == sz_size2index(2048));
@@ -75,7 +75,7 @@ ncached_max_check(void *args) {
 		}
 	}
 	unsigned nbins = tcache_nbins_get(tcache_slow);
-	for (szind_t i = nbins; i < TCACHE_NBINS_MAX; i++) {
+	for (szind_t i = nbins; i < TCACHE_NBINS; i++) {
 		cache_bin_info_init(&tcache_bin_info[i], 0);
 	}
 	/* Check the initial bin settings. */
@@ -93,7 +93,7 @@ ncached_max_check(void *args) {
 	expect_d_eq(mallctlbymib(mib_set, mib_set_len, NULL, NULL,
 	                (void *)&inputp, sizeof(char *)),
 	    0, "Unexpected mallctlbymib() failure");
-	for (szind_t i = 0; i < TCACHE_NBINS_MAX; i++) {
+	for (szind_t i = 0; i < TCACHE_NBINS; i++) {
 		if (i >= sz_size2index(8) && i <= sz_size2index(128)) {
 			cache_bin_info_init(&tcache_bin_info[i], 1);
 		}
@@ -131,7 +131,7 @@ ncached_max_check(void *args) {
 	                (void *)&inputp, sizeof(char *)),
 	    ENOENT, "Unexpected mallctlbymib() failure");
 	/* All ncached_max should return 0 once tcache is disabled. */
-	for (szind_t i = 0; i < TCACHE_NBINS_MAX; i++) {
+	for (szind_t i = 0; i < TCACHE_NBINS; i++) {
 		cache_bin_info_init(&tcache_bin_info[i], 0);
 	}
 	check_bins_info(tcache_bin_info);
@@ -143,8 +143,7 @@ ncached_max_check(void *args) {
 	expect_false(e1, "Unexpected previous tcache state");
 	memcpy(tcache_bin_info, tcache_bin_info_backup,
 	    sizeof(tcache_bin_info_backup));
-	for (szind_t i = tcache_nbins_get(tcache_slow); i < TCACHE_NBINS_MAX;
-	     i++) {
+	for (szind_t i = tcache_nbins_get(tcache_slow); i < TCACHE_NBINS; i++) {
 		cache_bin_info_init(&tcache_bin_info[i], 0);
 	}
 	check_bins_info(tcache_bin_info);
@@ -157,7 +156,7 @@ ncached_max_check(void *args) {
 	assert_d_eq(mallctl("thread.tcache.max", NULL, NULL,
 	                (void *)&tcache_max, sizeof(size_t)),
 	    .0, "Unexpected.mallctl().failure");
-	for (szind_t i = sz_size2index(1024) + 1; i < TCACHE_NBINS_MAX; i++) {
+	for (szind_t i = sz_size2index(1024) + 1; i < TCACHE_NBINS; i++) {
 		cache_bin_info_init(&tcache_bin_info[i], 0);
 	}
 	strcpy(inputs, "2048-6144:123");
@@ -172,7 +171,7 @@ ncached_max_check(void *args) {
 	    .0, "Unexpected.mallctl().failure");
 	memcpy(tcache_bin_info, tcache_bin_info_backup,
 	    sizeof(tcache_bin_info_backup));
-	for (szind_t i = sz_size2index(2048); i < TCACHE_NBINS_MAX; i++) {
+	for (szind_t i = sz_size2index(2048); i < TCACHE_NBINS; i++) {
 		if (i <= sz_size2index(6144)) {
 			cache_bin_info_init(&tcache_bin_info[i], 123);
 		} else if (i > sz_size2index(6144)) {
