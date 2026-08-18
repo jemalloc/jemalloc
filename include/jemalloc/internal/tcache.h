@@ -37,12 +37,21 @@ typedef struct tcaches_s     tcaches_t;
 #define TCACHES_ELM_NEED_REINIT ((tcache_t *)(uintptr_t)1)
 
 #define TCACHE_LG_MAXCLASS_LIMIT LG_USIZE_GROW_SLOW_THRESHOLD
+#define TCACHE_LG_MAXCLASS_LIMIT_MAX LG_USIZE_GROW_SLOW_THRESHOLD_MAX
 #define TCACHE_MAXCLASS_LIMIT ((size_t)1 << TCACHE_LG_MAXCLASS_LIMIT)
-#define TCACHE_NBINS_MAX                                                       \
-	(SC_NBINS                                                              \
-	    + SC_NGROUP * (TCACHE_LG_MAXCLASS_LIMIT - SC_LG_LARGE_MINCLASS)    \
-	    + 1)
-#define TCACHE_GC_NEIGHBOR_LIMIT ((uintptr_t)1 << 21)       /* 2M */
+#define TCACHE_NBINS_FOR(_nbins, _maxclass_limit, _large_minclass)             \
+	((_nbins) + SC_NGROUP * ((_maxclass_limit) - (_large_minclass)) + 1)
+#define TCACHE_NBINS                                                           \
+	TCACHE_NBINS_FOR(                                                      \
+	    SC_NBINS, TCACHE_LG_MAXCLASS_LIMIT, SC_LG_LARGE_MINCLASS)
+#ifdef DYNAMIC_PAGE_SIZE
+#	define TCACHE_NBINS_MAX                                               \
+		TCACHE_NBINS_FOR(SC_NBINS_MAX, TCACHE_LG_MAXCLASS_LIMIT_MAX,   \
+		    SC_LG_LARGE_MINCLASS_MIN)
+#else /* DYNAMIC_PAGE_SIZE */
+#	define TCACHE_NBINS_MAX TCACHE_NBINS
+#endif /* DYNAMIC_PAGE_SIZE */
+#define TCACHE_GC_NEIGHBOR_LIMIT ((uintptr_t)1 << 21) /* 2M */
 #define TCACHE_GC_INTERVAL_NS ((uint64_t)10 * KQU(1000000)) /* 10ms */
 #define TCACHE_GC_SMALL_NBINS_MAX ((SC_NBINS > 8) ? (SC_NBINS >> 3) : 1)
 #define TCACHE_GC_LARGE_NBINS_MAX 1
@@ -80,14 +89,14 @@ struct tcache_slow_s {
 	szind_t next_gc_bin_small;
 	szind_t next_gc_bin_large;
 	/* For small bins, help determine how many items to fill at a time. */
-	cache_bin_fill_ctl_t bin_fill_ctl_do_not_access_directly[SC_NBINS];
+	cache_bin_fill_ctl_t bin_fill_ctl_do_not_access_directly[SC_NBINS_MAX];
 	/* For small bins, whether has been refilled since last GC. */
-	bool bin_refilled[SC_NBINS];
+	bool bin_refilled[SC_NBINS_MAX];
 	/*
 	 * For small bins, the number of items we can pretend to flush before
 	 * actually flushing.
 	 */
-	uint8_t bin_flush_delay_items[SC_NBINS];
+	uint8_t bin_flush_delay_items[SC_NBINS_MAX];
 	/*
 	 * The start of the allocation containing the dynamic allocation for
 	 * either the cache bins alone, or the cache bin memory as well as this
