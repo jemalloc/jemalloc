@@ -183,7 +183,7 @@ malloc_init_hard_a0_locked(void) {
 	 * read out of sc_data_global are final.
 	 */
 	sc_boot(&sc_data);
-	unsigned bin_shard_sizes[SC_NBINS];
+	unsigned bin_shard_sizes[SC_NBINS_MAX];
 	bin_shard_sizes_boot(bin_shard_sizes);
 	/*
 	 * prof_boot0 only initializes opt_prof_prefix.  We need to do it before
@@ -533,15 +533,6 @@ bool
 malloc_init_hard(void) {
 	tsd_t *tsd;
 
-	assert(TCACHE_MAXCLASS_LIMIT <= USIZE_GROW_SLOW_THRESHOLD);
-	assert(SC_LOOKUP_MAXCLASS <= USIZE_GROW_SLOW_THRESHOLD);
-	/*
-	 * This asserts an extreme case where TINY_MAXCLASS is larger
-	 * than LARGE_MINCLASS.  It could only happen if some constants
-	 * are configured miserably wrong.
-	 */
-	assert(SC_NTINY == 0 || SC_LG_TINY_MAXCLASS <= SC_LG_LARGE_MINCLASS);
-
 #if !OS_MUTEX_HAS_STATIC_INIT
 	_init_init_lock();
 #endif
@@ -569,6 +560,15 @@ malloc_init_hard(void) {
 	if (malloc_init_hard_recursible()) {
 		return true;
 	}
+
+	assert(TCACHE_MAXCLASS_LIMIT <= USIZE_GROW_SLOW_THRESHOLD);
+	assert(SC_LOOKUP_MAXCLASS <= USIZE_GROW_SLOW_THRESHOLD);
+	/*
+	 * This asserts an extreme case where TINY_MAXCLASS is larger
+	 * than LARGE_MINCLASS.  It could only happen if some constants
+	 * are configured miserably wrong.
+	 */
+	assert(SC_NTINY == 0 || SC_LG_TINY_MAXCLASS <= SC_LG_LARGE_MINCLASS);
 
 	malloc_mutex_lock(tsd_tsdn(tsd), &init_lock);
 	/* Set reentrancy level to 1 during init. */
