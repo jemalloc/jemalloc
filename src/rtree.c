@@ -4,12 +4,67 @@
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/rtree.h"
 
+#ifdef DYNAMIC_PAGE_SIZE
+rtree_level_t rtree_levels[RTREE_HEIGHT];
+unsigned      rtree_leaf_maskbits_value;
+uintptr_t     rtree_leafkey_mask_value;
+
+/*
+ * Split the bits into one to three partitions depending on number of
+ * significant bits.  It the number of bits does not divide evenly into the
+ * number of levels, place one remainder bit per level starting at the leaf
+ * level.
+ */
+static void
+init_rtree_constants(void) {
+#	if RTREE_HEIGHT == 1
+	rtree_levels[0] = (rtree_level_t)RTREE_LEVELS_1_0;
+#	elif RTREE_HEIGHT == 2
+	rtree_levels[0] = (rtree_level_t)RTREE_LEVELS_2_0;
+	rtree_levels[1] = (rtree_level_t)RTREE_LEVELS_2_1;
+#	elif RTREE_HEIGHT == 3
+	rtree_levels[0] = (rtree_level_t)RTREE_LEVELS_3_0;
+	rtree_levels[1] = (rtree_level_t)RTREE_LEVELS_3_1;
+	rtree_levels[2] = (rtree_level_t)RTREE_LEVELS_3_2;
+#	else
+#		error Unsupported rtree height
+#	endif
+
+	rtree_leaf_maskbits_value = rtree_calc_leaf_maskbits();
+	rtree_leafkey_mask_value = rtree_calc_leafkey_mask();
+}
+#else  /* DYNAMIC_PAGE_SIZE  */
+static void
+init_rtree_constants(void) {}
+#endif /* DYNAMIC_PAGE_SIZE  */
+
+#if RTREE_HEIGHT == 1
+#	define RTREE_LEVELS_BITS_SUM (rtree_levels[0].bits)
+#elif RTREE_HEIGHT == 2
+#	define RTREE_LEVELS_BITS_SUM                                          \
+		(rtree_levels[0].bits + rtree_levels[1].bits)
+#elif RTREE_HEIGHT == 3
+#	define RTREE_LEVELS_BITS_SUM                                          \
+		(rtree_levels[0].bits + rtree_levels[1].bits                   \
+		    + rtree_levels[2].bits)
+#else
+#	error Unsupported rtree height
+#endif
+
 /*
  * Only the most significant bits of keys passed to rtree_{read,write}() are
  * used.
  */
 bool
 rtree_new(rtree_t *rtree, base_t *base, bool zeroed) {
+	init_rtree_constants();
+
+	assert(RTREE_LEVELS_BITS_SUM == RTREE_NSB);
+	assert(
+	    rtree_levels[RTREE_HEIGHT - 1].cumbits == RTREE_NHIB + RTREE_NSB);
+	assert(rtree_levels[0].bits
+	    <= RTREE_NSB_MAX / RTREE_HEIGHT); /* root[] capacity */
+
 #ifdef JEMALLOC_JET
 	if (!zeroed) {
 		memset(rtree, 0, sizeof(rtree_t)); /* Clear root. */
