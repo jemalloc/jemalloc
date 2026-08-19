@@ -32,6 +32,9 @@ typedef struct prof_recent_s prof_recent_t;
  */
 #define ESET_ENUMERATE_MAX_NUM 32
 
+/* Forward declaration; needed by the linkage in e_prof_info_s. */
+typedef struct edata_s edata_t;
+
 enum extent_state_e {
 	extent_state_active = 0,
 	extent_state_dirty = 1,
@@ -70,6 +73,15 @@ struct e_prof_info_s {
 	 * Protected by prof_recent_alloc_mtx.
 	 */
 	atomic_p_t e_prof_recent_alloc;
+	/*
+	 * Linkage into the owning gctx's list of live sampled allocations
+	 * (gctx->frag_objs).  Both fields are protected by the owning gctx's
+	 * lock; the owning gctx is reachable via e_prof_tctx while
+	 * e_prof_frag_tracked is true (the tctx cannot be destroyed before
+	 * the allocation is untracked).
+	 */
+	ql_elm(edata_t) e_prof_frag_link;
+	bool e_prof_frag_tracked;
 };
 typedef struct e_prof_info_s e_prof_info_t;
 
@@ -97,7 +109,6 @@ struct edata_cmp_summary_s {
 };
 
 /* Extent (span of pages).  Use accessor functions for e_* fields. */
-typedef struct edata_s edata_t;
 ph_structs(edata_avail, edata_t, ESET_ENUMERATE_MAX_NUM)
 ph_structs(edata_heap, edata_t, ESET_ENUMERATE_MAX_NUM)
 struct edata_s {
@@ -296,6 +307,7 @@ struct edata_s {
 
 TYPED_LIST(edata_list_active, edata_t, ql_link_active)
 TYPED_LIST(edata_list_inactive, edata_t, ql_link_inactive)
+TYPED_LIST(edata_list_frag, edata_t, e_prof_info.e_prof_frag_link)
 
 static inline unsigned
 edata_arena_ind_get(const edata_t *edata) {
@@ -685,6 +697,16 @@ edata_prof_recent_alloc_set_dont_call_directly(
     edata_t *edata, prof_recent_t *recent_alloc) {
 	atomic_store_p(&edata->e_prof_info.e_prof_recent_alloc, recent_alloc,
 	    ATOMIC_RELAXED);
+}
+
+static inline bool
+edata_prof_frag_tracked_get(const edata_t *edata) {
+	return edata->e_prof_info.e_prof_frag_tracked;
+}
+
+static inline void
+edata_prof_frag_tracked_set(edata_t *edata, bool tracked) {
+	edata->e_prof_info.e_prof_frag_tracked = tracked;
 }
 
 static inline bool
