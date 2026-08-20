@@ -267,10 +267,13 @@ sc_data_update_sc_slab_size(sc_t *sc, size_t reg_size, size_t pgs_guess) {
 		min_pgs++;
 	}
 	/*
-	 * BITMAP_MAXBITS is actually determined by putting the smallest
-	 * possible size-class on one page, so this can never be 0.
+	 * The slab's bitmap has to cover every region, so the page count is
+	 * capped by what a bitmap can address at the booted page size.  This
+	 * must use BITMAP_BITS rather than BITMAP_MAXBITS: with a dynamic page
+	 * size MAXBITS is sized for MAX_LG_PAGE, which would let slab_sizes
+	 * grow slabs far beyond what the running page size warrants.
 	 */
-	size_t max_pgs = BITMAP_MAXBITS * reg_size / PAGE;
+	size_t max_pgs = BITMAP_BITS * reg_size / PAGE;
 
 	assert(min_pgs <= max_pgs);
 	assert(min_pgs > 0);

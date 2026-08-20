@@ -293,13 +293,21 @@
 #endif
 
 /* Maximum number of regions in one slab. */
+#define SC_LG_SLAB_MAXREGS_FOR(_lg_page) ((_lg_page) - SC_LG_TINY_MIN)
 #ifndef CONFIG_LG_SLAB_MAXREGS
-#	define SC_LG_SLAB_MAXREGS (LG_PAGE - SC_LG_TINY_MIN)
+#	define SC_LG_SLAB_MAXREGS SC_LG_SLAB_MAXREGS_FOR(DYNAMIC_LG_PAGE)
+#	ifdef DYNAMIC_PAGE_SIZE
+#		define SC_LG_SLAB_MAXREGS_MAX                                 \
+			SC_LG_SLAB_MAXREGS_FOR(MAX_LG_PAGE)
+#	else /* DYNAMIC_PAGE_SIZE */
+#		define SC_LG_SLAB_MAXREGS_MAX SC_LG_SLAB_MAXREGS
+#	endif /* DYNAMIC_PAGE_SIZE */
 #else
-#	if CONFIG_LG_SLAB_MAXREGS < (LG_PAGE - SC_LG_TINY_MIN)
+#	if CONFIG_LG_SLAB_MAXREGS < SC_LG_SLAB_MAXREGS_FOR(LG_PAGE_OR_MAX)
 #		error "Unsupported SC_LG_SLAB_MAXREGS"
 #	else
 #		define SC_LG_SLAB_MAXREGS CONFIG_LG_SLAB_MAXREGS
+#		define SC_LG_SLAB_MAXREGS_MAX CONFIG_LG_SLAB_MAXREGS
 #	endif
 #endif
 
@@ -325,8 +333,6 @@
 #define LG_USIZE_GROW_SLOW_THRESHOLD_MAX                                       \
 	LG_USIZE_GROW_SLOW_THRESHOLD_FOR(LG_PAGE_OR_MAX)
 #define USIZE_GROW_SLOW_THRESHOLD (1U << LG_USIZE_GROW_SLOW_THRESHOLD)
-
-#define SC_SLAB_MAXREGS (1U << SC_LG_SLAB_MAXREGS)
 
 typedef struct sc_s sc_t;
 struct sc_s {

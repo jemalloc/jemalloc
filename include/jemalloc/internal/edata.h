@@ -203,7 +203,22 @@ struct edata_s {
 #define EDATA_BITS_SZIND_MASK                                                  \
 	MASK(EDATA_BITS_SZIND_WIDTH, EDATA_BITS_SZIND_SHIFT)
 
-#define EDATA_BITS_NFREE_WIDTH (SC_LG_SLAB_MAXREGS + 1)
+/*
+ * The dynamic page size feature sets SC_LG_SLAB_MAXREGS_MAX and
+ * LG_BITMAP_MAXBITS to the largest possible values for the given min/max page
+ * size. Further, the bitmap size also depends on whether the bitmap uses a tree
+ * or not, which is a compilation-time decision (see BITMAP_USE_TREE), as the
+ * tree requires extra bits in the bitmap. So, EDATA_BITS_NFREE_WIDTH is set to
+ * the largest possible value. However, when we allocate edata, we can
+ * dynamically size it based on the current page size. For min/max page size of
+ * 4K/64K, the bitmap tree will be used (due to the 64K max page), so the bitmap
+ * for the 4K page case will be 72 bytes, instead of 64 bytes (for when the
+ * bitmap tree is not used). This makes the edata size 136 bytes, which will be
+ * aligned to 256 bytes (instead of 128 bytes for when the bitmap tree is not
+ * used). We can improve on this further by making the decision on whether the
+ * bitmap tree is used dynamically.
+ */
+#define EDATA_BITS_NFREE_WIDTH (SC_LG_SLAB_MAXREGS_MAX + 1)
 #define EDATA_BITS_NFREE_SHIFT (EDATA_BITS_SZIND_WIDTH + EDATA_BITS_SZIND_SHIFT)
 #define EDATA_BITS_NFREE_MASK                                                  \
 	MASK(EDATA_BITS_NFREE_WIDTH, EDATA_BITS_NFREE_SHIFT)
