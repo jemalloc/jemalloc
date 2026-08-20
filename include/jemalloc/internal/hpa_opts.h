@@ -172,7 +172,7 @@ struct hpa_shard_opts_s {
 	/* min_purge_interval_ms */					\
 	5 * 1000,							\
 	/* size_t purge_threshold */					\
-	PAGE,								\
+	DYNAMIC_PAGE,								\
 	/* min_purge_delay_ms */             				\
 	0,  								\
 	/* hugify_style */                				\
