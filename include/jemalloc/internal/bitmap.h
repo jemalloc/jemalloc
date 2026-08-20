@@ -9,9 +9,9 @@ typedef unsigned long bitmap_t;
 #define LG_SIZEOF_BITMAP LG_SIZEOF_LONG
 
 /* Maximum bitmap bit count is 2^LG_BITMAP_MAXBITS. */
-#if SC_LG_SLAB_MAXREGS > LG_CEIL(SC_NSIZES)
+#if SC_LG_SLAB_MAXREGS_MAX > LG_CEIL(SC_NSIZES)
 /* Maximum bitmap bit count is determined by maximum regions per slab. */
-#	define LG_BITMAP_MAXBITS SC_LG_SLAB_MAXREGS
+#	define LG_BITMAP_MAXBITS SC_LG_SLAB_MAXREGS_MAX
 #else
 /* Maximum bitmap bit count is determined by number of extent size classes. */
 #	define LG_BITMAP_MAXBITS LG_CEIL(SC_NSIZES)
