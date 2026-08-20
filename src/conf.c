@@ -877,7 +877,7 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS_MA
 			 * threshold.
 			 */
 			CONF_HANDLE_SIZE_T(opt_hpa_opts.purge_threshold,
-			    "hpa_purge_threshold", PAGE, HUGEPAGE,
+			    "hpa_purge_threshold", DYNAMIC_PAGE, HUGEPAGE,
 			    CONF_CHECK_MIN, CONF_CHECK_MAX, true);
 			if (CONF_MATCH("hpa_purge_threshold_ratio")) {
 				fxp_t ratio;
@@ -937,7 +937,7 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS_MA
 			    "hpa_sec_nshards", 0, 255, CONF_CHECK_MIN,
 			    CONF_CHECK_MAX, true);
 			CONF_HANDLE_SIZE_T(opt_hpa_sec_opts.max_alloc,
-			    "hpa_sec_max_alloc", PAGE,
+			    "hpa_sec_max_alloc", DYNAMIC_PAGE,
 			    USIZE_GROW_SLOW_THRESHOLD, CONF_CHECK_MIN,
 			    CONF_CHECK_MAX, true);
 			CONF_HANDLE_SIZE_T(opt_hpa_sec_opts.max_bytes,
@@ -947,7 +947,7 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS_MA
 			    "experimental_pac_sec_nshards", 0, 255,
 			    CONF_CHECK_MIN, CONF_CHECK_MAX, true);
 			CONF_HANDLE_SIZE_T(opt_pac_sec_opts.max_alloc,
-			    "experimental_pac_sec_max_alloc", PAGE,
+			    "experimental_pac_sec_max_alloc", DYNAMIC_PAGE,
 			    USIZE_GROW_SLOW_THRESHOLD, CONF_CHECK_MIN,
 			    CONF_CHECK_MAX, true);
 			CONF_HANDLE_SIZE_T(opt_pac_sec_opts.max_bytes,
@@ -1183,6 +1183,13 @@ malloc_conf_init_check_deps(void) {
 	return false;
 }
 
+static void
+hpa_pac_opts_init(void) {
+	opt_hpa_opts = (hpa_shard_opts_t)HPA_SHARD_OPTS_DEFAULT;
+	opt_hpa_sec_opts = (sec_opts_t)HPA_SEC_OPTS_DEFAULT;
+	opt_pac_sec_opts = (sec_opts_t)PAC_SEC_OPTS_DEFAULT;
+}
+
 void
 malloc_conf_init_pre(const char *opts_cache[MALLOC_CONF_NSOURCES],
 	char readlink_buf[PATH_MAX + 1]) {
@@ -1193,6 +1200,8 @@ malloc_conf_init_pre(const char *opts_cache[MALLOC_CONF_NSOURCES],
 void
 malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS_MAX],
     const char *opts_cache[MALLOC_CONF_NSOURCES]) {
+	hpa_pac_opts_init();
+
 	malloc_conf_init_helper(
 	    sc_data, bin_shard_sizes, false, opts_cache, NULL);
 	if (malloc_conf_init_check_deps()) {
