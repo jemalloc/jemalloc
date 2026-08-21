@@ -8,10 +8,16 @@ LINUX = 'ubuntu-24.04'
 OSX = 'macos-latest'
 WINDOWS = 'windows-latest'
 FREEBSD = 'freebsd'
+ANDROID = 'android'
 
 AMD64 = 'amd64'
 ARM64 = 'arm64'
 PPC64LE = 'ppc64le'
+
+# Android NDK: pin a concrete LTS release and bump it periodically.
+ANDROID_NDK_VERSION = 'r27c'
+# API 21 is the first level with real 64-bit (arm64/x86_64) support.
+ANDROID_API_LEVEL = 21
 
 
 GITHUB_ACTIONS_TEMPLATE = """\
@@ -711,6 +717,77 @@ def generate_freebsd_job(arch):
     return job
 
 
+def generate_android_job(arch):
+    """Generate Android cross-compile job configuration.
+
+    Compile-only: cross-compiles for Android/arm64 using the NDK on a normal
+    Linux runner and verifies it builds cleanly. Does not run the tests (that
+    would need an emulator); this alone catches issues that differ between
+    glibc/Linux and bionic, e.g. functions bionic only declares under
+    _GNU_SOURCE, which real (non-autoconf) Android build systems commonly
+    don't define -- see the -D_GNU_SOURCE removal below for why that matters.
+    """
+    triple = f'aarch64-linux-android{ANDROID_API_LEVEL}'
+
+    job = f"""  test-android-arm64:
+    runs-on: ubuntu-24.04
+
+    name: Android (arm64, API {ANDROID_API_LEVEL})
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Install NDK
+      id: setup-ndk
+      uses: nttld/setup-ndk@v1
+      with:
+        ndk-version: {ANDROID_NDK_VERSION}
+        local-cache: true
+
+    - name: Cross-compile for Android
+      env:
+        NDK: ${{{{ steps.setup-ndk.outputs.ndk-path }}}}
+      run: |
+        TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+        echo "$TOOLCHAIN" >> "$GITHUB_PATH"
+
+        # Verify the target-specific clang wrapper exists before relying on it.
+        test -x "$TOOLCHAIN/{triple}-clang"
+
+        autoconf
+
+        ./configure \\
+          --host={triple} \\
+          CC="$TOOLCHAIN/{triple}-clang" \\
+          CXX="$TOOLCHAIN/{triple}-clang++" \\
+          AR="$TOOLCHAIN/llvm-ar" \\
+          RANLIB="$TOOLCHAIN/llvm-ranlib" \\
+          EXTRA_CFLAGS="-Werror -Wno-array-bounds"
+
+        # configure.ac unconditionally adds -D_GNU_SOURCE for the
+        # *-*-linux-android* host triple (it's the only way to get
+        # secure_getenv()/syscall() declared through this configure path),
+        # but real Android build systems that don't go through `configure`
+        # (e.g. Buck-based builds) commonly don't define it. That's exactly
+        # what let bionic's declaration gap around sched_getcpu() go
+        # unnoticed here: with _GNU_SOURCE defined, bionic happily declares
+        # it, masking the gap. Strip it so this job actually exercises what
+        # a real non-autoconf Android build sees. CFLAGS is emitted before
+        # CPPFLAGS in every compile rule (see Makefile.in), so appending
+        # -U_GNU_SOURCE to EXTRA_CFLAGS wouldn't win; editing the generated
+        # Makefile directly is the reliable way to remove it.
+        sed -i 's/-D_GNU_SOURCE//' Makefile
+
+        # Build only -- no `make check`; the resulting binaries are ARM64
+        # Android binaries and can't run on this (x86_64 Linux) runner.
+        make -j$(nproc)
+        make -j$(nproc) tests
+
+"""
+
+    return job
+
+
 def main():
     import sys
 
@@ -739,6 +816,10 @@ def main():
         jobs = generate_freebsd_job(AMD64)
         print(GITHUB_ACTIONS_TEMPLATE.format(name='FreeBSD CI', jobs=jobs))
 
+    elif workflow_type == 'android':
+        jobs = generate_android_job(ARM64)
+        print(GITHUB_ACTIONS_TEMPLATE.format(name='Android CI', jobs=jobs))
+
     elif workflow_type == 'all':
         # Generate all workflow files
         linux_jobs = '\n'.join((
@@ -751,13 +832,14 @@ def main():
         ))
         windows_jobs = generate_windows_job(AMD64)
         freebsd_jobs = generate_freebsd_job(AMD64)
+        android_jobs = generate_android_job(ARM64)
 
-        all_jobs = '\n'.join((linux_jobs, macos_jobs, windows_jobs, freebsd_jobs))
+        all_jobs = '\n'.join((linux_jobs, macos_jobs, windows_jobs, freebsd_jobs, android_jobs))
         print(GITHUB_ACTIONS_TEMPLATE.format(name='CI', jobs=all_jobs))
 
     else:
         print(f"Unknown workflow type: {workflow_type}", file=sys.stderr)
-        print("Usage: gen_gh_actions.py [linux|macos|windows|freebsd|all]", file=sys.stderr)
+        print("Usage: gen_gh_actions.py [linux|macos|windows|freebsd|android|all]", file=sys.stderr)
         sys.exit(1)
 
 
