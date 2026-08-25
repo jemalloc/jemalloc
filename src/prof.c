@@ -458,6 +458,8 @@ prof_tdata_reinit(tsd_t *tsd, prof_tdata_t *tdata) {
 	prof_thread_name_assert(tdata);
 	char thread_name[PROF_THREAD_NAME_MAX_LEN];
 	strncpy(thread_name, tdata->thread_name, PROF_THREAD_NAME_MAX_LEN);
+	/* Defensive only; the source is always terminated. */
+	thread_name[PROF_THREAD_NAME_MAX_LEN - 1] = '\0';
 	prof_tdata_detach(tsd, tdata);
 
 	return prof_tdata_init_impl(
