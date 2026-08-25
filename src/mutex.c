@@ -1,6 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 
 #include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/background_thread.h"
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/spin.h"
