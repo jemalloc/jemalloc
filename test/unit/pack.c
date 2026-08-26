@@ -3,11 +3,10 @@
 /*
  * Size class that is a divisor of the page size, ideally 4+ regions per run.
  */
-#if LG_PAGE <= 14
-#	define SZ (ZU(1) << (LG_PAGE - 2))
-#else
-#	define SZ ZU(4096)
-#endif
+static size_t
+pack_alloc_size(void) {
+	return (DYNAMIC_LG_PAGE <= 14) ? (ZU(1) << (DYNAMIC_LG_PAGE - 2)) : ZU(4096);
+}
 
 /*
  * Number of slabs to consume at high water mark.  Should be at least 2 so that
@@ -38,7 +37,7 @@ binind_compute(void) {
 		expect_d_eq(
 		    mallctlbymib(mib, miblen, (void *)&size, &sz, NULL, 0), 0,
 		    "Unexpected mallctlbymib failure");
-		if (size == SZ) {
+		if (size == pack_alloc_size()) {
 			return i;
 		}
 	}
@@ -104,12 +103,12 @@ TEST_BEGIN(test_pack) {
 	/* Fill matrix. */
 	for (i = offset = 0; i < NSLABS; i++) {
 		for (j = 0; j < nregs_per_run; j++) {
-			void *p = mallocx(
-			    SZ, MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE);
+			void *p = mallocx(pack_alloc_size(),
+			    MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE);
 			expect_ptr_not_null(p,
 			    "Unexpected mallocx(%zu, MALLOCX_ARENA(%u) |"
 			    " MALLOCX_TCACHE_NONE) failure, run=%zu, reg=%zu",
-			    SZ, arena_ind, i, j);
+			    pack_alloc_size(), arena_ind, i, j);
 			ptrs[(i * nregs_per_run) + j] = p;
 		}
 	}
@@ -145,8 +144,8 @@ TEST_BEGIN(test_pack) {
 			if (offset == j) {
 				continue;
 			}
-			p = mallocx(
-			    SZ, MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE);
+			p = mallocx(pack_alloc_size(),
+			    MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE);
 			expect_ptr_eq(p, ptrs[(i * nregs_per_run) + j],
 			    "Unexpected refill discrepancy, run=%zu, reg=%zu\n",
 			    i, j);
