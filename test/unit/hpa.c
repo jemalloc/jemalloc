@@ -123,6 +123,12 @@ static void
 destroy_test_data(hpa_shard_t *shard) {
 	test_data_t *test_data = (test_data_t *)shard;
 	base_delete(TSDN_NULL, test_data->base);
+	/*
+	 * HPA operations populate the TSD rtree context with leaf pointers from
+	 * the private emap.  Invalidate them before the next test creates a new
+	 * emap, which may reuse the same address range.
+	 */
+	rtree_ctx_data_init(tsd_rtree_ctx(tsd_fetch()));
 	free(test_data);
 }
 

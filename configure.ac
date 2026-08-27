@@ -24,7 +24,7 @@ dnl
 dnl Set $a to the concatenation of $a and b, with a space separating them iff
 dnl both $a and b are non-empty.
 AC_DEFUN([JE_APPEND_VS],
-  T_APPEND_V=$2
+  T_APPEND_V="$2"
   JE_CONCAT_VVV($1, $1, T_APPEND_V)
 )
 
@@ -1022,7 +1022,9 @@ fi
 dnl Check for tls_model attribute support (clang 3.0 still lacks support).
 JE_CFLAGS_SAVE()
 JE_CFLAGS_ADD([-Werror])
-JE_CFLAGS_ADD([-herror_on_warning])
+if test "x${je_cv_cray}" = "xyes" ; then
+  JE_CFLAGS_ADD([-herror_on_warning])
+fi
 JE_COMPILABLE([tls_model attribute], [],
               [static __thread int
                __attribute__((tls_model("initial-exec"), unused)) foo;
@@ -1035,7 +1037,9 @@ dnl --disable-initial-exec-tls)
 dnl Check for alloc_size attribute support.
 JE_CFLAGS_SAVE()
 JE_CFLAGS_ADD([-Werror])
-JE_CFLAGS_ADD([-herror_on_warning])
+if test "x${je_cv_cray}" = "xyes" ; then
+  JE_CFLAGS_ADD([-herror_on_warning])
+fi
 JE_COMPILABLE([alloc_size attribute], [#include <stdlib.h>],
               [void *foo(size_t size) __attribute__((alloc_size(1)));],
               [je_cv_alloc_size])
@@ -1046,7 +1050,9 @@ fi
 dnl Check for format(gnu_printf, ...) attribute support.
 JE_CFLAGS_SAVE()
 JE_CFLAGS_ADD([-Werror])
-JE_CFLAGS_ADD([-herror_on_warning])
+if test "x${je_cv_cray}" = "xyes" ; then
+  JE_CFLAGS_ADD([-herror_on_warning])
+fi
 JE_COMPILABLE([format(gnu_printf, ...) attribute], [#include <stdlib.h>],
               [void *foo(const char *format, ...) __attribute__((format(gnu_printf, 1, 2)));],
               [je_cv_format_gnu_printf])
@@ -1057,7 +1063,9 @@ fi
 dnl Check for format(printf, ...) attribute support.
 JE_CFLAGS_SAVE()
 JE_CFLAGS_ADD([-Werror])
-JE_CFLAGS_ADD([-herror_on_warning])
+if test "x${je_cv_cray}" = "xyes" ; then
+  JE_CFLAGS_ADD([-herror_on_warning])
+fi
 JE_COMPILABLE([format(printf, ...) attribute], [#include <stdlib.h>],
               [void *foo(const char *format, ...) __attribute__((format(printf, 1, 2)));],
               [je_cv_format_printf])
@@ -1069,7 +1077,9 @@ fi
 dnl Check for format_arg(...) attribute support.
 JE_CFLAGS_SAVE()
 JE_CFLAGS_ADD([-Werror])
-JE_CFLAGS_ADD([-herror_on_warning])
+if test "x${je_cv_cray}" = "xyes" ; then
+  JE_CFLAGS_ADD([-herror_on_warning])
+fi
 JE_COMPILABLE([format(printf, ...) attribute], [#include <stdlib.h>],
               [const char * __attribute__((__format_arg__(1))) foo(const char *format);],
               [je_cv_format_arg])
@@ -1101,7 +1111,9 @@ fi
 dnl Check for cold attribute support.
 JE_CFLAGS_SAVE()
 JE_CFLAGS_ADD([-Werror])
-JE_CFLAGS_ADD([-herror_on_warning])
+if test "x${je_cv_cray}" = "xyes" ; then
+  JE_CFLAGS_ADD([-herror_on_warning])
+fi
 JE_COMPILABLE([cold attribute], [],
               [__attribute__((__cold__)) void foo();],
               [je_cv_cold])
@@ -2959,7 +2971,9 @@ fi
 JE_CFLAGS_SAVE()
 JE_CFLAGS_ADD([-D_GNU_SOURCE])
 JE_CFLAGS_ADD([-Werror])
-JE_CFLAGS_ADD([-herror_on_warning])
+if test "x${je_cv_cray}" = "xyes" ; then
+  JE_CFLAGS_ADD([-herror_on_warning])
+fi
 JE_COMPILABLE([strerror_r returns char with gnu source], [
 #include <errno.h>
 #include <stdio.h>

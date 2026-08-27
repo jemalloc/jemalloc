@@ -7,7 +7,11 @@
  */
 
 #ifdef JEMALLOC_BACKGROUND_THREAD
+#  ifdef JEMALLOC_PERCPU_ARENA
 const char *malloc_conf = "background_thread:true,percpu_arena:percpu";
+#  else
+const char *malloc_conf = "background_thread:true";
+#  endif
 #else
 const char *malloc_conf = "";
 #endif

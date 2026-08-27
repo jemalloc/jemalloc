@@ -1,5 +1,9 @@
 #include "test/jemalloc_test.h"
 
+#ifdef JEMALLOC_PERCPU_ARENA
+const char *malloc_conf = "percpu_arena:percpu";
+#endif
+
 /*
  * Under percpu_arena, binding a thread to a manual arena (an index at or above
  * the per-CPU auto range) is one-way: percpu never reclaims it (see

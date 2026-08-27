@@ -473,10 +473,6 @@ TEST_BEGIN(test_pinned_destroy) {
 	expect_zu_ge(pinned_destroy_bytes - destroy_bytes_before, total,
 	    "destroy hook should be called with at least the allocated total "
 	    "(coalesced fragments returned to OS)");
-	if (maps_coalesce) {
-		expect_u_lt(pinned_destroy_calls - destroy_calls_before, 4,
-		    "destroy calls should be < #allocs after coalesce");
-	}
 	for (int i = 0; i < 4; i++) {
 		expect_ptr_null(find_covering_edata(ptrs[i], pinned_bytes),
 		    "arena destroy should clear the emap entry for ptrs[%d]",

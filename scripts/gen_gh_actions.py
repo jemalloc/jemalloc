@@ -711,6 +711,74 @@ def generate_freebsd_job(arch):
     return job
 
 
+def generate_illumos_job(arch):
+    """Generate illumos job configuration."""
+
+    job = """  test-illumos:
+    runs-on: ubuntu-latest
+    name: OmniOS ${{ matrix.omnios }} (${{ matrix.compiler }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - omnios: r151054
+            release: r151054-build
+            compiler: GCC
+            cc: gcc
+            cxx: g++
+            packages: ''
+          - omnios: r151054
+            release: r151054-build
+            compiler: LLVM/Clang 20
+            cc: /opt/ooce/bin/clang-20
+            cxx: /opt/ooce/bin/clang++-20
+            packages: ooce/developer/clang-20
+          - omnios: r151046
+            release: r151046
+            compiler: GCC
+            cc: gcc
+            cxx: g++
+            packages: build-essential
+          - omnios: r151046
+            release: r151046
+            compiler: LLVM/Clang 17
+            cc: /opt/ooce/bin/clang-17
+            cxx: /opt/ooce/bin/clang++-17
+            packages: build-essential ooce/developer/clang-17
+
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+
+    - name: Test on OmniOS
+      uses: vmactions/omnios-vm@v1
+      with:
+        release: '${{ matrix.release }}'
+        cache-after-prepare: true
+        prepare: |
+          pkg publisher extra.omnios >/dev/null 2>&1 || pkg set-publisher -g https://pkg.omnios.org/${{ matrix.omnios }}/extra extra.omnios
+          pkg refresh extra.omnios
+          if [ -n "${{ matrix.packages }}" ]; then
+            pkg install --accept ${{ matrix.packages }}
+          fi
+        run: |
+          cat /etc/release
+          ${{ matrix.cc }} --version
+
+          autoconf
+          CC="${{ matrix.cc }}" CXX="${{ matrix.cxx }}" ./configure --with-jemalloc-prefix=ci_
+
+          JFLAG=$(psrinfo | wc -l | tr -d ' ')
+          gmake -j${JFLAG}
+          gmake -j${JFLAG} tests
+          gmake check
+
+"""
+
+    return job
+
+
 def main():
     import sys
 
@@ -739,6 +807,10 @@ def main():
         jobs = generate_freebsd_job(AMD64)
         print(GITHUB_ACTIONS_TEMPLATE.format(name='FreeBSD CI', jobs=jobs))
 
+    elif workflow_type == 'illumos':
+        jobs = generate_illumos_job(AMD64)
+        print(GITHUB_ACTIONS_TEMPLATE.format(name='illumos CI', jobs=jobs))
+
     elif workflow_type == 'all':
         # Generate all workflow files
         linux_jobs = '\n'.join((
@@ -751,13 +823,16 @@ def main():
         ))
         windows_jobs = generate_windows_job(AMD64)
         freebsd_jobs = generate_freebsd_job(AMD64)
+        illumos_jobs = generate_illumos_job(AMD64)
 
-        all_jobs = '\n'.join((linux_jobs, macos_jobs, windows_jobs, freebsd_jobs))
+        all_jobs = '\n'.join((linux_jobs, macos_jobs, windows_jobs,
+                              freebsd_jobs, illumos_jobs))
         print(GITHUB_ACTIONS_TEMPLATE.format(name='CI', jobs=all_jobs))
 
     else:
         print(f"Unknown workflow type: {workflow_type}", file=sys.stderr)
-        print("Usage: gen_gh_actions.py [linux|macos|windows|freebsd|all]", file=sys.stderr)
+        print("Usage: gen_gh_actions.py "
+              "[linux|macos|windows|freebsd|illumos|all]", file=sys.stderr)
         sys.exit(1)
 
 

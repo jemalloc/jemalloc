@@ -19,6 +19,9 @@ The script can generate workflows for different platforms:
 # Generate FreeBSD CI workflow
 ./scripts/gen_gh_actions.py freebsd > .github/workflows/freebsd-ci.yml
 
+# Generate illumos CI workflow
+./scripts/gen_gh_actions.py illumos > .github/workflows/illumos-ci.yml
+
 # Generate combined workflow with all platforms
 ./scripts/gen_gh_actions.py all > .github/workflows/ci-all.yml
 ```
@@ -58,6 +61,14 @@ The script can generate workflows for different platforms:
   - Uses `gmake` (GNU Make) instead of BSD make
 
 **Total:** 16 configurations
+
+### illumos CI (`illumos-ci.yml`)
+- **test-illumos** (AMD64): Runs in an OmniOS VM on `ubuntu-latest`
+  - Tests the current r151054 LTS and previous r151046 LTS via `vmactions/omnios-vm@v1`
+  - Builds with GCC and the newest LLVM/Clang available on each release
+  - Runs the complete `gmake check` suite
+
+**Total:** 4 configurations
 
 ## Architecture Verification
 
@@ -104,6 +115,7 @@ PROCESSOR_ARCHITECTURE  # AMD64, x86, ARM64
 | macOS Apple Silicon | macos-15 | arm64 | macOS 15 Sequoia | Pinned |
 | Windows | windows-latest | x86_64 | Windows Server 2022+ | Auto-update |
 | FreeBSD | ubuntu-latest (VM) | x86_64 | FreeBSD 15.0 in VM | VM-based |
+| illumos | ubuntu-latest (VM) | x86_64 | OmniOS r151054/r151046 in VM | VM-based |
 
 ### Runner Strategy Explained
 
@@ -175,6 +187,8 @@ To regenerate all workflows after modifying `gen_gh_actions.py`:
 ./scripts/gen_gh_actions.py linux > .github/workflows/linux-ci.yml
 ./scripts/gen_gh_actions.py macos > .github/workflows/macos-ci.yml
 ./scripts/gen_gh_actions.py windows > .github/workflows/windows-ci.yml
+./scripts/gen_gh_actions.py freebsd > .github/workflows/freebsd-ci.yml
+./scripts/gen_gh_actions.py illumos > .github/workflows/illumos-ci.yml
 ```
 
 **Note**: The generated files should not be edited by hand. All changes should be made to `gen_gh_actions.py` and then regenerated.
