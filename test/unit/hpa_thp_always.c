@@ -40,7 +40,7 @@ test_hpa_shard_opts_aggressive() {
 	    /* min_purge_interval_ms */
 	    5,
 	    /* purge_threshold */
-	    HUGEPAGE - 5 * DYNAMIC_PAGE,
+	    HUGEPAGE - 5 * PAGE,
 	    /* min_purge_delay_ms */
 	    10,
 	    /* hugify_style */

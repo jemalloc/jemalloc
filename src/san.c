@@ -198,7 +198,7 @@ tsd_san_init(tsd_t *tsd) {
 
 void
 san_init(ssize_t lg_san_uaf_align) {
-	assert(lg_san_uaf_align == -1 || lg_san_uaf_align >= LG_PAGE);
+	assert(lg_san_uaf_align == -1 || lg_san_uaf_align >= (ssize_t)LG_PAGE);
 	if (lg_san_uaf_align == -1) {
 		san_cache_bin_nonfast_mask = (uintptr_t)-1;
 		return;

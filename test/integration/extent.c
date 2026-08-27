@@ -65,7 +65,7 @@ prof_active_enabled(void) {
 static void
 test_extent_body(unsigned arena_ind) {
 	void  *p;
-	size_t large0, large1, large2, sz;
+	size_t large0, large1, large2, page, sz;
 	size_t purge_mib[3];
 	size_t purge_miblen;
 	int    flags;
@@ -88,6 +88,9 @@ test_extent_body(unsigned arena_ind) {
 	expect_d_eq(
 	    mallctl("arenas.lextent.2.size", (void *)&large2, &sz, NULL, 0), 0,
 	    "Unexpected arenas.lextent.2.size failure");
+	sz = sizeof(page);
+	expect_d_eq(mallctl("arenas.page", (void *)&page, &sz, NULL, 0), 0,
+	    "Unexpected arenas.page failure");
 
 	/* Test dalloc/decommit/purge cascade. */
 	purge_miblen = sizeof(purge_mib) / sizeof(size_t);
@@ -128,7 +131,7 @@ test_extent_body(unsigned arena_ind) {
 	 * is not page-aligned.  Force page alignment to keep deterministic
 	 * coverage for the successful grow/commit/merge path.
 	 */
-	test_decommit_commit(arena_ind, flags | MALLOCX_ALIGN(PAGE), large0,
+	test_decommit_commit(arena_ind, flags | MALLOCX_ALIGN(page), large0,
 	    purge_mib, purge_miblen, expect_xallocx_success, false);
 
 	/* Make sure non-large allocation succeeds. */

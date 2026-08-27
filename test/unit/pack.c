@@ -5,7 +5,7 @@
  */
 static size_t
 pack_alloc_size(void) {
-	return (DYNAMIC_LG_PAGE <= 14) ? (ZU(1) << (DYNAMIC_LG_PAGE - 2)) : ZU(4096);
+	return (LG_PAGE <= 14) ? (ZU(1) << (LG_PAGE - 2)) : ZU(4096);
 }
 
 /*

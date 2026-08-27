@@ -212,7 +212,7 @@ emap_register_interior(
 	contents.metadata.state = extent_state_active;
 	contents.metadata.is_head = false; /* Not allowed to access. */
 
-	assert(edata_size_get(edata) > (2 << LG_PAGE));
+	assert(edata_size_get(edata) > (size_t)(2 << LG_PAGE));
 	rtree_write_range(tsdn, &emap->rtree, rtree_ctx,
 	    (uintptr_t)edata_base_get(edata) + PAGE,
 	    (uintptr_t)edata_last_get(edata) - PAGE, contents);
@@ -243,7 +243,7 @@ emap_deregister_interior(tsdn_t *tsdn, emap_t *emap, edata_t *edata) {
 	EMAP_DECLARE_RTREE_CTX;
 
 	assert(edata_slab_get(edata));
-	if (edata_size_get(edata) > (2 << LG_PAGE)) {
+	if (edata_size_get(edata) > (size_t)(2 << LG_PAGE)) {
 		rtree_clear_range(tsdn, &emap->rtree, rtree_ctx,
 		    (uintptr_t)edata_base_get(edata) + PAGE,
 		    (uintptr_t)edata_last_get(edata) - PAGE);
