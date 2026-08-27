@@ -8,11 +8,23 @@
 /* Actual operating system page size, detected during bootstrap, <= PAGE. */
 extern size_t os_page;
 
+#ifdef DYNAMIC_PAGE_SIZE
+#	undef LG_PAGE
+#	ifdef JEMALLOC_DEBUG
+#		define LG_PAGE get_lg_page_size()
+#		define PAGE get_page_size()
+#	else /* JEMALLOC_DEBUG */
+#		define LG_PAGE lg_page_size
+#		define PAGE page_size
+#	endif /* JEMALLOC_DEBUG */
+#else /* DYNAMIC_PAGE_SIZE */
 /* Page size.  LG_PAGE is determined by the configure script. */
+#	define PAGE ((size_t)(1U << LG_PAGE))
+#endif /* DYNAMIC_PAGE_SIZE */
+
 #ifdef PAGE_MASK
 #	undef PAGE_MASK
 #endif
-#define PAGE ((size_t)(1U << LG_PAGE))
 #define PAGE_MASK ((size_t)(PAGE - 1))
 /* Return the page base address for the page containing address a. */
 #define PAGE_ADDR2BASE(a) ALIGNMENT_ADDR2BASE(a, PAGE)
@@ -34,9 +46,9 @@ extern size_t os_page;
 #	define LG_PAGE_OR_MAX MAX_LG_PAGE
 
 /* log of page size, only used when dynamic page size is enabled */
-extern unsigned lg_page;
+extern unsigned lg_page_size;
 
-/* page size based on lg_page, only used when dynamic page size is enabled */
+/* page size based on lg_page_size, only used when dynamic page size is enabled */
 extern size_t page_size;
 
 /* number of pages per hugepage, only used when dynamic page size is enabled */
@@ -46,9 +58,9 @@ extern size_t hugepage_pages;
 /* Used in debug builds to check that the globals have been initialized. */
 
 JEMALLOC_ALWAYS_INLINE unsigned
-get_lg_page() {
-	assert(lg_page != 0);
-	return lg_page;
+get_lg_page_size() {
+	assert(lg_page_size != 0);
+	return lg_page_size;
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
@@ -63,24 +75,9 @@ get_hugepage_pages() {
 	return hugepage_pages;
 }
 #	endif /* JEMALLOC_DEBUG */
-
-/*
- * Temporary macros to allow us to migrate some values to non-constant
- * expressions. These will be eventually removed and replaced with PAGE and LG_PAGE.
- */
-#	ifdef JEMALLOC_DEBUG
-#		define DYNAMIC_LG_PAGE get_lg_page()
-#		define DYNAMIC_PAGE get_page_size()
-#	else /* JEMALLOC_DEBUG */
-#		define DYNAMIC_LG_PAGE lg_page
-#		define DYNAMIC_PAGE page_size
-#	endif /* JEMALLOC_DEBUG */
 #else          /* DYNAMIC_PAGE_SIZE */
 #	define LG_PAGE_OR_MIN LG_PAGE
 #	define LG_PAGE_OR_MAX LG_PAGE
-
-#	define DYNAMIC_LG_PAGE LG_PAGE
-#	define DYNAMIC_PAGE PAGE
 #endif /* DYNAMIC_PAGE_SIZE */
 
 /* Huge page size.  LG_HUGEPAGE is determined by the configure script. */
@@ -102,11 +99,10 @@ get_hugepage_pages() {
 #		else /* JEMALLOC_DEBUG */
 #			define HUGEPAGE_PAGES hugepage_pages
 #		endif /* JEMALLOC_DEBUG */
-#		define HUGEPAGE_PAGES_MAX (HUGEPAGE / MIN_PAGE)
 #	else /* DYNAMIC_PAGE_SIZE */
 #		define HUGEPAGE_PAGES (HUGEPAGE / PAGE)
-#		define HUGEPAGE_PAGES_MAX HUGEPAGE_PAGES
 #	endif /* DYNAMIC_PAGE_SIZE */
+#	define HUGEPAGE_PAGES_MAX (HUGEPAGE >> LG_PAGE_OR_MIN)
 #else
 /*
  * It's convenient to define arrays (or bitmaps) of HUGEPAGE_PAGES lengths.  If
