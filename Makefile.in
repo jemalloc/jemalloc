@@ -318,6 +318,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/tcache_init.c \
 	$(srcroot)test/unit/tcache_max.c \
 	$(srcroot)test/unit/tcache_gc.c \
+	$(srcroot)test/unit/tcache_ncached_target.c \
 	$(srcroot)test/unit/test_hooks.c \
 	$(srcroot)test/unit/thread_event.c \
 	$(srcroot)test/unit/ticker.c \
