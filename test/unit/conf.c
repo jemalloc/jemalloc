@@ -1,6 +1,33 @@
 #include "test/jemalloc_test.h"
 
 #include "jemalloc/internal/conf.h"
+#include "jemalloc/internal/malloc_io.h"
+
+static unsigned conf_error_message_count;
+
+static void
+conf_error_message(void *opaque, const char *s) {
+	(void)opaque;
+	(void)s;
+	conf_error_message_count++;
+}
+
+static void
+expect_conf_error(const char *key, bool expect_message, bool expect_error) {
+	write_cb_t *saved_malloc_message =
+	    malloc_message_set(conf_error_message);
+	conf_error_message_count = 0;
+	had_conf_error = false;
+
+	conf_error("Invalid conf pair", key, strlen(key), "value",
+	    sizeof("value") - 1);
+
+	malloc_message_set(saved_malloc_message);
+	expect_u_eq(conf_error_message_count, expect_message ? 1 : 0,
+	    "Unexpected diagnostic count for %s", key);
+	expect_b_eq(had_conf_error, expect_error,
+	    "Unexpected error state for %s", key);
+}
 
 TEST_BEGIN(test_conf_next_simple) {
 	const char *opts = "key:value";
@@ -106,19 +133,25 @@ TEST_BEGIN(test_conf_next_trailing_comma) {
 TEST_END
 
 TEST_BEGIN(test_conf_error_deprecated) {
-	const char *options[] = {"experimental_tcache_gc",
-	    "lg_tcache_nslots_mul", "tcache_nslots_small_min",
-	    "tcache_nslots_small_max", "tcache_nslots_large",
-	    "tcache_gc_delay_bytes", "lg_tcache_flush_small_div",
-	    "lg_tcache_flush_large_div"};
+	const struct {
+		const char *name;
+		bool        expect_message;
+		bool        expect_error;
+	} options[] = {{"experimental_tcache_gc", false, false},
+	    {"hpa_sec_bytes_after_flush", false, false},
+	    {"hpa_sec_batch_fill_extra", false, false},
+	    {"lg_tcache_nslots_mul", false, false},
+	    {"tcache_nslots_small_min", false, false},
+	    {"tcache_nslots_small_max", false, false},
+	    {"tcache_nslots_large", false, false},
+	    {"tcache_gc_delay_bytes", false, false},
+	    {"lg_tcache_flush_small_div", false, false},
+	    {"lg_tcache_flush_large_div", false, false},
+	    {"invalid", true, true}};
 
 	for (unsigned i = 0; i < sizeof(options) / sizeof(options[0]); i++) {
-		had_conf_error = false;
-		conf_error("Invalid conf pair", options[i], strlen(options[i]),
-		    "true", sizeof("true") - 1);
-		expect_false(had_conf_error,
-		    "Deprecated option should not trigger abort_conf: %s",
-		    options[i]);
+		expect_conf_error(options[i].name, options[i].expect_message,
+		    options[i].expect_error);
 	}
 }
 TEST_END

@@ -23,6 +23,9 @@
 #define MALLOC_PRINTF_BUFSIZE 4096
 
 write_cb_t wrtmessage;
+#ifdef JEMALLOC_JET
+write_cb_t *malloc_message_set(write_cb_t *write_cb);
+#endif
 int        buferror(int err, char *buf, size_t buflen);
 uintmax_t  malloc_strtoumax(
      const char *restrict nptr, char **restrict endptr, int base);

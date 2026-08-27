@@ -219,12 +219,9 @@ malloc_abort_invalid_conf(void) {
 JET_EXTERN void
 conf_error(
     const char *msg, const char *k, size_t klen, const char *v, size_t vlen) {
-	malloc_printf(
-	    "<jemalloc>: %s: %.*s:%.*s\n", msg, (int)klen, k, (int)vlen, v);
-	/* If abort_conf is set, error out after processing all options. */
 	const char *experimental = "experimental_";
 	if (strncmp(k, experimental, strlen(experimental)) == 0) {
-		/* However, tolerate experimental features. */
+		/* Silently tolerate experimental features. */
 		return;
 	}
 	const char *deprecated[] = {
@@ -237,10 +234,13 @@ conf_error(
 	    / sizeof(deprecated[0]));
 	for (size_t i = 0; i < deprecated_cnt; ++i) {
 		if (strncmp(k, deprecated[i], strlen(deprecated[i])) == 0) {
-			/* Tolerate deprecated features. */
+			/* Silently tolerate deprecated features. */
 			return;
 		}
 	}
+	malloc_printf(
+	    "<jemalloc>: %s: %.*s:%.*s\n", msg, (int)klen, k, (int)vlen, v);
+	/* If abort_conf is set, error out after processing all options. */
 	had_conf_error = true;
 }
 
