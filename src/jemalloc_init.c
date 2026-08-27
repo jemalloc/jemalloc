@@ -563,6 +563,7 @@ malloc_init_hard(void) {
 
 	assert(TCACHE_MAXCLASS_LIMIT <= USIZE_GROW_SLOW_THRESHOLD);
 	assert(SC_LOOKUP_MAXCLASS <= USIZE_GROW_SLOW_THRESHOLD);
+	assert(TCACHE_NBINS <= TCACHE_NBINS_MAX);
 	/*
 	 * This asserts an extreme case where TINY_MAXCLASS is larger
 	 * than LARGE_MINCLASS.  It could only happen if some constants

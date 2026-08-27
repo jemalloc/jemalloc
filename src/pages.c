@@ -12,7 +12,7 @@
 /* Data. */
 
 #ifdef DYNAMIC_PAGE_SIZE
-unsigned lg_page;
+unsigned lg_page_size;
 size_t   page_size;
 size_t   hugepage_pages;
 #endif /* DYNAMIC_PAGE_SIZE */
@@ -463,7 +463,6 @@ bool
 pages_pre_boot(void) {
 	os_page = os_vm_page_size();
 
-#ifdef DYNAMIC_PAGE_SIZE
 	if (os_page == 0 || (os_page & (os_page - 1)) != 0) {
 		malloc_write("<jemalloc>: Invalid system page size\n");
 		if (opt_abort) {
@@ -472,6 +471,7 @@ pages_pre_boot(void) {
 		return true;
 	}
 
+#ifdef DYNAMIC_PAGE_SIZE
 	if (os_page < MIN_PAGE) {
 		malloc_write(
 		    "<jemalloc>: Unsupported system page size (smaller than min page size)\n");
@@ -490,20 +490,8 @@ pages_pre_boot(void) {
 		return true;
 	}
 
-	/*
-	 * As we incrementally migrate the code to use a dynamic page size,
-	 * we'll fix the dynamic lg page to be same as LG_PAGE. This way,
-	 * we can migrate parts of the code to the dynamic version without
-	 * breaking anything. When all the changes are done, we'll update this to:
-	 *   lg_page = lg_floor(os_page)
-	 * or read it from the config.
-	 */
-	lg_page = LG_PAGE;
-	page_size = (1U << lg_page);
-
-	/* mainly to exercise the macros. */
-	assert(lg_page == DYNAMIC_LG_PAGE);
-	assert(page_size == DYNAMIC_PAGE);
+	lg_page_size = lg_floor(os_page);
+	page_size = (1U << lg_page_size);
 
 	if (page_size < MIN_PAGE) {
 		malloc_write(
@@ -530,7 +518,7 @@ pages_pre_boot(void) {
 #	endif
 #endif /* DYNAMIC_PAGE_SIZE */
 
-	if (os_page > DYNAMIC_PAGE) {
+	if (os_page > PAGE) {
 		malloc_write(
 		    "<jemalloc>: Unsupported system page size (larger than page size)\n");
 		if (opt_abort) {

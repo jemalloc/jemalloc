@@ -21,7 +21,7 @@
 #define RTREE_NHIB ((1U << (LG_SIZEOF_PTR + 3)) - LG_VADDR)
 
 /* Number of low insigificant bits. */
-#define RTREE_NLIB DYNAMIC_LG_PAGE
+#define RTREE_NLIB LG_PAGE
 #define RTREE_NLIB_MIN LG_PAGE_OR_MIN
 
 /* Number of significant bits. */

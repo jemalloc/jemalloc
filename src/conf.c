@@ -877,7 +877,7 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS_MA
 			 * threshold.
 			 */
 			CONF_HANDLE_SIZE_T(opt_hpa_opts.purge_threshold,
-			    "hpa_purge_threshold", DYNAMIC_PAGE, HUGEPAGE,
+			    "hpa_purge_threshold", PAGE, HUGEPAGE,
 			    CONF_CHECK_MIN, CONF_CHECK_MAX, true);
 			if (CONF_MATCH("hpa_purge_threshold_ratio")) {
 				fxp_t ratio;
@@ -937,7 +937,7 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS_MA
 			    "hpa_sec_nshards", 0, 255, CONF_CHECK_MIN,
 			    CONF_CHECK_MAX, true);
 			CONF_HANDLE_SIZE_T(opt_hpa_sec_opts.max_alloc,
-			    "hpa_sec_max_alloc", DYNAMIC_PAGE,
+			    "hpa_sec_max_alloc", PAGE,
 			    USIZE_GROW_SLOW_THRESHOLD, CONF_CHECK_MIN,
 			    CONF_CHECK_MAX, true);
 			CONF_HANDLE_SIZE_T(opt_hpa_sec_opts.max_bytes,
@@ -947,7 +947,7 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS_MA
 			    "experimental_pac_sec_nshards", 0, 255,
 			    CONF_CHECK_MIN, CONF_CHECK_MAX, true);
 			CONF_HANDLE_SIZE_T(opt_pac_sec_opts.max_alloc,
-			    "experimental_pac_sec_max_alloc", DYNAMIC_PAGE,
+			    "experimental_pac_sec_max_alloc", PAGE,
 			    USIZE_GROW_SLOW_THRESHOLD, CONF_CHECK_MIN,
 			    CONF_CHECK_MAX, true);
 			CONF_HANDLE_SIZE_T(opt_pac_sec_opts.max_bytes,
