@@ -296,7 +296,7 @@ os_vm_page_size(void) {
 #else
 	long result = sysconf(_SC_PAGESIZE);
 	if (result == -1) {
-		return PAGE;
+		return 0;
 	}
 	return (size_t)result;
 #endif
