@@ -227,7 +227,7 @@
 	(SC_NGROUP                                                             \
 	    + (SC_LG_BASE_MAX - ((_lg_page) + SC_LG_NGROUP)) * SC_NGROUP       \
 	    + SC_NGROUP - 1)
-#define SC_NPSIZES SC_NPSIZES_FOR(DYNAMIC_LG_PAGE)
+#define SC_NPSIZES SC_NPSIZES_FOR(LG_PAGE)
 #define SC_NPSIZES_MAX SC_NPSIZES_FOR(LG_PAGE_OR_MIN)
 
 /*
@@ -243,7 +243,7 @@
 	            - SC_LG_FIRST_REGULAR_BASE) /* Last SC of the last group hits the bound exactly; exclude it. */ \
 	    - 1)
 
-#define SC_NBINS SC_NBINS_FOR(DYNAMIC_LG_PAGE)
+#define SC_NBINS SC_NBINS_FOR(LG_PAGE)
 #define SC_NBINS_MIN SC_NBINS_FOR(LG_PAGE_OR_MIN)
 #define SC_NBINS_MAX SC_NBINS_FOR(LG_PAGE_OR_MAX)
 
@@ -266,7 +266,7 @@
 	(SC_SMALL_MAX_BASE_FOR(_lg_page)                                       \
 	    + (SC_NGROUP - 1) * SC_SMALL_MAX_DELTA_FOR(_lg_page))
 
-#define SC_SMALL_MAXCLASS SC_SMALL_MAXCLASS_FOR(DYNAMIC_LG_PAGE)
+#define SC_SMALL_MAXCLASS SC_SMALL_MAXCLASS_FOR(LG_PAGE)
 #define SC_SMALL_MAXCLASS_MIN SC_SMALL_MAXCLASS_FOR(LG_PAGE_OR_MIN)
 
 /* The fastpath assumes all lookup-able sizes are small. */
@@ -275,9 +275,9 @@
 #endif
 
 /* The smallest size class not allocated out of a slab. */
-#define SC_LARGE_MINCLASS ((size_t)1ULL << (DYNAMIC_LG_PAGE + SC_LG_NGROUP))
+#define SC_LARGE_MINCLASS ((size_t)1ULL << (LG_PAGE + SC_LG_NGROUP))
 #define SC_LG_LARGE_MINCLASS_FOR(_lg_page) ((_lg_page) + SC_LG_NGROUP)
-#define SC_LG_LARGE_MINCLASS SC_LG_LARGE_MINCLASS_FOR(DYNAMIC_LG_PAGE)
+#define SC_LG_LARGE_MINCLASS SC_LG_LARGE_MINCLASS_FOR(LG_PAGE)
 #define SC_LG_LARGE_MINCLASS_MIN SC_LG_LARGE_MINCLASS_FOR(LG_PAGE_OR_MIN)
 
 /*
@@ -295,7 +295,7 @@
 /* Maximum number of regions in one slab. */
 #define SC_LG_SLAB_MAXREGS_FOR(_lg_page) ((_lg_page) - SC_LG_TINY_MIN)
 #ifndef CONFIG_LG_SLAB_MAXREGS
-#	define SC_LG_SLAB_MAXREGS SC_LG_SLAB_MAXREGS_FOR(DYNAMIC_LG_PAGE)
+#	define SC_LG_SLAB_MAXREGS SC_LG_SLAB_MAXREGS_FOR(LG_PAGE)
 #	ifdef DYNAMIC_PAGE_SIZE
 #		define SC_LG_SLAB_MAXREGS_MAX                                 \
 			SC_LG_SLAB_MAXREGS_FOR(MAX_LG_PAGE)
@@ -329,7 +329,7 @@
 #define LG_USIZE_GROW_SLOW_THRESHOLD_FOR(_lg_page)                             \
 	(SC_LG_NGROUP + (_lg_page) + 1)
 #define LG_USIZE_GROW_SLOW_THRESHOLD                                           \
-	LG_USIZE_GROW_SLOW_THRESHOLD_FOR(DYNAMIC_LG_PAGE)
+	LG_USIZE_GROW_SLOW_THRESHOLD_FOR(LG_PAGE)
 #define LG_USIZE_GROW_SLOW_THRESHOLD_MAX                                       \
 	LG_USIZE_GROW_SLOW_THRESHOLD_FOR(LG_PAGE_OR_MAX)
 #define USIZE_GROW_SLOW_THRESHOLD (1U << LG_USIZE_GROW_SLOW_THRESHOLD)

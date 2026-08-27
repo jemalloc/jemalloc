@@ -31,7 +31,7 @@ struct sec_opts_s {
 
 #define SEC_OPTS_NSHARDS_DEFAULT 2
 #define SEC_OPTS_MAX_ALLOC_DEFAULT                                             \
-	((32 * 1024) < DYNAMIC_PAGE ? DYNAMIC_PAGE : (32 * 1024))
+	((32 * 1024) < PAGE ? PAGE : (32 * 1024))
 #define SEC_OPTS_MAX_BYTES_DEFAULT                                             \
 	((256 * 1024) < (4 * SEC_OPTS_MAX_ALLOC_DEFAULT)                       \
 	        ? (4 * SEC_OPTS_MAX_ALLOC_DEFAULT)                             \
@@ -43,8 +43,8 @@ struct sec_opts_s {
 
 #define PAC_SEC_OPTS_DEFAULT                                                   \
 	{0,                                                                    \
-	    (32 * 1024) > (DYNAMIC_PAGE * 2) ? (32 * 1024)                     \
-	                                     : (DYNAMIC_PAGE * 2),             \
+	    (32 * 1024) > (PAGE * 2) ? (32 * 1024)                     \
+	                                     : (PAGE * 2),             \
 	    SEC_OPTS_MAX_BYTES_DEFAULT}
 
 #endif /* JEMALLOC_INTERNAL_SEC_OPTS_H */
