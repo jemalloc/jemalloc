@@ -78,6 +78,15 @@ wrtmessage(void *cbopaque, const char *s) {
 
 JEMALLOC_EXPORT void (*je_malloc_message)(void *, const char *s);
 
+#ifdef JEMALLOC_JET
+write_cb_t *
+malloc_message_set(write_cb_t *write_cb) {
+	write_cb_t *old_write_cb = je_malloc_message;
+	je_malloc_message = write_cb;
+	return old_write_cb;
+}
+#endif
+
 /*
  * Wrapper around malloc_message() that avoids the need for
  * je_malloc_message(...) throughout the code.
