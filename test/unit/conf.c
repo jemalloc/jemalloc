@@ -105,9 +105,28 @@ TEST_BEGIN(test_conf_next_trailing_comma) {
 }
 TEST_END
 
+TEST_BEGIN(test_conf_error_deprecated) {
+	const char *options[] = {"experimental_tcache_gc",
+	    "lg_tcache_nslots_mul", "tcache_nslots_small_min",
+	    "tcache_nslots_small_max", "tcache_nslots_large",
+	    "tcache_gc_delay_bytes", "lg_tcache_flush_small_div",
+	    "lg_tcache_flush_large_div"};
+
+	for (unsigned i = 0; i < sizeof(options) / sizeof(options[0]); i++) {
+		had_conf_error = false;
+		conf_error("Invalid conf pair", options[i], strlen(options[i]),
+		    "true", sizeof("true") - 1);
+		expect_false(had_conf_error,
+		    "Deprecated option should not trigger abort_conf: %s",
+		    options[i]);
+	}
+}
+TEST_END
+
 int
 main(void) {
 	return test(test_conf_next_simple, test_conf_next_multi,
 	    test_conf_next_empty, test_conf_next_missing_value,
-	    test_conf_next_malformed, test_conf_next_trailing_comma);
+	    test_conf_next_malformed, test_conf_next_trailing_comma,
+	    test_conf_error_deprecated);
 }

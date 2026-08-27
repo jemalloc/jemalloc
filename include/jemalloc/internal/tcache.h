@@ -47,6 +47,15 @@ typedef struct tcaches_s     tcaches_t;
 #define TCACHE_GC_SMALL_NBINS_MAX ((SC_NBINS > 8) ? (SC_NBINS >> 3) : 1)
 #define TCACHE_GC_LARGE_NBINS_MAX 1
 
+/*
+ * Default bin capacities.  Small bins scale with slab region count; large bins
+ * use a fixed count.  tcache_ncached_max can override either.
+ */
+#define TCACHE_NSLOTS_SMALL_MIN 20
+#define TCACHE_NSLOTS_SMALL_MAX 200
+#define TCACHE_NSLOTS_LARGE 20
+#define TCACHE_LG_NSLOTS_MUL 1
+
 /******************************************************************************/
 /* STRUCTS */
 /******************************************************************************/
@@ -75,19 +84,15 @@ struct tcache_slow_s {
 	unsigned tcache_nbins;
 	/* Last time GC has been performed.  */
 	nstime_t last_gc_time;
-	/* Next bin to GC. */
-	szind_t next_gc_bin;
+	/* Next small/large bin to GC. */
 	szind_t next_gc_bin_small;
 	szind_t next_gc_bin_large;
-	/* For small bins, help determine how many items to fill at a time. */
-	cache_bin_fill_ctl_t bin_fill_ctl_do_not_access_directly[SC_NBINS];
-	/* For small bins, whether has been refilled since last GC. */
-	bool bin_refilled[SC_NBINS];
 	/*
-	 * For small bins, the number of items we can pretend to flush before
-	 * actually flushing.
+	 * Small-bin refill count and retention target.  Both adapt between GC
+	 * events; a zero retention target marks a disabled bin.
 	 */
-	uint8_t bin_flush_delay_items[SC_NBINS];
+	cache_bin_sz_t bin_nfill[SC_NBINS];
+	cache_bin_sz_t bin_nretain[SC_NBINS];
 	/*
 	 * The start of the allocation containing the dynamic allocation for
 	 * either the cache bins alone, or the cache bin memory as well as this
@@ -116,17 +121,9 @@ struct tcaches_s {
 /* EXTERNS */
 /******************************************************************************/
 
-extern bool     opt_tcache;
-extern size_t   opt_tcache_max;
-extern ssize_t  opt_lg_tcache_nslots_mul;
-extern unsigned opt_tcache_nslots_small_min;
-extern unsigned opt_tcache_nslots_small_max;
-extern unsigned opt_tcache_nslots_large;
-extern ssize_t  opt_lg_tcache_shift;
-extern size_t   opt_tcache_gc_incr_bytes;
-extern size_t   opt_tcache_gc_delay_bytes;
-extern unsigned opt_lg_tcache_flush_small_div;
-extern unsigned opt_lg_tcache_flush_large_div;
+extern bool   opt_tcache;
+extern size_t opt_tcache_max;
+extern size_t opt_tcache_gc_incr_bytes;
 
 /*
  * Number of tcache bins.  There are SC_NBINS small-object bins, plus 0 or more
