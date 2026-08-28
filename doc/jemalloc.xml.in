@@ -956,6 +956,22 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         </para></listitem>
       </varlistentry>
 
+      <varlistentry id="opt.lg_page">
+        <term>
+          <mallctl>opt.lg_page</mallctl>
+          (<type>unsigned</type>)
+          <literal>r-</literal>
+          [<option>--enable-dynamic-page-size</option>]
+        </term>
+        <listitem><para>Base 2 logarithm of the page size jemalloc uses.  The
+        default of 0 means that the page size is derived from the operating
+        system page size.  A non-zero value must be at least
+        <option>--with-min-lg-page</option>, at most
+        <option>--with-max-lg-page</option>, and must not be smaller than the
+        operating system page size; jemalloc fails to initialize otherwise.
+        </para></listitem>
+      </varlistentry>
+
       <varlistentry id="opt.confirm_conf">
         <term>
           <mallctl>opt.confirm_conf</mallctl>

@@ -126,6 +126,9 @@ CTL_PROTO(config_utrace)
 CTL_PROTO(config_xmalloc)
 CTL_PROTO(opt_abort)
 CTL_PROTO(opt_abort_conf)
+#ifdef DYNAMIC_PAGE_SIZE
+CTL_PROTO(opt_lg_page)
+#endif /* DYNAMIC_PAGE_SIZE */
 CTL_PROTO(opt_cache_oblivious)
 CTL_PROTO(opt_debug_double_free_max_scan)
 CTL_PROTO(opt_trust_madvise)
@@ -495,6 +498,9 @@ static const ctl_named_node_t opt_malloc_conf_node[] = {
 
 static const ctl_named_node_t opt_node[] = {{NAME("abort"), CTL(opt_abort)},
     {NAME("abort_conf"), CTL(opt_abort_conf)},
+#ifdef DYNAMIC_PAGE_SIZE
+    {NAME("lg_page"), CTL(opt_lg_page)},
+#endif /* DYNAMIC_PAGE_SIZE */
     {NAME("cache_oblivious"), CTL(opt_cache_oblivious)},
     {NAME("trust_madvise"), CTL(opt_trust_madvise)},
     {NAME("experimental_hpa_start_huge_if_thp_always"),
@@ -2198,6 +2204,9 @@ CTL_RO_CONFIG_GEN(config_xmalloc, bool)
 
 CTL_RO_NL_GEN(opt_abort, opt_abort, bool)
 CTL_RO_NL_GEN(opt_abort_conf, opt_abort_conf, bool)
+#ifdef DYNAMIC_PAGE_SIZE
+CTL_RO_NL_GEN(opt_lg_page, opt_lg_page, unsigned)
+#endif /* DYNAMIC_PAGE_SIZE */
 CTL_RO_NL_GEN(opt_cache_oblivious, opt_cache_oblivious, bool)
 CTL_RO_NL_GEN(
     opt_debug_double_free_max_scan, opt_debug_double_free_max_scan, unsigned)
