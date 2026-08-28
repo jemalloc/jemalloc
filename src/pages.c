@@ -12,6 +12,7 @@
 /* Data. */
 
 #ifdef DYNAMIC_PAGE_SIZE
+unsigned opt_lg_page;
 unsigned lg_page_size;
 size_t   page_size;
 size_t   hugepage_pages;
@@ -504,7 +505,11 @@ pages_pre_boot(void) {
 		return true;
 	}
 
-	lg_page_size = lg_floor(os_page);
+	if (opt_lg_page != 0) {
+		lg_page_size = opt_lg_page;
+	} else {
+		lg_page_size = lg_floor(os_page);
+	}
 	page_size = (1U << lg_page_size);
 
 	if (page_size < MIN_PAGE) {

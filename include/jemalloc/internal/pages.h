@@ -46,6 +46,12 @@ extern size_t os_page;
 #	define LG_PAGE_OR_MAX MAX_LG_PAGE
 
 /*
+ * log of the page size requested via the "lg_page" option.  0 means derive it
+ * from the operating system page size.
+ */
+extern unsigned opt_lg_page;
+
+/*
  * log of page size
  * only used when dynamic page size is enabled
  */

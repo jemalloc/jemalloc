@@ -482,6 +482,8 @@ malloc_conf_init_helper(sc_data_t *sc_data,
 
 #define CONF_DONT_CHECK_MIN(um, min) false
 #define CONF_CHECK_MIN(um, min) ((um) < (min))
+/* Like CONF_CHECK_MIN, except 0 is a valid sentinel rather than a minimum. */
+#define CONF_CHECK_MIN_OR_ZERO(um, min) ((um) != 0 && (um) < (min))
 #define CONF_DONT_CHECK_MAX(um, max) false
 #define CONF_CHECK_MAX(um, max) ((um) > (max))
 
@@ -549,6 +551,19 @@ malloc_conf_init_helper(sc_data_t *sc_data,
 
 			CONF_HANDLE_BOOL(opt_confirm_conf, "confirm_conf")
 			CONF_HANDLE_BOOL(opt_abort, "abort")
+#ifdef DYNAMIC_PAGE_SIZE
+			/*
+			 * Handled in the initial pass, since pages_pre_boot()
+			 * consumes it before the main pass runs.  0 means
+			 * derive the page size from the OS page size.  A page
+			 * size below the OS page size is rejected by
+			 * pages_pre_boot(), which is the first point at which
+			 * the OS page size is known.
+			 */
+			CONF_HANDLE_UNSIGNED(opt_lg_page, "lg_page",
+			    MIN_LG_PAGE, MAX_LG_PAGE, CONF_CHECK_MIN_OR_ZERO,
+			    CONF_CHECK_MAX, false)
+#endif /* DYNAMIC_PAGE_SIZE */
 			if (initial_call) {
 				continue;
 			}
@@ -1114,6 +1129,7 @@ malloc_conf_init_helper(sc_data_t *sc_data,
 #undef CONF_HANDLE_BOOL
 #undef CONF_DONT_CHECK_MIN
 #undef CONF_CHECK_MIN
+#undef CONF_CHECK_MIN_OR_ZERO
 #undef CONF_DONT_CHECK_MAX
 #undef CONF_CHECK_MAX
 #undef CONF_HANDLE_T
