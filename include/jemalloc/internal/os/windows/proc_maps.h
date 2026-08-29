@@ -4,7 +4,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/malloc_io.h"
 
-JEMALLOC_ALWAYS_INLINE long
+JEMALLOC_ALWAYS_INLINE uint64_t
 os_prof_pid_namespace(void) {
 	/* Not supported on Windows. */
 	return 0;

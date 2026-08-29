@@ -670,8 +670,8 @@ prof_dump_filename(tsd_t *tsd, char *filename, char v, uint64_t vseq) {
 		if (opt_prof_pid_namespace) {
 			/* "<prefix>.<pid_namespace>.<pid>.<seq>.v<vseq>.heap" */
 			malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
-			    "%s.%ld.%d.%" FMTu64 ".%c%" FMTu64 ".heap", prefix,
-			    os_prof_pid_namespace(), prof_getpid(),
+			    "%s.%" FMTu64 ".%d.%" FMTu64 ".%c%" FMTu64 ".heap",
+			    prefix, os_prof_pid_namespace(), prof_getpid(),
 			    prof_dump_seq, v, vseq);
 		} else {
 			/* "<prefix>.<pid>.<seq>.v<vseq>.heap" */
@@ -683,7 +683,7 @@ prof_dump_filename(tsd_t *tsd, char *filename, char v, uint64_t vseq) {
 		if (opt_prof_pid_namespace) {
 			/* "<prefix>.<pid_namespace>.<pid>.<seq>.<v>.heap" */
 			malloc_snprintf(filename, DUMP_FILENAME_BUFSIZE,
-			    "%s.%ld.%d.%" FMTu64 ".%c.heap", prefix,
+			    "%s.%" FMTu64 ".%d.%" FMTu64 ".%c.heap", prefix,
 			    os_prof_pid_namespace(), prof_getpid(),
 			    prof_dump_seq, v);
 		} else {
@@ -701,8 +701,9 @@ prof_get_default_filename(tsdn_t *tsdn, char *filename, uint64_t ind) {
 	malloc_mutex_lock(tsdn, &prof_dump_filename_mtx);
 	if (opt_prof_pid_namespace) {
 		malloc_snprintf(filename, PROF_DUMP_FILENAME_LEN,
-		    "%s.%ld.%d.%" FMTu64 ".json", prof_prefix_get(tsdn),
-		    os_prof_pid_namespace(), prof_getpid(), ind);
+		    "%s.%" FMTu64 ".%d.%" FMTu64 ".json",
+		    prof_prefix_get(tsdn), os_prof_pid_namespace(),
+		    prof_getpid(), ind);
 	} else {
 		malloc_snprintf(filename, PROF_DUMP_FILENAME_LEN,
 		    "%s.%d.%" FMTu64 ".json", prof_prefix_get(tsdn),
