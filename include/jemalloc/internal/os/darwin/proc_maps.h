@@ -22,7 +22,7 @@ typedef struct segment_command os_segment_command_t;
 #	define OS_LC_SEGMENT_VALUE LC_SEGMENT
 #endif
 
-JEMALLOC_ALWAYS_INLINE long
+JEMALLOC_ALWAYS_INLINE uint64_t
 os_prof_pid_namespace(void) {
 	/* Not supported on Darwin. */
 	return 0;

@@ -13,8 +13,42 @@
  * Windows (neither concept is implemented).
  */
 
+/*
+ * Parse a procfs pid-namespace symlink target of the form "pid:[<id>]".
+ * This helper function is currently used only by posix and FreeBSD/DragonFly
+ * backends.
+ */
+JEMALLOC_ALWAYS_INLINE uint64_t
+os_prof_parse_pid_namespace(const char *buf, size_t buf_size, ssize_t linklen) {
+	static const char prefix[] = "pid:[";
+	const size_t      prefix_len = sizeof(prefix) - 1;
+
+	if (linklen <= 0 || (size_t)linklen >= buf_size) {
+		return 0;
+	}
+	size_t len = (size_t)linklen;
+	if (len <= prefix_len + 1 || buf[len - 1] != ']'
+	    || memcmp(buf, prefix, prefix_len) != 0) {
+		return 0;
+	}
+
+	uint64_t ns = 0;
+	for (size_t i = prefix_len; i < len - 1; i++) {
+		unsigned char c = (unsigned char)buf[i];
+		if (c < '0' || c > '9') {
+			return 0;
+		}
+		uint64_t digit = (uint64_t)(c - '0');
+		if (ns > (UINT64_MAX - digit) / 10) {
+			return 0;
+		}
+		ns = ns * 10 + digit;
+	}
+	return ns;
+}
+
 /* Functions required for implementation in each backend. */
-JEMALLOC_ALWAYS_INLINE long os_prof_pid_namespace(void);
+JEMALLOC_ALWAYS_INLINE uint64_t os_prof_pid_namespace(void);
 JEMALLOC_ALWAYS_INLINE int os_prof_open_maps(void);
 /*
  * Takes the caller's current prof_dump_open_maps hook as a parameter instead

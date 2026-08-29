@@ -6,21 +6,11 @@
 #include "jemalloc/internal/os/file.h"
 #include "jemalloc/internal/os/process.h"
 
-JEMALLOC_ALWAYS_INLINE long
+JEMALLOC_ALWAYS_INLINE uint64_t
 os_prof_pid_namespace(void) {
-	long ret = 0;
-	char buf[PATH_MAX];
-	ssize_t linklen = os_readlink("/proc/self/ns/pid", buf, PATH_MAX);
-
-	/* namespace string is expected to be like pid:[4026531836] */
-	if (linklen > 0) {
-		/* Trim the trailing "]" */
-		buf[linklen - 1] = '\0';
-		char *index = strtok(buf, "pid:[");
-		ret = atol(index);
-	}
-
-	return ret;
+	char    buf[PATH_MAX];
+	ssize_t linklen = os_readlink("/proc/self/ns/pid", buf, sizeof(buf));
+	return os_prof_parse_pid_namespace(buf, sizeof(buf), linklen);
 }
 
 JEMALLOC_ALWAYS_INLINE int
