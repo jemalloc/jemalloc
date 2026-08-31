@@ -279,6 +279,7 @@
 #define SC_LG_LARGE_MINCLASS_FOR(_lg_page) ((_lg_page) + SC_LG_NGROUP)
 #define SC_LG_LARGE_MINCLASS SC_LG_LARGE_MINCLASS_FOR(LG_PAGE)
 #define SC_LG_LARGE_MINCLASS_MIN SC_LG_LARGE_MINCLASS_FOR(LG_PAGE_OR_MIN)
+#define SC_LG_LARGE_MINCLASS_MAX SC_LG_LARGE_MINCLASS_FOR(LG_PAGE_OR_MAX)
 
 /*
  * The largest size class supported.  Spell this out directly to avoid
