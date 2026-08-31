@@ -226,6 +226,23 @@ any of the following arguments (not a definitive list) to 'configure':
     this lets the compiler treat `operator new` as non-throwing and elide
     exception-handling cleanup in callers.
 
+* `--enable-experimental-fiber-safe-tls`
+
+    Make jemalloc's own thread-local (TSD) access safe for fibers / stackful
+    coroutines that migrate between OS threads.
+
+    The compiler may legally compute a thread-local's address once and reuse
+    it; inlined into the allocator fast paths under whole-program LTO, that
+    address can be cached in a callee-saved register across a user-space
+    context switch and reused on the OS thread the fiber migrated to, so two
+    threads race on one tcache -- silent heap corruption (see issue #2890).
+    With this option every internal TSD access re-derives the address through
+    an out-of-line accessor behind an optimization barrier, which the compiler
+    cannot hoist or reuse across the switch.
+
+    This is a partial mitigation, not a whole-program fix: only TLS accesses
+    made by jemalloc itself are protected.
+
 * `--with-xslroot=<path>`
 
     Specify where to find DocBook XSL stylesheets when building the
