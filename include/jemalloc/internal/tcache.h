@@ -44,13 +44,15 @@ typedef struct tcaches_s     tcaches_t;
 #define TCACHE_NBINS                                                           \
 	TCACHE_NBINS_FOR(                                                      \
 	    SC_NBINS, TCACHE_LG_MAXCLASS_LIMIT, SC_LG_LARGE_MINCLASS)
-#ifdef DYNAMIC_PAGE_SIZE
-#	define TCACHE_NBINS_MAX                                               \
-		TCACHE_NBINS_FOR(SC_NBINS_MAX, TCACHE_LG_MAXCLASS_LIMIT_MAX,   \
-		    SC_LG_LARGE_MINCLASS_MIN)
-#else /* DYNAMIC_PAGE_SIZE */
-#	define TCACHE_NBINS_MAX TCACHE_NBINS
-#endif /* DYNAMIC_PAGE_SIZE */
+/*
+ * TCACHE_NBINS is monotonic in the page size: the maxclass limit and the large
+ * minclass both grow with it and their difference is constant, so evaluating
+ * every term at LG_PAGE_OR_MAX gives the tight bound.  Mixing a _MAX limit with
+ * a _MIN minclass would overshoot by SC_NGROUP * (MAX_LG_PAGE - MIN_LG_PAGE).
+ */
+#define TCACHE_NBINS_MAX                                                       \
+	TCACHE_NBINS_FOR(SC_NBINS_MAX, TCACHE_LG_MAXCLASS_LIMIT_MAX,           \
+	    SC_LG_LARGE_MINCLASS_MAX)
 #define TCACHE_GC_NEIGHBOR_LIMIT ((uintptr_t)1 << 21) /* 2M */
 #define TCACHE_GC_INTERVAL_NS ((uint64_t)10 * KQU(1000000)) /* 10ms */
 #define TCACHE_GC_SMALL_NBINS_MAX ((SC_NBINS > 8) ? (SC_NBINS >> 3) : 1)
