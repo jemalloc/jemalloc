@@ -164,13 +164,21 @@ expect_deferred_purging(unsigned arena_ind) {
 	expect_true(observed_dirty_page, "");
 
 	/*
-	 * Under high concurrency / heavy test load (e.g. using run_test.sh),
-	 * the background thread may not get scheduled for a longer period of
-	 * time.  Retry 100 times max before bailing out.
+	 * Now wait for the background thread to purge the deferred dirty page.
+	 * An idle background thread sleeps indefinitely until signaled, so a
+	 * missed wakeup on the deallocation path could stall us under heavy test
+	 * load.  Wake it up explicitly on every iteration so purging proceeds at our
+	 * polling rate.  A thread that never purges fails the assertion below
+	 * after we give up on 100 retries.
 	 */
+	tsd_t *tsd = tsd_fetch();
+	background_thread_info_t *info = background_thread_info_get(arena_ind);
 	unsigned retry = 0;
 	while ((empty_ndirty = get_empty_ndirty(arena_ind)) > 0
 	    && (retry++ < 100)) {
+		malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
+		background_thread_wakeup_early(info, NULL);
+		malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
 		sleep_for_background_thread_interval();
 	}
 
