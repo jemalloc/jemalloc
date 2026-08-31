@@ -703,9 +703,11 @@ background_threads_enable(tsd_t *tsd) {
 	assert(background_thread_enabled());
 	malloc_mutex_assert_owner(tsd_tsdn(tsd), &background_thread_lock);
 
-	VARIABLE_ARRAY(bool, marked, max_background_threads);
+	const size_t const_max_background_threads = max_background_threads;
+	assert(const_max_background_threads > 0);
+	VARIABLE_ARRAY(bool, marked, const_max_background_threads);
 	unsigned nmarked;
-	for (size_t i = 0; i < max_background_threads; i++) {
+	for (size_t i = 0; i < const_max_background_threads; i++) {
 		marked[i] = false;
 	}
 	nmarked = 0;
@@ -714,24 +716,39 @@ background_threads_enable(tsd_t *tsd) {
 	/* Mark the threads we need to create for thread 0. */
 	unsigned narenas = narenas_total_get();
 	for (unsigned i = 1; i < narenas; i++) {
-		if (marked[i % max_background_threads]
+		if (marked[i % const_max_background_threads]
 		    || arena_get(tsd_tsdn(tsd), i, false) == NULL) {
 			continue;
 		}
 		background_thread_info_t *info =
-		    &background_thread_info[i % max_background_threads];
+		    &background_thread_info[i % const_max_background_threads];
 		malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
 		assert(info->state == background_thread_stopped);
 		background_thread_init(tsd, info);
 		malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
-		marked[i % max_background_threads] = true;
-		if (++nmarked == max_background_threads) {
+		marked[i % const_max_background_threads] = true;
+		if (++nmarked == const_max_background_threads) {
 			break;
 		}
 	}
 
 	bool err = background_thread_create_locked(tsd, 0);
 	if (err) {
+		for (unsigned i = 0; i < const_max_background_threads; i++) {
+			if (!marked[i]) {
+				continue;
+			}
+			background_thread_info_t *info =
+			    &background_thread_info[i];
+			malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
+			if (info->state == background_thread_started) {
+				info->state = background_thread_stopped;
+				n_background_threads--;
+				background_thread_info_init(tsd_tsdn(tsd), info);
+			}
+			malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
+		}
+		background_thread_enabled_set(tsd_tsdn(tsd), false);
 		return true;
 	}
 	for (unsigned i = 0; i < narenas; i++) {
