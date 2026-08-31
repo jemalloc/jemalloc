@@ -711,6 +711,31 @@ def generate_freebsd_job(arch):
     return job
 
 
+def generate_linux_lto_job():
+    """Dedicated lane for --enable-experimental-fiber-safe-tls (that requires
+    LTO, je_ prefix and --enable-experimental-fiber-safe-tls)"""
+    return """  test-linux-lto-fiber-safe-tls:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install clang, lld and llvm
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang lld llvm
+
+    - name: Build and test (LTO, je_ prefix, fiber-safe TLS)
+      run: |
+        autoconf
+        CC=clang AR=llvm-ar NM=llvm-nm RANLIB=llvm-ranlib \\
+          ./configure --enable-experimental-fiber-safe-tls \\
+            --with-jemalloc-prefix=je_ EXTRA_CFLAGS=-flto=thin
+        make -j3 EXTRA_LDFLAGS="-flto=thin -fuse-ld=lld"
+        make -j3 tests EXTRA_LDFLAGS="-flto=thin -fuse-ld=lld"
+        make check
+"""
+
+
 def main():
     import sys
 
@@ -721,6 +746,7 @@ def main():
         jobs = '\n'.join((
             generate_linux_job(AMD64),
             generate_linux_job(ARM64),
+            generate_linux_lto_job(),
         ))
         print(GITHUB_ACTIONS_TEMPLATE.format(name='Linux CI', jobs=jobs))
 
@@ -744,6 +770,7 @@ def main():
         linux_jobs = '\n'.join((
             generate_linux_job(AMD64),
             generate_linux_job(ARM64),
+            generate_linux_lto_job(),
         ))
         macos_jobs = '\n'.join((
             generate_macos_job(AMD64),   # Intel

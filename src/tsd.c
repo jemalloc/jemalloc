@@ -23,9 +23,12 @@ JEMALLOC_DIAGNOSTIC_IGNORE_MISSING_STRUCT_FIELD_INITIALIZERS
 #ifdef JEMALLOC_MALLOC_THREAD_CLEANUP
 JEMALLOC_TSD_TYPE_ATTR(tsd_t) tsd_tls = TSD_INITIALIZER;
 JEMALLOC_TSD_TYPE_ATTR(bool) JEMALLOC_TLS_MODEL tsd_initialized = false;
+JEMALLOC_TLS_ADDR_DEFINE(tsd_tls)
+JEMALLOC_TLS_ADDR_DEFINE(tsd_initialized)
 bool tsd_booted = false;
 #elif (defined(JEMALLOC_TLS))
 JEMALLOC_TSD_TYPE_ATTR(tsd_t) tsd_tls = TSD_INITIALIZER;
+JEMALLOC_TLS_ADDR_DEFINE(tsd_tls)
 pthread_key_t tsd_tsd;
 bool          tsd_booted = false;
 #elif (defined(_WIN32))
@@ -35,6 +38,7 @@ tsd_wrapper_t tsd_boot_wrapper = {TSD_INITIALIZER, false};
 #	else
 JEMALLOC_TSD_TYPE_ATTR(tsd_wrapper_t)
 tsd_wrapper_tls = {TSD_INITIALIZER, false};
+JEMALLOC_TLS_ADDR_DEFINE(tsd_wrapper_tls)
 #	endif
 bool tsd_booted = false;
 #	if JEMALLOC_WIN32_TLSGETVALUE2
