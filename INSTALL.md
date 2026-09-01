@@ -217,7 +217,9 @@ any of the following arguments (not a definitive list) to 'configure':
     overloads still return null.  Disabled by default, and has no effect when
     C++ integration is disabled (`--disable-cxx`).  When enabled, under LTO
     this lets the compiler treat `operator new` as non-throwing and elide
-    exception-handling cleanup in callers.
+    exception-handling cleanup in callers.  The installed public header always
+    defines `JEMALLOC_INFALLIBLE_NEW` to `1` when this behavior is
+    enabled, and to `0` otherwise.
 
 * `--enable-experimental-fiber-safe-tls`
 

@@ -493,6 +493,14 @@ TEST_BEGIN(test_mallctl_config) {
 	TEST_MALLCTL_CONFIG(utrace, bool);
 	TEST_MALLCTL_CONFIG(xmalloc, bool);
 
+	bool   infallible_new;
+	size_t infallible_new_size = sizeof(infallible_new);
+	expect_d_eq(mallctl("config.infallible_new", &infallible_new,
+	                &infallible_new_size, NULL, 0),
+	    0, "Unexpected mallctl() failure");
+	expect_b_eq(infallible_new, JEMALLOC_INFALLIBLE_NEW != 0,
+	    "Public compile-time and runtime infallible-new values differ");
+
 #undef TEST_MALLCTL_CONFIG
 }
 TEST_END

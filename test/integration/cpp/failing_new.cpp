@@ -2,6 +2,8 @@
 
 #include "test/jemalloc_test.h"
 
+static_assert(JEMALLOC_INFALLIBLE_NEW == 0);
+
 TEST_BEGIN(test_failing_alloc) {
 	bool saw_exception = false;
 	try {

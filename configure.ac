@@ -421,7 +421,7 @@ if test "x$enable_cxx" != "x1" ; then
   enable_cxx_infallible_new="0"
 fi
 if test "x$enable_cxx_infallible_new" = "x1" ; then
-  AC_DEFINE([JEMALLOC_INFALLIBLE_NEW], [ ], [ ])
+  AC_DEFINE([JEMALLOC_INFALLIBLE_NEW], [1], [ ])
 fi
 AC_SUBST([enable_cxx])
 AC_SUBST([enable_cxx_exceptions])
