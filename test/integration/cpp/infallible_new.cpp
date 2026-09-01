@@ -2,6 +2,8 @@
 
 #include "test/jemalloc_test.h"
 
+static_assert(JEMALLOC_INFALLIBLE_NEW == 1);
+
 /*
  * Verifies that, when jemalloc is built with --enable-cxx-infallible-new,
  * throwing operator new on OOM aborts via safety_check_fail. The test hook

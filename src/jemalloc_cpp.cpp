@@ -66,7 +66,7 @@ void operator delete[](
 JEMALLOC_NOINLINE
 static void *
 handleOOM(std::size_t size, bool nothrow) {
-#ifdef JEMALLOC_INFALLIBLE_NEW
+#if JEMALLOC_INFALLIBLE_NEW
 	if (nothrow) {
 		return nullptr;
 	}
