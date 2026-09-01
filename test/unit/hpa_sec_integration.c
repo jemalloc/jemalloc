@@ -21,27 +21,30 @@ struct test_data_s {
 	emap_t emap;
 };
 
-static hpa_shard_opts_t test_hpa_shard_opts = {
-    /* slab_max_alloc */
-    HUGEPAGE,
-    /* hugification_threshold */
-    0.9 * HUGEPAGE,
-    /* dirty_mult */
-    FXP_INIT_PERCENT(10),
-    /* deferral_allowed */
-    true,
-    /* hugify_delay_ms */
-    0,
-    /* hugify_sync */
-    false,
-    /* min_purge_interval_ms */
-    5,
-    /* purge_threshold */
-    PAGE,
-    /* min_purge_delay_ms */
-    10,
-    /* hugify_style */
-    hpa_hugify_style_lazy};
+static hpa_shard_opts_t
+test_hpa_shard_opts() {
+	return (hpa_shard_opts_t){
+	    /* slab_max_alloc */
+	    HUGEPAGE,
+	    /* hugification_threshold */
+	    0.9 * HUGEPAGE,
+	    /* dirty_mult */
+	    FXP_INIT_PERCENT(10),
+	    /* deferral_allowed */
+	    true,
+	    /* hugify_delay_ms */
+	    0,
+	    /* hugify_sync */
+	    false,
+	    /* min_purge_interval_ms */
+	    5,
+	    /* purge_threshold */
+	    PAGE,
+	    /* min_purge_delay_ms */
+	    10,
+	    /* hugify_style */
+	    hpa_hugify_style_lazy};
+}
 
 static hpa_shard_t *
 create_test_data(const hpa_hooks_t *hooks, hpa_shard_opts_t *opts,
@@ -152,7 +155,7 @@ TEST_BEGIN(test_hpa_sec) {
 	hooks.ms_since = &defer_test_ms_since;
 	hooks.vectorized_purge = &defer_vectorized_purge;
 
-	hpa_shard_opts_t opts = test_hpa_shard_opts;
+	hpa_shard_opts_t opts = test_hpa_shard_opts();
 
 	enum { NALLOCS = 8 };
 	sec_opts_t sec_opts;

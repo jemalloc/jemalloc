@@ -56,7 +56,7 @@ hpa_supported(void) {
 	 * If we couldn't detect the value of HUGEPAGE, HUGEPAGE_PAGES becomes
 	 * this sentinel value -- see the comment in pages.h.
 	 */
-	if (HUGEPAGE_PAGES == 1) {
+	if (LG_HUGEPAGE == 0) {
 		return false;
 	}
 	/* As mentioned in pages.h, do not support If HUGEPAGE is too large. */

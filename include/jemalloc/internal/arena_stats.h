@@ -87,7 +87,7 @@ struct arena_stats_s {
 	mutex_prof_data_t mutex_prof_data[mutex_prof_num_arena_mutexes];
 
 	/* One element for each large size class. */
-	arena_stats_large_t lstats[SC_NSIZES - SC_NBINS];
+	arena_stats_large_t lstats[SC_NSIZES - SC_NBINS_MIN];
 
 	/* Arena uptime. */
 	nstime_t uptime;

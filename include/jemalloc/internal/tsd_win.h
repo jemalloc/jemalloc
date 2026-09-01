@@ -105,7 +105,8 @@ tsd_boot0(void) {
 #	if JEMALLOC_WIN32_TLSGETVALUE2
 	tgv2_mod = LoadLibraryA("api-ms-win-core-processthreads-l1-1-8.dll");
 	if (tgv2_mod != NULL) {
-		tls_get_value2 = (TGV2)GetProcAddress(tgv2_mod, "TlsGetValue2");
+		tls_get_value2 = (TGV2)(void (*)(void))GetProcAddress(
+		    tgv2_mod, "TlsGetValue2");
 	}
 #	endif
 	tsd_booted = true;

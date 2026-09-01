@@ -11,6 +11,12 @@
 /******************************************************************************/
 /* Data. */
 
+#ifdef DYNAMIC_PAGE_SIZE
+unsigned lg_page_size;
+size_t   page_size;
+size_t   hugepage_pages;
+#endif /* DYNAMIC_PAGE_SIZE */
+
 /* Actual operating system page size, detected during bootstrap, <= PAGE. */
 size_t os_page;
 
@@ -454,15 +460,80 @@ label_error:
 }
 
 bool
-pages_boot(void) {
+pages_pre_boot(void) {
 	os_page = os_vm_page_size();
-	if (os_page > PAGE) {
-		malloc_write("<jemalloc>: Unsupported system page size\n");
+
+	if (os_page == 0 || (os_page & (os_page - 1)) != 0) {
+		malloc_write("<jemalloc>: Invalid system page size\n");
 		if (opt_abort) {
 			abort();
 		}
 		return true;
 	}
+
+#ifdef DYNAMIC_PAGE_SIZE
+	if (os_page < MIN_PAGE) {
+		malloc_write(
+		    "<jemalloc>: Unsupported system page size (smaller than min page size)\n");
+		if (opt_abort) {
+			abort();
+		}
+		return true;
+	}
+
+	if (os_page > MAX_PAGE) {
+		malloc_write(
+		    "<jemalloc>: Unsupported system page size (larger than max page size)\n");
+		if (opt_abort) {
+			abort();
+		}
+		return true;
+	}
+
+	lg_page_size = lg_floor(os_page);
+	page_size = (1U << lg_page_size);
+
+	if (page_size < MIN_PAGE) {
+		malloc_write(
+		    "<jemalloc>: Unsupported page size (smaller than min page size)\n");
+		if (opt_abort) {
+			abort();
+		}
+		return true;
+	}
+
+	if (page_size > MAX_PAGE) {
+		malloc_write(
+		    "<jemalloc>: Unsupported page size (larger than max page size)\n");
+		if (opt_abort) {
+			abort();
+		}
+		return true;
+	}
+
+#	if LG_HUGEPAGE != 0
+	hugepage_pages = HUGEPAGE / page_size;
+#	else
+	hugepage_pages = 1;
+#	endif
+#endif /* DYNAMIC_PAGE_SIZE */
+
+	if (os_page > PAGE) {
+		malloc_write(
+		    "<jemalloc>: Unsupported system page size (larger than page size)\n");
+		if (opt_abort) {
+			abort();
+		}
+		return true;
+	}
+
+	return false;
+}
+
+bool
+pages_boot(void) {
+	/* pages_pre_boot() should have been called */
+	assert(os_page != 0);
 
 	if (os_overcommit_boot()) {
 		return true;
