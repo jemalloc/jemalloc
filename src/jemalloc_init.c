@@ -422,6 +422,8 @@ malloc_init_narenas(tsdn_t *tsdn) {
 				abort();
 			}
 		} else {
+			percpu_arena_mode_t initialized_mode =
+			    percpu_arena_as_initialized(opt_percpu_arena);
 			if (ncpus >= MALLOCX_ARENA_LIMIT) {
 				malloc_printf(
 				    "<jemalloc>: narenas w/ percpu"
@@ -433,8 +435,7 @@ malloc_init_narenas(tsdn_t *tsdn) {
 				return true;
 			}
 			/* NB: opt_percpu_arena isn't fully initialized yet. */
-			if (percpu_arena_as_initialized(opt_percpu_arena)
-			        == per_phycpu_arena
+			if (initialized_mode == per_phycpu_arena
 			    && ncpus % 2 != 0) {
 				malloc_printf(
 				    "<jemalloc>: invalid "
@@ -445,22 +446,12 @@ malloc_init_narenas(tsdn_t *tsdn) {
 				if (opt_abort)
 					abort();
 			}
-			unsigned n = percpu_arena_ind_limit(
-			    percpu_arena_as_initialized(opt_percpu_arena));
+			unsigned n = percpu_arena_min_narenas(initialized_mode);
 			if (opt_narenas < n) {
 				/*
-				 * If narenas is specified with percpu_arena
-				 * enabled, actual narenas is set as the greater
-				 * of the two. percpu_arena_choose will be free
-				 * to use any of the arenas based on CPU
-				 * id. This is conservative (at a small cost)
-				 * but ensures correctness.
-				 *
-				 * If for some reason the ncpus determined at
-				 * boot is not the actual number (e.g. because
-				 * of affinity setting from numactl), reserving
-				 * narenas this way provides a workaround for
-				 * percpu_arena.
+				 * The CPU-to-arena map targets n automatic arenas,
+				 * indexed [0, n).  Ensure that every target belongs
+				 * to the registered automatic arena range.
 				 */
 				opt_narenas = n;
 			}
@@ -480,6 +471,16 @@ malloc_init_narenas(tsdn_t *tsdn) {
 		malloc_printf("<jemalloc>: Reducing narenas to limit (%d)\n",
 		    narenas_auto);
 	}
+	/*
+	 * Build the CPU -> arena map now that narenas is final.  The mode is
+	 * still in its uninit encoding, so no arena_choose() can reach the map
+	 * until malloc_init_percpu() promotes it.
+	 */
+	if (opt_percpu_arena != percpu_arena_disabled) {
+		percpu_arena_boot(percpu_arena_as_initialized(opt_percpu_arena),
+		    narenas_auto);
+	}
+
 	narenas_total_set(narenas_auto);
 	if (arena_init_huge(tsdn, arena_get(tsdn, 0, false))) {
 		narenas_total_inc();
@@ -492,6 +493,8 @@ malloc_init_narenas(tsdn_t *tsdn) {
 static void
 malloc_init_percpu(void) {
 	opt_percpu_arena = percpu_arena_as_initialized(opt_percpu_arena);
+	assert(!PERCPU_ARENA_ENABLED(opt_percpu_arena)
+	    || percpu_arena_ngroups > 0);
 }
 
 static bool

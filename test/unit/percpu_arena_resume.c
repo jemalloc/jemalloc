@@ -10,7 +10,7 @@ TEST_BEGIN(test_thread_arena_resume_percpu) {
 	test_skip_if(!have_percpu_arena
 	    || !PERCPU_ARENA_ENABLED(opt_percpu_arena));
 
-	unsigned limit = percpu_arena_ind_limit(opt_percpu_arena);
+	unsigned limit = percpu_arena_ind_limit();
 	/* Bypass the tcache so every allocation and free hits the arena. */
 	const int flags = MALLOCX_TCACHE_NONE;
 
