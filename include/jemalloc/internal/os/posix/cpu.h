@@ -24,17 +24,63 @@ os_cpu_ncpus(void) {
 #	else
 		cpu_set_t set;
 #	endif
+		int err;
 #	if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
-		sched_getaffinity(0, sizeof(set), &set);
+		err = sched_getaffinity(0, sizeof(set), &set);
 #	else
-		pthread_getaffinity_np(pthread_self(), sizeof(set), &set);
+		err = pthread_getaffinity_np(pthread_self(), sizeof(set), &set);
 #	endif
+		if (err != 0) {
+			return 1;
+		}
 		result = CPU_COUNT(&set);
 	}
 #else
 	result = sysconf(_SC_NPROCESSORS_ONLN);
 #endif
-	return ((result == -1) ? 1 : (unsigned)result);
+	return result <= 0 ? 1 : (unsigned)result;
+}
+
+/*
+ * Write the ids of the CPUs this thread is allowed to run on into cpus, in
+ * ascending order, and return how many were written.  Returns 0 if the mask is
+ * unavailable or does not fit, in which case cpus is untouched.
+ */
+JEMALLOC_ALWAYS_INLINE unsigned
+os_cpu_affinity_cpus(unsigned *cpus, unsigned max_cpus) {
+#if defined(CPU_COUNT) && defined(CPU_ISSET)
+	if (max_cpus == 0) {
+		return 0;
+	}
+
+#	if defined(__FreeBSD__) || defined(__DragonFly__)
+	cpuset_t set;
+#	else
+	cpu_set_t set;
+#	endif
+	int err;
+#	if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
+	err = sched_getaffinity(0, sizeof(set), &set);
+#	else
+	err = pthread_getaffinity_np(pthread_self(), sizeof(set), &set);
+#	endif
+	if (err != 0) {
+		return 0;
+	}
+
+	unsigned n = 0;
+	/* The mask is a fixed-size bit set; it names no CPU beyond its width. */
+	for (unsigned cpu = 0; cpu < sizeof(set) * 8 && n < max_cpus; cpu++) {
+		if (CPU_ISSET(cpu, &set)) {
+			cpus[n++] = cpu;
+		}
+	}
+	return n;
+#else
+	(void)cpus;
+	(void)max_cpus;
+	return 0;
+#endif
 }
 
 /*
@@ -48,7 +94,7 @@ JEMALLOC_ALWAYS_INLINE bool
 os_cpu_count_is_deterministic(void) {
 	long cpu_onln = sysconf(_SC_NPROCESSORS_ONLN);
 	long cpu_conf = sysconf(_SC_NPROCESSORS_CONF);
-	if (cpu_onln != cpu_conf) {
+	if (cpu_onln <= 0 || cpu_conf <= 0 || cpu_onln != cpu_conf) {
 		return false;
 	}
 #	if defined(CPU_COUNT)
@@ -57,13 +103,17 @@ os_cpu_count_is_deterministic(void) {
 #		else
 	cpu_set_t set;
 #		endif /* __FreeBSD__ */
+	int err;
 #		if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
-	sched_getaffinity(0, sizeof(set), &set);
+	err = sched_getaffinity(0, sizeof(set), &set);
 #		else  /* !JEMALLOC_HAVE_SCHED_SETAFFINITY */
-	pthread_getaffinity_np(pthread_self(), sizeof(set), &set);
+	err = pthread_getaffinity_np(pthread_self(), sizeof(set), &set);
 #		endif /* JEMALLOC_HAVE_SCHED_SETAFFINITY */
+	if (err != 0) {
+		return false;
+	}
 	long cpu_affinity = CPU_COUNT(&set);
-	if (cpu_affinity != cpu_conf) {
+	if (cpu_affinity <= 0 || cpu_affinity != cpu_conf) {
 		return false;
 	}
 #	endif         /* CPU_COUNT */
