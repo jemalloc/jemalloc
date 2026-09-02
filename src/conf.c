@@ -13,6 +13,7 @@
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/nstime.h"
+#include "jemalloc/internal/percpu_arena.h"
 #include "jemalloc/internal/prof.h"
 #include "jemalloc/internal/san.h"
 #include "jemalloc/internal/sc.h"

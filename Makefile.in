@@ -148,6 +148,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/pac.c \
 	$(srcroot)src/pages.c \
 	$(srcroot)src/peak_event.c \
+	$(srcroot)src/percpu_arena.c \
 	$(srcroot)src/prof.c \
 	$(srcroot)src/prof_data.c \
 	$(srcroot)src/prof_log.c \

@@ -12,6 +12,7 @@
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/large.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/percpu_arena.h"
 #include "jemalloc/internal/prof.h"
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/safety_check.h"

@@ -33,29 +33,6 @@
 /* Maximum length of the arena name. */
 #define ARENA_NAME_LEN 32
 
-typedef enum {
-	percpu_arena_mode_names_base = 0, /* Used for options processing. */
-
-	/*
-	 * *_uninit are used only during bootstrapping, and must correspond
-	 * to initialized variant plus percpu_arena_mode_enabled_base.
-	 */
-	percpu_arena_uninit = 0,
-	per_phycpu_arena_uninit = 1,
-
-	/* All non-disabled modes must come after percpu_arena_disabled. */
-	percpu_arena_disabled = 2,
-
-	percpu_arena_mode_names_limit = 3, /* Used for options processing. */
-	percpu_arena_mode_enabled_base = 3,
-
-	percpu_arena = 3,
-	per_phycpu_arena = 4 /* Hyper threads share arena. */
-} percpu_arena_mode_t;
-
-#define PERCPU_ARENA_ENABLED(m) ((m) >= percpu_arena_mode_enabled_base)
-#define PERCPU_ARENA_DEFAULT percpu_arena_disabled
-
 /*
  * When allocation_size >= oversize_threshold, use the dedicated huge arena
  * (unless have explicitly spicified arena index).  0 disables the feature.
@@ -179,9 +156,6 @@ struct arena_s {
 
 extern ssize_t opt_dirty_decay_ms;
 extern ssize_t opt_muzzy_decay_ms;
-
-extern percpu_arena_mode_t opt_percpu_arena;
-extern const char *const   percpu_arena_mode_names[];
 
 extern div_info_t arena_binind_div_info[SC_NBINS];
 
