@@ -7,7 +7,15 @@ JEMALLOC_ALWAYS_INLINE unsigned
 os_cpu_ncpus(void) {
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);
-	return (unsigned)si.dwNumberOfProcessors;
+	return si.dwNumberOfProcessors == 0 ? 1
+	                                    : (unsigned)si.dwNumberOfProcessors;
+}
+
+JEMALLOC_ALWAYS_INLINE unsigned
+os_cpu_affinity_cpus(unsigned *cpus, unsigned max_cpus) {
+	(void)cpus;
+	(void)max_cpus;
+	return 0;
 }
 
 JEMALLOC_ALWAYS_INLINE bool

@@ -2338,7 +2338,7 @@ thread_arena_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 	}
 
 	if (have_percpu_arena && PERCPU_ARENA_ENABLED(opt_percpu_arena)) {
-		if (newind < percpu_arena_ind_limit(opt_percpu_arena)) {
+		if (newind < percpu_arena_ind_limit()) {
 			/*
 			 * Setting thread.arena to an arena in the auto range
 			 * means "resume automatic per-CPU selection" rather than

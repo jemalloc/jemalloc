@@ -769,7 +769,7 @@ TEST_BEGIN(test_thread_arena) {
 		expect_d_eq(mallctl("thread.arena", (void *)&old_arena_ind, &sz,
 		                NULL, 0),
 		    0, "Unexpected mallctl() failure");
-		new_arena_ind = percpu_arena_ind_limit(opt_percpu_arena) - 1;
+		new_arena_ind = percpu_arena_ind_limit() - 1;
 		if (old_arena_ind != new_arena_ind) {
 			/*
 			 * Setting thread.arena to an index within the per-CPU
