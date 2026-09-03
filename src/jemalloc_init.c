@@ -197,6 +197,7 @@ malloc_init_hard_a0_locked(void) {
 	san_init(opt_lg_san_uaf_align);
 	sz_boot(&sc_data, opt_cache_oblivious);
 	bin_info_boot(&sc_data, bin_shard_sizes);
+	edata_boot();
 
 	if (opt_stats_print) {
 		/* Print statistics at exit. */

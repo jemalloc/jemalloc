@@ -309,6 +309,42 @@ struct edata_s {
 	};
 };
 
+#ifdef DYNAMIC_PAGE_SIZE
+/*
+ * Bytes to allocate for a heap-allocated edata_t.
+ *
+ * The trailing union only has to cover the slab bitmap for the page size the
+ * process actually booted with, which is fixed once pages_pre_boot() runs.
+ * sizeof(edata_t) instead reserves room for MAX_LG_PAGE, which over a 4K..64K
+ * range is ~9x larger than needed.  Heap edata_t therefore use edata_alloc_size;
+ * by-value edata_t (base_block_t and assorted temporaries) keep the full,
+ * statically sized struct.
+ *
+ * Always <= sizeof(edata_t).  Valid after edata_boot().
+ */
+extern size_t edata_alloc_size;
+
+#	ifdef JEMALLOC_DEBUG
+static inline size_t
+get_edata_alloc_size(void) {
+	assert(edata_alloc_size != 0);
+	return edata_alloc_size;
+}
+
+#		define EDATA_ALLOC_SIZE get_edata_alloc_size()
+#	else /* JEMALLOC_DEBUG */
+#		define EDATA_ALLOC_SIZE edata_alloc_size
+#	endif /* JEMALLOC_DEBUG */
+
+/* Must run after bin_info_boot() and before the first base_alloc_edata(). */
+void edata_boot(void);
+#else /* DYNAMIC_PAGE_SIZE */
+#	define EDATA_ALLOC_SIZE sizeof(edata_t)
+
+static inline void
+edata_boot(void) {}
+#endif /* DYNAMIC_PAGE_SIZE */
+
 TYPED_LIST(edata_list_active, edata_t, ql_link_active)
 TYPED_LIST(edata_list_inactive, edata_t, ql_link_inactive)
 

@@ -5,7 +5,6 @@
 
 /******************************************************************************/
 
-JET_EXTERN size_t bitmap_size(const bitmap_info_t *binfo);
 
 #ifdef BITMAP_USE_TREE
 
@@ -121,7 +120,7 @@ bitmap_init(bitmap_t *bitmap, const bitmap_info_t *binfo, bool fill) {
 
 #endif /* BITMAP_USE_TREE */
 
-JET_EXTERN size_t
+size_t
 bitmap_size(const bitmap_info_t *binfo) {
 	return (bitmap_info_ngroups(binfo) << LG_SIZEOF_BITMAP);
 }
