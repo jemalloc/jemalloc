@@ -209,7 +209,14 @@ struct edata_s {
  * size. Further, the bitmap size also depends on whether the bitmap uses a tree
  * or not, which is a compilation-time decision (see BITMAP_USE_TREE), as the
  * tree requires extra bits in the bitmap. So, EDATA_BITS_NFREE_WIDTH is set to
- * the largest possible value.
+ * the largest possible value. However, when we allocate edata, we can
+ * dynamically size it based on the current page size. For min/max page size of
+ * 4K/64K, the bitmap tree will be used (due to the 64K max page), so the bitmap
+ * for the 4K page case will be 72 bytes, instead of 64 bytes (for when the
+ * bitmap tree is not used). This makes the edata size 136 bytes, which will be
+ * aligned to 256 bytes (instead of 128 bytes for when the bitmap tree is not
+ * used). We can improve on this further by making the decision on whether the
+ * bitmap tree is used dynamically.
  */
 #define EDATA_BITS_NFREE_WIDTH (SC_LG_SLAB_MAXREGS_MAX + 1)
 #define EDATA_BITS_NFREE_SHIFT (EDATA_BITS_SZIND_WIDTH + EDATA_BITS_SZIND_SHIFT)
@@ -301,6 +308,42 @@ struct edata_s {
 		e_prof_info_t e_prof_info;
 	};
 };
+
+#ifdef DYNAMIC_PAGE_SIZE
+/*
+ * Bytes to allocate for a heap-allocated edata_t.
+ *
+ * The trailing union only has to cover the slab bitmap for the page size the
+ * process actually booted with, which is fixed once pages_pre_boot() runs.
+ * sizeof(edata_t) instead reserves room for MAX_LG_PAGE, which over a 4K..64K
+ * range is ~9x larger than needed.  Heap edata_t therefore use edata_alloc_size;
+ * by-value edata_t (base_block_t and assorted temporaries) keep the full,
+ * statically sized struct.
+ *
+ * Always <= sizeof(edata_t).  Valid after edata_boot().
+ */
+extern size_t edata_alloc_size;
+
+#	ifdef JEMALLOC_DEBUG
+static inline size_t
+get_edata_alloc_size(void) {
+	assert(edata_alloc_size != 0);
+	return edata_alloc_size;
+}
+
+#		define EDATA_ALLOC_SIZE get_edata_alloc_size()
+#	else /* JEMALLOC_DEBUG */
+#		define EDATA_ALLOC_SIZE edata_alloc_size
+#	endif /* JEMALLOC_DEBUG */
+
+/* Must run after bin_info_boot() and before the first base_alloc_edata(). */
+void edata_boot(void);
+#else /* DYNAMIC_PAGE_SIZE */
+#	define EDATA_ALLOC_SIZE sizeof(edata_t)
+
+static inline void
+edata_boot(void) {}
+#endif /* DYNAMIC_PAGE_SIZE */
 
 TYPED_LIST(edata_list_active, edata_t, ql_link_active)
 TYPED_LIST(edata_list_inactive, edata_t, ql_link_inactive)
