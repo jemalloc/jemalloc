@@ -104,14 +104,6 @@ struct hpa_shard_nonderived_stats_s {
 	 * Guarded by mtx.
 	 */
 	uint64_t hpa_alloc_extents_per_ps[SEC_MAX_NALLOCS + 1];
-
-	/*
-	 * Distribution of the total elapsed time (ns) for allocating extents
-	 * from a single ps.
-	 *
-	 * Guarded by mtx.
-	 */
-	uint64_t hpa_alloc_total_elapsed_ns_per_ps[SEC_MAX_NALLOCS + 1];
 };
 
 /* Completely derived; only used by CTL. */

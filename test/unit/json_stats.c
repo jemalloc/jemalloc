@@ -1020,12 +1020,9 @@ static const ctl_field_t hpa_alloc_fields[] = {
 	{"ps", "ps", ctl_field_uint64},
 	{"pages_per_ps", "pages_per_ps", ctl_field_uint64},
 	{"extents_per_ps", "extents_per_ps", ctl_field_uint64},
-	{"total_elapsed_ns_per_ps", "total_elapsed_ns_per_ps",
-	    ctl_field_uint64},
 };
 static const char *const hpa_alloc_keys[] = {"min_extents", "max_extents",
-	"extents", "ps", "pages_per_ps", "extents_per_ps",
-	"total_elapsed_ns_per_ps"};
+	"extents", "ps", "pages_per_ps", "extents_per_ps"};
 
 TEST_BEGIN(test_json_stats_hpa) {
 	test_skip_if(!config_stats);

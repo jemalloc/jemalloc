@@ -339,7 +339,6 @@ CTL_PROTO(stats_arenas_i_hpa_shard_alloc_j_extents)
 CTL_PROTO(stats_arenas_i_hpa_shard_alloc_j_ps)
 CTL_PROTO(stats_arenas_i_hpa_shard_alloc_j_pages_per_ps)
 CTL_PROTO(stats_arenas_i_hpa_shard_alloc_j_extents_per_ps)
-CTL_PROTO(stats_arenas_i_hpa_shard_alloc_j_total_elapsed_ns_per_ps)
 INDEX_PROTO(stats_arenas_i_hpa_shard_alloc_j)
 
 CTL_PROTO(stats_arenas_i_nthreads)
@@ -811,9 +810,7 @@ static const ctl_named_node_t stats_arenas_i_hpa_shard_alloc_j_node[] = {
     {NAME("ps"), CTL(stats_arenas_i_hpa_shard_alloc_j_ps)},
     {NAME("pages_per_ps"), CTL(stats_arenas_i_hpa_shard_alloc_j_pages_per_ps)},
     {NAME("extents_per_ps"),
-        CTL(stats_arenas_i_hpa_shard_alloc_j_extents_per_ps)},
-    {NAME("total_elapsed_ns_per_ps"),
-        CTL(stats_arenas_i_hpa_shard_alloc_j_total_elapsed_ns_per_ps)}};
+        CTL(stats_arenas_i_hpa_shard_alloc_j_extents_per_ps)}};
 
 static const ctl_named_node_t super_stats_arenas_i_hpa_shard_alloc_j_node[] = {
     {NAME(""), CHILD(named, stats_arenas_i_hpa_shard_alloc_j)}};
@@ -4090,12 +4087,6 @@ CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_alloc_j_pages_per_ps,
 CTL_RO_CGEN(config_stats, stats_arenas_i_hpa_shard_alloc_j_extents_per_ps,
     arenas_i(mib[2])
         ->astats->hpastats.nonderived_stats.hpa_alloc_extents_per_ps[mib[5]],
-    uint64_t);
-CTL_RO_CGEN(config_stats,
-    stats_arenas_i_hpa_shard_alloc_j_total_elapsed_ns_per_ps,
-    arenas_i(mib[2])
-        ->astats->hpastats.nonderived_stats
-        .hpa_alloc_total_elapsed_ns_per_ps[mib[5]],
     uint64_t);
 
 /* Full, nonhuge */
