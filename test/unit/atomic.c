@@ -9,6 +9,22 @@
 #define expect_p_eq expect_ptr_eq
 
 /*
+ * The MSVC backend represents pointer atomics with an integer.  clang-cl also
+ * defines _MSC_VER, but can select a GCC-style pointer representation instead.
+ */
+#ifdef JEMALLOC_MSVC_ATOMICS
+#  define TEST_INIT_p(value) ((intptr_t)(value))
+#else
+#  define TEST_INIT_p(value) (value)
+#endif
+
+#define TEST_INIT_u64(value) (value)
+#define TEST_INIT_u32(value) (value)
+#define TEST_INIT_zu(value) (value)
+#define TEST_INIT_zd(value) (value)
+#define TEST_INIT_u(value) (value)
+
+/*
  * t: the non-atomic type, like "uint32_t".
  * ta: the short name for the type, like "u32".
  * val[1,2,3]: Values of the given type.  The CAS tests use val2 for expected,
@@ -21,7 +37,7 @@
 	t expected;							\
 	bool success;							\
 	/* This (along with the load below) also tests ATOMIC_LOAD. */	\
-	atomic_##ta##_t atom = ATOMIC_INIT(val1);			\
+	atomic_##ta##_t atom = ATOMIC_INIT(TEST_INIT_##ta(val1));			\
 									\
 	/* ATOMIC_INIT and load. */					\
 	val = atomic_load_##ta(&atom, ATOMIC_RELAXED);			\
