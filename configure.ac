@@ -2130,8 +2130,8 @@ if test "x${je_cv_lg_hugepage}" = "x" ; then
   fi
 fi
 if test "x${LG_PAGE}" != "xundefined" -a \
-        "${je_cv_lg_hugepage}" -lt "${LG_PAGE}" ; then
-  AC_MSG_ERROR([Huge page size (2^${je_cv_lg_hugepage}) must be at least page size (2^${LG_PAGE})])
+        "${je_cv_lg_hugepage}" -le "${LG_PAGE}" ; then
+  AC_MSG_ERROR([Huge page size (2^${je_cv_lg_hugepage}) must be greater than page size (2^${LG_PAGE})])
 fi
 AC_DEFINE_UNQUOTED([LG_HUGEPAGE], [${je_cv_lg_hugepage}], [ ])
 

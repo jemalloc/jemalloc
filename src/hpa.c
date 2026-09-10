@@ -52,13 +52,6 @@ hpa_supported(void) {
 	if (LG_SIZEOF_PTR != 3) {
 		return false;
 	}
-	/*
-	 * If we couldn't detect the value of HUGEPAGE, HUGEPAGE_PAGES becomes
-	 * this sentinel value -- see the comment in pages.h.
-	 */
-	if (HUGEPAGE_PAGES == 1) {
-		return false;
-	}
 	/* As mentioned in pages.h, do not support If HUGEPAGE is too large. */
 	if (hpa_hugepage_size_exceeds_limit()) {
 		return false;
