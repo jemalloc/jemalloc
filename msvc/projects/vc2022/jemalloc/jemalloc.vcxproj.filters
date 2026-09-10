@@ -64,9 +64,6 @@
     <ClCompile Include="..\..\..\..\src\fxp.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\src\hook.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\src\hpa.c">
       <Filter>Source Files</Filter>
     </ClCompile>
