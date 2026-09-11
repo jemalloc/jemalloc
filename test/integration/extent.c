@@ -5,15 +5,77 @@
 #include "jemalloc/internal/arena.h"
 
 static void
+test_decommit_commit(unsigned arena_ind, int flags, size_t large0,
+    size_t *purge_mib, size_t purge_miblen, bool expect_xallocx_success,
+    bool allow_prof_no_grow) {
+	void  *p;
+	bool   prof_no_grow;
+	bool   xallocx_success_b, xallocx_success_c;
+
+	try_dalloc = false;
+	try_decommit = true;
+	p = mallocx(large0 * 2, flags);
+	expect_ptr_not_null(p, "Unexpected mallocx() error");
+	did_decommit = false;
+	did_commit = false;
+	called_split = false;
+	did_split = false;
+	did_merge = false;
+	xallocx_success_b = (xallocx(p, large0, 0, flags) == large0);
+	expect_d_eq(mallctlbymib(purge_mib, purge_miblen, NULL, NULL, NULL, 0),
+	    0, "Unexpected arena.%u.purge error", arena_ind);
+	if (xallocx_success_b) {
+		expect_true(did_split, "Expected split");
+	}
+	called_commit = false;
+	called_merge = false;
+	xallocx_success_c = (xallocx(p, large0 * 2, 0, flags) == large0 * 2);
+	/* Profiling can reject growth before reaching the allocator hooks. */
+	prof_no_grow = allow_prof_no_grow && !xallocx_success_c
+	    && !called_commit && !called_merge;
+	if (expect_xallocx_success) {
+		expect_true(xallocx_success_b, "Expected xallocx shrink");
+		expect_true(xallocx_success_c, "Expected xallocx grow");
+	}
+	if (did_split && !prof_no_grow) {
+		expect_b_eq(
+		    did_decommit, did_commit, "Expected decommit/commit match");
+	}
+	if (xallocx_success_b && xallocx_success_c) {
+		expect_true(did_merge, "Expected merge");
+	}
+	dallocx(p, flags);
+	try_dalloc = true;
+	try_decommit = false;
+}
+
+static bool
+prof_active_enabled(void) {
+	bool active = false;
+	size_t sz = sizeof(active);
+
+	if (!config_prof) {
+		return false;
+	}
+	expect_d_eq(mallctl("prof.active", &active, &sz, NULL, 0), 0,
+	    "Unexpected prof.active failure");
+	return active;
+}
+
+static void
 test_extent_body(unsigned arena_ind) {
 	void  *p;
 	size_t large0, large1, large2, sz;
 	size_t purge_mib[3];
 	size_t purge_miblen;
 	int    flags;
-	bool   xallocx_success_a, xallocx_success_b, xallocx_success_c;
+	bool   xallocx_success_a;
+	bool   expect_xallocx_success;
+	bool   prof_active;
 
 	flags = MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE;
+	expect_xallocx_success = maps_coalesce && try_split && try_merge;
+	prof_active = prof_active_enabled();
 
 	/* Get large size classes. */
 	sz = sizeof(size_t);
@@ -58,32 +120,16 @@ test_extent_body(unsigned arena_ind) {
 	try_dalloc = true;
 
 	/* Test decommit/commit and observe split/merge. */
-	try_dalloc = false;
-	try_decommit = true;
-	p = mallocx(large0 * 2, flags);
-	expect_ptr_not_null(p, "Unexpected mallocx() error");
-	did_decommit = false;
-	did_commit = false;
-	called_split = false;
-	did_split = false;
-	did_merge = false;
-	xallocx_success_b = (xallocx(p, large0, 0, flags) == large0);
-	expect_d_eq(mallctlbymib(purge_mib, purge_miblen, NULL, NULL, NULL, 0),
-	    0, "Unexpected arena.%u.purge error", arena_ind);
-	if (xallocx_success_b) {
-		expect_true(did_split, "Expected split");
-	}
-	xallocx_success_c = (xallocx(p, large0 * 2, 0, flags) == large0 * 2);
-	if (did_split) {
-		expect_b_eq(
-		    did_decommit, did_commit, "Expected decommit/commit match");
-	}
-	if (xallocx_success_b && xallocx_success_c) {
-		expect_true(did_merge, "Expected merge");
-	}
-	dallocx(p, flags);
-	try_dalloc = true;
-	try_decommit = false;
+	test_decommit_commit(arena_ind, flags, large0, purge_mib, purge_miblen,
+	    expect_xallocx_success && !prof_active, prof_active);
+
+	/*
+	 * Active profiling may decline to grow a non-sampled allocation if it
+	 * is not page-aligned.  Force page alignment to keep deterministic
+	 * coverage for the successful grow/commit/merge path.
+	 */
+	test_decommit_commit(arena_ind, flags | MALLOCX_ALIGN(PAGE), large0,
+	    purge_mib, purge_miblen, expect_xallocx_success, false);
 
 	/* Make sure non-large allocation succeeds. */
 	p = mallocx(42, flags);
