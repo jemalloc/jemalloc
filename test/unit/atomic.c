@@ -8,6 +8,18 @@
  */
 #define expect_p_eq expect_ptr_eq
 
+#ifdef _MSC_VER
+#  define TEST_INIT_p(value) ((intptr_t)(value))
+#else
+#  define TEST_INIT_p(value) (value)
+#endif
+
+#define TEST_INIT_u64(value) (value)
+#define TEST_INIT_u32(value) (value)
+#define TEST_INIT_zu(value) (value)
+#define TEST_INIT_zd(value) (value)
+#define TEST_INIT_u(value) (value)
+
 /*
  * t: the non-atomic type, like "uint32_t".
  * ta: the short name for the type, like "u32".
@@ -21,7 +33,7 @@
 	t expected;							\
 	bool success;							\
 	/* This (along with the load below) also tests ATOMIC_LOAD. */	\
-	atomic_##ta##_t atom = ATOMIC_INIT(val1);			\
+	atomic_##ta##_t atom = ATOMIC_INIT(TEST_INIT_##ta(val1));			\
 									\
 	/* ATOMIC_INIT and load. */					\
 	val = atomic_load_##ta(&atom, ATOMIC_RELAXED);			\

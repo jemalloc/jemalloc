@@ -258,7 +258,11 @@ conf_handle_bool(const char *v, size_t vlen, bool *result) {
 }
 
 JEMALLOC_DIAGNOSTIC_PUSH
+#if defined(_MSC_VER) && !defined(__clang__)
+JEMALLOC_DIAGNOSTIC_IGNORE(4505)
+#else
 JEMALLOC_DIAGNOSTIC_IGNORE("-Wunused-function")
+#endif
 
 JET_EXTERN bool
 conf_handle_signed(const char *v, size_t vlen, intmax_t min, intmax_t max,

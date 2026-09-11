@@ -1236,7 +1236,12 @@ arena_ptr_array_flush_impl_large(tsdn_t *tsdn, szind_t binind,
 	}
 }
 
+/* MSVC: keep each flush batch's stack allocations in its own frame. */
+#if defined(_MSC_VER) && !defined(__clang__)
+static JEMALLOC_NOINLINE void
+#else
 JEMALLOC_ALWAYS_INLINE void
+#endif
 arena_ptr_array_flush_impl(tsd_t *tsd, szind_t binind,
     cache_bin_ptr_array_t *arr, unsigned nflush, bool small,
     arena_t *stats_arena, cache_bin_stats_t **merge_stats) {
