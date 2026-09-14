@@ -29,13 +29,28 @@ prepare_test_exec() {
 # Make a copy of the @JEMALLOC_CPREFIX@MALLOC_CONF passed in to this script, so
 # it can be repeatedly concatenated with per test settings.
 export MALLOC_CONF_ALL=${@JEMALLOC_CPREFIX@MALLOC_CONF}
-# Concatenate the individual test's MALLOC_CONF and MALLOC_CONF_ALL.
+# Concatenate the individual test's MALLOC_CONF, MALLOC_CONF_ALL, and any
+# MALLOC_CONF_TEST from the environment, e.g.
+#
+#   MALLOC_CONF_TEST="hpa:true" make check
+#
+# MALLOC_CONF_TEST cannot simply be spelled MALLOC_CONF: the Makefile defines a
+# variable of that name holding the name of the env var, so make would export
+# the literal string "MALLOC_CONF" to the tests instead of the value.  It is
+# applied last so that it overrides both of the other two.
 export_malloc_conf() {
-  if [ "x${MALLOC_CONF}" != "x" -a "x${MALLOC_CONF_ALL}" != "x" ] ; then
-    export @JEMALLOC_CPREFIX@MALLOC_CONF="${MALLOC_CONF},${MALLOC_CONF_ALL}"
+  conf="${MALLOC_CONF}"
+  if [ "x${conf}" != "x" -a "x${MALLOC_CONF_ALL}" != "x" ] ; then
+    conf="${conf},${MALLOC_CONF_ALL}"
   else
-    export @JEMALLOC_CPREFIX@MALLOC_CONF="${MALLOC_CONF}${MALLOC_CONF_ALL}"
+    conf="${conf}${MALLOC_CONF_ALL}"
   fi
+  if [ "x${conf}" != "x" -a "x${MALLOC_CONF_TEST}" != "x" ] ; then
+    conf="${conf},${MALLOC_CONF_TEST}"
+  else
+    conf="${conf}${MALLOC_CONF_TEST}"
+  fi
+  export @JEMALLOC_CPREFIX@MALLOC_CONF="${conf}"
 }
 
 # Corresponds to test_status_t.
