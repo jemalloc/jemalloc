@@ -21,35 +21,50 @@ os_cpu_ncpus(void) {
 #ifdef CPU_COUNT
 	{
 		cpu_set_t set;
+		int err;
 #	if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
-		sched_getaffinity(0, sizeof(set), &set);
+		err = sched_getaffinity(0, sizeof(set), &set);
 #	else
-		pthread_getaffinity_np(pthread_self(), sizeof(set), &set);
+		err = pthread_getaffinity_np(pthread_self(), sizeof(set), &set);
 #	endif
+		if (err != 0) {
+			return 1;
+		}
 		result = CPU_COUNT(&set);
 	}
 #else
 	result = sysconf(_SC_NPROCESSORS_ONLN);
 #endif
-	return ((result == -1) ? 1 : (unsigned)result);
+	return result <= 0 ? 1 : (unsigned)result;
+}
+
+JEMALLOC_ALWAYS_INLINE unsigned
+os_cpu_affinity_cpus(unsigned *cpus, unsigned max_cpus) {
+	(void)cpus;
+	(void)max_cpus;
+	return 0;
 }
 
 JEMALLOC_ALWAYS_INLINE bool
 os_cpu_count_is_deterministic(void) {
 	long cpu_onln = sysconf(_SC_NPROCESSORS_ONLN);
 	long cpu_conf = sysconf(_SC_NPROCESSORS_CONF);
-	if (cpu_onln != cpu_conf) {
+	if (cpu_onln <= 0 || cpu_conf <= 0 || cpu_onln != cpu_conf) {
 		return false;
 	}
 #	if defined(CPU_COUNT)
 	cpu_set_t set;
+	int err;
 #		if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
-	sched_getaffinity(0, sizeof(set), &set);
+	err = sched_getaffinity(0, sizeof(set), &set);
 #		else  /* !JEMALLOC_HAVE_SCHED_SETAFFINITY */
-	pthread_getaffinity_np(pthread_self(), sizeof(set), &set);
+	err = pthread_getaffinity_np(pthread_self(), sizeof(set), &set);
 #		endif /* JEMALLOC_HAVE_SCHED_SETAFFINITY */
+	if (err != 0) {
+		return false;
+	}
 	long cpu_affinity = CPU_COUNT(&set);
-	if (cpu_affinity != cpu_conf) {
+	if (cpu_affinity <= 0 || cpu_affinity != cpu_conf) {
 		return false;
 	}
 #	endif         /* CPU_COUNT */

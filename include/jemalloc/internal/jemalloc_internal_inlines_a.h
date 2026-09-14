@@ -12,48 +12,6 @@
 #include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/ticker.h"
 
-JEMALLOC_ALWAYS_INLINE malloc_cpuid_t
-malloc_getcpu(void) {
-	assert(have_percpu_arena);
-	return (malloc_cpuid_t)os_cpu_current();
-}
-
-/* Return the chosen arena index based on current cpu. */
-JEMALLOC_ALWAYS_INLINE unsigned
-percpu_arena_choose(void) {
-	assert(have_percpu_arena && PERCPU_ARENA_ENABLED(opt_percpu_arena));
-
-	malloc_cpuid_t cpuid = malloc_getcpu();
-	assert(cpuid >= 0);
-
-	unsigned arena_ind;
-	if ((opt_percpu_arena == percpu_arena)
-	    || ((unsigned)cpuid < ncpus / 2)) {
-		arena_ind = cpuid;
-	} else {
-		assert(opt_percpu_arena == per_phycpu_arena);
-		/* Hyper threads on the same physical CPU share arena. */
-		arena_ind = cpuid - ncpus / 2;
-	}
-
-	return arena_ind;
-}
-
-/* Return the limit of percpu auto arena range, i.e. arenas[0...ind_limit). */
-JEMALLOC_ALWAYS_INLINE unsigned
-percpu_arena_ind_limit(percpu_arena_mode_t mode) {
-	assert(have_percpu_arena && PERCPU_ARENA_ENABLED(mode));
-	if (mode == per_phycpu_arena && ncpus > 1) {
-		if (ncpus % 2) {
-			/* This likely means a misconfig. */
-			return ncpus / 2 + 1;
-		}
-		return ncpus / 2;
-	} else {
-		return ncpus;
-	}
-}
-
 static inline arena_t *
 arena_get(tsdn_t *tsdn, unsigned ind, bool init_if_missing) {
 	arena_t *ret;

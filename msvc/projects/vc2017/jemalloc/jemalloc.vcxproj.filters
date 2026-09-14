@@ -118,6 +118,9 @@
     <ClCompile Include="..\..\..\..\src\peak_event.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\src\percpu_arena.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\src\prof.c">
       <Filter>Source Files</Filter>
     </ClCompile>
