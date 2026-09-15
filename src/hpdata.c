@@ -20,6 +20,8 @@ ph_gen(, hpdata_age_heap, hpdata_t, age_link, hpdata_age_comp)
 	hpdata_addr_set(hpdata, addr);
 	hpdata_age_set(hpdata, age);
 	hpdata->h_huge = is_huge;
+	/* No shard owns a newly initialized pageslab. */
+	hpdata->h_shard = HPDATA_SHARD_NONE;
 	hpdata->h_alloc_allowed = true;
 	hpdata->h_in_psset_alloc_container = false;
 	hpdata->h_purge_allowed = false;
