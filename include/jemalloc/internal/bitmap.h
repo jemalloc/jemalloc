@@ -9,13 +9,21 @@ typedef unsigned long bitmap_t;
 #define LG_SIZEOF_BITMAP LG_SIZEOF_LONG
 
 /* Maximum bitmap bit count is 2^LG_BITMAP_MAXBITS. */
-#if SC_LG_SLAB_MAXREGS > LG_CEIL(SC_NSIZES)
+#if SC_LG_SLAB_MAXREGS_MAX > LG_CEIL(SC_NSIZES)
 /* Maximum bitmap bit count is determined by maximum regions per slab. */
-#	define LG_BITMAP_MAXBITS SC_LG_SLAB_MAXREGS
+#	define LG_BITMAP_BITS SC_LG_SLAB_MAXREGS
+#	define LG_BITMAP_MAXBITS SC_LG_SLAB_MAXREGS_MAX
 #else
 /* Maximum bitmap bit count is determined by number of extent size classes. */
+#	define LG_BITMAP_BITS LG_CEIL(SC_NSIZES)
 #	define LG_BITMAP_MAXBITS LG_CEIL(SC_NSIZES)
 #endif
+/*
+ * Bits a bitmap can hold for the page size this process booted with.  Equals
+ * BITMAP_MAXBITS unless a dynamic page size is in use, where MAXBITS is sized
+ * for MAX_LG_PAGE.  Use this, not MAXBITS, for any runtime capacity decision.
+ */
+#define BITMAP_BITS (ZU(1) << LG_BITMAP_BITS)
 #define BITMAP_MAXBITS (ZU(1) << LG_BITMAP_MAXBITS)
 
 /* Number of bits per group. */
@@ -177,6 +185,9 @@ typedef struct bitmap_info_s {
 } bitmap_info_t;
 
 void   bitmap_init(bitmap_t *bitmap, const bitmap_info_t *binfo, bool fill);
+
+/* Bytes of bitmap_t storage that binfo requires. */
+size_t bitmap_size(const bitmap_info_t *binfo);
 
 static inline bool
 bitmap_full(const bitmap_t *bitmap, const bitmap_info_t *binfo) {
