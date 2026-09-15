@@ -35,6 +35,15 @@ size_t opt_tcache_max = ((size_t)1) << 15;
 size_t opt_tcache_gc_incr_bytes = 65536;
 
 /*
+ * Minimum time between two tcache GC events on one thread, used to
+ * initialize tcache_gc_interval_ms_live.  The "tcache.gc_interval_ms"
+ * mallctl changes the live value at run time.  The live value is stored in
+ * ms and converted to ns when used by the GC.
+ */
+size_t opt_tcache_gc_interval_ms = TCACHE_GC_INTERVAL_MS_DEFAULT;
+static atomic_zu_t tcache_gc_interval_ms_live;
+
+/*
  * Number of cache bins enabled, including both large and small.  This value
  * is only used to initialize tcache_nbins in the per-thread tcache.
  * Directly modifying it will not affect threads already launched.
@@ -85,6 +94,21 @@ tcache_gc_new_event_wait(tsd_t *tsd) {
 static uint64_t
 tcache_gc_postponed_event_wait(tsd_t *tsd) {
 	return TE_MIN_START_WAIT;
+}
+
+size_t
+tcache_gc_interval_ms_get(void) {
+	return atomic_load_zu(&tcache_gc_interval_ms_live, ATOMIC_RELAXED);
+}
+
+bool
+tcache_gc_interval_ms_set(size_t interval_ms) {
+	if (interval_ms > TCACHE_GC_INTERVAL_MS_MAX) {
+		return true;
+	}
+	atomic_store_zu(
+	    &tcache_gc_interval_ms_live, interval_ms, ATOMIC_RELAXED);
+	return false;
 }
 
 static inline bool
@@ -370,8 +394,12 @@ tcache_gc_event(tsd_t *tsd) {
 	nstime_update(&now);
 	assert(nstime_compare(&now, &tcache_slow->last_gc_time) >= 0);
 
+	uint64_t interval_ns
+	    = (uint64_t)atomic_load_zu(
+	          &tcache_gc_interval_ms_live, ATOMIC_RELAXED)
+	    * KQU(1000000);
 	if (nstime_ns(&now) - nstime_ns(&tcache_slow->last_gc_time)
-	    < TCACHE_GC_INTERVAL_NS) {
+	    < interval_ns) {
 		// time interval is too short, skip this event.
 		return;
 	}
@@ -1218,6 +1246,8 @@ tcache_boot(tsdn_t *tsdn, base_t *base) {
 	 * accessed using tcache_get_default_ncached_max.
 	 */
 	tcache_bin_info_compute(opt_tcache_ncached_max);
+
+	tcache_gc_interval_ms_set(opt_tcache_gc_interval_ms);
 
 	if (malloc_mutex_init(&tcaches_mtx, "tcaches", WITNESS_RANK_TCACHES,
 	        malloc_mutex_rank_exclusive)) {
