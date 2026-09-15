@@ -9,6 +9,9 @@
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/typed_list.h"
 
+/* Opaque to hpdata; only stored as the owner pointer in h_shard. */
+typedef struct hpa_shard_s hpa_shard_t;
+
 /*
  * The metadata representation we use for extents in hugepages.  While the PAC
  * uses the edata_t to represent both active and inactive extents, the HP only
@@ -121,6 +124,14 @@ struct hpdata_s {
 	bool h_purged_when_empty_and_huge;
 
 	/*
+	 * Which HPA shard this pageslab belongs to, or NULL while it is held
+	 * by the hpa central and owned by nobody.  Ownership is set before
+	 * insertion into a shard's psset and remains immutable because we do
+	 * not return a pageslab back to hpa central.
+	 */
+	hpa_shard_t *h_shard;
+
+	/*
 	 * Linkage for the psset to track candidates for purging and hugifying.
 	 */
 	ql_elm(hpdata_t) ql_link_purge;
@@ -135,6 +146,20 @@ TYPED_LIST(hpdata_purge_list, hpdata_t, ql_link_purge)
 TYPED_LIST(hpdata_hugify_list, hpdata_t, ql_link_hugify)
 
 ph_proto(, hpdata_age_heap, hpdata_t)
+
+static inline hpa_shard_t *
+hpdata_shard_get(const hpdata_t *hpdata) {
+	assert(hpdata->h_shard != NULL);
+	return hpdata->h_shard;
+}
+
+static inline void
+hpdata_shard_set(hpdata_t *hpdata, hpa_shard_t *shard) {
+	assert(shard != NULL);
+	/* Pageslab ownership is immutable once set. */
+	assert(hpdata->h_shard == NULL);
+	hpdata->h_shard = shard;
+}
 
 static inline void *
 hpdata_addr_get(const hpdata_t *hpdata) {
