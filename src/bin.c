@@ -8,7 +8,7 @@
 #include "jemalloc/internal/witness.h"
 
 bool
-bin_update_shard_size(unsigned bin_shard_sizes[SC_NBINS], size_t start_size,
+bin_update_shard_size(unsigned bin_shard_sizes[SC_NBINS_MAX], size_t start_size,
     size_t end_size, size_t nshards) {
 	if (nshards > BIN_SHARDS_MAX || nshards == 0) {
 		return true;
@@ -32,7 +32,7 @@ bin_update_shard_size(unsigned bin_shard_sizes[SC_NBINS], size_t start_size,
 }
 
 void
-bin_shard_sizes_boot(unsigned bin_shard_sizes[SC_NBINS]) {
+bin_shard_sizes_boot(unsigned bin_shard_sizes[SC_NBINS_MAX]) {
 	/* Load the default number of shards. */
 	for (unsigned i = 0; i < SC_NBINS; i++) {
 		bin_shard_sizes[i] = N_BIN_SHARDS_DEFAULT;
