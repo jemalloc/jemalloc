@@ -560,6 +560,7 @@ TEST_BEGIN(test_mallctl_opt) {
 	TEST_MALLCTL_OPT(bool, tcache, always);
 	TEST_MALLCTL_OPT(size_t, lg_extent_max_active_fit, always);
 	TEST_MALLCTL_OPT(size_t, tcache_max, always);
+	TEST_MALLCTL_OPT(size_t, tcache_gc_interval_ms, always);
 	TEST_MALLCTL_OPT(const char *, thp, always);
 	TEST_MALLCTL_OPT(const char *, zero_realloc, always);
 	TEST_MALLCTL_OPT(bool, prof, prof);
@@ -1670,6 +1671,32 @@ TEST_BEGIN(test_arena_i_retain_grow_limit) {
 }
 TEST_END
 
+TEST_BEGIN(test_tcache_gc_interval_ms) {
+	size_t orig, prev, cur, old;
+	size_t sz = sizeof(size_t);
+
+	expect_d_eq(
+	    mallctl("tcache.gc_interval_ms", (void *)&orig, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+
+	cur = SIZE_T_MAX;
+	expect_d_eq(mallctl("tcache.gc_interval_ms", NULL, NULL, (void *)&cur,
+	                sizeof(size_t)),
+	    EFAULT, "Unexpected mallctl() success");
+
+	for (prev = orig, cur = 0; cur < 20; prev = cur, cur++) {
+		expect_d_eq(mallctl("tcache.gc_interval_ms", (void *)&old, &sz,
+		                (void *)&cur, sizeof(size_t)),
+		    0, "Unexpected mallctl() failure");
+		expect_zu_eq(old, prev, "Unexpected old tcache.gc_interval_ms");
+	}
+
+	expect_d_eq(mallctl("tcache.gc_interval_ms", NULL, NULL, (void *)&orig,
+	                sizeof(size_t)),
+	    0, "Unexpected mallctl() failure");
+}
+TEST_END
+
 TEST_BEGIN(test_arenas_dirty_decay_ms) {
 	ssize_t dirty_decay_ms, orig_dirty_decay_ms, prev_dirty_decay_ms;
 	size_t  sz = sizeof(ssize_t);
@@ -2339,7 +2366,8 @@ main(void) {
 	    test_arena_i_purge, test_arena_i_decay, test_arena_i_dss,
 	    test_arena_i_name, test_arena_i_retain_grow_limit,
 	    test_arenas_dirty_decay_ms, test_arenas_muzzy_decay_ms,
-	    test_arenas_constants, test_arenas_bin_constants,
+	    test_tcache_gc_interval_ms, test_arenas_constants,
+	    test_arenas_bin_constants,
 	    test_arenas_bin_oob, test_arenas_lextent_oob,
 	    test_stats_arenas_bins_oob, test_stats_arenas_lextents_oob,
 	    test_arenas_lextent_constants, test_arenas_create,
