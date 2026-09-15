@@ -65,6 +65,11 @@ jobs:
           - env:
               CC: gcc
               CXX: g++
+              CONFIGURE_FLAGS: --enable-dynamic-page-size
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
               CONFIGURE_FLAGS: "--enable-prof --enable-prof-libunwind"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:
@@ -122,6 +127,11 @@ jobs:
               CC: clang
               CXX: clang++
               CONFIGURE_FLAGS: --with-lg-page=16
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
+          - env:
+              CC: clang
+              CXX: clang++
+              CONFIGURE_FLAGS: --enable-dynamic-page-size
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes"
           - env:
               CC: clang
@@ -253,6 +263,11 @@ jobs:
           - env:
               CC: gcc
               CXX: g++
+              CONFIGURE_FLAGS: "--enable-debug --enable-dynamic-page-size"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
               CONFIGURE_FLAGS: "--enable-debug --enable-prof --enable-prof-libunwind"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:
@@ -298,6 +313,11 @@ jobs:
           - env:
               CC: gcc
               CXX: g++
+              CONFIGURE_FLAGS: "--enable-prof --enable-dynamic-page-size"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
               CONFIGURE_FLAGS: "--enable-prof --enable-prof --enable-prof-libunwind"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:
@@ -338,6 +358,11 @@ jobs:
           - env:
               CC: gcc
               CXX: g++
+              CONFIGURE_FLAGS: "--disable-stats --enable-dynamic-page-size"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
               CONFIGURE_FLAGS: "--disable-stats --enable-prof --enable-prof-libunwind"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:
@@ -373,6 +398,11 @@ jobs:
           - env:
               CC: gcc
               CXX: g++
+              CONFIGURE_FLAGS: "--disable-libdl --enable-dynamic-page-size"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
               CONFIGURE_FLAGS: "--disable-libdl --enable-prof --enable-prof-libunwind"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:
@@ -399,6 +429,11 @@ jobs:
               CC: gcc
               CXX: g++
               CONFIGURE_FLAGS: "--enable-opt-safety-checks --with-lg-page=16"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-opt-safety-checks --enable-dynamic-page-size"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:
               CC: gcc
@@ -449,6 +484,31 @@ jobs:
               CC: gcc
               CXX: g++
               CONFIGURE_FLAGS: "--with-lg-page=16 --with-malloc-conf=background_thread:true"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --enable-prof --enable-prof-libunwind"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --with-malloc-conf=tcache:false"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --with-malloc-conf=dss:primary"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --with-malloc-conf=percpu_arena:percpu"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --with-malloc-conf=background_thread:true"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:
               CC: gcc
@@ -529,6 +589,86 @@ jobs:
               CC: gcc
               CXX: g++
               CONFIGURE_FLAGS: "--enable-cxx-infallible-new --enable-debug"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --with-min-lg-page=12 --with-max-lg-page=12 --with-malloc-conf=lg_page:12 --enable-debug"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --with-min-lg-page=12 --with-max-lg-page=13 --with-malloc-conf=lg_page:12 --enable-debug"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --with-min-lg-page=12 --with-max-lg-page=13 --with-malloc-conf=lg_page:13 --enable-debug"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --with-min-lg-page=12 --with-max-lg-page=14 --with-malloc-conf=lg_page:12 --enable-debug"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --with-min-lg-page=12 --with-max-lg-page=14 --with-malloc-conf=lg_page:13 --enable-debug"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --with-min-lg-page=12 --with-max-lg-page=14 --with-malloc-conf=lg_page:14 --enable-debug"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --with-min-lg-page=12 --with-max-lg-page=15 --with-malloc-conf=lg_page:12 --enable-debug"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --with-min-lg-page=12 --with-max-lg-page=15 --with-malloc-conf=lg_page:13 --enable-debug"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --with-min-lg-page=12 --with-max-lg-page=15 --with-malloc-conf=lg_page:14 --enable-debug"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --with-min-lg-page=12 --with-max-lg-page=15 --with-malloc-conf=lg_page:15 --enable-debug"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --with-min-lg-page=12 --with-max-lg-page=16 --with-malloc-conf=lg_page:12 --enable-debug"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --with-min-lg-page=12 --with-max-lg-page=16 --with-malloc-conf=lg_page:13 --enable-debug"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --with-min-lg-page=12 --with-max-lg-page=16 --with-malloc-conf=lg_page:14 --enable-debug"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --with-min-lg-page=12 --with-max-lg-page=16 --with-malloc-conf=lg_page:15 --enable-debug"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --with-min-lg-page=12 --with-max-lg-page=16 --with-malloc-conf=lg_page:16 --enable-debug"
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --with-min-lg-page=12 --with-max-lg-page=16 --with-malloc-conf=lg_page:12"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
 
     steps:
@@ -661,6 +801,11 @@ jobs:
           - env:
               CC: gcc
               CXX: g++
+              CONFIGURE_FLAGS: --enable-dynamic-page-size
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
               CONFIGURE_FLAGS: "--enable-prof --enable-prof-libunwind"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
           - env:
@@ -687,6 +832,11 @@ jobs:
               CC: gcc
               CXX: g++
               CONFIGURE_FLAGS: --enable-cxx-infallible-new
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --enable-debug"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
 
     steps:
