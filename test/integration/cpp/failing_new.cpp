@@ -30,12 +30,12 @@ new_handler_once(void) {
 
 TEST_BEGIN(test_failing_aligned_alloc_new_handler) {
 	/*
-	 * No allocation can satisfy this alignment, so the retry after the
+	 * The top bit of size_t exceeds SC_LARGE_MAXCLASS on every platform,
+	 * so no allocation can satisfy this alignment and the retry after the
 	 * new_handler must fail too, rather than returning an unaligned
 	 * pointer.
 	 */
-	const std::size_t alignment = (std::size_t)1
-	    << ((sizeof(void *) << 3) - 2);
+	const std::size_t alignment = (SIZE_MAX >> 1) + 1;
 
 	new_handler_calls = 0;
 	std::set_new_handler(new_handler_once);
