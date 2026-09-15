@@ -53,6 +53,11 @@ jobs:
           - env:
               CC: gcc
               CXX: g++
+              CONFIGURE_FLAGS: --enable-dynamic-page-size
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+          - env:
+              CC: gcc
+              CXX: g++
               CONFIGURE_FLAGS: "--with-malloc-conf=tcache:false"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
           - env:
@@ -64,6 +69,11 @@ jobs:
               CC: gcc
               CXX: g++
               CONFIGURE_FLAGS: --enable-cxx-infallible-new
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --enable-debug"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
 
     steps:
@@ -160,6 +170,11 @@ jobs:
           - env:
               CC: gcc
               CXX: g++
+              CONFIGURE_FLAGS: --enable-dynamic-page-size
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+          - env:
+              CC: gcc
+              CXX: g++
               CONFIGURE_FLAGS: "--with-malloc-conf=tcache:false"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
           - env:
@@ -171,6 +186,11 @@ jobs:
               CC: gcc
               CXX: g++
               CONFIGURE_FLAGS: --enable-cxx-infallible-new
+              EXTRA_CFLAGS: "-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: "--enable-dynamic-page-size --enable-debug"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds -Wno-unknown-warning-option -Wno-ignored-attributes -Wno-deprecated-declarations"
 
     steps:

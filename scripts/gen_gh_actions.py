@@ -107,6 +107,7 @@ configure_flag_unusuals = [Option.as_configure_flag(opt) for opt in (
     '--enable-opt-safety-checks',
     '--with-lg-page=16',
     '--with-lg-page=16 --with-lg-hugepage=29',
+    '--enable-dynamic-page-size',
 )]
 LARGE_HUGEPAGE = Option.as_configure_flag("--with-lg-page=16 --with-lg-hugepage=29")
 
@@ -117,6 +118,22 @@ malloc_conf_unusuals = [Option.as_malloc_conf(opt) for opt in (
     'percpu_arena:percpu',
     'background_thread:true',
 )]
+
+
+# Pairs of configure flag fragments that configure.ac rejects outright.  A
+# combination containing both sides of a pair would fail at ./configure time,
+# so it must never be emitted.
+conflicting_configure_flags = (
+    ('--enable-dynamic-page-size', '--with-lg-page'),
+    ('--enable-dynamic-page-size', 'CROSS_COMPILE_32BIT'),
+)
+
+
+def has_flag_conflict(combination):
+    flags = ' '.join(x.value for x in combination
+                     if (x.type == Option.Type.CONFIGURE_FLAG or x.type == Option.Type.FEATURE))
+    return any(first in flags and second in flags
+               for first, second in conflicting_configure_flags)
 
 
 all_unusuals = (compilers_unusual + feature_unusuals
@@ -200,7 +217,8 @@ def generate_job_matrix_entries(os, arch, exclude, max_unusual_opts, unusuals=al
     entries = []
     for combination in chain.from_iterable(
             [combinations(unusuals, i) for i in range(max_unusual_opts + 1)]):
-        if not any(excluded in combination for excluded in exclude):
+        if (not any(excluded in combination for excluded in exclude)
+                and not has_flag_conflict(combination)):
             env_dict = format_env_dict(os, arch, combination)
             entries.append(env_dict)
     return entries
@@ -288,6 +306,41 @@ def generate_linux_job(arch):
         }
     ]
 
+    MIN_LG_PAGE = 0
+    MAX_LG_PAGE = 0
+    if arch == AMD64:
+        MIN_LG_PAGE = 12
+        MAX_LG_PAGE = 16
+
+    dps_flags = []
+    if 0 < MIN_LG_PAGE:
+        min_lg_page = MIN_LG_PAGE
+        for max_lg_page in range(min_lg_page, MAX_LG_PAGE + 1):
+            for lg_page in range(min_lg_page, max_lg_page + 1):
+                for debug in (False, True):
+                    flags_list = [
+                        f'--enable-dynamic-page-size',
+                        f'--with-min-lg-page={min_lg_page}',
+                        f'--with-max-lg-page={max_lg_page}',
+                        f'--with-malloc-conf=lg_page:{lg_page}',
+                    ]
+                    if debug:
+                        flags_list.append('--enable-debug')
+                    flags = ' '.join(flags_list)
+                    dps_flags.append(flags)
+
+    if arch == ARM64:
+        dps_flags.append('--enable-dynamic-page-size --enable-debug')
+
+    dps_entries = []
+    for flags in dps_flags:
+        dps_entries.append({
+            'CC': 'gcc',
+            'CXX': 'g++',
+            'CONFIGURE_FLAGS': flags,
+            'EXTRA_CFLAGS': '-Werror -Wno-array-bounds'
+        })
+
     # --enable-cxx-infallible-new coverage. Plain variant runs on all arches;
     # debug-combined variant runs only on AMD64 to bound matrix size.
     infallible_new_entries = [
@@ -316,6 +369,14 @@ def generate_linux_job(arch):
                     job += f"              {key}: {value}\n"
 
     for entry in infallible_new_entries:
+        job += "          - env:\n"
+        for key, value in entry.items():
+            if ' ' in str(value):
+                job += f'              {key}: "{value}"\n'
+            else:
+                job += f"              {key}: {value}\n"
+
+    for entry in dps_entries:
         job += "          - env:\n"
         for key, value in entry.items():
             if ' ' in str(value):
@@ -438,7 +499,15 @@ def generate_macos_job(arch):
             'EXTRA_CFLAGS': macos_extra_cflags
         },
     ]
-    for entry in infallible_new_entries:
+    dps_entries = [
+        {
+            'CC': 'gcc',
+            'CXX': 'g++',
+            'CONFIGURE_FLAGS': '--enable-dynamic-page-size --enable-debug',
+            'EXTRA_CFLAGS': macos_extra_cflags
+        },
+    ]
+    for entry in infallible_new_entries + dps_entries:
         job += "          - env:\n"
         for key, value in entry.items():
             if ' ' in str(value) or any(c in str(value) for c in [':', ',', '#']):
@@ -661,12 +730,17 @@ def generate_freebsd_job(arch):
       matrix:
         debug: ['--enable-debug', '--disable-debug']
         prof: ['--enable-prof', '--disable-prof']
+        dps: ['', '--enable-dynamic-page-size']
         arch: ['64-bit', '32-bit']
         uncommon:
           - ''
           - '--with-lg-page=16 --with-malloc-conf=tcache:false'
-
-    name: FreeBSD (${{{{ matrix.arch }}}}, debug=${{{{ matrix.debug }}}}, prof=${{{{ matrix.prof }}}}${{{{ matrix.uncommon && ', uncommon' || '' }}}})
+        exclude:
+          - dps: '--enable-dynamic-page-size'
+            arch: '32-bit'
+          - dps: '--enable-dynamic-page-size'
+            uncommon: '--with-lg-page=16 --with-malloc-conf=tcache:false'
+    name: FreeBSD (${{{{ matrix.arch }}}}, debug=${{{{ matrix.debug }}}}, prof=${{{{ matrix.prof }}}}${{{{ matrix.dps && format(', dps={{0}}', matrix.dps) || '' }}}}${{{{ matrix.uncommon && ', uncommon' || '' }}}})
 
     steps:
     - uses: actions/checkout@v7
@@ -697,7 +771,7 @@ def generate_freebsd_job(arch):
           autoconf
 
           # Configure with matrix options
-          ./configure --with-jemalloc-prefix=ci_ ${{{{ matrix.debug }}}} ${{{{ matrix.prof }}}} ${{{{ matrix.uncommon }}}}
+          ./configure --with-jemalloc-prefix=ci_ ${{{{ matrix.debug }}}} ${{{{ matrix.prof }}}} ${{{{ matrix.dps }}}} ${{{{ matrix.uncommon }}}}
 
           # Get CPU count for parallel builds
           export JFLAG=$(sysctl -n kern.smp.cpus)
