@@ -1672,19 +1672,32 @@ TEST_BEGIN(test_arena_i_retain_grow_limit) {
 TEST_END
 
 TEST_BEGIN(test_tcache_gc_interval_ms) {
-	size_t orig, prev, cur, old;
+	size_t orig, prev, cur, old, too_big;
 	size_t sz = sizeof(size_t);
 
 	expect_d_eq(
 	    mallctl("tcache.gc_interval_ms", (void *)&orig, &sz, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
 
-	cur = SIZE_T_MAX;
-	expect_d_eq(mallctl("tcache.gc_interval_ms", NULL, NULL, (void *)&cur,
-	                sizeof(size_t)),
-	    EFAULT, "Unexpected mallctl() success");
+	/*
+	 * If TCACHE_GC_INTERVAL_MS_MAX saturates at SIZE_T_MAX (e.g., on ILP32), there is no
+	 * out-of-range value to reject there, and the +1 wraps to 0.
+	 */
+	too_big = (size_t)TCACHE_GC_INTERVAL_MS_MAX + 1;
+	if (too_big != 0) {
+		expect_d_eq(mallctl("tcache.gc_interval_ms", NULL, NULL,
+		                (void *)&too_big, sizeof(size_t)),
+		    EFAULT, "Unexpected mallctl() success");
+	}
 
-	for (prev = orig, cur = 0; cur < 20; prev = cur, cur++) {
+	/* The clamp value itself must be accepted. */
+	cur = (size_t)TCACHE_GC_INTERVAL_MS_MAX;
+	expect_d_eq(mallctl("tcache.gc_interval_ms", (void *)&old, &sz,
+	                (void *)&cur, sizeof(size_t)),
+	    0, "Unexpected mallctl() failure");
+	expect_zu_eq(old, orig, "Unexpected old tcache.gc_interval_ms");
+
+	for (prev = cur, cur = 0; cur < 20; prev = cur, cur++) {
 		expect_d_eq(mallctl("tcache.gc_interval_ms", (void *)&old, &sz,
 		                (void *)&cur, sizeof(size_t)),
 		    0, "Unexpected mallctl() failure");
