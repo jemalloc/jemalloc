@@ -238,7 +238,7 @@ initialize_pa_infrastructure(int num_shards) {
 		/* Enable HPA for this shard with proper configuration */
 		hpa_shard_opts_t hpa_opts = g_hpa_opts;
 
-		sec_opts_t sec_opts = SEC_OPTS_DEFAULT;
+		sec_opts_t sec_opts = HPA_SEC_OPTS_DEFAULT;
 		if (!g_use_sec) {
 			/* Disable SEC by setting nshards to 0 */
 			sec_opts.nshards = 0;

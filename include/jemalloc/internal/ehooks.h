@@ -197,7 +197,7 @@ ehooks_alloc(tsdn_t *tsdn, ehooks_t *ehooks, void *new_addr, size_t size,
 		    alignment, zero, commit, ehooks_ind_get(ehooks));
 		ehooks_post_reentrancy(tsdn);
 	}
-#if LG_PAGE < 8
+#if MIN_LG_PAGE < 8
 #  error "Extent alloc flags require page size of at least 256"
 #endif
 	if (ret != NULL) {
