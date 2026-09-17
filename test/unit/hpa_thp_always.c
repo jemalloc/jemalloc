@@ -21,27 +21,31 @@ struct test_data_s {
 	emap_t emap;
 };
 
-static hpa_shard_opts_t test_hpa_shard_opts_aggressive = {
-    /* slab_max_alloc */
-    HUGEPAGE,
-    /* hugification_threshold */
-    0.9 * HUGEPAGE,
-    /* dirty_mult */
-    FXP_INIT_PERCENT(11),
-    /* deferral_allowed */
-    true,
-    /* hugify_delay_ms */
-    0,
-    /* hugify_sync */
-    false,
-    /* min_purge_interval_ms */
-    5,
-    /* purge_threshold */
-    HUGEPAGE - 5 * PAGE,
-    /* min_purge_delay_ms */
-    10,
-    /* hugify_style */
-    hpa_hugify_style_eager};
+static hpa_shard_opts_t
+test_hpa_shard_opts_aggressive() {
+	return (hpa_shard_opts_t){
+
+	    /* slab_max_alloc */
+	    HUGEPAGE,
+	    /* hugification_threshold */
+	    0.9 * HUGEPAGE,
+	    /* dirty_mult */
+	    FXP_INIT_PERCENT(11),
+	    /* deferral_allowed */
+	    true,
+	    /* hugify_delay_ms */
+	    0,
+	    /* hugify_sync */
+	    false,
+	    /* min_purge_interval_ms */
+	    5,
+	    /* purge_threshold */
+	    HUGEPAGE - 5 * PAGE,
+	    /* min_purge_delay_ms */
+	    10,
+	    /* hugify_style */
+	    hpa_hugify_style_eager};
+}
 
 static hpa_shard_t *
 create_test_data(const hpa_hooks_t *hooks, hpa_shard_opts_t *opts) {
@@ -151,7 +155,7 @@ TEST_BEGIN(test_hpa_hugify_style_none_huge_no_syscall_thp_always) {
 	hooks.ms_since = &defer_test_ms_since;
 	hooks.vectorized_purge = &defer_vectorized_purge;
 
-	hpa_shard_opts_t opts = test_hpa_shard_opts_aggressive;
+	hpa_shard_opts_t opts = test_hpa_shard_opts_aggressive();
 	opts.deferral_allowed = true;
 	opts.purge_threshold = PAGE;
 	opts.min_purge_delay_ms = 0;
@@ -170,13 +174,14 @@ TEST_BEGIN(test_hpa_hugify_style_none_huge_no_syscall_thp_always) {
 	system_thp_mode_t old_mode = init_system_thp_mode;
 	init_system_thp_mode = system_thp_mode_always;
 
-	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
-	enum { NALLOCS = HUGEPAGE_PAGES };
-	edata_t *edatas[NALLOCS];
+	tsdn_t   *tsdn = tsd_tsdn(tsd_fetch());
+	const int nallocs = (int)HUGEPAGE_PAGES;
+	edata_t **edatas = malloc(nallocs * sizeof(edata_t *));
+	assert_ptr_not_null(edatas, "Unexpected malloc failure");
 	ndefer_purge_calls = 0;
-	for (int i = 0; i < NALLOCS / 2; i++) {
-		edatas[i] = hpa_alloc(tsdn, shard, PAGE, PAGE, false,
-		    false, false, &deferred_work_generated);
+	for (int i = 0; i < nallocs / 2; i++) {
+		edatas[i] = hpa_alloc(tsdn, shard, PAGE, PAGE, false, false,
+		    false, &deferred_work_generated);
 		expect_ptr_not_null(edatas[i], "Unexpected null edata");
 	}
 	hpdata_t *ps = psset_pick_alloc(&shard->psset, PAGE);
@@ -191,6 +196,7 @@ TEST_BEGIN(test_hpa_hugify_style_none_huge_no_syscall_thp_always) {
 	expect_zu_eq(ndefer_purge_calls, 1, "purge should happen");
 
 	destroy_test_data(shard);
+	free(edatas);
 	init_system_thp_mode = old_mode;
 }
 TEST_END
