@@ -498,13 +498,13 @@ emit_table_row(emitter_t *emitter) {
 	emitter_begin(emitter);
 	emitter_row_t row;
 	emitter_col_t abc = {
-	    emitter_justify_left, 10, emitter_type_title, {0}, {0, 0}};
+	    emitter_justify_left, 10, emitter_type_title};
 	abc.str_val = "ABC title";
 	emitter_col_t def = {
-	    emitter_justify_right, 15, emitter_type_title, {0}, {0, 0}};
+	    emitter_justify_right, 15, emitter_type_title};
 	def.str_val = "DEF title";
 	emitter_col_t ghi = {
-	    emitter_justify_right, 5, emitter_type_title, {0}, {0, 0}};
+	    emitter_justify_right, 5, emitter_type_title};
 	ghi.str_val = "GHI";
 
 	emitter_row_init(&row);
@@ -548,6 +548,230 @@ static const char *table_row_table =
     "789                 false 1011\n"
     "\"a string\"          false  ghi\n";
 
+/*
+ * emitter_row(): columns that carry a json_key render both to the aligned
+ * table (all columns) and, in JSON mode, to "json_key": value pairs in column
+ * order; columns without a json_key are table-only.
+ */
+static void
+emit_row(emitter_t *emitter) {
+	emitter_begin(emitter);
+
+	emitter_row_t row;
+	emitter_row_init(&row);
+
+	/* Table-only column (no json_key set). */
+	emitter_col_t col_label;
+	emitter_col_init(&col_label, &row);
+	col_label.justify = emitter_justify_left;
+	col_label.width = 6;
+	col_label.type = emitter_type_title;
+	col_label.str_val = "row:";
+
+	/* Dual columns: rendered in both table and JSON. */
+	emitter_col_t col_x;
+	emitter_col_init(&col_x, &row);
+	col_x.justify = emitter_justify_right;
+	col_x.width = 6;
+	col_x.type = emitter_type_unsigned;
+	col_x.unsigned_val = 10;
+	col_x.json_key = "x";
+
+	emitter_col_t col_y;
+	emitter_col_init(&col_y, &row);
+	col_y.justify = emitter_justify_right;
+	col_y.width = 6;
+	col_y.type = emitter_type_unsigned;
+	col_y.unsigned_val = 20;
+	col_y.json_key = "y";
+
+	emitter_json_object_kv_begin(emitter, "obj");
+	emitter_row(emitter, &row);
+	emitter_json_object_end(emitter);
+
+	emitter_end(emitter);
+}
+
+static const char *row_json =
+    "{\n"
+    "\t\"obj\": {\n"
+    "\t\t\"x\": 10,\n"
+    "\t\t\"y\": 20\n"
+    "\t}\n"
+    "}\n";
+static const char *row_json_compact = "{\"obj\":{\"x\":10,\"y\":20}}";
+static const char *row_table = "row:      10    20\n";
+
+/*
+ * emitter_sparse_row(): the table side collapses runs of all-zero ("gap") rows
+ * to a single "---" separator (on a gap->non-gap transition and at a trailing
+ * gap), while the JSON side still emits every row's json-keyed columns.
+ */
+static void
+emit_sparse_row(emitter_t *emitter) {
+	emitter_begin(emitter);
+
+	emitter_row_t row;
+	emitter_row_init(&row);
+	emitter_col_t col_v;
+	emitter_col_init(&col_v, &row);
+	col_v.justify = emitter_justify_right;
+	col_v.width = 6;
+	col_v.type = emitter_type_unsigned;
+	col_v.json_key = "v";
+
+	unsigned vals[] = {1, 0, 0, 2, 0, 0};
+	bool     gap[] = {false, true, true, false, true, true};
+
+	emitter_json_array_kv_begin(emitter, "arr");
+	emitter_table_sparse_begin(emitter);
+	for (unsigned i = 0; i < sizeof(vals) / sizeof(vals[0]); i++) {
+		col_v.unsigned_val = vals[i];
+		emitter_json_object_begin(emitter);
+		emitter_sparse_row(emitter, &row, gap[i]);
+		emitter_json_object_end(emitter);
+	}
+	emitter_table_sparse_end(emitter);
+	emitter_json_array_end(emitter);
+
+	emitter_end(emitter);
+}
+
+static const char *sparse_row_json =
+    "{\n"
+    "\t\"arr\": [\n"
+    "\t\t{\n"
+    "\t\t\t\"v\": 1\n"
+    "\t\t},\n"
+    "\t\t{\n"
+    "\t\t\t\"v\": 0\n"
+    "\t\t},\n"
+    "\t\t{\n"
+    "\t\t\t\"v\": 0\n"
+    "\t\t},\n"
+    "\t\t{\n"
+    "\t\t\t\"v\": 2\n"
+    "\t\t},\n"
+    "\t\t{\n"
+    "\t\t\t\"v\": 0\n"
+    "\t\t},\n"
+    "\t\t{\n"
+    "\t\t\t\"v\": 0\n"
+    "\t\t}\n"
+    "\t]\n"
+    "}\n";
+static const char *sparse_row_json_compact =
+    "{\"arr\":[{\"v\":1},{\"v\":0},{\"v\":0},{\"v\":2},{\"v\":0},{\"v\":0}]}";
+static const char *sparse_row_table =
+    "     1\n"
+    "                     ---\n"
+    "     2\n"
+    "                     ---\n";
+
+typedef struct {
+	size_t      size;
+	uint64_t    count;
+	uint64_t    prof_count;
+	const char *label;
+	uint64_t    requests;
+} col_table_test_row_t;
+
+#define COL_TABLE_TEST_GETTER(name, member, value_member)                     \
+	static void                                                            \
+	col_table_test_get_##name(const void *vrow, emitter_col_t *col) {       \
+		const col_table_test_row_t *row = vrow;                          \
+		col->value_member = row->member;                                 \
+	}
+COL_TABLE_TEST_GETTER(size, size, size_val)
+COL_TABLE_TEST_GETTER(count, count, uint64_val)
+COL_TABLE_TEST_GETTER(prof_count, prof_count, uint64_val)
+COL_TABLE_TEST_GETTER(label, label, str_val)
+COL_TABLE_TEST_GETTER(requests, requests, uint64_val)
+#undef COL_TABLE_TEST_GETTER
+
+enum {
+	COL_TABLE_TEST_SIZE,
+	COL_TABLE_TEST_COUNT,
+	COL_TABLE_TEST_PROF_COUNT,
+	COL_TABLE_TEST_LABEL,
+	COL_TABLE_TEST_REQUESTS,
+	COL_TABLE_TEST_NCOLS
+};
+
+#define COL_TABLE_TEST_FLAG_PROF (1U << 0)
+
+static const emitter_col_desc_t col_table_test_descs[] = {
+	{NULL, "size", emitter_justify_right, 8, emitter_type_size, 0,
+	    col_table_test_get_size},
+	{"count", "count", emitter_justify_right, 8, emitter_type_uint64,
+	    0, col_table_test_get_count},
+	{"prof_count", "prof", emitter_justify_right, 6, emitter_type_uint64,
+	    COL_TABLE_TEST_FLAG_PROF, col_table_test_get_prof_count},
+	{"label", "label", emitter_justify_right, 7, emitter_type_title, 0,
+	    col_table_test_get_label},
+	{"requests", "requests", emitter_justify_right, 10,
+	    emitter_type_uint64, 0, col_table_test_get_requests},
+};
+_Static_assert(
+    sizeof(col_table_test_descs) / sizeof(col_table_test_descs[0]) ==
+    COL_TABLE_TEST_NCOLS,
+    "col_table_test_descs must match COL_TABLE_TEST_NCOLS");
+
+TEST_BEGIN(test_col_desc_flags) {
+	expect_true(emitter_col_desc_active(
+	    &col_table_test_descs[COL_TABLE_TEST_COUNT], 0),
+	    "A column without requirements should always be active");
+	expect_false(emitter_col_desc_active(
+	    &col_table_test_descs[COL_TABLE_TEST_PROF_COUNT], 0),
+	    "A column with an unmet requirement should be inactive");
+	expect_true(emitter_col_desc_active(
+	    &col_table_test_descs[COL_TABLE_TEST_PROF_COUNT],
+	    COL_TABLE_TEST_FLAG_PROF),
+	    "A column with a satisfied requirement should be active");
+}
+TEST_END
+
+static void
+emit_col_table(emitter_t *emitter) {
+	col_table_test_row_t value = {42, 7, 100, "row", 9};
+	emitter_row_t row, header_row;
+	emitter_col_t cols[COL_TABLE_TEST_NCOLS];
+	emitter_col_t header_cols[COL_TABLE_TEST_NCOLS];
+
+	emitter_begin(emitter);
+	emitter_col_table_build(col_table_test_descs, COL_TABLE_TEST_NCOLS,
+	    COL_TABLE_TEST_FLAG_PROF, &row, cols, &header_row, header_cols);
+	emitter_col_table_header(
+	    emitter, &header_row, &header_cols[0], "mock:", "rows");
+	emitter_col_table_fill(col_table_test_descs, COL_TABLE_TEST_NCOLS,
+	    COL_TABLE_TEST_FLAG_PROF, cols, &value);
+	emitter_json_object_begin(emitter);
+	emitter_col_table_emit_json(emitter, col_table_test_descs,
+	    COL_TABLE_TEST_NCOLS, COL_TABLE_TEST_FLAG_PROF, cols);
+	emitter_json_object_end(emitter);
+	emitter_table_row(emitter, &row);
+	emitter_json_array_end(emitter);
+	emitter_end(emitter);
+}
+
+static const char *col_table_json =
+    "{\n"
+    "\t\"rows\": [\n"
+    "\t\t{\n"
+    "\t\t\t\"count\": 7,\n"
+    "\t\t\t\"prof_count\": 100,\n"
+    "\t\t\t\"label\": \"row\",\n"
+    "\t\t\t\"requests\": 9\n"
+    "\t\t}\n"
+    "\t]\n"
+    "}\n";
+static const char *col_table_json_compact =
+    "{\"rows\":[{\"count\":7,\"prof_count\":100,\"label\":\"row\","
+    "\"requests\":9}]}";
+static const char *col_table_table =
+    "mock:size   count  prof  label  requests\n"
+    "      42       7   100    row         9\n";
+
 #define GENERATE_TEST(feature)                                                 \
 	TEST_BEGIN(test_##feature) {                                           \
 		expect_emit_output(emit_##feature, feature##_json,             \
@@ -563,10 +787,14 @@ GENERATE_TEST(modal)
 GENERATE_TEST(json_array)
 GENERATE_TEST(json_nested_array)
 GENERATE_TEST(table_row)
+GENERATE_TEST(row)
+GENERATE_TEST(sparse_row)
+GENERATE_TEST(col_table)
 
 int
 main(void) {
 	return test_no_reentrancy(test_dict, test_table_printf,
 	    test_nested_dict, test_types, test_modal, test_json_array,
-	    test_json_nested_array, test_table_row);
+	    test_json_nested_array, test_table_row, test_row, test_sparse_row,
+	    test_col_table, test_col_desc_flags);
 }

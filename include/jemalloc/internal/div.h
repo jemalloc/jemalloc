@@ -24,7 +24,7 @@ struct div_info_s {
 void div_init(div_info_t *div_info, size_t divisor);
 
 static inline size_t
-div_compute(div_info_t *div_info, size_t n) {
+div_compute(const div_info_t *div_info, size_t n) {
 	assert(n <= (uint32_t)-1);
 	/*
 	 * This generates, e.g. mov; imul; shr on x86-64. On a 32-bit machine,

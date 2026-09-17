@@ -17,7 +17,7 @@ fake_abort(const char *message) {
 
 static void *
 test_invalid_size_pre(size_t sz) {
-	safety_check_set_abort(&fake_abort);
+	test_hooks_safety_check_abort = &fake_abort;
 
 	fake_abort_called = false;
 	void *ptr = malloc(sz);
@@ -29,7 +29,7 @@ test_invalid_size_pre(size_t sz) {
 static void
 test_invalid_size_post(void) {
 	expect_true(fake_abort_called, "Safety check didn't fire");
-	safety_check_set_abort(NULL);
+	test_hooks_safety_check_abort = NULL;
 }
 
 TEST_BEGIN(test_invalid_size_sdallocx) {

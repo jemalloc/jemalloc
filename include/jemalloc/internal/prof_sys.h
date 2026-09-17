@@ -4,6 +4,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/base.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/prof.h"
 
 extern malloc_mutex_t prof_dump_filename_mtx;
 extern base_t        *prof_base;
@@ -20,7 +21,6 @@ void prof_fdump_impl(tsd_t *tsd);
 void prof_idump_impl(tsd_t *tsd);
 bool prof_mdump_impl(tsd_t *tsd, const char *filename);
 void prof_gdump_impl(tsd_t *tsd);
-int  prof_thread_stack_range(uintptr_t fp, uintptr_t *low, uintptr_t *high);
 
 /* Used in unit tests. */
 typedef int(prof_sys_thread_name_read_t)(char *buf, size_t limit);

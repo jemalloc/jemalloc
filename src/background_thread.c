@@ -1,7 +1,19 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
+#include "jemalloc/internal/arenas_management.h"
 #include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/background_thread.h"
+#include "jemalloc/internal/background_thread_inlines.h"
+#include "jemalloc/internal/ctl.h"
+#include "jemalloc/internal/deferral.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_a.h"
+#include "jemalloc/internal/malloc_io.h"
+#include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/os.h"
+#include "jemalloc/internal/prof.h"
+#include "jemalloc/internal/tcache.h"
+#include "jemalloc/internal/witness.h"
 
 JEMALLOC_DIAGNOSTIC_DISABLE_SPURIOUS
 
@@ -22,6 +34,75 @@ size_t     n_background_threads;
 size_t     max_background_threads;
 /* Thread info per-index. */
 background_thread_info_t *background_thread_info;
+
+/******************************************************************************/
+/*
+ * Config-independent lifecycle/state-ownership helpers.  Defined
+ * unconditionally and gated at runtime on have_background_thread, so callers in
+ * ctl.c / arena.c never touch background_thread_lock or info->state directly;
+ * they compile to runtime no-ops when !have_background_thread.
+ */
+
+void
+background_thread_arena_reset_begin(tsd_t *tsd, unsigned arena_ind) {
+	/* Temporarily disable the background thread during arena reset. */
+	if (have_background_thread) {
+		/*
+		 * Hold background_thread_lock across the whole arena-reset
+		 * body (acquired here, released in _finish) so a concurrent
+		 * background_threads_enable() cannot start a background
+		 * thread mid-reset.  This must happen whenever the feature
+		 * is compiled in (have_background_thread), even when the
+		 * thread is not currently enabled; the state transition
+		 * below is separately gated on background_thread_enabled().
+		 */
+		malloc_mutex_lock(tsd_tsdn(tsd), &background_thread_lock);
+		if (background_thread_enabled()) {
+			background_thread_info_t *info =
+			    background_thread_info_get(arena_ind);
+			malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
+			assert(info->state == background_thread_started);
+			info->state = background_thread_paused;
+			malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
+		}
+	}
+}
+
+void
+background_thread_arena_reset_finish(tsd_t *tsd, unsigned arena_ind) {
+	if (have_background_thread) {
+		if (background_thread_enabled()) {
+			background_thread_info_t *info =
+			    background_thread_info_get(arena_ind);
+			malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
+			assert(info->state == background_thread_paused);
+			info->state = background_thread_started;
+#ifdef JEMALLOC_BACKGROUND_THREAD
+			os_cond_signal(&info->cond);
+#endif
+			malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
+		}
+		malloc_mutex_unlock(tsd_tsdn(tsd), &background_thread_lock);
+	}
+}
+
+void
+background_thread_serialize_lock(tsd_t *tsd, unsigned arena_ind) {
+	if (have_background_thread) {
+		background_thread_info_t *info =
+		    background_thread_info_get(arena_ind);
+		malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
+	}
+}
+
+void
+background_thread_serialize_unlock(tsd_t *tsd, unsigned arena_ind) {
+	if (have_background_thread) {
+		background_thread_info_t *info =
+		    background_thread_info_get(arena_ind);
+		malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
+	}
+}
 
 /******************************************************************************/
 
@@ -118,45 +199,6 @@ background_thread_info_init(tsdn_t *tsdn, background_thread_info_t *info) {
 	}
 }
 
-static inline bool
-set_current_thread_affinity(int cpu) {
-#	if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)                           \
-	    || defined(JEMALLOC_HAVE_PTHREAD_SETAFFINITY_NP)
-#		if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
-	cpu_set_t cpuset;
-#		else
-#			ifndef __NetBSD__
-	cpuset_t cpuset;
-#			else
-	cpuset_t *cpuset;
-#			endif
-#		endif
-
-#		ifndef __NetBSD__
-	CPU_ZERO(&cpuset);
-	CPU_SET(cpu, &cpuset);
-#		else
-	cpuset = cpuset_create();
-#		endif
-
-#		if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
-	return (sched_setaffinity(0, sizeof(cpu_set_t), &cpuset) != 0);
-#		else
-#			ifndef __NetBSD__
-	int ret = pthread_setaffinity_np(
-	    pthread_self(), sizeof(cpuset_t), &cpuset);
-#			else
-	int ret = pthread_setaffinity_np(
-	    pthread_self(), cpuset_size(cpuset), cpuset);
-	cpuset_destroy(cpuset);
-#			endif
-	return ret != 0;
-#		endif
-#	else
-	return false;
-#	endif
-}
-
 #	define BILLION UINT64_C(1000000000)
 /* Minimal sleep interval 100 ms. */
 #	define BACKGROUND_THREAD_MIN_INTERVAL_NS (BILLION / 10)
@@ -167,18 +209,34 @@ background_thread_cond_wait(
 	int ret;
 
 	/*
-	 * pthread_cond_wait drops and re-acquires the mutex internally, w/o
-	 * going through our wrapper.  Update the locked state explicitly.
+	 * os_cond_wait drops and re-acquires the mutex internally, w/o going
+	 * through our wrapper.  Update the locked state explicitly.
 	 */
 	atomic_store_b(&info->mtx.locked, false, ATOMIC_RELAXED);
 	if (ts == NULL) {
-		ret = pthread_cond_wait(&info->cond, &info->mtx.lock);
+		ret = os_cond_wait(&info->cond, &info->mtx.lock);
 	} else {
-		ret = pthread_cond_timedwait(&info->cond, &info->mtx.lock, ts);
+		ret = os_cond_timedwait(&info->cond, &info->mtx.lock, ts);
 	}
 	atomic_store_b(&info->mtx.locked, true, ATOMIC_RELAXED);
 
 	return ret;
+}
+
+/*
+ * Fill in the absolute deadline for os_cond_timedwait.  os_cond_now() reads
+ * the same clock os_cond_init() paired the condvar with, so the deadline
+ * lands in the right epoch.
+ */
+static void
+background_thread_wakeup_ts_init(struct timespec *ts, uint64_t interval) {
+	nstime_t wakeup;
+	struct timespec now;
+	os_cond_now(&now);
+	nstime_init2(&wakeup, now.tv_sec, now.tv_nsec);
+	nstime_iadd(&wakeup, interval);
+	ts->tv_sec = (size_t)nstime_sec(&wakeup);
+	ts->tv_nsec = (size_t)nstime_nsec(&wakeup);
 }
 
 static void
@@ -189,11 +247,8 @@ background_thread_sleep(
 	}
 	info->npages_to_purge_new = 0;
 
-	struct timeval tv;
-	/* Specific clock required by timedwait. */
-	gettimeofday(&tv, NULL);
 	nstime_t before_sleep;
-	nstime_init2(&before_sleep, tv.tv_sec, tv.tv_usec * 1000);
+	nstime_init_update(&before_sleep);
 
 	int ret;
 	if (interval == BACKGROUND_THREAD_INDEFINITE_SLEEP) {
@@ -213,21 +268,16 @@ background_thread_sleep(
 		background_thread_wakeup_time_set(
 		    tsdn, info, nstime_ns(&next_wakeup));
 
-		nstime_t ts_wakeup;
-		nstime_copy(&ts_wakeup, &before_sleep);
-		nstime_iadd(&ts_wakeup, interval);
 		struct timespec ts;
-		ts.tv_sec = (size_t)nstime_sec(&ts_wakeup);
-		ts.tv_nsec = (size_t)nstime_nsec(&ts_wakeup);
+		background_thread_wakeup_ts_init(&ts, interval);
 
 		assert(!background_thread_indefinite_sleep(info));
 		ret = background_thread_cond_wait(info, &ts);
 		assert(ret == ETIMEDOUT || ret == 0);
 	}
 	if (config_stats) {
-		gettimeofday(&tv, NULL);
 		nstime_t after_sleep;
-		nstime_init2(&after_sleep, tv.tv_sec, tv.tv_usec * 1000);
+		nstime_init_update(&after_sleep);
 		if (nstime_compare(&after_sleep, &before_sleep) > 0) {
 			nstime_subtract(&after_sleep, &before_sleep);
 			nstime_add(&info->tot_sleep_time, &after_sleep);
@@ -238,11 +288,10 @@ background_thread_sleep(
 static bool
 background_thread_pause_check(tsdn_t *tsdn, background_thread_info_t *info) {
 	if (unlikely(info->state == background_thread_paused)) {
-		malloc_mutex_unlock(tsdn, &info->mtx);
-		/* Wait on global lock to update status. */
-		malloc_mutex_lock(tsdn, &background_thread_lock);
-		malloc_mutex_unlock(tsdn, &background_thread_lock);
-		malloc_mutex_lock(tsdn, &info->mtx);
+		while (info->state == background_thread_paused) {
+			int ret = background_thread_cond_wait(info, NULL);
+			assert(ret == 0);
+		}
 		return true;
 	}
 
@@ -252,7 +301,7 @@ background_thread_pause_check(tsdn_t *tsdn, background_thread_info_t *info) {
 static inline void
 background_work_sleep_once(
     tsdn_t *tsdn, background_thread_info_t *info, unsigned ind) {
-	uint64_t ns_until_deferred = BACKGROUND_THREAD_DEFERRED_MAX;
+	uint64_t ns_until_deferred = DEFERRED_WORK_MAX;
 	unsigned narenas = narenas_total_get();
 	bool     slept_indefinitely = background_thread_indefinite_sleep(info);
 
@@ -267,7 +316,8 @@ background_work_sleep_once(
 		 * work that caused this thread to wake up is scheduled for.
 		 */
 		if (!slept_indefinitely) {
-			arena_do_deferred_work(tsdn, arena);
+			pa_shard_do_deferred_work(tsdn, &arena->pa_shard,
+			    /* is_background_thread */ true);
 		}
 		if (ns_until_deferred <= BACKGROUND_THREAD_MIN_INTERVAL_NS) {
 			/* Min interval will be used. */
@@ -281,7 +331,7 @@ background_work_sleep_once(
 	}
 
 	uint64_t sleep_ns;
-	if (ns_until_deferred == BACKGROUND_THREAD_DEFERRED_MAX) {
+	if (ns_until_deferred == DEFERRED_WORK_MAX) {
 		sleep_ns = BACKGROUND_THREAD_INDEFINITE_SLEEP;
 	} else {
 		sleep_ns = (ns_until_deferred
@@ -310,7 +360,7 @@ background_threads_disable_single(tsd_t *tsd, background_thread_info_t *info) {
 	if (info->state == background_thread_started) {
 		has_thread = true;
 		info->state = background_thread_stopped;
-		pthread_cond_signal(&info->cond);
+		os_cond_signal(&info->cond);
 	} else {
 		has_thread = false;
 	}
@@ -341,10 +391,8 @@ background_thread_create_signals_masked(pthread_t *thread,
 	 * Mask signals during thread creation so that the thread inherits
 	 * an empty signal set.
 	 */
-	sigset_t set;
-	sigfillset(&set);
-	sigset_t oldset;
-	int      mask_err = pthread_sigmask(SIG_SETMASK, &set, &oldset);
+	os_sigmask_t oldset;
+	int          mask_err = os_sigmask_all_enter(&oldset);
 	if (mask_err != 0) {
 		return mask_err;
 	}
@@ -354,7 +402,7 @@ background_thread_create_signals_masked(pthread_t *thread,
 	 * Restore the signal mask.  Failure to restore the signal mask here
 	 * changes program behavior.
 	 */
-	int restore_err = pthread_sigmask(SIG_SETMASK, &oldset, NULL);
+	int restore_err = os_sigmask_leave(&oldset);
 	if (restore_err != 0) {
 		malloc_printf(
 		    "<jemalloc>: background thread creation "
@@ -514,7 +562,7 @@ background_thread_entry(void *ind_arg) {
 	pthread_set_name_np(pthread_self(), "jemalloc_bg_thd");
 #	endif
 	if (opt_percpu_arena != percpu_arena_disabled) {
-		set_current_thread_affinity((int)thread_ind);
+		os_cpu_set_affinity((int)thread_ind);
 	}
 	/*
 	 * Start periodic background work.  We use internal tsd which avoids
@@ -565,7 +613,7 @@ background_thread_create_locked(tsd_t *tsd, unsigned arena_ind) {
 		/* Threads are created asynchronously by Thread 0. */
 		background_thread_info_t *t0 = &background_thread_info[0];
 		malloc_mutex_lock(tsd_tsdn(tsd), &t0->mtx);
-		pthread_cond_signal(&t0->cond);
+		os_cond_signal(&t0->cond);
 		malloc_mutex_unlock(tsd_tsdn(tsd), &t0->mtx);
 
 		return false;
@@ -697,7 +745,7 @@ background_thread_wakeup_early(
 	    && nstime_ns(remaining_sleep) < BACKGROUND_THREAD_MIN_INTERVAL_NS) {
 		return;
 	}
-	pthread_cond_signal(&info->cond);
+	os_cond_signal(&info->cond);
 }
 
 void
@@ -741,8 +789,8 @@ background_thread_postfork_child(tsdn_t *tsdn) {
 		background_thread_info_t *info = &background_thread_info[i];
 		malloc_mutex_lock(tsdn, &info->mtx);
 		info->state = background_thread_stopped;
-		int ret = pthread_cond_init(&info->cond, NULL);
-		assert(ret == 0);
+		bool ret = os_cond_init(&info->cond);
+		assert(!ret);
 		background_thread_info_init(tsdn, info);
 		malloc_mutex_unlock(tsdn, &info->mtx);
 	}
@@ -859,7 +907,7 @@ background_thread_boot1(tsdn_t *tsdn, base_t *base) {
 		        malloc_mutex_address_ordered)) {
 			return true;
 		}
-		if (pthread_cond_init(&info->cond, NULL)) {
+		if (os_cond_init(&info->cond)) {
 			return true;
 		}
 		malloc_mutex_lock(tsdn, &info->mtx);

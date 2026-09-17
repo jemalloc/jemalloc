@@ -3,7 +3,7 @@
 
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/arena_stats.h"
-#include "jemalloc/internal/background_thread_structs.h"
+#include "jemalloc/internal/background_thread.h"
 #include "jemalloc/internal/bin_stats.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/malloc_io.h"
@@ -63,6 +63,7 @@ typedef struct ctl_stats_s {
 	size_t resident;
 	size_t mapped;
 	size_t retained;
+	size_t pinned;
 
 	background_thread_stats_t background_thread;
 	mutex_prof_data_t mutex_prof_data[mutex_prof_num_global_mutexes];

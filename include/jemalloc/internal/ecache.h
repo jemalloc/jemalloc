@@ -23,27 +23,27 @@ struct ecache_s {
 };
 
 static inline size_t
-ecache_npages_get(ecache_t *ecache) {
+ecache_npages_get(const ecache_t *ecache) {
 	return eset_npages_get(&ecache->eset)
 	    + eset_npages_get(&ecache->guarded_eset);
 }
 
 /* Get the number of extents in the given page size index. */
 static inline size_t
-ecache_nextents_get(ecache_t *ecache, pszind_t ind) {
+ecache_nextents_get(const ecache_t *ecache, pszind_t ind) {
 	return eset_nextents_get(&ecache->eset, ind)
 	    + eset_nextents_get(&ecache->guarded_eset, ind);
 }
 
 /* Get the sum total bytes of the extents in the given page size index. */
 static inline size_t
-ecache_nbytes_get(ecache_t *ecache, pszind_t ind) {
+ecache_nbytes_get(const ecache_t *ecache, pszind_t ind) {
 	return eset_nbytes_get(&ecache->eset, ind)
 	    + eset_nbytes_get(&ecache->guarded_eset, ind);
 }
 
 static inline unsigned
-ecache_ind_get(ecache_t *ecache) {
+ecache_ind_get(const ecache_t *ecache) {
 	return ecache->ind;
 }
 

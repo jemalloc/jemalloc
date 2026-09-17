@@ -12,14 +12,14 @@ fake_abort(const char *message) {
 
 static void
 test_double_free_pre(void) {
-	safety_check_set_abort(&fake_abort);
+	test_hooks_safety_check_abort = &fake_abort;
 	fake_abort_called = false;
 }
 
 static void
 test_double_free_post(void) {
 	expect_b_eq(fake_abort_called, true, "Double-free check didn't fire.");
-	safety_check_set_abort(NULL);
+	test_hooks_safety_check_abort = NULL;
 }
 
 static bool

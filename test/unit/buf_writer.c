@@ -2,6 +2,8 @@
 
 #include "jemalloc/internal/buf_writer.h"
 
+extern void buf_writer_flush(buf_writer_t *buf_writer);
+
 #define TEST_BUF_SIZE 16
 #define UNIT_MAX (TEST_BUF_SIZE * 3)
 

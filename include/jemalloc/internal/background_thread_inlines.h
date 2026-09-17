@@ -2,9 +2,9 @@
 #define JEMALLOC_INTERNAL_BACKGROUND_THREAD_INLINES_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/arena_inlines_a.h"
+#include "jemalloc/internal/arena_inlines.h"
 #include "jemalloc/internal/atomic.h"
-#include "jemalloc/internal/background_thread_externs.h"
+#include "jemalloc/internal/background_thread.h"
 
 JEMALLOC_ALWAYS_INLINE bool
 background_thread_enabled(void) {
@@ -20,12 +20,6 @@ JEMALLOC_ALWAYS_INLINE void
 background_thread_enabled_set(tsdn_t *tsdn, bool state) {
 	malloc_mutex_assert_owner(tsdn, &background_thread_lock);
 	background_thread_enabled_set_impl(state);
-}
-
-JEMALLOC_ALWAYS_INLINE background_thread_info_t *
-arena_background_thread_info_get(arena_t *arena) {
-	unsigned arena_ind = arena_ind_get(arena);
-	return &background_thread_info[arena_ind % max_background_threads];
 }
 
 JEMALLOC_ALWAYS_INLINE background_thread_info_t *

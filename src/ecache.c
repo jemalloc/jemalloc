@@ -1,7 +1,9 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
-#include "jemalloc/internal/san.h"
+#include "jemalloc/internal/ecache.h"
+#include "jemalloc/internal/eset.h"
+#include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/witness.h"
 
 bool
 ecache_init(tsdn_t *tsdn, ecache_t *ecache, extent_state_t state, unsigned ind,

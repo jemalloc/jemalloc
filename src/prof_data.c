@@ -1,11 +1,18 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
+#include "jemalloc/internal/arena_inlines.h"
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/ckh.h"
 #include "jemalloc/internal/hash.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_a.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_c.h"
 #include "jemalloc/internal/malloc_io.h"
+#include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/prof.h"
 #include "jemalloc/internal/prof_data.h"
+#include "jemalloc/internal/prof_inlines.h"
+#include "jemalloc/internal/witness.h"
 
 /*
  * This file defines and manages the core profiling data structures.
@@ -397,6 +404,7 @@ prof_lookup(tsd_t *tsd, prof_bt_t *bt) {
 	return ret.p;
 }
 
+#ifdef JEMALLOC_JET
 /* Used in unit tests. */
 static prof_tdata_t *
 prof_tdata_count_iter(
@@ -442,6 +450,7 @@ prof_bt_count(void) {
 
 	return bt_count;
 }
+#endif
 
 static void
 prof_thread_name_write_tdata(prof_tdata_t *tdata, const char *thread_name) {
@@ -1098,6 +1107,7 @@ prof_dump_impl(tsd_t *tsd, write_cb_t *prof_dump_write, void *cbopaque,
 	}
 }
 
+#ifdef JEMALLOC_JET
 /* Used in unit tests. */
 void
 prof_cnt_all(prof_cnt_t *cnt_all) {
@@ -1112,6 +1122,7 @@ prof_cnt_all(prof_cnt_t *cnt_all) {
 		prof_gctx_finish(tsd, &gctxs);
 	}
 }
+#endif
 
 void
 prof_bt_hash(const void *key, size_t r_hash[2]) {

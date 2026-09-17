@@ -109,11 +109,6 @@ struct hpa_shard_opts_s {
 	uint64_t min_purge_interval_ms;
 
 	/*
-	 * Maximum number of hugepages to purge on each purging attempt.
-	 */
-	ssize_t experimental_max_purge_nhp;
-
-	/*
 	 * Minimum number of inactive bytes needed for a non-empty page to be
 	 * considered purgable.
 	 *
@@ -176,8 +171,6 @@ struct hpa_shard_opts_s {
 	false,								\
 	/* min_purge_interval_ms */					\
 	5 * 1000,							\
-	/* experimental_max_purge_nhp */				\
-	-1,      							\
 	/* size_t purge_threshold */					\
 	PAGE,								\
 	/* min_purge_delay_ms */             				\

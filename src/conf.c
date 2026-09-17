@@ -1,8 +1,11 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/background_thread.h"
+#include "jemalloc/internal/conf.h"
+#include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/fxp.h"
@@ -10,12 +13,11 @@
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/nstime.h"
-#include "jemalloc/internal/safety_check.h"
+#include "jemalloc/internal/prof.h"
 #include "jemalloc/internal/san.h"
 #include "jemalloc/internal/sc.h"
+#include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/util.h"
-
-#include "jemalloc/internal/conf.h"
 
 /* Whether encountered any invalid config options. */
 bool had_conf_error;
@@ -217,23 +219,28 @@ malloc_abort_invalid_conf(void) {
 JET_EXTERN void
 conf_error(
     const char *msg, const char *k, size_t klen, const char *v, size_t vlen) {
-	malloc_printf(
-	    "<jemalloc>: %s: %.*s:%.*s\n", msg, (int)klen, k, (int)vlen, v);
-	/* If abort_conf is set, error out after processing all options. */
 	const char *experimental = "experimental_";
 	if (strncmp(k, experimental, strlen(experimental)) == 0) {
-		/* However, tolerate experimental features. */
+		/* Silently tolerate experimental features. */
 		return;
 	}
-	const char  *deprecated[] = {"hpa_sec_bytes_after_flush"};
+	const char *deprecated[] = {
+	    "hpa_sec_bytes_after_flush", "hpa_sec_batch_fill_extra",
+	    "lg_tcache_nslots_mul", "tcache_nslots_small_min",
+	    "tcache_nslots_small_max", "tcache_nslots_large",
+	    "tcache_gc_delay_bytes", "lg_tcache_flush_small_div",
+	    "lg_tcache_flush_large_div"};
 	const size_t deprecated_cnt = (sizeof(deprecated)
 	    / sizeof(deprecated[0]));
 	for (size_t i = 0; i < deprecated_cnt; ++i) {
 		if (strncmp(k, deprecated[i], strlen(deprecated[i])) == 0) {
-			/* Tolerate deprecated features. */
+			/* Silently tolerate deprecated features. */
 			return;
 		}
 	}
+	malloc_printf(
+	    "<jemalloc>: %s: %.*s:%.*s\n", msg, (int)klen, k, (int)vlen, v);
+	/* If abort_conf is set, error out after processing all options. */
 	had_conf_error = true;
 }
 
@@ -327,34 +334,26 @@ obtain_malloc_conf(unsigned which_source, char readlink_buf[PATH_MAX + 1]) {
 		ret = NULL;
 		break;
 #else
-		ssize_t linklen = 0;
-#	ifndef _WIN32
 		int         saved_errno = errno;
 		const char *linkname =
-#		ifdef JEMALLOC_PREFIX
+#	ifdef JEMALLOC_PREFIX
 		    "/etc/" JEMALLOC_PREFIX "malloc.conf"
-#		else
+#	else
 		    "/etc/malloc.conf"
-#		endif
+#	endif
 		    ;
 
 		/*
 		 * Try to use the contents of the "/etc/malloc.conf" symbolic
 		 * link's name.
 		 */
-#		ifndef JEMALLOC_READLINKAT
-		linklen = readlink(linkname, readlink_buf, PATH_MAX);
-#		else
-		linklen = readlinkat(
-		    AT_FDCWD, linkname, readlink_buf, PATH_MAX);
-#		endif
+		ssize_t linklen = os_readlink(linkname, readlink_buf, PATH_MAX);
 		if (linklen == -1) {
 			/* No configuration specified. */
 			linklen = 0;
 			/* Restore errno. */
 			set_errno(saved_errno);
 		}
-#	endif
 		readlink_buf[linklen] = '\0';
 		ret = readlink_buf;
 		break;
@@ -728,14 +727,7 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			if (config_xmalloc) {
 				CONF_HANDLE_BOOL(opt_xmalloc, "xmalloc")
 			}
-			if (config_enable_cxx) {
-				CONF_HANDLE_BOOL(
-				    opt_experimental_infallible_new,
-				    "experimental_infallible_new")
-			}
 
-			CONF_HANDLE_BOOL(opt_experimental_tcache_gc,
-			    "experimental_tcache_gc")
 			CONF_HANDLE_BOOL(opt_tcache, "tcache")
 			CONF_HANDLE_SIZE_T(opt_tcache_max, "tcache_max", 0,
 			    TCACHE_MAXCLASS_LIMIT, CONF_DONT_CHECK_MIN,
@@ -755,36 +747,10 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				}
 				CONF_CONTINUE;
 			}
-			/*
-			 * Anyone trying to set a value outside -16 to 16 is
-			 * deeply confused.
-			 */
-			CONF_HANDLE_SSIZE_T(opt_lg_tcache_nslots_mul,
-			    "lg_tcache_nslots_mul", -16, 16)
-			/* Ditto with values past 2048. */
-			CONF_HANDLE_UNSIGNED(opt_tcache_nslots_small_min,
-			    "tcache_nslots_small_min", 1, 2048, CONF_CHECK_MIN,
-			    CONF_CHECK_MAX, /* clip */ true)
-			CONF_HANDLE_UNSIGNED(opt_tcache_nslots_small_max,
-			    "tcache_nslots_small_max", 1, 2048, CONF_CHECK_MIN,
-			    CONF_CHECK_MAX, /* clip */ true)
-			CONF_HANDLE_UNSIGNED(opt_tcache_nslots_large,
-			    "tcache_nslots_large", 1, 2048, CONF_CHECK_MIN,
-			    CONF_CHECK_MAX, /* clip */ true)
 			CONF_HANDLE_SIZE_T(opt_tcache_gc_incr_bytes,
 			    "tcache_gc_incr_bytes", 1024, SIZE_T_MAX,
 			    CONF_CHECK_MIN, CONF_DONT_CHECK_MAX,
 			    /* clip */ true)
-			CONF_HANDLE_SIZE_T(opt_tcache_gc_delay_bytes,
-			    "tcache_gc_delay_bytes", 0, SIZE_T_MAX,
-			    CONF_DONT_CHECK_MIN, CONF_DONT_CHECK_MAX,
-			    /* clip */ false)
-			CONF_HANDLE_UNSIGNED(opt_lg_tcache_flush_small_div,
-			    "lg_tcache_flush_small_div", 1, 16, CONF_CHECK_MIN,
-			    CONF_CHECK_MAX, /* clip */ true)
-			CONF_HANDLE_UNSIGNED(opt_lg_tcache_flush_large_div,
-			    "lg_tcache_flush_large_div", 1, 16, CONF_CHECK_MIN,
-			    CONF_CHECK_MAX, /* clip */ true)
 			CONF_HANDLE_UNSIGNED(opt_debug_double_free_max_scan,
 			    "debug_double_free_max_scan", 0, UINT_MAX,
 			    CONF_DONT_CHECK_MIN, CONF_DONT_CHECK_MAX,
@@ -877,10 +843,6 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			    "hpa_min_purge_interval_ms", 0, 0,
 			    CONF_DONT_CHECK_MIN, CONF_DONT_CHECK_MAX, false);
 
-			CONF_HANDLE_SSIZE_T(
-			    opt_hpa_opts.experimental_max_purge_nhp,
-			    "experimental_hpa_max_purge_nhp", -1, SSIZE_MAX);
-
 			/*
 			 * Accept either a ratio-based or an exact purge
 			 * threshold.
@@ -943,8 +905,8 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 				CONF_CONTINUE;
 			}
 			CONF_HANDLE_SIZE_T(opt_hpa_sec_opts.nshards,
-			    "hpa_sec_nshards", 0, 0, CONF_CHECK_MIN,
-			    CONF_DONT_CHECK_MAX, true);
+			    "hpa_sec_nshards", 0, 255, CONF_CHECK_MIN,
+			    CONF_CHECK_MAX, true);
 			CONF_HANDLE_SIZE_T(opt_hpa_sec_opts.max_alloc,
 			    "hpa_sec_max_alloc", PAGE,
 			    USIZE_GROW_SLOW_THRESHOLD, CONF_CHECK_MIN,
@@ -952,9 +914,17 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			CONF_HANDLE_SIZE_T(opt_hpa_sec_opts.max_bytes,
 			    "hpa_sec_max_bytes", SEC_OPTS_MAX_BYTES_DEFAULT, 0,
 			    CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
-			CONF_HANDLE_SIZE_T(opt_hpa_sec_opts.batch_fill_extra,
-			    "hpa_sec_batch_fill_extra", 1, HUGEPAGE_PAGES,
+			CONF_HANDLE_SIZE_T(opt_pac_sec_opts.nshards,
+			    "experimental_pac_sec_nshards", 0, 255,
 			    CONF_CHECK_MIN, CONF_CHECK_MAX, true);
+			CONF_HANDLE_SIZE_T(opt_pac_sec_opts.max_alloc,
+			    "experimental_pac_sec_max_alloc", PAGE,
+			    USIZE_GROW_SLOW_THRESHOLD, CONF_CHECK_MIN,
+			    CONF_CHECK_MAX, true);
+			CONF_HANDLE_SIZE_T(opt_pac_sec_opts.max_bytes,
+			    "experimental_pac_sec_max_bytes",
+			    SEC_OPTS_MAX_BYTES_DEFAULT, 0,
+			    CONF_CHECK_MIN, CONF_DONT_CHECK_MAX, true);
 
 			if (CONF_MATCH("slab_sizes")) {
 				if (CONF_MATCH_VALUE("default")) {

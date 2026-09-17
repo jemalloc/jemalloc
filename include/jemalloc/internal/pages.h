@@ -32,17 +32,11 @@ extern size_t os_page;
  */
 #define HUGEPAGE_MAX_EXPECTED_SIZE ((size_t)(16U << 20))
 
-#if LG_HUGEPAGE != 0
+#if LG_HUGEPAGE > LG_PAGE
 #	define HUGEPAGE_PAGES (HUGEPAGE / PAGE)
 #else
-/*
- * It's convenient to define arrays (or bitmaps) of HUGEPAGE_PAGES lengths.  If
- * we can't autodetect the hugepage size, it gets treated as 0, in which case
- * we'll trigger a compiler error in those arrays.  Avoid this case by ensuring
- * that this value is at least 1.  (We won't ever run in this degraded state;
- * hpa_supported() returns false in this case.
- */
-#	define HUGEPAGE_PAGES 1
+/* the configure script should not allow this */
+#	error "We expect LG_HUGEPAGE to be > LG_PAGE"
 #endif
 
 /* Return the huge page base address for the huge page containing address a. */
@@ -61,12 +55,12 @@ extern size_t os_page;
  * re-commit, but doing so is racy, and if re-commit fails it's a pain to
  * propagate the "poisoned" memory state.  Since we typically decommit as the
  * next step after purging on Windows anyway, there's no point in adding such
- * complexity.
+ * complexity.  Neither condition can be true on Windows, so no Windows
+ * detection is needed here.
  */
-#if !defined(_WIN32)                                                           \
-    && ((defined(JEMALLOC_PURGE_MADVISE_DONTNEED)                              \
-            && defined(JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS))                 \
-        || defined(JEMALLOC_MAPS_COALESCE))
+#if (defined(JEMALLOC_PURGE_MADVISE_DONTNEED)                                  \
+        && defined(JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS))                     \
+    || defined(JEMALLOC_MAPS_COALESCE)
 #	define PAGES_CAN_PURGE_FORCED
 #endif
 

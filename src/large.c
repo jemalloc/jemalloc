@@ -1,10 +1,14 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
+#include "jemalloc/internal/arena_inlines.h"
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/emap.h"
-#include "jemalloc/internal/extent_mmap.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_c.h"
+#include "jemalloc/internal/large.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/prof.h"
+#include "jemalloc/internal/prof_inlines.h"
 #include "jemalloc/internal/prof_recent.h"
 #include "jemalloc/internal/util.h"
 
@@ -74,7 +78,7 @@ large_ralloc_no_move_shrink(tsdn_t *tsdn, edata_t *edata, size_t usize) {
 		return true;
 	}
 	if (deferred_work_generated) {
-		arena_handle_deferred_work(tsdn, arena);
+		pa_shard_handle_deferred_work(tsdn, &arena->pa_shard);
 	}
 	arena_extent_ralloc_large_shrink(tsdn, arena, edata, old_usize);
 
@@ -97,7 +101,7 @@ large_ralloc_no_move_expand(
 	    szind, zero, &deferred_work_generated);
 
 	if (deferred_work_generated) {
-		arena_handle_deferred_work(tsdn, arena);
+		pa_shard_handle_deferred_work(tsdn, &arena->pa_shard);
 	}
 
 	if (err) {
@@ -184,8 +188,7 @@ large_ralloc_move_helper(
 
 void *
 large_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t usize,
-    size_t alignment, bool zero, tcache_t *tcache,
-    hook_ralloc_args_t *hook_args) {
+    size_t alignment, bool zero, tcache_t *tcache) {
 	edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global, ptr);
 
 	size_t oldusize = edata_usize_get(edata);
@@ -196,9 +199,6 @@ large_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t usize,
 
 	/* Try to avoid moving the allocation. */
 	if (!large_ralloc_no_move(tsdn, edata, usize, usize, zero)) {
-		hook_invoke_expand(hook_args->is_realloc ? hook_expand_realloc
-		                                         : hook_expand_rallocx,
-		    ptr, oldusize, usize, (uintptr_t)ptr, hook_args->args);
 		return edata_addr_get(edata);
 	}
 
@@ -212,13 +212,6 @@ large_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t usize,
 	if (ret == NULL) {
 		return NULL;
 	}
-
-	hook_invoke_alloc(
-	    hook_args->is_realloc ? hook_alloc_realloc : hook_alloc_rallocx,
-	    ret, (uintptr_t)ret, hook_args->args);
-	hook_invoke_dalloc(
-	    hook_args->is_realloc ? hook_dalloc_realloc : hook_dalloc_rallocx,
-	    ptr, hook_args->args);
 
 	size_t copysize = (usize < oldusize) ? usize : oldusize;
 	memcpy(ret, edata_addr_get(edata), copysize);
@@ -254,7 +247,7 @@ large_dalloc_finish_impl(tsdn_t *tsdn, arena_t *arena, edata_t *edata) {
 	bool deferred_work_generated = false;
 	pa_dalloc(tsdn, &arena->pa_shard, edata, &deferred_work_generated);
 	if (deferred_work_generated) {
-		arena_handle_deferred_work(tsdn, arena);
+		pa_shard_handle_deferred_work(tsdn, &arena->pa_shard);
 	}
 }
 

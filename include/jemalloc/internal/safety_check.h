@@ -11,11 +11,6 @@ void safety_check_fail_sized_dealloc(
     bool current_dealloc, const void *ptr, size_t true_size, size_t input_size);
 void safety_check_fail(const char *format, ...);
 
-typedef void (*safety_check_abort_hook_t)(const char *message);
-
-/* Can set to NULL for a default. */
-void safety_check_set_abort(safety_check_abort_hook_t abort_fn);
-
 #define REDZONE_SIZE ((size_t)32)
 #define REDZONE_FILL_VALUE 0xBC
 

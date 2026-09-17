@@ -134,17 +134,17 @@ void psset_insert(psset_t *psset, hpdata_t *ps);
 void psset_remove(psset_t *psset, hpdata_t *ps);
 
 static inline size_t
-psset_npageslabs(psset_t *psset) {
+psset_npageslabs(const psset_t *psset) {
 	return psset->stats.merged.npageslabs;
 }
 
 static inline size_t
-psset_nactive(psset_t *psset) {
+psset_nactive(const psset_t *psset) {
 	return psset->stats.merged.nactive;
 }
 
 static inline size_t
-psset_ndirty(psset_t *psset) {
+psset_ndirty(const psset_t *psset) {
 	return psset->stats.merged.ndirty;
 }
 

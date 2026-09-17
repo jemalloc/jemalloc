@@ -36,8 +36,6 @@ static hpa_shard_opts_t test_hpa_shard_opts = {
     false,
     /* min_purge_interval_ms */
     5,
-    /* experimental_max_purge_nhp */
-    -1,
     /* purge_threshold */
     PAGE,
     /* min_purge_delay_ms */
@@ -161,72 +159,89 @@ TEST_BEGIN(test_hpa_sec) {
 	sec_opts.nshards = 1;
 	sec_opts.max_alloc = 2 * PAGE;
 	sec_opts.max_bytes = NALLOCS * PAGE;
-	sec_opts.batch_fill_extra = 4;
 
 	hpa_shard_t *shard = create_test_data(&hooks, &opts, &sec_opts);
 	bool         deferred_work_generated = false;
 	tsdn_t      *tsdn = tsd_tsdn(tsd_fetch());
+	size_t       min_nallocs, target_nallocs;
+	sec_calc_nallocs_for_size(
+	    &shard->sec, PAGE, &min_nallocs, &target_nallocs);
 
 	/* alloc 1 PAGE, confirm sec has fill_extra bytes. */
-	edata_t *edata1 = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false, false,
+	edata_t *edata1 = hpa_alloc(tsdn, shard, PAGE, PAGE, false, false,
 	    false, &deferred_work_generated);
 	expect_ptr_not_null(edata1, "Unexpected null edata");
 	hpa_shard_stats_t hpa_stats;
 	memset(&hpa_stats, 0, sizeof(hpa_shard_stats_t));
 	hpa_shard_stats_merge(tsdn, shard, &hpa_stats);
-	expect_zu_eq(hpa_stats.psset_stats.merged.nactive,
-	    1 + sec_opts.batch_fill_extra, "");
-	expect_zu_eq(hpa_stats.secstats.bytes, PAGE * sec_opts.batch_fill_extra,
-	    "sec should have fill extra pages");
+	expect_zu_eq(hpa_stats.psset_stats.merged.nactive, target_nallocs, "");
+	expect_zu_eq(hpa_stats.secstats.bytes, (target_nallocs - 1) * PAGE,
+	    "sec should have extra pages");
+	expect_u64_eq(
+	    hpa_stats.nonderived_stats.hpa_alloc_extents[target_nallocs],
+	    (uint64_t)1, "");
 
 	/* Alloc/dealloc NALLOCS times and confirm extents are in sec. */
 	edata_t *edatas[NALLOCS];
+	size_t   expected_nactive = NALLOCS + target_nallocs;
 	for (int i = 0; i < NALLOCS; i++) {
-		edatas[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false,
-		    false, false, &deferred_work_generated);
+		edatas[i] = hpa_alloc(tsdn, shard, PAGE, PAGE, false, false,
+		    false, &deferred_work_generated);
 		expect_ptr_not_null(edatas[i], "Unexpected null edata");
 	}
 	memset(&hpa_stats, 0, sizeof(hpa_shard_stats_t));
 	hpa_shard_stats_merge(tsdn, shard, &hpa_stats);
-	expect_zu_eq(hpa_stats.psset_stats.merged.nactive, 2 + NALLOCS, "");
-	expect_zu_eq(hpa_stats.secstats.bytes, PAGE, "2 refills (at 0 and 4)");
+	expect_zu_eq(
+	    hpa_stats.psset_stats.merged.nactive, expected_nactive, "");
+	expect_zu_eq(hpa_stats.secstats.bytes, (target_nallocs - 1) * PAGE,
+	    "multiple refills (every target_nallocs allocations)");
+	const uint64_t expected_nsuccesses =
+	    (uint64_t)((NALLOCS + 1 + target_nallocs - 1) / target_nallocs);
+	expect_u64_eq(
+	    hpa_stats.nonderived_stats.hpa_alloc_extents[target_nallocs],
+	    expected_nsuccesses, "");
 
 	for (int i = 0; i < NALLOCS - 1; i++) {
-		pai_dalloc(
-		    tsdn, &shard->pai, edatas[i], &deferred_work_generated);
+		hpa_dalloc(tsdn, shard, edatas[i], &deferred_work_generated);
 	}
 	memset(&hpa_stats, 0, sizeof(hpa_shard_stats_t));
 	hpa_shard_stats_merge(tsdn, shard, &hpa_stats);
-	expect_zu_eq(hpa_stats.psset_stats.merged.nactive, (2 + NALLOCS), "");
+	expect_zu_eq(
+	    hpa_stats.psset_stats.merged.nactive, expected_nactive, "");
 	expect_zu_eq(
 	    hpa_stats.secstats.bytes, sec_opts.max_bytes, "sec should be full");
 
-	/* this one should flush 1 + 0.25 * 8 = 3 extents */
-	pai_dalloc(
-	    tsdn, &shard->pai, edatas[NALLOCS - 1], &deferred_work_generated);
+	/* this one should flush 1 + 0.25 * NALLOCS extents */
+	const size_t flushed_extends = 1 + NALLOCS / 4;
+	const size_t expected_native_minus_flushed = expected_nactive
+	    - flushed_extends;
+	hpa_dalloc(tsdn, shard, edatas[NALLOCS - 1], &deferred_work_generated);
 	memset(&hpa_stats, 0, sizeof(hpa_shard_stats_t));
 	hpa_shard_stats_merge(tsdn, shard, &hpa_stats);
-	expect_zu_eq(hpa_stats.psset_stats.merged.nactive, (NALLOCS - 1), "");
-	expect_zu_eq(hpa_stats.psset_stats.merged.ndirty, 3, "");
+	expect_zu_eq(hpa_stats.psset_stats.merged.nactive,
+	    expected_native_minus_flushed, "");
+	expect_zu_eq(hpa_stats.psset_stats.merged.ndirty, flushed_extends, "");
 	expect_zu_eq(hpa_stats.secstats.bytes, 0.75 * sec_opts.max_bytes,
 	    "sec should be full");
 
 	/* Next allocation should come from SEC and not increase active */
-	edata_t *edata2 = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false, false,
+	edata_t *edata2 = hpa_alloc(tsdn, shard, PAGE, PAGE, false, false,
 	    false, &deferred_work_generated);
 	expect_ptr_not_null(edata2, "Unexpected null edata");
 	memset(&hpa_stats, 0, sizeof(hpa_shard_stats_t));
 	hpa_shard_stats_merge(tsdn, shard, &hpa_stats);
-	expect_zu_eq(hpa_stats.psset_stats.merged.nactive, NALLOCS - 1, "");
+	expect_zu_eq(hpa_stats.psset_stats.merged.nactive,
+	    expected_native_minus_flushed, "");
 	expect_zu_eq(hpa_stats.secstats.bytes, 0.75 * sec_opts.max_bytes - PAGE,
 	    "sec should have max_bytes minus one page that just came from it");
 
 	/* We return this one and it stays in the cache */
-	pai_dalloc(tsdn, &shard->pai, edata2, &deferred_work_generated);
+	hpa_dalloc(tsdn, shard, edata2, &deferred_work_generated);
 	memset(&hpa_stats, 0, sizeof(hpa_shard_stats_t));
 	hpa_shard_stats_merge(tsdn, shard, &hpa_stats);
-	expect_zu_eq(hpa_stats.psset_stats.merged.nactive, NALLOCS - 1, "");
-	expect_zu_eq(hpa_stats.psset_stats.merged.ndirty, 3, "");
+	expect_zu_eq(hpa_stats.psset_stats.merged.nactive,
+	    expected_native_minus_flushed, "");
+	expect_zu_eq(hpa_stats.psset_stats.merged.ndirty, flushed_extends, "");
 	expect_zu_eq(hpa_stats.secstats.bytes, 0.75 * sec_opts.max_bytes, "");
 
 	destroy_test_data(shard);

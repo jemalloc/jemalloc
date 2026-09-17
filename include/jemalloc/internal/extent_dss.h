@@ -2,8 +2,10 @@
 #define JEMALLOC_INTERNAL_EXTENT_DSS_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/arena_types.h"
 #include "jemalloc/internal/tsd_types.h"
+
+/* Forward decl; arena.h includes us, so we can't include arena.h back. */
+typedef struct arena_s arena_t;
 
 typedef enum {
 	dss_prec_disabled = 0,
@@ -26,5 +28,10 @@ void      *extent_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr,
 bool       extent_in_dss(void *addr);
 bool       extent_dss_mergeable(void *addr_a, void *addr_b);
 void       extent_dss_boot(void);
+
+#ifdef JEMALLOC_JET
+typedef void *(*extent_dss_sbrk_hook_t)(intptr_t);
+extern extent_dss_sbrk_hook_t extent_dss_sbrk_hook;
+#endif
 
 #endif /* JEMALLOC_INTERNAL_EXTENT_DSS_H */

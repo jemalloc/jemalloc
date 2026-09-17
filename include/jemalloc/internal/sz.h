@@ -3,6 +3,7 @@
 
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/bit_util.h"
+#include "jemalloc/internal/jemalloc_internal_externs.h"
 #include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/util.h"
@@ -314,13 +315,23 @@ sz_size2index_usize_fastpath(size_t size, szind_t *ind, size_t *usize) {
 
 JEMALLOC_ALWAYS_INLINE size_t
 sz_s2u_compute_using_delta(size_t size) {
+	if (unlikely(size > SC_LARGE_MAXCLASS)) {
+		return 0;
+	}
+
 	size_t x = lg_floor((size << 1) - 1);
 	size_t lg_delta = (x < SC_LG_NGROUP + LG_QUANTUM + 1)
 	    ? LG_QUANTUM
 	    : x - SC_LG_NGROUP - 1;
 	size_t delta = ZU(1) << lg_delta;
 	size_t delta_mask = delta - 1;
-	size_t usize = (size + delta_mask) & ~delta_mask;
+
+	size_t usize = size + delta_mask;
+	if (unlikely(usize < size)) {
+		/* size_t overflow. */
+		return 0;
+	}
+	usize &= ~delta_mask;
 	return usize;
 }
 
@@ -350,7 +361,12 @@ sz_s2u_compute(size_t size) {
 		 * multiple of PAGE to minimize the memory overhead, especially
 		 * when using hugepages.
 		 */
-		size_t usize = PAGE_CEILING(size);
+		size_t usize = size + PAGE_MASK;
+		if (unlikely(usize < size)) {
+			/* size_t overflow. */
+			return 0;
+		}
+		usize &= ~PAGE_MASK;
 		assert(usize - size < PAGE);
 		return usize;
 	}
@@ -385,7 +401,11 @@ JEMALLOC_ALWAYS_INLINE size_t
 sz_sa2u(size_t size, size_t alignment) {
 	size_t usize;
 
-	assert(alignment != 0 && ((alignment - 1) & alignment) == 0);
+	if (unlikely(alignment == 0)) {
+		return 0;
+	}
+	size_t alignment_mask = alignment - 1;
+	assert((alignment_mask & alignment) == 0);
 
 	/* Try for a small size class. */
 	if (size <= SC_SMALL_MAXCLASS && alignment <= PAGE) {
@@ -403,7 +423,12 @@ sz_sa2u(size_t size, size_t alignment) {
 		 *    144 | 10100000 |  32
 		 *    192 | 11000000 |  64
 		 */
-		usize = sz_s2u(ALIGNMENT_CEILING(size, alignment));
+		size_t rounded = size + alignment_mask;
+		if (unlikely(rounded < size)) {
+			/* size_t overflow. */
+			return 0;
+		}
+		usize = sz_s2u(rounded & ~alignment_mask);
 		if (usize < SC_LARGE_MINCLASS) {
 			return usize;
 		}

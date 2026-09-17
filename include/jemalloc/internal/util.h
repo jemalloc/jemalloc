@@ -3,8 +3,21 @@
 
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
+#include "jemalloc/internal/os/error.h"
 
 #define UTIL_INLINE static inline
+
+JEMALLOC_ALWAYS_INLINE
+size_t
+min_zu(size_t a, size_t b) {
+	return (a < b) ? a : b;
+}
+
+JEMALLOC_ALWAYS_INLINE
+size_t
+max_zu(size_t a, size_t b) {
+	return (a > b) ? a : b;
+}
 
 /* Junk fill patterns. */
 #ifndef JEMALLOC_ALLOC_JUNK
@@ -54,21 +67,13 @@
 /* Set error code. */
 UTIL_INLINE void
 set_errno(int errnum) {
-#ifdef _WIN32
-	SetLastError(errnum);
-#else
-	errno = errnum;
-#endif
+	os_errno_set(errnum);
 }
 
 /* Get last error code. */
 UTIL_INLINE int
 get_errno(void) {
-#ifdef _WIN32
-	return GetLastError();
-#else
-	return errno;
-#endif
+	return os_errno_get();
 }
 
 #ifdef _MSC_VER

@@ -1,6 +1,13 @@
 #include "test/jemalloc_test.h"
 #include "jemalloc/internal/prof_log.h"
 
+extern size_t prof_log_bt_count(void);
+extern size_t prof_log_alloc_count(void);
+extern size_t prof_log_thr_count(void);
+extern bool   prof_log_is_logging(void);
+extern bool   prof_log_rep_check(void);
+extern void   prof_log_dummy_set(bool new_value);
+
 #define N_PARAM 100
 #define N_THREADS 10
 

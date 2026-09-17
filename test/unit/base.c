@@ -2,6 +2,8 @@
 
 #include "test/extent_hooks.h"
 
+extern ehooks_t *base_ehooks_get_for_metadata(base_t *base);
+
 static extent_hooks_t hooks_null = {
     extent_alloc_hook, NULL, /* dalloc */
     NULL,                    /* destroy */

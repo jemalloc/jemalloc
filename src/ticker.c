@@ -1,5 +1,6 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
+
+#include "jemalloc/internal/ticker.h"
 
 /*
  * To avoid using floating point math down core paths (still necessary because

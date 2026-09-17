@@ -1,10 +1,5 @@
 #include "test/jemalloc_test.h"
 
-/*
- * If we're e.g. in debug mode, we *never* enter the fast path, and so shouldn't
- * be asserting that we're on one.
- */
-static bool originally_fast;
 static int  data_cleanup_count;
 
 void
@@ -135,6 +130,71 @@ TEST_BEGIN(test_tsd_reincarnation) {
 }
 TEST_END
 
+static bool tsd_bootstrap_reentrant_hook_ran;
+static unsigned tsd_bootstrap_reentrant_hook_runs;
+
+static void
+tsd_bootstrap_reentrant_hook(void) {
+	tsd_bootstrap_reentrant_hook_ran = true;
+	tsd_bootstrap_reentrant_hook_runs++;
+	test_hooks_tsd_bootstrap_hook = NULL;
+
+	void *p = malloc(16);
+	expect_ptr_not_null(p, "Unexpected recursive malloc() failure");
+	free(p);
+}
+
+static void *
+thd_start_reentrant_tsd_bootstrap(void *arg) {
+	(void)arg;
+
+	test_hooks_tsd_bootstrap_hook = tsd_bootstrap_reentrant_hook;
+	void *p = malloc(1);
+	expect_ptr_not_null(p, "Unexpected malloc() failure");
+	free(p);
+	test_hooks_tsd_bootstrap_hook = NULL;
+
+	expect_true(tsd_bootstrap_reentrant_hook_ran,
+	    "TSD bootstrap hook should have executed");
+	return NULL;
+}
+
+static void *
+thd_start_reentrant_tsd_bootstrap_minimal(void *arg) {
+	(void)arg;
+
+	tsd_t *tsd = tsd_fetch_min();
+	expect_u_eq(tsd_state_get(tsd), tsd_state_minimal_initialized,
+	    "TSD should be minimal initialized");
+
+	test_hooks_tsd_bootstrap_hook = tsd_bootstrap_reentrant_hook;
+	void *p = malloc(1);
+	expect_ptr_not_null(p, "Unexpected malloc() failure");
+	free(p);
+	test_hooks_tsd_bootstrap_hook = NULL;
+
+	expect_true(tsd_bootstrap_reentrant_hook_ran,
+	    "TSD bootstrap hook should have executed");
+	return NULL;
+}
+
+TEST_BEGIN(test_tsd_reentrant_bootstrap) {
+	thd_t thd;
+
+	tsd_bootstrap_reentrant_hook_ran = false;
+	tsd_bootstrap_reentrant_hook_runs = 0;
+	thd_create(&thd, thd_start_reentrant_tsd_bootstrap, NULL);
+	thd_join(thd, NULL);
+
+	tsd_bootstrap_reentrant_hook_ran = false;
+	thd_create(&thd, thd_start_reentrant_tsd_bootstrap_minimal, NULL);
+	thd_join(thd, NULL);
+
+	expect_u_eq(tsd_bootstrap_reentrant_hook_runs, 2,
+	    "TSD bootstrap hook should have executed once per case");
+}
+TEST_END
+
 static void *
 thd_start_dalloc_only(void *arg) {
 	void **ptrs = (void **)arg;
@@ -190,124 +250,304 @@ TEST_BEGIN(test_tsd_sub_thread_dalloc_only) {
 }
 TEST_END
 
-typedef struct {
-	atomic_u32_t phase;
-	atomic_b_t   error;
-} global_slow_data_t;
+#if !defined(JEMALLOC_MALLOC_THREAD_CLEANUP) && !defined(JEMALLOC_TLS) \
+    && !defined(_WIN32)
+#define TEST_TSD_AFTER_TEARDOWN
+static const bool skip_tsd_after_teardown = false;
+#else
+static const bool skip_tsd_after_teardown = true;
+#endif
 
 static void *
-thd_start_global_slow(void *arg) {
-	/* PHASE 0 */
-	global_slow_data_t *data = (global_slow_data_t *)arg;
-	free(mallocx(1, 0));
+tsd_raw_get(void) {
+#ifdef TEST_TSD_AFTER_TEARDOWN
+	return pthread_getspecific(tsd_tsd);
+#else
+	return NULL;
+#endif
+}
 
+static bool
+tsd_raw_clear(void) {
+#ifdef TEST_TSD_AFTER_TEARDOWN
+	return pthread_setspecific(tsd_tsd, NULL) == 0;
+#else
+	return true;
+#endif
+}
+
+static void
+tsd_teardown_for_test(void) {
 	tsd_t *tsd = tsd_fetch();
+	void *tsd_wrapper = tsd_raw_get();
+	expect_ptr_not_null(tsd_wrapper, "TSD wrapper should exist after malloc");
+
 	/*
-	 * No global slowness has happened yet; there was an error if we were
-	 * originally fast but aren't now.
+	 * Emulate a jemalloc call after the pthread-key destructor has finished
+	 * with the generic TSD wrapper.  This is the state seen by cleanup code
+	 * that runs late in thread teardown on pthread_getspecific()-based
+	 * builds: the first cleanup call moves a nominal TSD to purgatory, where
+	 * deallocation is handled by the existing reincarnation path; the second
+	 * cleanup call emulates the final destructor round, after which the
+	 * wrapper is released and no TSD remains to reincarnate.
 	 */
-	atomic_store_b(
-	    &data->error, originally_fast && !tsd_fast(tsd), ATOMIC_SEQ_CST);
-	atomic_store_u32(&data->phase, 1, ATOMIC_SEQ_CST);
+	tsd_cleanup(tsd);
+	tsd_cleanup(tsd);
+	malloc_tsd_dalloc(tsd_wrapper);
+	expect_true(tsd_raw_clear(), "Unexpected TSD key clear failure");
+	expect_ptr_null(tsd_raw_get(),
+	    "TSD key should be clear before the late jemalloc call");
+}
 
-	/* PHASE 2 */
-	while (atomic_load_u32(&data->phase, ATOMIC_SEQ_CST) != 2) {
-	}
-	free(mallocx(1, 0));
-	atomic_store_b(&data->error, tsd_fast(tsd), ATOMIC_SEQ_CST);
-	atomic_store_u32(&data->phase, 3, ATOMIC_SEQ_CST);
+static void *
+thd_start_free_after_teardown(void *arg) {
+	(void)arg;
 
-	/* PHASE 4 */
-	while (atomic_load_u32(&data->phase, ATOMIC_SEQ_CST) != 4) {
-	}
-	free(mallocx(1, 0));
-	atomic_store_b(&data->error, tsd_fast(tsd), ATOMIC_SEQ_CST);
-	atomic_store_u32(&data->phase, 5, ATOMIC_SEQ_CST);
+	void *keep = malloc(32);
+	expect_ptr_not_null(keep, "Unexpected malloc() failure");
+	void *free_victim = malloc(32);
+	expect_ptr_not_null(free_victim, "Unexpected malloc() failure");
+	void *dallocx_victim = mallocx(32, 0);
+	expect_ptr_not_null(dallocx_victim, "Unexpected mallocx() failure");
+	void *sdallocx_victim = mallocx(32, 0);
+	expect_ptr_not_null(sdallocx_victim, "Unexpected mallocx() failure");
 
-	/* PHASE 6 */
-	while (atomic_load_u32(&data->phase, ATOMIC_SEQ_CST) != 6) {
-	}
-	free(mallocx(1, 0));
-	/* Only one decrement so far. */
-	atomic_store_b(&data->error, tsd_fast(tsd), ATOMIC_SEQ_CST);
-	atomic_store_u32(&data->phase, 7, ATOMIC_SEQ_CST);
+	tsd_teardown_for_test();
 
-	/* PHASE 8 */
-	while (atomic_load_u32(&data->phase, ATOMIC_SEQ_CST) != 8) {
-	}
-	free(mallocx(1, 0));
-	/*
-	 * Both decrements happened; we should be fast again (if we ever
-	 * were)
-	 */
-	atomic_store_b(
-	    &data->error, originally_fast && !tsd_fast(tsd), ATOMIC_SEQ_CST);
-	atomic_store_u32(&data->phase, 9, ATOMIC_SEQ_CST);
+	free(free_victim);
+	expect_ptr_null(tsd_raw_get(),
+	    "free() after TSD teardown must not re-create TSD");
+	dallocx(dallocx_victim, 0);
+	expect_ptr_null(tsd_raw_get(),
+	    "dallocx() after TSD teardown must not re-create TSD");
+	sdallocx(sdallocx_victim, 32, 0);
+	expect_ptr_null(tsd_raw_get(),
+	    "sdallocx() after TSD teardown must not re-create TSD");
 
+	free(keep);
 	return NULL;
 }
 
-TEST_BEGIN(test_tsd_global_slow) {
-	global_slow_data_t data = {ATOMIC_INIT(0), ATOMIC_INIT(false)};
-	/*
-	 * Note that the "mallocx" here (vs. malloc) is important, since the
-	 * compiler is allowed to optimize away free(malloc(1)) but not
-	 * free(mallocx(1)).
-	 */
-	free(mallocx(1, 0));
-	tsd_t *tsd = tsd_fetch();
-	originally_fast = tsd_fast(tsd);
+TEST_BEGIN(test_tsd_free_after_teardown) {
+	test_skip_if(skip_tsd_after_teardown);
 
 	thd_t thd;
-	thd_create(&thd, thd_start_global_slow, (void *)&data.phase);
-	/* PHASE 1 */
-	while (atomic_load_u32(&data.phase, ATOMIC_SEQ_CST) != 1) {
-		/*
-		 * We don't have a portable condvar/semaphore mechanism.
-		 * Spin-wait.
-		 */
-	}
-	expect_false(atomic_load_b(&data.error, ATOMIC_SEQ_CST), "");
-	tsd_global_slow_inc(tsd_tsdn(tsd));
-	free(mallocx(1, 0));
-	expect_false(tsd_fast(tsd), "");
-	atomic_store_u32(&data.phase, 2, ATOMIC_SEQ_CST);
+	thd_create(&thd, thd_start_free_after_teardown, NULL);
+	thd_join(thd, NULL);
+}
+TEST_END
 
-	/* PHASE 3 */
-	while (atomic_load_u32(&data.phase, ATOMIC_SEQ_CST) != 3) {
-	}
-	expect_false(atomic_load_b(&data.error, ATOMIC_SEQ_CST), "");
-	/* Increase again, so that we can test multiple fast/slow changes. */
-	tsd_global_slow_inc(tsd_tsdn(tsd));
-	atomic_store_u32(&data.phase, 4, ATOMIC_SEQ_CST);
-	free(mallocx(1, 0));
-	expect_false(tsd_fast(tsd), "");
+static void
+expect_tsd_recreated(void *p, const char *func) {
+	expect_ptr_not_null(p, "%s() after TSD teardown should still allocate",
+	    func);
+	expect_ptr_not_null(tsd_raw_get(),
+	    "%s() after TSD teardown should preserve TSD reincarnation", func);
+}
 
-	/* PHASE 5 */
-	while (atomic_load_u32(&data.phase, ATOMIC_SEQ_CST) != 5) {
-	}
-	expect_false(atomic_load_b(&data.error, ATOMIC_SEQ_CST), "");
-	tsd_global_slow_dec(tsd_tsdn(tsd));
-	atomic_store_u32(&data.phase, 6, ATOMIC_SEQ_CST);
-	/* We only decreased once; things should still be slow. */
-	free(mallocx(1, 0));
-	expect_false(tsd_fast(tsd), "");
+static void *
+thd_start_malloc_after_teardown(void *arg) {
+	(void)arg;
 
-	/* PHASE 7 */
-	while (atomic_load_u32(&data.phase, ATOMIC_SEQ_CST) != 7) {
-	}
-	expect_false(atomic_load_b(&data.error, ATOMIC_SEQ_CST), "");
-	tsd_global_slow_dec(tsd_tsdn(tsd));
-	atomic_store_u32(&data.phase, 8, ATOMIC_SEQ_CST);
-	/* We incremented and then decremented twice; we should be fast now. */
-	free(mallocx(1, 0));
-	expect_true(!originally_fast || tsd_fast(tsd), "");
+	void *keep = malloc(32);
+	expect_ptr_not_null(keep, "Unexpected malloc() failure");
 
-	/* PHASE 9 */
-	while (atomic_load_u32(&data.phase, ATOMIC_SEQ_CST) != 9) {
-	}
-	expect_false(atomic_load_b(&data.error, ATOMIC_SEQ_CST), "");
+	tsd_teardown_for_test();
 
+	void *p = malloc(32);
+	expect_tsd_recreated(p, "malloc");
+	if (p != NULL) {
+		free(p);
+	}
+
+	free(keep);
+	return NULL;
+}
+
+static void *
+thd_start_mallocx_after_teardown(void *arg) {
+	(void)arg;
+
+	void *keep = malloc(32);
+	expect_ptr_not_null(keep, "Unexpected malloc() failure");
+
+	tsd_teardown_for_test();
+
+	void *p = mallocx(32, 0);
+	expect_tsd_recreated(p, "mallocx");
+	if (p != NULL) {
+		dallocx(p, 0);
+	}
+
+	free(keep);
+	return NULL;
+}
+
+static void *
+thd_start_calloc_after_teardown(void *arg) {
+	(void)arg;
+
+	void *keep = malloc(32);
+	expect_ptr_not_null(keep, "Unexpected malloc() failure");
+
+	tsd_teardown_for_test();
+
+	void *p = calloc(1, 32);
+	expect_tsd_recreated(p, "calloc");
+	if (p != NULL) {
+		free(p);
+	}
+
+	free(keep);
+	return NULL;
+}
+
+static void *
+thd_start_aligned_alloc_after_teardown(void *arg) {
+	(void)arg;
+
+	void *keep = malloc(32);
+	expect_ptr_not_null(keep, "Unexpected malloc() failure");
+
+	tsd_teardown_for_test();
+
+	void *p = aligned_alloc(sizeof(void *), 32);
+	expect_tsd_recreated(p, "aligned_alloc");
+	if (p != NULL) {
+		free(p);
+	}
+
+	free(keep);
+	return NULL;
+}
+
+static void *
+thd_start_posix_memalign_after_teardown(void *arg) {
+	(void)arg;
+
+	void *keep = malloc(32);
+	expect_ptr_not_null(keep, "Unexpected malloc() failure");
+
+	tsd_teardown_for_test();
+
+	void *p = NULL;
+	expect_d_eq(posix_memalign(&p, sizeof(void *), 32), 0,
+	    "posix_memalign() after TSD teardown should still allocate");
+	expect_tsd_recreated(p, "posix_memalign");
+	if (p != NULL) {
+		free(p);
+	}
+
+	free(keep);
+	return NULL;
+}
+
+static void *
+thd_start_realloc_after_teardown(void *arg) {
+	(void)arg;
+
+	void *p = malloc(32);
+	expect_ptr_not_null(p, "Unexpected malloc() failure");
+
+	tsd_teardown_for_test();
+
+	void *ret = realloc(p, 64);
+	expect_tsd_recreated(ret, "realloc");
+	if (ret != NULL) {
+		p = ret;
+	}
+	free(p);
+	return NULL;
+}
+
+static void *
+thd_start_rallocx_after_teardown(void *arg) {
+	(void)arg;
+
+	void *p = mallocx(32, 0);
+	expect_ptr_not_null(p, "Unexpected mallocx() failure");
+
+	tsd_teardown_for_test();
+
+	void *ret = rallocx(p, 64, 0);
+	expect_tsd_recreated(ret, "rallocx");
+	if (ret != NULL) {
+		p = ret;
+	}
+	dallocx(p, 0);
+	return NULL;
+}
+
+static void *
+thd_start_xallocx_after_teardown(void *arg) {
+	(void)arg;
+
+	void *p = mallocx(32, 0);
+	expect_ptr_not_null(p, "Unexpected mallocx() failure");
+	size_t old_usize = sallocx(p, 0);
+
+	tsd_teardown_for_test();
+
+	expect_zu_ge(xallocx(p, 64, 0, 0), old_usize,
+	    "xallocx() after TSD teardown should preserve behavior");
+	expect_ptr_not_null(tsd_raw_get(),
+	    "xallocx() after TSD teardown should preserve TSD reincarnation");
+	dallocx(p, 0);
+	return NULL;
+}
+
+static void *
+thd_start_realloc_zero_after_teardown(void *arg) {
+	(void)arg;
+
+	void *p = malloc(32);
+	expect_ptr_not_null(p, "Unexpected malloc() failure");
+
+	tsd_teardown_for_test();
+
+	if (opt_zero_realloc_action == zero_realloc_action_abort) {
+		free(p);
+		expect_ptr_null(tsd_raw_get(),
+		    "free() after TSD teardown must not re-create TSD");
+		return NULL;
+	}
+
+	void *ret = realloc(p, 0);
+	if (opt_zero_realloc_action == zero_realloc_action_free) {
+		expect_ptr_null(ret, "realloc(ptr, 0) should return NULL");
+		expect_ptr_null(tsd_raw_get(),
+		    "realloc(ptr, 0) after TSD teardown must not re-create TSD");
+	} else {
+		expect_tsd_recreated(ret, "realloc(ptr, 0)");
+		if (ret != NULL) {
+			p = ret;
+		}
+		free(p);
+	}
+	return NULL;
+}
+
+TEST_BEGIN(test_tsd_malloc_after_teardown) {
+	test_skip_if(skip_tsd_after_teardown);
+
+	thd_t thd;
+	thd_create(&thd, thd_start_malloc_after_teardown, NULL);
+	thd_join(thd, NULL);
+	thd_create(&thd, thd_start_mallocx_after_teardown, NULL);
+	thd_join(thd, NULL);
+	thd_create(&thd, thd_start_calloc_after_teardown, NULL);
+	thd_join(thd, NULL);
+	thd_create(&thd, thd_start_aligned_alloc_after_teardown, NULL);
+	thd_join(thd, NULL);
+	thd_create(&thd, thd_start_posix_memalign_after_teardown, NULL);
+	thd_join(thd, NULL);
+	thd_create(&thd, thd_start_realloc_after_teardown, NULL);
+	thd_join(thd, NULL);
+	thd_create(&thd, thd_start_rallocx_after_teardown, NULL);
+	thd_join(thd, NULL);
+	thd_create(&thd, thd_start_xallocx_after_teardown, NULL);
+	thd_join(thd, NULL);
+	thd_create(&thd, thd_start_realloc_zero_after_teardown, NULL);
 	thd_join(thd, NULL);
 }
 TEST_END
@@ -322,5 +562,6 @@ main(void) {
 
 	return test_no_reentrancy(test_tsd_main_thread, test_tsd_sub_thread,
 	    test_tsd_sub_thread_dalloc_only, test_tsd_reincarnation,
-	    test_tsd_global_slow);
+	    test_tsd_reentrant_bootstrap,
+	    test_tsd_free_after_teardown, test_tsd_malloc_after_teardown);
 }

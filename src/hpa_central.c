@@ -1,8 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/hpa.h"
 #include "jemalloc/internal/hpa_central.h"
-#include "jemalloc/internal/tsd.h"
 #include "jemalloc/internal/witness.h"
 
 #define HPA_EDEN_SIZE (128 * HUGEPAGE)

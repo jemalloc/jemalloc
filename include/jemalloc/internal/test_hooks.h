@@ -1,10 +1,12 @@
 #ifndef JEMALLOC_INTERNAL_TEST_HOOKS_H
 #define JEMALLOC_INTERNAL_TEST_HOOKS_H
 
-#include "jemalloc/internal/jemalloc_preamble.h"
-
 extern JEMALLOC_EXPORT void (*test_hooks_arena_new_hook)(void);
 extern JEMALLOC_EXPORT void (*test_hooks_libc_hook)(void);
+extern JEMALLOC_EXPORT void (*test_hooks_safety_check_abort)(const char *);
+#if defined(JEMALLOC_JET) || defined(JEMALLOC_UNIT_TEST)
+extern JEMALLOC_EXPORT void (*test_hooks_tsd_bootstrap_hook)(void);
+#endif
 
 #if defined(JEMALLOC_JET) || defined(JEMALLOC_UNIT_TEST)
 #	define JEMALLOC_TEST_HOOK(fn, hook)                                   \

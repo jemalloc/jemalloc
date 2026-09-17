@@ -1,6 +1,6 @@
 #include "test/jemalloc_test.h"
 
-#include "jemalloc/internal/arena_structs.h"
+#include "jemalloc/internal/arena.h"
 
 #define STRINGIFY_HELPER(x) #x
 #define STRINGIFY(x) STRINGIFY_HELPER(x)

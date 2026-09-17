@@ -91,7 +91,7 @@ extent_neighbor_head_state_mergeable(
 }
 
 JEMALLOC_ALWAYS_INLINE bool
-extent_can_acquire_neighbor(edata_t *edata, rtree_contents_t contents,
+extent_can_acquire_neighbor(const edata_t *edata, rtree_contents_t contents,
     extent_pai_t pai, extent_state_t expected_state, bool forward,
     bool expanding) {
 	edata_t *neighbor = contents.edata;
@@ -118,6 +118,10 @@ extent_can_acquire_neighbor(edata_t *edata, rtree_contents_t contents,
 			 * commit step (and writing to uncommitted memory is not
 			 * allowed).
 			 */
+			return false;
+		}
+		/* Do not merge pinned and non-pinned extents. */
+		if (edata_pinned_get(edata) != edata_pinned_get(neighbor)) {
 			return false;
 		}
 	} else {

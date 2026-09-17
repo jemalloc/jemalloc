@@ -4,6 +4,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/mutex_prof.h"
+#include "jemalloc/internal/os.h"
 #include "jemalloc/internal/tsd.h"
 #include "jemalloc/internal/witness.h"
 
@@ -40,19 +41,9 @@ struct malloc_mutex_s {
 			 * before release), and may be read by other threads.
 			 */
 			atomic_b_t locked;
-#ifdef _WIN32
-#	if _WIN32_WINNT >= 0x0600
-			SRWLOCK lock;
-#	else
-			CRITICAL_SECTION lock;
-#	endif
-#elif (defined(JEMALLOC_OS_UNFAIR_LOCK))
-			os_unfair_lock lock;
-#elif (defined(JEMALLOC_MUTEX_INIT_CB))
-			pthread_mutex_t lock;
+			os_mutex_t lock;
+#ifdef JEMALLOC_MUTEX_INIT_CB
 			malloc_mutex_t *postponed_next;
-#else
-			pthread_mutex_t lock;
 #endif
 		};
 		/*
@@ -73,28 +64,9 @@ struct malloc_mutex_s {
 #endif
 };
 
-#ifdef _WIN32
-#	if _WIN32_WINNT >= 0x0600
-#		define MALLOC_MUTEX_LOCK(m) AcquireSRWLockExclusive(&(m)->lock)
-#		define MALLOC_MUTEX_UNLOCK(m)                                 \
-			ReleaseSRWLockExclusive(&(m)->lock)
-#		define MALLOC_MUTEX_TRYLOCK(m)                                \
-			(!TryAcquireSRWLockExclusive(&(m)->lock))
-#	else
-#		define MALLOC_MUTEX_LOCK(m) EnterCriticalSection(&(m)->lock)
-#		define MALLOC_MUTEX_UNLOCK(m) LeaveCriticalSection(&(m)->lock)
-#		define MALLOC_MUTEX_TRYLOCK(m)                                \
-			(!TryEnterCriticalSection(&(m)->lock))
-#	endif
-#elif (defined(JEMALLOC_OS_UNFAIR_LOCK))
-#	define MALLOC_MUTEX_LOCK(m) os_unfair_lock_lock(&(m)->lock)
-#	define MALLOC_MUTEX_UNLOCK(m) os_unfair_lock_unlock(&(m)->lock)
-#	define MALLOC_MUTEX_TRYLOCK(m) (!os_unfair_lock_trylock(&(m)->lock))
-#else
-#	define MALLOC_MUTEX_LOCK(m) pthread_mutex_lock(&(m)->lock)
-#	define MALLOC_MUTEX_UNLOCK(m) pthread_mutex_unlock(&(m)->lock)
-#	define MALLOC_MUTEX_TRYLOCK(m) (pthread_mutex_trylock(&(m)->lock) != 0)
-#endif
+#define MALLOC_MUTEX_LOCK(m) os_mutex_lock(&(m)->lock)
+#define MALLOC_MUTEX_UNLOCK(m) os_mutex_unlock(&(m)->lock)
+#define MALLOC_MUTEX_TRYLOCK(m) os_mutex_trylock(&(m)->lock)
 
 #define LOCK_PROF_DATA_INITIALIZER                                             \
 	{                                                                      \
@@ -102,34 +74,15 @@ struct malloc_mutex_s {
 		    ATOMIC_INIT(0), 0, NULL, 0                                 \
 	}
 
-#ifdef _WIN32
+#if !OS_MUTEX_HAS_STATIC_INIT
 #	define MALLOC_MUTEX_INITIALIZER
-#elif (defined(JEMALLOC_OS_UNFAIR_LOCK))
+#elif defined(JEMALLOC_MUTEX_INIT_CB)
 #	if defined(JEMALLOC_DEBUG)
 #		define MALLOC_MUTEX_INITIALIZER                               \
 			{                                                      \
 				{{LOCK_PROF_DATA_INITIALIZER,                  \
-				    ATOMIC_INIT(false), OS_UNFAIR_LOCK_INIT}}, \
-				    WITNESS_INITIALIZER(                       \
-				        "mutex", WITNESS_RANK_OMIT),           \
-				    0                                          \
-			}
-#	else
-#		define MALLOC_MUTEX_INITIALIZER                               \
-			{                                                      \
-				{{LOCK_PROF_DATA_INITIALIZER,                  \
-				    ATOMIC_INIT(false), OS_UNFAIR_LOCK_INIT}}, \
-				    WITNESS_INITIALIZER(                       \
-				        "mutex", WITNESS_RANK_OMIT)            \
-			}
-#	endif
-#elif (defined(JEMALLOC_MUTEX_INIT_CB))
-#	if (defined(JEMALLOC_DEBUG))
-#		define MALLOC_MUTEX_INITIALIZER                               \
-			{                                                      \
-				{{LOCK_PROF_DATA_INITIALIZER,                  \
 				    ATOMIC_INIT(false),                        \
-				    PTHREAD_MUTEX_INITIALIZER, NULL}},         \
+				    OS_MUTEX_INITIALIZER, NULL}},              \
 				    WITNESS_INITIALIZER(                       \
 				        "mutex", WITNESS_RANK_OMIT),           \
 				    0                                          \
@@ -139,20 +92,18 @@ struct malloc_mutex_s {
 			{                                                      \
 				{{LOCK_PROF_DATA_INITIALIZER,                  \
 				    ATOMIC_INIT(false),                        \
-				    PTHREAD_MUTEX_INITIALIZER, NULL}},         \
+				    OS_MUTEX_INITIALIZER, NULL}},              \
 				    WITNESS_INITIALIZER(                       \
 				        "mutex", WITNESS_RANK_OMIT)            \
 			}
 #	endif
-
 #else
-#	define MALLOC_MUTEX_TYPE PTHREAD_MUTEX_DEFAULT
 #	if defined(JEMALLOC_DEBUG)
 #		define MALLOC_MUTEX_INITIALIZER                               \
 			{                                                      \
 				{{LOCK_PROF_DATA_INITIALIZER,                  \
 				    ATOMIC_INIT(false),                        \
-				    PTHREAD_MUTEX_INITIALIZER}},               \
+				    OS_MUTEX_INITIALIZER}},                    \
 				    WITNESS_INITIALIZER(                       \
 				        "mutex", WITNESS_RANK_OMIT),           \
 				    0                                          \
@@ -162,7 +113,7 @@ struct malloc_mutex_s {
 			{                                                      \
 				{{LOCK_PROF_DATA_INITIALIZER,                  \
 				    ATOMIC_INIT(false),                        \
-				    PTHREAD_MUTEX_INITIALIZER}},               \
+				    OS_MUTEX_INITIALIZER}},                    \
 				    WITNESS_INITIALIZER(                       \
 				        "mutex", WITNESS_RANK_OMIT)            \
 			}

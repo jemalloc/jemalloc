@@ -1,5 +1,10 @@
 #include "test/jemalloc_test.h"
 
+extern void ckh_string_hash(const void *key, size_t r_hash[2]);
+extern bool ckh_string_keycomp(const void *k1, const void *k2);
+extern void ckh_pointer_hash(const void *key, size_t r_hash[2]);
+extern bool ckh_pointer_keycomp(const void *k1, const void *k2);
+
 TEST_BEGIN(test_new_delete) {
 	tsd_t *tsd;
 	ckh_t  ckh;

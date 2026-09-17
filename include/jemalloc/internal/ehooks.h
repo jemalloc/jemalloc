@@ -57,13 +57,6 @@ bool ehooks_default_purge_lazy_impl(void *addr, size_t offset, size_t length);
 bool ehooks_default_purge_forced_impl(void *addr, size_t offset, size_t length);
 #endif
 bool ehooks_default_split_impl(void);
-/*
- * Merge is the only default extent hook we declare -- see the comment in
- * ehooks_merge.
- */
-bool ehooks_default_merge(extent_hooks_t *extent_hooks, void *addr_a,
-    size_t size_a, void *addr_b, size_t size_b, bool committed,
-    unsigned arena_ind);
 bool ehooks_default_merge_impl(tsdn_t *tsdn, void *addr_a, void *addr_b);
 void ehooks_default_zero_impl(void *addr, size_t size);
 void ehooks_default_guard_impl(void *guard1, void *guard2);
@@ -110,12 +103,12 @@ ehooks_set_extent_hooks_ptr(ehooks_t *ehooks, extent_hooks_t *extent_hooks) {
 }
 
 static inline extent_hooks_t *
-ehooks_get_extent_hooks_ptr(ehooks_t *ehooks) {
+ehooks_get_extent_hooks_ptr(const ehooks_t *ehooks) {
 	return (extent_hooks_t *)atomic_load_p(&ehooks->ptr, ATOMIC_ACQUIRE);
 }
 
 static inline bool
-ehooks_are_default(ehooks_t *ehooks) {
+ehooks_are_default(const ehooks_t *ehooks) {
 	return ehooks_get_extent_hooks_ptr(ehooks)
 	    == &ehooks_default_extent_hooks;
 }
@@ -126,7 +119,7 @@ ehooks_are_default(ehooks_t *ehooks) {
  * include some checks for such cases.
  */
 static inline bool
-ehooks_dalloc_will_fail(ehooks_t *ehooks) {
+ehooks_dalloc_will_fail(const ehooks_t *ehooks) {
 	if (ehooks_are_default(ehooks)) {
 		return opt_retain;
 	} else {
@@ -135,17 +128,17 @@ ehooks_dalloc_will_fail(ehooks_t *ehooks) {
 }
 
 static inline bool
-ehooks_split_will_fail(ehooks_t *ehooks) {
+ehooks_split_will_fail(const ehooks_t *ehooks) {
 	return ehooks_get_extent_hooks_ptr(ehooks)->split == NULL;
 }
 
 static inline bool
-ehooks_merge_will_fail(ehooks_t *ehooks) {
+ehooks_merge_will_fail(const ehooks_t *ehooks) {
 	return ehooks_get_extent_hooks_ptr(ehooks)->merge == NULL;
 }
 
 static inline bool
-ehooks_guard_will_fail(ehooks_t *ehooks) {
+ehooks_guard_will_fail(const ehooks_t *ehooks) {
 	/*
 	 * Before the guard hooks are officially introduced, limit the use to
 	 * the default hooks only.
@@ -191,7 +184,7 @@ ehooks_debug_zero_check(void *addr, size_t size) {
 
 static inline void *
 ehooks_alloc(tsdn_t *tsdn, ehooks_t *ehooks, void *new_addr, size_t size,
-    size_t alignment, bool *zero, bool *commit) {
+    size_t alignment, bool *zero, bool *commit, unsigned *alloc_flags) {
 	bool            orig_zero = *zero;
 	void           *ret;
 	extent_hooks_t *extent_hooks = ehooks_get_extent_hooks_ptr(ehooks);
@@ -203,6 +196,18 @@ ehooks_alloc(tsdn_t *tsdn, ehooks_t *ehooks, void *new_addr, size_t size,
 		ret = extent_hooks->alloc(extent_hooks, new_addr, size,
 		    alignment, zero, commit, ehooks_ind_get(ehooks));
 		ehooks_post_reentrancy(tsdn);
+	}
+#if LG_PAGE < 8
+#  error "Extent alloc flags require page size of at least 256"
+#endif
+	if (ret != NULL) {
+		*alloc_flags = (unsigned)((uintptr_t)ret
+		    & EXTENT_ALLOC_FLAG_MASK);
+		ret = (void *)((byte_t *)ret - *alloc_flags);
+		/* Pinned hooks must also set *commit; pinned bypasses commit/decommit. */
+		assert(!(*alloc_flags & EXTENT_ALLOC_FLAG_PINNED) || *commit);
+	} else {
+		*alloc_flags = 0;
 	}
 	assert(new_addr == NULL || ret == NULL || new_addr == ret);
 	assert(!orig_zero || *zero);

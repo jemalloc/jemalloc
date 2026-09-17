@@ -225,7 +225,7 @@ def generate_linux_job(arch):
         exclude += [LARGE_HUGEPAGE]
 
     linux_configure_flags = list(configure_flag_unusuals)
-    linux_configure_flags.append(Option.as_configure_flag("--enable-prof --enable-prof-frameptr"))
+    linux_configure_flags.append(Option.as_configure_flag("--enable-prof --enable-prof-libunwind"))
 
     linux_unusuals = (compilers_unusual + feature_unusuals
                     + linux_configure_flags + malloc_conf_unusuals)
@@ -273,8 +273,38 @@ def generate_linux_job(arch):
             'CXX': 'g++',
             'CONFIGURE_FLAGS': '--enable-debug --enable-experimental-smallocx --enable-stats --enable-prof',
             'EXTRA_CFLAGS': '-Werror -Wno-array-bounds'
+        },
+        {
+            'CC': 'gcc',
+            'CXX': 'g++',
+            'CONFIGURE_FLAGS': 'force_tls=0',
+            'EXTRA_CFLAGS': '-Werror -Wno-array-bounds'
+        },
+        {
+            'CC': 'gcc',
+            'CXX': 'g++',
+            'CONFIGURE_FLAGS': 'force_tls=0 --enable-debug',
+            'EXTRA_CFLAGS': '-Werror -Wno-array-bounds'
         }
     ]
+
+    # --enable-cxx-infallible-new coverage. Plain variant runs on all arches;
+    # debug-combined variant runs only on AMD64 to bound matrix size.
+    infallible_new_entries = [
+        {
+            'CC': 'gcc',
+            'CXX': 'g++',
+            'CONFIGURE_FLAGS': '--enable-cxx-infallible-new',
+            'EXTRA_CFLAGS': '-Werror -Wno-array-bounds'
+        },
+    ]
+    if arch == AMD64:
+        infallible_new_entries.append({
+            'CC': 'gcc',
+            'CXX': 'g++',
+            'CONFIGURE_FLAGS': '--enable-cxx-infallible-new --enable-debug',
+            'EXTRA_CFLAGS': '-Werror -Wno-array-bounds'
+        })
 
     if arch == AMD64:
         for entry in manual_entries:
@@ -285,9 +315,17 @@ def generate_linux_job(arch):
                 else:
                     job += f"              {key}: {value}\n"
 
+    for entry in infallible_new_entries:
+        job += "          - env:\n"
+        for key, value in entry.items():
+            if ' ' in str(value):
+                job += f'              {key}: "{value}"\n'
+            else:
+                job += f"              {key}: {value}\n"
+
     job += f"""
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Show OS version
       run: |
@@ -302,7 +340,12 @@ def generate_linux_job(arch):
         cat /etc/os-release || true
         echo ""
         echo "=== CPU Info ==="
-        lscpu | grep -E "Architecture|CPU op-mode|Byte Order|CPU\(s\):" || true
+        lscpu | grep -E "Architecture|CPU op-mode|Byte Order|CPU\\(s\\):" || true
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libunwind-dev
 
     - name: Install dependencies (32-bit)
       if: matrix.env.CROSS_COMPILE_32BIT == 'yes'
@@ -385,9 +428,27 @@ def generate_macos_job(arch):
             else:
                 job += f"              {key}: {value}\n"
 
+    # --enable-cxx-infallible-new coverage on macOS (both arches).
+    macos_extra_cflags = ' '.join(get_extra_cflags(OSX, GCC.value))
+    infallible_new_entries = [
+        {
+            'CC': 'gcc',
+            'CXX': 'g++',
+            'CONFIGURE_FLAGS': '--enable-cxx-infallible-new',
+            'EXTRA_CFLAGS': macos_extra_cflags
+        },
+    ]
+    for entry in infallible_new_entries:
+        job += "          - env:\n"
+        for key, value in entry.items():
+            if ' ' in str(value) or any(c in str(value) for c in [':', ',', '#']):
+                job += f'              {key}: "{value}"\n'
+            else:
+                job += f"              {key}: {value}\n"
+
     job += f"""
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Show OS version
       run: |
@@ -467,9 +528,27 @@ def generate_windows_job(arch):
             else:
                 job += f"              {key}: {value}\n"
 
+    # --enable-cxx-infallible-new coverage on Windows (MinGW-GCC only).
+    windows_mingw_cflags = ' '.join(get_extra_cflags(WINDOWS, GCC.value))
+    infallible_new_entries = [
+        {
+            'CC': 'gcc',
+            'CXX': 'g++',
+            'CONFIGURE_FLAGS': '--enable-cxx-infallible-new',
+            'EXTRA_CFLAGS': windows_mingw_cflags
+        },
+    ]
+    for entry in infallible_new_entries:
+        job += "          - env:\n"
+        for key, value in entry.items():
+            if ' ' in str(value) or any(c in str(value) for c in [':', ',', '#']):
+                job += f'              {key}: "{value}"\n'
+            else:
+                job += f"              {key}: {value}\n"
+
     job += f"""
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Show OS version
       shell: cmd
@@ -590,7 +669,7 @@ def generate_freebsd_job(arch):
     name: FreeBSD (${{{{ matrix.arch }}}}, debug=${{{{ matrix.debug }}}}, prof=${{{{ matrix.prof }}}}${{{{ matrix.uncommon && ', uncommon' || '' }}}})
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 1
 
@@ -632,6 +711,31 @@ def generate_freebsd_job(arch):
     return job
 
 
+def generate_linux_lto_job():
+    """Dedicated lane for --enable-experimental-fiber-safe-tls (that requires
+    LTO, je_ prefix and --enable-experimental-fiber-safe-tls)"""
+    return """  test-linux-lto-fiber-safe-tls:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install clang, lld and llvm
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang lld llvm
+
+    - name: Build and test (LTO, je_ prefix, fiber-safe TLS)
+      run: |
+        autoconf
+        CC=clang AR=llvm-ar NM=llvm-nm RANLIB=llvm-ranlib \\
+          ./configure --enable-experimental-fiber-safe-tls \\
+            --with-jemalloc-prefix=je_ EXTRA_CFLAGS=-flto=thin
+        make -j3 EXTRA_LDFLAGS="-flto=thin -fuse-ld=lld"
+        make -j3 tests EXTRA_LDFLAGS="-flto=thin -fuse-ld=lld"
+        make check
+"""
+
+
 def main():
     import sys
 
@@ -642,6 +746,7 @@ def main():
         jobs = '\n'.join((
             generate_linux_job(AMD64),
             generate_linux_job(ARM64),
+            generate_linux_lto_job(),
         ))
         print(GITHUB_ACTIONS_TEMPLATE.format(name='Linux CI', jobs=jobs))
 
@@ -665,6 +770,7 @@ def main():
         linux_jobs = '\n'.join((
             generate_linux_job(AMD64),
             generate_linux_job(ARM64),
+            generate_linux_lto_job(),
         ))
         macos_jobs = '\n'.join((
             generate_macos_job(AMD64),   # Intel

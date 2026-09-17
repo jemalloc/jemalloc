@@ -26,7 +26,7 @@
  */
 
 #define MAX_LINE_LENGTH 1024
-#define MAX_ALLOCATIONS 10000000
+#define MAX_ALLOCATIONS 200000000
 #define MAX_ARENAS 128
 
 typedef enum { PA_ALLOC = 0, PA_DALLOC = 1 } pa_op_t;
@@ -56,23 +56,55 @@ typedef struct {
 /* Structure to group per-shard PA infrastructure */
 typedef struct {
 	base_t          *base;        /* Base allocator */
-	emap_t           emap;        /* Extent map */
 	pa_shard_t       pa_shard;    /* PA shard */
 	pa_shard_stats_t shard_stats; /* PA shard statistics */
 	malloc_mutex_t   stats_mtx;   /* Statistics mutex */
 } shard_infrastructure_t;
+
+/*
+ * The TSD-local rtree_ctx cache assumes a single rtree per process. JET's
+ * malloc init already populates that cache against `arena_emap_global`, so
+ * any additional emap we create would silently share the cache and have
+ * its registrations leak into JET's leaves. Reuse arena_emap_global to
+ * keep the invariant.
+ */
+extern emap_t jet_arena_emap_global;
 
 static FILE                *g_stats_output = NULL; /* Output file for stats */
 static size_t               g_alloc_counter = 0; /* Global allocation counter */
 static allocation_record_t *g_alloc_records =
     NULL;                     /* Global allocation tracking */
 static bool g_use_sec = true; /* Global flag for SEC vs HPA-only */
+/*
+ * Override for the number of shards used by the microbench. -1 means use the
+ * value implied by the trace (max_shard_id + 1). When set to a positive value,
+ * each event's shard_ind is collapsed to (shard_ind % g_nshards_override).
+ */
+static int g_nshards_override = -1;
 
 /* Refactored arrays using structures */
 static shard_stats_t *g_shard_stats = NULL; /* Per-shard tracking statistics */
 static shard_infrastructure_t *g_shard_infra =
     NULL;                         /* Per-shard PA infrastructure */
 static pa_central_t g_pa_central; /* Global PA central */
+
+/*
+ * HPA shard opts used by the microbench. Edit these values to control the
+ * baseline configuration. Changing these here is what controls the run; the
+ * MALLOC_CONF env var is NOT consulted for HPA shard opts in this microbench.
+ */
+static hpa_shard_opts_t g_hpa_opts = {
+	/* slab_max_alloc */            128 * 1024,
+	/* hugification_threshold */    HUGEPAGE * 84 / 100,
+	/* dirty_mult */                FXP_INIT_PERCENT(30),
+	/* deferral_allowed */          false,
+	/* hugify_delay_ms */           7804,
+	/* hugify_sync */               false,
+	/* min_purge_interval_ms */     5 * 1000,
+	/* purge_threshold */           HUGEPAGE,
+	/* min_purge_delay_ms */        0,
+	/* hugify_style */              hpa_hugify_style_eager
+};
 
 /* Override for curtime */
 static hpa_hooks_t hpa_hooks_override;
@@ -159,6 +191,8 @@ initialize_pa_infrastructure(int num_shards) {
 		return true;
 	}
 
+	/* jet_arena_emap_global was already initialized by JET malloc init. */
+
 	for (int i = 0; i < num_shards; i++) {
 		/* Create a separate base allocator for each shard */
 		g_shard_infra[i].base = base_new(tsd_tsdn(tsd_fetch()),
@@ -166,15 +200,6 @@ initialize_pa_infrastructure(int num_shards) {
 		    /* metadata_use_hooks */ true);
 		if (g_shard_infra[i].base == NULL) {
 			printf("DEBUG: Failed to create base %d\n", i);
-			/* Clean up partially initialized shards */
-			cleanup_pa_infrastructure(num_shards);
-			return true;
-		}
-
-		/* Initialize emap for this shard */
-		if (emap_init(&g_shard_infra[i].emap, g_shard_infra[i].base,
-		        /* zeroed */ false)) {
-			printf("DEBUG: Failed to initialize emap %d\n", i);
 			/* Clean up partially initialized shards */
 			cleanup_pa_infrastructure(num_shards);
 			return true;
@@ -197,7 +222,7 @@ initialize_pa_infrastructure(int num_shards) {
 
 		if (pa_shard_init(tsd_tsdn(tsd_fetch()),
 		        &g_shard_infra[i].pa_shard, &g_pa_central,
-		        &g_shard_infra[i].emap /* emap */,
+		        &jet_arena_emap_global /* emap (shared) */,
 		        g_shard_infra[i].base, i /* ind */,
 		        &g_shard_infra[i].shard_stats /* stats */,
 		        &g_shard_infra[i].stats_mtx /* stats_mtx */,
@@ -211,9 +236,7 @@ initialize_pa_infrastructure(int num_shards) {
 		}
 
 		/* Enable HPA for this shard with proper configuration */
-		hpa_shard_opts_t hpa_opts = HPA_SHARD_OPTS_DEFAULT;
-		hpa_opts.deferral_allowed =
-		    false; /* No background threads in microbench */
+		hpa_shard_opts_t hpa_opts = g_hpa_opts;
 
 		sec_opts_t sec_opts = SEC_OPTS_DEFAULT;
 		if (!g_use_sec) {
@@ -340,7 +363,7 @@ collect_hpa_stats(int shard_id, hpa_shard_stats_t *hpa_stats_out) {
 
 	/* Merge HPA statistics from the shard */
 	hpa_shard_stats_merge(
-	    tsdn, &g_shard_infra[shard_id].pa_shard.hpa_shard, hpa_stats_out);
+	    tsdn, &g_shard_infra[shard_id].pa_shard.hpa, hpa_stats_out);
 }
 
 static void
@@ -416,14 +439,11 @@ simulate_trace(
 
 	for (size_t i = 0; i < count; i++) {
 		pa_event_t *event = &events[i];
-
-		/* Validate shard index */
-		if (event->shard_ind >= num_shards) {
-			fprintf(stderr,
-			    "Warning: Invalid shard index %d (max %d)\n",
-			    event->shard_ind, num_shards - 1);
-			continue;
-		}
+		/*
+		 * Collapse trace shard index into the active shard space. With
+		 * no override num_shards == max_shard_id+1, so this is a no-op.
+		 */
+		int shard_ind = event->shard_ind % num_shards;
 
 		set_clock(event->nsecs);
 		switch (event->operation) {
@@ -440,7 +460,7 @@ simulate_trace(
 
 			/* Allocate using PA allocator */
 			edata_t *edata = pa_alloc(tsdn,
-			    &g_shard_infra[event->shard_ind].pa_shard, size,
+			    &g_shard_infra[shard_ind].pa_shard, size,
 			    PAGE /* alignment */, slab, szind, false /* zero */,
 			    false /* guarded */, &deferred_work_generated);
 
@@ -449,14 +469,13 @@ simulate_trace(
 				g_alloc_records[g_alloc_counter].edata = edata;
 				g_alloc_records[g_alloc_counter].size = size;
 				g_alloc_records[g_alloc_counter].shard_ind =
-				    event->shard_ind;
+				    shard_ind;
 				g_alloc_records[g_alloc_counter].active = true;
 				g_alloc_counter++;
 
 				/* Update shard-specific stats */
-				g_shard_stats[event->shard_ind].alloc_count++;
-				g_shard_stats[event->shard_ind]
-				    .bytes_allocated += size;
+				g_shard_stats[shard_ind].alloc_count++;
+				g_shard_stats[shard_ind].bytes_allocated += size;
 
 				total_allocs++;
 				total_allocated_bytes += size;
@@ -468,21 +487,20 @@ simulate_trace(
 			if (alloc_index < g_alloc_counter
 			    && g_alloc_records[alloc_index].active
 			    && g_alloc_records[alloc_index].shard_ind
-			        == event->shard_ind) {
+			        == shard_ind) {
 				/* Get tsdn for PA */
 				tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 				bool    deferred_work_generated = false;
 
 				/* Deallocate using PA allocator */
 				pa_dalloc(tsdn,
-				    &g_shard_infra[event->shard_ind].pa_shard,
+				    &g_shard_infra[shard_ind].pa_shard,
 				    g_alloc_records[alloc_index].edata,
 				    &deferred_work_generated);
 
 				/* Update shard-specific stats */
-				g_shard_stats[event->shard_ind].dealloc_count++;
-				g_shard_stats[event->shard_ind]
-				    .bytes_allocated -=
+				g_shard_stats[shard_ind].dealloc_count++;
+				g_shard_stats[shard_ind].bytes_allocated -=
 				    g_alloc_records[alloc_index].size;
 
 				g_alloc_records[alloc_index].active = false;
@@ -560,6 +578,9 @@ print_usage(const char *program) {
 	printf(
 	    "  -i, --interval N     Stats print interval (default: 100000, 0=disable)\n");
 	printf(
+	    "  -n, --nshards N      Force using N shards (events routed via shard_ind %% N).\n"
+	    "                       Default: derived from trace (max_shard_id + 1)\n");
+	printf(
 	    "\nTrace file format: shard_ind,operation,size_or_alloc_index,is_frequent\n");
 	printf("  - operation: 0=alloc, 1=dealloc\n");
 	printf("  - is_frequent: optional column\n");
@@ -600,6 +621,21 @@ main(int argc, char *argv[]) {
 				return 1;
 			}
 			stats_interval = (size_t)atol(argv[++i]);
+		} else if (strcmp(argv[i], "-n") == 0
+		    || strcmp(argv[i], "--nshards") == 0) {
+			if (i + 1 >= argc) {
+				fprintf(stderr,
+				    "Error: %s requires an argument\n",
+				    argv[i]);
+				return 1;
+			}
+			g_nshards_override = atoi(argv[++i]);
+			if (g_nshards_override <= 0) {
+				fprintf(stderr,
+				    "Error: --nshards must be > 0 (got %d)\n",
+				    g_nshards_override);
+				return 1;
+			}
 		} else if (argv[i][0] != '-') {
 			trace_file = argv[i];
 		} else {
@@ -650,7 +686,11 @@ main(int argc, char *argv[]) {
 		return 1;
 	}
 
-	int num_shards = max_shard_id + 1; /* shard IDs are 0-based */
+	int num_shards = (g_nshards_override > 0) ? g_nshards_override
+	                                          : (max_shard_id + 1);
+	printf("Shards: %d (trace max=%d, override=%s)\n", num_shards,
+	    max_shard_id,
+	    g_nshards_override > 0 ? "yes" : "no");
 	if (num_shards > MAX_ARENAS) {
 		fprintf(stderr, "Error: Too many arenas required (%d > %d)\n",
 		    num_shards, MAX_ARENAS);

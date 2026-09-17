@@ -60,11 +60,11 @@ struct eset_s {
 
 void eset_init(eset_t *eset, extent_state_t state);
 
-size_t eset_npages_get(eset_t *eset);
+size_t eset_npages_get(const eset_t *eset);
 /* Get the number of extents in the given page size index. */
-size_t eset_nextents_get(eset_t *eset, pszind_t ind);
+size_t eset_nextents_get(const eset_t *eset, pszind_t ind);
 /* Get the sum total bytes of the extents in the given page size index. */
-size_t eset_nbytes_get(eset_t *eset, pszind_t ind);
+size_t eset_nbytes_get(const eset_t *eset, pszind_t ind);
 
 void eset_insert(eset_t *eset, edata_t *edata);
 void eset_remove(eset_t *eset, edata_t *edata);
@@ -73,6 +73,6 @@ void eset_remove(eset_t *eset, edata_t *edata);
  * null if no such item could be found.
  */
 edata_t *eset_fit(eset_t *eset, size_t esize, size_t alignment, bool exact_only,
-    unsigned lg_max_fit);
+    unsigned lg_max_fit, bool prefer_small);
 
 #endif /* JEMALLOC_INTERNAL_ESET_H */

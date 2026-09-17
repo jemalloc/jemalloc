@@ -139,7 +139,6 @@ any of the following arguments (not a definitive list) to 'configure':
     in the following list that appears to function correctly:
 
     + libunwind      (requires --enable-prof-libunwind)
-    + frame pointer  (requires --enable-prof-frameptr)
     + libgcc         (unless --disable-prof-libgcc)
     + gcc intrinsics (unless --disable-prof-gcc)
 
@@ -147,12 +146,6 @@ any of the following arguments (not a definitive list) to 'configure':
 
     Use the libunwind library (http://www.nongnu.org/libunwind/) for stack
     backtracing.
-
-* `--enable-prof-frameptr`
-
-    Use the optimized frame pointer unwinder for stack backtracing. Safe
-    to use in mixed code (with and without frame pointers) - but requires
-    frame pointers to produce meaningful stacks. Linux only.
 
 * `--disable-prof-libgcc`
 
@@ -216,6 +209,34 @@ any of the following arguments (not a definitive list) to 'configure':
 
     Disable C++ integration.  This will cause new and delete operator
     implementations to be omitted.
+
+* `--enable-cxx-infallible-new`
+
+    Make the throwing `operator new` abort on allocation failure (logging the
+    requested size) instead of throwing `std::bad_alloc`; the `std::nothrow`
+    overloads still return null.  Disabled by default, and has no effect when
+    C++ integration is disabled (`--disable-cxx`).  When enabled, under LTO
+    this lets the compiler treat `operator new` as non-throwing and elide
+    exception-handling cleanup in callers.  The installed public header always
+    defines `JEMALLOC_INFALLIBLE_NEW` to `1` when this behavior is
+    enabled, and to `0` otherwise.
+
+* `--enable-experimental-fiber-safe-tls`
+
+    Make jemalloc's own thread-local (TSD) access safe for fibers / stackful
+    coroutines that migrate between OS threads.
+
+    The compiler may legally compute a thread-local's address once and reuse
+    it; inlined into the allocator fast paths under whole-program LTO, that
+    address can be cached in a callee-saved register across a user-space
+    context switch and reused on the OS thread the fiber migrated to, so two
+    threads race on one tcache -- silent heap corruption (see issue #2890).
+    With this option every internal TSD access re-derives the address through
+    an out-of-line accessor behind an optimization barrier, which the compiler
+    cannot hoist or reuse across the switch.
+
+    This is a partial mitigation, not a whole-program fix: only TLS accesses
+    made by jemalloc itself are protected.
 
 * `--with-xslroot=<path>`
 
@@ -411,7 +432,7 @@ differ in their ease of use and flexibility.
 ### With MSVC solutions
 This is the easy, but less flexible approach. It doesn't let you specify
 arguments to the `configure` script.
-  
+
 1. Install Cygwin with at least the following packages:
    * autoconf
    * autogen
@@ -419,18 +440,19 @@ arguments to the `configure` script.
    * grep
    * sed
 
-2. Install Visual Studio 2015 or 2017 with Visual C++
+2. Install Visual Studio with Visual C++. We currently test on 2022 and provide
+solution files back to 2015.
 
 3. Add Cygwin\bin to the PATH environment variable
 
-4. Open "x64 Native Tools Command Prompt for VS 2017"
+4. Open "x64 Native Tools Command Prompt" for your version of Visual Studio
    (note: x86/x64 doesn't matter at this point)
 
 5. Generate header files:
    sh -c "CC=cl ./autogen.sh"
 
-6. Now the project can be opened and built in Visual Studio:
-   msvc\jemalloc_vc2017.sln
+6. Now the project can be opened and built in Visual Studio using the
+   corresponding solution files in the `msvc\` folder.
 
 ### With MSYS
 This is a more involved approach that offers the same configuration flexibility

@@ -176,12 +176,10 @@ typedef struct bitmap_info_s {
 #endif /* BITMAP_USE_TREE */
 } bitmap_info_t;
 
-void   bitmap_info_init(bitmap_info_t *binfo, size_t nbits);
 void   bitmap_init(bitmap_t *bitmap, const bitmap_info_t *binfo, bool fill);
-size_t bitmap_size(const bitmap_info_t *binfo);
 
 static inline bool
-bitmap_full(bitmap_t *bitmap, const bitmap_info_t *binfo) {
+bitmap_full(const bitmap_t *bitmap, const bitmap_info_t *binfo) {
 #ifdef BITMAP_USE_TREE
 	size_t   rgoff = binfo->levels[binfo->nlevels].group_offset - 1;
 	bitmap_t rg = bitmap[rgoff];
@@ -200,7 +198,7 @@ bitmap_full(bitmap_t *bitmap, const bitmap_info_t *binfo) {
 }
 
 static inline bool
-bitmap_get(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit) {
+bitmap_get(const bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit) {
 	size_t   goff;
 	bitmap_t g;
 

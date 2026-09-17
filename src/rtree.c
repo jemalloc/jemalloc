@@ -1,8 +1,8 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/rtree.h"
 
 /*
  * Only the most significant bits of keys passed to rtree_{read,write}() are

@@ -1,7 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/counter.h"
+#include "jemalloc/internal/witness.h"
 
 bool
 counter_accum_init(counter_accum_t *counter, uint64_t interval) {

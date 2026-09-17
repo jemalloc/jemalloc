@@ -1,8 +1,14 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
+#include "jemalloc/internal/base.h"
+#include "jemalloc/internal/edata.h"
 #include "jemalloc/internal/ehooks.h"
+#include "jemalloc/internal/emap.h"
+#include "jemalloc/internal/extent.h"
+#include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_a.h"
 
 void
 ehooks_init(ehooks_t *ehooks, extent_hooks_t *extent_hooks, unsigned ind) {
@@ -222,7 +228,7 @@ ehooks_default_merge_impl(tsdn_t *tsdn, void *addr_a, void *addr_b) {
 	return false;
 }
 
-bool
+static bool
 ehooks_default_merge(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
     void *addr_b, size_t size_b, bool committed, unsigned arena_ind) {
 	tsdn_t *tsdn = tsdn_fetch();

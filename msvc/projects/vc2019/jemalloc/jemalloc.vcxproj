@@ -36,6 +36,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\..\src\arena.c" />
+    <ClCompile Include="..\..\..\..\src\arenas_management.c" />
     <ClCompile Include="..\..\..\..\src\background_thread.c" />
     <ClCompile Include="..\..\..\..\src\base.c" />
     <ClCompile Include="..\..\..\..\src\bin.c" />
@@ -44,6 +45,7 @@
     <ClCompile Include="..\..\..\..\src\buf_writer.c" />
     <ClCompile Include="..\..\..\..\src\cache_bin.c" />
     <ClCompile Include="..\..\..\..\src\ckh.c" />
+    <ClCompile Include="..\..\..\..\src\conf.c" />
     <ClCompile Include="..\..\..\..\src\counter.c" />
     <ClCompile Include="..\..\..\..\src\ctl.c" />
     <ClCompile Include="..\..\..\..\src\decay.c" />
@@ -59,7 +61,6 @@
     <ClCompile Include="..\..\..\..\src\extent_dss.c" />
     <ClCompile Include="..\..\..\..\src\extent_mmap.c" />
     <ClCompile Include="..\..\..\..\src\fxp.c" />
-    <ClCompile Include="..\..\..\..\src\hook.c" />
     <ClCompile Include="..\..\..\..\src\hpa.c" />
     <ClCompile Include="..\..\..\..\src\hpa_central.c" />
     <ClCompile Include="..\..\..\..\src\hpa_hooks.c" />
@@ -67,8 +68,11 @@
     <ClCompile Include="..\..\..\..\src\hpdata.c" />
     <ClCompile Include="..\..\..\..\src\inspect.c" />
     <ClCompile Include="..\..\..\..\src\jemalloc.c" />
+    <ClCompile Include="..\..\..\..\src\jemalloc_fork.c" />
+    <ClCompile Include="..\..\..\..\src\jemalloc_init.c" />
     <ClCompile Include="..\..\..\..\src\large.c" />
     <ClCompile Include="..\..\..\..\src\log.c" />
+    <ClCompile Include="..\..\..\..\src\malloc_dispatch.c" />
     <ClCompile Include="..\..\..\..\src\malloc_io.c" />
     <ClCompile Include="..\..\..\..\src\mutex.c" />
     <ClCompile Include="..\..\..\..\src\nstime.c" />

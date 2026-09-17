@@ -52,9 +52,14 @@ jobs:
               CXX: cl.exe
               CROSS_COMPILE_32BIT: yes
               CONFIGURE_FLAGS: --enable-debug
+          - env:
+              CC: gcc
+              CXX: g++
+              CONFIGURE_FLAGS: --enable-cxx-infallible-new
+              EXTRA_CFLAGS: -fcommon
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Show OS version
       shell: cmd

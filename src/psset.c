@@ -1,9 +1,8 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
-
-#include "jemalloc/internal/psset.h"
 
 #include "jemalloc/internal/fb.h"
+#include "jemalloc/internal/psset.h"
+#include "jemalloc/internal/sz.h"
 
 void
 psset_init(psset_t *psset) {
@@ -349,7 +348,7 @@ psset_enumerate_search(psset_t *psset, pszind_t pind, size_t size) {
 
 	while ((ps = hpdata_age_heap_enumerate_next(
 	            &psset->pageslabs[pind], &helper))) {
-		if (hpdata_longest_free_range_get(ps) >= size) {
+		if ((hpdata_longest_free_range_get(ps) << LG_PAGE) >= size) {
 			return ps;
 		}
 	}

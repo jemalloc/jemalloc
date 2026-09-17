@@ -1,7 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/hpa_utils.h"
+#include "jemalloc/internal/hpdata.h"
 
 void
 hpa_purge_batch(hpa_hooks_t *hooks, hpa_purge_item_t *batch, size_t batch_sz) {

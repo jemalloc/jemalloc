@@ -1,11 +1,12 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
-#include "jemalloc/internal/san_bump.h"
+#include "jemalloc/internal/edata_cache.h"
+#include "jemalloc/internal/ehooks.h"
+#include "jemalloc/internal/extent.h"
+#include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/pac.h"
 #include "jemalloc/internal/san.h"
-#include "jemalloc/internal/ehooks.h"
-#include "jemalloc/internal/edata_cache.h"
+#include "jemalloc/internal/san_bump.h"
 
 static bool san_bump_grow_locked(tsdn_t *tsdn, san_bump_alloc_t *sba,
     pac_t *pac, ehooks_t *ehooks, size_t size);
@@ -55,11 +56,11 @@ san_bump_alloc(tsdn_t *tsdn, san_bump_alloc_t *sba, pac_t *pac,
 		sba->curr_reg = NULL;
 	}
 
-	malloc_mutex_unlock(tsdn, &sba->mtx);
-
 	assert(!edata_guarded_get(edata));
 	assert(sba->curr_reg == NULL || !edata_guarded_get(sba->curr_reg));
 	assert(to_destroy == NULL || !edata_guarded_get(to_destroy));
+
+	malloc_mutex_unlock(tsdn, &sba->mtx);
 
 	if (to_destroy != NULL) {
 		extent_destroy_wrapper(tsdn, pac, ehooks, to_destroy);

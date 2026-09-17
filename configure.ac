@@ -158,29 +158,27 @@ AC_SUBST([abs_objroot])
 
 dnl Munge install path variables.
 case "$prefix" in
-   *\ * ) AC_MSG_ERROR([Prefix should not contain spaces]) ;;
    "NONE" ) prefix="/usr/local" ;;
 esac
 case "$exec_prefix" in
-   *\ * ) AC_MSG_ERROR([Exec prefix should not contain spaces]) ;;
    "NONE" ) exec_prefix=$prefix ;;
 esac
 PREFIX=$prefix
 AC_SUBST([PREFIX])
-BINDIR=`eval echo $bindir`
-BINDIR=`eval echo $BINDIR`
+BINDIR=`eval echo "\"$bindir\""`
+BINDIR=`eval echo "\"$BINDIR\""`
 AC_SUBST([BINDIR])
-INCLUDEDIR=`eval echo $includedir`
-INCLUDEDIR=`eval echo $INCLUDEDIR`
+INCLUDEDIR=`eval echo "\"$includedir\""`
+INCLUDEDIR=`eval echo "\"$INCLUDEDIR\""`
 AC_SUBST([INCLUDEDIR])
-LIBDIR=`eval echo $libdir`
-LIBDIR=`eval echo $LIBDIR`
+LIBDIR=`eval echo "\"$libdir\""`
+LIBDIR=`eval echo "\"$LIBDIR\""`
 AC_SUBST([LIBDIR])
-DATADIR=`eval echo $datadir`
-DATADIR=`eval echo $DATADIR`
+DATADIR=`eval echo "\"$datadir\""`
+DATADIR=`eval echo "\"$DATADIR\""`
 AC_SUBST([DATADIR])
-MANDIR=`eval echo $mandir`
-MANDIR=`eval echo $MANDIR`
+MANDIR=`eval echo "\"$mandir\""`
+MANDIR=`eval echo "\"$MANDIR\""`
 AC_SUBST([MANDIR])
 
 dnl Support for building documentation.
@@ -344,6 +342,11 @@ if test "x$enable_cxx" = "x1" ; then
   if test "x${HAVE_CXX14}" = "x1" -o "x${HAVE_CXX17}" = "x1"; then
     JE_CXXFLAGS_ADD([-Wall])
     JE_CXXFLAGS_ADD([-Wextra])
+    dnl Mirror the C flags: these warnings fire on the universal zero
+    dnl initializer idiom (e.g. the tcache/TSD static initializers) that is
+    dnl shared with the C++ sources via the internal headers.
+    JE_CXXFLAGS_ADD([-Wno-missing-braces])
+    JE_CXXFLAGS_ADD([-Wno-missing-field-initializers])
     JE_CXXFLAGS_ADD([-g3])
 
     SAVED_LIBS="${LIBS}"
@@ -376,7 +379,53 @@ fi
 if test "x$enable_cxx" = "x1"; then
   AC_DEFINE([JEMALLOC_ENABLE_CXX], [ ], [ ])
 fi
+if test "x$enable_cxx" = "x1"; then
+  dnl Now check whether the C++ compiler has exceptions enabled.
+  AC_LANG_PUSH([C++])
+  SAVED_CXXFLAGS="${CXXFLAGS}"
+  CXXFLAGS="${CXXFLAGS} ${EXTRA_CXXFLAGS}"
+  JE_COMPILABLE([C++ exception support], [
+#include <new>
+], [
+	try {
+		throw std::bad_alloc();
+	} catch (const std::bad_alloc &) {
+	}
+], [je_cv_cxx_exceptions])
+  CXXFLAGS="${SAVED_CXXFLAGS}"
+  AC_LANG_POP([C++])
+  if test "x${je_cv_cxx_exceptions}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_HAVE_CXX_EXCEPTIONS], [ ], [ ])
+    enable_cxx_exceptions="1"
+  else
+    enable_cxx_exceptions="0"
+  fi
+fi
+
+dnl Do not enable infallible-new by default. When enabled, the throwing
+dnl operator new aborts on OOM (with size logged) instead of throwing
+dnl std::bad_alloc; nothrow new still returns null. With LTO this lets the
+dnl compiler prove operator new doesn't throw and elide exception cleanup.
+AC_ARG_ENABLE([cxx-infallible-new],
+  [AS_HELP_STRING([--enable-cxx-infallible-new],
+    [Abort on OOM in throwing operator new instead of throwing std::bad_alloc])],
+[if test "x$enable_cxx_infallible_new" = "xno" ; then
+  enable_cxx_infallible_new="0"
+else
+  enable_cxx_infallible_new="1"
+fi
+],
+[enable_cxx_infallible_new="0"]
+)
+if test "x$enable_cxx" != "x1" ; then
+  enable_cxx_infallible_new="0"
+fi
+if test "x$enable_cxx_infallible_new" = "x1" ; then
+  AC_DEFINE([JEMALLOC_INFALLIBLE_NEW], [1], [ ])
+fi
 AC_SUBST([enable_cxx])
+AC_SUBST([enable_cxx_exceptions])
+AC_SUBST([enable_cxx_infallible_new])
 AC_SUBST([CONFIGURE_CXXFLAGS])
 AC_SUBST([SPECIFIED_CXXFLAGS])
 AC_SUBST([EXTRA_CXXFLAGS])
@@ -489,13 +538,14 @@ esac
 AC_DEFINE_UNQUOTED([HAVE_CPU_SPINWAIT], [$HAVE_CPU_SPINWAIT], [ ])
 AC_DEFINE_UNQUOTED([CPU_SPINWAIT], [$CPU_SPINWAIT], [ ])
 
+dnl LG_VADDR: number of significant virtual address bits. Auto-detected when --with-lg-vaddr is left unset.
 AC_ARG_WITH([lg_vaddr],
   [AS_HELP_STRING([--with-lg-vaddr=<lg-vaddr>], [Number of significant virtual address bits])],
   [LG_VADDR="$with_lg_vaddr"], [LG_VADDR="detect"])
 
-case "${host_cpu}" in
-  aarch64)
-    if test "x$LG_VADDR" = "xdetect"; then
+if test "x$LG_VADDR" = "xdetect"; then
+  case "${host_cpu}" in
+    aarch64)
       AC_MSG_CHECKING([number of significant virtual address bits])
       if test "x${LG_SIZEOF_PTR}" = "x2" ; then
         #aarch64 ILP32
@@ -505,10 +555,8 @@ case "${host_cpu}" in
         LG_VADDR=48
       fi
       AC_MSG_RESULT([$LG_VADDR])
-    fi
-    ;;
-  x86_64)
-    if test "x$LG_VADDR" = "xdetect"; then
+      ;;
+    x86_64)
       AC_CACHE_CHECK([number of significant virtual address bits],
                      [je_cv_lg_vaddr],
                      AC_RUN_IFELSE([AC_LANG_PROGRAM(
@@ -548,35 +596,14 @@ typedef unsigned __int32 uint32_t;
                    [je_cv_lg_vaddr=`cat conftest.out`],
                    [je_cv_lg_vaddr=error],
                    [je_cv_lg_vaddr=57]))
+      if test "x${je_cv_lg_vaddr}" = "xerror" ; then
+        AC_MSG_ERROR([cannot determine number of significant virtual address bits])
+      fi
       if test "x${je_cv_lg_vaddr}" != "x" ; then
         LG_VADDR="${je_cv_lg_vaddr}"
       fi
-      if test "x${LG_VADDR}" != "xerror" ; then
-        AC_DEFINE_UNQUOTED([LG_VADDR], [$LG_VADDR], [ ])
-      else
-        AC_MSG_ERROR([cannot determine number of significant virtual address bits])
-      fi
-      AC_CACHE_CHECK([rdtscp support],
-		     [je_cv_rdtscp],
-		     AC_RUN_IFELSE([AC_LANG_PROGRAM(
-[[
-#include <stdint.h>
-]],
-[[
-      unsigned int dx;
-      asm volatile("rdtscp" : "=d"(dx) ::);
-      return 0;
-]])],
-      [je_cv_rdtscp=yes],
-      [je_cv_rdtscp=no],
-      [je_cv_rdtscp=no]))
-      if test "x${je_cv_rdtscp}" = "xyes"; then
-        AC_DEFINE([JEMALLOC_HAVE_RDTSCP], [ ], [ ])
-      fi
-    fi
-    ;;
-  *)
-    if test "x$LG_VADDR" = "xdetect"; then
+      ;;
+    *)
       AC_MSG_CHECKING([number of significant virtual address bits])
       if test "x${LG_SIZEOF_PTR}" = "x3" ; then
         LG_VADDR=64
@@ -588,10 +615,34 @@ typedef unsigned __int32 uint32_t;
         AC_MSG_ERROR([Unsupported lg(pointer size): ${LG_SIZEOF_PTR}])
       fi
       AC_MSG_RESULT([$LG_VADDR])
+      ;;
+  esac
+fi
+AC_DEFINE_UNQUOTED([LG_VADDR], [$LG_VADDR], [ ])
+
+dnl rdtscp feature probe for x86_64
+case "${host_cpu}" in
+  x86_64)
+    AC_CACHE_CHECK([rdtscp support],
+		   [je_cv_rdtscp],
+		   AC_RUN_IFELSE([AC_LANG_PROGRAM(
+[[
+#include <stdint.h>
+]],
+[[
+      unsigned int dx;
+      asm volatile("rdtscp" : "=d"(dx) ::);
+      return 0;
+]])],
+    [je_cv_rdtscp=yes],
+    [je_cv_rdtscp=no],
+    [je_cv_rdtscp=no]))
+    if test "x${je_cv_rdtscp}" = "xyes"; then
+      AC_DEFINE([JEMALLOC_HAVE_RDTSCP], [ ], [ ])
     fi
     ;;
 esac
-AC_DEFINE_UNQUOTED([LG_VADDR], [$LG_VADDR], [ ])
+
 AC_CACHE_CHECK([asm volatile support],
                [je_cv_asm_volatile],
                AC_RUN_IFELSE([AC_LANG_PROGRAM(
@@ -755,7 +806,6 @@ case "${host}" in
   *-*-freebsd*)
 	JE_APPEND_VS(CPPFLAGS, -D_BSD_SOURCE)
 	abi="elf"
-	AC_DEFINE([JEMALLOC_SYSCTL_VM_OVERCOMMIT], [ ], [ ])
 	force_lazy_lock="1"
 	;;
   *-*-dragonfly*)
@@ -775,7 +825,6 @@ case "${host}" in
 	glibc="0"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS], [ ], [ ])
 	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H], [ ], [ ])
-	AC_DEFINE([JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY], [ ], [ ])
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ], [ ])
 	AC_DEFINE([JEMALLOC_C11_ATOMICS], [ ], [ ])
 	force_tls="0"
@@ -790,7 +839,6 @@ case "${host}" in
 	abi="elf"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS], [ ], [ ])
 	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H], [ ], [ ])
-	AC_DEFINE([JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY], [ ], [ ])
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ], [ ])
 	if test "${LG_SIZEOF_PTR}" = "3"; then
 	  default_retain="1"
@@ -804,7 +852,6 @@ case "${host}" in
 	glibc="1"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS], [ ], [ ])
 	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H], [ ], [ ])
-	AC_DEFINE([JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY], [ ], [ ])
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ], [ ])
 	AC_DEFINE([JEMALLOC_USE_CXX_THROW], [ ], [ ])
 	if test "${LG_SIZEOF_PTR}" = "3"; then
@@ -817,7 +864,6 @@ case "${host}" in
 	JE_APPEND_VS(CPPFLAGS, -D_GNU_SOURCE)
 	abi="elf"
 	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H], [ ], [ ])
-	AC_DEFINE([JEMALLOC_SYSCTL_VM_OVERCOMMIT], [ ], [ ])
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ], [ ])
 	AC_DEFINE([JEMALLOC_USE_CXX_THROW], [ ], [ ])
 	;;
@@ -1173,6 +1219,25 @@ if test "$enable_shared$enable_static" = "00" ; then
   AC_MSG_ERROR([Please enable one of shared or static builds])
 fi
 
+dnl Whether ucontext fibers (getcontext/makecontext/swapcontext) actually link.
+dnl musl declares them in <ucontext.h> but exports no implementation, so a
+dnl link test is required -- a header check would pass and then fail to link.
+dnl Used to gate the tcache_fiber_migration test.
+JE_COMPILABLE([ucontext], [
+#include <ucontext.h>
+], [
+	ucontext_t uc, ret;
+	getcontext(&uc);
+	makecontext(&uc, (void (*)(void))0, 0);
+	swapcontext(&ret, &uc);
+], [je_cv_ucontext])
+if test "x${je_cv_ucontext}" = "xyes" ; then
+  have_ucontext="1"
+else
+  have_ucontext="0"
+fi
+AC_SUBST([have_ucontext])
+
 dnl Perform no name mangling by default.
 AC_ARG_WITH([mangling],
   [AS_HELP_STRING([--with-mangling=<map>], [Mangle symbols in <map>])],
@@ -1454,6 +1519,24 @@ if test "x$enable_experimental_smallocx" = "x1" ; then
 fi
 AC_SUBST([enable_experimental_smallocx])
 
+dnl Do not enable fiber-safe TLS access by default.
+AC_ARG_ENABLE([experimental_fiber_safe_tls],
+  [AS_HELP_STRING([--enable-experimental-fiber-safe-tls],
+                  [Make jemalloc's own TLS access safe for fibers that migrate across threads (partial mitigation; see INSTALL.md)])],
+[if test "x$enable_experimental_fiber_safe_tls" = "xno" ; then
+enable_experimental_fiber_safe_tls="0"
+else
+enable_experimental_fiber_safe_tls="1"
+fi
+],
+[enable_experimental_fiber_safe_tls="0"]
+)
+if test "x$enable_experimental_fiber_safe_tls" = "x1" ; then
+  AC_DEFINE([JEMALLOC_EXPERIMENTAL_FIBER_SAFE_TLS], [ ],
+            [Route TSD thread-local address computation through a noinline optimization-barrier accessor so the compiler cannot cache it across a user-space context switch.])
+fi
+AC_SUBST([enable_experimental_fiber_safe_tls])
+
 dnl Do not enable profiling by default.
 AC_ARG_ENABLE([prof],
   [AS_HELP_STRING([--enable-prof], [Enable allocation profiling])],
@@ -1509,33 +1592,6 @@ if test "x$backtrace_method" = "x" -a "x$enable_prof_libunwind" = "x1" ; then
     backtrace_method="libunwind"
     AC_DEFINE([JEMALLOC_PROF_LIBUNWIND], [ ], [ ])
   fi
-fi
-
-if test `uname -s` = "Linux"
-then
-  AC_ARG_ENABLE([prof-frameptr],
-    [AS_HELP_STRING([--enable-prof-frameptr], [Use optimized frame pointer unwinder for backtracing (Linux only)])],
-  [if test "x$enable_prof_frameptr" = "xno" ; then
-    enable_prof_frameptr="0"
-  else
-    enable_prof_frameptr="1"
-    if test "x$enable_prof" = "x0" ; then
-      AC_MSG_ERROR([--enable-prof-frameptr should only be used with --enable-prof])
-    fi
-  fi
-  ],
-  [enable_prof_frameptr="0"]
-  )
-  if test "x$backtrace_method" = "x" -a "x$enable_prof_frameptr" = "x1" \
-      -a "x$GCC" = "xyes" ; then
-    JE_CFLAGS_ADD([-fno-omit-frame-pointer])
-    backtrace_method="frame pointer linux"
-    AC_DEFINE([JEMALLOC_PROF_FRAME_POINTER], [ ], [ ])
-  else
-    enable_prof_frameptr="0"
-  fi
-else
-  enable_prof_frameptr="0"
 fi
 
 AC_ARG_ENABLE([prof-libgcc],
@@ -2041,6 +2097,9 @@ if test "x${LG_PAGE}" != "xundefined" ; then
 else
    AC_MSG_ERROR([cannot determine value for LG_PAGE])
 fi
+if test "${LG_PAGE}" -lt 8 ; then
+   AC_MSG_ERROR([LG_PAGE must be at least 8 (PAGE >= 256)])
+fi
 
 AC_ARG_WITH([lg_hugepage],
   [AS_HELP_STRING([--with-lg-hugepage=<lg-hugepage>],
@@ -2071,8 +2130,8 @@ if test "x${je_cv_lg_hugepage}" = "x" ; then
   fi
 fi
 if test "x${LG_PAGE}" != "xundefined" -a \
-        "${je_cv_lg_hugepage}" -lt "${LG_PAGE}" ; then
-  AC_MSG_ERROR([Huge page size (2^${je_cv_lg_hugepage}) must be at least page size (2^${LG_PAGE})])
+        "${je_cv_lg_hugepage}" -le "${LG_PAGE}" ; then
+  AC_MSG_ERROR([Huge page size (2^${je_cv_lg_hugepage}) must be greater than page size (2^${LG_PAGE})])
 fi
 AC_DEFINE_UNQUOTED([LG_HUGEPAGE], [${je_cv_lg_hugepage}], [ ])
 
@@ -2176,6 +2235,43 @@ dnl Check if we have dlsym support.
 ], [je_cv_pthread_get_name_np])
   if test "x${je_cv_pthread_get_name_np}" = "xyes" ; then
     AC_DEFINE([JEMALLOC_HAVE_PTHREAD_GET_NAME_NP], [ ], [ ])
+  fi
+  dnl Runtime-check pthread_condattr_setclock and clock_gettime with
+  dnl CLOCK_MONOTONIC to confirm the kernel actually supports the
+  dnl monotonic clock.
+  AC_CACHE_CHECK([whether pthread_condattr_setclock with CLOCK_MONOTONIC is usable],
+                 [je_cv_pthread_cond_timedwait_monotonic],
+                 AC_RUN_IFELSE([AC_LANG_PROGRAM(
+[[
+#include <pthread.h>
+#include <time.h>
+]], [[
+  pthread_condattr_t attr;
+  pthread_cond_t cond;
+  struct timespec ts;
+  int ret = pthread_condattr_init(&attr);
+  if (ret != 0) {
+    return 1;
+  }
+  ret = pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
+  if (ret != 0) {
+    pthread_condattr_destroy(&attr);
+    return 1;
+  }
+  ret = pthread_cond_init(&cond, &attr);
+  pthread_condattr_destroy(&attr);
+  if (ret != 0) {
+    return 1;
+  }
+  ret = clock_gettime(CLOCK_MONOTONIC, &ts);
+  pthread_cond_destroy(&cond);
+  return ret != 0;
+]])],
+                 [je_cv_pthread_cond_timedwait_monotonic=yes],
+                 [je_cv_pthread_cond_timedwait_monotonic=no],
+                 [je_cv_pthread_cond_timedwait_monotonic=no]))
+  if test "x${je_cv_pthread_cond_timedwait_monotonic}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_HAVE_PTHREAD_COND_TIMEDWAIT_MONOTONIC], [ ], [ ])
   fi
 fi
 
@@ -2791,7 +2887,7 @@ fi
 ],
 [enable_pageid="0"]
 )
-if test "x$enable_pageid" = "x1" ; then
+if test "x$enable_pageid" = "x1" -a "x$have_prctl" = "x1" ; then
   AC_DEFINE([JEMALLOC_PAGEID], [ ], [ ])
 fi
 
@@ -3098,9 +3194,9 @@ AC_MSG_RESULT([debug              : ${enable_debug}])
 AC_MSG_RESULT([stats              : ${enable_stats}])
 AC_MSG_RESULT([user_config        : ${enable_user_config}])
 AC_MSG_RESULT([experimental_smallocx : ${enable_experimental_smallocx}])
+AC_MSG_RESULT([experimental_fiber_safe_tls : ${enable_experimental_fiber_safe_tls}])
 AC_MSG_RESULT([prof               : ${enable_prof}])
 AC_MSG_RESULT([prof-libunwind     : ${enable_prof_libunwind}])
-AC_MSG_RESULT([prof-frameptr      : ${enable_prof_frameptr}])
 AC_MSG_RESULT([prof-libgcc        : ${enable_prof_libgcc}])
 AC_MSG_RESULT([prof-gcc           : ${enable_prof_gcc}])
 AC_MSG_RESULT([fill               : ${enable_fill}])

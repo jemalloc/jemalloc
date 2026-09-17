@@ -5,6 +5,73 @@
 static const char *test_filename = "test_filename";
 static bool        did_prof_dump_open;
 
+TEST_BEGIN(test_prof_parse_pid_namespace) {
+	struct test_case_s {
+		const char *input;
+		size_t      buf_size;
+		ssize_t     linklen;
+		uint64_t    expected;
+	} test_cases[] = {
+	    /* A typical valid namespace ID. */
+	    {"pid:[1234]", sizeof("pid:[1234]"),
+	                     sizeof("pid:[1234]") - 1, UINT64_C(1234)},
+	    /* The shortest valid namespace ID contains one digit. */
+	    {"pid:[1]", sizeof("pid:[1]"), sizeof("pid:[1]") - 1,
+	        UINT64_C(1)},
+	    /* Leading zeroes do not change the parsed value. */
+	    {"pid:[0001234]", sizeof("pid:[0001234]"),
+	        sizeof("pid:[0001234]") - 1, UINT64_C(1234)},
+	    /* A realistic namespace ID must fit on 32-bit platforms. */
+	    {"pid:[4026531836]", sizeof("pid:[4026531836]"),
+	        sizeof("pid:[4026531836]") - 1, UINT64_C(4026531836)},
+	    /* UINT64_MAX is the largest representable namespace ID. */
+	    {"pid:[18446744073709551615]",
+	        sizeof("pid:[18446744073709551615]"),
+	        sizeof("pid:[18446744073709551615]") - 1, UINT64_MAX},
+	    /* Reject an incorrect prefix. */
+	    {"pid-:[1234]", sizeof("pid-:[1234]"),
+	        sizeof("pid-:[1234]") - 1, 0},
+	    /* Reject non-digit characters within the namespace ID. */
+	    {"pid:[12a4]", sizeof("pid:[12a4]"), sizeof("pid:[12a4]") - 1,
+	        0},
+	    /* Reject an explicit positive sign, only digits are allowed. */
+	    {"pid:[+1234]", sizeof("pid:[+1234]"),
+	        sizeof("pid:[+1234]") - 1, 0},
+	    /* Reject negative namespace IDs. */
+	    {"pid:[-1]", sizeof("pid:[-1]"), sizeof("pid:[-1]") - 1, 0},
+	    /* Reject a namespace ID with no digits. */
+	    {"pid:[]", sizeof("pid:[]"), sizeof("pid:[]") - 1, 0},
+	    /* Reject an input without the closing bracket. */
+	    {"pid:[1234", sizeof("pid:[1234"), sizeof("pid:[1234") - 1, 0},
+	    /* Reject trailing content included within linklen. */
+	    {"pid:[1234]x", sizeof("pid:[1234]x"),
+	        sizeof("pid:[1234]x") - 1, 0},
+	    /* Reject a value one greater than UINT64_MAX. */
+	    {"pid:[18446744073709551616]",
+	        sizeof("pid:[18446744073709551616]"),
+	        sizeof("pid:[18446744073709551616]") - 1, 0},
+	    /* Only bytes before linklen belong to the symlink target. */
+	    {"pid:[12]junk", sizeof("pid:[12]junk"), sizeof("pid:[12]") - 1,
+	        UINT64_C(12)},
+	    /* Reject linklen equal to buf_size as potentially truncated. */
+	    {"pid:[1234]", sizeof("pid:[1234]") - 1,
+	        sizeof("pid:[1234]") - 1, 0},
+	    /* A zero linklen means readlink returned no data. */
+	    {"pid:[1234]", sizeof("pid:[1234]"), 0, 0},
+	    /* A negative linklen represents a readlink error. */
+	    {"pid:[1234]", sizeof("pid:[1234]"), -1, 0}};
+
+	size_t test_case_count = ARRAY_SIZE(test_cases);
+	for (size_t i = 0; i < test_case_count; i++) {
+		struct test_case_s *test_case = &test_cases[i];
+		expect_u64_eq(os_prof_parse_pid_namespace(test_case->input,
+		                 test_case->buf_size, test_case->linklen),
+		    test_case->expected, "Unexpected result for test case %zu",
+		    i);
+	}
+}
+TEST_END
+
 static int
 prof_dump_open_file_intercept(const char *filename, int mode) {
 	int fd;
@@ -211,6 +278,6 @@ TEST_END
 
 int
 main(void) {
-	return test(
-	    test_mdump_normal, test_mdump_output_error, test_mdump_maps_error);
+	return test(test_prof_parse_pid_namespace, test_mdump_normal,
+	    test_mdump_output_error, test_mdump_maps_error);
 }

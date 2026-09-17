@@ -7,9 +7,9 @@ void malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
     char readlink_buf[PATH_MAX + 1]);
 void malloc_abort_invalid_conf(void);
 
-#ifdef JEMALLOC_JET
 extern bool had_conf_error;
 
+#ifdef JEMALLOC_JET
 bool conf_next(char const **opts_p, char const **k_p, size_t *klen_p,
     char const **v_p, size_t *vlen_p);
 void conf_error(

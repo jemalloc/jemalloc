@@ -4,6 +4,110 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/jemalloc/jemalloc
 
+* 5.4.0 (Sep 17, 2026)
+
+This release contains over 160 commits, focusing on the technical debts
+cleaning including refactorings, bug fixes, test coverage improvement, and
+option cleanups.  The release also includes portability improvements per
+upstream issues report.
+
+New features:
+  - Add `EXTENT_ALLOC_FLAG_PINNED` so custom extent-allocation hooks can
+    mark non-reclaimable mappings, such as HugeTLB pages, for preferential
+    reuse outside the decay and purge pipeline.  Add the mallctl interfaces
+    `stats.pinned`, `stats.arenas.<i>.pinned`,
+    `stats.arenas.<i>.extents.<j>.npinned`,
+    `stats.arenas.<i>.extents.<j>.pinned_bytes`, and
+    `stats.arenas.<i>.mutexes.extents_pinned.{counter}` to report
+    pinned-memory usage and mutex statistics.  (@binliu19: be2de8cc)
+  - Allow resuming per-CPU arena selection via `thread.arena`.
+    (@algunenano: 68c35f65)
+  - Better align the contents of human-readable and JSON malloc statistics.
+    (@spredolac: 68fe1be1, 30b1a410, 04aad97f)
+  - Replace the runtime `experimental_infallible_new` option with the
+    compile-time `--enable-cxx-infallible-new` option, enabling
+    compiler-level optimizations and optimization in move constructors,
+    and fix the `new(std::nothrow)` contract (@spredolac: 160ab9d7, fe336672)
+
+Incompatible changes:
+  - Adapt tcache fill and retention targets per bin to demand observed
+    between GC events, replacing the fixed refill/flush policy.  Remove
+    seven legacy non-experimental controls: `lg_tcache_nslots_mul`,
+    `tcache_nslots_small_min`, `tcache_nslots_small_max`,
+    `tcache_nslots_large`, `tcache_gc_delay_bytes`,
+    `lg_tcache_flush_small_div`, and `lg_tcache_flush_large_div`.
+    Corresponding `malloc_conf` settings are silently ignored, matching
+    `opt.*` mallctls return ENOENT, and `tcache_ncached_max` remains
+    supported.  (@spredolac: d13fe91a)
+
+Bug fixes:
+  - Preserve `errno` across `free`, `free_sized`, and `free_aligned_sized`,
+    and across `process_madvise`-based page purging.  (@spredolac: 3a779661,
+    86f05828)
+  - Fix numeric overflow checks in size classes.  (@spredolac: 6b245225)
+  - Accept NULL in `free_sized()` and `free_aligned_sized()` (C23
+    correctness).  (@bigbruno: 7ce8b916)
+  - Fix TSD lifecycle edge cases by 1) initializing thread-cache bins before
+    marking the cache enabled, preventing reentrant bootstrap allocations
+    from using uninitialized state, and 2) avoiding TSD recreation for late
+    deallocations after thread teardown on generic-TSD platforms.
+    (@fzakaria: 54f22c83, @spredolac: fb5499aa)
+  - Use `O_CLOEXEC` when opening the THP sysfs file in `init_thp_state`.
+    (@ibookstein: d0705543)
+  - Fix duplicate `opt.stats_print` and `opt.stats_print_opts` fields in
+    `malloc_stats_print` output.  (@spredolac: dfe3a2ed)
+  - Fix a potential deadlock during `arena_reset`.  (@guangli-dai: 6957341f)
+  - Fix a prof-sampling / guard-page interaction bug in the SAN.  (@gctony:
+    e36a0fa5)
+
+Optimizations and refactors:
+  - Modularize jemalloc's front end by extracting arena management,
+    initialization, fork orchestration, and allocation dispatch from
+    `jemalloc.c`; untangle tcache/arena ownership; and consolidate the
+    internal header graph to eliminate circular dependencies.  (@spredolac:
+    ba1e2fe4, 88745978, 9d757223, de9ad145, ...)
+  - Simplify ctl dispatch by refactoring arena helpers, internalizing an
+    implementation-only control, replacing control-flow macros with typed
+    helpers, and organizing `ctl.c` by subsystem.  (@spredolac: 9e143468,
+    901365d4, 4e903a0a, 5bc8d6e9)
+  - Cap the base-block growth heuristic to avoid virtual-memory exhaustion
+    under rare racy conditions.  (@guangli-dai: 2f4db8cf)
+  - Move background-thread lifecycle and state operations into the
+    background-thread module, clarifying ownership independently of PAC/HPA
+    callers.  (@guangli-dai: f1f07923)
+  - Simplify the page-allocation boundary by replacing PAI vtable dispatch
+    with direct PAC/HPA calls, removing the obsolete `pai_t`/`pai.h`
+    abstraction, and moving deferred-work and decay orchestration out of the
+    arena.  (@guangli-dai: 1dfa6f7a, 8edd1012, d410f43e)
+  - Refactor statistics collection and rendering into separate
+    gather/emission stages and descriptor-driven tables.  (@spredolac:
+    184f304d, 80c8fcb4)
+  - Introduce an OS abstraction layer and move platform-dependent
+    file/process I/O, time, synchronization, CPU, virtual-memory, atfork,
+    error-handling, profiling, thread-yield, and configuration-access
+    operations out of allocator core code.  (@guangli-dai: c4158aca,
+    c8e2e013, ...)
+
+Portability improvements:
+  - Replace the `std::__throw_bad_alloc` call with standard C++ (#2900).
+    (@lexprfuncall: 1a15fe33)
+  - Make `arena_s` use a flexible array member (`bin_t all_bins[]`) for C99
+    or newer.  (@grueninger: 300b58b4)
+  - Fix rdtscp detection with `--with-lg-vaddr`.  (@xinydev: e8a0d2b4)
+  - Fix `malloc_getcpu` on macOS to read the current CPU number correctly.
+    (@algunenano: 5aabbc87)
+  - Use `CLOCK_MONOTONIC` for background-thread sleep to prevent
+    clock-rollback stalls, and detect monotonic-condvar support at configure
+    time.  (@antonio2368: ebacec3a, 8361239b)
+  - Fix compilation warnings on macOS.  (@gctony: abb0a8a0)
+  - Fix thread-exit TSD cleanup on MinGW builds.  (@gctony: 1e923170)
+  - Fix GCC 16 build warnings by removing `-Wpedantic` violations in macro
+    and function syntax and explicitly NUL-terminating profiling thread-name
+    copies to resolve `-Wstringop-truncation`.  (@grueninger: 5acdcee6,
+    c22d929a, @jasonangelov: 6a245e02)
+  - Parse PID-namespace symlinks without glibc-dependent `strtok`/`atol`,
+    and return identifiers as `uint64_t`.  (@guangli-dai: 278d90a5)
+
 * 5.3.1 (Apr 13, 2026)
 
 This release includes over 390 commits spanning bug fixes, new features,

@@ -1,10 +1,14 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/base.h"
+#include "jemalloc/internal/ehooks.h"
 #include "jemalloc/internal/extent_mmap.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/sz.h"
+
+JET_EXTERN ehooks_t *base_ehooks_get_for_metadata(base_t *base);
 
 /*
  * In auto mode, arenas switch to huge pages for the base allocator on the
@@ -14,6 +18,17 @@
 
 #define BASE_AUTO_THP_THRESHOLD 2
 #define BASE_AUTO_THP_THRESHOLD_A0 5
+
+/*
+ * Cap the base-block growth heuristic in base_block_alloc().  The
+ * growth heuristic reduces the number of disjoint VM ranges when new base
+ * blocks are rare, but high thread churn can cause many parallel misses for
+ * metadata allocations.  Without a cap, those misses can advance
+ * base->pind_last causing small requests to mmap multi-TiB blocks and exhaust
+ * the address space.  Large individual requests still use min_block_size and
+ * can exceed this cap.
+ */
+#define BASE_BLOCK_GROWTH_MAX ((size_t)128 << 20) /* 128 MiB */
 
 /******************************************************************************/
 /* Data. */
@@ -52,8 +67,9 @@ base_map(tsdn_t *tsdn, ehooks_t *ehooks, unsigned ind, size_t size) {
 	if (ehooks_are_default(ehooks)) {
 		addr = extent_alloc_mmap(NULL, size, alignment, &zero, &commit);
 	} else {
-		addr = ehooks_alloc(
-		    tsdn, ehooks, NULL, size, alignment, &zero, &commit);
+		UNUSED unsigned flags;
+		addr = ehooks_alloc(tsdn, ehooks, NULL, size, alignment, &zero,
+		    &commit, &flags);
 	}
 
 	return addr;
@@ -112,7 +128,7 @@ label_done:
 }
 
 static inline bool
-base_edata_is_reused(edata_t *edata) {
+base_edata_is_reused(const edata_t *edata) {
 	/*
 	 * Borrow the guarded bit to indicate if the extent is a recycled one,
 	 * i.e. the ones returned to base for reuse; currently only tcache bin
@@ -133,8 +149,8 @@ base_edata_init(
 }
 
 static size_t
-base_get_num_blocks(base_t *base, bool with_new_block) {
-	base_block_t *b = base->blocks;
+base_get_num_blocks(const base_t *base, bool with_new_block) {
+	const base_block_t *b = base->blocks;
 	assert(b != NULL);
 
 	size_t n_blocks = with_new_block ? 2 : 1;
@@ -371,7 +387,11 @@ base_block_alloc(tsdn_t *tsdn, base_t *base, ehooks_t *ehooks, unsigned ind,
 	pszind_t pind_next = (*pind_last + 1 < sz_psz2ind(SC_LARGE_MAXCLASS))
 	    ? *pind_last + 1
 	    : *pind_last;
-	size_t   next_block_size = base_block_size_ceil(sz_pind2sz(pind_next));
+	size_t next_block_size = base_block_size_ceil(sz_pind2sz(pind_next));
+	size_t max_block_size = base_block_size_ceil(BASE_BLOCK_GROWTH_MAX);
+	next_block_size = (next_block_size < max_block_size)
+	    ? next_block_size
+	    : max_block_size;
 	size_t   block_size = (min_block_size > next_block_size)
 	      ? min_block_size
 	      : next_block_size;
@@ -542,7 +562,7 @@ base_ehooks_get(base_t *base) {
 	return &base->ehooks;
 }
 
-ehooks_t *
+JET_EXTERN ehooks_t *
 base_ehooks_get_for_metadata(base_t *base) {
 	return &base->ehooks_base;
 }

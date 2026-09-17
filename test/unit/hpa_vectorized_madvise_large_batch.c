@@ -37,8 +37,6 @@ static hpa_shard_opts_t test_hpa_shard_opts_default = {
     false,
     /* min_purge_interval_ms */
     5 * 1000,
-    /* experimental_max_purge_nhp */
-    -1,
     /* purge_threshold */
     1,
     /* min_purge_delay_ms */
@@ -170,7 +168,7 @@ TEST_BEGIN(test_vectorized_purge) {
 	enum { NALLOCS = 8 * HUGEPAGE_PAGES };
 	edata_t *edatas[NALLOCS];
 	for (int i = 0; i < NALLOCS; i++) {
-		edatas[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false,
+		edatas[i] = hpa_alloc(tsdn, shard, PAGE, PAGE, false,
 		    false, false, &deferred_work_generated);
 		expect_ptr_not_null(edatas[i], "Unexpected null edata");
 	}
@@ -180,7 +178,7 @@ TEST_BEGIN(test_vectorized_purge) {
 	for (int i = 0; i < 3 * (int)HUGEPAGE_PAGES; i++) {
 		int j = i % HUGEPAGE_PAGES;
 		if (j != 1 && j != 3) {
-			pai_dalloc(tsdn, &shard->pai, edatas[i],
+			hpa_dalloc(tsdn, shard, edatas[i],
 			    &deferred_work_generated);
 		}
 	}
@@ -232,14 +230,13 @@ TEST_BEGIN(test_purge_more_than_one_batch_pages) {
 	enum { NALLOCS = HPA_PURGE_BATCH_MAX * 3 * HUGEPAGE_PAGES };
 	edata_t *edatas[NALLOCS];
 	for (int i = 0; i < NALLOCS; i++) {
-		edatas[i] = pai_alloc(tsdn, &shard->pai, PAGE, PAGE, false,
+		edatas[i] = hpa_alloc(tsdn, shard, PAGE, PAGE, false,
 		    false, false, &deferred_work_generated);
 		expect_ptr_not_null(edatas[i], "Unexpected null edata");
 	}
 	for (int i = 0; i < HPA_PURGE_BATCH_MAX * 2 * (int)HUGEPAGE_PAGES;
 	    i++) {
-		pai_dalloc(
-		    tsdn, &shard->pai, edatas[i], &deferred_work_generated);
+		hpa_dalloc(tsdn, shard, edatas[i], &deferred_work_generated);
 	}
 
 	hpa_shard_do_deferred_work(tsdn, shard);

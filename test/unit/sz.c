@@ -1,5 +1,7 @@
 #include "test/jemalloc_test.h"
 
+extern size_t reg_size_compute(int lg_base, int lg_delta, int ndelta);
+
 TEST_BEGIN(test_sz_psz2ind) {
 	/*
 	 * Testing page size classes which reside prior to the regular group

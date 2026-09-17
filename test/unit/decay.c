@@ -273,9 +273,67 @@ TEST_BEGIN(test_decay_ns_until_purge) {
 }
 TEST_END
 
+/*
+ * Branch coverage for the decay-level math the early-wake path
+ * (pac_decay_should_wake_early) relies on, exercised here at the public decay
+ * seam with explicit nstime rather than via real-thread timing.
+ */
+TEST_BEGIN(test_decay_early_wake_branches) {
+	decay_t decay;
+	memset(&decay, 0, sizeof(decay));
+
+	nstime_t curtime;
+	nstime_init(&curtime, 0);
+
+	uint64_t decay_ms = 1000;
+	nstime_t decay_nstime;
+	nstime_init(&decay_nstime, decay_ms * 1000 * 1000);
+	expect_false(decay_init(&decay, &curtime, (ssize_t)decay_ms),
+	    "Failed to initialize decay");
+
+	size_t new_pages = 100;
+
+	/*
+	 * Parity trap: with zero new pages the accumulation contributes
+	 * nothing, so decay_npages_purge_in must return 0 regardless of the
+	 * remaining-sleep window.  (The early-wake THRESHOLD compare on the
+	 * EXISTING backlog still runs in pac_decay_should_wake_early; that is
+	 * deliberately kept and documented in src/pac.c.)
+	 */
+	nstime_t window;
+	nstime_copy(&window, &decay_nstime);
+	expect_u64_eq(decay_npages_purge_in(&decay, &window, 0), 0,
+	    "Zero new pages must contribute zero to the purge estimate");
+
+	/*
+	 * A remaining-sleep window at/after the full decay period caps the
+	 * estimate at the new-page count (all of them will have decayed).
+	 */
+	expect_u64_eq(decay_npages_purge_in(&decay, &window, new_pages),
+	    new_pages, "All new pages should be due within the decay window");
+
+	nstime_t beyond;
+	nstime_copy(&beyond, &decay_nstime);
+	nstime_add(&beyond, &decay_nstime);
+	expect_u64_eq(decay_npages_purge_in(&decay, &beyond, new_pages),
+	    new_pages,
+	    "Estimate must cap at the new-page count beyond the decay window");
+
+	/*
+	 * No-backlog branch: with a zero threshold, decay_ns_until_purge is
+	 * unbounded (nothing schedulable).  This mirrors the indefinite-sleep
+	 * case.
+	 */
+	expect_u64_eq(decay_ns_until_purge(&decay, 0, 0),
+	    DECAY_UNBOUNDED_TIME_TO_PURGE,
+	    "Zero threshold must yield an unbounded time-to-purge");
+}
+TEST_END
+
 int
 main(void) {
 	return test(test_decay_init, test_decay_ms_valid,
 	    test_decay_npages_purge_in, test_decay_maybe_advance_epoch,
-	    test_decay_empty, test_decay, test_decay_ns_until_purge);
+	    test_decay_empty, test_decay, test_decay_ns_until_purge,
+	    test_decay_early_wake_branches);
 }

@@ -4,20 +4,26 @@
 #define JEMALLOC_INTERNAL_TSD_INTERNALS_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/arena_types.h"
+#include "jemalloc/internal/arena_decay_constants.h"
 #include "jemalloc/internal/assert.h"
-#include "jemalloc/internal/bin_types.h"
+#include "jemalloc/internal/tsd_binshards.h"
 #include "jemalloc/internal/jemalloc_internal_externs.h"
 #include "jemalloc/internal/peak.h"
-#include "jemalloc/internal/prof_types.h"
-#include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/rtree_tsd.h"
-#include "jemalloc/internal/tcache_structs.h"
-#include "jemalloc/internal/tcache_types.h"
+#include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/thread_event_registry.h"
 #include "jemalloc/internal/tsd_types.h"
 #include "jemalloc/internal/util.h"
 #include "jemalloc/internal/witness.h"
+
+/*
+ * Forward decls.  tsd_internals.h cannot include arena.h / prof.h directly:
+ * those headers' STRUCTS-section includes trigger mutex.h -> tsd.h ->
+ * tsd_generic.h, which would re-enter this file before its body finishes.
+ * Each consumer here only uses these as pointer types.
+ */
+typedef struct arena_s      arena_t;
+typedef struct prof_tdata_s prof_tdata_t;
 
 /*
  * Thread-Specific-Data layout
@@ -57,8 +63,6 @@ typedef void (*test_callback_t)(int *);
 #	define MALLOC_TEST_TSD_INITIALIZER
 #endif
 
-typedef ql_elm(tsd_t) tsd_link_t;
-
 /*  O(name,			type,			nullable type) */
 #define TSD_DATA_SLOW                                                          \
 	O(tcache_enabled, bool, bool)                                          \
@@ -79,9 +83,8 @@ typedef ql_elm(tsd_t) tsd_link_t;
 	O(arena, arena_t *, arena_t *)                                         \
 	O(arena_decay_ticker, ticker_geom_t, ticker_geom_t)                    \
 	O(sec_shard, uint8_t, uint8_t)                                         \
+	O(pac_sec_shard, uint8_t, uint8_t)                                     \
 	O(binshards, tsd_binshards_t, tsd_binshards_t)                         \
-	O(tsd_link, tsd_link_t, tsd_link_t)                                    \
-	O(in_hook, bool, bool)                                                 \
 	O(peak, peak_t, peak_t)                                                \
 	O(tcache_slow, tcache_slow_t, tcache_slow_t)                           \
 	O(rtree_ctx, rtree_ctx_t, rtree_ctx_t)
@@ -100,10 +103,10 @@ typedef ql_elm(tsd_t) tsd_link_t;
 	    /* arena */ NULL, /* arena_decay_ticker */                         \
 	    TICKER_GEOM_INIT(ARENA_DECAY_NTICKS_PER_UPDATE),                   \
 	    /* sec_shard */ (uint8_t) - 1,                                     \
+	    /* pac_sec_shard */ (uint8_t) - 1,                                 \
 	    /* binshards */ TSD_BINSHARDS_ZERO_INITIALIZER,                    \
-	    /* tsd_link */ {NULL}, /* in_hook */ false,                        \
-	    /* peak */ PEAK_INITIALIZER,                                       \
-	    /* tcache_slow */ TCACHE_SLOW_ZERO_INITIALIZER,                    \
+	    /* peak */ PEAK_INITIALIZER, /* tcache_slow */                     \
+	    TCACHE_SLOW_ZERO_INITIALIZER,                                      \
 	    /* rtree_ctx */ RTREE_CTX_INITIALIZER,
 
 /*  O(name,			type,			nullable type) */
@@ -132,7 +135,7 @@ typedef ql_elm(tsd_t) tsd_link_t;
 #define TSD_INITIALIZER                                                        \
 	{                                                                      \
 		TSD_DATA_SLOW_INITIALIZER                                      \
-		/* state */ ATOMIC_INIT(tsd_state_uninitialized),              \
+		/* state */ tsd_state_uninitialized,                           \
 		    TSD_DATA_FAST_INITIALIZER TSD_DATA_SLOWER_INITIALIZER      \
 	}
 
@@ -148,17 +151,6 @@ void   tsd_cleanup(void *arg);
 tsd_t *tsd_fetch_slow(tsd_t *tsd, bool minimal);
 void   tsd_state_set(tsd_t *tsd, uint8_t new_state);
 void   tsd_slow_update(tsd_t *tsd);
-void   tsd_prefork(tsd_t *tsd);
-void   tsd_postfork_parent(tsd_t *tsd);
-void   tsd_postfork_child(tsd_t *tsd);
-
-/*
- * Call ..._inc when your module wants to take all threads down the slow paths,
- * and ..._dec when it no longer needs to.
- */
-void tsd_global_slow_inc(tsdn_t *tsdn);
-void tsd_global_slow_dec(tsdn_t *tsdn);
-bool tsd_global_slow(void);
 
 #define TSD_MIN_INIT_STATE_MAX_FETCHED (128)
 
@@ -168,38 +160,28 @@ enum {
 	/* Initialized but on slow path. */
 	tsd_state_nominal_slow = 1,
 	/*
-	 * Some thread has changed global state in such a way that all nominal
-	 * threads need to recompute their fast / slow status the next time they
-	 * get a chance.
-	 *
-	 * Any thread can change another thread's status *to* recompute, but
-	 * threads are the only ones who can change their status *from*
-	 * recompute.
-	 */
-	tsd_state_nominal_recompute = 2,
-	/*
 	 * The above nominal states should be lower values.  We use
 	 * tsd_nominal_max to separate nominal states from threads in the
 	 * process of being born / dying.
 	 */
-	tsd_state_nominal_max = 2,
+	tsd_state_nominal_max = 1,
 
 	/*
 	 * A thread might free() during its death as its only allocator action;
 	 * in such scenarios, we need tsd, but set up in such a way that no
 	 * cleanup is necessary.
 	 */
-	tsd_state_minimal_initialized = 3,
+	tsd_state_minimal_initialized = 2,
 	/* States during which we know we're in thread death. */
-	tsd_state_purgatory = 4,
-	tsd_state_reincarnated = 5,
+	tsd_state_purgatory = 3,
+	tsd_state_reincarnated = 4,
 	/*
 	 * What it says on the tin; tsd that hasn't been initialized.  Note
 	 * that even when the tsd struct lives in TLS, when need to keep track
 	 * of stuff like whether or not our pthread destructors have been
 	 * scheduled, so this really truly is different than the nominal state.
 	 */
-	tsd_state_uninitialized = 6
+	tsd_state_uninitialized = 5
 };
 
 /*
@@ -208,18 +190,6 @@ enum {
  * field names to prevent touching them accidentally.
  */
 #define TSD_MANGLE(n) cant_access_tsd_items_directly_use_a_getter_or_setter_##n
-
-#ifdef JEMALLOC_U8_ATOMICS
-#	define tsd_state_t atomic_u8_t
-#	define tsd_atomic_load atomic_load_u8
-#	define tsd_atomic_store atomic_store_u8
-#	define tsd_atomic_exchange atomic_exchange_u8
-#else
-#	define tsd_state_t atomic_u32_t
-#	define tsd_atomic_load atomic_load_u32
-#	define tsd_atomic_store atomic_store_u32
-#	define tsd_atomic_exchange atomic_exchange_u32
-#endif
 
 /* The actual tsd. */
 struct tsd_s {
@@ -232,11 +202,8 @@ struct tsd_s {
 #define O(n, t, nt) t TSD_MANGLE(n);
 
 	TSD_DATA_SLOW
-	/*
-	 * We manually limit the state to just a single byte.  Unless the 8-bit
-	 * atomics are unavailable (which is rare).
-	 */
-	tsd_state_t state;
+	/* Encodes one of tsd_state_*; mutated only by the owning thread. */
+	uint8_t state;
 	TSD_DATA_FAST
 	TSD_DATA_SLOWER
 #undef O
@@ -244,13 +211,7 @@ struct tsd_s {
 
 JEMALLOC_ALWAYS_INLINE uint8_t
 tsd_state_get(tsd_t *tsd) {
-	/*
-	 * This should be atomic.  Unfortunately, compilers right now can't tell
-	 * that this can be done as a memory comparison, and forces a load into
-	 * a register that hurts fast-path performance.
-	 */
-	/* return atomic_load_u8(&tsd->state, ATOMIC_RELAXED); */
-	return *(uint8_t *)&tsd->state;
+	return tsd->state;
 }
 
 /*

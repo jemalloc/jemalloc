@@ -1,19 +1,25 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
+#include "jemalloc/internal/background_thread.h"
+#include "jemalloc/internal/background_thread_inlines.h"
+#include "jemalloc/internal/deferral.h"
+#include "jemalloc/internal/extent.h"
 #include "jemalloc/internal/pac.h"
 #include "jemalloc/internal/san.h"
+#include "jemalloc/internal/witness.h"
 
-static edata_t *pac_alloc_impl(tsdn_t *tsdn, pai_t *self, size_t size,
-    size_t alignment, bool zero, bool guarded, bool frequent_reuse,
-    bool *deferred_work_generated);
-static bool     pac_expand_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata,
-        size_t old_size, size_t new_size, bool zero, bool *deferred_work_generated);
-static bool     pac_shrink_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata,
-        size_t old_size, size_t new_size, bool *deferred_work_generated);
-static void     pac_dalloc_impl(
-        tsdn_t *tsdn, pai_t *self, edata_t *edata, bool *deferred_work_generated);
-static uint64_t pac_time_until_deferred_work(tsdn_t *tsdn, pai_t *self);
+static inline uint8_t
+pac_sec_shard_pick(tsdn_t *tsdn, sec_t *sec) {
+	if (sec->opts.nshards <= 1) {
+		return 0;
+	}
+	if (tsdn_null(tsdn)) {
+		return 0;
+	}
+	tsd_t *tsd = tsdn_tsd(tsdn);
+	return sec_shard_pick(tsd, sec, tsd_pac_sec_shardp_get(tsd));
+}
 
 static inline void
 pac_decay_data_get(pac_t *pac, extent_state_t state, decay_t **r_decay,
@@ -31,6 +37,7 @@ pac_decay_data_get(pac_t *pac, extent_state_t state, decay_t **r_decay,
 		return;
 	case extent_state_active:
 	case extent_state_retained:
+	case extent_state_pinned:
 	case extent_state_transition:
 	case extent_state_merging:
 	default:
@@ -72,6 +79,12 @@ pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
 	        /* delay_coalesce */ false)) {
 		return true;
 	}
+	/* Pinned extents: no decay, delayed coalesce. */
+	if (ecache_init(tsdn, &pac->ecache_pinned, extent_state_pinned, ind,
+	        /* delay_coalesce */ true)) {
+		return true;
+	}
+	atomic_store_b(&pac->has_pinned, false, ATOMIC_RELAXED);
 	exp_grow_init(&pac->exp_grow);
 	if (malloc_mutex_init(&pac->grow_mtx, "extent_grow",
 	        WITNESS_RANK_EXTENT_GROW, malloc_mutex_rank_exclusive)) {
@@ -96,11 +109,15 @@ pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
 	pac->stats_mtx = stats_mtx;
 	atomic_store_zu(&pac->extent_sn_next, 0, ATOMIC_RELAXED);
 
-	pac->pai.alloc = &pac_alloc_impl;
-	pac->pai.expand = &pac_expand_impl;
-	pac->pai.shrink = &pac_shrink_impl;
-	pac->pai.dalloc = &pac_dalloc_impl;
-	pac->pai.time_until_deferred_work = &pac_time_until_deferred_work;
+	if (sec_init(tsdn, &pac->sec, base, &opt_pac_sec_opts)) {
+		/* sec_init already zeroed nshards and max_alloc. */
+	}
+	if (!sec_is_used(&pac->sec) || dirty_decay_ms == 0) {
+		atomic_store_zu(&pac->sec_max_alloc, 0, ATOMIC_RELAXED);
+	} else {
+		atomic_store_zu(&pac->sec_max_alloc,
+		    pac->sec.opts.max_alloc, ATOMIC_RELAXED);
+	}
 
 	return false;
 }
@@ -108,6 +125,14 @@ pac_init(tsdn_t *tsdn, pac_t *pac, base_t *base, emap_t *emap,
 static inline bool
 pac_may_have_muzzy(pac_t *pac) {
 	return pac_decay_ms_get(pac, extent_state_muzzy) != 0;
+}
+
+static inline void
+pac_ecache_dalloc(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
+    edata_t *edata) {
+	ecache_dalloc(tsdn, pac, ehooks,
+	    edata_pinned_get(edata) ? &pac->ecache_pinned : &pac->ecache_dirty,
+	    edata);
 }
 
 static size_t
@@ -133,8 +158,40 @@ pac_alloc_real(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 	assert(!guarded || alignment <= PAGE);
 	size_t newly_mapped_size = 0;
 
-	edata_t *edata = ecache_alloc(tsdn, pac, ehooks, &pac->ecache_dirty,
-	    NULL, size, alignment, zero, guarded);
+	edata_t *edata = NULL;
+
+	if (!guarded && !zero && alignment <= PAGE
+	    && size <= atomic_load_zu(&pac->sec_max_alloc, ATOMIC_RELAXED)) {
+		/*
+		 * sec_max_alloc mirrors sec.opts.max_alloc when SEC is
+		 * enabled, 0 when dirty decay is disabled.
+		 */
+		edata = sec_alloc(tsdn, &pac->sec, size,
+		    pac_sec_shard_pick(tsdn, &pac->sec));
+		if (edata != NULL) {
+			return edata;
+		}
+		/*
+		 * Unlike HPA, PAC has no batch allocation primitive; we
+		 * intentionally do not refill SEC on a miss.  Extents enter the
+		 * cache only through the dalloc path.
+		 */
+	}
+
+	/*
+	 * Guarded allocations need surrounding guard pages, which the pinned
+	 * pool does not maintain; skip ecache_pinned in that case.
+	 */
+	if (!guarded && atomic_load_b(&pac->has_pinned, ATOMIC_RELAXED)
+	    && ecache_npages_get(&pac->ecache_pinned) > 0) {
+		edata = ecache_alloc(tsdn, pac, ehooks, &pac->ecache_pinned,
+		    NULL, size, alignment, zero, guarded);
+	}
+
+	if (edata == NULL) {
+		edata = ecache_alloc(tsdn, pac, ehooks, &pac->ecache_dirty,
+		    NULL, size, alignment, zero, guarded);
+	}
 
 	if (edata == NULL && pac_may_have_muzzy(pac)) {
 		edata = ecache_alloc(tsdn, pac, ehooks, &pac->ecache_muzzy,
@@ -180,12 +237,10 @@ pac_alloc_real(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 			    edata, size, batched_size - size,
 			    /* holding_core_locks */ false);
 			if (trail == NULL) {
-				ecache_dalloc(tsdn, pac, ehooks,
-				    &pac->ecache_retained, edata);
+				pac_record_grown(tsdn, pac, ehooks, edata);
 				edata = NULL;
 			} else {
-				ecache_dalloc(tsdn, pac, ehooks,
-				    &pac->ecache_dirty, trail);
+				pac_ecache_dalloc(tsdn, pac, ehooks, trail);
 			}
 		}
 
@@ -238,11 +293,10 @@ pac_alloc_new_guarded(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 	return edata;
 }
 
-static edata_t *
-pac_alloc_impl(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment,
+edata_t *
+pac_alloc(tsdn_t *tsdn, pac_t *pac, size_t size, size_t alignment,
     bool zero, bool guarded, bool frequent_reuse,
     bool *deferred_work_generated) {
-	pac_t    *pac = (pac_t *)self;
 	ehooks_t *ehooks = pac_ehooks_get(pac);
 
 	edata_t *edata = NULL;
@@ -265,10 +319,11 @@ pac_alloc_impl(tsdn_t *tsdn, pai_t *self, size_t size, size_t alignment,
 	return edata;
 }
 
-static bool
-pac_expand_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
+bool
+pac_expand(tsdn_t *tsdn, pac_t *pac, edata_t *edata, size_t old_size,
     size_t new_size, bool zero, bool *deferred_work_generated) {
-	pac_t    *pac = (pac_t *)self;
+	assert(edata_pai_get(edata) == EXTENT_PAI_PAC);
+
 	ehooks_t *ehooks = pac_ehooks_get(pac);
 
 	size_t mapped_add = 0;
@@ -277,23 +332,53 @@ pac_expand_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
 	if (ehooks_merge_will_fail(ehooks)) {
 		return true;
 	}
-	edata_t *trail = ecache_alloc(tsdn, pac, ehooks, &pac->ecache_dirty,
-	    edata, expand_amount, PAGE, zero, /* guarded*/ false);
-	if (trail == NULL) {
-		trail = ecache_alloc(tsdn, pac, ehooks, &pac->ecache_muzzy,
-		    edata, expand_amount, PAGE, zero, /* guarded*/ false);
+	edata_t *trail = NULL;
+	if (edata_pinned_get(edata)) {
+		trail = ecache_alloc(tsdn, pac, ehooks,
+		    &pac->ecache_pinned, edata, expand_amount,
+		    PAGE, zero, /* guarded */ false);
+		if (trail == NULL) {
+			/*
+			 * Only ecache_pinned can hold a mergeable neighbor;
+			 * dirty, muzzy, and retained extents are non-pinned.
+			 * Pinned memory is already committed, and hooks are
+			 * unlikely to reserve adjacent pinned space for growth,
+			 * so don't consult the hook to grow in place.
+			 */
+			return true;
+		}
+		assert(edata_pinned_get(trail));
+	} else {
+		trail = ecache_alloc(tsdn, pac, ehooks, &pac->ecache_dirty,
+		    edata, expand_amount, PAGE, zero, /* guarded */ false);
+		if (trail == NULL) {
+			trail = ecache_alloc(tsdn, pac, ehooks,
+			    &pac->ecache_muzzy, edata, expand_amount,
+			    PAGE, zero, /* guarded */ false);
+		}
+		if (trail == NULL) {
+			trail = ecache_alloc_grow(tsdn, pac, ehooks,
+			    &pac->ecache_retained, edata, expand_amount,
+			    PAGE, zero, /* guarded */ false);
+			mapped_add = expand_amount;
+		}
+		if (trail == NULL) {
+			return true;
+		}
 	}
-	if (trail == NULL) {
-		trail = ecache_alloc_grow(tsdn, pac, ehooks,
-		    &pac->ecache_retained, edata, expand_amount, PAGE, zero,
-		    /* guarded */ false);
-		mapped_add = expand_amount;
-	}
-	if (trail == NULL) {
-		return true;
-	}
-	if (extent_merge_wrapper(tsdn, pac, ehooks, edata, trail)) {
-		extent_dalloc_wrapper(tsdn, pac, ehooks, trail);
+	/* extent_merge_wrapper requires matching pinnedness. */
+	if ((edata_pinned_get(edata) != edata_pinned_get(trail))
+	    || extent_merge_wrapper(tsdn, pac, ehooks, edata, trail)) {
+		if (edata_pinned_get(trail)) {
+			if (config_stats) {
+				atomic_fetch_add_zu(&pac->stats->pac_mapped,
+				    mapped_add, ATOMIC_RELAXED);
+			}
+			ecache_dalloc(tsdn, pac, ehooks,
+			    &pac->ecache_pinned, trail);
+		} else {
+			extent_dalloc_wrapper(tsdn, pac, ehooks, trail);
+		}
 		return true;
 	}
 	if (config_stats && mapped_add > 0) {
@@ -303,10 +388,11 @@ pac_expand_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
 	return false;
 }
 
-static bool
-pac_shrink_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
+bool
+pac_shrink(tsdn_t *tsdn, pac_t *pac, edata_t *edata, size_t old_size,
     size_t new_size, bool *deferred_work_generated) {
-	pac_t    *pac = (pac_t *)self;
+	assert(edata_pai_get(edata) == EXTENT_PAI_PAC);
+
 	ehooks_t *ehooks = pac_ehooks_get(pac);
 
 	size_t shrink_amount = old_size - new_size;
@@ -320,15 +406,19 @@ pac_shrink_impl(tsdn_t *tsdn, pai_t *self, edata_t *edata, size_t old_size,
 	if (trail == NULL) {
 		return true;
 	}
-	ecache_dalloc(tsdn, pac, ehooks, &pac->ecache_dirty, trail);
-	*deferred_work_generated = true;
+	bool pinned = edata_pinned_get(trail);
+	pac_ecache_dalloc(tsdn, pac, ehooks, trail);
+	if (!pinned) {
+		*deferred_work_generated = true;
+	}
 	return false;
 }
 
-static void
-pac_dalloc_impl(
-    tsdn_t *tsdn, pai_t *self, edata_t *edata, bool *deferred_work_generated) {
-	pac_t    *pac = (pac_t *)self;
+void
+pac_dalloc(tsdn_t *tsdn, pac_t *pac, edata_t *edata,
+    bool *deferred_work_generated) {
+	assert(edata_pai_get(edata) == EXTENT_PAI_PAC);
+
 	ehooks_t *ehooks = pac_ehooks_get(pac);
 
 	if (edata_guarded_get(edata)) {
@@ -350,34 +440,66 @@ pac_dalloc_impl(
 			san_unguard_pages_two_sided(
 			    tsdn, ehooks, edata, pac->emap);
 		}
+	} else if (edata_size_get(edata)
+	    <= atomic_load_zu(&pac->sec_max_alloc, ATOMIC_RELAXED)) {
+		/*
+		 * A dalloc can race with disabling SEC and cache an extent after
+		 * the flush.  Avoid a hot-path gate lock; such extents remain
+		 * stats-tracked and are flushed by reset/destroy or a later
+		 * disable.
+		 */
+		edata_list_active_t dalloc_list;
+		edata_list_active_init(&dalloc_list);
+		edata_list_active_append(&dalloc_list, edata);
+		sec_dalloc(tsdn, &pac->sec, &dalloc_list,
+		    pac_sec_shard_pick(tsdn, &pac->sec));
+		if (edata_list_active_empty(&dalloc_list)) {
+			*deferred_work_generated = false;
+			return;
+		}
+		/* Flush overflow extents to their backing ecaches. */
+		bool any_deferred_work = false;
+		edata_t *flush_edata;
+		while ((flush_edata =
+		    edata_list_active_first(&dalloc_list)) != NULL) {
+			edata_list_active_remove(&dalloc_list,
+			    flush_edata);
+			if (!edata_pinned_get(flush_edata)) {
+				any_deferred_work = true;
+			}
+			pac_ecache_dalloc(tsdn, pac, ehooks, flush_edata);
+		}
+		*deferred_work_generated = any_deferred_work;
+		return;
 	}
 
-	ecache_dalloc(tsdn, pac, ehooks, &pac->ecache_dirty, edata);
-	/* Purging of deallocated pages is deferred */
-	*deferred_work_generated = true;
+	bool pinned = edata_pinned_get(edata);
+	pac_ecache_dalloc(tsdn, pac, ehooks, edata);
+	if (!pinned) {
+		*deferred_work_generated = true;
+	}
 }
 
 static inline uint64_t
 pac_ns_until_purge(tsdn_t *tsdn, decay_t *decay, size_t npages) {
 	if (malloc_mutex_trylock(tsdn, &decay->mtx)) {
 		/* Use minimal interval if decay is contended. */
-		return BACKGROUND_THREAD_DEFERRED_MIN;
+		return DEFERRED_WORK_MIN;
 	}
 	uint64_t result = decay_ns_until_purge(
-	    decay, npages, ARENA_DEFERRED_PURGE_NPAGES_THRESHOLD);
+	    decay, npages, PAC_DECAY_PURGE_NPAGES_THRESHOLD);
 
 	malloc_mutex_unlock(tsdn, &decay->mtx);
 	return result;
 }
 
-static uint64_t
-pac_time_until_deferred_work(tsdn_t *tsdn, pai_t *self) {
+uint64_t
+pac_time_until_deferred_work(tsdn_t *tsdn, pac_t *pac) {
 	uint64_t time;
-	pac_t   *pac = (pac_t *)self;
 
 	time = pac_ns_until_purge(
 	    tsdn, &pac->decay_dirty, ecache_npages_get(&pac->ecache_dirty));
-	if (time == BACKGROUND_THREAD_DEFERRED_MIN) {
+	if (time == DEFERRED_WORK_MIN) {
 		return time;
 	}
 
@@ -543,6 +665,7 @@ pac_decay_stashed(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
 			break;
 		case extent_state_active:
 		case extent_state_retained:
+		case extent_state_pinned:
 		case extent_state_transition:
 		case extent_state_merging:
 		default:
@@ -658,9 +781,238 @@ pac_maybe_decay_purge(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
 	return epoch_advanced;
 }
 
+/*
+ * Run the deferred (non-forced) decay-purge for a single decay state, taking
+ * decay->mtx via trylock.  Sets *contended when the lock could not be acquired
+ * (in which case the return is false and *npages_new is untouched).  Returns
+ * whether the epoch advanced; when it did, *npages_new is set to the fresh
+ * backlog delta.
+ */
+static bool
+pac_decay_deferred_one(tsdn_t *tsdn, pac_t *pac, decay_t *decay,
+    pac_decay_stats_t *decay_stats, ecache_t *ecache,
+    pac_purge_eagerness_t eagerness, bool *contended, size_t *npages_new) {
+	if (malloc_mutex_trylock(tsdn, &decay->mtx)) {
+		/* No need to wait if another thread is in progress. */
+		*contended = true;
+		return false;
+	}
+	*contended = false;
+	bool epoch_advanced = pac_maybe_decay_purge(
+	    tsdn, pac, decay, decay_stats, ecache, eagerness);
+	if (epoch_advanced) {
+		/* Backlog is updated on epoch advance. */
+		*npages_new = decay_epoch_npages_delta(decay);
+	}
+	malloc_mutex_unlock(tsdn, &decay->mtx);
+	return epoch_advanced;
+}
+
+/*
+ * Non-forced deferred decay-purge for both the dirty and muzzy states, at the
+ * given eagerness; corresponding decay->mtx are acquired internally.  Reports
+ * per-state epoch-advance in *result.  JET_EXTERN: exposed for deterministic
+ * unit testing only; production callers use pac_do_deferred_work.
+ */
+JET_EXTERN void
+pac_decay_deferred(tsdn_t *tsdn, pac_t *pac,
+    pac_purge_eagerness_t eagerness, pac_deferred_work_result_t *result) {
+	memset(result, 0, sizeof(*result));
+
+	bool contended;
+	result->dirty_epoch_advanced = pac_decay_deferred_one(tsdn, pac,
+	    &pac->decay_dirty, &pac->stats->decay_dirty, &pac->ecache_dirty,
+	    eagerness, &contended, &result->dirty_npages_new);
+	if (contended) {
+		/* When dirty decay is contended, don't wait on muzzy. */
+		return;
+	}
+
+	if (!pac_should_decay_muzzy(pac)) {
+		return;
+	}
+	result->muzzy_epoch_advanced = pac_decay_deferred_one(tsdn, pac,
+	    &pac->decay_muzzy, &pac->stats->decay_muzzy, &pac->ecache_muzzy,
+	    eagerness, &contended, &result->muzzy_npages_new);
+}
+
+/*
+ * This is the single, deliberate place where PAC reaches jointly into both a
+ * decay_t and a background_thread_info_t.  It is intentionally NOT decoupled
+ * further, for two reasons:
+ *   (a) The early-wake decision is intrinsically a JOINT info+decay
+ *       computation: holding info->mtx (outer) we trylock decay->mtx (inner)
+ *       to read remaining_sleep = wakeup_time - decay->epoch and the
+ *       decay_npages_purge_in() estimate atomically against epoch advance.
+ *       Splitting it would require copying these values across a new API while
+ *       still holding both locks, adding interface surface for no behavioral
+ *       gain.
+ *   (b) It runs on the application FREE path (pac_do_deferred_work ->
+ *       pac_maybe_wake_bg), where perf parity matters most.
+ *
+ * The info->mtx-outer / decay->mtx-inner trylock nesting is load-bearing for
+ * lock ordering; keep it.
+ *
+ * Parity trap: when npages_new == 0 (e.g. an epoch advanced with no new
+ * backlog) the accumulation below is skipped, but the THRESHOLD compare on the
+ * EXISTING info->npages_to_purge_new backlog still runs and can still trigger
+ * an early wakeup.  Do not "simplify" by early-returning when npages_new == 0.
+ */
+static bool
+pac_decay_should_wake_early(tsdn_t *tsdn, decay_t *decay,
+    background_thread_info_t *info, nstime_t *remaining_sleep,
+    size_t npages_new) {
+	malloc_mutex_assert_owner(tsdn, &info->mtx);
+
+	if (malloc_mutex_trylock(tsdn, &decay->mtx)) {
+		return false;
+	}
+	if (!decay_gradually(decay)) {
+		malloc_mutex_unlock(tsdn, &decay->mtx);
+		return false;
+	}
+	nstime_init(remaining_sleep, background_thread_wakeup_time_get(info));
+	if (nstime_compare(remaining_sleep, &decay->epoch) <= 0) {
+		malloc_mutex_unlock(tsdn, &decay->mtx);
+		return false;
+	}
+	nstime_subtract(remaining_sleep, &decay->epoch);
+	if (npages_new > 0) {
+		uint64_t npurge_new = decay_npages_purge_in(
+		    decay, remaining_sleep, npages_new);
+		info->npages_to_purge_new += npurge_new;
+	}
+	malloc_mutex_unlock(tsdn, &decay->mtx);
+	return info->npages_to_purge_new
+	    > PAC_DECAY_PURGE_NPAGES_THRESHOLD;
+}
+
+/*
+ * The PAC's base index is, under the current PA/PAC construction contract, the
+ * owning arena index (pa_shard_init asserts base_ind_get(base) == ind).  This
+ * is a current construction invariant, not a permanent PAC guarantee.
+ */
+static unsigned
+pac_ind_get(const pac_t *pac) {
+	return base_ind_get(pac->base);
+}
+
+/*
+ * Notify the background thread that a decay epoch advanced: if it sleeps
+ * indefinitely, wake it now; otherwise wake it early when the projected backlog
+ * crosses the purge threshold before its next scheduled wakeup.  Non-blocking
+ * (trylocks info->mtx) to keep the application free path cheap.
+ */
+static void
+pac_maybe_wake_bg(tsdn_t *tsdn, pac_t *pac, decay_t *decay, size_t npages_new) {
+	background_thread_info_t *info =
+	    background_thread_info_get(pac_ind_get(pac));
+	if (malloc_mutex_trylock(tsdn, &info->mtx)) {
+		/*
+		 * The background thread may hold the mutex for a while; keep this
+		 * non-blocking and leave the work to a future epoch.
+		 */
+		return;
+	}
+	if (!background_thread_is_started(info)) {
+		goto label_done;
+	}
+	nstime_t remaining_sleep;
+	if (background_thread_indefinite_sleep(info)) {
+		background_thread_wakeup_early(info, NULL);
+	} else if (pac_decay_should_wake_early(tsdn, decay, info,
+	               &remaining_sleep, npages_new)) {
+		info->npages_to_purge_new = 0;
+		background_thread_wakeup_early(info, &remaining_sleep);
+	}
+label_done:
+	malloc_mutex_unlock(tsdn, &info->mtx);
+}
+
+/*
+ * A hook prepared for calling in pa: after a deferred work generated, wake the
+ * background thread only when it looks idle (lock-free acquire read of
+ * indefinite_sleep), then run the full early-wake decision under info->mtx.
+ */
+void
+pac_wake_bg_on_deferred(tsdn_t *tsdn, pac_t *pac) {
+	background_thread_info_t *info =
+	    background_thread_info_get(pac_ind_get(pac));
+	if (background_thread_indefinite_sleep(info)) {
+		pac_maybe_wake_bg(
+		    tsdn, pac, &pac->decay_dirty, /* npages_new */ 0);
+	}
+}
+
+static pac_purge_eagerness_t pac_decide_purge_eagerness(
+    bool is_background_thread);
+
+void
+pac_do_deferred_work(tsdn_t *tsdn, pac_t *pac, bool is_background_thread) {
+	/*
+	 * A concurrent background_thread enable/disable (mallctl) can race this
+	 * path: the enable state is read lock-free twice below (for the eagerness
+	 * decision, then the notify guard), so the two reads may disagree.  Worst
+	 * case is benign and self-healing:
+	 *   disabled->enabled: purged immediately, plus a possibly-redundant wake;
+	 *   enabled->disabled: deferred but not notified this pass -- the pages
+	 *     stay in the decay backlog and are reclaimed on the next decay tick or
+	 *     by the bg thread before it stops.
+	 * It stays safe regardless: info is allocated once and never freed; the
+	 * wake is gated by info->mtx + background_thread_is_started(); the bg-thread
+	 * locks here are trylocks; and the purge runs under decay->mtx, which the
+	 * toggle never touches.
+	 */
+	pac_purge_eagerness_t eagerness =
+	    pac_decide_purge_eagerness(is_background_thread);
+	pac_deferred_work_result_t result;
+	pac_decay_deferred(tsdn, pac, eagerness, &result);
+
+	if (have_background_thread && background_thread_enabled()
+	    && !is_background_thread) {
+		if (result.dirty_epoch_advanced) {
+			pac_maybe_wake_bg(tsdn, pac, &pac->decay_dirty,
+			    result.dirty_npages_new);
+		}
+		if (result.muzzy_epoch_advanced) {
+			pac_maybe_wake_bg(tsdn, pac, &pac->decay_muzzy,
+			    result.muzzy_npages_new);
+		}
+	}
+}
+
+void
+pac_decay_all_now(tsdn_t *tsdn, pac_t *pac, extent_state_t state) {
+	decay_t           *decay;
+	pac_decay_stats_t *decay_stats;
+	ecache_t          *ecache;
+	pac_decay_data_get(pac, state, &decay, &decay_stats, &ecache);
+
+	malloc_mutex_lock(tsdn, &decay->mtx);
+	pac_decay_all(
+	    tsdn, pac, decay, decay_stats, ecache, /* fully_decay */ true);
+	malloc_mutex_unlock(tsdn, &decay->mtx);
+}
+
+/*
+ * Decide the unforced decay-purge eagerness.  On the background thread, force
+ * the purge; on an application thread, defer to the background thread when it is
+ * enabled, otherwise purge on the current thread on epoch advance.
+ */
+static pac_purge_eagerness_t
+pac_decide_purge_eagerness(bool is_background_thread) {
+	if (is_background_thread) {
+		return PAC_PURGE_ALWAYS;
+	} else if (background_thread_enabled()) {
+		return PAC_PURGE_NEVER;
+	} else {
+		return PAC_PURGE_ON_EPOCH_ADVANCE;
+	}
+}
+
 bool
 pac_decay_ms_set(tsdn_t *tsdn, pac_t *pac, extent_state_t state,
-    ssize_t decay_ms, pac_purge_eagerness_t eagerness) {
+    ssize_t decay_ms) {
 	decay_t           *decay;
 	pac_decay_stats_t *decay_stats;
 	ecache_t          *ecache;
@@ -668,6 +1020,13 @@ pac_decay_ms_set(tsdn_t *tsdn, pac_t *pac, extent_state_t state,
 
 	if (!decay_ms_valid(decay_ms)) {
 		return true;
+	}
+
+	bool update_pac_sec = (state == extent_state_dirty)
+	    && sec_is_used(&pac->sec);
+	if (update_pac_sec && decay_ms == 0) {
+		atomic_store_zu(&pac->sec_max_alloc, 0, ATOMIC_RELAXED);
+		pac_sec_flush(tsdn, pac);
 	}
 
 	malloc_mutex_lock(tsdn, &decay->mtx);
@@ -682,8 +1041,19 @@ pac_decay_ms_set(tsdn_t *tsdn, pac_t *pac, extent_state_t state,
 	nstime_t cur_time;
 	nstime_init_update(&cur_time);
 	decay_reinit(decay, &cur_time, decay_ms);
+	/*
+	 * decay_ms is only ever set from a non-background thread (mallctl or
+	 * arena init), so decide the eagerness here rather than threading it in.
+	 */
+	pac_purge_eagerness_t eagerness =
+	    pac_decide_purge_eagerness(/* is_background_thread */ false);
 	pac_maybe_decay_purge(tsdn, pac, decay, decay_stats, ecache, eagerness);
 	malloc_mutex_unlock(tsdn, &decay->mtx);
+
+	if (update_pac_sec && decay_ms != 0) {
+		atomic_store_zu(&pac->sec_max_alloc,
+		    pac->sec.opts.max_alloc, ATOMIC_RELAXED);
+	}
 
 	return false;
 }
@@ -695,16 +1065,6 @@ pac_decay_ms_get(pac_t *pac, extent_state_t state) {
 	ecache_t          *ecache;
 	pac_decay_data_get(pac, state, &decay, &decay_stats, &ecache);
 	return decay_ms_read(decay);
-}
-
-void
-pac_reset(tsdn_t *tsdn, pac_t *pac) {
-	/*
-	 * No-op for now; purging is still done at the arena-level.  It should
-	 * get moved in here, though.
-	 */
-	(void)tsdn;
-	(void)pac;
 }
 
 void
@@ -721,10 +1081,64 @@ pac_destroy(tsdn_t *tsdn, pac_t *pac) {
 	 * dss-based extents for later reuse.
 	 */
 	ehooks_t *ehooks = pac_ehooks_get(pac);
-	edata_t  *edata;
+	edata_t *edata;
+	if (atomic_load_b(&pac->has_pinned, ATOMIC_RELAXED)) {
+		/*
+		 * Reroute pinned extents through ecache_retained: clearing the
+		 * pinned bit lets retained's eager coalesce merge fragments
+		 * back to their original OS-allocation bases, so the destroy
+		 * hook can release whole reservations (required on platforms
+		 * like Windows where VirtualFree only accepts the original
+		 * VirtualAlloc base).  Subtract from pac_mapped along the way
+		 * because retained is excluded from stats.mapped.
+		 */
+		edata_list_inactive_t pinned_list;
+		edata_list_inactive_init(&pinned_list);
+		malloc_mutex_lock(tsdn, &pac->ecache_pinned.mtx);
+		assert(eset_npages_get(&pac->ecache_pinned.guarded_eset) == 0);
+		size_t pinned_bytes =
+		    eset_npages_get(&pac->ecache_pinned.eset) << LG_PAGE;
+		while (eset_npages_get(&pac->ecache_pinned.eset) > 0) {
+			edata = eset_fit(&pac->ecache_pinned.eset,
+			    PAGE, PAGE, /* exact_only */ false, SC_PTR_BITS,
+			    /* prefer_small */ false);
+			assert(edata != NULL);
+			assert(edata_pinned_get(edata));
+			eset_remove(&pac->ecache_pinned.eset, edata);
+			emap_update_edata_state(tsdn, pac->emap, edata,
+			    extent_state_active);
+			edata_pinned_set(edata, false);
+			edata_list_inactive_append(&pinned_list, edata);
+		}
+		malloc_mutex_unlock(tsdn, &pac->ecache_pinned.mtx);
+		if (config_stats && pinned_bytes > 0) {
+			atomic_fetch_sub_zu(&pac->stats->pac_mapped,
+			    pinned_bytes, ATOMIC_RELAXED);
+		}
+		while ((edata = edata_list_inactive_first(&pinned_list))
+		    != NULL) {
+			edata_list_inactive_remove(&pinned_list, edata);
+			extent_record(tsdn, pac, ehooks,
+			    &pac->ecache_retained, edata);
+		}
+	}
+	assert(ecache_npages_get(&pac->ecache_pinned) == 0);
 	while (
 	    (edata = ecache_evict(tsdn, pac, ehooks, &pac->ecache_retained, 0))
 	    != NULL) {
 		extent_destroy_wrapper(tsdn, pac, ehooks, edata);
+	}
+}
+
+void
+pac_sec_flush(tsdn_t *tsdn, pac_t *pac) {
+	ehooks_t *ehooks = pac_ehooks_get(pac);
+	edata_list_active_t to_flush;
+	edata_list_active_init(&to_flush);
+	sec_flush(tsdn, &pac->sec, &to_flush);
+	edata_t *edata;
+	while ((edata = edata_list_active_first(&to_flush)) != NULL) {
+		edata_list_active_remove(&to_flush, edata);
+		pac_ecache_dalloc(tsdn, pac, ehooks, edata);
 	}
 }

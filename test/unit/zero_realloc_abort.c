@@ -12,7 +12,7 @@ set_abort_called(const char *message) {
 
 TEST_BEGIN(test_realloc_abort) {
 	abort_called = false;
-	safety_check_set_abort(&set_abort_called);
+	test_hooks_safety_check_abort = &set_abort_called;
 	void *ptr = mallocx(42, 0);
 	expect_ptr_not_null(ptr, "Unexpected mallocx error");
 	ptr = realloc(ptr, 0);

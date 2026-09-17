@@ -25,7 +25,7 @@ jobs:
     name: FreeBSD (${{ matrix.arch }}, debug=${{ matrix.debug }}, prof=${{ matrix.prof }}${{ matrix.uncommon && ', uncommon' || '' }})
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 1
 

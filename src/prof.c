@@ -1,16 +1,19 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
-#include "jemalloc/internal/ctl.h"
+#include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/assert.h"
-#include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/counter.h"
+#include "jemalloc/internal/ctl.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_a.h"
+#include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/prof.h"
 #include "jemalloc/internal/prof_data.h"
+#include "jemalloc/internal/prof_hook.h"
+#include "jemalloc/internal/prof_inlines.h"
 #include "jemalloc/internal/prof_log.h"
 #include "jemalloc/internal/prof_recent.h"
 #include "jemalloc/internal/prof_stats.h"
 #include "jemalloc/internal/prof_sys.h"
-#include "jemalloc/internal/prof_hook.h"
 #include "jemalloc/internal/thread_event.h"
 #include "jemalloc/internal/thread_event_registry.h"
 
@@ -246,7 +249,7 @@ prof_tctx_create(tsd_t *tsd) {
  * (e.g.
  * -mno-sse) in order for the workaround to be complete.
  */
-uint64_t
+JET_EXTERN uint64_t
 prof_sample_new_event_wait(tsd_t *tsd) {
 #ifdef JEMALLOC_PROF
 	if (lg_prof_sample == 0) {
@@ -292,7 +295,7 @@ prof_sample_new_event_wait(tsd_t *tsd) {
 #endif
 }
 
-void
+static void
 prof_sample_event_handler(tsd_t *tsd) {
 	cassert(config_prof);
 	if (prof_interval == 0 || !prof_active_get_unlocked()) {
@@ -455,6 +458,8 @@ prof_tdata_reinit(tsd_t *tsd, prof_tdata_t *tdata) {
 	prof_thread_name_assert(tdata);
 	char thread_name[PROF_THREAD_NAME_MAX_LEN];
 	strncpy(thread_name, tdata->thread_name, PROF_THREAD_NAME_MAX_LEN);
+	/* Defensive only; the source is always terminated. */
+	thread_name[PROF_THREAD_NAME_MAX_LEN - 1] = '\0';
 	prof_tdata_detach(tsd, tdata);
 
 	return prof_tdata_init_impl(

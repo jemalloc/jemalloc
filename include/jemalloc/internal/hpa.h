@@ -10,9 +10,16 @@
 #include "jemalloc/internal/hpa_hooks.h"
 #include "jemalloc/internal/hpa_opts.h"
 #include "jemalloc/internal/mutex.h"
-#include "jemalloc/internal/pai.h"
 #include "jemalloc/internal/psset.h"
 #include "jemalloc/internal/sec.h"
+
+/*
+ * HPA-specific deferral interval bounds (currently unused).  Deferral tuning
+ * is per-allocator policy, so it lives in the HPA header; see deferral.h for
+ * the shared deferred-work contract.
+ */
+#define HPA_INTERVAL_MAX_UNINITIALIZED (-2)
+#define HPA_INTERVAL_MAX_DEFAULT_WHEN_ENABLED 5000
 
 typedef struct hpa_shard_nonderived_stats_s hpa_shard_nonderived_stats_t;
 struct hpa_shard_nonderived_stats_s {
@@ -51,6 +58,52 @@ struct hpa_shard_nonderived_stats_s {
 	 * Guarded by mtx.
 	 */
 	uint64_t ndehugifies;
+
+	/*
+	 * Distribution of the min number of extents we will try to allocate
+	 * from a single hpa_alloc() call.
+	 *
+	 * Guarded by mtx.
+	 */
+	uint64_t hpa_alloc_min_extents[SEC_MAX_NALLOCS + 1];
+
+	/*
+	 * Distribution of the max number of extents we will try to allocate
+	 * from a single hpa_alloc() call.
+	 *
+	 * Guarded by mtx.
+	 */
+	uint64_t hpa_alloc_max_extents[SEC_MAX_NALLOCS + 1];
+
+	/*
+	 * Distribution of the number of extents allocated for a single
+	 * hpa_alloc() call and a single mtx lock acquisition.
+	 *
+	 * Guarded by mtx.
+	 */
+	uint64_t hpa_alloc_extents[SEC_MAX_NALLOCS + 1];
+
+	/*
+	 * Distribution of the number of ps out of which we allocated extents
+	 * for a single hpa_alloc() call and a single mtx lock acquisition.
+	 *
+	 * Guarded by mtx.
+	 */
+	uint64_t hpa_alloc_ps[SEC_MAX_NALLOCS + 1];
+
+	/*
+	 * Distribution of the number of pages allocated from a single ps.
+	 *
+	 * Guarded by mtx.
+	 */
+	uint64_t hpa_alloc_pages_per_ps[SEC_MAX_NALLOCS + 1];
+
+	/*
+	 * Distribution of the number of extents allocated from a single ps.
+	 *
+	 * Guarded by mtx.
+	 */
+	uint64_t hpa_alloc_extents_per_ps[SEC_MAX_NALLOCS + 1];
 };
 
 /* Completely derived; only used by CTL. */
@@ -63,12 +116,6 @@ struct hpa_shard_stats_s {
 
 typedef struct hpa_shard_s hpa_shard_t;
 struct hpa_shard_s {
-	/*
-	 * pai must be the first member; we cast from a pointer to it to a
-	 * pointer to the hpa_shard_t.
-	 */
-	pai_t pai;
-
 	/* The central allocator we get our hugepages from. */
 	hpa_central_t *central;
 
@@ -143,9 +190,8 @@ struct hpa_shard_s {
 	nstime_t last_time_work_attempted;
 };
 
-bool hpa_hugepage_size_exceeds_limit(void);
 /*
- * Whether or not the HPA can be used given the current configuration.  This is
+ * Whether or not the HPA can be used given the current configuration.  This
  * is not necessarily a guarantee that it backs its allocations by hugepages,
  * just that it can function properly given the system it's running on.
  */
@@ -153,6 +199,13 @@ bool hpa_supported(void);
 bool hpa_shard_init(tsdn_t *tsdn, hpa_shard_t *shard, hpa_central_t *central,
     emap_t *emap, base_t *base, edata_cache_t *edata_cache, unsigned ind,
     const hpa_shard_opts_t *opts, const sec_opts_t *sec_opts);
+
+edata_t *hpa_alloc(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
+    size_t alignment, bool zero, bool guarded, bool frequent_reuse,
+    bool *deferred_work_generated);
+void hpa_dalloc(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata,
+    bool *deferred_work_generated);
+uint64_t hpa_time_until_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard);
 
 void hpa_shard_stats_accum(hpa_shard_stats_t *dst, hpa_shard_stats_t *src);
 void hpa_shard_stats_merge(

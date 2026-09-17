@@ -1,7 +1,7 @@
 #include "test/jemalloc_test.h"
 #include "test/arena_util.h"
 
-#include "jemalloc/internal/arena_structs.h"
+#include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/san_bump.h"
 
 static extent_hooks_t *san_bump_default_hooks;

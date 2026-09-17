@@ -1,8 +1,9 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
 #include "jemalloc/internal/hpa_hooks.h"
 #include "jemalloc/internal/jemalloc_probe.h"
+#include "jemalloc/internal/nstime.h"
+#include "jemalloc/internal/pages.h"
 
 static void    *hpa_hooks_map(size_t size);
 static void     hpa_hooks_unmap(void *ptr, size_t size);

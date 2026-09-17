@@ -43,6 +43,9 @@ extern char    opt_stats_interval_opts[stats_print_tot_num_options + 1];
 #define STATS_INTERVAL_ACCUM_LG_BATCH_SIZE 6
 #define STATS_INTERVAL_ACCUM_BATCH_MAX (4 << 20)
 
+/* Per thread batch accum size for stats_interval; read by thread event. */
+extern uint64_t stats_interval_accum_batch;
+
 /* Only accessed by thread event. */
 extern te_base_cb_t stats_interval_te_handler;
 

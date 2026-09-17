@@ -195,7 +195,7 @@ fls_u(unsigned x) {
 	/*								\
 	 * Algorithm from an old AMD optimization reference manual.	\
 	 * We're putting a little bit more work than you might expect	\
-	 * into the no-instrinsic case, since we only support the	\
+	 * into the no-intrinsic case, since we only support the	\
 	 * GCC intrinsics spelling of popcount (for now).  Detecting	\
 	 * whether or not the popcount builtin is actually useable in	\
 	 * MSVC is nontrivial.						\
@@ -212,7 +212,7 @@ fls_u(unsigned x) {
 	 * That costs an extra mask relative to this, though.		\
 	 */								\
 	x = x - ((x >> 1) & (0x55U * bmul));				\
-	/* Replace each 4 bits with their sideays sum.  0x3 = 0b0011. */\
+	/* Replace each 4 bits with their sideways sum.  0x3 = 0b0011. */\
 	x = (x & (bmul * 0x33U)) + ((x >> 2) & (bmul * 0x33U));		\
 	/*								\
 	 * Replace each 8 bits with their sideways sum.  Note that we	\

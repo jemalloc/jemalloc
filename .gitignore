@@ -44,6 +44,8 @@
 
 /src/*.[od]
 /src/*.sym
+/src/os/*.[od]
+/src/os/*.sym
 
 # These are semantically meaningful for clangd and related tooling.
 /build/

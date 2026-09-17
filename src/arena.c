@@ -1,16 +1,27 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
+#include "jemalloc/internal/arena_inlines.h"
 #include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/background_thread.h"
+#include "jemalloc/internal/background_thread_inlines.h"
+#include "jemalloc/internal/bin_inlines.h"
 #include "jemalloc/internal/decay.h"
 #include "jemalloc/internal/ehooks.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
-#include "jemalloc/internal/san.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_a.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_c.h"
+#include "jemalloc/internal/large.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/prof.h"
+#include "jemalloc/internal/prof_inlines.h"
 #include "jemalloc/internal/rtree.h"
 #include "jemalloc/internal/safety_check.h"
+#include "jemalloc/internal/san.h"
+#include "jemalloc/internal/tcache.h"
 #include "jemalloc/internal/util.h"
+#include "jemalloc/internal/witness.h"
 
 JEMALLOC_DIAGNOSTIC_DISABLE_SPURIOUS
 
@@ -18,7 +29,7 @@ JEMALLOC_DIAGNOSTIC_DISABLE_SPURIOUS
 /* Data. */
 
 /*
- * Define names for both unininitialized and initialized phases, so that
+ * Define names for both uninitialized and initialized phases, so that
  * options and mallctl processing are straightforward.
  */
 const char *const percpu_arena_mode_names[] = {
@@ -36,6 +47,14 @@ static pa_central_t arena_pa_central_global;
 
 div_info_t arena_binind_div_info[SC_NBINS];
 
+JET_EXTERN void
+bin_dalloc_locked_begin(
+    bin_dalloc_locked_info_t *info, szind_t binind) {
+	info->div_info = arena_binind_div_info[binind];
+	info->nregs = bin_infos[binind].nregs;
+	info->ndalloc = 0;
+}
+
 size_t opt_oversize_threshold = OVERSIZE_THRESHOLD_DEFAULT;
 size_t oversize_threshold = OVERSIZE_THRESHOLD_DEFAULT;
 
@@ -44,10 +63,10 @@ static unsigned nbins_total;
 
 /*
  * a0 is used to handle huge requests before malloc init completes. After
- * that,the huge_arena_ind is updated to point to the actual huge arena,
+ * that, the huge_arena_ind is updated to point to the actual huge arena,
  * which is the last one of the auto arenas.
  */
-unsigned  huge_arena_ind = 0;
+static unsigned huge_arena_ind = 0;
 bool      opt_huge_arena_pac_thp = false;
 pac_thp_t huge_arena_pac_thp = {.thp_madvise = false,
     .auto_thp_switched = false,
@@ -64,11 +83,6 @@ const arena_config_t arena_config_default = {
  * definition.
  */
 
-static bool arena_decay_dirty(
-    tsdn_t *tsdn, arena_t *arena, bool is_background_thread, bool all);
-static void arena_maybe_do_deferred_work(
-    tsdn_t *tsdn, arena_t *arena, decay_t *decay, size_t npages_new);
-
 /******************************************************************************/
 
 void
@@ -77,8 +91,8 @@ arena_basic_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
     size_t *nactive, size_t *ndirty, size_t *nmuzzy) {
 	*nthreads += arena_nthreads_get(arena, false);
 	*dss = dss_prec_names[arena_dss_prec_get(arena)];
-	*dirty_decay_ms = arena_decay_ms_get(arena, extent_state_dirty);
-	*muzzy_decay_ms = arena_decay_ms_get(arena, extent_state_muzzy);
+	*dirty_decay_ms = pa_decay_ms_get(&arena->pa_shard, extent_state_dirty);
+	*muzzy_decay_ms = pa_decay_ms_get(&arena->pa_shard, extent_state_muzzy);
 	pa_shard_basic_stats_merge(&arena->pa_shard, nactive, ndirty, nmuzzy);
 }
 
@@ -164,7 +178,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	/* Currently cached bytes and sanitizer-stashed bytes in tcache. */
 	astats->tcache_bytes = 0;
 	astats->tcache_stashed_bytes = 0;
-	malloc_mutex_lock(tsdn, &arena->tcache_ql_mtx);
+	malloc_mutex_lock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
 	cache_bin_array_descriptor_t *descriptor;
 	ql_foreach (descriptor, &arena->cache_bin_array_descriptor_ql, link) {
 		for (szind_t i = 0; i < TCACHE_NBINS_MAX; i++) {
@@ -183,8 +197,8 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	}
 	malloc_mutex_prof_read(tsdn,
 	    &astats->mutex_prof_data[arena_prof_mutex_tcache_list],
-	    &arena->tcache_ql_mtx);
-	malloc_mutex_unlock(tsdn, &arena->tcache_ql_mtx);
+	    &arena->cache_bin_array_descriptor_ql_mtx);
+	malloc_mutex_unlock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
 
 #define READ_ARENA_MUTEX_PROF_DATA(mtx, ind)                                   \
 	malloc_mutex_lock(tsdn, &arena->mtx);                                  \
@@ -211,32 +225,90 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	}
 }
 
+void *
+arena_locality_hint(tsdn_t *tsdn, arena_t *arena, szind_t szind) {
+	assert(szind < SC_NBINS);
+	bin_t *bin = bin_choose(tsdn, arena, szind, NULL);
+	assert(bin != NULL);
+	return bin_current_slab_addr(tsdn, bin);
+}
+
+void
+arena_cache_bin_array_register(tsdn_t *tsdn, arena_t *arena,
+    cache_bin_array_descriptor_t *desc) {
+	cassert(config_stats);
+	malloc_mutex_lock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
+	ql_tail_insert(&arena->cache_bin_array_descriptor_ql, desc, link);
+	malloc_mutex_unlock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
+}
+
 static void
-arena_background_thread_inactivity_check(
-    tsdn_t *tsdn, arena_t *arena, bool is_background_thread) {
-	if (!background_thread_enabled() || is_background_thread) {
-		return;
-	}
-	background_thread_info_t *info = arena_background_thread_info_get(
-	    arena);
-	if (background_thread_indefinite_sleep(info)) {
-		arena_maybe_do_deferred_work(
-		    tsdn, arena, &arena->pa_shard.pac.decay_dirty, 0);
+arena_cache_bin_stats_flush(tsdn_t *tsdn, arena_t *arena,
+    cache_bin_array_descriptor_t *desc) {
+	cassert(config_stats);
+	for (unsigned i = 0; i < TCACHE_NBINS_MAX; i++) {
+		cache_bin_t *cache_bin = &desc->bins[i];
+		if (cache_bin_disabled(cache_bin)) {
+			continue;
+		}
+		if (i < SC_NBINS) {
+			bin_t *bin = bin_choose(tsdn, arena, i, NULL);
+			bin_stats_nrequests_add(tsdn, bin,
+			    cache_bin->tstats.nrequests);
+		} else {
+			arena_stats_large_flush_nrequests_add(tsdn,
+			    &arena->stats, i, cache_bin->tstats.nrequests);
+		}
+		cache_bin->tstats.nrequests = 0;
 	}
 }
 
-/*
- * React to deferred work generated by a PAI function.
- */
 void
-arena_handle_deferred_work(tsdn_t *tsdn, arena_t *arena) {
-	witness_assert_depth_to_rank(
-	    tsdn_witness_tsdp_get(tsdn), WITNESS_RANK_CORE, 0);
-
-	if (decay_immediately(&arena->pa_shard.pac.decay_dirty)) {
-		arena_decay_dirty(tsdn, arena, false, true);
+arena_cache_bin_array_unregister(tsdn_t *tsdn, arena_t *arena,
+    cache_bin_array_descriptor_t *desc) {
+	cassert(config_stats);
+	malloc_mutex_lock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
+	if (config_debug) {
+		bool                          in_ql = false;
+		cache_bin_array_descriptor_t *iter;
+		ql_foreach (iter, &arena->cache_bin_array_descriptor_ql, link) {
+			if (iter == desc) {
+				in_ql = true;
+				break;
+			}
+		}
+		assert(in_ql);
 	}
-	arena_background_thread_inactivity_check(tsdn, arena, false);
+	ql_remove(&arena->cache_bin_array_descriptor_ql, desc, link);
+	arena_cache_bin_stats_flush(tsdn, arena, desc);
+	malloc_mutex_unlock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
+}
+
+/*
+ * Postfork-child entry: child is single-threaded, so the queue is rebuilt
+ * from scratch (descriptors held by other threads at fork time are gone)
+ * without locking.
+ */
+static void
+arena_cache_bin_array_postfork_child(arena_t *arena,
+    cache_bin_array_descriptor_t *desc_or_null) {
+	cassert(config_stats);
+	ql_new(&arena->cache_bin_array_descriptor_ql);
+	if (desc_or_null != NULL) {
+		ql_tail_insert(&arena->cache_bin_array_descriptor_ql,
+		    desc_or_null, link);
+	}
+}
+
+void
+arena_cache_bins_stats_merge(tsdn_t *tsdn, arena_t *arena) {
+	cassert(config_stats);
+	malloc_mutex_lock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
+	cache_bin_array_descriptor_t *desc;
+	ql_foreach (desc, &arena->cache_bin_array_descriptor_ql, link) {
+		arena_cache_bin_stats_flush(tsdn, arena, desc);
+	}
+	malloc_mutex_unlock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
 }
 
 static void
@@ -343,7 +415,8 @@ arena_extent_alloc_large(
 }
 
 void
-arena_extent_dalloc_large_prep(tsdn_t *tsdn, arena_t *arena, edata_t *edata) {
+arena_extent_dalloc_large_prep(tsdn_t *tsdn, arena_t *arena,
+    const edata_t *edata) {
 	if (config_stats) {
 		arena_large_dalloc_stats_update(
 		    tsdn, arena, edata_usize_get(edata));
@@ -352,7 +425,7 @@ arena_extent_dalloc_large_prep(tsdn_t *tsdn, arena_t *arena, edata_t *edata) {
 
 void
 arena_extent_ralloc_large_shrink(
-    tsdn_t *tsdn, arena_t *arena, edata_t *edata, size_t oldusize) {
+    tsdn_t *tsdn, arena_t *arena, const edata_t *edata, size_t oldusize) {
 	size_t usize = edata_usize_get(edata);
 
 	if (config_stats) {
@@ -362,7 +435,7 @@ arena_extent_ralloc_large_shrink(
 
 void
 arena_extent_ralloc_large_expand(
-    tsdn_t *tsdn, arena_t *arena, edata_t *edata, size_t oldusize) {
+    tsdn_t *tsdn, arena_t *arena, const edata_t *edata, size_t oldusize) {
 	size_t usize = edata_usize_get(edata);
 
 	if (config_stats) {
@@ -370,188 +443,12 @@ arena_extent_ralloc_large_expand(
 	}
 }
 
-/*
- * In situations where we're not forcing a decay (i.e. because the user
- * specifically requested it), should we purge ourselves, or wait for the
- * background thread to get to it.
- */
-static pac_purge_eagerness_t
-arena_decide_unforced_purge_eagerness(bool is_background_thread) {
-	if (is_background_thread) {
-		return PAC_PURGE_ALWAYS;
-	} else if (!is_background_thread && background_thread_enabled()) {
-		return PAC_PURGE_NEVER;
-	} else {
-		return PAC_PURGE_ON_EPOCH_ADVANCE;
-	}
-}
-
-bool
-arena_decay_ms_set(
-    tsdn_t *tsdn, arena_t *arena, extent_state_t state, ssize_t decay_ms) {
-	pac_purge_eagerness_t eagerness = arena_decide_unforced_purge_eagerness(
-	    /* is_background_thread */ false);
-	return pa_decay_ms_set(
-	    tsdn, &arena->pa_shard, state, decay_ms, eagerness);
-}
-
-ssize_t
-arena_decay_ms_get(arena_t *arena, extent_state_t state) {
-	return pa_decay_ms_get(&arena->pa_shard, state);
-}
-
-static bool
-arena_decay_impl(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
-    pac_decay_stats_t *decay_stats, ecache_t *ecache, bool is_background_thread,
-    bool all) {
-	if (all) {
-		malloc_mutex_lock(tsdn, &decay->mtx);
-		pac_decay_all(tsdn, &arena->pa_shard.pac, decay, decay_stats,
-		    ecache, /* fully_decay */ all);
-		malloc_mutex_unlock(tsdn, &decay->mtx);
-		return false;
-	}
-
-	if (malloc_mutex_trylock(tsdn, &decay->mtx)) {
-		/* No need to wait if another thread is in progress. */
-		return true;
-	}
-	pac_purge_eagerness_t eagerness = arena_decide_unforced_purge_eagerness(
-	    is_background_thread);
-	bool epoch_advanced = pac_maybe_decay_purge(
-	    tsdn, &arena->pa_shard.pac, decay, decay_stats, ecache, eagerness);
-	size_t npages_new JEMALLOC_CLANG_ANALYZER_SILENCE_INIT(0);
-	if (epoch_advanced) {
-		/* Backlog is updated on epoch advance. */
-		npages_new = decay_epoch_npages_delta(decay);
-	}
-	malloc_mutex_unlock(tsdn, &decay->mtx);
-
-	if (have_background_thread && background_thread_enabled()
-	    && epoch_advanced && !is_background_thread) {
-		arena_maybe_do_deferred_work(tsdn, arena, decay, npages_new);
-	}
-
-	return false;
-}
-
-static bool
-arena_decay_dirty(
-    tsdn_t *tsdn, arena_t *arena, bool is_background_thread, bool all) {
-	return arena_decay_impl(tsdn, arena, &arena->pa_shard.pac.decay_dirty,
-	    &arena->pa_shard.pac.stats->decay_dirty,
-	    &arena->pa_shard.pac.ecache_dirty, is_background_thread, all);
-}
-
-static bool
-arena_decay_muzzy(
-    tsdn_t *tsdn, arena_t *arena, bool is_background_thread, bool all) {
-	if (pa_shard_dont_decay_muzzy(&arena->pa_shard)) {
-		return false;
-	}
-	return arena_decay_impl(tsdn, arena, &arena->pa_shard.pac.decay_muzzy,
-	    &arena->pa_shard.pac.stats->decay_muzzy,
-	    &arena->pa_shard.pac.ecache_muzzy, is_background_thread, all);
-}
-
-void
-arena_decay(tsdn_t *tsdn, arena_t *arena, bool is_background_thread, bool all) {
-	if (all) {
-		/*
-		 * We should take a purge of "all" to mean "save as much memory
-		 * as possible", including flushing any caches (for situations
-		 * like thread death, or manual purge calls).
-		 */
-		pa_shard_flush(tsdn, &arena->pa_shard);
-	}
-	if (arena_decay_dirty(tsdn, arena, is_background_thread, all)) {
-		return;
-	}
-	arena_decay_muzzy(tsdn, arena, is_background_thread, all);
-}
-
-static bool
-arena_should_decay_early(tsdn_t *tsdn, arena_t *arena, decay_t *decay,
-    background_thread_info_t *info, nstime_t *remaining_sleep,
-    size_t npages_new) {
-	malloc_mutex_assert_owner(tsdn, &info->mtx);
-
-	if (malloc_mutex_trylock(tsdn, &decay->mtx)) {
-		return false;
-	}
-
-	if (!decay_gradually(decay)) {
-		malloc_mutex_unlock(tsdn, &decay->mtx);
-		return false;
-	}
-
-	nstime_init(remaining_sleep, background_thread_wakeup_time_get(info));
-	if (nstime_compare(remaining_sleep, &decay->epoch) <= 0) {
-		malloc_mutex_unlock(tsdn, &decay->mtx);
-		return false;
-	}
-	nstime_subtract(remaining_sleep, &decay->epoch);
-	if (npages_new > 0) {
-		uint64_t npurge_new = decay_npages_purge_in(
-		    decay, remaining_sleep, npages_new);
-		info->npages_to_purge_new += npurge_new;
-	}
-	malloc_mutex_unlock(tsdn, &decay->mtx);
-	return info->npages_to_purge_new
-	    > ARENA_DEFERRED_PURGE_NPAGES_THRESHOLD;
-}
-
-/*
- * Check if deferred work needs to be done sooner than planned.
- * For decay we might want to wake up earlier because of an influx of dirty
- * pages. Rather than waiting for previously estimated time, we proactively
- * purge those pages.
- * If background thread sleeps indefinitely, always wake up because some
- * deferred work has been generated.
- */
 static void
-arena_maybe_do_deferred_work(
-    tsdn_t *tsdn, arena_t *arena, decay_t *decay, size_t npages_new) {
-	background_thread_info_t *info = arena_background_thread_info_get(
-	    arena);
-	if (malloc_mutex_trylock(tsdn, &info->mtx)) {
-		/*
-		 * Background thread may hold the mutex for a long period of
-		 * time.  We'd like to avoid the variance on application
-		 * threads.  So keep this non-blocking, and leave the work to a
-		 * future epoch.
-		 */
-		return;
-	}
-	if (!background_thread_is_started(info)) {
-		goto label_done;
-	}
-
-	nstime_t remaining_sleep;
-	if (background_thread_indefinite_sleep(info)) {
-		background_thread_wakeup_early(info, NULL);
-	} else if (arena_should_decay_early(tsdn, arena, decay, info,
-	               &remaining_sleep, npages_new)) {
-		info->npages_to_purge_new = 0;
-		background_thread_wakeup_early(info, &remaining_sleep);
-	}
-label_done:
-	malloc_mutex_unlock(tsdn, &info->mtx);
-}
-
-/* Called from background threads. */
-void
-arena_do_deferred_work(tsdn_t *tsdn, arena_t *arena) {
-	arena_decay(tsdn, arena, true, false);
-	pa_shard_do_deferred_work(tsdn, &arena->pa_shard);
-}
-
-void
 arena_slab_dalloc(tsdn_t *tsdn, arena_t *arena, edata_t *slab) {
 	bool deferred_work_generated = false;
 	pa_dalloc(tsdn, &arena->pa_shard, slab, &deferred_work_generated);
 	if (deferred_work_generated) {
-		arena_handle_deferred_work(tsdn, arena);
+		pa_shard_handle_deferred_work(tsdn, &arena->pa_shard);
 	}
 }
 
@@ -607,11 +504,13 @@ arena_prof_promote(tsdn_t *tsdn, void *ptr, size_t usize, size_t bumped_usize) {
 	assert(isalloc(tsdn, ptr) == usize);
 }
 
-static size_t
+size_t
 arena_prof_demote(tsdn_t *tsdn, edata_t *edata, const void *ptr) {
 	cassert(config_prof);
+	assert(opt_prof);
 	assert(ptr != NULL);
-	size_t usize = isalloc(tsdn, ptr);
+	size_t usize = edata_usize_get(edata);
+	assert(isalloc(tsdn, ptr) == usize);
 	size_t bumped_usize = sz_sa2u(usize, PROF_SAMPLE_ALIGNMENT);
 	assert(bumped_usize <= SC_LARGE_MINCLASS
 	    && PAGE_CEILING(bumped_usize) == bumped_usize);
@@ -623,17 +522,6 @@ arena_prof_demote(tsdn_t *tsdn, edata_t *edata, const void *ptr) {
 
 	assert(isalloc(tsdn, ptr) == bumped_usize);
 
-	return bumped_usize;
-}
-
-static void
-arena_dalloc_promoted_impl(
-    tsdn_t *tsdn, void *ptr, tcache_t *tcache, bool slow_path, edata_t *edata) {
-	cassert(config_prof);
-	assert(opt_prof);
-
-	size_t usize = edata_usize_get(edata);
-	size_t bumped_usize = arena_prof_demote(tsdn, edata, ptr);
 	if (config_opt_safety_checks && usize < SC_LARGE_MINCLASS) {
 		/*
 		 * Currently, we only do redzoning for small sampled
@@ -641,23 +529,8 @@ arena_dalloc_promoted_impl(
 		 */
 		safety_check_verify_redzone(ptr, usize, bumped_usize);
 	}
-	szind_t bumped_ind = sz_size2index(bumped_usize);
-	if (bumped_usize >= SC_LARGE_MINCLASS && tcache != NULL
-	    && bumped_ind < TCACHE_NBINS_MAX
-	    && !tcache_bin_disabled(
-	        bumped_ind, &tcache->bins[bumped_ind], tcache->tcache_slow)) {
-		tcache_dalloc_large(
-		    tsdn_tsd(tsdn), tcache, ptr, bumped_ind, slow_path);
-	} else {
-		large_dalloc(tsdn, edata);
-	}
-}
 
-void
-arena_dalloc_promoted(
-    tsdn_t *tsdn, void *ptr, tcache_t *tcache, bool slow_path) {
-	edata_t *edata = emap_edata_lookup(tsdn, &arena_emap_global, ptr);
-	arena_dalloc_promoted_impl(tsdn, ptr, tcache, slow_path, edata);
+	return bumped_usize;
 }
 
 void
@@ -699,8 +572,8 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 			prof_free(tsd, ptr, usize, &alloc_ctx);
 		}
 		if (config_prof && opt_prof && alloc_ctx.szind < SC_NBINS) {
-			arena_dalloc_promoted_impl(tsd_tsdn(tsd), ptr,
-			    /* tcache */ NULL, /* slow_path */ true, edata);
+			arena_prof_demote(tsd_tsdn(tsd), edata, ptr);
+			large_dalloc(tsd_tsdn(tsd), edata);
 		} else {
 			large_dalloc(tsd_tsdn(tsd), edata);
 		}
@@ -796,6 +669,8 @@ arena_prepare_base_deletion(tsd_t *tsd, base_t *base_to_destroy) {
 		    tsd, &pac->ecache_muzzy.mtx, delayed_mtx, &n_delayed);
 		arena_prepare_base_deletion_sync(
 		    tsd, &pac->ecache_retained.mtx, delayed_mtx, &n_delayed);
+		arena_prepare_base_deletion_sync(
+		    tsd, &pac->ecache_pinned.mtx, delayed_mtx, &n_delayed);
 	}
 	arena_prepare_base_deletion_sync_finish(tsd, delayed_mtx, n_delayed);
 }
@@ -850,7 +725,7 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 	    /* zero */ false, guarded, &deferred_work_generated);
 
 	if (deferred_work_generated) {
-		arena_handle_deferred_work(tsdn, arena);
+		pa_shard_handle_deferred_work(tsdn, &arena->pa_shard);
 	}
 
 	if (slab == NULL) {
@@ -997,76 +872,6 @@ label_refill:
 	return filled;
 }
 
-size_t
-arena_fill_small_fresh(tsdn_t *tsdn, arena_t *arena, szind_t binind,
-    void **ptrs, size_t nfill, bool zero) {
-	assert(binind < SC_NBINS);
-	const bin_info_t *bin_info = &bin_infos[binind];
-	const size_t      nregs = bin_info->nregs;
-	assert(nregs > 0);
-	const size_t usize = bin_info->reg_size;
-
-	const bool manual_arena = !arena_is_auto(arena);
-	unsigned   binshard;
-	bin_t     *bin = bin_choose(tsdn, arena, binind, &binshard);
-
-	size_t              nslab = 0;
-	size_t              filled = 0;
-	edata_t            *slab = NULL;
-	edata_list_active_t fulls;
-	edata_list_active_init(&fulls);
-
-	while (filled < nfill
-	    && (slab = arena_slab_alloc(
-	            tsdn, arena, binind, binshard, bin_info))
-	        != NULL) {
-		assert((size_t)edata_nfree_get(slab) == nregs);
-		++nslab;
-		size_t batch = nfill - filled;
-		if (batch > nregs) {
-			batch = nregs;
-		}
-		assert(batch > 0);
-		bin_slab_reg_alloc_batch(
-		    slab, bin_info, (unsigned)batch, &ptrs[filled]);
-		assert(edata_addr_get(slab) == ptrs[filled]);
-		if (zero) {
-			memset(ptrs[filled], 0, batch * usize);
-		}
-		filled += batch;
-		if (batch == nregs) {
-			if (manual_arena) {
-				edata_list_active_append(&fulls, slab);
-			}
-			slab = NULL;
-		}
-	}
-
-	malloc_mutex_lock(tsdn, &bin->lock);
-	/*
-	 * Only the last slab can be non-empty, and the last slab is non-empty
-	 * iff slab != NULL.
-	 */
-	if (slab != NULL) {
-		bin_lower_slab(tsdn, !manual_arena, slab, bin);
-	}
-	if (manual_arena) {
-		edata_list_active_concat(&bin->slabs_full, &fulls);
-	}
-	assert(edata_list_active_empty(&fulls));
-	if (config_stats) {
-		bin->stats.nslabs += nslab;
-		bin->stats.curslabs += nslab;
-		bin->stats.nmalloc += filled;
-		bin->stats.nrequests += filled;
-		bin->stats.curregs += filled;
-	}
-	malloc_mutex_unlock(tsdn, &bin->lock);
-
-	arena_decay_tick(tsdn, arena);
-	return filled;
-}
-
 static void *
 arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero) {
 	assert(binind < SC_NBINS);
@@ -1134,33 +939,6 @@ arena_malloc_hard(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind,
 		return arena_malloc_small(tsdn, arena, ind, zero);
 	} else {
 		return large_malloc(tsdn, arena, sz_s2u(size), zero);
-	}
-}
-
-void *
-arena_palloc(tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment,
-    bool zero, bool slab, tcache_t *tcache) {
-	if (slab) {
-		assert(sz_can_use_slab(usize));
-		/* Small; alignment doesn't require special slab placement. */
-
-		/* usize should be a result of sz_sa2u() */
-		assert((usize & (alignment - 1)) == 0);
-
-		/*
-		 * Small usize can't come from an alignment larger than a page.
-		 */
-		assert(alignment <= PAGE);
-
-		return arena_malloc(tsdn, arena, usize, sz_size2index(usize),
-		    zero, slab, tcache, true);
-	} else {
-		if (likely(alignment <= CACHELINE)) {
-			return large_malloc(tsdn, arena, usize, zero);
-		} else {
-			return large_palloc(
-			    tsdn, arena, usize, alignment, zero);
-		}
 	}
 }
 
@@ -1497,10 +1275,10 @@ arena_ptr_array_flush_impl(tsd_t *tsd, szind_t binind,
 	 * '...' is morally equivalent, the code itself needs slight tweaks.
 	 */
 	if (small) {
-		return arena_ptr_array_flush_impl_small(tsdn, binind, arr,
+		arena_ptr_array_flush_impl_small(tsdn, binind, arr,
 		    item_edata, nflush, stats_arena, merge_stats);
 	} else {
-		return arena_ptr_array_flush_impl_large(tsdn, binind, arr,
+		arena_ptr_array_flush_impl_large(tsdn, binind, arr,
 		    item_edata, nflush, stats_arena, merge_stats);
 	}
 }
@@ -1590,102 +1368,31 @@ done:
 	return ret;
 }
 
-static void *
-arena_ralloc_move_helper(tsdn_t *tsdn, arena_t *arena, size_t usize,
-    size_t alignment, bool zero, bool slab, tcache_t *tcache) {
-	if (alignment == 0) {
-		return arena_malloc(tsdn, arena, usize, sz_size2index(usize),
-		    zero, slab, tcache, true);
-	}
-	usize = sz_sa2u(usize, alignment);
-	if (unlikely(usize == 0 || usize > SC_LARGE_MAXCLASS)) {
-		return NULL;
-	}
-	return ipalloct_explicit_slab(
-	    tsdn, usize, alignment, zero, slab, tcache, arena);
-}
-
-void *
-arena_ralloc(tsdn_t *tsdn, arena_t *arena, void *ptr, size_t oldsize,
-    size_t size, size_t alignment, bool zero, bool slab, tcache_t *tcache,
-    hook_ralloc_args_t *hook_args) {
-	size_t usize = alignment == 0 ? sz_s2u(size) : sz_sa2u(size, alignment);
-	if (unlikely(usize == 0 || size > SC_LARGE_MAXCLASS)) {
-		return NULL;
-	}
-
-	if (likely(slab)) {
-		assert(sz_can_use_slab(usize));
-		/* Try to avoid moving the allocation. */
-		UNUSED size_t newsize;
-		if (!arena_ralloc_no_move(
-		        tsdn, ptr, oldsize, usize, 0, zero, &newsize)) {
-			hook_invoke_expand(hook_args->is_realloc
-			        ? hook_expand_realloc
-			        : hook_expand_rallocx,
-			    ptr, oldsize, usize, (uintptr_t)ptr,
-			    hook_args->args);
-			return ptr;
-		}
-	}
-
-	if (oldsize >= SC_LARGE_MINCLASS && usize >= SC_LARGE_MINCLASS) {
-		return large_ralloc(tsdn, arena, ptr, usize, alignment, zero,
-		    tcache, hook_args);
-	}
-
-	/*
-	 * size and oldsize are different enough that we need to move the
-	 * object.  In that case, fall back to allocating new space and copying.
-	 */
-	void *ret = arena_ralloc_move_helper(
-	    tsdn, arena, usize, alignment, zero, slab, tcache);
-	if (ret == NULL) {
-		return NULL;
-	}
-
-	hook_invoke_alloc(
-	    hook_args->is_realloc ? hook_alloc_realloc : hook_alloc_rallocx,
-	    ret, (uintptr_t)ret, hook_args->args);
-	hook_invoke_dalloc(
-	    hook_args->is_realloc ? hook_dalloc_realloc : hook_dalloc_rallocx,
-	    ptr, hook_args->args);
-
-	/*
-	 * Junk/zero-filling were already done by
-	 * ipalloc()/arena_malloc().
-	 */
-	size_t copysize = (usize < oldsize) ? usize : oldsize;
-	memcpy(ret, ptr, copysize);
-	isdalloct(tsdn, ptr, oldsize, tcache, NULL, true);
-	return ret;
-}
-
 ehooks_t *
-arena_get_ehooks(arena_t *arena) {
+arena_get_ehooks(const arena_t *arena) {
 	return base_ehooks_get(arena->base);
 }
 
 extent_hooks_t *
 arena_set_extent_hooks(
     tsd_t *tsd, arena_t *arena, extent_hooks_t *extent_hooks) {
-	background_thread_info_t *info;
-	if (have_background_thread) {
-		info = arena_background_thread_info_get(arena);
-		malloc_mutex_lock(tsd_tsdn(tsd), &info->mtx);
-	}
+	/*
+	 * Serialize disabling the HPA against the background thread via the
+	 * module-owned bracket (have_background_thread-gated internally) rather
+	 * than reaching into info->mtx directly.
+	 */
+	unsigned arena_ind = arena_ind_get(arena);
+	background_thread_serialize_lock(tsd, arena_ind);
 	/* No using the HPA now that we have the custom hooks. */
 	pa_shard_disable_hpa(tsd_tsdn(tsd), &arena->pa_shard);
 	extent_hooks_t *ret = base_extent_hooks_set(arena->base, extent_hooks);
-	if (have_background_thread) {
-		malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
-	}
+	background_thread_serialize_unlock(tsd, arena_ind);
 
 	return ret;
 }
 
 dss_prec_t
-arena_dss_prec_get(arena_t *arena) {
+arena_dss_prec_get(const arena_t *arena) {
 	return (dss_prec_t)atomic_load_u(&arena->dss_prec, ATOMIC_ACQUIRE);
 }
 
@@ -1699,8 +1406,9 @@ arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec) {
 }
 
 void
-arena_name_get(arena_t *arena, char *name) {
-	char *end = (char *)memchr((void *)arena->name, '\0', ARENA_NAME_LEN);
+arena_name_get(const arena_t *arena, char *name) {
+	const char *end = (const char *)memchr(
+	    arena->name, '\0', ARENA_NAME_LEN);
 	assert(end != NULL);
 	size_t len = (uintptr_t)end - (uintptr_t)arena->name + 1;
 	assert(len > 0 && len <= ARENA_NAME_LEN);
@@ -1751,7 +1459,7 @@ arena_retain_grow_limit_get_set(
 }
 
 unsigned
-arena_nthreads_get(arena_t *arena, bool internal) {
+arena_nthreads_get(const arena_t *arena, bool internal) {
 	return atomic_load_u(&arena->nthreads[internal], ATOMIC_RELAXED);
 }
 
@@ -1799,10 +1507,11 @@ arena_new(tsdn_t *tsdn, unsigned ind, const arena_config_t *config) {
 			goto label_error;
 		}
 
-		ql_new(&arena->tcache_ql);
 		ql_new(&arena->cache_bin_array_descriptor_ql);
-		if (malloc_mutex_init(&arena->tcache_ql_mtx, "tcache_ql",
-		        WITNESS_RANK_TCACHE_QL, malloc_mutex_rank_exclusive)) {
+		if (malloc_mutex_init(&arena->cache_bin_array_descriptor_ql_mtx,
+		        "cache_bin_array_descriptor_ql",
+		        WITNESS_RANK_CACHE_BIN_ARRAY_DESCRIPTOR_QL,
+		        malloc_mutex_rank_exclusive)) {
 			goto label_error;
 		}
 	}
@@ -1910,13 +1619,13 @@ arena_create_huge_arena(tsd_t *tsd, unsigned ind) {
 	 */
 	if (!background_thread_enabled()
 	    && arena_dirty_decay_ms_default_get() > 0) {
-		arena_decay_ms_set(
-		    tsd_tsdn(tsd), huge_arena, extent_state_dirty, 0);
+		pa_decay_ms_set(
+		    tsd_tsdn(tsd), &huge_arena->pa_shard, extent_state_dirty, 0);
 	}
 	if (!background_thread_enabled()
 	    && arena_muzzy_decay_ms_default_get() > 0) {
-		arena_decay_ms_set(
-		    tsd_tsdn(tsd), huge_arena, extent_state_muzzy, 0);
+		pa_decay_ms_set(
+		    tsd_tsdn(tsd), &huge_arena->pa_shard, extent_state_muzzy, 0);
 	}
 
 	return huge_arena;
@@ -1954,9 +1663,6 @@ arena_init_huge(tsdn_t *tsdn, arena_t *a0) {
 		huge_arena_ind = narenas_total_get();
 		assert(huge_arena_ind != 0);
 		oversize_threshold = opt_oversize_threshold;
-		/* a0 init happened before malloc_conf_init. */
-		atomic_store_zu(&a0->pa_shard.pac.oversize_threshold,
-		    oversize_threshold, ATOMIC_RELAXED);
 		/* Initialize huge_arena_pac_thp fields. */
 		base_t *b0 = a0->base;
 		/* Make sure that b0 thp auto-switch won't happen concurrently here. */
@@ -1974,7 +1680,16 @@ arena_init_huge(tsdn_t *tsdn, arena_t *a0) {
 		huge_enabled = true;
 	}
 
+	/* a0 init happened before malloc_conf_init. */
+	atomic_store_zu(&a0->pa_shard.pac.oversize_threshold,
+	    oversize_threshold, ATOMIC_RELAXED);
+
 	return huge_enabled;
+}
+
+bool
+arena_ind_is_huge(unsigned ind) {
+	return huge_arena_ind != 0 && ind == huge_arena_ind;
 }
 
 bool
@@ -2006,7 +1721,7 @@ arena_prefork0(tsdn_t *tsdn, arena_t *arena) {
 void
 arena_prefork1(tsdn_t *tsdn, arena_t *arena) {
 	if (config_stats) {
-		malloc_mutex_prefork(tsdn, &arena->tcache_ql_mtx);
+		malloc_mutex_prefork(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
 	}
 }
 
@@ -2059,12 +1774,13 @@ arena_postfork_parent(tsdn_t *tsdn, arena_t *arena) {
 	base_postfork_parent(tsdn, arena->base);
 	pa_shard_postfork_parent(tsdn, &arena->pa_shard);
 	if (config_stats) {
-		malloc_mutex_postfork_parent(tsdn, &arena->tcache_ql_mtx);
+		malloc_mutex_postfork_parent(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
 	}
 }
 
 void
-arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
+arena_postfork_child(tsdn_t *tsdn, arena_t *arena,
+    cache_bin_array_descriptor_t *surviving_desc) {
 	atomic_store_u(&arena->nthreads[0], 0, ATOMIC_RELAXED);
 	atomic_store_u(&arena->nthreads[1], 0, ATOMIC_RELAXED);
 	if (tsd_arena_get(tsdn_tsd(tsdn)) == arena) {
@@ -2074,19 +1790,9 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 		arena_nthreads_inc(arena, true);
 	}
 	if (config_stats) {
-		ql_new(&arena->tcache_ql);
-		ql_new(&arena->cache_bin_array_descriptor_ql);
-		tcache_slow_t *tcache_slow = tcache_slow_get(tsdn_tsd(tsdn));
-		if (tcache_slow != NULL && tcache_slow->arena == arena) {
-			tcache_t *tcache = tcache_slow->tcache;
-			ql_elm_new(tcache_slow, link);
-			ql_tail_insert(&arena->tcache_ql, tcache_slow, link);
-			cache_bin_array_descriptor_init(
-			    &tcache_slow->cache_bin_array_descriptor,
-			    tcache->bins);
-			ql_tail_insert(&arena->cache_bin_array_descriptor_ql,
-			    &tcache_slow->cache_bin_array_descriptor, link);
-		}
+		malloc_mutex_postfork_child(tsdn,
+		    &arena->cache_bin_array_descriptor_ql_mtx);
+		arena_cache_bin_array_postfork_child(arena, surviving_desc);
 	}
 
 	for (unsigned i = 0; i < nbins_total; i++) {
@@ -2097,7 +1803,4 @@ arena_postfork_child(tsdn_t *tsdn, arena_t *arena) {
 	malloc_mutex_postfork_child(tsdn, &arena->large_mtx);
 	base_postfork_child(tsdn, arena->base);
 	pa_shard_postfork_child(tsdn, &arena->pa_shard);
-	if (config_stats) {
-		malloc_mutex_postfork_child(tsdn, &arena->tcache_ql_mtx);
-	}
 }

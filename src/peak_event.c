@@ -1,9 +1,8 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
-
-#include "jemalloc/internal/peak_event.h"
 
 #include "jemalloc/internal/peak.h"
+#include "jemalloc/internal/peak_event.h"
+#include "jemalloc/internal/thread_event.h"
 #include "jemalloc/internal/thread_event_registry.h"
 
 /* Update the peak with current tsd state. */

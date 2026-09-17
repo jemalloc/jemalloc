@@ -30,13 +30,15 @@ typedef enum {
 	OP(extents_dirty)                                                      \
 	OP(extents_muzzy)                                                      \
 	OP(extents_retained)                                                   \
+	OP(extents_pinned)                                                     \
 	OP(decay_dirty)                                                        \
 	OP(decay_muzzy)                                                        \
 	OP(base)                                                               \
 	OP(tcache_list)                                                        \
 	OP(hpa_shard)                                                          \
 	OP(hpa_shard_grow)                                                     \
-	OP(hpa_sec)
+	OP(hpa_sec)                                                            \
+	OP(pac_sec)
 
 typedef enum {
 #define OP(mtx) arena_prof_mutex_##mtx,

@@ -19,7 +19,7 @@ fake_abort(const char *message) {
 
 static void
 test_write_after_free_pre(void) {
-	safety_check_set_abort(&fake_abort);
+	test_hooks_safety_check_abort = &fake_abort;
 	fake_abort_called = false;
 }
 
@@ -28,7 +28,7 @@ test_write_after_free_post(void) {
 	assert_d_eq(mallctl("thread.tcache.flush", NULL, NULL, NULL, 0), 0,
 	    "Unexpected tcache flush failure");
 	expect_true(fake_abort_called, "Use-after-free check didn't fire.");
-	safety_check_set_abort(NULL);
+	test_hooks_safety_check_abort = NULL;
 }
 
 static bool

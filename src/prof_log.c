@@ -1,8 +1,12 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/jemalloc_internal_includes.h"
 
+#include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/buf_writer.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_a.h"
+#include "jemalloc/internal/jemalloc_internal_inlines_c.h"
+#include "jemalloc/internal/prof.h"
+#include "jemalloc/internal/prof_inlines.h"
 #include "jemalloc/internal/ckh.h"
 #include "jemalloc/internal/emitter.h"
 #include "jemalloc/internal/hash.h"
@@ -305,6 +309,7 @@ prof_thr_node_keycomp(const void *k1, const void *k2) {
 	return thr_node1->thr_uid == thr_node2->thr_uid;
 }
 
+#ifdef JEMALLOC_JET
 /* Used in unit tests. */
 size_t
 prof_log_bt_count(void) {
@@ -409,6 +414,7 @@ prof_log_dummy_set(bool new_value) {
 	cassert(config_prof);
 	prof_log_dummy = new_value;
 }
+#endif
 
 /* Used as an atexit function to stop logging on exit. */
 static void

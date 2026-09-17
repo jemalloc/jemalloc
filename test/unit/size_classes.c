@@ -190,6 +190,9 @@ TEST_BEGIN(test_overflow) {
 	max_size_class = get_max_size_class();
 	max_psz = max_size_class + PAGE;
 
+	expect_zu_eq(max_size_class, SC_LARGE_MAXCLASS,
+	    "Computed max size class should match SC_LARGE_MAXCLASS");
+
 	expect_u_eq(sz_size2index(max_size_class + 1), SC_NSIZES,
 	    "sz_size2index() should return NSIZES on overflow");
 	expect_u_eq(sz_size2index(ZU(PTRDIFF_MAX) + 1), SC_NSIZES,
@@ -203,6 +206,14 @@ TEST_BEGIN(test_overflow) {
 	    "sz_s2u() should return 0 for unsupported size");
 	expect_zu_eq(
 	    sz_s2u(SIZE_T_MAX), 0, "sz_s2u() should return 0 on overflow");
+	expect_zu_eq(sz_s2u_compute_using_delta(SC_LARGE_MAXCLASS + 1), 0,
+	    "sz_s2u_compute_using_delta() should return 0 for unsupported size");
+	expect_zu_eq(sz_s2u_compute_using_delta(SIZE_T_MAX), 0,
+	    "sz_s2u_compute_using_delta() should return 0 on overflow");
+	expect_zu_eq(sz_sa2u(1, 0), 0,
+	    "sz_sa2u() should return 0 for zero alignment");
+	expect_zu_eq(sz_sa2u(SIZE_T_MAX, PAGE), 0,
+	    "sz_sa2u() should return 0 on overflow");
 
 	expect_u_eq(sz_psz2ind(max_size_class + 1), SC_NPSIZES,
 	    "sz_psz2ind() should return NPSIZES on overflow");
