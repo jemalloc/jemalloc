@@ -1492,7 +1492,6 @@ arena_new(tsdn_t *tsdn, unsigned ind, const arena_config_t *config) {
 	        <= (uintptr_t)arena + arena_size);)
 	atomic_store_u(&arena->nthreads[0], 0, ATOMIC_RELAXED);
 	atomic_store_u(&arena->nthreads[1], 0, ATOMIC_RELAXED);
-	arena->last_thd = NULL;
 
 	if (config_stats) {
 		if (arena_stats_init(tsdn, &arena->stats)) {
