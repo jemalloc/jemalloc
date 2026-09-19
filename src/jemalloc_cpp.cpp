@@ -65,8 +65,9 @@ void operator delete[](
 
 JEMALLOC_NOINLINE
 static void *
-handleOOM(std::size_t size, bool nothrow) {
+handleOOM(std::size_t size, std::size_t alignment, bool nothrow) {
 #if JEMALLOC_INFALLIBLE_NEW
+	(void)alignment;
 	if (nothrow) {
 		return nullptr;
 	}
@@ -97,7 +98,8 @@ handleOOM(std::size_t size, bool nothrow) {
 		handler();
 #endif
 
-		ptr = je_malloc(size);
+		ptr = !alignment ? je_malloc(size)
+		                 : je_aligned_alloc(alignment, size);
 	}
 
 	if (ptr == nullptr && !nothrow) {
@@ -118,7 +120,7 @@ fallbackNewImpl(std::size_t size) noexcept(IsNoExcept) {
 	if (likely(ptr != nullptr)) {
 		return ptr;
 	}
-	return handleOOM(size, IsNoExcept);
+	return handleOOM(size, 0, IsNoExcept);
 }
 
 template <bool IsNoExcept>
@@ -163,7 +165,8 @@ alignedNewImpl(std::size_t size, std::align_val_t alignment) noexcept(
 		return ptr;
 	}
 
-	return handleOOM(size, IsNoExcept);
+	return handleOOM(
+	    size, static_cast<std::size_t>(alignment), IsNoExcept);
 }
 
 void *
