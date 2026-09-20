@@ -31,6 +31,29 @@ cat <<"EOF"
   }
 }
 
+# Process 'nm -P -t d <c_source.o>' output.  GNU nm omits a trailing size
+# field when the ELF symbol size is zero, so accept both three and four fields.
+#
+# Handle lines like:
+#   opt_junk D 8 1
+#   tsd_tls L 0 1920
+#   prof_active_get T 0
+((NF == 3 || NF == 4) &&
+ $2 ~ /^[ABCDGLNRSTVW]$/ &&
+ !($1 in exported_symbols) &&
+ $1 ~ /^[A-Za-z_][A-Za-z0-9_]*$/ &&
+ $3 ~ /^[0-9]+$/) {
+  print substr($1, 1+length(sym_prefix), length($1)-length(sym_prefix))
+  next
+}
+
+# Do not interpret other portable-format records as legacy-format records.
+((NF == 3 || NF == 4) &&
+ $2 ~ /^[A-Za-z?]$/ &&
+ $3 ~ /^[0-9]+$/) {
+  next
+}
+
 # Process 'nm -a <c_source.o>' output.
 #
 # Handle lines like:
