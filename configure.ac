@@ -882,6 +882,8 @@ case "${host}" in
   *-*-solaris2*)
 	abi="elf"
 	RPATH='-Wl,-R,$(1)'
+	dnl Solaris nm does not support -a, so use POSIX portable output.
+	DUMP_SYMS="${NM} -P -t d"
 	dnl Solaris needs this for sigwait().
 	JE_APPEND_VS(CPPFLAGS, -D_POSIX_PTHREAD_SEMANTICS)
 	JE_APPEND_VS(LIBS, -lposix4 -lsocket -lnsl)
