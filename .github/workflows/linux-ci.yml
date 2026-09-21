@@ -530,7 +530,7 @@ jobs:
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     - name: Show OS version
       run: |
@@ -669,7 +669,7 @@ jobs:
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     - name: Show OS version
       run: |
@@ -730,7 +730,7 @@ jobs:
   test-linux-lto-fiber-safe-tls:
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Install clang, lld and llvm
       run: |
