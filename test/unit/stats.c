@@ -348,6 +348,10 @@ TEST_BEGIN(test_stats_arenas_bins) {
 	}
 
 	dallocx(p, 0);
+	/* Do not leak this test's manual arena assignment into later tests. */
+	expect_d_eq(mallctl("thread.arena", NULL, NULL,
+	                (void *)&old_arena_ind, sizeof(old_arena_ind)),
+	    0, "Unexpected mallctl() failure");
 }
 TEST_END
 
@@ -450,8 +454,8 @@ TEST_END
 TEST_BEGIN(test_approximate_stats_active) {
 	/*
 	 * Test 1: create a manual arena that we exclusively control and use it
-	 * to verify the values returned by pa_shard_nactive() is accurate.
-	 * This also helps verify the correctness of approximate_stats.active
+	 * to verify that the values returned by pa_shard_nactive() are accurate.
+	 * This also helps verify the correctness of approximate_stats.active,
 	 * since it simply sums the pa_shard_nactive() of all arenas.
 	 */
 	tsdn_t  *tsdn = tsdn_fetch();
@@ -519,16 +523,24 @@ TEST_BEGIN(test_approximate_stats_active) {
 	dallocx(p_large, MALLOCX_TCACHE_NONE);
 
 	size_t nactive_final = pa_shard_nactive(&arena->pa_shard);
-	expect_zu_ge(nactive_final - nactive_after_large,
+	expect_zu_ge(nactive_after_large - nactive_final,
 	    expected_small_pages + expected_large_pages,
 	    "nactive should return to original value after deallocation");
 
 	/*
-	 * Test 2: allocate a large allocation in the auto arena and confirm
-	 * that approximate_stats.active increases.  Since there may be other
-	 * allocs/dallocs going on, cannot make more accurate assertions like
-	 * Test 1.
+	 * Test 2: allocate in an automatically managed arena.  Make the
+	 * allocation larger than all active memory measured before it, so that
+	 * approximate_stats.active must cover the live allocation regardless of
+	 * concurrent deallocations.
 	 */
+	unsigned current_arena_ind;
+	sz = sizeof(current_arena_ind);
+	expect_d_eq(mallctl("thread.arena", (void *)&current_arena_ind, &sz,
+	                NULL, 0),
+	    0, "Unexpected mallctl() result");
+	expect_u_lt(current_arena_ind, narenas_auto,
+	    "Expected thread to use an automatically managed arena");
+
 	size_t approximate_active_before = 0;
 	size_t approximate_active_after = 0;
 	sz = sizeof(size_t);
@@ -536,16 +548,20 @@ TEST_BEGIN(test_approximate_stats_active) {
 	                (void *)&approximate_active_before, &sz, NULL, 0),
 	    0, "Unexpected mallctl() result");
 
-	void *p0 = mallocx(4 * SC_SMALL_MAXCLASS, MALLOCX_TCACHE_NONE);
+	test_skip_if(approximate_active_before
+	    > SC_LARGE_MAXCLASS - SC_LARGE_MINCLASS);
+	size_t alloc_size = approximate_active_before + SC_LARGE_MINCLASS;
+	void *p0 = mallocx(alloc_size, MALLOCX_TCACHE_NONE);
 	expect_ptr_not_null(p0, "Unexpected mallocx() failure");
+	size_t usable = sallocx(p0, 0);
 
 	expect_d_eq(mallctl("approximate_stats.active",
 	                (void *)&approximate_active_after, &sz, NULL, 0),
 	    0, "Unexpected mallctl() result");
-	expect_zu_gt(approximate_active_after, approximate_active_before,
-	    "approximate_stats.active should increase after the allocation");
+	expect_zu_ge(approximate_active_after, usable,
+	    "approximate_stats.active should cover the live allocation");
 
-	free(p0);
+	dallocx(p0, MALLOCX_TCACHE_NONE);
 }
 TEST_END
 
