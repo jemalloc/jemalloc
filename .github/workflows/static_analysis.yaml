@@ -7,7 +7,7 @@ jobs:
       # We build libunwind ourselves because sadly the version
       # provided by Ubuntu via apt-get is much too old.
       - name: Check out libunwind
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: libunwind/libunwind
           path: libunwind
@@ -23,7 +23,7 @@ jobs:
           cd ..
           rm -rf libunwind
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       # We download LLVM directly from the latest stable release
       # on GitHub, because this tends to be much newer than the
       # version available via apt-get in Ubuntu.

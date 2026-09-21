@@ -325,7 +325,7 @@ def generate_linux_job(arch):
 
     job += f"""
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     - name: Show OS version
       run: |
@@ -448,7 +448,7 @@ def generate_macos_job(arch):
 
     job += f"""
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     - name: Show OS version
       run: |
@@ -548,7 +548,7 @@ def generate_windows_job(arch):
 
     job += f"""
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     - name: Show OS version
       shell: cmd
@@ -669,7 +669,7 @@ def generate_freebsd_job(arch):
     name: FreeBSD (${{{{ matrix.arch }}}}, debug=${{{{ matrix.debug }}}}, prof=${{{{ matrix.prof }}}}${{{{ matrix.uncommon && ', uncommon' || '' }}}})
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       with:
         fetch-depth: 1
 
@@ -735,7 +735,7 @@ def generate_illumos_job(arch):
             packages: ooce/developer/clang-20
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       with:
         fetch-depth: 1
 
@@ -773,7 +773,7 @@ def generate_linux_lto_job():
     return """  test-linux-lto-fiber-safe-tls:
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Install clang, lld and llvm
       run: |
