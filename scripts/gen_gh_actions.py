@@ -792,6 +792,20 @@ def generate_linux_lto_job():
 """
 
 
+def generate_linux_build_include_order_job():
+    """Dedicated native GCC lane for build include path ordering."""
+    return """  test-linux-build-include-order:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Test build include path ordering
+      run: |
+        autoconf
+        CC=gcc CXX=g++ ./scripts/test_build_include_order.sh
+"""
+
+
 def main():
     import sys
 
@@ -803,6 +817,7 @@ def main():
             generate_linux_job(AMD64),
             generate_linux_job(ARM64),
             generate_linux_lto_job(),
+            generate_linux_build_include_order_job(),
         ))
         print(GITHUB_ACTIONS_TEMPLATE.format(name='Linux CI', jobs=jobs))
 
@@ -831,6 +846,7 @@ def main():
             generate_linux_job(AMD64),
             generate_linux_job(ARM64),
             generate_linux_lto_job(),
+            generate_linux_build_include_order_job(),
         ))
         macos_jobs = '\n'.join((
             generate_macos_job(AMD64),   # Intel
