@@ -1406,32 +1406,56 @@ JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN smallocx_return_t
 #	undef JEMALLOC_SMALLOCX_CONCAT_HELPER2
 #endif
 
-JEMALLOC_EXPORT
-JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
-JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(1)
-    je_mallocx(size_t size, int flags) {
+JEMALLOC_ALWAYS_INLINE void
+mallocx_default_opts_init(static_opts_t *sopts, dynamic_opts_t *dopts,
+    void **result, size_t size) {
+	static_opts_init(sopts);
+	dynamic_opts_init(dopts);
+
+	sopts->assert_nonempty_alloc = true;
+	sopts->null_out_result_on_error = true;
+	sopts->oom_string = "<jemalloc>: Error in mallocx(): out of memory\n";
+
+	dopts->result = result;
+	dopts->num_items = 1;
+	dopts->item_size = size;
+}
+
+JEMALLOC_NOINLINE
+static void *
+mallocx_default(size_t size) {
 	void          *ret;
 	static_opts_t  sopts;
 	dynamic_opts_t dopts;
 
+	mallocx_default_opts_init(&sopts, &dopts, &ret, size);
+
+	imalloc(&sopts, &dopts);
+
+	return ret;
+}
+
+JEMALLOC_EXPORT
+JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
+JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(1)
+    je_mallocx(size_t size, int flags) {
 	LOG("core.mallocx.entry", "size: %zu, flags: %d", size, flags);
 
-	static_opts_init(&sopts);
-	dynamic_opts_init(&dopts);
-
-	sopts.assert_nonempty_alloc = true;
-	sopts.null_out_result_on_error = true;
-	sopts.oom_string = "<jemalloc>: Error in mallocx(): out of memory\n";
-
-	dopts.result = &ret;
-	dopts.num_items = 1;
-	dopts.item_size = size;
-	if (unlikely(flags != 0)) {
-		dopts.alignment = MALLOCX_ALIGN_GET(flags);
-		dopts.zero = MALLOCX_ZERO_GET(flags);
-		dopts.tcache_ind = mallocx_tcache_get(flags);
-		dopts.arena_ind = mallocx_arena_get(flags);
+	if (likely(flags == 0)) {
+		void *ret = imalloc_fastpath(size, &mallocx_default);
+		LOG("core.mallocx.exit", "result: %p", ret);
+		return ret;
 	}
+
+	void          *ret;
+	static_opts_t  sopts;
+	dynamic_opts_t dopts;
+
+	mallocx_default_opts_init(&sopts, &dopts, &ret, size);
+	dopts.alignment = MALLOCX_ALIGN_GET(flags);
+	dopts.zero = MALLOCX_ZERO_GET(flags);
+	dopts.tcache_ind = mallocx_tcache_get(flags);
+	dopts.arena_ind = mallocx_arena_get(flags);
 
 	imalloc(&sopts, &dopts);
 
@@ -1882,6 +1906,12 @@ je_dallocx(void *ptr, int flags) {
 
 	assert(ptr != NULL);
 	assert(malloc_initialized() || malloc_is_initializer());
+
+	if (likely(flags == 0)) {
+		je_free_impl(ptr);
+		LOG("core.dallocx.exit", "");
+		return;
+	}
 
 	UTRACE(ptr, 0, 0);
 	if (unlikely(dealloc_no_tsd(ptr))) {
