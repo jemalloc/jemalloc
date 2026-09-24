@@ -537,9 +537,11 @@ free_fastpath(void *ptr, size_t size, bool size_hint) {
 		return true;
 	}
 
-	tcache_t    *tcache = tcache_get_from_ind(tsd, TCACHE_IND_AUTOMATIC,
-	       /* slow */ false, /* is_alloc */ false);
+	tcache_t    *tcache = tsd_tcachep_get(tsd);
+	assert(tcache == tcache_get(tsd));
+	assert(tcache != NULL);
 	cache_bin_t *bin = &tcache->bins[alloc_ctx.szind];
+	assert(bin != NULL);
 
 	/*
          * If junking were enabled, this is where we would do it.  It's not

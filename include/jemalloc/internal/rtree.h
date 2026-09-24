@@ -168,6 +168,29 @@ rtree_subkey(uintptr_t key, unsigned level) {
 	return ((key >> shiftbits) & mask);
 }
 
+#ifdef RTREE_LEAF_COMPACT
+typedef uintptr_t rtree_leaf_elm_bits_t;
+#else
+typedef unsigned rtree_leaf_elm_bits_t;
+#endif
+
+JEMALLOC_ALWAYS_INLINE rtree_metadata_t
+rtree_leaf_elm_metadata_decode(rtree_leaf_elm_bits_t bits) {
+	rtree_metadata_t metadata;
+#ifdef RTREE_LEAF_COMPACT
+	metadata.szind = bits >> LG_VADDR;
+#else
+	metadata.szind = bits >> (RTREE_LEAF_STATE_SHIFT + RTREE_LEAF_STATE_WIDTH);
+#endif
+	metadata.slab = (bool)(bits & 1);
+	metadata.is_head = (bool)(bits & (1 << 1));
+	uintptr_t state_bits = (bits & RTREE_LEAF_STATE_MASK)
+	    >> RTREE_LEAF_STATE_SHIFT;
+	assert(state_bits <= extent_state_max);
+	metadata.state = (extent_state_t)state_bits;
+	return metadata;
+}
+
 /*
  * Atomic getters.
  *
@@ -208,15 +231,7 @@ rtree_leaf_elm_bits_encode(rtree_contents_t contents) {
 JEMALLOC_ALWAYS_INLINE rtree_contents_t
 rtree_leaf_elm_bits_decode(uintptr_t bits) {
 	rtree_contents_t contents;
-	/* Do the easy things first. */
-	contents.metadata.szind = bits >> LG_VADDR;
-	contents.metadata.slab = (bool)(bits & 1);
-	contents.metadata.is_head = (bool)(bits & (1 << 1));
-
-	uintptr_t state_bits = (bits & RTREE_LEAF_STATE_MASK)
-	    >> RTREE_LEAF_STATE_SHIFT;
-	assert(state_bits <= extent_state_max);
-	contents.metadata.state = (extent_state_t)state_bits;
+	contents.metadata = rtree_leaf_elm_metadata_decode(bits);
 
 	uintptr_t low_bit_mask = ~((uintptr_t)EDATA_ALIGNMENT - 1);
 #	ifdef __aarch64__
@@ -253,20 +268,25 @@ rtree_leaf_elm_read(
 	rtree_contents_t contents;
 	unsigned         metadata_bits = atomic_load_u(
             &elm->le_metadata, dependent ? ATOMIC_RELAXED : ATOMIC_ACQUIRE);
-	contents.metadata.slab = (bool)(metadata_bits & 1);
-	contents.metadata.is_head = (bool)(metadata_bits & (1 << 1));
-
-	uintptr_t state_bits = (metadata_bits & RTREE_LEAF_STATE_MASK)
-	    >> RTREE_LEAF_STATE_SHIFT;
-	assert(state_bits <= extent_state_max);
-	contents.metadata.state = (extent_state_t)state_bits;
-	contents.metadata.szind = metadata_bits
-	    >> (RTREE_LEAF_STATE_SHIFT + RTREE_LEAF_STATE_WIDTH);
+	contents.metadata = rtree_leaf_elm_metadata_decode(metadata_bits);
 
 	contents.edata = (edata_t *)atomic_load_p(
 	    &elm->le_edata, dependent ? ATOMIC_RELAXED : ATOMIC_ACQUIRE);
 
 	return contents;
+#endif
+}
+
+JEMALLOC_ALWAYS_INLINE rtree_metadata_t
+rtree_leaf_elm_read_metadata(
+    tsdn_t *tsdn, rtree_t *rtree, rtree_leaf_elm_t *elm, bool dependent) {
+#ifdef RTREE_LEAF_COMPACT
+	uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm, dependent);
+	return rtree_leaf_elm_metadata_decode(bits);
+#else
+	unsigned metadata_bits = atomic_load_u(
+            &elm->le_metadata, dependent ? ATOMIC_RELAXED : ATOMIC_ACQUIRE);
+	return rtree_leaf_elm_metadata_decode(metadata_bits);
 #endif
 }
 
@@ -458,9 +478,8 @@ rtree_metadata_read(
 	rtree_leaf_elm_t *elm = rtree_leaf_elm_lookup(tsdn, rtree, rtree_ctx,
 	    key, /* dependent */ true, /* init_missing */ false);
 	assert(elm != NULL);
-	return rtree_leaf_elm_read(tsdn, rtree, elm,
-	    /* dependent */ true)
-	    .metadata;
+	return rtree_leaf_elm_read_metadata(tsdn, rtree, elm,
+	    /* dependent */ true);
 }
 
 /*
@@ -480,9 +499,8 @@ rtree_metadata_try_read_fast(tsdn_t *tsdn, rtree_t *rtree,
 		return true;
 	}
 	assert(elm != NULL);
-	*r_rtree_metadata = rtree_leaf_elm_read(tsdn, rtree, elm,
-	    /* dependent */ true)
-	                        .metadata;
+	*r_rtree_metadata = rtree_leaf_elm_read_metadata(tsdn, rtree, elm,
+	    /* dependent */ true);
 	return false;
 }
 
