@@ -606,20 +606,20 @@ extent_recycle_split(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks,
 		 * fulfill our allocation request.
 		 */
 		assert(result == extent_split_interior_error);
+		malloc_mutex_unlock(tsdn, &ecache->mtx);
+		if (growing_retained) {
+			malloc_mutex_unlock(tsdn, &pac->grow_mtx);
+		}
 		if (to_salvage != NULL) {
-			extent_deregister(tsdn, pac, to_salvage);
+			extent_dalloc_wrapper(tsdn, pac, ehooks, to_salvage);
 		}
 		if (to_leak != NULL) {
-			extent_deregister_no_gdump_sub(tsdn, pac, to_leak);
-			/*
-			 * May go down the purge path (which assume no ecache
-			 * locks).  Only happens with OOM caused split failures.
-			 */
-			malloc_mutex_unlock(tsdn, &ecache->mtx);
-			extents_abandon_vm(tsdn, pac, ehooks, ecache, to_leak,
-			    growing_retained);
-			malloc_mutex_lock(tsdn, &ecache->mtx);
+			extent_dalloc_wrapper(tsdn, pac, ehooks, to_leak);
 		}
+		if (growing_retained) {
+			malloc_mutex_lock(tsdn, &pac->grow_mtx);
+		}
+		malloc_mutex_lock(tsdn, &ecache->mtx);
 		return NULL;
 	}
 	unreachable();
@@ -804,6 +804,7 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 		 * cant_alloc case should not occur.
 		 */
 		assert(result == extent_split_interior_error);
+		malloc_mutex_unlock(tsdn, &pac->grow_mtx);
 		if (to_salvage != NULL) {
 			if (config_prof) {
 				extent_gdump_add(tsdn, to_salvage);
@@ -811,11 +812,12 @@ extent_grow_retained(tsdn_t *tsdn, pac_t *pac, ehooks_t *ehooks, size_t size,
 			pac_record_grown(tsdn, pac, ehooks, to_salvage);
 		}
 		if (to_leak != NULL) {
-			extent_deregister_no_gdump_sub(tsdn, pac, to_leak);
-			extents_abandon_vm(tsdn, pac, ehooks,
-			    &pac->ecache_retained, to_leak, true);
+			if (config_prof) {
+				extent_gdump_add(tsdn, to_leak);
+			}
+			extent_dalloc_wrapper(tsdn, pac, ehooks, to_leak);
 		}
-		goto label_err;
+		return NULL;
 	}
 
 	if (*commit && !edata_committed_get(edata)) {
