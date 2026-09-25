@@ -281,6 +281,7 @@ prof_free(
 
 	if (unlikely(prof_tctx_is_valid(prof_info.alloc_tctx))) {
 		assert(prof_sample_aligned(ptr));
+		prof_sample_free_usdt(ptr);
 		prof_free_sampled_object(tsd, ptr, usize, &prof_info);
 	}
 }

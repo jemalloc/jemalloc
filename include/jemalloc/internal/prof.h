@@ -106,6 +106,11 @@ typedef struct prof_recent_s prof_recent_t;
 /* NOLINTNEXTLINE(performance-no-int-to-ptr) */
 #define PROF_TCTX_SENTINEL ((prof_tctx_t *)((uintptr_t)1U))
 
+JEMALLOC_ALWAYS_INLINE bool
+prof_tctx_is_sampled(const prof_tctx_t *tctx) {
+	return tctx != NULL && tctx != PROF_TCTX_SENTINEL;
+}
+
 /******************************************************************************/
 /* STRUCTS */
 /******************************************************************************/
@@ -395,6 +400,7 @@ void prof_malloc_sample_object(
     tsd_t *tsd, const void *ptr, size_t size, size_t usize, prof_tctx_t *tctx);
 void prof_free_sampled_object(
     tsd_t *tsd, const void *ptr, size_t usize, prof_info_t *prof_info);
+void prof_sample_free_usdt(const void *ptr);
 prof_tctx_t *prof_tctx_create(tsd_t *tsd);
 void         prof_idump(tsdn_t *tsdn);
 bool         prof_mdump(tsd_t *tsd, const char *filename);
