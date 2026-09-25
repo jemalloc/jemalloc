@@ -1039,7 +1039,8 @@ dealloc_no_tsd(void *ptr) {
 	 * returned to the arena):
 	 *   - Profiling: prof_free() is skipped, so a sampled object is not
 	 *     unregistered from its prof context; its bytes stay counted as live
-	 *     in prof stats and in any final heap/leak dump.
+	 *     in prof stats and in any final heap/leak dump.  Likewise, no
+	 *     otel_memory:free USDT probe fires for it.
 	 *   - Junk filling: opt_junk_free is not applied to the freed region.
 	 *   - Sized dealloc: for sdallocx() the caller-supplied size is ignored
 	 *     (szind is looked up from the extent map), so the sized-dealloc
@@ -1505,6 +1506,17 @@ irallocx_prof(tsd_t *tsd, void *old_ptr, size_t old_usize, size_t size,
 	bool         sample_event = prof_sample_lookahead(tsd, usize);
 	prof_tctx_t *tctx = prof_alloc_prep(tsd, prof_active, sample_event);
 	void        *p;
+	/*
+	 * Retire the old sample before old_ptr can be freed and its address
+	 * reused by another thread.  If the realloc then fails, the object
+	 * stays live but has already been reported as freed.  Emitting only
+	 * on success would require passing the sampled state down the realloc
+	 * paths or extra metadata lookups before the free; we choose
+	 * simplicity.
+	 */
+	if (unlikely(prof_tctx_is_sampled(old_prof_info.alloc_tctx))) {
+		prof_sample_free_usdt(old_ptr);
+	}
 	if (unlikely(tctx != PROF_TCTX_SENTINEL)) {
 		p = irallocx_prof_sample(tsd_tsdn(tsd), old_ptr, old_usize,
 		    usize, alignment, zero, tcache, arena, tctx);
@@ -1779,6 +1791,9 @@ ixallocx_prof(tsd_t *tsd, void *ptr, size_t old_usize, size_t size,
 		    tsd, ptr, &new_alloc_ctx, &prof_info);
 		assert(usize <= usize_max);
 		sample_event = prof_sample_lookahead(tsd, usize);
+		if (unlikely(prof_tctx_is_sampled(prof_info.alloc_tctx))) {
+			prof_sample_free_usdt(ptr);
+		}
 		prof_realloc(tsd, ptr, size, usize, tctx, prof_active, ptr,
 		    old_usize, &prof_info, sample_event);
 	}

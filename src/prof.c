@@ -5,6 +5,7 @@
 #include "jemalloc/internal/counter.h"
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_a.h"
+#include "jemalloc/internal/jemalloc_probe.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/prof.h"
 #include "jemalloc/internal/prof_data.h"
@@ -115,6 +116,42 @@ prof_alloc_rollback(tsd_t *tsd, prof_tctx_t *tctx) {
 	}
 }
 
+/*
+ * See prof_sample_new_event_wait() comment for why the body of this function
+ * is conditionally compiled.
+ */
+JET_EXTERN uint64_t
+prof_sample_weighted_size(size_t size, size_t usize, size_t unbiased_size) {
+#ifdef JEMALLOC_PROF
+	/*
+	 * This is the Horvitz-Thompson estimator for jemalloc's Poisson byte
+	 * sampling.  For usable size usize and mean sampling interval R:
+	 *
+	 *   sampling_probability = 1 - exp(-usize / R)
+	 *   weighted_size = size / sampling_probability
+	 *
+	 * The USDT contract uses application-requested size, whereas sampling is
+	 * based on usable size.  We already calculate the probability when
+	 * building the unbiasing tables and store the corresponding unbiased
+	 * usable size:
+	 *
+	 *   unbiased_size ~= usize / sampling_probability
+	 *
+	 * Therefore, for application-requested size:
+	 *
+	 *   weighted_size = size * unbiased_size / usize
+	 *                 ~= size / sampling_probability
+	 */
+	assert(usize != 0);
+	assert(size <= usize);
+	return (uint64_t)round(
+	    (double)size * (double)unbiased_size / (double)usize);
+#else
+	not_reached();
+	return 0;
+#endif
+}
+
 void
 prof_malloc_sample_object(
     tsd_t *tsd, const void *ptr, size_t size, size_t usize, prof_tctx_t *tctx) {
@@ -143,6 +180,8 @@ prof_malloc_sample_object(
 	 */
 	size_t shifted_unbiased_cnt = prof_shifted_unbiased_cnt[szind];
 	size_t unbiased_bytes = prof_unbiased_sz[szind];
+	uint64_t weighted_size = prof_sample_weighted_size(
+	    size, usize, unbiased_bytes);
 	tctx->cnts.curobjs++;
 	tctx->cnts.curobjs_shifted_unbiased += shifted_unbiased_cnt;
 	tctx->cnts.curbytes += usize;
@@ -165,6 +204,8 @@ prof_malloc_sample_object(
 		prof_stats_inc(tsd, szind, size);
 	}
 
+	JE_USDT(otel_memory, alloc, 3, ptr, (uint64_t)size, weighted_size);
+
 	/* Sample hook. */
 	prof_sample_hook_t prof_sample_hook = prof_sample_hook_get();
 	if (prof_sample_hook != NULL) {
@@ -173,6 +214,11 @@ prof_malloc_sample_object(
 		prof_sample_hook(ptr, size, bt->vec, bt->len, usize);
 		post_reentrancy(tsd);
 	}
+}
+
+JEMALLOC_NOINLINE void
+prof_sample_free_usdt(const void *ptr) {
+	JE_USDT(otel_memory, free, 1, ptr);
 }
 
 void
