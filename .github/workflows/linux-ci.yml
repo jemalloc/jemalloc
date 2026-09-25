@@ -747,4 +747,14 @@ jobs:
         make -j3 tests EXTRA_LDFLAGS="-flto=thin -fuse-ld=lld"
         make check
 
+  test-linux-build-include-order:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Test build include path ordering
+      run: |
+        autoconf
+        CC=gcc CXX=g++ ./scripts/test_build_include_order.sh
+
 
