@@ -19,16 +19,26 @@
 
 /* Number of high insignificant bits. */
 #define RTREE_NHIB ((1U << (LG_SIZEOF_PTR + 3)) - LG_VADDR)
+
 /* Number of low insigificant bits. */
 #define RTREE_NLIB LG_PAGE
+#define RTREE_NLIB_MIN LG_PAGE_OR_MIN
+
 /* Number of significant bits. */
-#define RTREE_NSB (LG_VADDR - RTREE_NLIB)
+#define RTREE_NSB_FOR(_rtree_nlib) (LG_VADDR - (_rtree_nlib))
+#define RTREE_NSB RTREE_NSB_FOR(RTREE_NLIB)
+#ifdef DYNAMIC_PAGE_SIZE
+#	define RTREE_NSB_MAX RTREE_NSB_FOR(RTREE_NLIB_MIN)
+#else /* DYNAMIC_PAGE_SIZE */
+#	define RTREE_NSB_MAX RTREE_NSB
+#endif /* DYNAMIC_PAGE_SIZE */
+
 /* Number of levels in radix tree. */
-#if RTREE_NSB <= 10
+#if RTREE_NSB_MAX <= 10
 #	define RTREE_HEIGHT 1
-#elif RTREE_NSB <= 36
+#elif RTREE_NSB_MAX <= 36
 #	define RTREE_HEIGHT 2
-#elif RTREE_NSB <= 52
+#elif RTREE_NSB_MAX <= 52
 #	define RTREE_HEIGHT 3
 #else
 #	error Unsupported number of significant virtual address bits
@@ -105,9 +115,9 @@ struct rtree_s {
 	malloc_mutex_t init_lock;
 	/* Number of elements based on rtree_levels[0].bits. */
 #if RTREE_HEIGHT > 1
-	rtree_node_elm_t root[1U << (RTREE_NSB / RTREE_HEIGHT)];
+	rtree_node_elm_t root[1U << (RTREE_NSB_MAX / RTREE_HEIGHT)];
 #else
-	rtree_leaf_elm_t root[1U << (RTREE_NSB / RTREE_HEIGHT)];
+	rtree_leaf_elm_t root[1U << (RTREE_NSB_MAX / RTREE_HEIGHT)];
 #endif
 };
 
@@ -117,21 +127,40 @@ struct rtree_s {
  * number of levels, place one remainder bit per level starting at the leaf
  * level.
  */
+
+/* RTREE_HEIGHT == 1 */
+#define RTREE_LEVELS_1_0 {RTREE_NSB, RTREE_NHIB + RTREE_NSB}
+
+/* RTREE_HEIGHT == 2 */
+#define RTREE_LEVELS_2_0 {RTREE_NSB / 2, RTREE_NHIB + RTREE_NSB / 2}
+#define RTREE_LEVELS_2_1 {RTREE_NSB / 2 + RTREE_NSB % 2, RTREE_NHIB + RTREE_NSB}
+
+/* RTREE_HEIGHT == 3 */
+#define RTREE_LEVELS_3_0 {RTREE_NSB / 3, RTREE_NHIB + RTREE_NSB / 3}
+#define RTREE_LEVELS_3_1                                                       \
+	{RTREE_NSB / 3 + RTREE_NSB % 3 / 2,                                    \
+	    RTREE_NHIB + RTREE_NSB / 3 * 2 + RTREE_NSB % 3 / 2}
+#define RTREE_LEVELS_3_2                                                       \
+	{RTREE_NSB / 3 + RTREE_NSB % 3 - RTREE_NSB % 3 / 2,                    \
+	    RTREE_NHIB + RTREE_NSB}
+
+#ifdef DYNAMIC_PAGE_SIZE
+/* we will initialize the array when rtree is constructed */
+extern rtree_level_t rtree_levels[RTREE_HEIGHT];
+#else /* DYNAMIC_PAGE_SIZE */
+/* we keep this as a constant when dynamic page size is disabled */
 static const rtree_level_t rtree_levels[] = {
-#if RTREE_HEIGHT == 1
-    {RTREE_NSB, RTREE_NHIB + RTREE_NSB}
-#elif RTREE_HEIGHT == 2
-    {RTREE_NSB / 2, RTREE_NHIB + RTREE_NSB / 2},
-    {RTREE_NSB / 2 + RTREE_NSB % 2, RTREE_NHIB + RTREE_NSB}
-#elif RTREE_HEIGHT == 3
-    {RTREE_NSB / 3, RTREE_NHIB + RTREE_NSB / 3},
-    {RTREE_NSB / 3 + RTREE_NSB % 3 / 2,
-        RTREE_NHIB + RTREE_NSB / 3 * 2 + RTREE_NSB % 3 / 2},
-    {RTREE_NSB / 3 + RTREE_NSB % 3 - RTREE_NSB % 3 / 2, RTREE_NHIB + RTREE_NSB}
-#else
-#	error Unsupported rtree height
-#endif
+#	if RTREE_HEIGHT == 1
+    RTREE_LEVELS_1_0
+#	elif RTREE_HEIGHT == 2
+    RTREE_LEVELS_2_0, RTREE_LEVELS_2_1
+#	elif RTREE_HEIGHT == 3
+    RTREE_LEVELS_3_0, RTREE_LEVELS_3_1, RTREE_LEVELS_3_2
+#	else
+#		error Unsupported rtree height
+#	endif
 };
+#endif /* DYNAMIC_PAGE_SIZE */
 
 bool rtree_new(rtree_t *rtree, base_t *base, bool zeroed);
 
@@ -139,7 +168,9 @@ rtree_leaf_elm_t *rtree_leaf_elm_lookup_hard(tsdn_t *tsdn, rtree_t *rtree,
     rtree_ctx_t *rtree_ctx, uintptr_t key, bool dependent, bool init_missing);
 
 JEMALLOC_ALWAYS_INLINE unsigned
-rtree_leaf_maskbits(void) {
+rtree_calc_leaf_maskbits(void) {
+	assert(rtree_levels[RTREE_HEIGHT - 1].bits != 0);
+	assert(rtree_levels[RTREE_HEIGHT - 1].cumbits != 0);
 	unsigned ptrbits = ZU(1) << (LG_SIZEOF_PTR + 3);
 	unsigned cumbits = (rtree_levels[RTREE_HEIGHT - 1].cumbits
 	    - rtree_levels[RTREE_HEIGHT - 1].bits);
@@ -147,10 +178,36 @@ rtree_leaf_maskbits(void) {
 }
 
 JEMALLOC_ALWAYS_INLINE uintptr_t
-rtree_leafkey(uintptr_t key) {
-	uintptr_t mask = ~((ZU(1) << rtree_leaf_maskbits()) - 1);
-	return (key & mask);
+rtree_calc_leafkey_mask(void) {
+	return ~((ZU(1) << rtree_calc_leaf_maskbits()) - 1);
 }
+
+#ifdef DYNAMIC_PAGE_SIZE
+extern unsigned  rtree_leaf_maskbits_value;
+extern uintptr_t rtree_leafkey_mask_value;
+
+JEMALLOC_ALWAYS_INLINE unsigned
+rtree_leaf_maskbits(void) {
+	assert(rtree_leaf_maskbits_value != 0);
+	return rtree_leaf_maskbits_value;
+}
+
+JEMALLOC_ALWAYS_INLINE uintptr_t
+rtree_leafkey(uintptr_t key) {
+	assert(rtree_leafkey_mask_value != 0);
+	return (key & rtree_leafkey_mask_value);
+}
+#else  /* DYNAMIC_PAGE_SIZE */
+JEMALLOC_ALWAYS_INLINE unsigned
+rtree_leaf_maskbits(void) {
+	return rtree_calc_leaf_maskbits();
+}
+
+JEMALLOC_ALWAYS_INLINE uintptr_t
+rtree_leafkey(uintptr_t key) {
+	return (key & rtree_calc_leafkey_mask());
+}
+#endif /* DYNAMIC_PAGE_SIZE */
 
 JEMALLOC_ALWAYS_INLINE size_t
 rtree_cache_direct_map(uintptr_t key) {
@@ -160,6 +217,8 @@ rtree_cache_direct_map(uintptr_t key) {
 
 JEMALLOC_ALWAYS_INLINE uintptr_t
 rtree_subkey(uintptr_t key, unsigned level) {
+	assert(rtree_levels[level].bits != 0);
+	assert(rtree_levels[level].cumbits != 0);
 	unsigned  ptrbits = ZU(1) << (LG_SIZEOF_PTR + 3);
 	unsigned  cumbits = rtree_levels[level].cumbits;
 	unsigned  shiftbits = ptrbits - cumbits;

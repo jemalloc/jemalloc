@@ -37,7 +37,7 @@ static atomic_zd_t muzzy_decay_ms_default;
 emap_t              arena_emap_global;
 static pa_central_t arena_pa_central_global;
 
-div_info_t arena_binind_div_info[SC_NBINS];
+div_info_t arena_binind_div_info[SC_NBINS_MAX];
 
 JET_EXTERN void
 bin_dalloc_locked_begin(
@@ -50,7 +50,7 @@ bin_dalloc_locked_begin(
 size_t opt_oversize_threshold = OVERSIZE_THRESHOLD_DEFAULT;
 size_t oversize_threshold = OVERSIZE_THRESHOLD_DEFAULT;
 
-uint32_t        arena_bin_offsets[SC_NBINS];
+uint32_t        arena_bin_offsets[SC_NBINS_MAX];
 static unsigned nbins_total;
 
 /*
@@ -173,7 +173,7 @@ arena_stats_merge(tsdn_t *tsdn, arena_t *arena, unsigned *nthreads,
 	malloc_mutex_lock(tsdn, &arena->cache_bin_array_descriptor_ql_mtx);
 	cache_bin_array_descriptor_t *descriptor;
 	ql_foreach (descriptor, &arena->cache_bin_array_descriptor_ql, link) {
-		for (szind_t i = 0; i < TCACHE_NBINS_MAX; i++) {
+		for (szind_t i = 0; i < TCACHE_NBINS; i++) {
 			cache_bin_t *cache_bin = &descriptor->bins[i];
 			if (cache_bin_disabled(cache_bin)) {
 				continue;
@@ -238,7 +238,7 @@ static void
 arena_cache_bin_stats_flush(tsdn_t *tsdn, arena_t *arena,
     cache_bin_array_descriptor_t *desc) {
 	cassert(config_stats);
-	for (unsigned i = 0; i < TCACHE_NBINS_MAX; i++) {
+	for (unsigned i = 0; i < TCACHE_NBINS; i++) {
 		cache_bin_t *cache_bin = &desc->bins[i];
 		if (cache_bin_disabled(cache_bin)) {
 			continue;
@@ -973,7 +973,7 @@ arena_ptr_array_flush_metadata_visitor(
     void *szind_sum_ctx, emap_full_alloc_ctx_t *alloc_ctx) {
 	size_t *szind_sum = (size_t *)szind_sum_ctx;
 	*szind_sum -= alloc_ctx->szind;
-	util_prefetch_write_range(alloc_ctx->edata, sizeof(edata_t));
+	util_prefetch_write_range(alloc_ctx->edata, EDATA_ALLOC_SIZE);
 }
 
 JEMALLOC_NOINLINE static void

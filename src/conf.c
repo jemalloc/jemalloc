@@ -300,9 +300,6 @@ conf_handle_char_p(const char *v, size_t vlen, char *dest, size_t dest_sz) {
 
 JEMALLOC_DIAGNOSTIC_POP
 
-/* Number of sources for initializing malloc_conf */
-#define MALLOC_CONF_NSOURCES 5
-
 static const char *
 obtain_malloc_conf(unsigned which_source, char readlink_buf[PATH_MAX + 1]) {
 	if (config_debug) {
@@ -417,7 +414,8 @@ validate_hpa_settings(void) {
 }
 
 static void
-malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
+malloc_conf_init_helper(sc_data_t *sc_data,
+	unsigned bin_shard_sizes[SC_NBINS_MAX],
     bool initial_call, const char *opts_cache[MALLOC_CONF_NSOURCES],
     char readlink_buf[PATH_MAX + 1]) {
 	static const char *opts_explain[MALLOC_CONF_NSOURCES] = {
@@ -485,6 +483,8 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 
 #define CONF_DONT_CHECK_MIN(um, min) false
 #define CONF_CHECK_MIN(um, min) ((um) < (min))
+/* Like CONF_CHECK_MIN, except 0 is a valid sentinel rather than a minimum. */
+#define CONF_CHECK_MIN_OR_ZERO(um, min) ((um) != 0 && (um) < (min))
 #define CONF_DONT_CHECK_MAX(um, max) false
 #define CONF_CHECK_MAX(um, max) ((um) > (max))
 
@@ -551,11 +551,24 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			bool cur_opt_valid = true;
 
 			CONF_HANDLE_BOOL(opt_confirm_conf, "confirm_conf")
+			CONF_HANDLE_BOOL(opt_abort, "abort")
+#ifdef DYNAMIC_PAGE_SIZE
+			/*
+			 * Handled in the initial pass, since pages_pre_boot()
+			 * consumes it before the main pass runs.  0 means
+			 * derive the page size from the OS page size.  A page
+			 * size below the OS page size is rejected by
+			 * pages_pre_boot(), which is the first point at which
+			 * the OS page size is known.
+			 */
+			CONF_HANDLE_UNSIGNED(opt_lg_page, "lg_page",
+			    MIN_LG_PAGE, MAX_LG_PAGE, CONF_CHECK_MIN_OR_ZERO,
+			    CONF_CHECK_MAX, false)
+#endif /* DYNAMIC_PAGE_SIZE */
 			if (initial_call) {
 				continue;
 			}
 
-			CONF_HANDLE_BOOL(opt_abort, "abort")
 			CONF_HANDLE_BOOL(opt_abort_conf, "abort_conf")
 			CONF_HANDLE_BOOL(opt_cache_oblivious, "cache_oblivious")
 			CONF_HANDLE_BOOL(opt_trust_madvise, "trust_madvise")
@@ -1117,6 +1130,7 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 #undef CONF_HANDLE_BOOL
 #undef CONF_DONT_CHECK_MIN
 #undef CONF_CHECK_MIN
+#undef CONF_CHECK_MIN_OR_ZERO
 #undef CONF_DONT_CHECK_MAX
 #undef CONF_CHECK_MAX
 #undef CONF_HANDLE_T
@@ -1129,6 +1143,8 @@ malloc_conf_init_helper(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 			/* Re-enable diagnostic "-Wtype-limits" */
 			JEMALLOC_DIAGNOSTIC_POP
 		}
+	}
+	if (!initial_call) {
 		validate_hpa_settings();
 		if (opt_abort_conf && had_conf_error) {
 			malloc_abort_invalid_conf();
@@ -1153,14 +1169,28 @@ malloc_conf_init_check_deps(void) {
 	return false;
 }
 
-void
-malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
-    char readlink_buf[PATH_MAX + 1]) {
-	const char *opts_cache[MALLOC_CONF_NSOURCES] = {
-	    NULL, NULL, NULL, NULL, NULL};
+static void
+hpa_pac_opts_init(void) {
+	opt_hpa_opts = (hpa_shard_opts_t)HPA_SHARD_OPTS_DEFAULT;
+	opt_hpa_sec_opts = (sec_opts_t)HPA_SEC_OPTS_DEFAULT;
+	opt_pac_sec_opts = (sec_opts_t)PAC_SEC_OPTS_DEFAULT;
+}
 
-	/* The first call only set the confirm_conf option and opts_cache */
+void
+malloc_conf_init_pre(const char *opts_cache[MALLOC_CONF_NSOURCES],
+	char readlink_buf[PATH_MAX + 1]) {
+	/*
+	 * The first call only sets the confirm_conf and abort options
+	 * and opts_cache.
+	 */
 	malloc_conf_init_helper(NULL, NULL, true, opts_cache, readlink_buf);
+}
+
+void
+malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS_MAX],
+    const char *opts_cache[MALLOC_CONF_NSOURCES]) {
+	hpa_pac_opts_init();
+
 	malloc_conf_init_helper(
 	    sc_data, bin_shard_sizes, false, opts_cache, NULL);
 	if (malloc_conf_init_check_deps()) {
@@ -1170,5 +1200,3 @@ malloc_conf_init(sc_data_t *sc_data, unsigned bin_shard_sizes[SC_NBINS],
 		}
 	}
 }
-
-#undef MALLOC_CONF_NSOURCES
