@@ -203,7 +203,15 @@ struct edata_s {
 #define EDATA_BITS_SZIND_MASK                                                  \
 	MASK(EDATA_BITS_SZIND_WIDTH, EDATA_BITS_SZIND_SHIFT)
 
-#define EDATA_BITS_NFREE_WIDTH (SC_LG_SLAB_MAXREGS + 1)
+/*
+ * The dynamic page size feature sets SC_LG_SLAB_MAXREGS_MAX and
+ * LG_BITMAP_MAXBITS to the largest possible values for the given min/max page
+ * size. Further, the bitmap size also depends on whether the bitmap uses a tree
+ * or not, which is a compilation-time decision (see BITMAP_USE_TREE), as the
+ * tree requires extra bits in the bitmap. So, EDATA_BITS_NFREE_WIDTH is set to
+ * the largest possible value.
+ */
+#define EDATA_BITS_NFREE_WIDTH (SC_LG_SLAB_MAXREGS_MAX + 1)
 #define EDATA_BITS_NFREE_SHIFT (EDATA_BITS_SZIND_WIDTH + EDATA_BITS_SZIND_SHIFT)
 #define EDATA_BITS_NFREE_MASK                                                  \
 	MASK(EDATA_BITS_NFREE_WIDTH, EDATA_BITS_NFREE_SHIFT)
