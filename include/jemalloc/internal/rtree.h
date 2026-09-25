@@ -407,41 +407,37 @@ rtree_leaf_elm_lookup(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	 * Search the L2 LRU cache.  On hit, swap the matching element into the
 	 * slot in L1 cache, and move the position in L2 up by 1.
 	 */
-#define RTREE_CACHE_CHECK_L2(i)                                                \
-	do {                                                                   \
-		if (likely(rtree_ctx->l2_cache[i].leafkey == leafkey)) {       \
-			rtree_leaf_elm_t *leaf = rtree_ctx->l2_cache[i].leaf;  \
-			assert(leaf != NULL);                                  \
-			if (i > 0) {                                           \
-				/* Bubble up by one. */                        \
-				rtree_ctx->l2_cache[i].leafkey =               \
-				    rtree_ctx->l2_cache[i - 1].leafkey;        \
-				rtree_ctx->l2_cache[i].leaf =                  \
-				    rtree_ctx->l2_cache[i - 1].leaf;           \
-				rtree_ctx->l2_cache[i - 1].leafkey =           \
-				    rtree_ctx->cache[slot].leafkey;            \
-				rtree_ctx->l2_cache[i - 1].leaf =              \
-				    rtree_ctx->cache[slot].leaf;               \
-			} else {                                               \
-				rtree_ctx->l2_cache[0].leafkey =               \
-				    rtree_ctx->cache[slot].leafkey;            \
-				rtree_ctx->l2_cache[0].leaf =                  \
-				    rtree_ctx->cache[slot].leaf;               \
-			}                                                      \
-			rtree_ctx->cache[slot].leafkey = leafkey;              \
-			rtree_ctx->cache[slot].leaf = leaf;                    \
-			uintptr_t subkey = rtree_subkey(                       \
-			    key, RTREE_HEIGHT - 1);                            \
-			return &leaf[subkey];                                  \
-		}                                                              \
-	} while (0)
 	/* Check the first cache entry. */
-	RTREE_CACHE_CHECK_L2(0);
+	if (likely(rtree_ctx->l2_cache[0].leafkey == leafkey)) {
+		rtree_leaf_elm_t *leaf = rtree_ctx->l2_cache[0].leaf;
+		assert(leaf != NULL);
+		rtree_ctx->l2_cache[0].leafkey = rtree_ctx->cache[slot].leafkey;
+		rtree_ctx->l2_cache[0].leaf = rtree_ctx->cache[slot].leaf;
+		rtree_ctx->cache[slot].leafkey = leafkey;
+		rtree_ctx->cache[slot].leaf = leaf;
+		uintptr_t subkey = rtree_subkey(key, RTREE_HEIGHT - 1);
+		return &leaf[subkey];
+	}
 	/* Search the remaining cache elements. */
 	for (unsigned i = 1; i < RTREE_CTX_NCACHE_L2; i++) {
-		RTREE_CACHE_CHECK_L2(i);
+		if (likely(rtree_ctx->l2_cache[i].leafkey == leafkey)) {
+			rtree_leaf_elm_t *leaf = rtree_ctx->l2_cache[i].leaf;
+			assert(leaf != NULL);
+			/* Bubble up by one. */
+			rtree_ctx->l2_cache[i].leafkey =
+			    rtree_ctx->l2_cache[i - 1].leafkey;
+			rtree_ctx->l2_cache[i].leaf =
+			    rtree_ctx->l2_cache[i - 1].leaf;
+			rtree_ctx->l2_cache[i - 1].leafkey =
+			    rtree_ctx->cache[slot].leafkey;
+			rtree_ctx->l2_cache[i - 1].leaf =
+			    rtree_ctx->cache[slot].leaf;
+			rtree_ctx->cache[slot].leafkey = leafkey;
+			rtree_ctx->cache[slot].leaf = leaf;
+			uintptr_t subkey = rtree_subkey(key, RTREE_HEIGHT - 1);
+			return &leaf[subkey];
+		}
 	}
-#undef RTREE_CACHE_CHECK_L2
 
 	return rtree_leaf_elm_lookup_hard(
 	    tsdn, rtree, rtree_ctx, key, dependent, init_missing);
@@ -480,6 +476,32 @@ rtree_metadata_read(
 	assert(elm != NULL);
 	return rtree_leaf_elm_read_metadata(tsdn, rtree, elm,
 	    /* dependent */ true);
+}
+
+/*
+ * Fast path for reading only szind and slab from L1 cache.
+ * Returns true if miss in L1 cache.
+ */
+JEMALLOC_ALWAYS_INLINE bool
+rtree_szind_slab_read_fast(tsdn_t *tsdn, rtree_t *rtree,
+    rtree_ctx_t *rtree_ctx, uintptr_t key, szind_t *r_szind, bool *r_slab) {
+	rtree_leaf_elm_t *elm;
+	if (rtree_leaf_elm_lookup_fast(tsdn, rtree, rtree_ctx, key, &elm)) {
+		return true;
+	}
+	assert(elm != NULL);
+#ifdef RTREE_LEAF_COMPACT
+	uintptr_t bits = rtree_leaf_elm_bits_read(tsdn, rtree, elm,
+	    /* dependent */ true);
+	*r_slab = (bool)(bits & 1);
+	*r_szind = (szind_t)(bits >> LG_VADDR);
+#else
+	unsigned metadata_bits = atomic_load_u(
+            &elm->le_metadata, ATOMIC_RELAXED);
+	*r_slab = (bool)(metadata_bits & 1);
+	*r_szind = (szind_t)(metadata_bits >> (RTREE_LEAF_STATE_SHIFT + RTREE_LEAF_STATE_WIDTH));
+#endif
+	return false;
 }
 
 /*

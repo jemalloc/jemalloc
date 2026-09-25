@@ -326,6 +326,19 @@ arena_aalloc(tsdn_t *tsdn, const void *ptr) {
 JEMALLOC_ALWAYS_INLINE size_t
 arena_salloc(tsdn_t *tsdn, const void *ptr) {
 	assert(ptr != NULL);
+	if (likely(!tsdn_null(tsdn))) {
+		rtree_ctx_t *rtree_ctx = tsd_rtree_ctxp_get_unsafe(tsdn_tsd(tsdn));
+		szind_t szind;
+		bool slab;
+		if (likely(!rtree_szind_slab_read_fast(tsdn, &arena_emap_global.rtree,
+		    rtree_ctx, (uintptr_t)ptr, &szind, &slab))) {
+			if (likely(slab || !sz_large_size_classes_disabled())) {
+				assert(szind < SC_NSIZES);
+				return sz_index2size(szind);
+			}
+		}
+	}
+
 	emap_alloc_ctx_t alloc_ctx;
 	emap_alloc_ctx_lookup(tsdn, &arena_emap_global, ptr, &alloc_ctx);
 	assert(alloc_ctx.szind != SC_NSIZES);

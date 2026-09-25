@@ -568,9 +568,12 @@ je_sdallocx_noflags(void *ptr, size_t size) {
 
 JEMALLOC_ALWAYS_INLINE void JEMALLOC_NOTHROW
 je_sdallocx_impl(void *ptr, size_t size, int flags) {
-	if (flags != 0 || !free_fastpath(ptr, size, true)) {
-		sdallocx_default(ptr, size, flags);
+	if (likely(flags == 0)) {
+		if (likely(free_fastpath(ptr, size, true))) {
+			return;
+		}
 	}
+	sdallocx_default(ptr, size, flags);
 }
 
 JEMALLOC_ALWAYS_INLINE void JEMALLOC_NOTHROW
