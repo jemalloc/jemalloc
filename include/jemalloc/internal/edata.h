@@ -467,7 +467,7 @@ edata_ps_get(const edata_t *edata) {
 
 static inline void *
 edata_before_get(const edata_t *edata) {
-	return (void *)((byte_t *)edata_base_get(edata) - PAGE);
+	return (void *)((uintptr_t)edata_base_get(edata) - PAGE);
 }
 
 static inline void *
