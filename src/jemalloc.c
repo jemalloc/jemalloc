@@ -1670,24 +1670,7 @@ JEMALLOC_ALLOC_SIZE(2) je_realloc(void *ptr, size_t size) {
 		return ret;
 	} else {
 		/* realloc(NULL, size) is equivalent to malloc(size). */
-		void *ret;
-
-		static_opts_t  sopts;
-		dynamic_opts_t dopts;
-
-		static_opts_init(&sopts);
-		dynamic_opts_init(&dopts);
-
-		sopts.null_out_result_on_error = true;
-		sopts.set_errno_on_error = true;
-		sopts.oom_string =
-		    "<jemalloc>: Error in realloc(): out of memory\n";
-
-		dopts.result = &ret;
-		dopts.num_items = 1;
-		dopts.item_size = size;
-
-		imalloc(&sopts, &dopts);
+		void *ret = je_malloc(size);
 		LOG("core.realloc.exit", "result: %p", ret);
 		return ret;
 	}
