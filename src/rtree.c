@@ -315,3 +315,9 @@ rtree_ctx_data_init(rtree_ctx_t *ctx) {
 		cache->leaf = NULL;
 	}
 }
+
+rtree_contents_t
+rtree_read_slow(
+    tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx, uintptr_t key) {
+	return rtree_read_impl(tsdn, rtree, rtree_ctx, key);
+}

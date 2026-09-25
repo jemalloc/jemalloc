@@ -261,17 +261,37 @@ emap_alloc_ctx_lookup(
     tsdn_t *tsdn, emap_t *emap, const void *ptr, emap_alloc_ctx_t *alloc_ctx) {
 	EMAP_DECLARE_RTREE_CTX;
 
-	rtree_contents_t contents = rtree_read(
-	    tsdn, &emap->rtree, rtree_ctx, (uintptr_t)ptr);
+	/* Inline the L1 cache hit; everything else is out of line. */
+	rtree_leaf_elm_t *elm;
+	rtree_contents_t  contents;
+	if (likely(!rtree_leaf_elm_lookup_fast(
+	        tsdn, &emap->rtree, rtree_ctx, (uintptr_t)ptr, &elm))) {
+		contents = rtree_leaf_elm_read(
+		    tsdn, &emap->rtree, elm, /* dependent */ true);
+	} else {
+		contents = rtree_read_slow(
+		    tsdn, &emap->rtree, rtree_ctx, (uintptr_t)ptr);
+	}
 	/*
 	 * If the alloc is invalid, do not calculate usize since edata
 	 * could be corrupted.
+	 * For slabs or when large size classes are enabled, usize can be
+	 * computed directly from szind without dereferencing edata.
 	 */
+	size_t usize;
+	if (likely(contents.metadata.slab
+	        || !sz_large_size_classes_disabled())) {
+		usize = (contents.metadata.szind == SC_NSIZES)
+		    ? 0
+		    : sz_index2size(contents.metadata.szind);
+	} else {
+		usize = (contents.metadata.szind == SC_NSIZES
+		            || contents.edata == NULL)
+		    ? 0
+		    : edata_usize_get(contents.edata);
+	}
 	emap_alloc_ctx_init(alloc_ctx, contents.metadata.szind,
-	    contents.metadata.slab,
-	    (contents.metadata.szind == SC_NSIZES || contents.edata == NULL)
-	        ? 0
-	        : edata_usize_get(contents.edata));
+	    contents.metadata.slab, usize);
 }
 
 /* The pointer must be mapped. */
