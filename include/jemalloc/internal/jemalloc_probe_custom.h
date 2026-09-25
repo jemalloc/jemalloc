@@ -139,8 +139,8 @@
 		__asm__ __volatile__(JE_SDT_BASE);			\
 	} while (0)
 
-#define JE_USDT(name, N, ...)						\
-  JE_SDT_PROBE(jemalloc, name, N, (__VA_ARGS__))
+#define JE_USDT(provider, name, N, ...)					\
+  JE_SDT_PROBE(provider, name, N, (__VA_ARGS__))
 
 
 #endif /* JEMALLOC_INTERNAL_JEMALLOC_PROBE_CUSTOM_H */
