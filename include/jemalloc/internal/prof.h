@@ -3,6 +3,7 @@
 
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/ckh.h"
+#include "jemalloc/internal/edata.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/prof_hook.h"
@@ -238,6 +239,12 @@ struct prof_gctx_s {
 
 	/* Temporary storage for summation during dump. */
 	prof_cnt_t cnt_summed;
+
+	/*
+	 * List of live sampled allocations whose backtrace resolved to this
+	 * gctx, linked through edata's e_prof_frag_link.  Protected by lock.
+	 */
+	edata_list_frag_t frag_objs;
 
 	/* Associated backtrace. */
 	prof_bt_t bt;

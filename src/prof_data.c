@@ -211,6 +211,7 @@ prof_gctx_create(tsdn_t *tsdn, prof_bt_t *bt) {
 	 */
 	gctx->nlimbo = 1;
 	tctx_tree_new(&gctx->tctxs);
+	edata_list_frag_init(&gctx->frag_objs);
 	/* Duplicate bt. */
 	memcpy(gctx->vec, bt->vec, bt->len * sizeof(void *));
 	gctx->bt.vec = gctx->vec;
@@ -233,6 +234,12 @@ prof_gctx_try_destroy(tsd_t *tsd, prof_tdata_t *tdata_self, prof_gctx_t *gctx) {
 	malloc_mutex_lock(tsd_tsdn(tsd), gctx->lock);
 	assert(gctx->nlimbo != 0);
 	if (tctx_tree_empty(&gctx->tctxs) && gctx->nlimbo == 1) {
+		/*
+		 * No live tctx implies no live sampled allocation attributed
+		 * to this gctx (each such allocation holds a curobjs count on
+		 * its tctx until untracked).
+		 */
+		assert(edata_list_frag_empty(&gctx->frag_objs));
 		/* Remove gctx from bt2gctx. */
 		if (ckh_remove(tsd, &bt2gctx, &gctx->bt, NULL, NULL)) {
 			not_reached();
@@ -250,6 +257,44 @@ prof_gctx_try_destroy(tsd_t *tsd, prof_tdata_t *tdata_self, prof_gctx_t *gctx) {
 		malloc_mutex_unlock(tsd_tsdn(tsd), gctx->lock);
 		prof_leave(tsd, tdata_self);
 	}
+}
+
+/*
+ * Track/untrack a live sampled allocation on its gctx's frag_objs list, so
+ * that heap dumps can enumerate live sampled allocations (fragmentation
+ * profiling).  Called with no locks held: track from
+ * prof_malloc_sample_object() while tctx->prepared still pins the tctx;
+ * untrack from the prof_info_get_and_reset_recent() sever point, which on
+ * every deallocation path precedes the curobjs decrement in
+ * prof_free_sampled_object() -- so in both cases the tctx (hence gctx) is
+ * guaranteed alive.
+ */
+void
+prof_frag_track(tsd_t *tsd, edata_t *edata, prof_tctx_t *tctx) {
+	prof_gctx_t *gctx = tctx->gctx;
+
+	malloc_mutex_lock(tsd_tsdn(tsd), gctx->lock);
+	assert(!edata_prof_frag_tracked_get(edata));
+	edata_list_frag_append(&gctx->frag_objs, edata);
+	edata_prof_frag_tracked_set(edata, true);
+	malloc_mutex_unlock(tsd_tsdn(tsd), gctx->lock);
+}
+
+void
+prof_frag_untrack(tsd_t *tsd, edata_t *edata, prof_tctx_t *tctx) {
+	prof_gctx_t *gctx = tctx->gctx;
+
+	malloc_mutex_lock(tsd_tsdn(tsd), gctx->lock);
+	/*
+	 * Not necessarily tracked: if an in-place reallocation severed the
+	 * allocation but then failed (OOM), the allocation stays live yet
+	 * untracked, and its eventual deallocation severs it a second time.
+	 */
+	if (edata_prof_frag_tracked_get(edata)) {
+		edata_list_frag_remove(&gctx->frag_objs, edata);
+		edata_prof_frag_tracked_set(edata, false);
+	}
+	malloc_mutex_unlock(tsd_tsdn(tsd), gctx->lock);
 }
 
 static bool
@@ -734,6 +779,8 @@ struct prof_dump_iter_arg_s {
 	tsdn_t     *tsdn;
 	write_cb_t *prof_dump_write;
 	void       *cbopaque;
+	/* Dump-time timestamp for computing live sampled allocation ages. */
+	nstime_t now;
 };
 
 static prof_tctx_t *
@@ -990,6 +1037,38 @@ prof_dump_gctx(prof_dump_iter_arg_t *arg, prof_gctx_t *gctx,
 	arg->prof_dump_write(arg->cbopaque, "\n");
 
 	tctx_tree_iter(&gctx->tctxs, NULL, prof_tctx_dump_iter, arg);
+
+	/*
+	 * One record per live sampled allocation attributed to this gctx, for
+	 * fragmentation profiling (ignored by jeprof):
+	 *   f: <age_ns> <request_size> <usize> <szind> <arena_ind> <thr_uid>
+	 * An allocation on frag_objs cannot be concurrently deallocated (its
+	 * sever point takes gctx->lock), and its tctx is pinned by the
+	 * allocation's curobjs count, so all reads below are stable.
+	 */
+	for (edata_t *edata = edata_list_frag_first(&gctx->frag_objs);
+	    edata != NULL;
+	    edata = edata_list_frag_next(&gctx->frag_objs, edata)) {
+		const nstime_t *alloc_time = edata_prof_alloc_time_get(edata);
+		nstime_t age;
+		if (nstime_compare(&arg->now, alloc_time) > 0) {
+			nstime_copy(&age, &arg->now);
+			nstime_subtract(&age, alloc_time);
+		} else {
+			/*
+			 * Sampled after this dump's timestamp was taken (or
+			 * within the prof clock resolution).
+			 */
+			nstime_init_zero(&age);
+		}
+		prof_tctx_t *tctx = edata_prof_tctx_get(edata);
+		assert(prof_tctx_is_valid(tctx));
+		prof_dump_printf(arg->prof_dump_write, arg->cbopaque,
+		    "  f: %" FMTu64 " %zu %zu %u %u %" FMTu64 "\n",
+		    nstime_ns(&age), edata_prof_alloc_size_get(edata),
+		    edata_usize_get(edata), (unsigned)edata_szind_get(edata),
+		    edata_arena_ind_get(edata), tctx->thr_uid);
+	}
 }
 
 /*
@@ -1047,6 +1126,49 @@ prof_gctx_dump_iter(prof_gctx_tree_t *gctxs, prof_gctx_t *gctx, void *opaque) {
 	return NULL;
 }
 
+/*
+ * Per-(arena, bin) slab utilization snapshot, for fragmentation profiling
+ * (ignored by jeprof):
+ *   frag_util: <arena_ind> <binind> <reg_size> <slab_size> <nregs> <n_shards>
+ *       <curslabs> <curregs> <nonfull_slabs>
+ * Wasted memory per line is curslabs * slab_size - curregs * reg_size.
+ */
+static void
+prof_dump_frag_util(prof_dump_iter_arg_t *arg) {
+	if (!config_stats) {
+		/* curslabs/curregs/nonfull_slabs are not maintained. */
+		return;
+	}
+	for (unsigned i = 0; i < narenas_total_get(); i++) {
+		arena_t *arena = arena_get(arg->tsdn, i, false);
+		if (arena == NULL) {
+			continue;
+		}
+		for (szind_t j = 0; j < SC_NBINS; j++) {
+			const bin_info_t *info = &bin_infos[j];
+			size_t curslabs = 0;
+			size_t curregs = 0;
+			size_t nonfull_slabs = 0;
+			for (unsigned k = 0; k < info->n_shards; k++) {
+				bin_t *bin = arena_get_bin(arena, j, k);
+				malloc_mutex_lock(arg->tsdn, &bin->lock);
+				curslabs += bin->stats.curslabs;
+				curregs += bin->stats.curregs;
+				nonfull_slabs += bin->stats.nonfull_slabs;
+				malloc_mutex_unlock(arg->tsdn, &bin->lock);
+			}
+			if (curslabs == 0) {
+				continue;
+			}
+			prof_dump_printf(arg->prof_dump_write, arg->cbopaque,
+			    "frag_util: %u %u %zu %zu %u %u %zu %zu %zu\n",
+			    i, (unsigned)j, info->reg_size, info->slab_size,
+			    info->nregs, info->n_shards, curslabs, curregs,
+			    nonfull_slabs);
+		}
+	}
+}
+
 static void
 prof_dump_prep(tsd_t *tsd, prof_tdata_t *tdata, prof_cnt_t *cnt_all,
     size_t *leak_ngctx, prof_gctx_tree_t *gctxs) {
@@ -1098,9 +1220,11 @@ prof_dump_impl(tsd_t *tsd, write_cb_t *prof_dump_write, void *cbopaque,
 	prof_gctx_tree_t gctxs;
 	prof_dump_prep(tsd, tdata, &cnt_all, &leak_ngctx, &gctxs);
 	prof_dump_iter_arg_t prof_dump_iter_arg = {
-	    tsd_tsdn(tsd), prof_dump_write, cbopaque};
+	    tsd_tsdn(tsd), prof_dump_write, cbopaque, NSTIME_ZERO_INITIALIZER};
+	nstime_prof_init_update(&prof_dump_iter_arg.now);
 	prof_dump_header(&prof_dump_iter_arg, &cnt_all);
 	gctx_tree_iter(&gctxs, NULL, prof_gctx_dump_iter, &prof_dump_iter_arg);
+	prof_dump_frag_util(&prof_dump_iter_arg);
 	prof_gctx_finish(tsd, &gctxs);
 	if (leakcheck) {
 		prof_leakcheck(&cnt_all, leak_ngctx);

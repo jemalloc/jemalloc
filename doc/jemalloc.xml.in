@@ -2635,7 +2635,31 @@ struct extent_hooks_s {
         where <literal>&lt;prefix&gt;</literal> is controlled by the
         <link linkend="opt.prof_prefix"><mallctl>opt.prof_prefix</mallctl></link>
         and <link linkend="prof.prefix"><mallctl>prof.prefix</mallctl></link>
-        options.</para></listitem>
+        options.</para>
+
+        <para>In addition to the standard
+        <literal>heap_v2</literal> records, dumps contain fragmentation
+        profiling records (ignored by <command>jeprof</command>, consumed by
+        <command>jefrag.py</command>).  Each live sampled allocation
+        produces, under its backtrace, a line <programlisting language="C"><![CDATA[
+  f: <age_ns> <request_size> <usize> <szind> <arena_ind> <thr_uid>]]></programlisting>
+        where age is relative to the dump time (using the
+        <mallctl>opt.prof_time_resolution</mallctl> clock), and the size
+        class/arena are those the allocation would
+        occupy had it not been sampled.  Each (arena, small size class) pair
+        with at least one slab produces a line <programlisting language="C"><![CDATA[
+  frag_util: <arena_ind> <binind> <reg_size> <slab_size> <nregs> <n_shards>
+      <curslabs> <curregs> <nonfull_slabs>]]></programlisting>
+        from which slab waste is <literal>curslabs * slab_size - curregs *
+        reg_size</literal>; note that regions cached in thread caches count
+        as allocated.  Correlating the ages of live sampled allocations with
+        per-class waste identifies call sites whose long-lived allocations
+        pin mostly-empty slabs (fragmentation).  Since sampling is
+        byte-weighted, small size classes need a small enough
+        <link
+        linkend="opt.lg_prof_sample"><mallctl>opt.lg_prof_sample</mallctl></link>
+        to be represented; each sampled allocation occupies at least one
+        page.</para></listitem>
       </varlistentry>
 
       <varlistentry id="prof.prefix">
