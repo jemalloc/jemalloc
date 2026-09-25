@@ -137,6 +137,8 @@ bool rtree_new(rtree_t *rtree, base_t *base, bool zeroed);
 
 rtree_leaf_elm_t *rtree_leaf_elm_lookup_hard(tsdn_t *tsdn, rtree_t *rtree,
     rtree_ctx_t *rtree_ctx, uintptr_t key, bool dependent, bool init_missing);
+rtree_contents_t rtree_read_slow(
+    tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx, uintptr_t key);
 
 JEMALLOC_ALWAYS_INLINE unsigned
 rtree_leaf_maskbits(void) {
@@ -463,13 +465,19 @@ rtree_read_independent(tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx,
 	return false;
 }
 
-static inline rtree_contents_t
-rtree_read(
+JEMALLOC_ALWAYS_INLINE rtree_contents_t
+rtree_read_impl(
     tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx, uintptr_t key) {
 	rtree_leaf_elm_t *elm = rtree_leaf_elm_lookup(tsdn, rtree, rtree_ctx,
 	    key, /* dependent */ true, /* init_missing */ false);
 	assert(elm != NULL);
 	return rtree_leaf_elm_read(tsdn, rtree, elm, /* dependent */ true);
+}
+
+static inline rtree_contents_t
+rtree_read(
+    tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx, uintptr_t key) {
+	return rtree_read_impl(tsdn, rtree, rtree_ctx, key);
 }
 
 static inline rtree_metadata_t
