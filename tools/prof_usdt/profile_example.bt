@@ -1,0 +1,109 @@
+#!/usr/bin/env bpftrace
+
+/*
+ * Reference example: reconstruct jeprof-like views from jemalloc's
+ * otel_memory USDT probes.
+ *
+ * These reports are similar to the four aggregate views that jeprof can read
+ * from a prof.dump heap profile:
+ *
+ *   ALLOC_SPACE    -- weighted bytes allocated, grouped by stack
+ *   ALLOC_OBJECTS_X8 -- weighted allocation count times 8, grouped by stack
+ *   INUSE_SPACE    -- weighted bytes still live, grouped by stack
+ *   INUSE_OBJECTS_X8 -- weighted live object count times 8, grouped by stack
+ *
+ * This script is an example of how to consume the probes, not a production
+ * collector: it collects full user stacks and aggregates in BPF maps.  The
+ * production OpenTelemetry collector may aggregate differently, so do not
+ * extrapolate this script's overhead to another implementation.  Map
+ * printing happens once at process exit and does not perturb steady-state
+ * collection cost, so this single script serves both correctness and
+ * overhead-measurement uses.
+ *
+ * Build the traced application and relevant libraries with
+ * -fno-omit-frame-pointer so ustack(perf, 32) can unwind them reliably.
+ *
+ * Build jemalloc with --enable-prof --enable-experimental-sdt, then run:
+ *
+ *   sudo env BPFTRACE_MAX_MAP_KEYS=262144 bpftrace -q \
+ *     -o usdt-profile.txt \
+ *     -c 'env MALLOC_CONF=prof:true,prof_bt_max:0 \
+ *       LD_PRELOAD=/path/to/libjemalloc.so /path/to/application' \
+ *     tools/prof_usdt/profile_example.bt /path/to/libjemalloc.so
+ *
+ * bpftrace prints a SUMMARY line plus the four maps when the traced process
+ * exits.  arg0 is the allocation address, arg1 is its requested size, and
+ * arg2 is its weighted requested size.  Object counts use 3-bit fixed point
+ * to avoid rounding each sample to a whole object; divide the reported values
+ * by 8.  A successful run has no unmatched frees.  The free count may be
+ * lower when sampled objects are still live at process exit.
+ */
+
+BEGIN
+{
+	printf("READY\n");
+	/* Keep the map readable in END even if no unmatched free occurs. */
+	@unmatched_frees = count();
+}
+
+usdt:$1:otel_memory:alloc
+{
+	$stack = ustack(perf, 32);
+	$size = (uint64)arg1;
+	$weighted = (uint64)arg2;
+	$objects_x8 = (int64)($size == 0 ? 0 :
+	    ($weighted / $size) * 8 +
+	    (($weighted % $size) * 8 + $size / 2) / $size);
+
+	@alloc_events = count();
+	@alloc_space[$stack] += arg2;
+	@alloc_objects_x8[$stack] += $objects_x8;
+	@inuse_space[$stack] += arg2;
+	@inuse_objects_x8[$stack] += $objects_x8;
+	@live_stack[pid, arg0] = $stack;
+	@live_space[pid, arg0] = arg2;
+	@live_objects_x8[pid, arg0] = $objects_x8;
+	@live_present[pid, arg0] = 1;
+}
+
+usdt:$1:otel_memory:free
+{
+	@free_events = count();
+	if (@live_present[pid, arg0]) {
+		$stack = @live_stack[pid, arg0];
+		@inuse_space[$stack] -= @live_space[pid, arg0];
+		@inuse_objects_x8[$stack] -= @live_objects_x8[pid, arg0];
+		$deleted = delete(@live_stack[pid, arg0]);
+		$deleted = delete(@live_space[pid, arg0]);
+		$deleted = delete(@live_objects_x8[pid, arg0]);
+		$deleted = delete(@live_present[pid, arg0]);
+	} else {
+		@unmatched_frees = count();
+	}
+}
+
+END
+{
+	printf("SUMMARY alloc=%llu free=%llu unmatched_free=%llu\n",
+	    (uint64)@alloc_events, (uint64)@free_events,
+	    (uint64)((int64)@unmatched_frees - 1));
+	printf("ALLOC_SPACE\n");
+	print(@alloc_space);
+	printf("ALLOC_OBJECTS_X8\n");
+	print(@alloc_objects_x8);
+	printf("INUSE_SPACE\n");
+	print(@inuse_space);
+	printf("INUSE_OBJECTS_X8\n");
+	print(@inuse_objects_x8);
+	clear(@alloc_events);
+	clear(@free_events);
+	clear(@unmatched_frees);
+	clear(@alloc_space);
+	clear(@alloc_objects_x8);
+	clear(@inuse_space);
+	clear(@inuse_objects_x8);
+	clear(@live_stack);
+	clear(@live_space);
+	clear(@live_objects_x8);
+	clear(@live_present);
+}
