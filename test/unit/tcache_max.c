@@ -400,8 +400,46 @@ TEST_BEGIN(test_thread_tcache_max) {
 }
 TEST_END
 
+static void *
+tcache_max_disabled_check(void *arg) {
+	tsd_t *tsd = tsd_fetch();
+	assert_ptr_null(tsd_tcachep_get(tsd)->tcache_slow,
+	    "Tcache should not have been initialized");
+
+	size_t old_max, sz = sizeof(old_max);
+	size_t new_max = opt_tcache_max == 1024 ? 2048 : 1024;
+	expect_d_eq(mallctl("thread.tcache.max", &old_max, &sz, &new_max,
+	    sizeof(new_max)), 0, "Unexpected mallctl failure");
+	expect_zu_eq(old_max, sz_s2u(opt_tcache_max),
+	    "Unexpected default tcache max");
+	expect_false(tsd_tcache_enabled_get(tsd),
+	    "Changing tcache max should not enable the tcache");
+	expect_d_eq(mallctl("thread.tcache.max", &old_max, &sz, NULL, 0), 0,
+	    "Unexpected mallctl failure");
+	expect_zu_eq(old_max, new_max, "Tcache max should change while disabled");
+
+	bool enabled = true;
+	expect_d_eq(mallctl("thread.tcache.enabled", NULL, NULL, &enabled,
+	    sizeof(enabled)), 0, "Unexpected mallctl failure");
+	expect_true(tsd_tcache_enabled_get(tsd), "Tcache should be enabled");
+	expect_zu_eq(tcache_max_get(tsd_tcachep_get(tsd)->tcache_slow), new_max,
+	    "Enabling the tcache should preserve the configured max");
+	return NULL;
+}
+
+TEST_BEGIN(test_thread_tcache_max_disabled) {
+	/* Model tcache:false at startup, before the first tcache_init(). */
+	bool saved_opt_tcache = opt_tcache;
+	opt_tcache = false;
+	thd_t thread;
+	thd_create(&thread, tcache_max_disabled_check, NULL);
+	thd_join(thread, NULL);
+	opt_tcache = saved_opt_tcache;
+}
+TEST_END
+
 int
 main(void) {
 	return test(test_tcache_max, test_large_tcache_nrequests_on_miss,
-	    test_thread_tcache_max);
+	    test_thread_tcache_max, test_thread_tcache_max_disabled);
 }

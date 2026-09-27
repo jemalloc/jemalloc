@@ -921,7 +921,7 @@ thread_tcache_max_set(tsd_t *tsd, size_t tcache_max) {
 	assert(tcache_max <= TCACHE_MAXCLASS_LIMIT);
 	assert(tcache_max == sz_s2u(tcache_max));
 	tcache_t        *tcache = tsd_tcachep_get(tsd);
-	tcache_slow_t   *tcache_slow = tcache->tcache_slow;
+	tcache_slow_t   *tcache_slow = tsd_tcache_slowp_get(tsd);
 	cache_bin_info_t tcache_bin_info[TCACHE_NBINS_MAX] = {{0}};
 	bool             ret = false;
 	assert(tcache != NULL && tcache_slow != NULL);
@@ -937,10 +937,10 @@ thread_tcache_max_set(tsd_t *tsd, size_t tcache_max) {
 	}
 
 	/*
-	* Still set tcache_nbins of the tcache even if the tcache is not
-	* available yet because the values are stored in tsd_t and are
-	* always available for changing.
-	*/
+	 * These settings live in TSD even if tcache_init() has never run.
+	 * Store the new limit so it also applies when the cache is first
+	 * enabled via thread.tcache.enabled.
+	 */
 	tcache_max_set(tcache_slow, tcache_max);
 
 	if (enabled) {
