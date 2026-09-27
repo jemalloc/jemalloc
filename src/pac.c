@@ -442,6 +442,8 @@ pac_dalloc(tsdn_t *tsdn, pac_t *pac, edata_t *edata,
 		}
 	} else if (edata_size_get(edata)
 	    <= atomic_load_zu(&pac->sec_max_alloc, ATOMIC_RELAXED)) {
+		/* The caller may have written to the extent since allocation. */
+		edata_zeroed_set(edata, false);
 		/*
 		 * A dalloc can race with disabling SEC and cache an extent after
 		 * the flush.  Avoid a hot-path gate lock; such extents remain

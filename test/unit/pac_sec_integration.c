@@ -1,4 +1,5 @@
 #include "test/jemalloc_test.h"
+#include "test/arena_util.h"
 
 /*
  * Use multiple shards while keeping the single-threaded shard choice
@@ -264,6 +265,35 @@ TEST_BEGIN(test_pac_sec_alloc_dalloc_cycle) {
 }
 TEST_END
 
+TEST_BEGIN(test_pac_sec_zero) {
+	test_skip_if(!config_stats || opt_hpa);
+	test_skip_if(SC_LARGE_MINCLASS >= opt_calloc_madvise_threshold);
+
+	pac_sec_test_opts_set();
+	unsigned arena_ind = do_arena_create(-1, -1);
+	pac_sec_test_opts_restore();
+	int flags = MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE;
+	size_t alloc_size = SC_LARGE_MINCLASS;
+
+	unsigned char *p = mallocx(alloc_size, flags);
+	assert_ptr_not_null(p, "mallocx failed");
+	memset(p, 0x5a, alloc_size);
+	dallocx(p, flags);
+
+	/* Below the madvise threshold, zeroing happens after the PAC lookup. */
+	p = mallocx(alloc_size, flags | MALLOCX_ZERO);
+	assert_ptr_not_null(p, "mallocx failed");
+	expect_zu_eq(read_stat(arena_ind, "hits"), 1,
+	    "Zeroed allocation should reuse the cached extent");
+	for (size_t i = 0; i < alloc_size; i++) {
+		assert_u_eq(p[i], 0, "MALLOCX_ZERO returned nonzero data");
+	}
+
+	dallocx(p, flags);
+	do_arena_destroy(arena_ind);
+}
+TEST_END
+
 TEST_BEGIN(test_pac_sec_dirty_decay_toggle) {
 	test_skip_if(!config_stats);
 	test_skip_if(opt_hpa);
@@ -382,6 +412,6 @@ TEST_END
 int
 main(void) {
 	return test_no_reentrancy(
-	    test_pac_sec_alloc_dalloc_cycle, test_pac_sec_dirty_decay_toggle,
-	    test_pac_sec_flush_pinned);
+	    test_pac_sec_alloc_dalloc_cycle, test_pac_sec_zero,
+	    test_pac_sec_dirty_decay_toggle, test_pac_sec_flush_pinned);
 }
