@@ -322,6 +322,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/sz.c \
 	$(srcroot)test/unit/tcache_init.c \
 	$(srcroot)test/unit/tcache_max.c \
+	$(srcroot)test/unit/tcache_max_disabled.c \
 	$(srcroot)test/unit/tcache_gc.c \
 	$(srcroot)test/unit/tcache_ncached_target.c \
 	$(srcroot)test/unit/test_hooks.c \

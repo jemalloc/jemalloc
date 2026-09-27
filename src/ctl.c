@@ -2460,10 +2460,13 @@ thread_tcache_max_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
     size_t *oldlenp, void *newp, size_t newlen) {
 	size_t oldval;
 
-	/* pointer to tcache_t always exists even with tcache disabled. */
-	tcache_t *tcache = tsd_tcachep_get(tsd);
-	assert(tcache != NULL);
-	oldval = tcache_max_get(tcache->tcache_slow);
+	/*
+	 * TSD always contains a tcache_t, but tcache->tcache_slow is only set
+	 * by tcache_init(). A thread starting with tcache:false skips that
+	 * initialization. Its embedded TSD settings are still initialized,
+	 * so read them directly.
+	 */
+	oldval = tcache_max_get(tsd_tcache_slowp_get(tsd));
 	int ret = ctl_read(oldp, oldlenp, &oldval, sizeof(oldval));
 	if (ret != 0) {
 		return ret;
