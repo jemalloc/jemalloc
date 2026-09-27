@@ -9,8 +9,8 @@ typedef struct {
 
 static void
 stats_buf_init(stats_buf_t *sbuf) {
-	/* 1MB is enough for the small number of arenas used by these tests. */
-	sbuf->capacity = 1 << 20;
+	/* Exercise page rounding with a large, non-size-class-aligned buffer. */
+	sbuf->capacity = (1 << 20) + 1;
 	sbuf->buf = mallocx(sbuf->capacity, MALLOCX_TCACHE_NONE);
 	assert_ptr_not_null(sbuf->buf, "Failed to allocate stats buffer");
 	sbuf->len = 0;
@@ -1310,6 +1310,7 @@ TEST_BEGIN(test_json_stats_arena_tables) {
 	    "merged arena stats are missing lextents");
 	expect_zu_eq(json_array_size(lextents), nlextents,
 	    "lextents has an unexpected number of rows");
+	uint64_t allocated = 0;
 	for (unsigned i = 0; i < nlextents; i++) {
 		json_fragment_t lextent;
 		expect_false(json_array_element(lextents, i, &lextent),
@@ -1330,14 +1331,17 @@ TEST_BEGIN(test_json_stats_arena_tables) {
 		malloc_snprintf(meta_prefix, sizeof(meta_prefix),
 		    "arenas.lextent.%u", i);
 		size_t lextent_size = read_size_field(meta_prefix, "size");
-		size_t curlextents = read_size_field(ctl_prefix, "curlextents");
 		uint64_t nmalloc = read_uint64_field(ctl_prefix, "nmalloc");
 		uint64_t ndalloc = read_uint64_field(ctl_prefix, "ndalloc");
 		uint64_t nrequests = read_uint64_field(ctl_prefix, "nrequests");
 		expect_json_uint_eq(lextent, "size", lextent_size, row_name);
 		expect_json_uint_eq(lextent, "ind", nbins + i, row_name);
-		expect_json_uint_eq(lextent, "allocated",
-		    curlextents * lextent_size, row_name);
+		json_fragment_t value;
+		uint64_t bytes = 0;
+		assert_false(json_object_member(lextent, "allocated", &value)
+		    || json_fragment_uint64(value, &bytes),
+		    "Invalid allocated bytes in %s", row_name);
+		allocated += bytes;
 		expect_json_uint_eq(lextent, "nmalloc_ps",
 		    expected_rate(nmalloc, uptime), row_name);
 		expect_json_uint_eq(lextent, "ndalloc_ps",
@@ -1353,6 +1357,9 @@ TEST_BEGIN(test_json_stats_arena_tables) {
 			expect_prof_stats(lextent, prof_prefix);
 		}
 	}
+
+	expect_u64_eq(allocated, read_size_field(arena_prefix, "large.allocated"),
+	    "Large details must sum to the total");
 
 	json_fragment_t extents;
 	expect_false(json_object_member(merged, "extents", &extents),

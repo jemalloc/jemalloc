@@ -983,6 +983,7 @@ typedef struct {
 	const stats_arena_lextent_t *lextent;
 	unsigned                     ind;
 	uint64_t                     uptime;
+	size_t                       allocated;
 } stats_arena_lextent_emit_row_t;
 
 #define LEXTENT_COL_GET(name, value_member, field)                            \
@@ -1022,7 +1023,7 @@ stats_lextent_col_get_ind(const void *vrow, emitter_col_t *col) {
 static void
 stats_lextent_col_get_allocated(const void *vrow, emitter_col_t *col) {
 	const stats_arena_lextent_emit_row_t *row = vrow;
-	col->size_val = row->lextent->curlextents * row->lextent->lextent_size;
+	col->size_val = row->allocated;
 }
 
 #define LEXTENT_COL_SIZE 0
@@ -1132,7 +1133,7 @@ stats_arena_lextents_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
 		bool is_gap = (lext.nrequests == 0);
 
 		stats_arena_lextent_emit_row_t emit_row = {
-		    &lext, nbins + j, uptime};
+		    &lext, nbins + j, uptime, ctl_arena_lextent_allocated(i, j)};
 		stats_emit_arena_lextent_row(emitter, &row, cols, &emit_row,
 		    prof_stats_on, prev_size, size_buf, sizeof(size_buf), is_gap);
 		prev_size = lext.lextent_size;
