@@ -1321,6 +1321,8 @@ ctl_arena_stats_sdmerge(
 			if (!destroyed) {
 				sdstats->lstats[i].curlextents +=
 				    astats->lstats[i].curlextents;
+				ctl_accum_locked_u64(&sdstats->lstats[i].active_bytes,
+				    &astats->lstats[i].active_bytes);
 			} else {
 				assert(astats->lstats[i].curlextents == 0);
 			}
@@ -1854,6 +1856,21 @@ ctl_bymibname(tsd_t *tsd, size_t *mib, size_t miblen, const char *name,
 
 label_return:
 	return (ret);
+}
+
+/* Read from the ctl snapshot already initialized by stats_print(). */
+size_t
+ctl_arena_lextent_allocated(unsigned arena_ind, unsigned lextent_ind) {
+	assert(lextent_ind < SC_NSIZES - SC_NBINS);
+	tsd_t *tsd = tsd_fetch();
+	malloc_mutex_lock(tsd_tsdn(tsd), &ctl_mtx);
+	assert(arena_ind == MALLCTL_ARENAS_ALL
+	    || arena_ind == MALLCTL_ARENAS_DESTROYED
+	    || arena_ind <= ctl_narenas_get(tsd_tsdn(tsd)));
+	size_t allocated = (size_t)locked_read_u64_unsynchronized(
+	    &arenas_i(arena_ind)->astats->lstats[lextent_ind].active_bytes);
+	malloc_mutex_unlock(tsd_tsdn(tsd), &ctl_mtx);
+	return allocated;
 }
 
 bool
