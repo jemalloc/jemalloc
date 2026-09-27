@@ -171,6 +171,7 @@ CTL_PROTO(opt_xmalloc)
 CTL_PROTO(opt_tcache)
 CTL_PROTO(opt_tcache_max)
 CTL_PROTO(opt_tcache_gc_incr_bytes)
+CTL_PROTO(opt_tcache_gc_interval_ms)
 CTL_PROTO(opt_thp)
 CTL_PROTO(opt_lg_extent_max_active_fit)
 CTL_PROTO(opt_prof)
@@ -200,6 +201,7 @@ CTL_PROTO(opt_malloc_conf_global_var)
 CTL_PROTO(tcache_create)
 CTL_PROTO(tcache_flush)
 CTL_PROTO(tcache_destroy)
+CTL_PROTO(tcache_gc_interval_ms)
 CTL_PROTO(arena_i_initialized)
 CTL_PROTO(arena_i_decay)
 CTL_PROTO(arena_i_purge)
@@ -540,6 +542,7 @@ static const ctl_named_node_t opt_node[] = {{NAME("abort"), CTL(opt_abort)},
     {NAME("tcache"), CTL(opt_tcache)},
     {NAME("tcache_max"), CTL(opt_tcache_max)},
     {NAME("tcache_gc_incr_bytes"), CTL(opt_tcache_gc_incr_bytes)},
+    {NAME("tcache_gc_interval_ms"), CTL(opt_tcache_gc_interval_ms)},
     {NAME("thp"), CTL(opt_thp)},
     {NAME("lg_extent_max_active_fit"), CTL(opt_lg_extent_max_active_fit)},
     {NAME("prof"), CTL(opt_prof)}, {NAME("prof_prefix"), CTL(opt_prof_prefix)},
@@ -567,7 +570,8 @@ static const ctl_named_node_t opt_node[] = {{NAME("abort"), CTL(opt_abort)},
 
 static const ctl_named_node_t tcache_node[] = {
     {NAME("create"), CTL(tcache_create)}, {NAME("flush"), CTL(tcache_flush)},
-    {NAME("destroy"), CTL(tcache_destroy)}};
+    {NAME("destroy"), CTL(tcache_destroy)},
+    {NAME("gc_interval_ms"), CTL(tcache_gc_interval_ms)}};
 
 static const ctl_named_node_t arena_i_node[] = {
     {NAME("initialized"), CTL(arena_i_initialized)},
@@ -2263,6 +2267,7 @@ CTL_RO_NL_CGEN(config_xmalloc, opt_xmalloc, opt_xmalloc, bool)
 CTL_RO_NL_GEN(opt_tcache, opt_tcache, bool)
 CTL_RO_NL_GEN(opt_tcache_max, opt_tcache_max, size_t)
 CTL_RO_NL_GEN(opt_tcache_gc_incr_bytes, opt_tcache_gc_incr_bytes, size_t)
+CTL_RO_NL_GEN(opt_tcache_gc_interval_ms, opt_tcache_gc_interval_ms, size_t)
 CTL_RO_NL_GEN(opt_thp, thp_mode_names[opt_thp], const char *)
 CTL_RO_NL_GEN(
     opt_lg_extent_max_active_fit, opt_lg_extent_max_active_fit, size_t)
@@ -2661,6 +2666,21 @@ tcache_destroy_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 
 	tcaches_destroy(tsd, tcache_ind);
 	return 0;
+}
+
+static int
+tcache_gc_interval_ms_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen) {
+	size_t oldval = tcache_gc_interval_ms_get();
+	int    ret = ctl_read(oldp, oldlenp, &oldval, sizeof(oldval));
+	if (ret == 0 && newp != NULL) {
+		size_t newval;
+		ret = ctl_write(&newval, sizeof(newval), newp, newlen);
+		if (ret == 0 && tcache_gc_interval_ms_set(newval)) {
+			ret = EFAULT;
+		}
+	}
+	return ret;
 }
 
 /******************************************************************************/

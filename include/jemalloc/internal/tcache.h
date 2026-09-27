@@ -43,7 +43,12 @@ typedef struct tcaches_s     tcaches_t;
 	    + SC_NGROUP * (TCACHE_LG_MAXCLASS_LIMIT - SC_LG_LARGE_MINCLASS)    \
 	    + 1)
 #define TCACHE_GC_NEIGHBOR_LIMIT ((uintptr_t)1 << 21)       /* 2M */
-#define TCACHE_GC_INTERVAL_NS ((uint64_t)10 * KQU(1000000)) /* 10ms */
+#define TCACHE_GC_INTERVAL_MS_DEFAULT 10
+/* Largest GC interval in ms that still fits in nstime. */
+#define TCACHE_GC_INTERVAL_MS_MAX                                              \
+	(NSTIME_SEC_MAX * KQU(1000) < QU(SIZE_T_MAX)                           \
+	        ? (size_t)(NSTIME_SEC_MAX * KQU(1000))                         \
+	        : SIZE_T_MAX)
 #define TCACHE_GC_SMALL_NBINS_MAX ((SC_NBINS > 8) ? (SC_NBINS >> 3) : 1)
 #define TCACHE_GC_LARGE_NBINS_MAX 1
 
@@ -124,6 +129,7 @@ struct tcaches_s {
 extern bool   opt_tcache;
 extern size_t opt_tcache_max;
 extern size_t opt_tcache_gc_incr_bytes;
+extern size_t opt_tcache_gc_interval_ms;
 
 /*
  * Number of tcache bins.  There are SC_NBINS small-object bins, plus 0 or more
@@ -175,6 +181,8 @@ bool      tcaches_create(tsd_t *tsd, base_t *base, unsigned *r_ind);
 void      tcaches_flush(tsd_t *tsd, unsigned ind);
 void      tcaches_destroy(tsd_t *tsd, unsigned ind);
 bool      tcache_boot(tsdn_t *tsdn, base_t *base);
+size_t    tcache_gc_interval_ms_get(void);
+bool      tcache_gc_interval_ms_set(size_t interval_ms);
 void      tcache_arena_associate(
          tsdn_t *tsdn, tcache_slow_t *tcache_slow, arena_t *arena);
 cache_bin_array_descriptor_t *tcache_postfork_arena_descriptor(

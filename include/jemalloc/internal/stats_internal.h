@@ -298,9 +298,9 @@ typedef struct stats_global_s {
  * stats_general_print() config/option list helpers.  Unhygienic by design:
  * they assume `emitter` and the standard scratch locals are in scope at the
  * call site -- bv/bsz (bool), cpv/cpsz (const char *), uv/usz (unsigned),
- * i64v/i64sz, u64v/u64sz, sv/ssz (size_t), ssv/sssz (ssize_t), plus bv2/ssv2
- * for the *_MUTABLE variants.  (CONFIG_WRITE_BOOL uses CTL_GET above; the
- * OPT_WRITE_* variants use je_mallctl directly.)
+ * i64v/i64sz, u64v/u64sz, sv/ssz (size_t), ssv/sssz (ssize_t), plus
+ * bv2/sv2/ssv2 for the *_MUTABLE variants.  (CONFIG_WRITE_BOOL uses CTL_GET
+ * above; the OPT_WRITE_* variants use je_mallctl directly.)
  */
 #define CONFIG_WRITE_BOOL(name)                                                \
 	do {                                                                   \
@@ -331,6 +331,8 @@ typedef struct stats_global_s {
 #define OPT_WRITE_UINT64(name) OPT_WRITE(name, u64v, u64sz, emitter_type_uint64)
 
 #define OPT_WRITE_SIZE_T(name) OPT_WRITE(name, sv, ssz, emitter_type_size)
+#define OPT_WRITE_SIZE_T_MUTABLE(name, altname)                                \
+	OPT_WRITE_MUTABLE(name, sv, sv2, ssz, emitter_type_size, altname)
 #define OPT_WRITE_SSIZE_T(name) OPT_WRITE(name, ssv, sssz, emitter_type_ssize)
 #define OPT_WRITE_SSIZE_T_MUTABLE(name, altname)                               \
 	OPT_WRITE_MUTABLE(name, ssv, ssv2, sssz, emitter_type_ssize, altname)

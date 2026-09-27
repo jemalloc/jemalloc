@@ -2050,7 +2050,7 @@ stats_general_opts(emitter_t *emitter) {
 	uint64_t    u64v;
 	int64_t     i64v;
 	ssize_t     ssv, ssv2;
-	size_t      sv, bsz, usz, u32sz, u64sz, i64sz, ssz, sssz, cpsz;
+	size_t      sv, sv2, bsz, usz, u32sz, u64sz, i64sz, ssz, sssz, cpsz;
 
 	bsz = sizeof(bool);
 	usz = sizeof(unsigned);
@@ -2156,6 +2156,8 @@ stats_general_opts(emitter_t *emitter) {
 	OPT_WRITE_BOOL("tcache")
 	OPT_WRITE_SIZE_T("tcache_max")
 	OPT_WRITE_SIZE_T("tcache_gc_incr_bytes")
+	OPT_WRITE_SIZE_T_MUTABLE(
+	    "tcache_gc_interval_ms", "tcache.gc_interval_ms")
 	OPT_WRITE_UNSIGNED("debug_double_free_max_scan")
 	OPT_WRITE_CHAR_P("thp")
 	OPT_WRITE_BOOL("prof")
