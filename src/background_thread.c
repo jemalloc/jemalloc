@@ -143,7 +143,9 @@ pthread_create_fptr_init(void) {
 	 * wrapper as well (and can call malloc within the wrapper).
 	 */
 #	ifdef JEMALLOC_HAVE_DLSYM
+#	ifdef RTLD_NEXT
 	pthread_create_fptr = dlsym(RTLD_NEXT, "pthread_create");
+#	endif
 	if (pthread_create_fptr == NULL) {
 		pthread_create_fptr = dlsym(RTLD_DEFAULT, "pthread_create");
 	}
