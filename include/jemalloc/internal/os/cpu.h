@@ -24,6 +24,12 @@ JEMALLOC_ALWAYS_INLINE unsigned os_cpu_affinity_cpus(unsigned *cpus,
 JEMALLOC_ALWAYS_INLINE bool os_cpu_count_is_deterministic(void);
 JEMALLOC_ALWAYS_INLINE int os_cpu_current(void);
 /*
+ * Store in *key the smallest id of the logical CPUs on cpu's physical core,
+ * so that all of them share one key.  Returns true, leaving *key untouched,
+ * if core membership is unknown; only Linux reports it.
+ */
+JEMALLOC_ALWAYS_INLINE bool os_cpu_core_key(unsigned cpu, unsigned *key);
+/*
  * Pin the calling thread to cpu, returning true on failure. Windows and
  * Darwin backends are no-ops.
  */
