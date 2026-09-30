@@ -1443,7 +1443,12 @@ malloc_conf = "xmalloc:true";]]></programlisting>
           [<option>--enable-prof</option>]
         </term>
         <listitem><para>Maximum number of stack frames to record in profiling
-        backtraces.  The default is 128.</para></listitem>
+        backtraces.  The default is 128.  A value of 0 disables in-process
+        backtrace collection, which is useful when an external tool such as an
+        eBPF profiler captures stacks at the <literal>otel_memory</literal>
+        static tracepoints.  Sampling, statistics, and heap profile dumps
+        continue to work, with all samples attributed to a single empty
+        backtrace.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.prof">
