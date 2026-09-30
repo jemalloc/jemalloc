@@ -84,43 +84,6 @@ os_cpu_affinity_cpus(unsigned *cpus, unsigned max_cpus) {
 #endif
 }
 
-/*
- * Ensure that number of CPUs is determistinc, i.e. it is the same based on:
- * - sched_getaffinity()
- * - _SC_NPROCESSORS_ONLN
- * - _SC_NPROCESSORS_CONF
- * Since otherwise tricky things is possible with percpu arenas in use.
- */
-JEMALLOC_ALWAYS_INLINE bool
-os_cpu_count_is_deterministic(void) {
-	long cpu_onln = sysconf(_SC_NPROCESSORS_ONLN);
-	long cpu_conf = sysconf(_SC_NPROCESSORS_CONF);
-	if (cpu_onln <= 0 || cpu_conf <= 0 || cpu_onln != cpu_conf) {
-		return false;
-	}
-#	if defined(CPU_COUNT)
-#		if defined(__FreeBSD__) || defined(__DragonFly__)
-	cpuset_t set;
-#		else
-	cpu_set_t set;
-#		endif /* __FreeBSD__ */
-	int err;
-#		if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
-	err = sched_getaffinity(0, sizeof(set), &set);
-#		else  /* !JEMALLOC_HAVE_SCHED_SETAFFINITY */
-	err = pthread_getaffinity_np(pthread_self(), sizeof(set), &set);
-#		endif /* JEMALLOC_HAVE_SCHED_SETAFFINITY */
-	if (err != 0) {
-		return false;
-	}
-	long cpu_affinity = CPU_COUNT(&set);
-	if (cpu_affinity <= 0 || cpu_affinity != cpu_conf) {
-		return false;
-	}
-#	endif         /* CPU_COUNT */
-	return true;
-}
-
 JEMALLOC_ALWAYS_INLINE int
 os_cpu_current(void) {
 #if defined(JEMALLOC_HAVE_SCHED_GETCPU)

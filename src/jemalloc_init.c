@@ -334,31 +334,6 @@ malloc_init_hard_recursible(void) {
 	malloc_init_state = malloc_init_recursible;
 
 	ncpus = os_cpu_ncpus();
-	if (opt_percpu_arena != percpu_arena_disabled) {
-		bool cpu_count_is_deterministic =
-		    os_cpu_count_is_deterministic();
-		if (!cpu_count_is_deterministic) {
-			/*
-			 * If # of CPU is not deterministic, and narenas not
-			 * specified, disables per cpu arena since it may not
-			 * detect CPU IDs properly.
-			 */
-			if (opt_narenas == 0) {
-				opt_percpu_arena = percpu_arena_disabled;
-				malloc_write(
-				    "<jemalloc>: Number of CPUs "
-				    "detected is not deterministic. Per-CPU "
-				    "arena disabled.\n");
-				if (opt_abort_conf) {
-					malloc_abort_invalid_conf();
-				}
-				if (opt_abort) {
-					abort();
-				}
-			}
-		}
-	}
-
 #ifndef JEMALLOC_MUTEX_INIT_CB
 	/*
 	 * jemalloc_fork.c names these jemalloc_prefork()/jemalloc_postfork_

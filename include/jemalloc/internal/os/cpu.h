@@ -10,10 +10,9 @@
  * GetCurrentProcessorNumber / SwitchToThread; os_cpu_set_affinity() is an
  * unreachable no-op), Darwin (os_cpu_current() has no sched_getcpu() to fall
  * back on, so it reads the CPU index directly out of a CPU register;
- * os_cpu_set_affinity() is an unreachable no-op; os_cpu_ncpus(),
- * os_cpu_count_is_deterministic(), and os_cpu_yield() are identical to
- * posix/'s, duplicated rather than shared via #include, matching every
- * other os/<os>/<module>.h backend).
+ * os_cpu_set_affinity() is an unreachable no-op; os_cpu_ncpus() and
+ * os_cpu_yield() are identical to posix/'s, duplicated rather than shared
+ * via #include, matching every other os/<os>/<module>.h backend).
  */
 
 /* Functions required for implementation in each backend. */
@@ -21,7 +20,6 @@
 JEMALLOC_ALWAYS_INLINE unsigned os_cpu_ncpus(void);
 JEMALLOC_ALWAYS_INLINE unsigned os_cpu_affinity_cpus(unsigned *cpus,
     unsigned max_cpus);
-JEMALLOC_ALWAYS_INLINE bool os_cpu_count_is_deterministic(void);
 JEMALLOC_ALWAYS_INLINE int os_cpu_current(void);
 /*
  * Pin the calling thread to cpu, returning true on failure. Windows and
