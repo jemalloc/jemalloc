@@ -232,6 +232,31 @@ def generate_linux_job(arch):
 
     matrix_entries = generate_job_matrix_entries(os, arch, exclude, max_unusual_opts, linux_unusuals)
 
+    # Exercise both SDT implementations without adding more matrix entries.
+    # The optimized AMD64 profiling build uses the systemtap headers, while
+    # the ARM64 debug build forces the custom Linux / ELF implementation.
+    if arch == AMD64:
+        sdt_flags = '--enable-prof'
+        sdt_backend = 'STAP'
+    elif arch == ARM64:
+        sdt_flags = '--enable-debug'
+        sdt_backend = 'CUSTOM'
+    else:
+        sdt_flags = None
+    if sdt_flags is not None:
+        for entry in matrix_entries:
+            if (entry.get('CC') == 'gcc'
+                    and entry.get('CONFIGURE_FLAGS') == sdt_flags):
+                entry['CONFIGURE_FLAGS'] += (' --enable-prof'
+                    if arch == ARM64 else '')
+                entry['CONFIGURE_FLAGS'] += ' --enable-experimental-sdt'
+                entry['SDT_BACKEND'] = sdt_backend
+                if sdt_backend == 'STAP':
+                    entry['EXTRA_PACKAGES'] = 'systemtap-sdt-dev'
+                break
+        else:
+            raise RuntimeError(f'No Linux {arch} entry for SDT coverage')
+
     arch_suffix = f"-{arch}" if arch != AMD64 else ""
 
     # Select appropriate runner based on architecture
@@ -345,7 +370,7 @@ def generate_linux_job(arch):
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libunwind-dev
+        sudo apt-get install -y libunwind-dev ${{{{ matrix.env.EXTRA_PACKAGES }}}}
 
     - name: Install dependencies (32-bit)
       if: matrix.env.CROSS_COMPILE_32BIT == 'yes'
@@ -361,12 +386,18 @@ def generate_linux_job(arch):
         COMPILER_FLAGS: ${{{{ matrix.env.COMPILER_FLAGS }}}}
         CONFIGURE_FLAGS: ${{{{ matrix.env.CONFIGURE_FLAGS }}}}
         EXTRA_CFLAGS: ${{{{ matrix.env.EXTRA_CFLAGS }}}}
+        SDT_BACKEND: ${{{{ matrix.env.SDT_BACKEND }}}}
       run: |
         # Verify the script generates the same output
         ./scripts/gen_gh_actions.py > gh_actions_script.yml
 
         # Run autoconf
         autoconf
+
+        # Force the fallback backend even if the runner gains sys/sdt.h.
+        if [ "$SDT_BACKEND" = "CUSTOM" ]; then
+          export je_cv_stap_sdt=no
+        fi
 
         # Configure with flags
         if [ -n "$COMPILER_FLAGS" ]; then
@@ -375,9 +406,21 @@ def generate_linux_job(arch):
           ./configure $CONFIGURE_FLAGS
         fi
 
+        if [ -n "$SDT_BACKEND" ]; then
+          grep -q "#define JEMALLOC_EXPERIMENTAL_USDT_$SDT_BACKEND" \\
+            include/jemalloc/internal/jemalloc_internal_defs.h
+        fi
+
         # Build
         make -j3
         make -j3 tests
+
+        if [ -n "$SDT_BACKEND" ]; then
+          sdt_notes="$(readelf -n lib/libjemalloc.so.2)"
+          test "$(echo "$sdt_notes" | grep -c 'Provider: otel_memory')" -eq 2
+          test "$(echo "$sdt_notes" | grep -c 'Name: alloc')" -eq 1
+          test "$(echo "$sdt_notes" | grep -c 'Name: free')" -eq 1
+        fi
 
         # Run tests
         make check

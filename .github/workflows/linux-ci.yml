@@ -38,8 +38,10 @@ jobs:
           - env:
               CC: gcc
               CXX: g++
-              CONFIGURE_FLAGS: --enable-prof
+              CONFIGURE_FLAGS: "--enable-prof --enable-experimental-sdt"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+              SDT_BACKEND: STAP
+              EXTRA_PACKAGES: systemtap-sdt-dev
           - env:
               CC: gcc
               CXX: g++
@@ -550,7 +552,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libunwind-dev
+        sudo apt-get install -y libunwind-dev ${{ matrix.env.EXTRA_PACKAGES }}
 
     - name: Install dependencies (32-bit)
       if: matrix.env.CROSS_COMPILE_32BIT == 'yes'
@@ -566,12 +568,18 @@ jobs:
         COMPILER_FLAGS: ${{ matrix.env.COMPILER_FLAGS }}
         CONFIGURE_FLAGS: ${{ matrix.env.CONFIGURE_FLAGS }}
         EXTRA_CFLAGS: ${{ matrix.env.EXTRA_CFLAGS }}
+        SDT_BACKEND: ${{ matrix.env.SDT_BACKEND }}
       run: |
         # Verify the script generates the same output
         ./scripts/gen_gh_actions.py > gh_actions_script.yml
 
         # Run autoconf
         autoconf
+
+        # Force the fallback backend even if the runner gains sys/sdt.h.
+        if [ "$SDT_BACKEND" = "CUSTOM" ]; then
+          export je_cv_stap_sdt=no
+        fi
 
         # Configure with flags
         if [ -n "$COMPILER_FLAGS" ]; then
@@ -580,9 +588,21 @@ jobs:
           ./configure $CONFIGURE_FLAGS
         fi
 
+        if [ -n "$SDT_BACKEND" ]; then
+          grep -q "#define JEMALLOC_EXPERIMENTAL_USDT_$SDT_BACKEND" \
+            include/jemalloc/internal/jemalloc_internal_defs.h
+        fi
+
         # Build
         make -j3
         make -j3 tests
+
+        if [ -n "$SDT_BACKEND" ]; then
+          sdt_notes="$(readelf -n lib/libjemalloc.so.2)"
+          test "$(echo "$sdt_notes" | grep -c 'Provider: otel_memory')" -eq 2
+          test "$(echo "$sdt_notes" | grep -c 'Name: alloc')" -eq 1
+          test "$(echo "$sdt_notes" | grep -c 'Name: free')" -eq 1
+        fi
 
         # Run tests
         make check
@@ -605,8 +625,9 @@ jobs:
           - env:
               CC: gcc
               CXX: g++
-              CONFIGURE_FLAGS: --enable-debug
+              CONFIGURE_FLAGS: "--enable-debug --enable-prof --enable-experimental-sdt"
               EXTRA_CFLAGS: "-Werror -Wno-array-bounds"
+              SDT_BACKEND: CUSTOM
           - env:
               CC: gcc
               CXX: g++
@@ -689,7 +710,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libunwind-dev
+        sudo apt-get install -y libunwind-dev ${{ matrix.env.EXTRA_PACKAGES }}
 
     - name: Install dependencies (32-bit)
       if: matrix.env.CROSS_COMPILE_32BIT == 'yes'
@@ -705,12 +726,18 @@ jobs:
         COMPILER_FLAGS: ${{ matrix.env.COMPILER_FLAGS }}
         CONFIGURE_FLAGS: ${{ matrix.env.CONFIGURE_FLAGS }}
         EXTRA_CFLAGS: ${{ matrix.env.EXTRA_CFLAGS }}
+        SDT_BACKEND: ${{ matrix.env.SDT_BACKEND }}
       run: |
         # Verify the script generates the same output
         ./scripts/gen_gh_actions.py > gh_actions_script.yml
 
         # Run autoconf
         autoconf
+
+        # Force the fallback backend even if the runner gains sys/sdt.h.
+        if [ "$SDT_BACKEND" = "CUSTOM" ]; then
+          export je_cv_stap_sdt=no
+        fi
 
         # Configure with flags
         if [ -n "$COMPILER_FLAGS" ]; then
@@ -719,9 +746,21 @@ jobs:
           ./configure $CONFIGURE_FLAGS
         fi
 
+        if [ -n "$SDT_BACKEND" ]; then
+          grep -q "#define JEMALLOC_EXPERIMENTAL_USDT_$SDT_BACKEND" \
+            include/jemalloc/internal/jemalloc_internal_defs.h
+        fi
+
         # Build
         make -j3
         make -j3 tests
+
+        if [ -n "$SDT_BACKEND" ]; then
+          sdt_notes="$(readelf -n lib/libjemalloc.so.2)"
+          test "$(echo "$sdt_notes" | grep -c 'Provider: otel_memory')" -eq 2
+          test "$(echo "$sdt_notes" | grep -c 'Name: alloc')" -eq 1
+          test "$(echo "$sdt_notes" | grep -c 'Name: free')" -eq 1
+        fi
 
         # Run tests
         make check
