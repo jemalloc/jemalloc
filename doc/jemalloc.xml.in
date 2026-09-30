@@ -1132,9 +1132,10 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         setting to enable this feature, which uses number of CPUs to determine
         number of arenas, and bind threads to arenas dynamically based on the
         CPU the thread runs on currently.  <quote>phycpu</quote> setting uses
-        one arena per physical CPU, which means the two hyper threads on the
-        same CPU share one arena.  Note that no runtime checking regarding the
-        availability of hyper threading is done at the moment.  When set to
+        one arena per physical CPU core, which means the hyper threads on the
+        same core share one arena.  Cores are discovered from sysfs on Linux;
+        where they cannot be discovered, each logical CPU gets its own arena,
+        as with <quote>percpu</quote>.  When set to
         <quote>disabled</quote>, narenas and thread to arena association will
         not be impacted by this option.  The default is <quote>disabled</quote>.
         </para></listitem>

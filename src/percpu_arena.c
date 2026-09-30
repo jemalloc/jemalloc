@@ -21,62 +21,36 @@ unsigned percpu_arena_ngroups;
 
 /******************************************************************************/
 
-/* How many distinct arenas the mode spreads ncpus_mapped CPUs over. */
-static unsigned
-percpu_arena_ngroups_for(percpu_arena_mode_t mode, unsigned ncpus_mapped) {
-	assert(PERCPU_ARENA_ENABLED(mode));
-	assert(ncpus_mapped > 0);
-
-	unsigned ngroups;
-	switch (mode) {
-	case percpu_arena:
-		ngroups = ncpus_mapped;
-		break;
-	case per_phycpu_arena:
-		/*
-		 * Hyper threads on the same physical CPU share an arena.  An
-		 * odd count likely means a misconfig; round up so that the
-		 * unpaired CPU still has a group of its own.
-		 */
-		ngroups = ncpus_mapped > 1
-		    ? ncpus_mapped / 2 + ncpus_mapped % 2
-		    : ncpus_mapped;
-		break;
-	default:
-		not_reached();
-	}
-
-	assert(ngroups < MALLOCX_ARENA_LIMIT);
-	return ngroups;
-}
-
-/* Which of those groups the CPU ranked cpu_pos in the mapped set falls in. */
-static unsigned
-percpu_arena_group_of(percpu_arena_mode_t mode, unsigned cpu_pos,
-    unsigned ncpus_mapped) {
-	switch (mode) {
-	case percpu_arena:
-		return cpu_pos;
-	case per_phycpu_arena:
-		return cpu_pos < ncpus_mapped / 2 ? cpu_pos
-		                                  : cpu_pos - ncpus_mapped / 2;
-	default:
-		not_reached();
-	}
-}
-
-unsigned
-percpu_arena_min_narenas(percpu_arena_mode_t mode) {
-	assert(ncpus > 0);
-	return percpu_arena_ngroups_for(mode, ncpus);
-}
+#define PERCPU_ARENA_UNMAPPED UINT16_MAX
 
 void
-percpu_arena_map_build(uint16_t *map, size_t map_len, percpu_arena_mode_t mode,
-    const unsigned *cpu_ids, unsigned ncpus_mapped, unsigned *ngroups) {
+percpu_arena_map_build(uint16_t *map, size_t map_len, const unsigned *cpus,
+    const unsigned *keys, unsigned ncpus_mapped, unsigned *ngroups) {
 	assert(map_len > 0);
+	assert(ncpus_mapped > 0);
 
-	unsigned n = percpu_arena_ngroups_for(mode, ncpus_mapped);
+	/*
+	 * map[key] doubles as the key -> group table.  That is consistent: a key
+	 * is a CPU on the same core, so it belongs to the same group, and it
+	 * also sends a disallowed sibling of an allowed CPU to its core's arena.
+	 */
+	for (size_t c = 0; c < map_len; c++) {
+		map[c] = PERCPU_ARENA_UNMAPPED;
+	}
+	unsigned n = 0;
+	for (unsigned pos = 0; pos < ncpus_mapped; pos++) {
+		unsigned cpu = cpus[pos];
+		if (cpu >= map_len) {
+			continue;
+		}
+		unsigned key = keys[pos] < map_len ? keys[pos] : cpu;
+		if (map[key] == PERCPU_ARENA_UNMAPPED) {
+			assert(n < MALLOCX_ARENA_LIMIT);
+			map[key] = (uint16_t)n++;
+		}
+		map[cpu] = map[key];
+	}
+	assert(n > 0);
 
 	/*
 	 * CPU ids we know nothing about keep a bounded fallback.  If the
@@ -85,41 +59,47 @@ percpu_arena_map_build(uint16_t *map, size_t map_len, percpu_arena_mode_t mode,
 	 * mapping.
 	 */
 	for (size_t c = 0; c < map_len; c++) {
-		map[c] = (uint16_t)(c % n);
-	}
-
-	for (unsigned pos = 0; pos < ncpus_mapped; pos++) {
-		unsigned cpu = (cpu_ids != NULL) ? cpu_ids[pos] : pos;
-		if (cpu >= map_len) {
-			continue;
+		if (map[c] == PERCPU_ARENA_UNMAPPED) {
+			map[c] = (uint16_t)(c % n);
 		}
-		unsigned ind = percpu_arena_group_of(mode, pos, ncpus_mapped);
-		assert(ind < n);
-		map[cpu] = (uint16_t)ind;
 	}
 
 	*ngroups = n;
 }
 
-void
-percpu_arena_boot(percpu_arena_mode_t mode, unsigned narenas) {
-	assert(ncpus > 0);
-	assert(narenas > 0);
+unsigned
+percpu_arena_boot(percpu_arena_mode_t mode) {
+	assert(ncpus > 0 && ncpus <= PERCPU_ARENA_MAX_CPUS);
+	assert(PERCPU_ARENA_ENABLED(mode));
 
 	/*
-	 * Boot runs once, from malloc_init_hard() under init_lock, so a static
-	 * scratch buffer is safe and keeps this off the caller's stack.  It is
+	 * Boot runs from malloc_init_hard() under init_lock, so static scratch
+	 * buffers are safe and keep these off the caller's stack.  They are
 	 * only ever touched when percpu arenas are enabled.
 	 */
-	static unsigned cpu_ids[PERCPU_ARENA_MAX_CPUS];
-	unsigned ncpu_ids =
-	    os_cpu_affinity_cpus(cpu_ids, PERCPU_ARENA_MAX_CPUS);
-	/* Only trust the mask if it accounts for every CPU we counted. */
-	const unsigned *map_cpu_ids = (ncpu_ids == ncpus) ? cpu_ids : NULL;
+	static unsigned cpus[PERCPU_ARENA_MAX_CPUS];
+	static unsigned keys[PERCPU_ARENA_MAX_CPUS];
+	/*
+	 * Only trust the mask if it accounts for every CPU we counted; otherwise
+	 * assume ids 0..ncpus-1, which say nothing about cores.
+	 */
+	bool trusted = os_cpu_affinity_cpus(cpus, PERCPU_ARENA_MAX_CPUS)
+	    == ncpus;
+	for (unsigned pos = 0; pos < ncpus; pos++) {
+		if (!trusted) {
+			cpus[pos] = pos;
+		}
+		keys[pos] = cpus[pos];
+		/*
+		 * A CPU whose core is unknown keeps its own id as key, and so its
+		 * own arena: never merge CPUs on a guess.
+		 */
+		if (mode == per_phycpu_arena && trusted) {
+			os_cpu_core_key(cpus[pos], &keys[pos]);
+		}
+	}
 
-	percpu_arena_map_build(percpu_arena_map, PERCPU_ARENA_MAX_CPUS, mode,
-	    map_cpu_ids, ncpus, &percpu_arena_ngroups);
-
-	assert(percpu_arena_ngroups > 0);
-	assert(percpu_arena_ngroups <= narenas);
+	percpu_arena_map_build(percpu_arena_map, PERCPU_ARENA_MAX_CPUS, cpus,
+	    keys, ncpus, &percpu_arena_ngroups);
+	return percpu_arena_ngroups;
 }

@@ -421,19 +421,12 @@ malloc_init_narenas(tsdn_t *tsdn) {
 				}
 				return true;
 			}
-			/* NB: opt_percpu_arena isn't fully initialized yet. */
-			if (initialized_mode == per_phycpu_arena
-			    && ncpus % 2 != 0) {
-				malloc_printf(
-				    "<jemalloc>: invalid "
-				    "configuration -- per physical CPU arena "
-				    "with odd number (%u) of CPUs (no hyper "
-				    "threading?).\n",
-				    ncpus);
-				if (opt_abort)
-					abort();
-			}
-			unsigned n = percpu_arena_min_narenas(initialized_mode);
+			/*
+			 * NB: opt_percpu_arena isn't fully initialized yet, so
+			 * no arena_choose() can reach the map until
+			 * malloc_init_percpu() promotes it.
+			 */
+			unsigned n = percpu_arena_boot(initialized_mode);
 			if (opt_narenas < n) {
 				/*
 				 * The CPU-to-arena map targets n automatic arenas,
@@ -458,16 +451,6 @@ malloc_init_narenas(tsdn_t *tsdn) {
 		malloc_printf("<jemalloc>: Reducing narenas to limit (%d)\n",
 		    narenas_auto);
 	}
-	/*
-	 * Build the CPU -> arena map now that narenas is final.  The mode is
-	 * still in its uninit encoding, so no arena_choose() can reach the map
-	 * until malloc_init_percpu() promotes it.
-	 */
-	if (opt_percpu_arena != percpu_arena_disabled) {
-		percpu_arena_boot(percpu_arena_as_initialized(opt_percpu_arena),
-		    narenas_auto);
-	}
-
 	narenas_total_set(narenas_auto);
 	if (arena_init_huge(tsdn, arena_get(tsdn, 0, false))) {
 		narenas_total_inc();
@@ -481,7 +464,8 @@ static void
 malloc_init_percpu(void) {
 	opt_percpu_arena = percpu_arena_as_initialized(opt_percpu_arena);
 	assert(!PERCPU_ARENA_ENABLED(opt_percpu_arena)
-	    || percpu_arena_ngroups > 0);
+	    || (percpu_arena_ngroups > 0
+	        && percpu_arena_ngroups <= narenas_auto));
 }
 
 static bool

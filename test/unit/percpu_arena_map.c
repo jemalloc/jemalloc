@@ -1,148 +1,200 @@
 #include "test/jemalloc_test.h"
 
-/*
- * Expected results for dense CPU IDs, kept separate from the map builder so
- * that the table is checked against an independent implementation.
- */
-static unsigned
-dense_cpu_ind_limit(percpu_arena_mode_t mode, unsigned ncpus_) {
-	if (mode == per_phycpu_arena && ncpus_ > 1) {
-		if (ncpus_ % 2) {
-			/* This likely means a misconfig. */
-			return ncpus_ / 2 + 1;
-		}
-		return ncpus_ / 2;
-	} else {
-		return ncpus_;
-	}
-}
-
-static unsigned
-dense_cpu_arena_ind(
-    percpu_arena_mode_t mode, unsigned ncpus_, unsigned cpuid) {
-	if (mode == percpu_arena || cpuid < ncpus_ / 2) {
-		return cpuid;
-	} else {
-		/* Hyper threads on the same physical CPU share arena. */
-		return cpuid - ncpus_ / 2;
-	}
-}
-
 static const unsigned test_ncpus[]
     = {1, 2, 3, 4, 5, 7, 8, 64, 88, 176, 1023, 4094};
 #define NNCPUS (sizeof(test_ncpus) / sizeof(test_ncpus[0]))
 
 static uint16_t map[PERCPU_ARENA_MAX_CPUS];
+static unsigned cpus[PERCPU_ARENA_MAX_CPUS];
+static unsigned keys[PERCPU_ARENA_MAX_CPUS];
 
 /*
- * Invariants every mode owes its callers: every CPU id maps somewhere in range,
- * and no arena below the group count is left unreachable.
+ * Invariants every mapping owes its callers: every CPU id maps somewhere in
+ * range, and every group is reachable from an allowed CPU.
  */
 static void
-expect_map_well_formed(percpu_arena_mode_t mode, unsigned ncpus_,
-    unsigned ngroups) {
+expect_map_well_formed(unsigned n, unsigned ngroups) {
 	static bool seen[PERCPU_ARENA_MAX_CPUS];
-	const char *name = percpu_arena_mode_names[mode];
 
-	expect_u_gt(ngroups, 0, "Group count must be positive (%s, ncpus %u)",
-	    name, ncpus_);
-	expect_u_le(ngroups, ncpus_,
-	    "Group count must not exceed the CPU count (%s, ncpus %u)", name,
-	    ncpus_);
+	expect_u_gt(ngroups, 0, "Group count must be positive (ncpus %u)", n);
+	expect_u_le(ngroups, n,
+	    "Group count must not exceed the CPU count (ncpus %u)", n);
 
 	/*
 	 * An affinity-restricted process counts only the CPUs in its mask but
-	 * is still told the machine-wide CPU id, so ids at or above the count
-	 * are reachable and must still land on a real arena.
+	 * is still told the machine-wide CPU id, so ids outside the mask are
+	 * reachable and must still land on a real arena.
 	 */
 	for (unsigned cpu = 0; cpu < PERCPU_ARENA_MAX_CPUS; cpu++) {
 		expect_u_lt(map[cpu], ngroups,
-		    "Every CPU id must map into the group range (%s, ncpus %u, "
+		    "Every CPU id must map into the group range (ncpus %u, "
 		    "cpu %u)",
-		    name, ncpus_, cpu);
+		    n, cpu);
 	}
 
 	memset(seen, 0, sizeof(seen));
-	for (unsigned cpu = 0; cpu < ncpus_; cpu++) {
-		seen[map[cpu]] = true;
+	for (unsigned pos = 0; pos < n; pos++) {
+		seen[map[cpus[pos]]] = true;
 	}
 	for (unsigned g = 0; g < ngroups; g++) {
-		expect_true(seen[g], "Arena %u is unreachable (%s, ncpus %u)", g,
-		    name, ncpus_);
+		expect_true(seen[g], "Arena %u is unreachable (ncpus %u)", g, n);
 	}
 }
 
-TEST_BEGIN(test_dense_cpu_mappings) {
-	percpu_arena_mode_t modes[] = {percpu_arena, per_phycpu_arena};
+static unsigned
+build(unsigned n) {
+	unsigned ngroups;
+	percpu_arena_map_build(
+	    map, PERCPU_ARENA_MAX_CPUS, cpus, keys, n, &ngroups);
+	expect_map_well_formed(n, ngroups);
+	return ngroups;
+}
 
-	for (unsigned m = 0; m < sizeof(modes) / sizeof(modes[0]); m++) {
-		percpu_arena_mode_t mode = modes[m];
-		for (unsigned i = 0; i < NNCPUS; i++) {
-			unsigned n = test_ncpus[i];
-			unsigned ngroups;
-
-			percpu_arena_map_build(
-			    map, PERCPU_ARENA_MAX_CPUS, mode, NULL, n,
-			    &ngroups);
-
-			expect_u_eq(ngroups, dense_cpu_ind_limit(mode, n),
-			    "Group count differs from the dense CPU limit "
-			    "(mode %s, ncpus %u)",
-			    percpu_arena_mode_names[mode], n);
-
-			for (unsigned cpu = 0; cpu < n; cpu++) {
-				expect_u_eq(map[cpu],
-				    dense_cpu_arena_ind(mode, n, cpu),
-				    "Map differs from the dense CPU mapping "
-				    "(mode %s, ncpus %u, cpu %u)",
-				    percpu_arena_mode_names[mode], n, cpu);
-			}
-
-			expect_map_well_formed(mode, n, ngroups);
+TEST_BEGIN(test_percpu_dense) {
+	for (unsigned i = 0; i < NNCPUS; i++) {
+		unsigned n = test_ncpus[i];
+		for (unsigned cpu = 0; cpu < n; cpu++) {
+			cpus[cpu] = keys[cpu] = cpu;
+		}
+		expect_u_eq(build(n), n,
+		    "percpu should use one arena per CPU (ncpus %u)", n);
+		for (unsigned cpu = 0; cpu < n; cpu++) {
+			expect_u_eq(map[cpu], cpu,
+			    "CPU %u should use arena %u (ncpus %u)", cpu, cpu, n);
 		}
 	}
 }
 TEST_END
 
-TEST_BEGIN(test_min_narenas_by_mode) {
-	unsigned saved_ncpus = ncpus;
-
-	ncpus = 176;
-	expect_u_eq(percpu_arena_min_narenas(percpu_arena), 176,
-	    "percpu should require one arena per CPU");
-	expect_u_eq(percpu_arena_min_narenas(per_phycpu_arena), 88,
-	    "phycpu should require one arena per physical CPU");
-
-	ncpus = saved_ncpus;
+TEST_BEGIN(test_percpu_sparse_uses_affinity_rank) {
+	unsigned sparse[] = {150, 154, 158, 162};
+	for (unsigned pos = 0; pos < 4; pos++) {
+		cpus[pos] = keys[pos] = sparse[pos];
+	}
+	expect_u_eq(build(4), 4, "percpu should use one arena per allowed CPU");
+	for (unsigned pos = 0; pos < 4; pos++) {
+		expect_u_eq(map[sparse[pos]], pos,
+		    "Allowed CPU %u should use arena %u", sparse[pos], pos);
+	}
 }
 TEST_END
 
-TEST_BEGIN(test_sparse_cpu_ids_use_affinity_rank) {
-	unsigned cpu_ids[] = {150, 154, 158, 162};
-	unsigned ngroups;
+/* Allowed CPUs first..first+n-1, keyed as core_key() says. */
+static unsigned
+build_range(
+    unsigned first, unsigned n, unsigned (*core_key)(unsigned cpu)) {
+	for (unsigned pos = 0; pos < n; pos++) {
+		cpus[pos] = first + pos;
+		keys[pos] = core_key(first + pos);
+	}
+	return build(n);
+}
 
-	percpu_arena_map_build(map, PERCPU_ARENA_MAX_CPUS, percpu_arena,
-	    cpu_ids, 4, &ngroups);
-	expect_u_eq(ngroups, 4, "percpu should use one arena per allowed CPU");
-	expect_u_eq(map[150], 0, "First allowed CPU should use arena 0");
-	expect_u_eq(map[154], 1, "Second allowed CPU should use arena 1");
-	expect_u_eq(map[158], 2, "Third allowed CPU should use arena 2");
-	expect_u_eq(map[162], 3, "Fourth allowed CPU should use arena 3");
+static unsigned
+key_half_split(unsigned cpu) {
+	/* 176 CPUs, siblings N and N + 88 (x86 Linux numbering). */
+	return cpu % 88;
+}
 
-	percpu_arena_map_build(map, PERCPU_ARENA_MAX_CPUS, per_phycpu_arena,
-	    cpu_ids, 4, &ngroups);
-	expect_u_eq(ngroups, 2, "phycpu should use half as many arenas");
-	expect_u_eq(map[150], 0, "First allowed CPU should use arena 0");
-	expect_u_eq(map[154], 1, "Second allowed CPU should use arena 1");
-	expect_u_eq(map[158], 0, "Third allowed CPU should share arena 0");
-	expect_u_eq(map[162], 1, "Fourth allowed CPU should share arena 1");
+static unsigned
+key_adjacent(unsigned cpu) {
+	/* Siblings 2k and 2k + 1 (Windows, FreeBSD, many VMs). */
+	return cpu & ~1U;
+}
+
+static unsigned
+key_smt4(unsigned cpu) {
+	return cpu & ~3U;
+}
+
+static unsigned
+key_no_smt(unsigned cpu) {
+	return cpu;
+}
+
+TEST_BEGIN(test_phycpu_groups_by_core) {
+	expect_u_eq(build_range(0, 176, key_half_split), 88,
+	    "Full mask with N / N + 88 siblings should give 88 arenas");
+	for (unsigned cpu = 0; cpu < 88; cpu++) {
+		expect_u_eq(map[cpu], map[cpu + 88],
+		    "CPU %u and its sibling %u should share an arena", cpu,
+		    cpu + 88);
+		expect_u_eq(map[cpu], cpu, "Core %u should use arena %u", cpu,
+		    cpu);
+	}
+
+	/* The case rank pairing got wrong: 16 distinct cores. */
+	expect_u_eq(build_range(0, 16, key_half_split), 16,
+	    "CPUs 0-15 are 16 cores and should get 16 arenas");
+
+	expect_u_eq(build_range(0, 8, key_adjacent), 4,
+	    "Adjacent siblings should pair up");
+	expect_u_eq(map[0], map[1], "CPUs 0 and 1 should share an arena");
+	expect_u_ne(map[1], map[2], "CPUs 1 and 2 should not share an arena");
+
+	expect_u_eq(build_range(0, 16, key_smt4), 4,
+	    "Four-way SMT should put four CPUs on each arena");
+	expect_u_eq(map[4], map[7], "CPUs 4-7 should share an arena");
+
+	expect_u_eq(build_range(0, 7, key_no_smt), 7,
+	    "Without SMT every CPU should get its own arena");
+}
+TEST_END
+
+TEST_BEGIN(test_phycpu_partial_and_unknown_cores) {
+	/* Allowed 5, 88, 93 with siblings N / N + 88: core 0 is partial. */
+	unsigned partial_cpus[] = {5, 88, 93};
+	unsigned partial_keys[] = {5, 0, 5};
+	for (unsigned pos = 0; pos < 3; pos++) {
+		cpus[pos] = partial_cpus[pos];
+		keys[pos] = partial_keys[pos];
+	}
+	expect_u_eq(build(3), 2, "Two cores should give two arenas");
+	expect_u_eq(map[5], map[93], "CPUs 5 and 93 should share an arena");
+	expect_u_ne(map[5], map[88], "CPUs 5 and 88 should not share an arena");
+	expect_u_eq(map[0], map[88],
+	    "A disallowed sibling should map to its core's arena");
+
+	/* Unknown cores keep their own ids and are never merged. */
+	unsigned unknown[] = {3, 91};
+	for (unsigned pos = 0; pos < 2; pos++) {
+		cpus[pos] = keys[pos] = unknown[pos];
+	}
+	expect_u_eq(build(2), 2, "CPUs of unknown cores must not share");
+
+	/* A key the map cannot index falls back to the CPU's own id. */
+	cpus[0] = 1;
+	keys[0] = PERCPU_ARENA_MAX_CPUS;
+	cpus[1] = 2;
+	keys[1] = PERCPU_ARENA_MAX_CPUS;
+	expect_u_eq(build(2), 2, "Out-of-range keys must not merge CPUs");
+}
+TEST_END
+
+TEST_BEGIN(test_core_key_host) {
+	unsigned n = os_cpu_affinity_cpus(cpus, PERCPU_ARENA_MAX_CPUS);
+	unsigned key;
+	test_skip_if(n == 0 || os_cpu_core_key(cpus[0], &key));
+
+	for (unsigned pos = 0; pos < n; pos++) {
+		unsigned cpu = cpus[pos];
+		if (os_cpu_core_key(cpu, &key)) {
+			continue;
+		}
+		expect_u_le(key, cpu,
+		    "CPU %u's core key must be its smallest sibling", cpu);
+		unsigned key_of_key;
+		if (!os_cpu_core_key(key, &key_of_key)) {
+			expect_u_eq(key_of_key, key,
+			    "CPU %u's core key %u must key to itself", cpu, key);
+		}
+	}
 }
 TEST_END
 
 int
 main(void) {
-	return test_no_reentrancy(
-	    test_min_narenas_by_mode,
-	    test_dense_cpu_mappings,
-	    test_sparse_cpu_ids_use_affinity_rank);
+	return test_no_reentrancy(test_percpu_dense,
+	    test_percpu_sparse_uses_affinity_rank, test_phycpu_groups_by_core,
+	    test_phycpu_partial_and_unknown_cores, test_core_key_host);
 }

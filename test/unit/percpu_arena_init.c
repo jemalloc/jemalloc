@@ -16,8 +16,9 @@ TEST_BEGIN(test_percpu_restricted_startup) {
 	test_skip_if(n == 0 || sysconf(_SC_NPROCESSORS_ONLN) <= 1);
 
 	const char *configs[] = {
-	    "narenas:default,background_thread:false,percpu_arena:percpu"};
-	percpu_arena_mode_t modes[] = {percpu_arena};
+	    "narenas:default,background_thread:false,percpu_arena:percpu",
+	    "narenas:default,background_thread:false,percpu_arena:phycpu"};
+	percpu_arena_mode_t modes[] = {percpu_arena, per_phycpu_arena};
 
 	for (unsigned i = 0; i < sizeof(configs) / sizeof(configs[0]); i++) {
 		pid_t pid = fork();

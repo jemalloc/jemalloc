@@ -28,7 +28,11 @@ typedef enum {
 	percpu_arena_mode_enabled_base = 3,
 
 	percpu_arena = 3,
-	per_phycpu_arena = 4 /* Hyper threads share arena. */
+	/*
+	 * Logical CPUs on one physical core share an arena.  Cores are read from
+	 * Linux sysfs; where they are unknown, each CPU gets its own arena.
+	 */
+	per_phycpu_arena = 4
 } percpu_arena_mode_t;
 
 #define PERCPU_ARENA_ENABLED(m) ((m) >= percpu_arena_mode_enabled_base)
@@ -62,29 +66,24 @@ extern uint16_t percpu_arena_map[PERCPU_ARENA_MAX_CPUS];
 extern unsigned percpu_arena_ngroups;
 
 /*
- * Fill map[0, map_len) and *ngroups with the mode's CPU -> arena mapping.  If
- * cpu_ids is non-NULL, the ncpus_mapped entries are the actual CPU ids in rank
- * order; otherwise CPUs are assumed to be compactly numbered 0..n-1.  Pure:
- * depends on nothing but its arguments, and is non-static so that the unit
- * test can drive it with synthetic CPU counts.
+ * Fill map[0, map_len) and *ngroups.  The ncpus_mapped CPUs in cpus (ids, in
+ * rank order) get dense group indices in order of first appearance of their
+ * keys; CPUs with equal keys share a group.  Keys are CPU ids: the CPU's own
+ * id for percpu, its core's smallest CPU id for phycpu.  Pure: depends on
+ * nothing but its arguments, and is non-static so that the unit test can
+ * drive it with synthetic topologies.
  */
 void percpu_arena_map_build(uint16_t *map, size_t map_len,
-    percpu_arena_mode_t mode, const unsigned *cpu_ids, unsigned ncpus_mapped,
+    const unsigned *cpus, const unsigned *keys, unsigned ncpus_mapped,
     unsigned *ngroups);
 
 /*
- * Smallest narenas the mode can work with.  Consulted while narenas is still
- * being sized, so it must not depend on the map.
+ * Build the global map, set percpu_arena_ngroups, and return it: the number
+ * of automatic arenas the map requires.  Called from malloc_init_narenas()
+ * under init_lock before narenas is sized, with the mode in its *initialized*
+ * encoding (opt_percpu_arena is still uninit, so nothing reads the map yet).
  */
-unsigned percpu_arena_min_narenas(percpu_arena_mode_t mode);
-
-/*
- * Build the global map and set percpu_arena_ngroups.  Called once, from
- * malloc_init_narenas() with narenas final and the mode in its *initialized*
- * encoding (opt_percpu_arena is still uninit at that point).  Must run before
- * the first percpu_arena_choose() / percpu_arena_ind_limit().
- */
-void percpu_arena_boot(percpu_arena_mode_t mode, unsigned narenas);
+unsigned percpu_arena_boot(percpu_arena_mode_t mode);
 
 /******************************************************************************/
 /* INLINES */
