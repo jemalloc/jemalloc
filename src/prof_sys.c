@@ -434,9 +434,16 @@ prof_backtrace(tsd_t *tsd, prof_bt_t *bt) {
 	post_reentrancy(tsd);
 }
 
+static void
+prof_backtrace_noop(void **vec, unsigned *len, unsigned max_len) {
+	/* Leave *len at 0. */
+}
+
 void
 prof_hooks_init(void) {
-	prof_backtrace_hook_set(&prof_backtrace_impl);
+	/* prof_bt_max:0 leaves stack collection to external tools. */
+	prof_backtrace_hook_set(opt_prof_bt_max == 0 ? &prof_backtrace_noop
+	                                             : &prof_backtrace_impl);
 	prof_dump_hook_set(NULL);
 	prof_sample_hook_set(NULL);
 	prof_sample_free_hook_set(NULL);
