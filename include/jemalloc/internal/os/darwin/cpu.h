@@ -2,10 +2,10 @@
 #define JEMALLOC_INTERNAL_OS_DARWIN_CPU_H
 
 /*
- * Darwin CPU backend. os_cpu_ncpus(), os_cpu_count_is_deterministic(), and
- * os_cpu_yield() are identical to posix/cpu.h's (macOS has no
- * CPU_COUNT/sched_getaffinity() either, so the first two already fall
- * through to the same sysconf() path, and sched_yield() is standard POSIX),
+ * Darwin CPU backend. os_cpu_ncpus() and os_cpu_yield() are identical to
+ * posix/cpu.h's (macOS has no CPU_COUNT/sched_getaffinity() either, so the
+ * first already falls through to the same sysconf() path, and sched_yield()
+ * is standard POSIX),
  * duplicated here rather than shared via #include, matching every other
  * os/<os>/<module>.h backend (each is self-contained; see os/darwin/mutex.h).
  * os_cpu_current() is genuinely different: no sched_getcpu() on macOS, so it
@@ -43,32 +43,6 @@ os_cpu_affinity_cpus(unsigned *cpus, unsigned max_cpus) {
 	(void)cpus;
 	(void)max_cpus;
 	return 0;
-}
-
-JEMALLOC_ALWAYS_INLINE bool
-os_cpu_count_is_deterministic(void) {
-	long cpu_onln = sysconf(_SC_NPROCESSORS_ONLN);
-	long cpu_conf = sysconf(_SC_NPROCESSORS_CONF);
-	if (cpu_onln <= 0 || cpu_conf <= 0 || cpu_onln != cpu_conf) {
-		return false;
-	}
-#	if defined(CPU_COUNT)
-	cpu_set_t set;
-	int err;
-#		if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
-	err = sched_getaffinity(0, sizeof(set), &set);
-#		else  /* !JEMALLOC_HAVE_SCHED_SETAFFINITY */
-	err = pthread_getaffinity_np(pthread_self(), sizeof(set), &set);
-#		endif /* JEMALLOC_HAVE_SCHED_SETAFFINITY */
-	if (err != 0) {
-		return false;
-	}
-	long cpu_affinity = CPU_COUNT(&set);
-	if (cpu_affinity <= 0 || cpu_affinity != cpu_conf) {
-		return false;
-	}
-#	endif         /* CPU_COUNT */
-	return true;
 }
 
 JEMALLOC_ALWAYS_INLINE int
