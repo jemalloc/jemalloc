@@ -284,6 +284,35 @@ any of the following arguments (not a definitive list) to 'configure':
     configuration, jemalloc will provide additional size classes that are not
     16-byte-aligned (24, 40, and 56).
 
+* `--enable-dynamic-page-size`
+
+    Determine the allocator page size at startup rather than at configure time,
+    so that the same build can run on systems with different page sizes (e.g.
+    arm64 kernels with 4 KiB, 16 KiB, or 64 KiB pages).  By default the page
+    size is the system page size; the lg_page run-time option (see below) can
+    select a larger one.  jemalloc fails to initialize if the system page size
+    is outside the range set by `--with-min-lg-page` and `--with-max-lg-page`.
+    This option cannot be combined with `--with-lg-page`, and the huge page
+    size must be larger than the maximum page size.
+
+    The lg_page run-time option sets the base 2 log of the page size, e.g.
+    `MALLOC_CONF=lg_page:16` for 64 KiB pages.  The default of 0 means the
+    system page size is used.  The value must be within the configured range
+    and not smaller than the system page size.  See the "opt.lg_page" option
+    documentation for details.
+
+* `--with-min-lg-page=<min-lg-page>`
+
+    Specify the base 2 log of the smallest page size supported by
+    `--enable-dynamic-page-size`, from 12 (4 KiB) to 16 (64 KiB).  The default
+    is 12.
+
+* `--with-max-lg-page=<max-lg-page>`
+
+    Specify the base 2 log of the largest page size supported by
+    `--enable-dynamic-page-size`, from 12 (4 KiB) to 16 (64 KiB), and at least
+    `<min-lg-page>`.  The default is 16.
+
 * `--with-lg-vaddr=<lg-vaddr>`
 
     Specify the number of significant virtual address bits.  By default, the
