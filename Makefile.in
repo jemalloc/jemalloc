@@ -24,7 +24,8 @@ abs_srcroot := @abs_srcroot@
 abs_objroot := @abs_objroot@
 
 # Build parameters.
-CPPFLAGS := @CPPFLAGS@ -I$(objroot)include -I$(srcroot)include
+INTERNAL_CPPFLAGS := -I$(objroot)include -I$(srcroot)include
+CPPFLAGS := @CPPFLAGS@
 CONFIGURE_CFLAGS := @CONFIGURE_CFLAGS@
 SPECIFIED_CFLAGS := @SPECIFIED_CFLAGS@
 EXTRA_CFLAGS := @EXTRA_CFLAGS@
@@ -546,9 +547,9 @@ $(C_JET_OBJS) $(C_TESTLIB_UNIT_OBJS) $(C_TESTLIB_ANALYZE_OBJS) $(C_TESTLIB_STRES
 
 $(C_SYM_OBJS) $(C_OBJS) $(C_PIC_OBJS) $(C_JET_SYM_OBJS) $(C_JET_OBJS) $(C_TESTLIB_OBJS) $(TESTS_OBJS): %.$(O):
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -c $(CPPFLAGS) $(CTARGET) $<
+	$(CC) $(INTERNAL_CPPFLAGS) $(CFLAGS) -c $(CPPFLAGS) $(CTARGET) $<
 ifdef CC_MM
-	@$(CC) -MM $(CPPFLAGS) -MT $@ -o $(@:%.$(O)=%.d) $<
+	@$(CC) $(INTERNAL_CPPFLAGS) -MM $(CPPFLAGS) -MT $@ -o $(@:%.$(O)=%.d) $<
 endif
 
 $(C_SYMS): %.sym:
@@ -570,9 +571,9 @@ $(objroot)include/jemalloc/internal/private_namespace_jet.gen.h: $(C_JET_SYMS)
 
 $(CPP_OBJS) $(CPP_PIC_OBJS) $(TESTS_CPP_OBJS): %.$(O):
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -c $(CPPFLAGS) $(CTARGET) $<
+	$(CXX) $(INTERNAL_CPPFLAGS) $(CXXFLAGS) -c $(CPPFLAGS) $(CTARGET) $<
 ifdef CC_MM
-	@$(CXX) -MM $(CPPFLAGS) -MT $@ -o $(@:%.$(O)=%.d) $<
+	@$(CXX) $(INTERNAL_CPPFLAGS) -MM $(CPPFLAGS) -MT $@ -o $(@:%.$(O)=%.d) $<
 endif
 
 ifneq ($(SOREV),$(SO))
@@ -634,16 +635,16 @@ $(objroot)test/stress/pa/pa_microbench$(EXE): $(objroot)test/stress/pa/pa_microb
 
 $(objroot)test/stress/pa/%.$(O): $(srcroot)test/stress/pa/%.c
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -c $(CPPFLAGS) -DJEMALLOC_STRESS_TEST -I$(srcroot)test/include -I$(objroot)test/include $(CTARGET) $<
+	$(CC) $(INTERNAL_CPPFLAGS) $(CFLAGS) -c $(CPPFLAGS) -DJEMALLOC_STRESS_TEST -I$(srcroot)test/include -I$(objroot)test/include $(CTARGET) $<
 ifdef CC_MM
-	@$(CC) -MM $(CPPFLAGS) -DJEMALLOC_STRESS_TEST -I$(srcroot)test/include -I$(objroot)test/include -MT $@ -o $(@:%.$(O)=%.d) $<
+	@$(CC) $(INTERNAL_CPPFLAGS) -MM $(CPPFLAGS) -DJEMALLOC_STRESS_TEST -I$(srcroot)test/include -I$(objroot)test/include -MT $@ -o $(@:%.$(O)=%.d) $<
 endif
 
 $(objroot)test/stress/pa/%.$(O): $(srcroot)test/stress/pa/%.cpp
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -c $(CPPFLAGS) -I$(srcroot)test/include -I$(objroot)test/include $(CTARGET) $<
+	$(CXX) $(INTERNAL_CPPFLAGS) $(CXXFLAGS) -c $(CPPFLAGS) -I$(srcroot)test/include -I$(objroot)test/include $(CTARGET) $<
 ifdef CC_MM
-	@$(CXX) -MM $(CPPFLAGS) -I$(srcroot)test/include -I$(objroot)test/include -MT $@ -o $(@:%.$(O)=%.d) $<
+	@$(CXX) $(INTERNAL_CPPFLAGS) -MM $(CPPFLAGS) -I$(srcroot)test/include -I$(objroot)test/include -MT $@ -o $(@:%.$(O)=%.d) $<
 endif
 
 build_lib_shared: $(DSOS)
