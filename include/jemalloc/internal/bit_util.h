@@ -289,7 +289,11 @@ static inline size_t
 cfs_lu(unsigned long *bitmap) {
 	util_assume(*bitmap != 0);
 	size_t bit = ffs_lu(*bitmap);
-	*bitmap ^= ZU(1) << bit;
+	/*
+	 * Clear the lowest set bit using only the original bitmap value.  This
+	 * allows the index and updated bitmap to be computed independently.
+	 */
+	*bitmap &= *bitmap - 1;
 	return bit;
 }
 
