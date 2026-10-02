@@ -17,12 +17,17 @@ jobs:
       matrix:
         debug: ['--enable-debug', '--disable-debug']
         prof: ['--enable-prof', '--disable-prof']
+        dps: ['', '--enable-dynamic-page-size']
         arch: ['64-bit', '32-bit']
         uncommon:
           - ''
           - '--with-lg-page=16 --with-malloc-conf=tcache:false'
-
-    name: FreeBSD (${{ matrix.arch }}, debug=${{ matrix.debug }}, prof=${{ matrix.prof }}${{ matrix.uncommon && ', uncommon' || '' }})
+        exclude:
+          - dps: '--enable-dynamic-page-size'
+            arch: '32-bit'
+          - dps: '--enable-dynamic-page-size'
+            uncommon: '--with-lg-page=16 --with-malloc-conf=tcache:false'
+    name: FreeBSD (${{ matrix.arch }}, debug=${{ matrix.debug }}, prof=${{ matrix.prof }}${{ matrix.dps && format(', dps={0}', matrix.dps) || '' }}${{ matrix.uncommon && ', uncommon' || '' }})
 
     steps:
     - uses: actions/checkout@v7
@@ -53,7 +58,7 @@ jobs:
           autoconf
 
           # Configure with matrix options
-          ./configure --with-jemalloc-prefix=ci_ ${{ matrix.debug }} ${{ matrix.prof }} ${{ matrix.uncommon }}
+          ./configure --with-jemalloc-prefix=ci_ ${{ matrix.debug }} ${{ matrix.prof }} ${{ matrix.dps }} ${{ matrix.uncommon }}
 
           # Get CPU count for parallel builds
           export JFLAG=$(sysctl -n kern.smp.cpus)
