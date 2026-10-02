@@ -1913,22 +1913,11 @@ JEMALLOC_ATTR(pure) je_sallocx(const void *ptr, int flags) {
 	return usize;
 }
 
-JEMALLOC_EXPORT void JEMALLOC_NOTHROW
-je_dallocx(void *ptr, int flags) {
-	LOG("core.dallocx.entry", "ptr: %p, flags: %d", ptr, flags);
-
-	assert(ptr != NULL);
-	assert(malloc_initialized() || malloc_is_initializer());
-
-	if (likely(flags == 0)) {
-		je_free_impl(ptr);
-		LOG("core.dallocx.exit", "");
-		return;
-	}
-
+JEMALLOC_NOINLINE
+static void
+dallocx_default(void *ptr, int flags) {
 	UTRACE(ptr, 0, 0);
 	if (unlikely(dealloc_no_tsd(ptr))) {
-		LOG("core.dallocx.exit", "");
 		return;
 	}
 
@@ -1947,6 +1936,20 @@ je_dallocx(void *ptr, int flags) {
 		ifree(tsd, ptr, tcache, true);
 	}
 	check_entry_exit_locking(tsd_tsdn(tsd));
+}
+
+JEMALLOC_EXPORT void JEMALLOC_NOTHROW
+je_dallocx(void *ptr, int flags) {
+	LOG("core.dallocx.entry", "ptr: %p, flags: %d", ptr, flags);
+
+	assert(ptr != NULL);
+	assert(malloc_initialized() || malloc_is_initializer());
+
+	if (likely(flags == 0)) {
+		je_free_impl(ptr);
+	} else {
+		dallocx_default(ptr, flags);
+	}
 
 	LOG("core.dallocx.exit", "");
 }
