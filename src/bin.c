@@ -93,44 +93,34 @@ bin_slab_reg_alloc_batch(
 	assert(edata_nfree_get(slab) >= cnt);
 	assert(!bitmap_full(slab_data->bitmap, &bin_info->bitmap_info));
 
-#if (!defined JEMALLOC_INTERNAL_POPCOUNTL) || (defined BITMAP_USE_TREE)
-	for (unsigned i = 0; i < cnt; i++) {
-		size_t regind = bitmap_sfu(
-		    slab_data->bitmap, &bin_info->bitmap_info);
-		*(ptrs + i) = (void *)((uintptr_t)edata_addr_get(slab)
-		    + (uintptr_t)(bin_info->reg_size * regind));
-	}
-#else
-	unsigned group = 0;
-	bitmap_t g = slab_data->bitmap[group];
-	unsigned i = 0;
+	/*
+	 * Take as many regions as possible from each bottom-level group, so
+	 * that the (possibly multi-level) search for a group with free regions
+	 * and the propagation of group fullness are done once per group rather
+	 * than once per region.
+	 */
+	uintptr_t base = (uintptr_t)edata_addr_get(slab);
+	uintptr_t regsize = (uintptr_t)bin_info->reg_size;
+	unsigned  i = 0;
 	while (i < cnt) {
-		while (g == 0) {
-			g = slab_data->bitmap[++group];
-		}
+		size_t group = bitmap_ffu_group(
+		    slab_data->bitmap, &bin_info->bitmap_info);
+		bitmap_t g = slab_data->bitmap[group];
 		size_t shift = group << LG_BITMAP_GROUP_NBITS;
 		size_t pop = popcount_lu(g);
 		if (pop > (cnt - i)) {
 			pop = cnt - i;
 		}
-
-		/*
-		 * Load from memory locations only once, outside the
-		 * hot loop below.
-		 */
-		uintptr_t base = (uintptr_t)edata_addr_get(slab);
-		uintptr_t regsize = (uintptr_t)bin_info->reg_size;
 		while (pop--) {
 			size_t bit = cfs_lu(&g);
 			size_t regind = shift + bit;
 			/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
 			*(ptrs + i) = (void *)(base + regsize * regind);
-
 			i++;
 		}
-		slab_data->bitmap[group] = g;
+		bitmap_group_set(
+		    slab_data->bitmap, &bin_info->bitmap_info, group, g);
 	}
-#endif
 	edata_nfree_sub(slab, cnt);
 }
 

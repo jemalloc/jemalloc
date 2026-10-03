@@ -220,28 +220,44 @@ bitmap_get(const bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit) {
 }
 
 static inline void
+bitmap_group_set(
+    bitmap_t *bitmap, const bitmap_info_t *binfo, size_t goff, bitmap_t g);
+
+static inline void
 bitmap_set(bitmap_t *bitmap, const bitmap_info_t *binfo, size_t bit) {
-	size_t    goff;
-	bitmap_t *gp;
-	bitmap_t  g;
+	size_t   goff;
+	bitmap_t g;
 
 	assert(bit < binfo->nbits);
 	assert(!bitmap_get(bitmap, binfo, bit));
 	goff = bit >> LG_BITMAP_GROUP_NBITS;
-	gp = &bitmap[goff];
-	g = *gp;
+	g = bitmap[goff];
 	assert(g & (ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK)));
 	g ^= ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK);
-	*gp = g;
+	bitmap_group_set(bitmap, binfo, goff, g);
 	assert(bitmap_get(bitmap, binfo, bit));
+}
+
+/*
+ * Store g, which may have zero or more bits cleared from the existing
+ * bottom-level group.  If no free regions remain, propagate the group's
+ * fullness up the tree.
+ */
+static inline void
+bitmap_group_set(
+    bitmap_t *bitmap, const bitmap_info_t *binfo, size_t goff, bitmap_t g) {
+	assert(goff < BITMAP_BITS2GROUPS(binfo->nbits));
+	assert((g & ~bitmap[goff]) == 0);
+	bitmap[goff] = g;
 #ifdef BITMAP_USE_TREE
 	/* Propagate group state transitions up the tree. */
 	if (g == 0) {
 		unsigned i;
 		for (i = 1; i < binfo->nlevels; i++) {
-			bit = goff;
+			size_t bit = goff;
 			goff = bit >> LG_BITMAP_GROUP_NBITS;
-			gp = &bitmap[binfo->levels[i].group_offset + goff];
+			bitmap_t *gp = &bitmap[binfo->levels[i].group_offset
+			    + goff];
 			g = *gp;
 			assert(g & (ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK)));
 			g ^= ZU(1) << (bit & BITMAP_GROUP_NBITS_MASK);
@@ -346,6 +362,30 @@ bitmap_sfu(bitmap_t *bitmap, const bitmap_info_t *binfo) {
 #endif
 	bitmap_set(bitmap, binfo, bit);
 	return bit;
+}
+
+/*
+ * Index of the first bottom-level group that has an unset bit.  The bitmap must
+ * not be full.
+ */
+static inline size_t
+bitmap_ffu_group(const bitmap_t *bitmap, const bitmap_info_t *binfo) {
+	size_t goff = 0;
+
+	assert(!bitmap_full(bitmap, binfo));
+
+#ifdef BITMAP_USE_TREE
+	for (unsigned i = binfo->nlevels - 1; i > 0; i--) {
+		bitmap_t g = bitmap[binfo->levels[i].group_offset + goff];
+		goff = (goff << LG_BITMAP_GROUP_NBITS) + ffs_lu(g);
+	}
+#else
+	while (bitmap[goff] == 0) {
+		goff++;
+	}
+#endif
+	assert(bitmap[goff] != 0);
+	return goff;
 }
 
 static inline void

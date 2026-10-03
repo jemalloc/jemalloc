@@ -93,13 +93,20 @@ bin_dalloc_locked_step(tsdn_t *tsdn, bool is_auto, bin_t *bin,
 	}
 
 	unsigned nfree = edata_nfree_get(slab);
-	if (nfree == bin_info->nregs) {
-		bin_dalloc_locked_handle_newly_empty(
-		    tsdn, is_auto, slab, bin);
-		return true;
-	} else if (nfree == 1 && slab != bin->slabcur) {
-		bin_dalloc_locked_handle_newly_nonempty(
-		    tsdn, is_auto, slab, bin);
+	assert(nfree >= 1 && nfree <= info->nregs);
+	/*
+	 * nfree is in [1, nregs]; test for either end of the range with a
+	 * single unsigned compare.
+	 */
+	if (unlikely(nfree - 2 >= info->nregs - 2)) {
+		if (nfree == info->nregs) {
+			bin_dalloc_locked_handle_newly_empty(
+			    tsdn, is_auto, slab, bin);
+			return true;
+		} else if (slab != bin->slabcur) {
+			bin_dalloc_locked_handle_newly_nonempty(
+			    tsdn, is_auto, slab, bin);
+		}
 	}
 	return false;
 }
