@@ -170,15 +170,12 @@ tsd_rtree_ctx(tsd_t *tsd) {
 	return tsd_rtree_ctxp_get(tsd);
 }
 
+rtree_ctx_t *tsdn_rtree_ctx_fallback(void);
+
 JEMALLOC_ALWAYS_INLINE rtree_ctx_t *
-tsdn_rtree_ctx(tsdn_t *tsdn, rtree_ctx_t *fallback) {
-	/*
-	 * If tsd cannot be accessed, initialize the fallback rtree_ctx and
-	 * return a pointer to it.
-	 */
+tsdn_rtree_ctx(tsdn_t *tsdn) {
 	if (unlikely(tsdn_null(tsdn))) {
-		rtree_ctx_data_init(fallback);
-		return fallback;
+		return tsdn_rtree_ctx_fallback();
 	}
 	return tsd_rtree_ctx(tsdn_tsd(tsdn));
 }

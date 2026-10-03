@@ -321,3 +321,24 @@ rtree_read_slow(
     tsdn_t *tsdn, rtree_t *rtree, rtree_ctx_t *rtree_ctx, uintptr_t key) {
 	return rtree_read_impl(tsdn, rtree, rtree_ctx, key);
 }
+
+rtree_ctx_t *
+tsdn_rtree_ctx_fallback(void) {
+#ifdef JEMALLOC_TLS
+	static __thread rtree_ctx_t fallback_rtree_ctx;
+	static __thread bool initialized = false;
+	if (unlikely(!initialized)) {
+		rtree_ctx_data_init(&fallback_rtree_ctx);
+		initialized = true;
+	}
+	return &fallback_rtree_ctx;
+#else
+	static rtree_ctx_t fallback_rtree_ctx;
+	static bool initialized = false;
+	if (unlikely(!initialized)) {
+		rtree_ctx_data_init(&fallback_rtree_ctx);
+		initialized = true;
+	}
+	return &fallback_rtree_ctx;
+#endif
+}
