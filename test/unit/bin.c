@@ -168,6 +168,69 @@ TEST_BEGIN(test_bin_slab_reg_alloc_batch_partial) {
 TEST_END
 
 /*
+ * Test that batch allocation from a fragmented slab picks the same regions,
+ * and leaves the same bitmap, as repeated single-region allocation.
+ */
+TEST_BEGIN(test_bin_slab_reg_alloc_batch_fragmented) {
+	for (szind_t binind = 0; binind < SC_NBINS; binind++) {
+		const bin_info_t *bin_info = &bin_infos[binind];
+		unsigned          nregs = bin_info->nregs;
+		edata_t           batch_slab, single_slab;
+		void            **ptrs = mallocx(nregs * sizeof(void *), 0);
+		assert_ptr_not_null(ptrs, "Unexpected mallocx failure");
+
+		create_mock_slab(&batch_slab, binind, 0);
+		create_mock_slab(&single_slab, binind, 0);
+		bin_slab_reg_alloc_batch(&batch_slab, bin_info, nregs, ptrs);
+		bin_slab_reg_alloc_batch(&single_slab, bin_info, nregs, ptrs);
+
+		/* Free the same irregular subset of regions in both slabs. */
+		unsigned nfree = 0;
+		for (unsigned i = 0; i < nregs; i++) {
+			/*
+			 * Combine scattered regions with a short run at the
+			 * start of each bitmap group.
+			 */
+			bool free_region = i % 7 == 0
+			    || (i & BITMAP_GROUP_NBITS_MASK) < 3;
+			if (free_region) {
+				edata_t *slabs[] = {&batch_slab, &single_slab};
+				for (unsigned s = 0; s < 2; s++) {
+					bitmap_unset(
+					    edata_slab_data_get(slabs[s])->bitmap,
+					    &bin_info->bitmap_info, i);
+					edata_nfree_inc(slabs[s]);
+				}
+				nfree++;
+			}
+		}
+
+		unsigned cnt = nfree / 2 + 1;
+		bin_slab_reg_alloc_batch(&batch_slab, bin_info, cnt, ptrs);
+		for (unsigned i = 0; i < cnt; i++) {
+			void  *single = bin_slab_reg_alloc(&single_slab, bin_info);
+			size_t batch_off = (uintptr_t)ptrs[i]
+			    - (uintptr_t)edata_addr_get(&batch_slab);
+			size_t single_off = (uintptr_t)single
+			    - (uintptr_t)edata_addr_get(&single_slab);
+			expect_zu_eq(batch_off, single_off,
+			    "binind %u: allocation %u differs", binind, i);
+		}
+		expect_u_eq(edata_nfree_get(&batch_slab),
+		    edata_nfree_get(&single_slab), "binind %u: nfree differs",
+		    binind);
+		expect_d_eq(memcmp(edata_slab_data_get(&batch_slab)->bitmap,
+		                edata_slab_data_get(&single_slab)->bitmap,
+		                bitmap_size(&bin_info->bitmap_info)),
+		    0, "binind %u: bitmaps differ", binind);
+		free(ptrs);
+		free(edata_addr_get(&batch_slab));
+		free(edata_addr_get(&single_slab));
+	}
+}
+TEST_END
+
+/*
  * Test nonfull slab list insert, remove, and tryget.
  */
 TEST_BEGIN(test_bin_slabs_nonfull) {
@@ -895,6 +958,7 @@ main(void) {
 	    test_bin_slab_reg_alloc,
 	    test_bin_slab_reg_alloc_batch,
 	    test_bin_slab_reg_alloc_batch_partial,
+	    test_bin_slab_reg_alloc_batch_fragmented,
 	    test_bin_slabs_nonfull,
 	    test_bin_slabs_full,
 	    test_bin_slabs_full_auto,
