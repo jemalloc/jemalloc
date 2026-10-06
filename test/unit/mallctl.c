@@ -560,6 +560,7 @@ TEST_BEGIN(test_mallctl_opt) {
 	TEST_MALLCTL_OPT(bool, tcache, always);
 	TEST_MALLCTL_OPT(size_t, lg_extent_max_active_fit, always);
 	TEST_MALLCTL_OPT(size_t, tcache_max, always);
+	TEST_MALLCTL_OPT(unsigned, timer_scale, always);
 	TEST_MALLCTL_OPT(const char *, thp, always);
 	TEST_MALLCTL_OPT(const char *, zero_realloc, always);
 	TEST_MALLCTL_OPT(bool, prof, prof);
@@ -1670,6 +1671,45 @@ TEST_BEGIN(test_arena_i_retain_grow_limit) {
 }
 TEST_END
 
+TEST_BEGIN(test_timer_scale) {
+	unsigned orig, scale, old;
+	size_t   sz = sizeof(unsigned);
+
+	expect_d_eq(mallctl("opt.timer_scale", (void *)&orig, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	expect_d_eq(mallctl("timer_scale", (void *)&scale, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	expect_u_eq(scale, orig, "timer_scale should start at opt.timer_scale");
+
+	scale = 0;
+	expect_d_eq(mallctl("timer_scale", NULL, NULL, (void *)&scale,
+	                sizeof(scale)),
+	    EINVAL, "timer_scale of 0 should be rejected");
+	scale = TIMER_SCALE_MAX + 1;
+	expect_d_eq(mallctl("timer_scale", NULL, NULL, (void *)&scale,
+	                sizeof(scale)),
+	    EINVAL, "timer_scale above TIMER_SCALE_MAX should be rejected");
+	expect_d_eq(mallctl("timer_scale", NULL, NULL, (void *)&scale,
+	                sizeof(scale) - 1),
+	    EINVAL, "Wrong newlen should be rejected");
+
+	unsigned prev = orig;
+	unsigned vals[] = {TIMER_SCALE_MAX, 1, 20, orig};
+	for (unsigned i = 0; i < sizeof(vals) / sizeof(vals[0]); i++) {
+		expect_d_eq(mallctl("timer_scale", (void *)&old, &sz,
+		                (void *)&vals[i], sizeof(unsigned)),
+		    0, "Unexpected mallctl() failure");
+		expect_u_eq(old, prev, "Unexpected old timer_scale");
+		prev = vals[i];
+	}
+
+	/* opt.timer_scale reflects configuration, not run time changes. */
+	expect_d_eq(mallctl("opt.timer_scale", (void *)&scale, &sz, NULL, 0),
+	    0, "Unexpected mallctl() failure");
+	expect_u_eq(scale, orig, "opt.timer_scale should be unchanged");
+}
+TEST_END
+
 TEST_BEGIN(test_arenas_dirty_decay_ms) {
 	ssize_t dirty_decay_ms, orig_dirty_decay_ms, prev_dirty_decay_ms;
 	size_t  sz = sizeof(ssize_t);
@@ -2338,8 +2378,8 @@ main(void) {
 	    test_arena_i_dirty_decay_ms, test_arena_i_muzzy_decay_ms,
 	    test_arena_i_purge, test_arena_i_decay, test_arena_i_dss,
 	    test_arena_i_name, test_arena_i_retain_grow_limit,
-	    test_arenas_dirty_decay_ms, test_arenas_muzzy_decay_ms,
-	    test_arenas_constants, test_arenas_bin_constants,
+	    test_timer_scale, test_arenas_dirty_decay_ms,
+	    test_arenas_muzzy_decay_ms, test_arenas_constants, test_arenas_bin_constants,
 	    test_arenas_bin_oob, test_arenas_lextent_oob,
 	    test_stats_arenas_bins_oob, test_stats_arenas_lextents_oob,
 	    test_arenas_lextent_constants, test_arenas_create,

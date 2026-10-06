@@ -816,6 +816,20 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         startup.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="timer_scale">
+        <term>
+          <mallctl>timer_scale</mallctl>
+          (<type>unsigned</type>)
+          <literal>rw</literal>
+        </term>
+        <listitem><para>Current multiplier applied to time-based thresholds.
+        See <link
+        linkend="opt.timer_scale"><mallctl>opt.timer_scale</mallctl></link>
+        for the affected thresholds and valid range.  Changes take effect the
+        next time each threshold is checked; decay picks up the new value at its
+        next epoch.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="config.cache_oblivious">
         <term>
           <mallctl>config.cache_oblivious</mallctl>
@@ -1216,6 +1230,27 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         and <link
         linkend="arena.i.muzzy_decay_ms"><mallctl>arena.&lt;i&gt;.muzzy_decay_ms</mallctl></link>
         for related dynamic control options.</para></listitem>
+      </varlistentry>
+
+      <varlistentry id="opt.timer_scale">
+        <term>
+          <mallctl>opt.timer_scale</mallctl>
+          (<type>unsigned</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Multiplier applied uniformly to time-based thresholds:
+        the thread cache garbage collection interval, the <link
+        linkend="opt.dirty_decay_ms">dirty</link> and <link
+        linkend="opt.muzzy_decay_ms">muzzy</link> decay times, the HPA minimum
+        purge interval and hugification delay, and the minimum background
+        thread sleep interval.  Configured and reported decay times are not
+        modified; the scale is applied when they are used.  This is useful
+        when the whole process runs uniformly slower than usual (e.g. under
+        heavy instrumentation), so that time-based work keeps the same
+        frequency relative to application progress.  Valid values are 1
+        through 1000; the default is 1.  See <link
+        linkend="timer_scale"><mallctl>timer_scale</mallctl></link> for run
+        time control.</para></listitem>
       </varlistentry>
 
       <varlistentry id="opt.lg_extent_max_active_fit">

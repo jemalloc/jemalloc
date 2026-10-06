@@ -206,6 +206,9 @@ const char *const prof_time_res_mode_names[] = {
     "high",
 };
 
+unsigned   opt_timer_scale = 1;
+atomic_u_t timer_scale = ATOMIC_INIT(1);
+
 static void
 nstime_prof_update_impl(nstime_t *time) {
 	nstime_t old_time;

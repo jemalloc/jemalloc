@@ -506,6 +506,24 @@ hpa_purge(tsdn_t *tsdn, hpa_shard_t *shard, size_t max_hp) {
 	return batch.npurged_hp_total;
 }
 
+static inline uint64_t
+hpa_hugify_delay_ms(const hpa_shard_t *shard) {
+	return timer_scale_apply(shard->opts.hugify_delay_ms);
+}
+
+static inline uint64_t
+hpa_min_purge_interval_ms(const hpa_shard_t *shard) {
+	return timer_scale_apply(shard->opts.min_purge_interval_ms);
+}
+
+static inline uint64_t
+hpa_deferred_work_ns(uint64_t time_ms) {
+	const uint64_t ns_per_ms = KQU(1000000);
+	return time_ms > (DEFERRED_WORK_MAX - 1) / ns_per_ms
+	    ? DEFERRED_WORK_MAX - 1
+	    : time_ms * ns_per_ms;
+}
+
 /* Returns whether or not we hugified anything. */
 static bool
 hpa_try_hugify(tsdn_t *tsdn, hpa_shard_t *shard) {
@@ -525,7 +543,7 @@ hpa_try_hugify(tsdn_t *tsdn, hpa_shard_t *shard) {
 	/* Make sure that it's been hugifiable for long enough. */
 	nstime_t time_hugify_allowed = hpdata_time_hugify_allowed(to_hugify);
 	uint64_t millis = shard->central->hooks.ms_since(&time_hugify_allowed);
-	if (millis < shard->opts.hugify_delay_ms) {
+	if (millis < hpa_hugify_delay_ms(shard)) {
 		return false;
 	}
 
@@ -583,7 +601,7 @@ hpa_min_purge_interval_passed(tsdn_t *tsdn, hpa_shard_t *shard) {
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
 	uint64_t since_last_purge_ms = nstime_ms_between(
 	    &shard->last_purge, &shard->last_time_work_attempted);
-	return since_last_purge_ms >= shard->opts.min_purge_interval_ms;
+	return since_last_purge_ms >= hpa_min_purge_interval_ms(shard);
 }
 
 static inline void
@@ -1080,10 +1098,10 @@ hpa_time_until_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard) {
 		 * If not enough time has passed since hugification was allowed,
 		 * sleep for the rest.
 		 */
-		if (since_hugify_allowed_ms < shard->opts.hugify_delay_ms) {
-			time_ns = shard->opts.hugify_delay_ms
-			    - since_hugify_allowed_ms;
-			time_ns *= 1000 * 1000;
+		uint64_t hugify_delay_ms = hpa_hugify_delay_ms(shard);
+		if (since_hugify_allowed_ms < hugify_delay_ms) {
+			time_ns = hpa_deferred_work_ns(
+			    hugify_delay_ms - since_hugify_allowed_ms);
 		} else {
 			malloc_mutex_unlock(tsdn, &shard->mtx);
 			return DEFERRED_WORK_MIN;
@@ -1102,11 +1120,11 @@ hpa_time_until_deferred_work(tsdn_t *tsdn, hpa_shard_t *shard) {
 		uint64_t since_last_purge_ms = shard->central->hooks.ms_since(
 		    &shard->last_purge);
 
-		if (since_last_purge_ms < shard->opts.min_purge_interval_ms) {
-			uint64_t until_purge_ns;
-			until_purge_ns = shard->opts.min_purge_interval_ms
-			    - since_last_purge_ms;
-			until_purge_ns *= 1000 * 1000;
+		uint64_t min_purge_interval_ms = hpa_min_purge_interval_ms(
+		    shard);
+		if (since_last_purge_ms < min_purge_interval_ms) {
+			uint64_t until_purge_ns = hpa_deferred_work_ns(
+			    min_purge_interval_ms - since_last_purge_ms);
 
 			if (until_purge_ns < time_ns) {
 				time_ns = until_purge_ns;

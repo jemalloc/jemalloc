@@ -577,6 +577,116 @@ TEST_BEGIN(test_min_purge_interval) {
 }
 TEST_END
 
+static void
+hpa_test_hooks_defer_init(hpa_hooks_t *hooks) {
+	hooks->map = &defer_test_map;
+	hooks->unmap = &defer_test_unmap;
+	hooks->purge = &defer_test_purge;
+	hooks->hugify = &defer_test_hugify;
+	hooks->dehugify = &defer_test_dehugify;
+	hooks->curtime = &defer_test_curtime;
+	hooks->ms_since = &defer_test_ms_since;
+	hooks->vectorized_purge = &defer_vectorized_purge;
+}
+
+TEST_BEGIN(test_timer_scale_hugify_delay) {
+	test_skip_if(!hpa_supported());
+	unsigned old_scale = timer_scale_get();
+
+	hpa_hooks_t hooks;
+	hpa_test_hooks_defer_init(&hooks);
+	hpa_shard_opts_t opts = test_hpa_shard_opts_default;
+	opts.deferral_allowed = true;
+	hpa_shard_t *shard = create_test_data(&hooks, &opts);
+
+	atomic_store_u(&timer_scale, 2, ATOMIC_RELAXED);
+	ndefer_hugify_calls = 0;
+	bool deferred_work_generated = false;
+	nstime_init(&defer_curtime, 0);
+	tsdn_t   *tsdn = tsd_tsdn(tsd_fetch());
+	edata_t **edatas = malloc(HUGEPAGE_PAGES * sizeof(edata_t *));
+	assert_ptr_not_null(edatas, "Unexpected malloc failure");
+	for (int i = 0; i < (int)HUGEPAGE_PAGES; i++) {
+		edatas[i] = hpa_alloc(tsdn, shard, PAGE, PAGE, false,
+		    false, false, &deferred_work_generated);
+		expect_ptr_not_null(edatas[i], "Unexpected null edata");
+	}
+
+	/* Hugification delay is 10 seconds in options, 20 when scaled. */
+	nstime_init2(&defer_curtime, 11, 0);
+	expect_u64_eq(hpa_time_until_deferred_work(tsdn, shard),
+	    (uint64_t)9 * 1000 * 1000 * 1000,
+	    "Time until hugify should use the scaled delay");
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(0, ndefer_hugify_calls, "Hugified before scaled delay");
+
+	nstime_init2(&defer_curtime, 21, 0);
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(1, ndefer_hugify_calls, "Failed to hugify");
+	ndefer_hugify_calls = 0;
+
+	atomic_store_u(&timer_scale, old_scale, ATOMIC_RELAXED);
+	for (int i = 0; i < (int)HUGEPAGE_PAGES; i++) {
+		hpa_dalloc(tsdn, shard, edatas[i], &deferred_work_generated);
+	}
+	ndefer_purge_calls = 0;
+	ndefer_dehugify_calls = 0;
+	destroy_test_data(shard);
+	free(edatas);
+}
+TEST_END
+
+TEST_BEGIN(test_timer_scale_min_purge_interval) {
+	test_skip_if(!hpa_supported());
+	unsigned old_scale = timer_scale_get();
+
+	hpa_hooks_t hooks;
+	hpa_test_hooks_defer_init(&hooks);
+	hpa_shard_opts_t opts = test_hpa_shard_opts_default;
+	opts.deferral_allowed = true;
+	hpa_shard_t *shard = create_test_data(&hooks, &opts);
+
+	atomic_store_u(&timer_scale, 2, ATOMIC_RELAXED);
+	ndefer_purge_calls = 0;
+	bool deferred_work_generated = false;
+	nstime_init(&defer_curtime, 0);
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+
+	edata_t *edata = hpa_alloc(tsdn, shard, PAGE, PAGE, false, false,
+	    false, &deferred_work_generated);
+	expect_ptr_not_null(edata, "Unexpected null edata");
+	hpa_dalloc(tsdn, shard, edata, &deferred_work_generated);
+
+	/* Minimum purge interval is 5 seconds in options, 10 when scaled. */
+	nstime_init2(&defer_curtime, 6, 0);
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(0, ndefer_purge_calls, "Purged before scaled interval");
+
+	nstime_init2(&defer_curtime, 11, 0);
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(1, ndefer_purge_calls, "Expect purge");
+	ndefer_purge_calls = 0;
+
+	/* The next purge is one scaled interval after the last one. */
+	edata = hpa_alloc(tsdn, shard, PAGE, PAGE, false, false, false,
+	    &deferred_work_generated);
+	expect_ptr_not_null(edata, "Unexpected null edata");
+	hpa_dalloc(tsdn, shard, edata, &deferred_work_generated);
+	expect_u64_eq(hpa_time_until_deferred_work(tsdn, shard),
+	    (uint64_t)10 * 1000 * 1000 * 1000,
+	    "Time until purge should use the scaled interval");
+
+	/* A run time change applies to the next check. */
+	atomic_store_u(&timer_scale, 1, ATOMIC_RELAXED);
+	expect_u64_eq(hpa_time_until_deferred_work(tsdn, shard),
+	    (uint64_t)5 * 1000 * 1000 * 1000,
+	    "Time until purge should follow timer_scale changes");
+
+	atomic_store_u(&timer_scale, old_scale, ATOMIC_RELAXED);
+	destroy_test_data(shard);
+}
+TEST_END
+
 TEST_BEGIN(test_purge) {
 	test_skip_if(!hpa_supported());
 
@@ -1401,7 +1511,8 @@ main(void) {
 	(void)mem_tree_destroy;
 	return test_no_reentrancy(test_alloc_max, test_stress, test_defer_time,
 	    test_purge_no_infinite_loop, test_no_min_purge_interval,
-	    test_min_purge_interval, test_purge, test_vectorized_opt_eq_zero,
+	    test_min_purge_interval, test_timer_scale_hugify_delay,
+	    test_timer_scale_min_purge_interval, test_purge, test_vectorized_opt_eq_zero,
 	    test_starts_huge, test_start_huge_purge_empty_only,
 	    test_assume_huge_purge_fully, test_eager_with_purge_threshold,
 	    test_delay_when_not_allowed_deferral, test_deferred_until_time,

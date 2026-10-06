@@ -371,7 +371,7 @@ tcache_gc_event(tsd_t *tsd) {
 	assert(nstime_compare(&now, &tcache_slow->last_gc_time) >= 0);
 
 	if (nstime_ns(&now) - nstime_ns(&tcache_slow->last_gc_time)
-	    < TCACHE_GC_INTERVAL_NS) {
+	    < timer_scale_apply(TCACHE_GC_INTERVAL_NS)) {
 		// time interval is too short, skip this event.
 		return;
 	}

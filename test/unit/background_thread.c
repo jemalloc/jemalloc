@@ -185,10 +185,28 @@ TEST_BEGIN(test_background_thread_stats_ctl) {
 }
 TEST_END
 
+TEST_BEGIN(test_background_thread_min_interval) {
+	unsigned old_scale = timer_scale_get();
+
+	atomic_store_u(&timer_scale, 1, ATOMIC_RELAXED);
+	expect_u64_eq(background_thread_min_interval_ns(),
+	    BACKGROUND_THREAD_MIN_INTERVAL_NS,
+	    "Unexpected unscaled background thread minimum interval");
+
+	atomic_store_u(&timer_scale, 3, ATOMIC_RELAXED);
+	expect_u64_eq(background_thread_min_interval_ns(),
+	    3 * BACKGROUND_THREAD_MIN_INTERVAL_NS,
+	    "Background thread minimum interval was not scaled");
+
+	atomic_store_u(&timer_scale, old_scale, ATOMIC_RELAXED);
+}
+TEST_END
+
 int
 main(void) {
 	/* Background_thread creation tests reentrancy naturally. */
-	return test_no_reentrancy(test_background_thread_ctl,
+	return test_no_reentrancy(test_background_thread_min_interval,
+	    test_background_thread_ctl,
 	    test_background_thread_running, test_background_thread_arena_reset,
 	    test_background_thread_stats_ctl);
 }

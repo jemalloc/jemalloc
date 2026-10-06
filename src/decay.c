@@ -26,14 +26,19 @@ decay_deadline_init(decay_t *decay) {
 	}
 }
 
+static void
+decay_interval_init(decay_t *decay, ssize_t decay_ms) {
+	if (decay_ms > 0) {
+		nstime_init(&decay->interval,
+		    timer_scale_apply((uint64_t)decay_ms * KQU(1000000)));
+		nstime_idivide(&decay->interval, SMOOTHSTEP_NSTEPS);
+	}
+}
+
 void
 decay_reinit(decay_t *decay, nstime_t *cur_time, ssize_t decay_ms) {
 	atomic_store_zd(&decay->time_ms, decay_ms, ATOMIC_RELAXED);
-	if (decay_ms > 0) {
-		nstime_init(
-		    &decay->interval, (uint64_t)decay_ms * KQU(1000000));
-		nstime_idivide(&decay->interval, SMOOTHSTEP_NSTEPS);
-	}
+	decay_interval_init(decay, decay_ms);
 
 	nstime_copy(&decay->epoch, cur_time);
 	decay->jitter_state = (uint64_t)(uintptr_t)decay;
@@ -193,6 +198,9 @@ decay_maybe_advance_epoch(
 	nstime_copy(&delta, &decay->interval);
 	nstime_imultiply(&delta, nadvance_u64);
 	nstime_add(&decay->epoch, &delta);
+
+	/* timer_scale is sampled once per epoch. */
+	decay_interval_init(decay, decay_ms_read(decay));
 
 	/* Set a new deadline. */
 	decay_deadline_init(decay);

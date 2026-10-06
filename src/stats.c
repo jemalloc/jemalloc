@@ -2046,7 +2046,7 @@ stats_general_opts(emitter_t *emitter) {
 	 */
 	const char *cpv;
 	bool        bv, bv2;
-	unsigned    uv;
+	unsigned    uv, uv2;
 	uint32_t    u32v;
 	uint64_t    u64v;
 	int64_t     i64v;
@@ -2157,6 +2157,7 @@ stats_general_opts(emitter_t *emitter) {
 	OPT_WRITE_BOOL("tcache")
 	OPT_WRITE_SIZE_T("tcache_max")
 	OPT_WRITE_SIZE_T("tcache_gc_incr_bytes")
+	OPT_WRITE_UNSIGNED_MUTABLE("timer_scale", "timer_scale")
 	OPT_WRITE_UNSIGNED("debug_double_free_max_scan")
 	OPT_WRITE_CHAR_P("thp")
 	OPT_WRITE_BOOL("prof")
