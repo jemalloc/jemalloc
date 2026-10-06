@@ -37,7 +37,7 @@ struct decay_s {
 	 * and/or reused.
 	 */
 	atomic_zd_t time_ms;
-	/* time / SMOOTHSTEP_NSTEPS. */
+	/* time * timer_scale / SMOOTHSTEP_NSTEPS. */
 	nstime_t interval;
 	/*
 	 * Time at which the current decay interval logically started.  We do

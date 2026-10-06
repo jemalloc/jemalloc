@@ -96,6 +96,7 @@ CTL_PROTO(version)
 CTL_PROTO(epoch)
 CTL_PROTO(background_thread)
 CTL_PROTO(max_background_threads)
+CTL_PROTO(timer_scale)
 CTL_PROTO(thread_tcache_enabled)
 CTL_PROTO(thread_tcache_max)
 CTL_PROTO(thread_tcache_flush)
@@ -174,6 +175,7 @@ CTL_PROTO(opt_xmalloc)
 CTL_PROTO(opt_tcache)
 CTL_PROTO(opt_tcache_max)
 CTL_PROTO(opt_tcache_gc_incr_bytes)
+CTL_PROTO(opt_timer_scale)
 CTL_PROTO(opt_thp)
 CTL_PROTO(opt_lg_extent_max_active_fit)
 CTL_PROTO(opt_prof)
@@ -546,6 +548,7 @@ static const ctl_named_node_t opt_node[] = {{NAME("abort"), CTL(opt_abort)},
     {NAME("tcache"), CTL(opt_tcache)},
     {NAME("tcache_max"), CTL(opt_tcache_max)},
     {NAME("tcache_gc_incr_bytes"), CTL(opt_tcache_gc_incr_bytes)},
+    {NAME("timer_scale"), CTL(opt_timer_scale)},
     {NAME("thp"), CTL(opt_thp)},
     {NAME("lg_extent_max_active_fit"), CTL(opt_lg_extent_max_active_fit)},
     {NAME("prof"), CTL(opt_prof)}, {NAME("prof_prefix"), CTL(opt_prof_prefix)},
@@ -960,6 +963,7 @@ static const ctl_named_node_t root_node[] = {{NAME("version"), CTL(version)},
     {NAME("epoch"), CTL(epoch)},
     {NAME("background_thread"), CTL(background_thread)},
     {NAME("max_background_threads"), CTL(max_background_threads)},
+    {NAME("timer_scale"), CTL(timer_scale)},
     {NAME("thread"), CHILD(named, thread)},
     {NAME("config"), CHILD(named, config)}, {NAME("opt"), CHILD(named, opt)},
     {NAME("tcache"), CHILD(named, tcache)},
@@ -2199,6 +2203,26 @@ label_return:
 	return ret;
 }
 
+static int
+timer_scale_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
+    size_t *oldlenp, void *newp, size_t newlen) {
+	unsigned oldval = (unsigned)timer_scale_get();
+	int      ret = ctl_read(oldp, oldlenp, &oldval, sizeof(oldval));
+	if (ret == 0 && newp != NULL) {
+		unsigned newval;
+		ret = ctl_write(&newval, sizeof(newval), newp, newlen);
+		if (ret == 0) {
+			if (newval == 0 || newval > TIMER_SCALE_MAX) {
+				ret = EINVAL;
+			} else {
+				atomic_store_u(
+				    &timer_scale, newval, ATOMIC_RELAXED);
+			}
+		}
+	}
+	return ret;
+}
+
 /******************************************************************************/
 /* config.* handlers. */
 
@@ -2289,6 +2313,7 @@ CTL_RO_NL_CGEN(config_xmalloc, opt_xmalloc, opt_xmalloc, bool)
 CTL_RO_NL_GEN(opt_tcache, opt_tcache, bool)
 CTL_RO_NL_GEN(opt_tcache_max, opt_tcache_max, size_t)
 CTL_RO_NL_GEN(opt_tcache_gc_incr_bytes, opt_tcache_gc_incr_bytes, size_t)
+CTL_RO_NL_GEN(opt_timer_scale, opt_timer_scale, unsigned)
 CTL_RO_NL_GEN(opt_thp, thp_mode_names[opt_thp], const char *)
 CTL_RO_NL_GEN(
     opt_lg_extent_max_active_fit, opt_lg_extent_max_active_fit, size_t)

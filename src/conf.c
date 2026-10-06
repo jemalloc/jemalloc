@@ -765,6 +765,9 @@ malloc_conf_init_helper(sc_data_t *sc_data,
 			    "tcache_gc_incr_bytes", 1024, SIZE_T_MAX,
 			    CONF_CHECK_MIN, CONF_DONT_CHECK_MAX,
 			    /* clip */ true)
+			CONF_HANDLE_UNSIGNED(opt_timer_scale, "timer_scale", 1,
+			    TIMER_SCALE_MAX, CONF_CHECK_MIN, CONF_CHECK_MAX,
+			    /* clip */ true)
 			CONF_HANDLE_UNSIGNED(opt_debug_double_free_max_scan,
 			    "debug_double_free_max_scan", 0, UINT_MAX,
 			    CONF_DONT_CHECK_MIN, CONF_DONT_CHECK_MAX,

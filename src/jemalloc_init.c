@@ -194,6 +194,7 @@ malloc_init_hard_a0_locked(void) {
 		prof_boot0();
 	}
 	malloc_conf_init(&sc_data, bin_shard_sizes, opts_cache);
+	atomic_store_u(&timer_scale, opt_timer_scale, ATOMIC_RELAXED);
 	san_init(opt_lg_san_uaf_align);
 	sz_boot(&sc_data, opt_cache_oblivious);
 	bin_info_boot(&sc_data, bin_shard_sizes);

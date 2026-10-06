@@ -95,6 +95,74 @@ TEST_BEGIN(test_decay_maybe_advance_epoch) {
 }
 TEST_END
 
+static void
+decay_timer_scale_set(unsigned scale) {
+	atomic_store_u(&timer_scale, scale, ATOMIC_RELAXED);
+}
+
+TEST_BEGIN(test_decay_timer_scale) {
+	const ssize_t decay_ms = 1000;
+	const unsigned scale = 3;
+	const unsigned old_scale = timer_scale_get();
+
+	decay_timer_scale_set(1);
+	decay_t base;
+	memset(&base, 0, sizeof(base));
+	nstime_t curtime;
+	nstime_init(&curtime, 0);
+	expect_false(decay_init(&base, &curtime, decay_ms), "");
+	uint64_t base_ns = decay_epoch_duration_ns(&base);
+
+	/* A decay initialized under a scale uses the scaled interval. */
+	decay_timer_scale_set(scale);
+	decay_t scaled;
+	memset(&scaled, 0, sizeof(scaled));
+	expect_false(decay_init(&scaled, &curtime, decay_ms), "");
+	expect_u64_eq(decay_epoch_duration_ns(&scaled), base_ns * scale,
+	    "Epoch duration should be multiplied by timer_scale");
+	expect_zd_eq(decay_ms_read(&scaled), decay_ms,
+	    "Reported decay_ms should not be scaled");
+	decay_timer_scale_set(1);
+
+	/* Accumulate some backlog under scale 1. */
+	decay_t decay;
+	memset(&decay, 0, sizeof(decay));
+	expect_false(decay_init(&decay, &curtime, decay_ms), "");
+	nstime_t interval;
+	nstime_init(&interval, 2 * base_ns);
+	nstime_add(&curtime, &interval);
+	expect_true(decay_maybe_advance_epoch(&decay, &curtime, 100),
+	    "Epoch didn't advance after two intervals");
+
+	/*
+	 * A run time scale change applies from the next epoch on; the current
+	 * epoch keeps its deadline, and the backlog is not reset.
+	 */
+	decay_timer_scale_set(scale);
+	nstime_add(&curtime, &interval);
+	expect_true(decay_maybe_advance_epoch(&decay, &curtime, 100),
+	    "Current epoch should end on its original deadline");
+	expect_u64_eq(decay_epoch_duration_ns(&decay), base_ns * scale,
+	    "Epoch duration should be rescaled for the next epoch");
+	size_t backlog_sum = 0;
+	for (unsigned i = 0; i < SMOOTHSTEP_NSTEPS; i++) {
+		backlog_sum += decay.backlog[i];
+	}
+	expect_zu_eq(backlog_sum, 100, "Backlog should be preserved");
+
+	/* Two unscaled intervals are no longer enough to advance. */
+	nstime_add(&curtime, &interval);
+	expect_false(decay_maybe_advance_epoch(&decay, &curtime, 100),
+	    "Epoch advanced before the scaled deadline");
+	nstime_init(&interval, 2 * base_ns * scale);
+	nstime_add(&curtime, &interval);
+	expect_true(decay_maybe_advance_epoch(&decay, &curtime, 100),
+	    "Epoch didn't advance after two scaled intervals");
+
+	decay_timer_scale_set(old_scale);
+}
+TEST_END
+
 TEST_BEGIN(test_decay_empty) {
 	/* If we never have any decaying pages, npages_limit should be 0. */
 	decay_t decay;
@@ -334,6 +402,7 @@ int
 main(void) {
 	return test(test_decay_init, test_decay_ms_valid,
 	    test_decay_npages_purge_in, test_decay_maybe_advance_epoch,
+	    test_decay_timer_scale,
 	    test_decay_empty, test_decay, test_decay_ns_until_purge,
 	    test_decay_early_wake_branches);
 }

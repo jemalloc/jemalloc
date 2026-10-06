@@ -4,6 +4,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/base.h"
 #include "jemalloc/internal/mutex.h"
+#include "jemalloc/internal/nstime.h"
 #include "jemalloc/internal/os.h"
 
 #if defined(JEMALLOC_BACKGROUND_THREAD) || defined(JEMALLOC_LAZY_LOCK)
@@ -11,8 +12,14 @@
 #endif
 
 #define BACKGROUND_THREAD_INDEFINITE_SLEEP UINT64_MAX
+#define BACKGROUND_THREAD_MIN_INTERVAL_NS (UINT64_C(1000000000) / 10)
 #define MAX_BACKGROUND_THREAD_LIMIT MALLOCX_ARENA_LIMIT
 #define DEFAULT_NUM_BACKGROUND_THREAD 4
+
+static inline uint64_t
+background_thread_min_interval_ns(void) {
+	return timer_scale_apply(BACKGROUND_THREAD_MIN_INTERVAL_NS);
+}
 
 typedef enum {
 	background_thread_stopped,

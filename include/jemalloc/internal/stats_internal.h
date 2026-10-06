@@ -298,9 +298,9 @@ typedef struct stats_global_s {
  * stats_general_print() config/option list helpers.  Unhygienic by design:
  * they assume `emitter` and the standard scratch locals are in scope at the
  * call site -- bv/bsz (bool), cpv/cpsz (const char *), uv/usz (unsigned),
- * i64v/i64sz, u64v/u64sz, sv/ssz (size_t), ssv/sssz (ssize_t), plus bv2/ssv2
- * for the *_MUTABLE variants.  (CONFIG_WRITE_BOOL uses CTL_GET above; the
- * OPT_WRITE_* variants use je_mallctl directly.)
+ * i64v/i64sz, u64v/u64sz, sv/ssz (size_t), ssv/sssz (ssize_t), plus
+ * bv2/uv2/ssv2 for the *_MUTABLE variants.  (CONFIG_WRITE_BOOL uses CTL_GET
+ * above; the OPT_WRITE_* variants use je_mallctl directly.)
  */
 #define CONFIG_WRITE_BOOL(name)                                                \
 	do {                                                                   \
@@ -326,6 +326,8 @@ typedef struct stats_global_s {
 	OPT_WRITE_MUTABLE(name, bv, bv2, bsz, emitter_type_bool, altname)
 
 #define OPT_WRITE_UNSIGNED(name) OPT_WRITE(name, uv, usz, emitter_type_unsigned)
+#define OPT_WRITE_UNSIGNED_MUTABLE(name, altname)                              \
+	OPT_WRITE_MUTABLE(name, uv, uv2, usz, emitter_type_unsigned, altname)
 
 #define OPT_WRITE_INT64(name) OPT_WRITE(name, i64v, i64sz, emitter_type_int64)
 #define OPT_WRITE_UINT64(name) OPT_WRITE(name, u64v, u64sz, emitter_type_uint64)

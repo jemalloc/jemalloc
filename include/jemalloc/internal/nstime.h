@@ -3,6 +3,7 @@
 
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/assert.h"
+#include "jemalloc/internal/atomic.h"
 
 /* Maximum supported number of seconds (~584 years). */
 #define NSTIME_SEC_MAX KQU(18446744072)
@@ -59,6 +60,29 @@ typedef enum prof_time_res_e prof_time_res_t;
 
 extern prof_time_res_t   opt_prof_time_res;
 extern const char *const prof_time_res_mode_names[];
+
+/*
+ * Uniform multiplier applied to time-based thresholds (tcache GC interval,
+ * decay epochs, HPA purge interval / hugify delay, background thread minimum
+ * sleep).  opt_timer_scale is the configured value; timer_scale is the live
+ * value, changeable at run time via the "timer_scale" mallctl.
+ */
+#define TIMER_SCALE_MAX 1000
+extern unsigned   opt_timer_scale;
+extern atomic_u_t timer_scale;
+
+static inline unsigned
+timer_scale_get(void) {
+	return atomic_load_u(&timer_scale, ATOMIC_RELAXED);
+}
+
+/* Scale t, saturating at UINT64_MAX (some *_ms options are unbounded). */
+static inline uint64_t
+timer_scale_apply(uint64_t t) {
+	uint64_t scale = timer_scale_get();
+	assert(scale >= 1);
+	return (t > UINT64_MAX / scale) ? UINT64_MAX : t * scale;
+}
 
 JEMALLOC_ALWAYS_INLINE void
 nstime_init_zero(nstime_t *time) {

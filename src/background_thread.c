@@ -201,10 +201,6 @@ background_thread_info_init(tsdn_t *tsdn, background_thread_info_t *info) {
 	}
 }
 
-#	define BILLION UINT64_C(1000000000)
-/* Minimal sleep interval 100 ms. */
-#	define BACKGROUND_THREAD_MIN_INTERVAL_NS (BILLION / 10)
-
 static int
 background_thread_cond_wait(
     background_thread_info_t *info, struct timespec *ts) {
@@ -259,8 +255,12 @@ background_thread_sleep(
 		ret = background_thread_cond_wait(info, NULL);
 		assert(ret == 0);
 	} else {
-		assert(interval >= BACKGROUND_THREAD_MIN_INTERVAL_NS
-		    && interval <= BACKGROUND_THREAD_INDEFINITE_SLEEP);
+		/*
+		 * Check the unscaled floor: timer_scale may have changed since
+		 * the caller computed interval, but it is always >= 1.
+		 */
+		assert(interval >= BACKGROUND_THREAD_MIN_INTERVAL_NS);
+		assert(interval < BACKGROUND_THREAD_INDEFINITE_SLEEP);
 		/* We need malloc clock (can be different from tv). */
 		nstime_t next_wakeup;
 		nstime_init_update(&next_wakeup);
@@ -304,6 +304,7 @@ static inline void
 background_work_sleep_once(
     tsdn_t *tsdn, background_thread_info_t *info, unsigned ind) {
 	uint64_t ns_until_deferred = DEFERRED_WORK_MAX;
+	uint64_t min_interval_ns = background_thread_min_interval_ns();
 	unsigned narenas = narenas_total_get();
 	bool     slept_indefinitely = background_thread_indefinite_sleep(info);
 
@@ -321,7 +322,7 @@ background_work_sleep_once(
 			pa_shard_do_deferred_work(tsdn, &arena->pa_shard,
 			    /* is_background_thread */ true);
 		}
-		if (ns_until_deferred <= BACKGROUND_THREAD_MIN_INTERVAL_NS) {
+		if (ns_until_deferred <= min_interval_ns) {
 			/* Min interval will be used. */
 			continue;
 		}
@@ -336,9 +337,8 @@ background_work_sleep_once(
 	if (ns_until_deferred == DEFERRED_WORK_MAX) {
 		sleep_ns = BACKGROUND_THREAD_INDEFINITE_SLEEP;
 	} else {
-		sleep_ns = (ns_until_deferred
-		               < BACKGROUND_THREAD_MIN_INTERVAL_NS)
-		    ? BACKGROUND_THREAD_MIN_INTERVAL_NS
+		sleep_ns = (ns_until_deferred < min_interval_ns)
+		    ? min_interval_ns
 		    : ns_until_deferred;
 	}
 
@@ -761,7 +761,8 @@ background_thread_wakeup_early(
 	 * the just freed memory is bounded and low.
 	 */
 	if (remaining_sleep != NULL
-	    && nstime_ns(remaining_sleep) < BACKGROUND_THREAD_MIN_INTERVAL_NS) {
+	    && nstime_ns(remaining_sleep)
+	        < background_thread_min_interval_ns()) {
 		return;
 	}
 	os_cond_signal(&info->cond);
@@ -857,8 +858,6 @@ background_thread_stats_read(tsdn_t *tsdn, background_thread_stats_t *stats) {
 }
 
 #	undef BACKGROUND_THREAD_NPAGES_THRESHOLD
-#	undef BILLION
-#	undef BACKGROUND_THREAD_MIN_INTERVAL_NS
 
 /*
  * When lazy lock is enabled, we need to make sure setting isthreaded before
