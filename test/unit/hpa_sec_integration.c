@@ -40,8 +40,6 @@ test_hpa_shard_opts() {
 	    5,
 	    /* purge_threshold */
 	    PAGE,
-	    /* min_purge_delay_ms */
-	    10,
 	    /* hugify_style */
 	    hpa_hugify_style_lazy};
 }
