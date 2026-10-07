@@ -226,7 +226,8 @@ conf_error(
 		return;
 	}
 	const char *deprecated[] = {
-	    "hpa_sec_bytes_after_flush", "hpa_sec_batch_fill_extra",
+	    "hpa_min_purge_delay_ms", "hpa_sec_bytes_after_flush",
+	    "hpa_sec_batch_fill_extra",
 	    "lg_tcache_nslots_mul", "tcache_nslots_small_min",
 	    "tcache_nslots_small_max", "tcache_nslots_large",
 	    "tcache_gc_delay_bytes", "lg_tcache_flush_small_div",
@@ -881,10 +882,6 @@ malloc_conf_init_helper(sc_data_t *sc_data,
 				}
 				CONF_CONTINUE;
 			}
-
-			CONF_HANDLE_UINT64_T(opt_hpa_opts.min_purge_delay_ms,
-			    "hpa_min_purge_delay_ms", 0, UINT64_MAX,
-			    CONF_DONT_CHECK_MIN, CONF_DONT_CHECK_MAX, false);
 
 			if (strncmp("hpa_hugify_style", k, klen) == 0) {
 				bool match = false;
