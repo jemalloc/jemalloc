@@ -1,6 +1,5 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 
-#include "jemalloc/internal/jemalloc_probe.h"
 #include "jemalloc/internal/sec.h"
 #include "jemalloc/internal/witness.h"
 
@@ -174,8 +173,6 @@ sec_multishard_trylock_alloc(
 			    tsdn, sec, bin, size);
 			malloc_mutex_unlock(tsdn, &bin->mtx);
 			if (edata != NULL) {
-				JE_USDT(jemalloc, sec_alloc, 5, sec, bin, edata, size,
-				    /* frequent_reuse */ 1);
 				return edata;
 			}
 		}
@@ -198,8 +195,6 @@ sec_multishard_trylock_alloc(
 		atomic_load_add_store_zu(&bin->nmisses, 1);
 	}
 	malloc_mutex_unlock(tsdn, &bin->mtx);
-	JE_USDT(jemalloc, sec_alloc, 5, sec, bin, edata, size,
-	    /* frequent_reuse */ 1);
 	return edata;
 }
 
@@ -222,8 +217,6 @@ sec_alloc(tsdn_t *tsdn, sec_t *sec, size_t size, uint8_t shard) {
 			atomic_load_add_store_zu(&bin->nmisses, 1);
 		}
 		malloc_mutex_unlock(tsdn, &bin->mtx);
-		JE_USDT(jemalloc, sec_alloc, 5, sec, bin, edata, size,
-		    /* frequent_reuse */ 1);
 		return edata;
 	}
 	return sec_multishard_trylock_alloc(tsdn, sec, size, pszind, shard);
@@ -241,7 +234,6 @@ sec_bin_dalloc_locked(tsdn_t *tsdn, sec_t *sec, sec_bin_t *bin, size_t size,
 	edata_t *edata = edata_list_active_first(dalloc_list);
 	assert(edata != NULL);
 	edata_list_active_remove(dalloc_list, edata);
-	JE_USDT(jemalloc, sec_dalloc, 3, sec, bin, edata);
 	edata_list_active_prepend(&bin->freelist, edata);
 	if (edata_pinned_get(edata)) {
 		bytes_pinned_cur += size;
