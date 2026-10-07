@@ -257,11 +257,7 @@ hpa_hugify_blocked_by_ndirty(tsdn_t *tsdn, hpa_shard_t *shard) {
 static bool
 hpa_should_purge(tsdn_t *tsdn, hpa_shard_t *shard) {
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
-	/*
-	 * The page that is purgable may be delayed, but we just want to know
-	 * if there is a need for bg thread to wake up in the future.
-	 */
-	hpdata_t *ps = psset_pick_purge(&shard->psset, NULL);
+	hpdata_t *ps = psset_pick_purge(&shard->psset);
 	if (ps == NULL) {
 		return false;
 	}
@@ -330,16 +326,7 @@ hpa_update_purge_hugify_eligibility(
 		shard->central->hooks.curtime(&now, /* first_reading */ true);
 		hpdata_allow_hugify(ps, now);
 	}
-	bool purgable = hpa_good_purge_candidate(shard, ps);
-	if (purgable && !hpdata_purge_allowed_get(ps)
-	    && (shard->opts.min_purge_delay_ms > 0)) {
-		nstime_t now;
-		uint64_t delayns = shard->opts.min_purge_delay_ms * 1000 * 1000;
-		shard->central->hooks.curtime(&now, /* first_reading */ true);
-		nstime_iadd(&now, delayns);
-		hpdata_time_purge_allowed_set(ps, &now);
-	}
-	hpdata_purge_allowed_set(ps, purgable);
+	hpdata_purge_allowed_set(ps, hpa_good_purge_candidate(shard, ps));
 
 	/*
 	 * Once a hugepage has become eligible for hugification, we don't mark
@@ -380,9 +367,7 @@ hpa_needs_dehugify(hpa_shard_t *shard, const hpdata_t *ps) {
 static inline size_t
 hpa_purge_start_hp(hpa_purge_batch_t *b, hpa_shard_t *shard) {
 	psset_t  *psset = &shard->psset;
-	hpdata_t *to_purge = (shard->opts.min_purge_delay_ms > 0)
-	    ? psset_pick_purge(psset, &shard->last_time_work_attempted)
-	    : psset_pick_purge(psset, NULL);
+	hpdata_t *to_purge = psset_pick_purge(psset);
 	if (to_purge == NULL) {
 		return 0;
 	}

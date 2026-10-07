@@ -38,8 +38,6 @@ static hpa_shard_opts_t test_hpa_shard_opts_default = {
     5 * 1000,
     /* purge_threshold */
     1,
-    /* purge_delay_ms */
-    0,
     /* hugify_style */
     hpa_hugify_style_lazy};
 

@@ -34,10 +34,9 @@
  * that memory at page-fault time.  This is usually more efficient than doing
  * it later, and it allows us to benefit from the hugepages from the start.
  * Same options for purging as for the style 'none' are good starting choices:
- * no purging, or purge_threshold=HUGEPAGE, some min_purge_delay_ms that allows
- * for page not to be purged quickly, etc.  This is a good choice if you can
+ * no purging, or purge_threshold=HUGEPAGE.  This is a good choice if you can
  * afford extra memory and your application gets performance increase from
- * transparent hughepages.
+ * transparent hugepages.
  *
  * hpa_hugify_style_lazy
  * This style is suitable when you purge more aggressively (you sacrifice CPU
@@ -129,20 +128,6 @@ struct hpa_shard_opts_s {
 	size_t purge_threshold;
 
 	/*
-	 * Minimum number of ms that needs to elapse between HP page becoming
-	 * eligible for purging and actually getting purged.
-	 *
-	 * Setting this to a larger number would give better chance of reusing
-	 * that memory.  Setting it to 0 means that page is eligible for purging
-	 * as soon as it meets the purge_threshold.  The clock resets when
-	 * purgability of the page changes (page goes from being non-purgable to
-	 * purgable).  When using eager style you probably want to allow for
-	 * some delay, to avoid purging the page too quickly and give it time to
-	 * be used.
-	 */
-	uint64_t min_purge_delay_ms;
-
-	/*
 	 * Style of hugification/dehugification (see comment at
 	 * hpa_hugify_style_t for options).
 	 */
@@ -173,8 +158,6 @@ struct hpa_shard_opts_s {
 	5 * 1000,							\
 	/* size_t purge_threshold */					\
 	PAGE,								\
-	/* min_purge_delay_ms */             				\
-	0,  								\
 	/* hugify_style */                				\
 	hpa_hugify_style_lazy						\
 }

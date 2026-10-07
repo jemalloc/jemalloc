@@ -41,8 +41,6 @@ test_hpa_shard_opts_aggressive() {
 	    5,
 	    /* purge_threshold */
 	    HUGEPAGE - 5 * PAGE,
-	    /* min_purge_delay_ms */
-	    10,
 	    /* hugify_style */
 	    hpa_hugify_style_eager};
 }
@@ -158,7 +156,6 @@ TEST_BEGIN(test_hpa_hugify_style_none_huge_no_syscall_thp_always) {
 	hpa_shard_opts_t opts = test_hpa_shard_opts_aggressive();
 	opts.deferral_allowed = true;
 	opts.purge_threshold = PAGE;
-	opts.min_purge_delay_ms = 0;
 	opts.hugification_threshold = HUGEPAGE * 0.25;
 	opts.dirty_mult = FXP_INIT_PERCENT(10);
 	opts.hugify_style = hpa_hugify_style_none;
