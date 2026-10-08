@@ -77,13 +77,6 @@ os_cpu_current(void) {
 }
 
 JEMALLOC_ALWAYS_INLINE bool
-os_cpu_core_key(unsigned cpu, unsigned *key) {
-	(void)cpu;
-	(void)key;
-	return true;
-}
-
-JEMALLOC_ALWAYS_INLINE bool
 os_cpu_set_affinity(int cpu) {
 	(void)cpu;
 	return false;

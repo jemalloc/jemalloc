@@ -2,9 +2,6 @@
 #define JEMALLOC_INTERNAL_OS_POSIX_CPU_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
-#ifdef __linux__
-#	include "jemalloc/internal/malloc_io.h"
-#endif
 
 JEMALLOC_ALWAYS_INLINE unsigned
 os_cpu_ncpus(void) {
@@ -98,41 +95,6 @@ os_cpu_current(void) {
 #else
 	not_reached();
 	return -1;
-#endif
-}
-
-JEMALLOC_ALWAYS_INLINE bool
-os_cpu_core_key(unsigned cpu, unsigned *key) {
-#ifdef __linux__
-	/*
-	 * The kernel prints the list in ascending order ("0,88", "0-3", "8"),
-	 * so its leading number is the smallest CPU id on the core.
-	 */
-	char path[80];
-	malloc_snprintf(path, sizeof(path),
-	    "/sys/devices/system/cpu/cpu%u/topology/thread_siblings_list", cpu);
-	int fd = malloc_open(path, O_RDONLY | O_CLOEXEC);
-	if (fd == -1) {
-		return true;
-	}
-	char    buf[16];
-	ssize_t nread = malloc_read_fd(fd, buf, sizeof(buf) - 1);
-	malloc_close(fd);
-	if (nread <= 0) {
-		return true;
-	}
-	buf[nread] = '\0';
-	char     *end;
-	uintmax_t first = malloc_strtoumax(buf, &end, 10);
-	if (end == buf || first > UINT_MAX) {
-		return true;
-	}
-	*key = (unsigned)first;
-	return false;
-#else
-	(void)cpu;
-	(void)key;
-	return true;
 #endif
 }
 

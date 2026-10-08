@@ -409,8 +409,6 @@ malloc_init_narenas(tsdn_t *tsdn) {
 				abort();
 			}
 		} else {
-			percpu_arena_mode_t initialized_mode =
-			    percpu_arena_as_initialized(opt_percpu_arena);
 			if (ncpus >= MALLOCX_ARENA_LIMIT) {
 				malloc_printf(
 				    "<jemalloc>: narenas w/ percpu"
@@ -426,14 +424,14 @@ malloc_init_narenas(tsdn_t *tsdn) {
 			 * no arena_choose() can reach the map until
 			 * malloc_init_percpu() promotes it.
 			 */
-			unsigned n = percpu_arena_boot(initialized_mode);
-			if (opt_narenas < n) {
+			percpu_arena_boot();
+			if (opt_narenas < ncpus) {
 				/*
-				 * The CPU-to-arena map targets n automatic arenas,
-				 * indexed [0, n).  Ensure that every target belongs
+				 * The CPU-to-arena map targets ncpus arenas,
+				 * indexed [0, ncpus).  Ensure every target belongs
 				 * to the registered automatic arena range.
 				 */
-				opt_narenas = n;
+				opt_narenas = ncpus;
 			}
 		}
 	}
@@ -464,8 +462,7 @@ static void
 malloc_init_percpu(void) {
 	opt_percpu_arena = percpu_arena_as_initialized(opt_percpu_arena);
 	assert(!PERCPU_ARENA_ENABLED(opt_percpu_arena)
-	    || (percpu_arena_ngroups > 0
-	        && percpu_arena_ngroups <= narenas_auto));
+	    || (ncpus > 0 && ncpus <= narenas_auto));
 }
 
 static bool

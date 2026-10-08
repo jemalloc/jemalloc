@@ -16,9 +16,10 @@ TEST_BEGIN(test_percpu_restricted_startup) {
 	test_skip_if(n == 0 || sysconf(_SC_NPROCESSORS_ONLN) <= 1);
 
 	const char *configs[] = {
-	    "narenas:default,background_thread:false,percpu_arena:percpu",
-	    "narenas:default,background_thread:false,percpu_arena:phycpu"};
-	percpu_arena_mode_t modes[] = {percpu_arena, per_phycpu_arena};
+	    "abort_conf:true,narenas:default,background_thread:false,"
+	    "percpu_arena:percpu",
+	    "abort_conf:true,narenas:default,background_thread:false,"
+	    "percpu_arena:phycpu"};
 
 	for (unsigned i = 0; i < sizeof(configs) / sizeof(configs[0]); i++) {
 		pid_t pid = fork();
@@ -36,18 +37,44 @@ TEST_BEGIN(test_percpu_restricted_startup) {
 
 			void *p = mallocx(1024, MALLOCX_TCACHE_NONE);
 			assert_ptr_not_null(p, "Unexpected mallocx() failure");
-			assert_d_eq(opt_percpu_arena, modes[i],
-			    "Requested per-CPU mode must remain enabled");
+			assert_d_eq(opt_percpu_arena, percpu_arena,
+			    "Both spellings must enable per-CPU arenas");
 			assert_u_eq(narenas_auto, 1,
 			    "One allowed CPU should require one automatic arena");
+			const char *mode;
+			size_t sz = sizeof(mode);
+			assert_d_eq(mallctl("opt.percpu_arena", &mode, &sz,
+			    NULL, 0), 0, "Unexpected opt.percpu_arena failure");
+			assert_str_eq(mode, "percpu",
+			    "Both spellings must report the canonical mode");
 
 			unsigned arena;
-			size_t sz = sizeof(arena);
+			sz = sizeof(arena);
 			assert_d_eq(mallctl("arenas.lookup", &arena, &sz, &p,
 			    sizeof(p)), 0, "Unexpected arenas.lookup() failure");
 			assert_u_eq(arena, 0,
 			    "Allocation should use the allowed CPU's arena");
 			dallocx(p, MALLOCX_TCACHE_NONE);
+
+			if (n > 1) {
+				/* Move to a CPU excluded from the startup mask. */
+				assert_false(os_cpu_set_affinity((int)cpus[0]),
+				    "Could not change affinity after startup");
+				assert_d_eq(os_cpu_current(), (int)cpus[0],
+				    "Thread must run on the newly allowed CPU");
+				p = mallocx(1024, MALLOCX_TCACHE_NONE);
+				assert_ptr_not_null(p,
+				    "Allocation after affinity change must succeed");
+				sz = sizeof(arena);
+				assert_d_eq(mallctl("arenas.lookup", &arena, &sz,
+				    &p, sizeof(p)), 0,
+				    "Unexpected arenas.lookup() failure");
+				assert_u_eq(arena, 0,
+				    "New CPU must share the original arena range");
+				assert_u_eq(narenas_auto, 1,
+				    "Affinity changes must not resize the range");
+				dallocx(p, MALLOCX_TCACHE_NONE);
+			}
 			_exit(test_status_pass);
 		}
 
