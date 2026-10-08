@@ -10,7 +10,7 @@
  * os/<os>/<module>.h backend (each is self-contained; see os/darwin/mutex.h).
  * os_cpu_current() is genuinely different: no sched_getcpu() on macOS, so it
  * reads the CPU index directly out of a CPU register instead.
- * os_cpu_set_affinity() is an unreachable no-op (see os/cpu.h).
+ * os_cpu_set_affinity() is a no-op (see os/cpu.h).
  */
 #include "jemalloc/internal/jemalloc_preamble.h"
 

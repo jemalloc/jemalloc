@@ -7,10 +7,10 @@
 /*
  * CPU interface: counts, current-CPU queries, affinity, and yielding.
  * Default: posix/.  Override: Windows (GetSystemInfo /
- * GetCurrentProcessorNumber / SwitchToThread; os_cpu_set_affinity() is an
- * unreachable no-op), Darwin (os_cpu_current() has no sched_getcpu() to fall
+ * GetCurrentProcessorNumber / SwitchToThread; os_cpu_set_affinity() is a
+ * no-op), Darwin (os_cpu_current() has no sched_getcpu() to fall
  * back on, so it reads the CPU index directly out of a CPU register;
- * os_cpu_set_affinity() is an unreachable no-op; os_cpu_ncpus(),
+ * os_cpu_set_affinity() is a no-op; os_cpu_ncpus(),
  * os_cpu_count_is_deterministic(), and os_cpu_yield() are identical to
  * posix/'s, duplicated rather than shared via #include, matching every
  * other os/<os>/<module>.h backend).
@@ -25,8 +25,7 @@ JEMALLOC_ALWAYS_INLINE bool os_cpu_count_is_deterministic(void);
 JEMALLOC_ALWAYS_INLINE int os_cpu_current(void);
 /*
  * Pin the calling thread to cpu, returning true on failure. Windows and
- * Darwin never actually run this (background_thread.c, its only caller, is
- * compiled out on both), so their backends are no-ops.
+ * Darwin backends are no-ops.
  */
 JEMALLOC_ALWAYS_INLINE bool os_cpu_set_affinity(int cpu);
 /* Yield the current thread's remaining timeslice to the scheduler. */
