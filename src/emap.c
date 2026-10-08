@@ -53,8 +53,8 @@ emap_try_acquire_edata_neighbor_impl(tsdn_t *tsdn, emap_t *emap, edata_t *edata,
 	    || expected_state == extent_state_retained
 	    || expected_state == extent_state_pinned);
 
-	void *neighbor_addr = forward ? edata_past_get(edata)
-	                              : edata_before_get(edata);
+	uintptr_t neighbor_addr = forward ? (uintptr_t)edata_past_get(edata)
+	                              : (uintptr_t)edata_base_get(edata) - PAGE;
 	/*
 	 * This is subtle; the rtree code asserts that its input pointer is
 	 * non-NULL, and this is a useful thing to check.  But it's possible
