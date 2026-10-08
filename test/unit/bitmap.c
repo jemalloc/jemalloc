@@ -343,8 +343,42 @@ TEST_BEGIN(test_bitmap_xfu) {
 }
 TEST_END
 
+TEST_BEGIN(test_bitmap_ffu_group) {
+	const size_t sizes[] = {1, BITMAP_GROUP_NBITS - 1, BITMAP_GROUP_NBITS,
+	    BITMAP_GROUP_NBITS + 1, BITMAP_MAXBITS - 1, BITMAP_MAXBITS};
+	for (unsigned i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
+		bitmap_info_t binfo;
+		bitmap_info_init(&binfo, sizes[i]);
+		bitmap_t *bitmap = malloc(bitmap_size(&binfo));
+		assert_ptr_not_null(bitmap, "Unexpected malloc() failure");
+		bitmap_init(bitmap, &binfo, true);
+		for (size_t group = 0; group < BITMAP_BITS2GROUPS(sizes[i]);
+		     group++) {
+			/* Leave one free bit, including in a partial last group. */
+			size_t bit = (group + 1) * BITMAP_GROUP_NBITS - 1;
+			if (bit >= sizes[i]) {
+				bit = sizes[i] - 1;
+			}
+			bitmap_unset(bitmap, &binfo, bit);
+			/* Every lower bound has a full prefix, as required. */
+			size_t starts[] = {0, group / 2, group};
+			for (unsigned j = 0;
+			     j < sizeof(starts) / sizeof(starts[0]); j++) {
+				expect_zu_eq(
+				    bitmap_ffu_group(bitmap, &binfo, starts[j]),
+				    group, "nbits=%zu, start=%zu", sizes[i],
+				    starts[j]);
+			}
+			bitmap_set(bitmap, &binfo, bit);
+		}
+		free(bitmap);
+	}
+}
+TEST_END
+
 int
 main(void) {
 	return test(test_bitmap_initializer, test_bitmap_size, test_bitmap_init,
-	    test_bitmap_set, test_bitmap_unset, test_bitmap_xfu);
+	    test_bitmap_set, test_bitmap_unset, test_bitmap_xfu,
+	    test_bitmap_ffu_group);
 }

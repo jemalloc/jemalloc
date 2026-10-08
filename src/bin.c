@@ -102,9 +102,10 @@ bin_slab_reg_alloc_batch(
 	uintptr_t base = (uintptr_t)edata_addr_get(slab);
 	uintptr_t regsize = (uintptr_t)bin_info->reg_size;
 	unsigned  i = 0;
+	size_t    group = 0;
 	while (i < cnt) {
-		size_t group = bitmap_ffu_group(
-		    slab_data->bitmap, &bin_info->bitmap_info);
+		group = bitmap_ffu_group(
+		    slab_data->bitmap, &bin_info->bitmap_info, group);
 		bitmap_t g = slab_data->bitmap[group];
 		size_t shift = group << LG_BITMAP_GROUP_NBITS;
 #if (!defined JEMALLOC_INTERNAL_POPCOUNTL) || (defined BITMAP_USE_TREE)
@@ -129,6 +130,12 @@ bin_slab_reg_alloc_batch(
 		}
 		bitmap_group_set(
 		    slab_data->bitmap, &bin_info->bitmap_info, group, g);
+		/*
+		 * If the batch is incomplete, this group is exhausted.  The bin
+		 * lock prevents earlier groups from becoming available again.
+		 */
+		assert(i == cnt || g == 0);
+		group++;
 	}
 	edata_nfree_sub(slab, cnt);
 }
