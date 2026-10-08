@@ -563,9 +563,6 @@ background_thread_entry(void *ind_arg) {
 #	elif defined(JEMALLOC_HAVE_PTHREAD_SET_NAME_NP)
 	pthread_set_name_np(pthread_self(), "jemalloc_bg_thd");
 #	endif
-	if (opt_percpu_arena != percpu_arena_disabled) {
-		os_cpu_set_affinity((int)thread_ind);
-	}
 	/*
 	 * Start periodic background work.  We use internal tsd which avoids
 	 * side effects, for example triggering new arena creation (which in
