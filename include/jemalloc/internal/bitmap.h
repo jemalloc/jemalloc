@@ -366,15 +366,16 @@ bitmap_sfu(bitmap_t *bitmap, const bitmap_info_t *binfo) {
 
 /*
  * Index of the first bottom-level group that has an unset bit.  The bitmap must
- * not be full.
+ * not be full, and all groups before goff must be full.  This lower bound avoids
+ * rescanning full groups in a linear bitmap; a tree uses its summaries instead.
  */
 static inline size_t
-bitmap_ffu_group(const bitmap_t *bitmap, const bitmap_info_t *binfo) {
-	size_t goff = 0;
-
+bitmap_ffu_group(
+    const bitmap_t *bitmap, const bitmap_info_t *binfo, size_t goff) {
 	assert(!bitmap_full(bitmap, binfo));
 
 #ifdef BITMAP_USE_TREE
+	goff = 0;
 	for (unsigned i = binfo->nlevels - 1; i > 0; i--) {
 		bitmap_t g = bitmap[binfo->levels[i].group_offset + goff];
 		goff = (goff << LG_BITMAP_GROUP_NBITS) + ffs_lu(g);

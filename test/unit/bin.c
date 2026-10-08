@@ -231,6 +231,80 @@ TEST_BEGIN(test_bin_slab_reg_alloc_batch_fragmented) {
 TEST_END
 
 /*
+ * Exercise batch allocation across full groups, resuming a partial group, and
+ * finding a region freed before the previous batch's cursor.
+ */
+TEST_BEGIN(test_bin_slab_reg_alloc_batch_progress) {
+	for (szind_t binind = 0; binind < SC_NBINS; binind++) {
+		const bin_info_t *bin_info = &bin_infos[binind];
+		unsigned          nregs = bin_info->nregs;
+		edata_t           batch_slab, single_slab;
+		void            **ptrs = mallocx(nregs * sizeof(void *), 0);
+		assert_ptr_not_null(ptrs, "Unexpected mallocx failure");
+
+		create_mock_slab(&batch_slab, binind, 0);
+		bitmap_t *bitmap = edata_slab_data_get(&batch_slab)->bitmap;
+		bitmap_init(bitmap, &bin_info->bitmap_info, true);
+		edata_nfree_set(&batch_slab, 0);
+		/*
+		 * Leave leading and intervening groups full, with a few free
+		 * regions in the others.  Include the last region to exercise
+		 * the end of the bitmap, including a partial final group.
+		 */
+		for (unsigned i = 0; i < nregs; i++) {
+			unsigned group = i >> LG_BITMAP_GROUP_NBITS;
+			unsigned bit = i & BITMAP_GROUP_NBITS_MASK;
+			if ((group % 3 != 0
+			        && (bit < 2 || bit == BITMAP_GROUP_NBITS - 1))
+			    || i == nregs - 1) {
+				bitmap_unset(bitmap, &bin_info->bitmap_info, i);
+				edata_nfree_inc(&batch_slab);
+			}
+		}
+		/* Mock slabs share backing storage, but not their bitmaps. */
+		single_slab = batch_slab;
+		bitmap_t *single_bitmap =
+		    edata_slab_data_get(&single_slab)->bitmap;
+		unsigned counts[] = {0, 1, 2, nregs};
+		unsigned nbatches = sizeof(counts) / sizeof(counts[0]);
+		for (unsigned b = 0; b < nbatches; b++) {
+			if (b == 2) {
+				/* Restart at the first group on each call. */
+				bitmap_unset(bitmap, &bin_info->bitmap_info, 0);
+				edata_nfree_inc(&batch_slab);
+				bitmap_unset(single_bitmap,
+				    &bin_info->bitmap_info, 0);
+				edata_nfree_inc(&single_slab);
+			}
+			unsigned nfree = edata_nfree_get(&batch_slab);
+			if (nfree == 0) {
+				continue;
+			}
+			unsigned cnt = counts[b] < nfree ? counts[b] : nfree;
+			bin_slab_reg_alloc_batch(
+			    &batch_slab, bin_info, cnt, ptrs);
+			for (unsigned i = 0; i < cnt; i++) {
+				expect_ptr_eq(ptrs[i],
+				    bin_slab_reg_alloc(&single_slab, bin_info),
+				    "bin %u, batch %u: region %u differs",
+				    binind, b, i);
+			}
+			expect_u_eq(edata_nfree_get(&batch_slab),
+			    edata_nfree_get(&single_slab),
+			    "bin %u, batch %u: nfree differs", binind, b);
+			expect_d_eq(memcmp(bitmap, single_bitmap,
+			                bitmap_size(&bin_info->bitmap_info)),
+			    0, "bin %u, batch %u: bitmaps differ", binind, b);
+		}
+		expect_u_eq(edata_nfree_get(&batch_slab), 0,
+		    "Free regions remain for bin %u", binind);
+		free(ptrs);
+		free(edata_addr_get(&batch_slab));
+	}
+}
+TEST_END
+
+/*
  * Test nonfull slab list insert, remove, and tryget.
  */
 TEST_BEGIN(test_bin_slabs_nonfull) {
@@ -959,6 +1033,7 @@ main(void) {
 	    test_bin_slab_reg_alloc_batch,
 	    test_bin_slab_reg_alloc_batch_partial,
 	    test_bin_slab_reg_alloc_batch_fragmented,
+	    test_bin_slab_reg_alloc_batch_progress,
 	    test_bin_slabs_nonfull,
 	    test_bin_slabs_full,
 	    test_bin_slabs_full_auto,
