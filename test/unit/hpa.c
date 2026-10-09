@@ -1139,9 +1139,168 @@ TEST_BEGIN(test_eager_with_purge_threshold) {
 	expect_zu_eq(1, ndefer_purge_calls, "Should purge");
 	expect_zu_eq(shard->psset.stats.merged.ndirty, 0, "");
 
+	/* A partial purge leaves a nonhuge pageslab that ignores the threshold. */
+	hpdata_t *ps = edata_ps_get(edatas[THRESHOLD]);
+	expect_false(hpdata_huge_get(ps), "Partial purge should dehugify the pageslab");
+	ndefer_purge_calls = 0;
+	hpa_dalloc(tsdn, shard, edatas[THRESHOLD], &deferred_work_generated);
+	expect_true(hpdata_purge_allowed_get(ps),
+	    "Nonhuge pageslab should be purgable below the threshold");
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(ndefer_purge_calls, 0, "Should respect the purge interval");
+	nstime_iadd(&defer_curtime, opts.min_purge_interval_ms * KQU(1000000));
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(ndefer_purge_calls, 1, "Expected another purge");
+	expect_zu_eq(npurge_size, PAGE, "Should purge the single dirty page");
+	expect_zu_eq(hpdata_ndirty_get(ps), 0, "Dirty page should be reclaimed");
+
 	ndefer_purge_calls = 0;
 	destroy_test_data(shard);
 	free(edatas);
+}
+TEST_END
+
+TEST_BEGIN(test_nonhuge_purge_threshold) {
+	test_skip_if(!hpa_supported() || (opt_process_madvise_max_batch != 0));
+
+	hpa_hooks_t hooks;
+	hooks.map = &defer_test_map;
+	hooks.unmap = &defer_test_unmap;
+	hooks.purge = &defer_test_purge;
+	hooks.hugify = &defer_test_hugify;
+	hooks.dehugify = &defer_test_dehugify;
+	hooks.curtime = &defer_test_curtime;
+	hooks.ms_since = &defer_test_ms_since;
+	hooks.vectorized_purge = &defer_vectorized_purge;
+
+	hpa_shard_opts_t opts = test_hpa_shard_opts_default;
+	opts.deferral_allowed = true;
+	opts.purge_threshold = HUGEPAGE;
+	opts.min_purge_delay_ms = 100;
+	opts.min_purge_interval_ms = 0;
+
+	ndefer_purge_calls = 0;
+	npurge_size = 0;
+	nstime_init_zero(&defer_curtime);
+	hpa_shard_t *shard = create_test_data(&hooks, &opts);
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+	bool deferred_work_generated = false;
+	edata_t *edatas[5];
+	for (size_t i = 0; i < 5; i++) {
+		edatas[i] = hpa_alloc(tsdn, shard, PAGE, PAGE, false,
+		    false, false, &deferred_work_generated);
+		assert_ptr_not_null(edatas[i], "Unexpected null edata");
+	}
+	hpdata_t *ps = edata_ps_get(edatas[0]);
+	expect_false(hpdata_huge_get(ps), "Expected a nonhuge pageslab");
+	expect_false(hpdata_purge_allowed_get(ps), "No dirty pages to purge");
+	expect_zu_eq(hpdata_nretained_get(ps), HUGEPAGE_PAGES - 5,
+	    "Most of the pageslab should be untouched");
+
+	/*
+	 * One dirty page equals 25% of the four active pages.  Purging requires
+	 * exceeding that budget.
+	 */
+	hpa_dalloc(tsdn, shard, edatas[0], &deferred_work_generated);
+	expect_false(deferred_work_generated, "Dirty budget is not exceeded");
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(ndefer_purge_calls, 0, "Should respect dirty_mult");
+
+	hpa_dalloc(tsdn, shard, edatas[1], &deferred_work_generated);
+	expect_true(deferred_work_generated, "Dirty budget is exceeded");
+	expect_true(hpdata_purge_allowed_get(ps),
+	    "Nonhuge pageslab should ignore the purge threshold");
+	nstime_iadd(&defer_curtime, 99 * KQU(1000000));
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(ndefer_purge_calls, 0, "Should respect the purge delay");
+
+	nstime_iadd(&defer_curtime, KQU(1000000));
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(ndefer_purge_calls, 1, "Expected a purge below the threshold");
+	expect_zu_eq(npurge_size, 2 * PAGE, "Only dirty pages should be purged");
+	expect_zu_eq(hpdata_ndirty_get(ps), 0, "Dirty pages should be reclaimed");
+	expect_zu_eq(hpdata_nactive_get(ps), 3, "Active pages should be preserved");
+	expect_false(hpdata_purge_allowed_get(ps), "No dirty pages remain");
+
+	destroy_test_data(shard);
+}
+TEST_END
+
+TEST_BEGIN(test_nonhuge_purge_hugify) {
+	test_skip_if(!hpa_supported() || (opt_process_madvise_max_batch != 0));
+
+	hpa_hooks_t hooks;
+	hooks.map = &defer_test_map;
+	hooks.unmap = &defer_test_unmap;
+	hooks.purge = &defer_test_purge;
+	hooks.hugify = &defer_test_hugify;
+	hooks.dehugify = &defer_test_dehugify;
+	hooks.curtime = &defer_test_curtime;
+	hooks.ms_since = &defer_test_ms_since;
+	hooks.vectorized_purge = &defer_vectorized_purge;
+
+	hpa_shard_opts_t opts = test_hpa_shard_opts_default;
+	opts.deferral_allowed = true;
+	opts.purge_threshold = HUGEPAGE;
+	opts.hugification_threshold = HUGEPAGE - PAGE;
+	opts.hugify_delay_ms = 1000;
+	opts.dirty_mult = FXP_INIT_PERCENT(0);
+	opts.min_purge_interval_ms = 0;
+
+	ndefer_hugify_calls = 0;
+	ndefer_purge_calls = 0;
+	nstime_init_zero(&defer_curtime);
+	hpa_shard_t *shard = create_test_data(&hooks, &opts);
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+	bool deferred_work_generated = false;
+	/* Fill one nonhuge pageslab to make it a hugification candidate. */
+	edata_t *first = hpa_alloc(tsdn, shard, PAGE, PAGE, false,
+	    false, false, &deferred_work_generated);
+	edata_t *rest = hpa_alloc(tsdn, shard, HUGEPAGE - PAGE, PAGE, false,
+	    false, false, &deferred_work_generated);
+	assert_ptr_not_null(first, "Unexpected null edata");
+	assert_ptr_not_null(rest, "Unexpected null edata");
+	hpdata_t *ps = edata_ps_get(rest);
+	assert_ptr_eq(edata_ps_get(first), ps, "Allocations should share a pageslab");
+	expect_true(hpdata_hugify_allowed_get(ps), "Expected a hugification candidate");
+
+	/* Purge one dirty page before hugification; the slab stays dense enough. */
+	nstime_iadd(&defer_curtime, 500 * KQU(1000000));
+	hpa_dalloc(tsdn, shard, first, &deferred_work_generated);
+	nstime_iadd(&defer_curtime, 100 * KQU(1000000));
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(ndefer_purge_calls, 1, "Should purge before hugifying");
+	expect_zu_eq(hpdata_nactive_get(ps), HUGEPAGE_PAGES - 1,
+	    "Purging should preserve active pages");
+	expect_zu_eq(hpdata_ndirty_get(ps), 0, "Dirty pages should be reclaimed");
+	expect_true(hpdata_hugify_allowed_get(ps),
+	    "Pageslab should remain a hugification candidate");
+	nstime_t time_hugify_allowed = hpdata_time_hugify_allowed(ps);
+	expect_u64_eq(nstime_ns(&time_hugify_allowed), nstime_ns(&defer_curtime),
+	    "Purging should restart the hugification delay");
+	expect_zu_eq(ndefer_hugify_calls, 0, "Hugification should remain delayed");
+
+	/* Reuse the purged page so hugification fits the zero dirty budget. */
+	first = hpa_alloc(tsdn, shard, PAGE, PAGE, false,
+	    false, false, &deferred_work_generated);
+	assert_ptr_not_null(first, "Unexpected null edata");
+	assert_ptr_eq(edata_ps_get(first), ps, "Should reuse the same pageslab");
+	nstime_iadd(&defer_curtime, 999 * KQU(1000000));
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(ndefer_hugify_calls, 0, "Should respect the hugification delay");
+	nstime_iadd(&defer_curtime, KQU(1000000));
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(ndefer_hugify_calls, 1, "Reused pageslab should hugify");
+	expect_true(hpdata_huge_get(ps), "Expected a hugified pageslab");
+
+	/* The same free is now protected by the huge pageslab's purge threshold. */
+	hpa_dalloc(tsdn, shard, first, &deferred_work_generated);
+	expect_false(hpdata_purge_allowed_get(ps),
+	    "Hugified pageslab should respect the purge threshold");
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(ndefer_purge_calls, 1, "Should preserve the hugified pageslab");
+
+	destroy_test_data(shard);
 }
 TEST_END
 
@@ -1515,6 +1674,7 @@ main(void) {
 	    test_timer_scale_min_purge_interval, test_purge, test_vectorized_opt_eq_zero,
 	    test_starts_huge, test_start_huge_purge_empty_only,
 	    test_assume_huge_purge_fully, test_eager_with_purge_threshold,
+	    test_nonhuge_purge_threshold, test_nonhuge_purge_hugify,
 	    test_delay_when_not_allowed_deferral, test_deferred_until_time,
 	    test_eager_no_hugify_on_threshold,
 	    test_hpa_hugify_style_none_huge_no_syscall,
