@@ -71,9 +71,32 @@ TEST_BEGIN(test_invalid_size_sdallocx_noflags) {
 }
 TEST_END
 
+TEST_BEGIN(test_valid_zero_size_aligned_sdallocx) {
+	test_skip_if(!config_opt_size_checks);
+
+	const size_t alignment = PAGE;
+	void        *ptr = aligned_alloc(alignment, 0);
+	assert_ptr_not_null(ptr, "Unexpected aligned_alloc() failure");
+
+	fake_abort_called = false;
+	test_hooks_safety_check_abort = &fake_abort;
+	sdallocx(ptr, 0, MALLOCX_ALIGN(alignment));
+	bool failed = fake_abort_called;
+	test_hooks_safety_check_abort = NULL;
+
+	if (failed) {
+		/* The intercepted mismatch path deliberately did not free ptr. */
+		free(ptr);
+	}
+	expect_false(
+	    failed, "Valid zero-sized aligned deallocation failed size check");
+}
+TEST_END
+
 int
 main(void) {
 	return test(test_invalid_size_sdallocx,
 	    test_invalid_size_sdallocx_nonzero_flag,
-	    test_invalid_size_sdallocx_noflags);
+	    test_invalid_size_sdallocx_noflags,
+	    test_valid_zero_size_aligned_sdallocx);
 }
