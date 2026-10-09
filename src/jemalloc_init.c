@@ -335,31 +335,6 @@ malloc_init_hard_recursible(void) {
 	malloc_init_state = malloc_init_recursible;
 
 	ncpus = os_cpu_ncpus();
-	if (opt_percpu_arena != percpu_arena_disabled) {
-		bool cpu_count_is_deterministic =
-		    os_cpu_count_is_deterministic();
-		if (!cpu_count_is_deterministic) {
-			/*
-			 * If # of CPU is not deterministic, and narenas not
-			 * specified, disables per cpu arena since it may not
-			 * detect CPU IDs properly.
-			 */
-			if (opt_narenas == 0) {
-				opt_percpu_arena = percpu_arena_disabled;
-				malloc_write(
-				    "<jemalloc>: Number of CPUs "
-				    "detected is not deterministic. Per-CPU "
-				    "arena disabled.\n");
-				if (opt_abort_conf) {
-					malloc_abort_invalid_conf();
-				}
-				if (opt_abort) {
-					abort();
-				}
-			}
-		}
-	}
-
 #ifndef JEMALLOC_MUTEX_INIT_CB
 	/*
 	 * jemalloc_fork.c names these jemalloc_prefork()/jemalloc_postfork_
@@ -435,8 +410,6 @@ malloc_init_narenas(tsdn_t *tsdn) {
 				abort();
 			}
 		} else {
-			percpu_arena_mode_t initialized_mode =
-			    percpu_arena_as_initialized(opt_percpu_arena);
 			if (ncpus >= MALLOCX_ARENA_LIMIT) {
 				malloc_printf(
 				    "<jemalloc>: narenas w/ percpu"
@@ -447,26 +420,19 @@ malloc_init_narenas(tsdn_t *tsdn) {
 				}
 				return true;
 			}
-			/* NB: opt_percpu_arena isn't fully initialized yet. */
-			if (initialized_mode == per_phycpu_arena
-			    && ncpus % 2 != 0) {
-				malloc_printf(
-				    "<jemalloc>: invalid "
-				    "configuration -- per physical CPU arena "
-				    "with odd number (%u) of CPUs (no hyper "
-				    "threading?).\n",
-				    ncpus);
-				if (opt_abort)
-					abort();
-			}
-			unsigned n = percpu_arena_min_narenas(initialized_mode);
-			if (opt_narenas < n) {
+			/*
+			 * NB: opt_percpu_arena isn't fully initialized yet, so
+			 * no arena_choose() can reach the map until
+			 * malloc_init_percpu() promotes it.
+			 */
+			percpu_arena_boot();
+			if (opt_narenas < ncpus) {
 				/*
-				 * The CPU-to-arena map targets n automatic arenas,
-				 * indexed [0, n).  Ensure that every target belongs
+				 * The CPU-to-arena map targets ncpus arenas,
+				 * indexed [0, ncpus).  Ensure every target belongs
 				 * to the registered automatic arena range.
 				 */
-				opt_narenas = n;
+				opt_narenas = ncpus;
 			}
 		}
 	}
@@ -484,16 +450,6 @@ malloc_init_narenas(tsdn_t *tsdn) {
 		malloc_printf("<jemalloc>: Reducing narenas to limit (%d)\n",
 		    narenas_auto);
 	}
-	/*
-	 * Build the CPU -> arena map now that narenas is final.  The mode is
-	 * still in its uninit encoding, so no arena_choose() can reach the map
-	 * until malloc_init_percpu() promotes it.
-	 */
-	if (opt_percpu_arena != percpu_arena_disabled) {
-		percpu_arena_boot(percpu_arena_as_initialized(opt_percpu_arena),
-		    narenas_auto);
-	}
-
 	narenas_total_set(narenas_auto);
 	if (arena_init_huge(tsdn, arena_get(tsdn, 0, false))) {
 		narenas_total_inc();
@@ -507,7 +463,7 @@ static void
 malloc_init_percpu(void) {
 	opt_percpu_arena = percpu_arena_as_initialized(opt_percpu_arena);
 	assert(!PERCPU_ARENA_ENABLED(opt_percpu_arena)
-	    || percpu_arena_ngroups > 0);
+	    || (ncpus > 0 && ncpus <= narenas_auto));
 }
 
 static bool

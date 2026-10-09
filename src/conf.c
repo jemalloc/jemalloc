@@ -794,11 +794,16 @@ malloc_conf_init_helper(sc_data_t *sc_data,
 			    CONF_CHECK_MAX, false)
 
 			if (strncmp("percpu_arena", k, klen) == 0) {
+				/* Keep phycpu as a deprecated spelling of percpu. */
+				const char *mode = v;
+				if (strncmp("phycpu", v, vlen) == 0) {
+					mode = "percpu";
+				}
 				bool match = false;
 				for (int m = percpu_arena_mode_names_base;
 				    m < percpu_arena_mode_names_limit; m++) {
 					if (strncmp(percpu_arena_mode_names[m],
-					        v, vlen)
+					        mode, vlen)
 					    == 0) {
 						if (!have_percpu_arena) {
 							CONF_ERROR(
