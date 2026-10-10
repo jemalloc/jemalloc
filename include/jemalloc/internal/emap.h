@@ -11,8 +11,7 @@
  * in uses will avoid empty-statement warnings.
  */
 #define EMAP_DECLARE_RTREE_CTX                                                 \
-	rtree_ctx_t  rtree_ctx_fallback;                                       \
-	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn, &rtree_ctx_fallback)
+	rtree_ctx_t *rtree_ctx = tsdn_rtree_ctx(tsdn)
 
 typedef struct emap_s emap_t;
 struct emap_s {
