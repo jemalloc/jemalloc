@@ -789,6 +789,11 @@ label_refill:
 			unsigned cnt = edata_nfree_get(slabcur);
 			if (cnt + filled > nfill_max) {
 				cnt = nfill_min - filled;
+				/* Place a complete first batch at its final position. */
+				if (nfill_min < nfill_max && filled == 0) {
+					arr->ptr += nfill_max - cnt;
+					arr->n = cnt;
+				}
 			}
 
 			bin_slab_reg_alloc_batch(
