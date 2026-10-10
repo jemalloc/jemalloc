@@ -125,9 +125,6 @@ struct hpdata_s {
 	/* The touched pages (using the same definition as above). */
 	fb_group_t touched_pages[FB_NGROUPS(HUGEPAGE_PAGES_MAX)];
 
-	/* Time when this extent (hpdata) becomes eligible for purging */
-	nstime_t h_time_purge_allowed;
-
 	/* True if the extent was huge and empty last time when it was purged */
 	bool h_purged_when_empty_and_huge;
 };
@@ -308,16 +305,6 @@ static inline size_t
 hpdata_nretained_get(const hpdata_t *hpdata) {
 	assert(hpdata->h_ntouched <= HUGEPAGE_PAGES);
 	return HUGEPAGE_PAGES - hpdata->h_ntouched;
-}
-
-static inline void
-hpdata_time_purge_allowed_set(hpdata_t *hpdata, const nstime_t *v) {
-	nstime_copy(&hpdata->h_time_purge_allowed, v);
-}
-
-static inline const nstime_t *
-hpdata_time_purge_allowed_get(const hpdata_t *hpdata) {
-	return &hpdata->h_time_purge_allowed;
 }
 
 static inline bool

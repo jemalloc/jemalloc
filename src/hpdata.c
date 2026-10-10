@@ -40,7 +40,6 @@ ph_gen(, hpdata_age_heap, hpdata_t, age_link, hpdata_age_comp)
 		fb_init(hpdata->touched_pages, HUGEPAGE_PAGES);
 		hpdata->h_ntouched = 0;
 	}
-	nstime_init_zero(&hpdata->h_time_purge_allowed);
 	hpdata->h_purged_when_empty_and_huge = false;
 
 	hpdata_assert_consistent(hpdata);
