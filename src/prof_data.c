@@ -453,9 +453,18 @@ prof_bt_count(void) {
 #endif
 
 static void
-prof_thread_name_write_tdata(prof_tdata_t *tdata, const char *thread_name) {
+prof_thread_name_write_unlocked(prof_tdata_t *tdata, const char *thread_name) {
 	strncpy(tdata->thread_name, thread_name, PROF_THREAD_NAME_MAX_LEN);
 	tdata->thread_name[PROF_THREAD_NAME_MAX_LEN - 1] = '\0';
+}
+
+/* Other threads read the name under tdata->lock (heap dumps, prof_log). */
+void
+prof_thread_name_write_tdata(
+    tsd_t *tsd, prof_tdata_t *tdata, const char *thread_name) {
+	malloc_mutex_lock(tsd_tsdn(tsd), tdata->lock);
+	prof_thread_name_write_unlocked(tdata, thread_name);
+	malloc_mutex_unlock(tsd_tsdn(tsd), tdata->lock);
 }
 
 int
@@ -475,7 +484,7 @@ prof_thread_name_set_impl(tsd_t *tsd, const char *thread_name) {
 		return ENOMEM;
 	}
 
-	prof_thread_name_write_tdata(tdata, thread_name);
+	prof_thread_name_write_tdata(tsd, tdata, thread_name);
 
 	return 0;
 }
@@ -934,9 +943,13 @@ prof_tdata_dump_iter(
 	    "  t%" FMTu64 ": ", tdata->thr_uid);
 	prof_dump_print_cnts(
 	    arg->prof_dump_write, arg->cbopaque, &tdata->cnt_summed);
-	if (!prof_thread_name_empty(tdata)) {
+	char thread_name[PROF_THREAD_NAME_MAX_LEN];
+	malloc_mutex_lock(arg->tsdn, tdata->lock);
+	strncpy(thread_name, tdata->thread_name, PROF_THREAD_NAME_MAX_LEN);
+	malloc_mutex_unlock(arg->tsdn, tdata->lock);
+	if (thread_name[0] != '\0') {
 		arg->prof_dump_write(arg->cbopaque, " ");
-		arg->prof_dump_write(arg->cbopaque, tdata->thread_name);
+		arg->prof_dump_write(arg->cbopaque, thread_name);
 	}
 	arg->prof_dump_write(arg->cbopaque, "\n");
 	return NULL;
@@ -1172,11 +1185,8 @@ prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid, uint64_t thr_discrim,
 	tdata->attached = true;
 	tdata->expired = false;
 	tdata->tctx_uid_next = 0;
-	if (thread_name == NULL) {
-		prof_thread_name_clear(tdata);
-	} else {
-		prof_thread_name_write_tdata(tdata, thread_name);
-	}
+	prof_thread_name_write_unlocked(
+	    tdata, thread_name == NULL ? "" : thread_name);
 	prof_thread_name_assert(tdata);
 
 	if (ckh_new(tsd, &tdata->bt2tctx, PROF_CKH_MINITEMS, prof_bt_hash,

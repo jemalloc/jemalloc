@@ -324,6 +324,9 @@ struct prof_recent_s {
 	atomic_p_t   alloc_edata; /* NULL means allocation has been freed. */
 	prof_tctx_t *alloc_tctx;
 	prof_tctx_t *dalloc_tctx;
+	/* Thread name copied at allocation/deallocation time as the thread may be renamed later. */
+	char alloc_thread_name[PROF_THREAD_NAME_MAX_LEN];
+	char dalloc_thread_name[PROF_THREAD_NAME_MAX_LEN];
 };
 
 /******************************************************************************/
