@@ -34,22 +34,21 @@ TEST_BEGIN(test_guarded_small) {
 		expect_ptr_not_null(ptr, "Unexpected malloc() failure");
 		small_alloc[n_alloc] = ptr;
 		verify_extent_guarded(tsdn, ptr);
-		if ((uintptr_t)ptr % PAGE == 0) {
-			assert_u_lt(pages_found, npages,
-			    "Unexpectedly large number of page aligned allocs");
+		/* Per-CPU refills may leave multiple slabs partially consumed. */
+		if ((uintptr_t)ptr % PAGE == 0 && pages_found < npages) {
 			pages[pages_found++] = (uintptr_t)ptr;
 		}
 		if (((uintptr_t)ptr + (uintptr_t)sz) % PAGE == 0) {
 			ends_found++;
 		}
 		n_alloc++;
-		if (pages_found == npages && ends_found == npages) {
+		if (pages_found == npages && ends_found >= npages) {
 			break;
 		}
 	}
 	/* Should found the ptrs being checked for overflow and underflow. */
 	expect_u_eq(pages_found, npages, "Could not found the expected pages.");
-	expect_u_eq(ends_found, npages, "Could not found the expected pages.");
+	expect_u_ge(ends_found, npages, "Could not found the expected pages.");
 
 	/* Verify the pages are not continuous, i.e. separated by guards. */
 	for (unsigned i = 0; i < npages - 1; i++) {
@@ -63,7 +62,7 @@ TEST_BEGIN(test_guarded_small) {
 		}
 	}
 
-	for (unsigned i = 0; i < n_alloc + 1; i++) {
+	for (unsigned i = 0; i < n_alloc; i++) {
 		free(small_alloc[i]);
 	}
 }
