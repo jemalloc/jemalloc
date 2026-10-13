@@ -223,7 +223,9 @@ hpa_good_purge_candidate(hpa_shard_t *shard, hpdata_t *ps) {
 	if (ndirty > 0 && hpdata_empty(ps)) {
 		return true;
 	}
-	return ndirty * PAGE >= shard->opts.purge_threshold;
+	/* Only hugified pageslabs need a threshold to avoid splitting hugepages. */
+	return ndirty > 0 && (!hpdata_huge_get(ps)
+	    || ndirty * PAGE >= shard->opts.purge_threshold);
 }
 
 static size_t
