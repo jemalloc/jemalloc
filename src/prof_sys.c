@@ -593,8 +593,36 @@ prof_dump_open_maps_t *JET_MUTABLE prof_dump_open_maps = os_prof_open_maps;
 #endif
 
 static void
-prof_dump_maps(buf_writer_t *buf_writer) {
-	os_prof_dump_maps(buf_writer, prof_dump_open_maps);
+prof_dump_maps(buf_writer_t *buf_writer, const char *maps) {
+	os_prof_dump_maps(buf_writer, prof_dump_open_maps, maps);
+}
+
+/*
+ * libSystem's fork prepare takes dyld's loaders lock before it calls
+ * jemalloc_prefork(), so the dyld image APIs behind os_prof_maps_snapshot()
+ * must not be called with prof_dump_mtx (or any other mutex
+ * jemalloc_prefork() takes) held.
+ */
+static char *
+prof_dump_maps_prepare(tsdn_t *tsdn) {
+	size_t size = os_prof_maps_snapshot_size();
+	if (size == 0) {
+		return NULL;
+	}
+	char *maps = (char *)iallocztm(tsdn, size, sz_size2index(size), false,
+	    NULL, true, arena_get(tsdn, 0, false), true);
+	if (maps == NULL) {
+		return NULL;
+	}
+	os_prof_maps_snapshot(maps, size);
+	return maps;
+}
+
+static void
+prof_dump_maps_release(tsdn_t *tsdn, char *maps) {
+	if (maps != NULL) {
+		idalloctm(tsdn, maps, NULL, NULL, true, true);
+	}
 }
 
 static bool
@@ -612,6 +640,7 @@ prof_dump(
 	    /* error */ false, /* prof_dump_fd */ -1};
 
 	pre_reentrancy(tsd, NULL);
+	char *maps = prof_dump_maps_prepare(tsd_tsdn(tsd));
 	malloc_mutex_lock(tsd_tsdn(tsd), &prof_dump_mtx);
 
 	prof_dump_open(&arg, filename);
@@ -620,7 +649,7 @@ prof_dump(
 	    &arg, prof_dump_buf, PROF_DUMP_BUFSIZE);
 	assert(!err);
 	prof_dump_impl(tsd, buf_writer_cb, &buf_writer, tdata, leakcheck);
-	prof_dump_maps(&buf_writer);
+	prof_dump_maps(&buf_writer, maps);
 	buf_writer_terminate(tsd_tsdn(tsd), &buf_writer);
 	prof_dump_close(&arg);
 
@@ -629,6 +658,7 @@ prof_dump(
 		dump_hook(filename);
 	}
 	malloc_mutex_unlock(tsd_tsdn(tsd), &prof_dump_mtx);
+	prof_dump_maps_release(tsd_tsdn(tsd), maps);
 	post_reentrancy(tsd);
 
 	return arg.error;

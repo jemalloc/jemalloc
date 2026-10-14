@@ -36,7 +36,9 @@ os_prof_dump_read_maps_cb(void *read_cbopaque, void *buf, size_t limit) {
 }
 
 JEMALLOC_ALWAYS_INLINE void
-os_prof_dump_maps(buf_writer_t *buf_writer, int (*open_maps)(void)) {
+os_prof_dump_maps(buf_writer_t *buf_writer, int (*open_maps)(void),
+    const char *maps) {
+	(void)maps;
 	int mfd = open_maps();
 	if (mfd == -1) {
 		return;
