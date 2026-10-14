@@ -28,5 +28,7 @@ prof_tdata_t *prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid,
 void          prof_tdata_detach(tsd_t *tsd, prof_tdata_t *tdata);
 void          prof_reset(tsd_t *tsd, size_t lg_sample);
 void          prof_tctx_try_destroy(tsd_t *tsd, prof_tctx_t *tctx);
+void          prof_frag_track(tsd_t *tsd, edata_t *edata, prof_tctx_t *tctx);
+void          prof_frag_untrack(tsd_t *tsd, edata_t *edata, prof_tctx_t *tctx);
 
 #endif /* JEMALLOC_INTERNAL_PROF_DATA_H */
