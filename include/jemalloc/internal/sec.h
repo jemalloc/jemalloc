@@ -85,6 +85,8 @@ struct sec_bin_s {
 	atomic_zu_t         ndalloc_flush;
 	atomic_zu_t         ndalloc_noflush;
 	atomic_zu_t         noverfills;
+	/* Minimum inventory since the last trim, under mtx. */
+	size_t low_water_bytes;
 };
 
 typedef struct sec_s sec_t;
@@ -152,6 +154,9 @@ bool sec_init(tsdn_t *tsdn, sec_t *sec, base_t *base, const sec_opts_t *opts);
 
 /* Fills to_flush with extents that need to be deallocated */
 void sec_flush(tsdn_t *tsdn, sec_t *sec, edata_list_active_t *to_flush);
+
+/* Detach unused inventory from bins whose locks are available. */
+void sec_trim(tsdn_t *tsdn, sec_t *sec, edata_list_active_t *to_flush);
 
 /*
  * Morally, these two stats methods probably ought to be a single one (and the

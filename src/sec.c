@@ -12,6 +12,7 @@ sec_bin_init(sec_bin_t *bin) {
 	atomic_store_zu(&bin->nhits, 0, ATOMIC_RELAXED);
 	atomic_store_zu(&bin->ndalloc_noflush, 0, ATOMIC_RELAXED);
 	atomic_store_zu(&bin->noverfills, 0, ATOMIC_RELAXED);
+	bin->low_water_bytes = 0;
 	edata_list_active_init(&bin->freelist);
 	bool err = malloc_mutex_init(&bin->mtx, "sec_bin", WITNESS_RANK_SEC_BIN,
 	    malloc_mutex_rank_exclusive);
@@ -145,6 +146,9 @@ sec_bin_alloc_locked(tsdn_t *tsdn, sec_t *sec, sec_bin_t *bin, size_t size) {
 		size_t bytes_cur = atomic_load_zu(&bin->bytes_cur, ATOMIC_RELAXED);
 		assert(sz <= bytes_cur && sz > 0);
 		bytes_cur -= sz;
+		if (sec->opts.experimental_trim) {
+			bin->low_water_bytes = min_zu(bin->low_water_bytes, bytes_cur);
+		}
 		if (edata_pinned_get(edata)) {
 			size_t bytes_pinned_cur = atomic_load_zu(
 			    &bin->bytes_pinned_cur, ATOMIC_RELAXED);
@@ -267,6 +271,9 @@ sec_bin_dalloc_locked(tsdn_t *tsdn, sec_t *sec, sec_bin_t *bin, size_t size,
 	atomic_store_zu(&bin->bytes_pinned_cur, bytes_pinned_cur,
 	    ATOMIC_RELAXED);
 	atomic_store_zu(&bin->bytes_cur, bytes_cur, ATOMIC_RELAXED);
+	if (sec->opts.experimental_trim) {
+		bin->low_water_bytes = min_zu(bin->low_water_bytes, bytes_cur);
+	}
 }
 
 static void
@@ -399,7 +406,42 @@ sec_flush(tsdn_t *tsdn, sec_t *sec, edata_list_active_t *to_flush) {
 		malloc_mutex_lock(tsdn, &bin->mtx);
 		atomic_store_zu(&bin->bytes_cur, 0, ATOMIC_RELAXED);
 		atomic_store_zu(&bin->bytes_pinned_cur, 0, ATOMIC_RELAXED);
+		bin->low_water_bytes = 0;
 		edata_list_active_concat(to_flush, &bin->freelist);
+		malloc_mutex_unlock(tsdn, &bin->mtx);
+	}
+}
+
+void
+sec_trim(tsdn_t *tsdn, sec_t *sec, edata_list_active_t *to_flush) {
+	if (!sec->opts.experimental_trim) {
+		return;
+	}
+	size_t ntotal_bins = sec->opts.nshards * sec->npsizes;
+	for (size_t i = 0; i < ntotal_bins; i++) {
+		sec_bin_t *bin = &sec->bins[i];
+		if (malloc_mutex_trylock(tsdn, &bin->mtx)) {
+			continue;
+		}
+		size_t bytes = atomic_load_zu(&bin->bytes_cur, ATOMIC_RELAXED);
+		size_t pinned = atomic_load_zu(&bin->bytes_pinned_cur,
+		    ATOMIC_RELAXED);
+		assert(bin->low_water_bytes <= bytes);
+		/* Return half the minimum inventory, rounded up to whole extents. */
+		size_t target = bytes - (bin->low_water_bytes >> 1);
+		while (bytes > target) {
+			edata_t *edata = edata_list_active_last(&bin->freelist);
+			size_t size = edata_size_get(edata);
+			bytes -= size;
+			if (edata_pinned_get(edata)) {
+				pinned -= size;
+			}
+			edata_list_active_remove(&bin->freelist, edata);
+			edata_list_active_append(to_flush, edata);
+		}
+		atomic_store_zu(&bin->bytes_cur, bytes, ATOMIC_RELAXED);
+		atomic_store_zu(&bin->bytes_pinned_cur, pinned, ATOMIC_RELAXED);
+		bin->low_water_bytes = bytes;
 		malloc_mutex_unlock(tsdn, &bin->mtx);
 	}
 }

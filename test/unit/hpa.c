@@ -87,7 +87,8 @@ test_hpa_shard_opts_aggressive() {
 }
 
 static hpa_shard_t *
-create_test_data(const hpa_hooks_t *hooks, hpa_shard_opts_t *opts) {
+create_test_data_with_sec(const hpa_hooks_t *hooks, hpa_shard_opts_t *opts,
+    const sec_opts_t *sec_opts) {
 	bool    err;
 	base_t *base = base_new(TSDN_NULL, /* ind */ SHARD_IND,
 	    &ehooks_default_extent_hooks, /* metadata_use_hooks */ true);
@@ -106,15 +107,19 @@ create_test_data(const hpa_hooks_t *hooks, hpa_shard_opts_t *opts) {
 
 	err = hpa_central_init(&test_data->central, test_data->base, hooks);
 	assert_false(err, "");
-	sec_opts_t sec_opts;
-	sec_opts.nshards = 0;
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 	err = hpa_shard_init(tsdn, &test_data->shard, &test_data->central,
 	    &test_data->emap, test_data->base, &test_data->shard_edata_cache,
-	    SHARD_IND, opts, &sec_opts);
+	    SHARD_IND, opts, sec_opts);
 	assert_false(err, "");
 
 	return (hpa_shard_t *)test_data;
+}
+
+static hpa_shard_t *
+create_test_data(const hpa_hooks_t *hooks, hpa_shard_opts_t *opts) {
+	sec_opts_t sec_opts = {0};
+	return create_test_data_with_sec(hooks, opts, &sec_opts);
 }
 
 static void
@@ -365,6 +370,148 @@ static uint64_t
 defer_test_ms_since(nstime_t *past_time) {
 	return (nstime_ns(&defer_curtime) - nstime_ns(past_time)) / 1000 / 1000;
 }
+
+TEST_BEGIN(test_sec_trim_disabled) {
+	test_skip_if(!hpa_supported());
+	hpa_hooks_t hooks = hpa_hooks_default;
+	hooks.map = &defer_test_map;
+	hooks.unmap = &defer_test_unmap;
+	hooks.purge = &defer_test_purge;
+	hooks.curtime = &defer_test_curtime;
+	hooks.ms_since = &defer_test_ms_since;
+	hpa_shard_opts_t opts = test_hpa_shard_opts_default;
+	opts.deferral_allowed = true;
+	sec_opts_t sec_opts = {1, 8 * PAGE, 64 * PAGE, false};
+	nstime_init(&defer_curtime, 0);
+	hpa_shard_t *shard = create_test_data_with_sec(&hooks, &opts, &sec_opts);
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+	bool generated = false;
+	edata_t *live = hpa_alloc(tsdn, shard, PAGE, PAGE, false, false,
+	    false, &generated);
+	assert_ptr_not_null(live, "Allocation succeeds");
+	sec_bin_t *bin = &shard->sec.bins[0];
+	size_t cached = atomic_load_zu(&bin->bytes_cur, ATOMIC_RELAXED);
+	expect_zu_gt(cached, 0, "Real SEC fill");
+	ndefer_purge_calls = 0;
+	nstime_init2(&defer_curtime, 5, 0);
+	hpa_shard_do_deferred_work(tsdn, shard);
+	nstime_init2(&defer_curtime, 6, 0);
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(atomic_load_zu(&bin->bytes_cur, ATOMIC_RELAXED), cached,
+	    "Background maintenance does not trim when disabled");
+	expect_u64_eq(nstime_ns(&shard->last_purge), 0,
+	    "Empty attempts preserve the original last-purge timestamp");
+	expect_u64_eq(shard->stats.npurge_passes, 2,
+	    "Original empty purge attempts are not spaced by trimming");
+	hpa_shard_set_deferral_allowed(tsdn, shard, false);
+	edata_t *probe = hpa_alloc(tsdn, shard, 9 * PAGE, PAGE, false,
+	    false, false, &generated);
+	assert_ptr_not_null(probe, "Foreground backend allocation");
+	hpa_dalloc(tsdn, shard, probe, &generated);
+	expect_zu_eq(atomic_load_zu(&bin->bytes_cur, ATOMIC_RELAXED), cached,
+	    "Foreground maintenance leaves disabled SEC inventory intact");
+	expect_zu_gt(ndefer_purge_calls, 0, "Ordinary dirty-page purging still runs");
+	hpa_dalloc(tsdn, shard, live, &generated);
+	hpa_shard_flush(tsdn, shard);
+	expect_zu_eq(atomic_load_zu(&bin->bytes_cur, ATOMIC_RELAXED), 0,
+	    "Explicit flushing still drains disabled SEC");
+	hpa_shard_destroy(tsdn, shard);
+	ndefer_purge_calls = 0;
+	destroy_test_data(shard);
+}
+TEST_END
+
+TEST_BEGIN(test_sec_trim_before_purge) {
+	test_skip_if(!hpa_supported());
+	hpa_hooks_t hooks = hpa_hooks_default;
+	hooks.map = &defer_test_map;
+	hooks.unmap = &defer_test_unmap;
+	hooks.purge = &defer_test_purge;
+	hooks.hugify = &defer_test_hugify;
+	hooks.dehugify = &defer_test_dehugify;
+	hooks.curtime = &defer_test_curtime;
+	hooks.ms_since = &defer_test_ms_since;
+	hooks.vectorized_purge = &defer_vectorized_purge;
+	hpa_shard_opts_t opts = test_hpa_shard_opts_default;
+	opts.deferral_allowed = true;
+	sec_opts_t sec_opts = {1, 8 * PAGE, 64 * PAGE, true};
+	nstime_init(&defer_curtime, 0);
+	hpa_shard_t *shard = create_test_data_with_sec(&hooks, &opts,
+	    &sec_opts);
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+	bool generated = false;
+	edata_t *live = hpa_alloc(tsdn, shard, PAGE, PAGE, false, false,
+	    false, &generated);
+	assert_ptr_not_null(live, "Allocation must succeed");
+	sec_bin_t *bin = &shard->sec.bins[0];
+	size_t cached = atomic_load_zu(&bin->bytes_cur, ATOMIC_RELAXED);
+	expect_zu_gt(cached, 0, "Speculative allocation fills SEC");
+	expect_u64_eq(hpa_time_until_deferred_work(tsdn, shard),
+	    DEFERRED_WORK_MAX, "SEC adds no background deadline");
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(atomic_load_zu(&bin->bytes_cur, ATOMIC_RELAXED),
+	    cached, "First pass observes fresh inventory");
+	for (size_t sec = 1, remaining = cached / PAGE; sec <= 3; sec++) {
+		nstime_init2(&defer_curtime, sec, 0);
+		hpa_shard_do_deferred_work(tsdn, shard);
+		remaining /= 2;
+		expect_zu_eq(atomic_load_zu(&bin->bytes_cur, ATOMIC_RELAXED),
+		    remaining * PAGE, "Background passes gradually drain inventory");
+	}
+	expect_zu_eq(atomic_load_zu(&bin->bytes_cur, ATOMIC_RELAXED), 0,
+	    "Repeated passes return the final extent");
+	expect_zu_eq(psset_nactive(&shard->psset), 1,
+	    "Live allocation stays reserved");
+	expect_zu_eq(psset_ndirty(&shard->psset), cached / PAGE,
+	    "SEC inventory is dirty before the purge interval passes");
+	expect_u64_eq(shard->stats.npurges, 0, "Physical purge respects interval");
+	nstime_init2(&defer_curtime, 5, 0);
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(psset_ndirty(&shard->psset), 0,
+	    "Detached SEC pages are purgeable");
+	expect_u64_gt(shard->stats.npurges, 0, "Actual purge occurred");
+	expect_zu_eq(edata_size_get(live), PAGE, "Live metadata preserved");
+
+	hpa_dalloc(tsdn, shard, live, &generated);
+	expect_false(generated, "Cached return adds no notification");
+	expect_u64_eq(hpa_time_until_deferred_work(tsdn, shard),
+	    DEFERRED_WORK_MAX, "Cached return adds no deadline");
+	nstime_init2(&defer_curtime, 6, 0);
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(psset_nactive(&shard->psset), 1, "Observe newly returned extent");
+	nstime_init2(&defer_curtime, 7, 0);
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(psset_nactive(&shard->psset), 0, "Return the final cached extent");
+	expect_zu_eq(psset_ndirty(&shard->psset), 1,
+	    "Physical purge still respects interval after actual purge");
+	nstime_init2(&defer_curtime, 10, 0);
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(psset_nactive(&shard->psset), 0, "All inventory returned");
+	expect_zu_eq(psset_ndirty(&shard->psset), 0, "Empty pageslab purged");
+
+	live = hpa_alloc(tsdn, shard, PAGE, PAGE, false, false, false,
+	    &generated);
+	assert_ptr_not_null(live, "Allocation must succeed");
+	hpa_dalloc(tsdn, shard, live, &generated);
+	cached = atomic_load_zu(&bin->bytes_cur, ATOMIC_RELAXED);
+	hpa_shard_set_deferral_allowed(tsdn, shard, false);
+	nstime_init2(&defer_curtime, 15, 0);
+	edata_t *probe = hpa_alloc(tsdn, shard, 9 * PAGE, PAGE, false,
+	    false, false, &generated);
+	assert_ptr_not_null(probe, "Foreground backend allocation");
+	hpa_dalloc(tsdn, shard, probe, &generated);
+	hpa_shard_do_deferred_work(tsdn, shard);
+	expect_zu_eq(atomic_load_zu(&bin->bytes_cur, ATOMIC_RELAXED),
+	    cached, "Deferral-off maintenance does not trim SEC");
+	hpa_shard_flush(tsdn, shard);
+	expect_zu_eq(psset_nactive(&shard->psset), 0, "Explicit flush still works");
+	hpa_shard_destroy(tsdn, shard);
+	ndefer_purge_calls = 0;
+	ndefer_hugify_calls = 0;
+	ndefer_dehugify_calls = 0;
+	destroy_test_data(shard);
+}
+TEST_END
 
 TEST_BEGIN(test_defer_time) {
 	test_skip_if(!hpa_supported());
@@ -1606,7 +1753,9 @@ main(void) {
 	(void)mem_tree_iter;
 	(void)mem_tree_reverse_iter;
 	(void)mem_tree_destroy;
-	return test_no_reentrancy(test_alloc_max, test_stress, test_defer_time,
+	return test_no_reentrancy(test_alloc_max, test_stress,
+	    test_sec_trim_disabled, test_sec_trim_before_purge,
+	    test_defer_time,
 	    test_purge_no_infinite_loop, test_no_min_purge_interval,
 	    test_min_purge_interval, test_timer_scale_hugify_delay,
 	    test_timer_scale_min_purge_interval, test_purge, test_vectorized_opt_eq_zero,

@@ -156,7 +156,7 @@ TEST_BEGIN(test_hpa_sec) {
 	hpa_shard_opts_t opts = test_hpa_shard_opts();
 
 	enum { NALLOCS = 8 };
-	sec_opts_t sec_opts;
+	sec_opts_t sec_opts = {0};
 	sec_opts.nshards = 1;
 	sec_opts.max_alloc = 2 * PAGE;
 	sec_opts.max_bytes = NALLOCS * PAGE;

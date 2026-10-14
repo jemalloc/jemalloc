@@ -578,6 +578,8 @@ malloc_conf_init_helper(sc_data_t *sc_data,
 			    "experimental_hpa_start_huge_if_thp_always")
 			CONF_HANDLE_BOOL(opt_experimental_hpa_enforce_hugify,
 			    "experimental_hpa_enforce_hugify")
+			CONF_HANDLE_BOOL(opt_hpa_sec_opts.experimental_trim,
+			    "experimental_hpa_sec_trim")
 			CONF_HANDLE_BOOL(
 			    opt_huge_arena_pac_thp, "huge_arena_pac_thp")
 			if (strncmp("metadata_thp", k, klen) == 0) {

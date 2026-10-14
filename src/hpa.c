@@ -609,6 +609,20 @@ hpa_shard_maybe_do_deferred_work(
 	if (!forced && shard->opts.deferral_allowed) {
 		return;
 	}
+
+	if (forced && shard->opts.deferral_allowed
+	    && shard->sec.opts.experimental_trim && sec_is_used(&shard->sec)) {
+		/* No need to hold the HPA shard lock while collecting extents to flush. */
+		edata_list_active_t to_flush;
+		malloc_mutex_unlock(tsdn, &shard->mtx);
+		edata_list_active_init(&to_flush);
+		sec_trim(tsdn, &shard->sec, &to_flush);
+		if (!edata_list_active_empty(&to_flush)) {
+			bool generated;
+			hpa_dalloc_batch(tsdn, shard, &to_flush, &generated);
+		}
+		malloc_mutex_lock(tsdn, &shard->mtx);
+	}
 	hpa_update_time_work_attempted(tsdn, shard);
 
 	/*

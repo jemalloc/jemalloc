@@ -27,6 +27,8 @@ struct sec_opts_s {
 	 * until we are 1/4 below max_bytes.
 	 */
 	size_t max_bytes;
+	/* Enable opportunistic trimming. */
+	bool experimental_trim;
 };
 
 #define SEC_OPTS_NSHARDS_DEFAULT 2
@@ -39,12 +41,12 @@ struct sec_opts_s {
 
 #define HPA_SEC_OPTS_DEFAULT                                                   \
 	{SEC_OPTS_NSHARDS_DEFAULT, SEC_OPTS_MAX_ALLOC_DEFAULT,                 \
-	    SEC_OPTS_MAX_BYTES_DEFAULT}
+	    SEC_OPTS_MAX_BYTES_DEFAULT, false}
 
 #define PAC_SEC_OPTS_DEFAULT                                                   \
 	{0,                                                                    \
 	    (32 * 1024) > (PAGE * 2) ? (32 * 1024)                     \
 	                                     : (PAGE * 2),             \
-	    SEC_OPTS_MAX_BYTES_DEFAULT}
+	    SEC_OPTS_MAX_BYTES_DEFAULT, false}
 
 #endif /* JEMALLOC_INTERNAL_SEC_OPTS_H */
