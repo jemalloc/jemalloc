@@ -64,7 +64,7 @@ create_test_data(const hpa_hooks_t *hooks, hpa_shard_opts_t *opts) {
 
 	err = hpa_central_init(&test_data->central, test_data->base, hooks);
 	assert_false(err, "");
-	sec_opts_t sec_opts;
+	sec_opts_t sec_opts = {0};
 	sec_opts.nshards = 0;
 	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
 	err = hpa_shard_init(tsdn, &test_data->shard, &test_data->central,

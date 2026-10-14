@@ -527,6 +527,7 @@ TEST_BEGIN(test_mallctl_opt) {
 	TEST_MALLCTL_OPT(
 	    bool, experimental_hpa_start_huge_if_thp_always, always);
 	TEST_MALLCTL_OPT(bool, experimental_hpa_enforce_hugify, always);
+	TEST_MALLCTL_OPT(bool, experimental_hpa_sec_trim, always);
 	TEST_MALLCTL_OPT(bool, confirm_conf, always);
 	TEST_MALLCTL_OPT(const char *, metadata_thp, always);
 	TEST_MALLCTL_OPT(bool, retain, always);

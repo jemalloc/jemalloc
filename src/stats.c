@@ -2105,6 +2105,7 @@ stats_general_opts(emitter_t *emitter) {
 	OPT_WRITE_BOOL("confirm_conf")
 	OPT_WRITE_BOOL("experimental_hpa_start_huge_if_thp_always")
 	OPT_WRITE_BOOL("experimental_hpa_enforce_hugify")
+	OPT_WRITE_BOOL("experimental_hpa_sec_trim")
 	OPT_WRITE_BOOL("retain")
 	OPT_WRITE_CHAR_P("dss")
 	OPT_WRITE_UNSIGNED("narenas")
