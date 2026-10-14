@@ -367,6 +367,71 @@ imalloc_fastpath(size_t size, void *(fallback_alloc)(size_t)) {
 	return fallback_alloc(size);
 }
 
+/*
+ * calloc() fastpath.
+ */
+JEMALLOC_ALWAYS_INLINE void *
+icalloc_fastpath(size_t num, size_t size, void *(fallback_calloc)(size_t, size_t)) {
+	if (tsd_get_allocates() && unlikely(!malloc_initialized())) {
+		return fallback_calloc(num, size);
+	}
+
+	size_t num_size = num * size;
+	if (unlikely((num | size | num_size) > SC_LOOKUP_MAXCLASS)) {
+		return fallback_calloc(num, size);
+	}
+
+	tsd_t *tsd = tsd_get(false);
+	if (unlikely(tsd == NULL)) {
+		return fallback_calloc(num, size);
+	}
+
+	szind_t ind;
+	size_t usize;
+	sz_size2index_usize_fastpath(num_size, &ind, &usize);
+	assert(ind < SC_NBINS);
+	assert((SC_LOOKUP_MAXCLASS < SC_SMALL_MAXCLASS)
+	    && (num_size <= SC_SMALL_MAXCLASS));
+
+	uint64_t allocated, threshold;
+	te_malloc_fastpath_ctx(tsd, &allocated, &threshold);
+	uint64_t allocated_after = allocated + usize;
+
+	if (!malloc_initialized()) {
+		assert(threshold == 0);
+	} else {
+		assert(ind == sz_size2index(num_size));
+		assert(usize > 0 && usize == sz_index2size(ind));
+	}
+
+	if (unlikely(allocated_after >= threshold)) {
+		return fallback_calloc(num, size);
+	}
+	assert(tsd_fast(tsd));
+
+	tcache_t *tcache = tsd_tcachep_get(tsd);
+	assert(tcache == tcache_get(tsd));
+	cache_bin_t *bin = &tcache->bins[ind];
+	assert(bin != NULL);
+	bool  tcache_success;
+	void *ret;
+
+	ret = cache_bin_alloc_easy(bin, &tcache_success);
+	if (tcache_success) {
+		fastpath_success_finish(tsd, allocated_after, bin, ret);
+		memset(ret, 0, usize);
+		return ret;
+	}
+	ret = cache_bin_alloc(bin, &tcache_success);
+	if (tcache_success) {
+		fastpath_success_finish(tsd, allocated_after, bin, ret);
+		memset(ret, 0, usize);
+		return ret;
+	}
+
+	return fallback_calloc(num, size);
+}
+
 JEMALLOC_ALWAYS_INLINE tcache_t *
 tcache_get_from_ind(tsd_t *tsd, unsigned tcache_ind, bool slow, bool is_alloc) {
 	tcache_t *tcache;
