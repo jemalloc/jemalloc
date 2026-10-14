@@ -481,13 +481,13 @@ prof_sys_thread_name_fetch(tsd_t *tsd) {
 		return;
 	}
 
-	if (prof_sys_thread_name_read(
-	        tdata->thread_name, PROF_THREAD_NAME_MAX_LEN)
+	char thread_name[PROF_THREAD_NAME_MAX_LEN];
+	if (prof_sys_thread_name_read(thread_name, PROF_THREAD_NAME_MAX_LEN)
 	    != 0) {
-		prof_thread_name_clear(tdata);
+		thread_name[0] = '\0';
 	}
-
-	tdata->thread_name[PROF_THREAD_NAME_MAX_LEN - 1] = '\0';
+	thread_name[PROF_THREAD_NAME_MAX_LEN - 1] = '\0';
+	prof_thread_name_write_tdata(tsd, tdata, thread_name);
 }
 
 int

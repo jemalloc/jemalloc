@@ -286,18 +286,4 @@ prof_free(
 	}
 }
 
-JEMALLOC_ALWAYS_INLINE bool
-prof_thread_name_empty(prof_tdata_t *tdata) {
-	prof_active_assert();
-
-	return (tdata->thread_name[0] == '\0');
-}
-
-JEMALLOC_ALWAYS_INLINE void
-prof_thread_name_clear(prof_tdata_t *tdata) {
-	prof_active_assert();
-
-	tdata->thread_name[0] = '\0';
-}
-
 #endif /* JEMALLOC_INTERNAL_PROF_INLINES_H */
