@@ -43,8 +43,22 @@
 #else
 #	error Unsupported number of significant virtual address bits
 #endif
-/* Use compact leaf representation if virtual address encoding allows. */
-#if RTREE_NHIB >= LG_CEIL(SC_NSIZES)
+/*
+ * Keep an extra bit in packed x86_64 pointers when LG_VADDR is 48.  This
+ * preserves both native sign-extended 48-bit pointers and zero-extended
+ * 48-bit pointers returned by QEMU user-mode emulation of x86_64 binaries
+ * on aarch64 hosts.  The tree still indexes LG_VADDR address bits, so its
+ * layout is unchanged.
+ */
+#if defined(__x86_64__) && LG_VADDR == 48
+#	define RTREE_LEAF_ADDR_BITS 49
+#else
+#	define RTREE_LEAF_ADDR_BITS LG_VADDR
+#endif
+#define RTREE_LEAF_NHIB ((1U << (LG_SIZEOF_PTR + 3)) - RTREE_LEAF_ADDR_BITS)
+
+/* Use compact leaf representation if pointer encoding allows. */
+#if RTREE_LEAF_NHIB >= LG_CEIL(SC_NSIZES)
 #	define RTREE_LEAF_COMPACT
 #endif
 
@@ -75,18 +89,24 @@ struct rtree_contents_s {
 struct rtree_leaf_elm_s {
 #ifdef RTREE_LEAF_COMPACT
 	/*
-	 * Single pointer-width field containing all three leaf element fields.
-	 * For example, on a 64-bit x64 system with 48 significant virtual
-	 * memory address bits, the index, edata, and slab fields are packed as
-	 * such:
+	 * Single pointer-width field containing the pointer and metadata.
+	 * For example, with RTREE_LEAF_ADDR_BITS == 49 and an 8-bit size index:
 	 *
-	 * x: index
-	 * e: edata
-	 * s: state
-	 * h: is_head
-	 * b: slab
+	 * Bits:  63..57  56..49   48 47..8                   7..0
+	 * Field: zero    szind    r  edata                   edata/metadata
+	 * Raw:   0000000 xxxxxxxx r  eeeeeeee [...] eeeeeeee e00ssshb
 	 *
-	 *   00000000 xxxxxxxx eeeeeeee [...] eeeeeeee e00ssshb
+	 * x: size index
+	 * e: edata pointer
+	 * r: original edata pointer bit 48, retained for sign extension
+	 * s: state (bits 4..2)
+	 * h: is_head (bit 1)
+	 * b: slab (bit 0)
+	 *
+	 * On x86_64, decoding copies r into bits 49..63.  Canonical 48-bit
+	 * addresses have r == bit 47.  Zero-extended 48-bit addresses have
+	 * r == 0, even when bit 47 == 1.  Both address forms round trip without
+	 * changing the tree's key width.
 	 */
 	atomic_p_t le_bits;
 #else
@@ -239,7 +259,7 @@ JEMALLOC_ALWAYS_INLINE rtree_metadata_t
 rtree_leaf_elm_metadata_decode(rtree_leaf_elm_bits_t bits) {
 	rtree_metadata_t metadata;
 #ifdef RTREE_LEAF_COMPACT
-	metadata.szind = bits >> LG_VADDR;
+	metadata.szind = bits >> RTREE_LEAF_ADDR_BITS;
 #else
 	metadata.szind = bits >> (RTREE_LEAF_STATE_SHIFT + RTREE_LEAF_STATE_WIDTH);
 #endif
@@ -275,9 +295,10 @@ JEMALLOC_ALWAYS_INLINE uintptr_t
 rtree_leaf_elm_bits_encode(rtree_contents_t contents) {
 	assert((uintptr_t)contents.edata % (uintptr_t)EDATA_ALIGNMENT == 0);
 	uintptr_t edata_bits = (uintptr_t)contents.edata
-	    & (((uintptr_t)1 << LG_VADDR) - 1);
+	    & (((uintptr_t)1 << RTREE_LEAF_ADDR_BITS) - 1);
 
-	uintptr_t szind_bits = (uintptr_t)contents.metadata.szind << LG_VADDR;
+	uintptr_t szind_bits = (uintptr_t)contents.metadata.szind
+	    << RTREE_LEAF_ADDR_BITS;
 	uintptr_t slab_bits = (uintptr_t)contents.metadata.slab;
 	uintptr_t is_head_bits = (uintptr_t)contents.metadata.is_head << 1;
 	uintptr_t state_bits = (uintptr_t)contents.metadata.state
@@ -300,7 +321,7 @@ rtree_leaf_elm_bits_decode(uintptr_t bits) {
 	 * aarch64 doesn't sign extend the highest virtual address bit to set
 	 * the higher ones.  Instead, the high bits get zeroed.
 	 */
-	uintptr_t high_bit_mask = ((uintptr_t)1 << LG_VADDR) - 1;
+	uintptr_t high_bit_mask = ((uintptr_t)1 << RTREE_LEAF_ADDR_BITS) - 1;
 	/* Mask off metadata. */
 	uintptr_t mask = high_bit_mask & low_bit_mask;
 	/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
@@ -308,8 +329,8 @@ rtree_leaf_elm_bits_decode(uintptr_t bits) {
 #	else
 	/* Restore sign-extended high bits, mask metadata bits. */
 	/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
-	contents.edata = (edata_t *)((uintptr_t)((intptr_t)(bits << RTREE_NHIB)
-	                                 >> RTREE_NHIB)
+	contents.edata = (edata_t *)((uintptr_t)((intptr_t)(bits << RTREE_LEAF_NHIB)
+	                                 >> RTREE_LEAF_NHIB)
 	    & low_bit_mask);
 #	endif
 	assert((uintptr_t)contents.edata % (uintptr_t)EDATA_ALIGNMENT == 0);

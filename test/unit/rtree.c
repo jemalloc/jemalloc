@@ -7,6 +7,54 @@
 /* Potentially too large to safely place on the stack. */
 rtree_t test_rtree;
 
+TEST_BEGIN(test_rtree_leaf_pointer) {
+#if !defined(RTREE_LEAF_COMPACT) || !defined(__x86_64__) || LG_VADDR != 48
+	test_skip("Requires compact x86_64 leaves with LG_VADDR == 48");
+#else
+	/* Synthetic addresses are only packed and unpacked, never dereferenced. */
+	uintptr_t addresses[] = {0, EDATA_ALIGNMENT,
+	    ((uintptr_t)1 << 47) - EDATA_ALIGNMENT, (uintptr_t)1 << 47,
+	    ((uintptr_t)1 << 48) - EDATA_ALIGNMENT,
+	    ~(((uintptr_t)1 << 47) - 1), ~((uintptr_t)EDATA_ALIGNMENT - 1)};
+	szind_t indices[] = {0, SC_NSIZES / 2, SC_NSIZES};
+
+	for (unsigned i = 0; i < sizeof(addresses) / sizeof(addresses[0]); i++) {
+		for (unsigned j = 0; j < sizeof(indices) / sizeof(indices[0]);
+		     j++) {
+			for (unsigned state = 0; state <= extent_state_max;
+			     state++) {
+				for (unsigned flags = 0; flags < 4; flags++) {
+					rtree_contents_t contents = {
+					    .edata = (edata_t *)addresses[i],
+					    .metadata = {.szind = indices[j],
+					        .state = (extent_state_t)state,
+					        .is_head = (flags & 2) != 0,
+					        .slab = (flags & 1) != 0}};
+					rtree_contents_t decoded
+					    = rtree_leaf_elm_bits_decode(
+					        rtree_leaf_elm_bits_encode(contents));
+					expect_ptr_eq(decoded.edata, contents.edata,
+					    "Packed pointer did not round trip");
+					expect_u_eq(decoded.metadata.szind,
+					    contents.metadata.szind,
+					    "Size index did not round trip");
+					expect_u_eq(decoded.metadata.state,
+					    contents.metadata.state,
+					    "State did not round trip");
+					expect_b_eq(decoded.metadata.is_head,
+					    contents.metadata.is_head,
+					    "Head flag did not round trip");
+					expect_b_eq(decoded.metadata.slab,
+					    contents.metadata.slab,
+					    "Slab flag did not round trip");
+				}
+			}
+		}
+	}
+#endif
+}
+TEST_END
+
 TEST_BEGIN(test_rtree_read_empty) {
 	tsdn_t *tsdn;
 
@@ -292,6 +340,6 @@ TEST_END
 
 int
 main(void) {
-	return test(test_rtree_read_empty, test_rtree_extrema, test_rtree_bits,
-	    test_rtree_random, test_rtree_range);
+	return test(test_rtree_leaf_pointer, test_rtree_read_empty,
+	    test_rtree_extrema, test_rtree_bits, test_rtree_random, test_rtree_range);
 }
