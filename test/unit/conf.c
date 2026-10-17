@@ -138,6 +138,7 @@ TEST_BEGIN(test_conf_error_deprecated) {
 		bool        expect_message;
 		bool        expect_error;
 	} options[] = {{"experimental_tcache_gc", false, false},
+	    {"hpa_min_purge_delay_ms", false, false},
 	    {"hpa_sec_bytes_after_flush", false, false},
 	    {"hpa_sec_batch_fill_extra", false, false},
 	    {"lg_tcache_nslots_mul", false, false},
