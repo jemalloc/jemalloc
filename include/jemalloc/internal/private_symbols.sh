@@ -54,7 +54,7 @@ cat <<"EOF"
   next
 }
 
-# Process 'nm -a <c_source.o>' output.
+# Process 'nm <c_source.o>' output.
 #
 # Handle lines like:
 #   0000000000000008 D opt_junk

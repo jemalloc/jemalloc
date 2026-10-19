@@ -784,7 +784,7 @@ dnl to make happen otherwise.
 default_retain="0"
 zero_realloc_default_free="0"
 maps_coalesce="1"
-DUMP_SYMS="${NM} -a"
+DUMP_SYMS="${NM}"
 SYM_PREFIX=""
 case "${host}" in
   *-*-darwin* | *-*-ios*)
