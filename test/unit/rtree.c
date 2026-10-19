@@ -39,7 +39,7 @@ alloc_edata(void) {
 	void *ret = mallocx(sizeof(edata_t), MALLOCX_ALIGN(EDATA_ALIGNMENT));
 	assert_ptr_not_null(ret, "Unexpected mallocx() failure");
 
-	return ret;
+	return lam_unmask(ret);
 }
 
 TEST_BEGIN(test_rtree_extrema) {
