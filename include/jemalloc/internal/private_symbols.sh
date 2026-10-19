@@ -47,22 +47,6 @@ cat <<"EOF"
   next
 }
 
-# Do not interpret other portable-format records as legacy-format records.
-((NF == 3 || NF == 4) &&
- $2 ~ /^[A-Za-z?]$/ &&
- $3 ~ /^[0-9]+$/) {
-  next
-}
-
-# Process 'nm <c_source.o>' output.
-#
-# Handle lines like:
-#   0000000000000008 D opt_junk
-#   0000000000007574 T malloc_initialized
-(NF == 3 && $2 ~ /^[ABCDGRSTVW]$/ && !($3 in exported_symbols) && $3 ~ /^[A-Za-z0-9_]+$/) {
-  print substr($3, 1+length(sym_prefix), length($3)-length(sym_prefix))
-}
-
 # Process 'dumpbin /SYMBOLS <c_source.obj>' output.
 #
 # Handle lines like:
