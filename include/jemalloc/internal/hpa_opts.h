@@ -78,7 +78,7 @@ struct hpa_shard_opts_s {
 	size_t hugification_threshold;
 
 	/*
-	 * The HPA purges whenever the number of dirty pages exceeds dirty_mult *
+	 * The HPA purges whenever the number of dirty pages exceeds dirty_mult X
 	 * active_pages.  Hugification is blocked if the shard's dirty pages plus
 	 * the candidate's retained pages would exceed this limit.  This may be
 	 * set to (fxp_t)-1 to disable purging.
