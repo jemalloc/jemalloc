@@ -784,7 +784,7 @@ dnl to make happen otherwise.
 default_retain="0"
 zero_realloc_default_free="0"
 maps_coalesce="1"
-DUMP_SYMS="${NM}"
+DUMP_SYMS="${NM} -P -t d"
 SYM_PREFIX=""
 case "${host}" in
   *-*-darwin* | *-*-ios*)
@@ -882,8 +882,6 @@ case "${host}" in
   *-*-solaris2*)
 	abi="elf"
 	RPATH='-Wl,-R,$(1)'
-	dnl Solaris nm does not support -a, so use POSIX portable output.
-	DUMP_SYMS="${NM} -P -t d"
 	dnl Solaris needs this for sigwait().
 	JE_APPEND_VS(CPPFLAGS, -D_POSIX_PTHREAD_SEMANTICS)
 	JE_APPEND_VS(LIBS, -lposix4 -lsocket -lnsl)
