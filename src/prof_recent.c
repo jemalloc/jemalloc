@@ -233,6 +233,8 @@ prof_recent_alloc_reset(tsd_t *tsd, edata_t *edata) {
 		if (dalloc_tctx != NULL) {
 			nstime_prof_update(&recent->dalloc_time);
 			recent->dalloc_tctx = dalloc_tctx;
+			/* Own tdata: this thread is the only writer of the name. */
+			assert(dalloc_tctx->tdata == prof_tdata_get(tsd, false));
 			strncpy(recent->dalloc_thread_name,
 			    dalloc_tctx->tdata->thread_name,
 			    PROF_THREAD_NAME_MAX_LEN);
@@ -377,6 +379,12 @@ prof_recent_alloc(tsd_t *tsd, edata_t *edata, size_t size, size_t usize) {
 	tail->usize = usize;
 	nstime_copy(&tail->alloc_time, edata_prof_alloc_time_get(edata));
 	tail->alloc_tctx = tctx;
+	/*
+	 * tctx was created by this thread, the only writer of the name.  Its
+	 * tdata may already be detached by a concurrent prof.reset (then
+	 * nothing writes it anymore), so compare by thr_uid, not by pointer.
+	 */
+	assert(tctx->thr_uid == prof_tdata_get(tsd, false)->thr_uid);
 	strncpy(tail->alloc_thread_name, tctx->tdata->thread_name,
 	    PROF_THREAD_NAME_MAX_LEN);
 	nstime_init_zero(&tail->dalloc_time);
