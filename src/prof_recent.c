@@ -9,6 +9,7 @@
 #include "jemalloc/internal/prof_data.h"
 #include "jemalloc/internal/prof_inlines.h"
 #include "jemalloc/internal/prof_recent.h"
+#include "jemalloc/internal/prof_sys.h"
 
 ssize_t            opt_prof_recent_alloc_max = PROF_RECENT_ALLOC_MAX_DEFAULT;
 malloc_mutex_t     prof_recent_alloc_mtx; /* Protects the fields below */
@@ -210,6 +211,10 @@ prof_recent_alloc_reset(tsd_t *tsd, edata_t *edata) {
 		return;
 	}
 
+	/* Sampled allocations refresh the name; frees must do it themselves. */
+	if (opt_prof_sys_thread_name) {
+		prof_sys_thread_name_fetch(tsd);
+	}
 	prof_tctx_t *dalloc_tctx = prof_tctx_create(tsd);
 	/*
 	 * In case dalloc_tctx is NULL, e.g. due to OOM, we will not record the
