@@ -1,6 +1,7 @@
 #include "test/jemalloc_test.h"
 
 #include "jemalloc/internal/prof_recent.h"
+#include "jemalloc/internal/prof_sys.h"
 
 extern edata_t *prof_recent_alloc_edata_get_no_lock_test(
     const prof_recent_t *node);
@@ -576,6 +577,47 @@ TEST_BEGIN(test_prof_recent_alloc_dump) {
 }
 TEST_END
 
+static const char *fake_thread_name;
+
+static int
+fake_thread_name_read(char *buf, size_t limit) {
+	strncpy(buf, fake_thread_name, limit);
+	buf[limit - 1] = '\0';
+	return 0;
+}
+
+/* Thread names are recorded when the event happens, not at dump time. */
+TEST_BEGIN(test_prof_recent_alloc_thread_name) {
+	test_skip_if(!config_prof);
+	test_skip_if(!opt_prof_sys_thread_name);
+	confirm_prof_setup();
+
+	prof_sys_thread_name_read_t *read_orig = prof_sys_thread_name_read;
+	prof_sys_thread_name_read = fake_thread_name_read;
+
+	fake_thread_name = "alloc";
+	void *p = malloc(7);
+	fake_thread_name = "dalloc";
+	free(p);
+	fake_thread_name = "late";
+	void *q = malloc(7);
+
+	/* The harness may add records of its own; look only at p's. */
+	call_dump();
+	const char *rec = strstr(dump_out, "\"alloc_thread_name\":\"alloc\",");
+	assert_ptr_not_null(rec, DUMP_ERROR);
+	const char *dalloc = strstr(rec, "\"dalloc_thread_name\":");
+	assert_ptr_not_null(dalloc, DUMP_ERROR);
+	assert_true(dalloc < strchr(rec, '}'), DUMP_ERROR);
+	const char *expected = "\"dalloc_thread_name\":\"dalloc\",";
+	expect_d_eq(strncmp(dalloc, expected, strlen(expected)), 0, DUMP_ERROR);
+
+	free(q);
+	prof_sys_thread_name_read = read_orig;
+	confirm_prof_setup();
+}
+TEST_END
+
 #undef DUMP_ERROR
 #undef DUMP_OUT_SIZE
 
@@ -698,5 +740,6 @@ int
 main(void) {
 	return test(test_confirm_setup, test_prof_recent_off,
 	    test_prof_recent_on, test_prof_recent_alloc,
-	    test_prof_recent_alloc_dump, test_prof_recent_stress);
+	    test_prof_recent_alloc_dump, test_prof_recent_alloc_thread_name,
+	    test_prof_recent_stress);
 }
