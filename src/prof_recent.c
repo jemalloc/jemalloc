@@ -9,6 +9,7 @@
 #include "jemalloc/internal/prof_data.h"
 #include "jemalloc/internal/prof_inlines.h"
 #include "jemalloc/internal/prof_recent.h"
+#include "jemalloc/internal/prof_sys.h"
 
 ssize_t            opt_prof_recent_alloc_max = PROF_RECENT_ALLOC_MAX_DEFAULT;
 malloc_mutex_t     prof_recent_alloc_mtx; /* Protects the fields below */
@@ -210,6 +211,10 @@ prof_recent_alloc_reset(tsd_t *tsd, edata_t *edata) {
 		return;
 	}
 
+	/* Sampled allocations refresh the name; frees must do it themselves. */
+	if (opt_prof_sys_thread_name) {
+		prof_sys_thread_name_fetch(tsd);
+	}
 	prof_tctx_t *dalloc_tctx = prof_tctx_create(tsd);
 	/*
 	 * In case dalloc_tctx is NULL, e.g. due to OOM, we will not record the
@@ -233,6 +238,11 @@ prof_recent_alloc_reset(tsd_t *tsd, edata_t *edata) {
 		if (dalloc_tctx != NULL) {
 			nstime_prof_update(&recent->dalloc_time);
 			recent->dalloc_tctx = dalloc_tctx;
+			/* Own tdata: this thread is the only writer of the name. */
+			assert(dalloc_tctx->tdata == prof_tdata_get(tsd, false));
+			strncpy(recent->dalloc_thread_name,
+			    dalloc_tctx->tdata->thread_name,
+			    PROF_THREAD_NAME_MAX_LEN);
 			dalloc_tctx = NULL;
 		}
 		edata_prof_recent_alloc_reset(tsd, edata, recent);
@@ -374,8 +384,17 @@ prof_recent_alloc(tsd_t *tsd, edata_t *edata, size_t size, size_t usize) {
 	tail->usize = usize;
 	nstime_copy(&tail->alloc_time, edata_prof_alloc_time_get(edata));
 	tail->alloc_tctx = tctx;
+	/*
+	 * tctx was created by this thread, the only writer of the name.  Its
+	 * tdata may already be detached by a concurrent prof.reset (then
+	 * nothing writes it anymore), so compare by thr_uid, not by pointer.
+	 */
+	assert(tctx->thr_uid == prof_tdata_get(tsd, false)->thr_uid);
+	strncpy(tail->alloc_thread_name, tctx->tdata->thread_name,
+	    PROF_THREAD_NAME_MAX_LEN);
 	nstime_init_zero(&tail->dalloc_time);
 	tail->dalloc_tctx = NULL;
+	tail->dalloc_thread_name[0] = '\0';
 	edata_prof_recent_alloc_set(tsd, edata, tail);
 
 	assert(!prof_recent_alloc_is_empty(tsd));
@@ -501,10 +520,8 @@ prof_recent_alloc_dump_node(emitter_t *emitter, prof_recent_t *node) {
 
 	emitter_json_kv(emitter, "alloc_thread_uid", emitter_type_uint64,
 	    &node->alloc_tctx->thr_uid);
-	prof_tdata_t *alloc_tdata = node->alloc_tctx->tdata;
-	assert(alloc_tdata != NULL);
-	if (!prof_thread_name_empty(alloc_tdata)) {
-		const char *thread_name = alloc_tdata->thread_name;
+	if (node->alloc_thread_name[0] != '\0') {
+		const char *thread_name = node->alloc_thread_name;
 		emitter_json_kv(emitter, "alloc_thread_name",
 		    emitter_type_string, &thread_name);
 	}
@@ -518,10 +535,8 @@ prof_recent_alloc_dump_node(emitter_t *emitter, prof_recent_t *node) {
 	if (released && node->dalloc_tctx != NULL) {
 		emitter_json_kv(emitter, "dalloc_thread_uid",
 		    emitter_type_uint64, &node->dalloc_tctx->thr_uid);
-		prof_tdata_t *dalloc_tdata = node->dalloc_tctx->tdata;
-		assert(dalloc_tdata != NULL);
-		if (!prof_thread_name_empty(dalloc_tdata)) {
-			const char *thread_name = dalloc_tdata->thread_name;
+		if (node->dalloc_thread_name[0] != '\0') {
+			const char *thread_name = node->dalloc_thread_name;
 			emitter_json_kv(emitter, "dalloc_thread_name",
 			    emitter_type_string, &thread_name);
 		}
