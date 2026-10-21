@@ -211,8 +211,13 @@ prof_recent_alloc_reset(tsd_t *tsd, edata_t *edata) {
 		return;
 	}
 
-	/* Sampled allocations refresh the name; frees must do it themselves. */
-	if (opt_prof_sys_thread_name) {
+	/*
+	 * Sampled allocations refresh the name; frees must do it themselves.
+	 * Same guard as prof_tctx_create(): a reentrant free (e.g. from a
+	 * prof_sample hook) records no dalloc_tctx and must not touch tdata.
+	 */
+	if (opt_prof_sys_thread_name && tsd_nominal(tsd)
+	    && tsd_reentrancy_level_get(tsd) == 0) {
 		prof_sys_thread_name_fetch(tsd);
 	}
 	prof_tctx_t *dalloc_tctx = prof_tctx_create(tsd);
@@ -239,7 +244,8 @@ prof_recent_alloc_reset(tsd_t *tsd, edata_t *edata) {
 			nstime_prof_update(&recent->dalloc_time);
 			recent->dalloc_tctx = dalloc_tctx;
 			/* Own tdata: this thread is the only writer of the name. */
-			assert(dalloc_tctx->tdata == prof_tdata_get(tsd, false));
+			assert(
+			    dalloc_tctx->tdata == prof_tdata_get(tsd, false));
 			strncpy(recent->dalloc_thread_name,
 			    dalloc_tctx->tdata->thread_name,
 			    PROF_THREAD_NAME_MAX_LEN);

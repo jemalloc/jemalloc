@@ -618,6 +618,40 @@ TEST_BEGIN(test_prof_recent_alloc_thread_name) {
 }
 TEST_END
 
+static void *reentrant_victim;
+
+/* Sample hooks run under pre_reentrancy(), so this free is reentrant. */
+static void
+free_victim_prof_sample_hook(
+    const void *ptr, size_t size, void **bt, unsigned len, size_t usize) {
+	void *victim = reentrant_victim;
+	if (victim != NULL) {
+		reentrant_victim = NULL;
+		free(victim);
+	}
+}
+
+TEST_BEGIN(test_prof_recent_reentrant_free) {
+	test_skip_if(!config_prof);
+	confirm_prof_setup();
+
+	reentrant_victim = malloc(7);
+	assert_ptr_not_null(reentrant_victim, "Unexpected malloc() failure");
+	prof_sample_hook_t hook = free_victim_prof_sample_hook;
+	assert_d_eq(mallctl("experimental.hooks.prof_sample", NULL, NULL, &hook,
+	                sizeof(hook)),
+	    0, "Unexpected mallctl() failure");
+	free(malloc(7));
+	hook = NULL;
+	assert_d_eq(mallctl("experimental.hooks.prof_sample", NULL, NULL, &hook,
+	                sizeof(hook)),
+	    0, "Unexpected mallctl() failure");
+	expect_ptr_null(reentrant_victim, "Sample hook did not run");
+
+	confirm_prof_setup();
+}
+TEST_END
+
 #undef DUMP_ERROR
 #undef DUMP_OUT_SIZE
 
@@ -741,5 +775,5 @@ main(void) {
 	return test(test_confirm_setup, test_prof_recent_off,
 	    test_prof_recent_on, test_prof_recent_alloc,
 	    test_prof_recent_alloc_dump, test_prof_recent_alloc_thread_name,
-	    test_prof_recent_stress);
+	    test_prof_recent_reentrant_free, test_prof_recent_stress);
 }
