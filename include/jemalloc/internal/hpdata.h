@@ -42,6 +42,35 @@ struct hpdata_s {
 	void *h_address;
 	/* Its age (measured in psset operations). */
 	uint64_t h_age;
+
+	/* The length of the largest contiguous sequence of inactive pages. */
+	size_t h_longest_free_range;
+
+	/* Number of active pages. */
+	size_t h_nactive;
+
+	/*
+	 * Number of dirty or active pages.  One way to think of this is as
+	 * which pages are dirty from the OS's perspective.
+	 */
+	size_t h_ntouched;
+
+	union {
+		/* When nonempty (and also nonfull), used by the psset bins. */
+		hpdata_age_heap_link_t age_link;
+		/*
+		 * When empty (or not corresponding to any hugepage), list
+		 * linkage.
+		 */
+		ql_elm(hpdata_t) ql_link_empty;
+	};
+
+	/* A bitmap with bits set in the active pages. */
+	fb_group_t active_pages[FB_NGROUPS(HUGEPAGE_PAGES_MAX)];
+
+	/* The touched pages (as defined for h_ntouched above). */
+	fb_group_t touched_pages[FB_NGROUPS(HUGEPAGE_PAGES_MAX)];
+
 	/* Whether or not we think the hugepage is mapped that way by the OS. */
 	bool h_huge;
 
@@ -71,9 +100,7 @@ struct hpdata_s {
 
 	/* And with hugifying. */
 	bool h_hugify_allowed;
-	/* When we became a hugification candidate. */
-	nstime_t h_time_hugify_allowed;
-	bool     h_in_psset_hugify_container;
+	bool h_in_psset_hugify_container;
 
 	/* Whether or not a purge or hugify is currently happening. */
 	bool h_mid_purge;
@@ -90,15 +117,8 @@ struct hpdata_s {
 	/* Whether or not the hpdata is in a psset. */
 	bool h_in_psset;
 
-	union {
-		/* When nonempty (and also nonfull), used by the psset bins. */
-		hpdata_age_heap_link_t age_link;
-		/*
-		 * When empty (or not corresponding to any hugepage), list
-		 * linkage.
-		 */
-		ql_elm(hpdata_t) ql_link_empty;
-	};
+	/* True if the extent was huge and empty last time when it was purged */
+	bool h_purged_when_empty_and_huge;
 
 	/*
 	 * Linkage for the psset to track candidates for purging and hugifying.
@@ -106,27 +126,8 @@ struct hpdata_s {
 	ql_elm(hpdata_t) ql_link_purge;
 	ql_elm(hpdata_t) ql_link_hugify;
 
-	/* The length of the largest contiguous sequence of inactive pages. */
-	size_t h_longest_free_range;
-
-	/* Number of active pages. */
-	size_t h_nactive;
-
-	/* A bitmap with bits set in the active pages. */
-	fb_group_t active_pages[FB_NGROUPS(HUGEPAGE_PAGES_MAX)];
-
-	/*
-	 * Number of dirty or active pages, and a bitmap tracking them.  One
-	 * way to think of this is as which pages are dirty from the OS's
-	 * perspective.
-	 */
-	size_t h_ntouched;
-
-	/* The touched pages (using the same definition as above). */
-	fb_group_t touched_pages[FB_NGROUPS(HUGEPAGE_PAGES_MAX)];
-
-	/* True if the extent was huge and empty last time when it was purged */
-	bool h_purged_when_empty_and_huge;
+	/* When we became a hugification candidate. */
+	nstime_t h_time_hugify_allowed;
 };
 
 TYPED_LIST(hpdata_empty_list, hpdata_t, ql_link_empty)
