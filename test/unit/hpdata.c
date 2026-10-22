@@ -254,9 +254,39 @@ TEST_BEGIN(test_hugify) {
 }
 TEST_END
 
+TEST_BEGIN(test_layout) {
+	/* we don't care about the layout in debug builds */
+	test_skip_if(config_debug);
+
+	/* check the layout for 64-bit builds with 4K pages and 2M hugepages */
+	test_skip_if(LG_SIZEOF_PTR != 3);
+	test_skip_if(PAGE != 4 * 1024);
+	test_skip_if(HUGEPAGE != 2 * 1024 * 1024);
+
+	/*
+	 * hpdata is allocated at the cache line granularity (e.g., 64 bytes).
+	 * So, if it's a bit over 256, the allocation will be rounded to 320.
+	 * hpdata is a very small percentage of rss, so this
+	 * doesn't really matter. But let's try to keep it <= 256.
+	 */
+	expect_zu_le(sizeof(hpdata_t), 4 * CACHELINE,
+	    "we're expecting hpdata_t to be <= 4 x cache line");
+
+	/*
+	 * Let's try to keep the two bitmaps cache line-aligned,
+	 * which currently also means that each bitmap resides
+	 * on a single cache line.
+	 */
+	expect_zu_eq(offsetof(hpdata_t, active_pages) % CACHELINE, 0,
+	    "we're expecting active_pages to be cache line-aligned");
+	expect_zu_eq(offsetof(hpdata_t, touched_pages) % CACHELINE, 0,
+	    "we're expecting touched_pages to be cache line-aligned");
+}
+TEST_END
+
 int
 main(void) {
 	return test_no_reentrancy(test_reserve_alloc, test_purge_simple,
 	    test_purge_intervening_dalloc, test_purge_over_retained,
-	    test_hugify);
+	    test_hugify, test_layout);
 }
