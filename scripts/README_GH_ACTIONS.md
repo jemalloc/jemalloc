@@ -47,11 +47,14 @@ The script can generate workflows for different platforms:
 
 ### Windows CI (`windows-ci.yml`)
 - **test-windows** (AMD64): `windows-latest` (x86_64)
-  - 10 configurations covering MinGW-GCC and MSVC compilers
+  - 9 configurations covering MinGW-GCC and MSVC compilers
   - 32-bit and 64-bit builds
   - Uses MSYS2 for build environment
+- **test-windows-msbuild**: `windows-latest` (x86_64)
+  - Builds the Visual Studio 2022 solution in Debug and Release modes
+  - Treats compiler and linker warnings as errors
 
-**Total:** 10 configurations
+**Total:** 11 configurations
 
 ### FreeBSD CI (`freebsd-ci.yml`)
 - **test-freebsd** (AMD64): Runs in FreeBSD VM on `ubuntu-latest`
@@ -163,6 +166,8 @@ The Windows workflow uses:
    - Uses `MSYS2_PATH_TYPE: inherit` to inherit Windows PATH
    - Exports `AR=lib.exe`, `NM=dumpbin.exe`, `RANLIB=:`
 4. **mingw32-make**: Used instead of `make` (standard in MSYS2)
+5. **MSBuild**: Builds the Visual Studio 2022 Debug and Release x64
+   configurations with compiler and linker warnings treated as errors
 
 ### macOS Build Process
 - Uses Homebrew to install `autoconf`
