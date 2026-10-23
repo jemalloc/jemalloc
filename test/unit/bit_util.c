@@ -283,6 +283,17 @@ TEST_BEGIN(test_popcount_llu_slow) {
 }
 TEST_END
 
+TEST_BEGIN(test_mallocx_alignment_flags) {
+	for (unsigned lg_align = 0; lg_align < sizeof(size_t) * 8; lg_align++) {
+		size_t alignment = ZU(1) << lg_align;
+		expect_u_eq(lg_floor(alignment), lg_align,
+		    "Unexpected alignment logarithm");
+		expect_d_eq(MALLOCX_LG_ALIGN(lg_floor(alignment)),
+		    MALLOCX_ALIGN(alignment), "Unexpected alignment flags");
+	}
+}
+TEST_END
+
 int
 main(void) {
 	return test_no_reentrancy(test_pow2_ceil_u64, test_pow2_ceil_u32,
@@ -291,5 +302,6 @@ main(void) {
 	    test_fls_lu, test_fls_llu, test_fls_u32, test_fls_u64, test_fls_zu,
 	    test_fls_u_slow, test_fls_lu_slow, test_fls_llu_slow,
 	    test_popcount_u, test_popcount_u_slow, test_popcount_lu,
-	    test_popcount_lu_slow, test_popcount_llu, test_popcount_llu_slow);
+	    test_popcount_lu_slow, test_popcount_llu, test_popcount_llu_slow,
+	    test_mallocx_alignment_flags);
 }
