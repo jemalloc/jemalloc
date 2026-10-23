@@ -1,3 +1,4 @@
+#include <new>
 #include <type_traits>
 
 #include "test/jemalloc_test.h"
@@ -32,7 +33,37 @@ TEST_BEGIN(test_basic) {
 }
 TEST_END
 
+TEST_BEGIN(test_aligned_sized_delete) {
+#if __cpp_aligned_new >= 201606 && __cpp_sized_deallocation >= 201309
+	const size_t alignments[] = {1, 64, 256, 4096, ZU(1) << 20};
+	const size_t sizes[] = {1, 42, 4096, 65536};
+	for (size_t alignment : alignments) {
+		auto al = static_cast<std::align_val_t>(alignment);
+		for (size_t size : sizes) {
+			void *ptr = ::operator new(size, al);
+			expect_ptr_not_null(
+			    ptr, "Unexpected aligned new failure");
+			expect_zu_eq((uintptr_t)ptr & (alignment - 1), 0,
+			    "Unexpected allocation alignment");
+			::operator delete(ptr, size, al);
+
+			ptr = ::operator new[](size, al);
+			expect_ptr_not_null(
+			    ptr, "Unexpected aligned array new failure");
+			expect_zu_eq((uintptr_t)ptr & (alignment - 1), 0,
+			    "Unexpected allocation alignment");
+			::operator delete[](ptr, size, al);
+		}
+		::operator delete(nullptr, 0, al);
+		::operator delete[](nullptr, 0, al);
+	}
+#else
+	test_skip("Aligned sized deallocation is not enabled");
+#endif
+}
+TEST_END
+
 int
 main() {
-	return test(test_basic);
+	return test(test_basic, test_aligned_sized_delete);
 }
