@@ -8,10 +8,25 @@ TEST_BEGIN(test_free_sized) {
 TEST_END
 
 TEST_BEGIN(test_free_aligned_sized) {
-	size_t alignment = 0x100;
-	void  *p = mallocx(42, MALLOCX_ALIGN(alignment));
-	expect_ptr_not_null(p, "Unexpected mallocx() failure");
-	free_aligned_sized(p, alignment, 42);
+	const size_t alignments[] = {1, 8, 16, 64, 256, 4096, 65536};
+	const size_t sizes[] = {1, 42, 64, 4096, 65536};
+
+	for (unsigned i = 0; i < sizeof(alignments) / sizeof(alignments[0]);
+	     i++) {
+		for (unsigned j = 0; j < sizeof(sizes) / sizeof(sizes[0]); j++) {
+			size_t alignment = alignments[i];
+			size_t size = sizes[j];
+			void *p = mallocx(size, MALLOCX_ALIGN(alignment));
+			assert_ptr_not_null(p,
+			    "mallocx() failed for alignment=%zu, size=%zu",
+			    alignment, size);
+			expect_zu_eq((uintptr_t)p & (alignment - 1), 0,
+			    "Unexpected pointer alignment for alignment=%zu, "
+			    "size=%zu", alignment, size);
+			memset(p, 0xa5, size);
+			free_aligned_sized(p, alignment, size);
+		}
+	}
 }
 TEST_END
 
