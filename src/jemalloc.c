@@ -1133,7 +1133,8 @@ je_free_aligned_sized(void *ptr, size_t alignment, size_t size) {
 	 * pointer, so handle the C23 free_aligned_sized(NULL, ...) no-op here.
 	 */
 	if (likely(ptr != NULL)) {
-		je_sdallocx_impl(ptr, size, /* flags */ MALLOCX_ALIGN(alignment));
+		je_sdallocx_impl(ptr, size, /* flags */
+		    MALLOCX_LG_ALIGN(lg_floor(alignment)));
 	}
 
 	LOG("core.free_aligned_sized.exit", "");
