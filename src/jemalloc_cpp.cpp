@@ -268,7 +268,8 @@ alignedSizedDeleteImpl(
 	    ptr, size, alignment);
 
 	if (likely(ptr != nullptr)) {
-		je_sdallocx_impl(ptr, size, MALLOCX_ALIGN(alignment));
+		je_sdallocx_impl(
+		    ptr, size, MALLOCX_LG_ALIGN(lg_floor((size_t)alignment)));
 	}
 
 	LOG("core.operator_delete.exit", "");
