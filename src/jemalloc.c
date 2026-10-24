@@ -882,15 +882,12 @@ JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(2)
 	return ret;
 }
 
-JEMALLOC_EXPORT
-JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
-JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE2(1, 2)
-    je_calloc(size_t num, size_t size) {
+JEMALLOC_NOINLINE
+static void *
+calloc_default(size_t num, size_t size) {
 	void          *ret;
 	static_opts_t  sopts;
 	dynamic_opts_t dopts;
-
-	LOG("core.calloc.entry", "num: %zu, size: %zu", num, size);
 
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
@@ -906,6 +903,17 @@ JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE2(1, 2)
 	dopts.zero = true;
 
 	imalloc(&sopts, &dopts);
+
+	return ret;
+}
+
+JEMALLOC_EXPORT
+JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
+JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE2(1, 2)
+    je_calloc(size_t num, size_t size) {
+	LOG("core.calloc.entry", "num: %zu, size: %zu", num, size);
+
+	void *ret = icalloc_fastpath(num, size, &calloc_default);
 
 	LOG("core.calloc.exit", "result: %p", ret);
 
@@ -1434,18 +1442,25 @@ mallocx_default(size_t size) {
 	return ret;
 }
 
-JEMALLOC_EXPORT
-JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
-JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(1)
-    je_mallocx(size_t size, int flags) {
-	LOG("core.mallocx.entry", "size: %zu, flags: %d", size, flags);
+JEMALLOC_NOINLINE
+static void *
+mallocx_zero_default(size_t num, size_t size) {
+	assert(num == 1);
+	void          *ret;
+	static_opts_t  sopts;
+	dynamic_opts_t dopts;
 
-	if (likely(flags == 0)) {
-		void *ret = imalloc_fastpath(size, &mallocx_default);
-		LOG("core.mallocx.exit", "result: %p", ret);
-		return ret;
-	}
+	mallocx_default_opts_init(&sopts, &dopts, &ret, size);
+	dopts.zero = true;
 
+	imalloc(&sopts, &dopts);
+
+	return ret;
+}
+
+JEMALLOC_NOINLINE
+static void *
+mallocx_slow(size_t size, int flags) {
 	void          *ret;
 	static_opts_t  sopts;
 	dynamic_opts_t dopts;
@@ -1457,6 +1472,27 @@ JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(1)
 	dopts.arena_ind = mallocx_arena_get(flags);
 
 	imalloc(&sopts, &dopts);
+
+	return ret;
+}
+
+JEMALLOC_EXPORT
+JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
+JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(1)
+    je_mallocx(size_t size, int flags) {
+	LOG("core.mallocx.entry", "size: %zu, flags: %d", size, flags);
+
+	if (likely(flags == 0)) {
+		void *ret = imalloc_fastpath(size, &mallocx_default);
+		LOG("core.mallocx.exit", "result: %p", ret);
+		return ret;
+	} else if (flags == MALLOCX_ZERO) {
+		void *ret = icalloc_fastpath(1, size, &mallocx_zero_default);
+		LOG("core.mallocx.exit", "result: %p", ret);
+		return ret;
+	}
+
+	void *ret = mallocx_slow(size, flags);
 
 	LOG("core.mallocx.exit", "result: %p", ret);
 	return ret;
