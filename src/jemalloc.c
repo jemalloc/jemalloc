@@ -811,17 +811,12 @@ JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(1) je_malloc(size_t size) {
 	return ret;
 }
 
-JEMALLOC_EXPORT int JEMALLOC_NOTHROW
-JEMALLOC_ATTR(nonnull(1))
-    je_posix_memalign(void **memptr, size_t alignment, size_t size) {
+JEMALLOC_NOINLINE
+static int
+posix_memalign_slow(void **memptr, size_t alignment, size_t size) {
 	int            ret;
 	static_opts_t  sopts;
 	dynamic_opts_t dopts;
-
-	LOG("core.posix_memalign.entry",
-	    "mem ptr: %p, alignment: %zu, "
-	    "size: %zu",
-	    memptr, alignment, size);
 
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
@@ -839,6 +834,34 @@ JEMALLOC_ATTR(nonnull(1))
 	dopts.alignment = alignment;
 
 	ret = imalloc(&sopts, &dopts);
+	return ret;
+}
+
+JEMALLOC_EXPORT int JEMALLOC_NOTHROW
+JEMALLOC_ATTR(nonnull(1))
+    je_posix_memalign(void **memptr, size_t alignment, size_t size) {
+	LOG("core.posix_memalign.entry",
+	    "mem ptr: %p, alignment: %zu, "
+	    "size: %zu",
+	    memptr, alignment, size);
+
+	if (likely(alignment >= sizeof(void *)
+	    && (alignment & (alignment - 1)) == 0
+	    && alignment <= SC_LOOKUP_MAXCLASS
+	    && size <= SC_LOOKUP_MAXCLASS)) {
+		size_t req_size = (size == 0 ? 1 : size);
+		size_t rounded_size = (req_size + alignment - 1) & ~(alignment - 1);
+		if (likely(rounded_size <= SC_LOOKUP_MAXCLASS)) {
+			void *ret = imalloc_fastpath_core(rounded_size, NULL);
+			if (likely(ret != NULL)) {
+				*memptr = ret;
+				LOG("core.posix_memalign.exit", "result: 0, alloc ptr: %p", ret);
+				return 0;
+			}
+		}
+	}
+
+	int ret = posix_memalign_slow(memptr, alignment, size);
 
 	LOG("core.posix_memalign.exit", "result: %d, alloc ptr: %p", ret,
 	    *memptr);
@@ -846,17 +869,12 @@ JEMALLOC_ATTR(nonnull(1))
 	return ret;
 }
 
-JEMALLOC_EXPORT
-JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
-JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(2)
-    je_aligned_alloc(size_t alignment, size_t size) {
-	void *ret;
-
+JEMALLOC_NOINLINE
+static void *
+aligned_alloc_slow(size_t alignment, size_t size) {
+	void          *ret;
 	static_opts_t  sopts;
 	dynamic_opts_t dopts;
-
-	LOG("core.aligned_alloc.entry", "alignment: %zu, size: %zu\n",
-	    alignment, size);
 
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
@@ -876,6 +894,32 @@ JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(2)
 	dopts.alignment = alignment;
 
 	imalloc(&sopts, &dopts);
+	return ret;
+}
+
+JEMALLOC_EXPORT
+JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
+JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(2)
+    je_aligned_alloc(size_t alignment, size_t size) {
+	LOG("core.aligned_alloc.entry", "alignment: %zu, size: %zu\n",
+	    alignment, size);
+
+	if (likely(alignment != 0
+	    && (alignment & (alignment - 1)) == 0
+	    && alignment <= SC_LOOKUP_MAXCLASS
+	    && size <= SC_LOOKUP_MAXCLASS)) {
+		size_t req_size = (size == 0 ? 1 : size);
+		size_t rounded_size = (req_size + alignment - 1) & ~(alignment - 1);
+		if (likely(rounded_size <= SC_LOOKUP_MAXCLASS)) {
+			void *ret = imalloc_fastpath_core(rounded_size, NULL);
+			if (likely(ret != NULL)) {
+				LOG("core.aligned_alloc.exit", "result: %p", ret);
+				return ret;
+			}
+		}
+	}
+
+	void *ret = aligned_alloc_slow(alignment, size);
 
 	LOG("core.aligned_alloc.exit", "result: %p", ret);
 
@@ -1141,9 +1185,20 @@ je_free_aligned_sized(void *ptr, size_t alignment, size_t size) {
 	 * pointer, so handle the C23 free_aligned_sized(NULL, ...) no-op here.
 	 */
 	if (likely(ptr != NULL)) {
+		if (likely(alignment != 0
+		    && (alignment & (alignment - 1)) == 0
+		    && alignment <= SC_LOOKUP_MAXCLASS
+		    && size <= SC_LOOKUP_MAXCLASS)) {
+			size_t req_size = (size == 0 ? 1 : size);
+			size_t rounded_size = (req_size + alignment - 1) & ~(alignment - 1);
+			if (likely(rounded_size <= SC_LOOKUP_MAXCLASS)) {
+				je_sdallocx_noflags(ptr, rounded_size);
+				goto label_done;
+			}
+		}
 		je_sdallocx_impl(ptr, size, /* flags */ MALLOCX_ALIGN(alignment));
 	}
-
+label_done:
 	LOG("core.free_aligned_sized.exit", "");
 }
 
