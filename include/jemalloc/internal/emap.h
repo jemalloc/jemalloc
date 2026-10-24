@@ -255,6 +255,28 @@ emap_alloc_ctx_usize_get(emap_alloc_ctx_t *alloc_ctx) {
 	return alloc_ctx->usize;
 }
 
+/*
+ * Calculate usize from rtree contents.
+ * If the alloc is invalid, do not calculate usize since edata
+ * could be corrupted.
+ * For slabs or when large size classes are enabled, usize can be
+ * computed directly from szind without dereferencing edata.
+ */
+JEMALLOC_ALWAYS_INLINE size_t
+emap_contents_usize_get(rtree_contents_t contents) {
+	if (likely(contents.metadata.slab
+	        || !sz_large_size_classes_disabled())) {
+		return (contents.metadata.szind == SC_NSIZES)
+		    ? 0
+		    : sz_index2size(contents.metadata.szind);
+	} else {
+		return (contents.metadata.szind == SC_NSIZES
+		            || contents.edata == NULL)
+		    ? 0
+		    : edata_usize_get(contents.edata);
+	}
+}
+
 /* Fills in alloc_ctx with the info in the map. */
 JEMALLOC_ALWAYS_INLINE void
 emap_alloc_ctx_lookup(
@@ -272,24 +294,7 @@ emap_alloc_ctx_lookup(
 		contents = rtree_read_slow(
 		    tsdn, &emap->rtree, rtree_ctx, (uintptr_t)ptr);
 	}
-	/*
-	 * If the alloc is invalid, do not calculate usize since edata
-	 * could be corrupted.
-	 * For slabs or when large size classes are enabled, usize can be
-	 * computed directly from szind without dereferencing edata.
-	 */
-	size_t usize;
-	if (likely(contents.metadata.slab
-	        || !sz_large_size_classes_disabled())) {
-		usize = (contents.metadata.szind == SC_NSIZES)
-		    ? 0
-		    : sz_index2size(contents.metadata.szind);
-	} else {
-		usize = (contents.metadata.szind == SC_NSIZES
-		            || contents.edata == NULL)
-		    ? 0
-		    : edata_usize_get(contents.edata);
-	}
+	size_t usize = emap_contents_usize_get(contents);
 	emap_alloc_ctx_init(alloc_ctx, contents.metadata.szind,
 	    contents.metadata.slab, usize);
 }
