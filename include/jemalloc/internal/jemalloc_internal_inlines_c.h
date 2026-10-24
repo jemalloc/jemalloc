@@ -283,15 +283,20 @@ fastpath_success_finish(
  * fastpath supports ticker and profiling, both of which will also
  * tail-call to the slowpath if they fire.
  */
+/*
+ * Core allocation fastpath for sizes <= SC_LOOKUP_MAXCLASS.
+ * If usize_out is non-NULL, writes the allocation usize into *usize_out.
+ * Returns NULL on fastpath failure (threshold reached, tcache miss, etc.).
+ */
 JEMALLOC_ALWAYS_INLINE void *
-imalloc_fastpath(size_t size, void *(fallback_alloc)(size_t)) {
+imalloc_fastpath_core(size_t size, size_t *usize_out) {
 	if (tsd_get_allocates() && unlikely(!malloc_initialized())) {
-		return fallback_alloc(size);
+		return NULL;
 	}
 
 	tsd_t *tsd = tsd_get(false);
 	if (unlikely((size > SC_LOOKUP_MAXCLASS) || tsd == NULL)) {
-		return fallback_alloc(size);
+		return NULL;
 	}
 	/*
 	 * The code below till the branch checking the next_event threshold may
@@ -335,7 +340,7 @@ imalloc_fastpath(size_t size, void *(fallback_alloc)(size_t)) {
 	 * 0) in a single branch.
 	 */
 	if (unlikely(allocated_after >= threshold)) {
-		return fallback_alloc(size);
+		return NULL;
 	}
 	assert(tsd_fast(tsd));
 
@@ -356,15 +361,67 @@ imalloc_fastpath(size_t size, void *(fallback_alloc)(size_t)) {
 	ret = cache_bin_alloc_easy(bin, &tcache_success);
 	if (tcache_success) {
 		fastpath_success_finish(tsd, allocated_after, bin, ret);
+		if (usize_out != NULL) {
+			*usize_out = usize;
+		}
 		return ret;
 	}
 	ret = cache_bin_alloc(bin, &tcache_success);
 	if (tcache_success) {
 		fastpath_success_finish(tsd, allocated_after, bin, ret);
+		if (usize_out != NULL) {
+			*usize_out = usize;
+		}
 		return ret;
 	}
 
+	return NULL;
+}
+
+/*
+ * malloc() fastpath.  Included here so that we can inline it into operator new;
+ * function call overhead there is non-negligible as a fraction of total CPU in
+ * allocation-heavy C++ programs.  We take the fallback alloc to allow malloc
+ * (which can return NULL) to differ in its behavior from operator new (which
+ * can't).  It matches the signature of malloc / operator new so that we can
+ * tail-call the fallback allocator, allowing us to avoid setting up the call
+ * frame in the common case.
+ *
+ * Fastpath assumes size <= SC_LOOKUP_MAXCLASS, and that we hit
+ * tcache.  If either of these is false, we tail-call to the slowpath,
+ * malloc_default().  Tail-calling is used to avoid any caller-saved
+ * registers.
+ *
+ * fastpath supports ticker and profiling, both of which will also
+ * tail-call to the slowpath if they fire.
+ */
+JEMALLOC_ALWAYS_INLINE void *
+imalloc_fastpath(size_t size, void *(fallback_alloc)(size_t)) {
+	void *ret = imalloc_fastpath_core(size, NULL);
+	if (likely(ret != NULL)) {
+		return ret;
+	}
 	return fallback_alloc(size);
+}
+
+/*
+ * calloc() fastpath.
+ */
+JEMALLOC_ALWAYS_INLINE void *
+icalloc_fastpath(size_t num, size_t size, void *(fallback_calloc)(size_t, size_t)) {
+	size_t num_size = num * size;
+	if (unlikely((num | size | num_size) > SC_LOOKUP_MAXCLASS)) {
+		return fallback_calloc(num, size);
+	}
+
+	size_t usize;
+	void *ret = imalloc_fastpath_core(num_size, &usize);
+	if (likely(ret != NULL)) {
+		memset(ret, 0, usize);
+		return ret;
+	}
+
+	return fallback_calloc(num, size);
 }
 
 JEMALLOC_ALWAYS_INLINE tcache_t *
