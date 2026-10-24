@@ -1641,6 +1641,32 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 	tsd = tsd_fetch();
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
+	emap_alloc_ctx_t alloc_ctx;
+	emap_alloc_ctx_lookup(
+	    tsd_tsdn(tsd), &arena_emap_global, ptr, &alloc_ctx);
+	assert(alloc_ctx.szind != SC_NSIZES);
+	old_usize = emap_alloc_ctx_usize_get(&alloc_ctx);
+	assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
+	if (aligned_usize_get(size, alignment, &usize, NULL, false)) {
+		goto label_oom;
+	}
+
+	if (likely(alloc_ctx.slab && flags == 0)) {
+		if (likely(usize == old_usize)) {
+			if (config_prof && unlikely(opt_prof)) {
+				goto label_slow;
+			}
+			thread_alloc_event(tsd, usize);
+			thread_dalloc_event(tsd, old_usize);
+
+			UTRACE(ptr, size, ptr);
+			check_entry_exit_locking(tsd_tsdn(tsd));
+
+			return ptr;
+		}
+	}
+
+label_slow: ;
 	bool zero = zero_get(MALLOCX_ZERO_GET(flags), /* slow */ true);
 
 	unsigned arena_ind = mallocx_arena_get(flags);
@@ -1651,16 +1677,6 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 	unsigned  tcache_ind = mallocx_tcache_get(flags);
 	tcache_t *tcache = tcache_get_from_ind(tsd, tcache_ind,
 	    /* slow */ true, /* is_alloc */ true);
-
-	emap_alloc_ctx_t alloc_ctx;
-	emap_alloc_ctx_lookup(
-	    tsd_tsdn(tsd), &arena_emap_global, ptr, &alloc_ctx);
-	assert(alloc_ctx.szind != SC_NSIZES);
-	old_usize = emap_alloc_ctx_usize_get(&alloc_ctx);
-	assert(old_usize == isalloc(tsd_tsdn(tsd), ptr));
-	if (aligned_usize_get(size, alignment, &usize, NULL, false)) {
-		goto label_oom;
-	}
 
 	if (config_prof && opt_prof) {
 		p = irallocx_prof(tsd, ptr, old_usize, size, alignment, usize,
