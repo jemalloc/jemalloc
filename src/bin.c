@@ -88,6 +88,13 @@ bin_slab_reg_alloc(edata_t *slab, const bin_info_t *bin_info) {
 void
 bin_slab_reg_alloc_batch(
     edata_t *slab, const bin_info_t *bin_info, unsigned cnt, void **ptrs) {
+	return bin_slab_reg_alloc_batch_tagged(slab, bin_info, cnt, ptrs, 0);
+}
+
+void
+bin_slab_reg_alloc_batch_tagged(
+    edata_t *slab, const bin_info_t *bin_info, unsigned cnt, void **ptrs,
+    uintptr_t tag) {
 	slab_data_t *slab_data = edata_slab_data_get(slab);
 
 	assert(edata_nfree_get(slab) >= cnt);
@@ -120,7 +127,7 @@ bin_slab_reg_alloc_batch(
 			size_t bit = cfs_lu(&g);
 			size_t regind = shift + bit;
 			/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
-			*(ptrs + i) = (void *)(base + regsize * regind);
+			ptrs[i] = (void *)((base + regsize * regind) | tag);
 			i++;
 #if (!defined JEMALLOC_INTERNAL_POPCOUNTL) || (defined BITMAP_USE_TREE)
 			if (g == 0) {

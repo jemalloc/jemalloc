@@ -190,6 +190,13 @@ tcache_dalloc_small(
     tsd_t *tsd, tcache_t *tcache, void *ptr, szind_t binind, bool slow_path) {
 	assert(tcache_salloc(tsd_tsdn(tsd), ptr) <= SC_SMALL_MAXCLASS);
 
+	/*
+	 * We can end up here with an untagged pointer if the heartbeat
+	 * in free_fastpath triggered the slow path.
+	 */
+	void *tptr = (void *)((uintptr_t)ptr
+	    | ((binind + 1ULL) << LAM_SHIFT));
+
 	cache_bin_t *bin = &tcache->bins[binind];
 	/*
 	 * Not marking the branch unlikely because this is past free_fastpath()
@@ -199,14 +206,14 @@ tcache_dalloc_small(
 	if (cache_bin_nonfast_aligned(ptr)) {
 		/* Junk unconditionally, even if bin is full. */
 		san_junk_ptr(ptr, sz_index2size(binind));
-		if (cache_bin_stash(bin, ptr)) {
+		if (cache_bin_stash(bin, tptr)) {
 			return;
 		}
 		assert(cache_bin_full(bin));
 		/* Bin full; fall through into the flush branch. */
 	}
 
-	if (unlikely(!cache_bin_dalloc_easy(bin, ptr))) {
+	if (unlikely(!cache_bin_dalloc_easy(bin, tptr))) {
 		if (unlikely(tcache_bin_disabled(
 		        binind, bin, tcache->tcache_slow))) {
 			arena_dalloc_small(tsd_tsdn(tsd), ptr);
@@ -219,7 +226,7 @@ tcache_dalloc_small(
 		unsigned remain =
 		    (unsigned)tcache_ncached_flush_remain(*nretain, max);
 		tcache_bin_flush_small(tsd, tcache, bin, binind, remain);
-		bool ret = cache_bin_dalloc_easy(bin, ptr);
+		bool ret = cache_bin_dalloc_easy(bin, tptr);
 		assert(ret);
 	}
 }
