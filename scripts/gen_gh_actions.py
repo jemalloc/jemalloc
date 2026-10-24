@@ -767,6 +767,72 @@ def generate_windows_job(arch):
     return job
 
 
+def generate_windows_msbuild_job():
+    """Build VS2022 Debug and Release with warnings treated as errors."""
+    return """  test-windows-msbuild:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Setup MSYS2
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          autotools
+          git
+
+    - name: Setup MSVC environment
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+
+    - name: Generate headers
+      shell: msys2 {0}
+      env:
+        MSYS2_PATH_TYPE: inherit
+      run: |
+        export CC=cl.exe
+        export CXX=cl.exe
+        export AR=lib.exe
+        export NM=dumpbin.exe
+        export RANLIB=:
+        ./autogen.sh
+
+    - name: Build VS2022 Debug and Release solutions
+      shell: pwsh
+      run: |
+        $warningsAsErrorsTargets = Join-Path $env:RUNNER_TEMP `
+          "jemalloc-warnings-as-errors.targets"
+        $warningsAsErrorsContent = @'
+        <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+          <ItemDefinitionGroup>
+            <ClCompile>
+              <TreatWarningAsError>true</TreatWarningAsError>
+            </ClCompile>
+            <Link>
+              <TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors>
+            </Link>
+          </ItemDefinitionGroup>
+        </Project>
+        '@
+        $warningsAsErrorsContent | Set-Content -Path $warningsAsErrorsTargets
+
+        foreach ($configuration in @("Debug", "Release")) {
+          msbuild msvc/jemalloc_vc2022.sln `
+            /m `
+            /p:Configuration=$configuration `
+            /p:Platform=x64 `
+            /p:ForceImportBeforeCppTargets="$warningsAsErrorsTargets"
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+        }
+""".rstrip()
+
+
 def generate_freebsd_job(arch):
     """Generate FreeBSD job configuration."""
     # FreeBSD runs in a VM on ubuntu-latest, not native
@@ -951,8 +1017,12 @@ def main():
         print(GITHUB_ACTIONS_TEMPLATE.format(name='macOS CI', jobs=jobs))
 
     elif workflow_type == 'windows':
-        jobs = generate_windows_job(AMD64)
-        print(GITHUB_ACTIONS_TEMPLATE.format(name='Windows CI', jobs=jobs))
+        jobs = '\n'.join((
+            generate_windows_job(AMD64),
+            generate_windows_msbuild_job(),
+        ))
+        print(GITHUB_ACTIONS_TEMPLATE.format(name='Windows CI', jobs=jobs),
+              end='')
 
     elif workflow_type == 'freebsd':
         jobs = generate_freebsd_job(AMD64)
@@ -974,7 +1044,10 @@ def main():
             generate_macos_job(AMD64),   # Intel
             generate_macos_job(ARM64),   # Apple Silicon
         ))
-        windows_jobs = generate_windows_job(AMD64)
+        windows_jobs = '\n'.join((
+            generate_windows_job(AMD64),
+            generate_windows_msbuild_job(),
+        ))
         freebsd_jobs = generate_freebsd_job(AMD64)
         illumos_jobs = generate_illumos_job(AMD64)
 

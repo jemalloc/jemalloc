@@ -310,7 +310,7 @@ te_event_trigger(tsd_t *tsd, te_ctx_t *ctx) {
 	    && tsd_reentrancy_level_get(tsd) == 0;
 	uint64_t wait = TE_MAX_START_WAIT;
 
-	assert((int)te_alloc_count >= (int)te_dalloc_count);
+	assert((unsigned)te_alloc_count >= (unsigned)te_dalloc_count);
 	te_base_cb_t *to_trigger[te_alloc_count];
 	size_t        nto_trigger;
 	if (ctx->is_alloc) {

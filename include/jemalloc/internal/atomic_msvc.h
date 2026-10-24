@@ -3,6 +3,8 @@
 
 #include "jemalloc/internal/jemalloc_preamble.h"
 
+#define JEMALLOC_MSVC_ATOMICS
+
 #define ATOMIC_INLINE JEMALLOC_ALWAYS_INLINE
 
 #define ATOMIC_INIT(...)                                                       \
