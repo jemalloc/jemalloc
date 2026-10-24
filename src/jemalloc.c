@@ -1978,17 +1978,25 @@ label_not_resized:
 	return usize;
 }
 
-JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW
-JEMALLOC_ATTR(pure) je_sallocx(const void *ptr, int flags) {
+JEMALLOC_ALWAYS_INLINE bool
+isalloc_fast(tsd_t *tsd, const void *ptr, size_t *usize) {
+	rtree_ctx_t *rtree_ctx = tsd_rtree_ctxp_get_unsafe(tsd);
+	rtree_leaf_elm_t *elm;
+	if (unlikely(rtree_leaf_elm_lookup_fast(tsd_tsdn(tsd), &arena_emap_global.rtree,
+	    rtree_ctx, (uintptr_t)ptr, &elm))) {
+		return false;
+	}
+	rtree_contents_t contents = rtree_leaf_elm_read(tsd_tsdn(tsd), &arena_emap_global.rtree,
+	    elm, /* dependent */ true);
+	*usize = emap_contents_usize_get(contents);
+	return true;
+}
+
+JEMALLOC_NOINLINE
+static size_t
+sallocx_slow(const void *ptr, int flags) {
 	size_t  usize;
-	tsdn_t *tsdn;
-
-	LOG("core.sallocx.entry", "ptr: %p, flags: %d", ptr, flags);
-
-	assert(malloc_initialized() || malloc_is_initializer());
-	assert(ptr != NULL);
-
-	tsdn = tsdn_fetch();
+	tsdn_t *tsdn = tsdn_fetch();
 	check_entry_exit_locking(tsdn);
 
 	if (config_debug || force_ivsalloc) {
@@ -2002,6 +2010,29 @@ JEMALLOC_ATTR(pure) je_sallocx(const void *ptr, int flags) {
 
 	LOG("core.sallocx.exit", "result: %zu", usize);
 	return usize;
+}
+
+JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW
+JEMALLOC_ATTR(pure) je_sallocx(const void *ptr, int flags) {
+	LOG("core.sallocx.entry", "ptr: %p, flags: %d", ptr, flags);
+
+	assert(malloc_initialized() || malloc_is_initializer());
+	assert(ptr != NULL);
+
+	if (config_debug || force_ivsalloc) {
+		return sallocx_slow(ptr, flags);
+	}
+
+	tsd_t *tsd = tsd_get(false);
+	if (likely(tsd != NULL && tsd_fast(tsd))) {
+		size_t usize;
+		if (likely(isalloc_fast(tsd, ptr, &usize))) {
+			LOG("core.sallocx.exit", "result: %zu", usize);
+			return usize;
+		}
+	}
+
+	return sallocx_slow(ptr, flags);
 }
 
 JEMALLOC_NOINLINE
@@ -2096,22 +2127,18 @@ je_sdallocx(void *ptr, size_t size, int flags) {
 	LOG("core.sdallocx.exit", "");
 }
 
-JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW
-JEMALLOC_ATTR(pure) je_nallocx(size_t size, int flags) {
-	size_t  usize;
-	tsdn_t *tsdn;
-
-	assert(size != 0);
-
+JEMALLOC_NOINLINE
+static size_t
+nallocx_slow(size_t size, int flags) {
 	if (unlikely(malloc_init())) {
 		LOG("core.nallocx.exit", "result: %zu", ZU(0));
 		return 0;
 	}
 
-	tsdn = tsdn_fetch();
+	tsdn_t *tsdn = tsdn_fetch();
 	check_entry_exit_locking(tsdn);
 
-	usize = inallocx(tsdn, size, flags);
+	size_t usize = inallocx(tsdn, size, flags);
 	if (unlikely(usize > SC_LARGE_MAXCLASS)) {
 		LOG("core.nallocx.exit", "result: %zu", ZU(0));
 		return 0;
@@ -2120,6 +2147,28 @@ JEMALLOC_ATTR(pure) je_nallocx(size_t size, int flags) {
 	check_entry_exit_locking(tsdn);
 	LOG("core.nallocx.exit", "result: %zu", usize);
 	return usize;
+}
+
+JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW
+JEMALLOC_ATTR(pure) je_nallocx(size_t size, int flags) {
+	assert(size != 0);
+
+	if (likely((flags & MALLOCX_LG_ALIGN_MASK) == 0 && malloc_initialized())) {
+		if (likely(size <= SC_LOOKUP_MAXCLASS)) {
+			size_t usize = sz_s2u_lookup(size);
+			LOG("core.nallocx.exit", "result: %zu", usize);
+			return usize;
+		}
+		if (unlikely(size > SC_LARGE_MAXCLASS)) {
+			LOG("core.nallocx.exit", "result: %zu", ZU(0));
+			return 0;
+		}
+		size_t usize = sz_s2u(size);
+		LOG("core.nallocx.exit", "result: %zu", usize);
+		return usize;
+	}
+
+	return nallocx_slow(size, flags);
 }
 
 JEMALLOC_EXPORT int JEMALLOC_NOTHROW
@@ -2211,27 +2260,45 @@ je_malloc_stats_print(
 }
 #undef STATS_PRINT_BUFSIZE
 
-JEMALLOC_ALWAYS_INLINE size_t
-je_malloc_usable_size_impl(JEMALLOC_USABLE_SIZE_CONST void *ptr) {
-	assert(malloc_initialized() || malloc_is_initializer());
-
+JEMALLOC_NOINLINE
+static size_t
+malloc_usable_size_slow(JEMALLOC_USABLE_SIZE_CONST void *ptr) {
 	tsdn_t *tsdn = tsdn_fetch();
 	check_entry_exit_locking(tsdn);
 
 	size_t ret;
-	if (unlikely(ptr == NULL)) {
-		ret = 0;
+	if (config_debug || force_ivsalloc) {
+		ret = ivsalloc(tsdn, ptr);
+		assert(force_ivsalloc || ret != 0);
 	} else {
-		if (config_debug || force_ivsalloc) {
-			ret = ivsalloc(tsdn, ptr);
-			assert(force_ivsalloc || ret != 0);
-		} else {
-			ret = isalloc(tsdn, ptr);
+		ret = isalloc(tsdn, ptr);
+	}
+
+	check_entry_exit_locking(tsdn);
+	return ret;
+}
+
+JEMALLOC_ALWAYS_INLINE size_t
+je_malloc_usable_size_impl(JEMALLOC_USABLE_SIZE_CONST void *ptr) {
+	assert(malloc_initialized() || malloc_is_initializer());
+
+	if (unlikely(ptr == NULL)) {
+		return 0;
+	}
+
+	if (config_debug || force_ivsalloc) {
+		return malloc_usable_size_slow(ptr);
+	}
+
+	tsd_t *tsd = tsd_get(false);
+	if (likely(tsd != NULL && tsd_fast(tsd))) {
+		size_t usize;
+		if (likely(isalloc_fast(tsd, ptr, &usize))) {
+			return usize;
 		}
 	}
-	check_entry_exit_locking(tsdn);
 
-	return ret;
+	return malloc_usable_size_slow(ptr);
 }
 
 JEMALLOC_EXPORT size_t JEMALLOC_NOTHROW
