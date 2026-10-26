@@ -250,6 +250,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/hpa.c \
 	$(srcroot)test/unit/hpa_central.c \
 	$(srcroot)test/unit/hpa_sec_integration.c \
+	$(srcroot)test/unit/hpa_sec_stats.c \
 	$(srcroot)test/unit/hpa_thp_always.c \
 	$(srcroot)test/unit/hpa_vectorized_madvise.c \
 	$(srcroot)test/unit/hpa_vectorized_madvise_large_batch.c \

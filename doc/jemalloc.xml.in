@@ -3153,7 +3153,9 @@ struct extent_hooks_s {
         </term>
         <listitem><para>Number of pages within unused extents that are
         potentially dirty, and for which <function>madvise()</function> or
-        similar has not been called.  See <link
+        similar has not been called.  This includes unpinned extents cached in
+        either the PAC or HPA small extent cache (SEC), which must be flushed
+        before their pages can be purged.  See <link
         linkend="opt.dirty_decay_ms"><mallctl>opt.dirty_decay_ms</mallctl></link>
         for a description of dirty pages.</para></listitem>
       </varlistentry>
