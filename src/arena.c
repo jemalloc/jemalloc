@@ -363,9 +363,8 @@ arena_large_ralloc_stats_update(
 edata_t *
 arena_extent_alloc_large(
     tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment, bool zero) {
-	bool    deferred_work_generated = false;
-	szind_t szind = sz_size2index(usize);
-	size_t  esize = usize + sz_large_pad;
+	bool   deferred_work_generated = false;
+	size_t esize = usize + sz_large_pad;
 
 	bool guarded = san_large_extent_decide_guard(
 	    tsdn, arena_get_ehooks(arena), esize, alignment);
@@ -378,8 +377,8 @@ arena_extent_alloc_large(
 	 *     - use memset() to zero out memory if zero == true.
 	 */
 	bool zero_override = zero && (usize >= opt_calloc_madvise_threshold);
-	edata_t *edata = pa_alloc(tsdn, &arena->pa_shard, esize, alignment,
-	    /* slab */ false, szind, zero_override, guarded,
+	edata_t *edata = pa_alloc(tsdn, &arena->pa_shard, esize, usize,
+	    alignment, /* slab */ false, zero_override, guarded,
 	    &deferred_work_generated);
 
 	if (edata == NULL) {
@@ -704,8 +703,8 @@ arena_destroy(tsd_t *tsd, arena_t *arena) {
 }
 
 static edata_t *
-arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind,
-    unsigned binshard, const bin_info_t *bin_info) {
+arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, unsigned binshard,
+    const bin_info_t *bin_info) {
 	bool deferred_work_generated = false;
 	witness_assert_depth_to_rank(
 	    tsdn_witness_tsdp_get(tsdn), WITNESS_RANK_CORE, 0);
@@ -713,8 +712,8 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 	bool guarded = san_slab_extent_decide_guard(
 	    tsdn, arena_get_ehooks(arena));
 	edata_t *slab = pa_alloc(tsdn, &arena->pa_shard, bin_info->slab_size,
-	    /* alignment */ PAGE, /* slab */ true, /* szind */ binind,
-	    /* zero */ false, guarded, &deferred_work_generated);
+	    /* usize */ bin_info->reg_size, /* alignment */ PAGE,
+	    /* slab */ true, /* zero */ false, guarded, &deferred_work_generated);
 
 	if (deferred_work_generated) {
 		pa_shard_handle_deferred_work(tsdn, &arena->pa_shard);
@@ -847,8 +846,7 @@ label_refill:
 		assert(filled < nfill_min);
 		assert(made_progress);
 
-		fresh_slab = arena_slab_alloc(
-		    tsdn, arena, binind, binshard, bin_info);
+		fresh_slab = arena_slab_alloc(tsdn, arena, binshard, bin_info);
 		/* fresh_slab NULL case handled in the for loop. */
 
 		alloc_and_retry = false;
@@ -884,8 +882,7 @@ arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero) {
 	if (ret == NULL) {
 		malloc_mutex_unlock(tsdn, &bin->lock);
 		/******************************/
-		fresh_slab = arena_slab_alloc(
-		    tsdn, arena, binind, binshard, bin_info);
+		fresh_slab = arena_slab_alloc(tsdn, arena, binshard, bin_info);
 		/********************************/
 		malloc_mutex_lock(tsdn, &bin->lock);
 		/* Retry since the lock was dropped. */
