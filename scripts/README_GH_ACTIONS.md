@@ -162,6 +162,8 @@ To reduce wait times we should upgrade to Team/Enterprise plan - then we could u
 The Windows workflow uses:
 1. **MSYS2** setup via `msys2/setup-msys2@v2` action
 2. **MinGW-GCC**: Standard autotools build process in MSYS2 shell
+   - Pins the retired MINGW32 GCC and make packages from MSYS2's signed
+     archive for 32-bit coverage
 3. **MSVC (cl.exe)**: Requires `ilammy/msvc-dev-cmd@v1` for environment setup
    - Uses `MSYS2_PATH_TYPE: inherit` to inherit Windows PATH
    - Exports `AR=lib.exe`, `NM=dumpbin.exe`, `RANLIB=:`
