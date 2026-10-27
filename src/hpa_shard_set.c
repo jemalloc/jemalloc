@@ -4,6 +4,8 @@
 
 const char *const hpa_shard_set_pick_type_names[] = {"arena", "roundrobin"};
 
+hpa_shard_sets_t hpa_shard_sets_global;
+
 /*
  * Returns true if the configuration cannot be used, without printing; the
  * caller decides how to report it.  A configuration that does not describe a
@@ -251,4 +253,81 @@ hpa_shard_sets_postfork_child(tsdn_t *tsdn, hpa_shard_sets_t *sets) {
 	for (unsigned i = sets->nsets; i-- > 0;) {
 		malloc_mutex_postfork_child(tsdn, &sets->sets[i].init_mtx);
 	}
+}
+
+void
+hpa_shard_sets_stats_merge(
+    tsdn_t *tsdn, hpa_shard_sets_t *sets, hpa_shard_stats_t *dst) {
+	for (unsigned i = 0; i < sets->nsets; i++) {
+		hpa_shard_set_t *shard_set = &sets->sets[i];
+		for (unsigned j = 0; j < shard_set->nshards; j++) {
+			hpa_shard_t *shard = hpa_shard_set_shard_from_id(
+			    shard_set, j);
+			if (shard != NULL) {
+				hpa_shard_stats_merge(tsdn, shard, dst);
+			}
+		}
+	}
+}
+
+size_t
+hpa_shard_sets_ndirty(hpa_shard_sets_t *sets) {
+	size_t ndirty = 0;
+	for (unsigned i = 0; i < sets->nsets; i++) {
+		hpa_shard_set_t *shard_set = &sets->sets[i];
+		for (unsigned j = 0; j < shard_set->nshards; j++) {
+			hpa_shard_t *shard = hpa_shard_set_shard_from_id(
+			    shard_set, j);
+			if (shard != NULL) {
+				ndirty += psset_ndirty(&shard->psset);
+			}
+		}
+	}
+	return ndirty;
+}
+
+static void
+hpa_shard_sets_mtx_stats_accum(
+    tsdn_t *tsdn, mutex_prof_data_t *data, malloc_mutex_t *mtx) {
+	malloc_mutex_lock(tsdn, mtx);
+	malloc_mutex_prof_accum(tsdn, data, mtx);
+	malloc_mutex_unlock(tsdn, mtx);
+}
+
+void
+hpa_shard_sets_mtx_stats_read(tsdn_t *tsdn, hpa_shard_sets_t *sets,
+    mutex_prof_data_t *shard_data, mutex_prof_data_t *grow_data,
+    mutex_prof_data_t *sec_data) {
+	for (unsigned i = 0; i < sets->nsets; i++) {
+		hpa_shard_set_t *shard_set = &sets->sets[i];
+		for (unsigned j = 0; j < shard_set->nshards; j++) {
+			hpa_shard_t *shard = hpa_shard_set_shard_from_id(
+			    shard_set, j);
+			if (shard == NULL) {
+				continue;
+			}
+			hpa_shard_sets_mtx_stats_accum(
+			    tsdn, shard_data, &shard->mtx);
+			hpa_shard_sets_mtx_stats_accum(
+			    tsdn, grow_data, &shard->grow_mtx);
+			sec_mutex_stats_read(tsdn, &shard->sec, sec_data);
+		}
+	}
+}
+
+static void
+hpa_shard_sets_mtx_stats_reset_shard(tsdn_t *tsdn, hpa_shard_t *shard) {
+	malloc_mutex_lock(tsdn, &shard->mtx);
+	malloc_mutex_prof_data_reset(tsdn, &shard->mtx);
+	malloc_mutex_unlock(tsdn, &shard->mtx);
+	malloc_mutex_lock(tsdn, &shard->grow_mtx);
+	malloc_mutex_prof_data_reset(tsdn, &shard->grow_mtx);
+	malloc_mutex_unlock(tsdn, &shard->grow_mtx);
+	sec_mutex_stats_reset(tsdn, &shard->sec);
+}
+
+void
+hpa_shard_sets_mtx_stats_reset(tsdn_t *tsdn, hpa_shard_sets_t *sets) {
+	hpa_shard_sets_for_each_shard(
+	    tsdn, sets, hpa_shard_sets_mtx_stats_reset_shard);
 }

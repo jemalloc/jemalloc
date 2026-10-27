@@ -118,9 +118,13 @@ typedef struct real_sets_s {
 	hpa_shard_sets_t sets;
 } real_sets_t;
 
-/* Allocates and boots two sets of four slots each; all slots start empty. */
+/*
+ * Allocates and boots two sets of four slots each, with the given shard
+ * options; all slots start empty.
+ */
 static real_sets_t *
-real_sets_create(tsdn_t *tsdn) {
+real_sets_create_opts(tsdn_t *tsdn, const hpa_shard_opts_t *opts,
+    const sec_opts_t *sec_opts) {
 	/* emap's radix-tree root is too large for the default Windows stack. */
 	real_sets_t *rs = calloc(1, sizeof(*rs));
 	assert_ptr_not_null(rs, "");
@@ -143,9 +147,15 @@ real_sets_create(tsdn_t *tsdn) {
 
 	memset(&rs->sets, 0, sizeof(rs->sets));
 	assert_false(hpa_shard_sets_boot(tsdn, &rs->sets, rs->base,
-	    &rs->central, &rs->emap, &rs->edata_cache, &config, &opt_hpa_opts,
-	    &opt_hpa_sec_opts), "booting the shard sets failed");
+	    &rs->central, &rs->emap, &rs->edata_cache, &config, opts, sec_opts),
+	    "booting the shard sets failed");
 	return rs;
+}
+
+/* Allocates and boots the sets with the runtime shard options. */
+static real_sets_t *
+real_sets_create(tsdn_t *tsdn) {
+	return real_sets_create_opts(tsdn, &opt_hpa_opts, &opt_hpa_sec_opts);
 }
 
 static void
@@ -413,10 +423,314 @@ TEST_BEGIN(test_pick_from_name) {
 }
 TEST_END
 
+/*
+ * The statistics tests use three shards placed to catch a walk that stops
+ * early or skips slots: the last slot of set 0, behind three empty slots, and
+ * two shards of set 1 with an empty slot between them.
+ *
+ * Their checks avoid values that depend on HPA or SEC policy (how many extents
+ * a SEC fill takes, when pages are hugified, which bucket a pageslab is in).
+ * They compare the walks with the shards' own counters, and use identities
+ * that hold whatever that policy is.
+ */
+#define STATS_NSHARDS 3
+static const unsigned stats_set_ind[STATS_NSHARDS] = {0, 1, 1};
+static const unsigned stats_slot[STATS_NSHARDS] = {3, 0, 2};
+
+typedef struct stats_env_s {
+	real_sets_t *rs;
+	hpa_shard_t *shards[STATS_NSHARDS];
+	/* One page per shard, allocated until stats_env_fini(). */
+	edata_t *edatas[STATS_NSHARDS];
+} stats_env_t;
+
+static edata_t *
+stats_alloc(tsdn_t *tsdn, hpa_shard_t *shard, size_t size) {
+	bool     deferred_work_generated = false;
+	edata_t *edata = hpa_alloc(tsdn, shard, size, PAGE, /* zero */ false,
+	    /* guarded */ false, /* frequent_reuse */ false,
+	    &deferred_work_generated);
+	assert_ptr_not_null(edata, "hpa_alloc(%zu) failed", size);
+	return edata;
+}
+
+static void
+stats_dalloc(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata) {
+	bool deferred_work_generated = false;
+	hpa_dalloc(tsdn, shard, edata, &deferred_work_generated);
+}
+
+/*
+ * Boots the sets with purging off, so freed pages stay dirty, and with every
+ * size up to a hugepage served by the shards.  Each shard keeps one page
+ * allocated, which the SEC may fill extra pages for, and frees one extent too
+ * large for the SEC, which leaves dirty pages.
+ */
+static void
+stats_env_init(tsdn_t *tsdn, stats_env_t *env) {
+	hpa_shard_opts_t opts = opt_hpa_opts;
+	opts.dirty_mult = (fxp_t)-1;
+	opts.slab_max_alloc = HUGEPAGE;
+	env->rs = real_sets_create_opts(tsdn, &opts, &opt_hpa_sec_opts);
+
+	for (unsigned i = 0; i < STATS_NSHARDS; i++) {
+		hpa_shard_set_t *shard_set =
+		    &env->rs->sets.sets[stats_set_ind[i]];
+		env->shards[i] = hpa_shard_set_pick_shard(
+		    tsdn, shard_set, stats_slot[i]);
+		assert_ptr_not_null(env->shards[i], "lazy init failed");
+		assert_ptr_eq(
+		    hpa_shard_set_shard_from_id(shard_set, stats_slot[i]),
+		    env->shards[i], "the shard should be in its slot");
+		env->edatas[i] = stats_alloc(tsdn, env->shards[i], PAGE);
+
+		/* The smallest page multiple the SEC does not cache. */
+		size_t big = PAGE;
+		while (sec_size_supported(&env->shards[i]->sec, big)) {
+			big += PAGE;
+		}
+		assert_zu_le(big, HUGEPAGE / 2,
+		    "each shard's extents should fit in one pageslab");
+		stats_dalloc(tsdn, env->shards[i],
+		    stats_alloc(tsdn, env->shards[i], big));
+	}
+}
+
+static void
+stats_env_fini(tsdn_t *tsdn, stats_env_t *env) {
+	for (unsigned i = 0; i < STATS_NSHARDS; i++) {
+		stats_dalloc(tsdn, env->shards[i], env->edatas[i]);
+	}
+	real_sets_destroy(tsdn, env->rs);
+}
+
+TEST_BEGIN(test_stats_merge_walk) {
+	test_skip_if(!hpa_supported());
+
+	tsdn_t     *tsdn = tsd_tsdn(tsd_fetch());
+	stats_env_t env;
+	stats_env_init(tsdn, &env);
+	hpa_shard_sets_t *sets = &env.rs->sets;
+
+	/* The walk merges every initialized shard exactly once. */
+	hpa_shard_stats_t walk, oracle;
+	memset(&walk, 0, sizeof(walk));
+	memset(&oracle, 0, sizeof(oracle));
+	hpa_shard_sets_stats_merge(tsdn, sets, &walk);
+	for (unsigned i = 0; i < STATS_NSHARDS; i++) {
+		hpa_shard_stats_merge(tsdn, env.shards[i], &oracle);
+	}
+	expect_d_eq(memcmp(&walk, &oracle, sizeof(walk)), 0,
+	    "the walk should equal the sum of the shards' own statistics");
+	expect_zu_eq(walk.psset_stats.merged.npageslabs, STATS_NSHARDS,
+	    "each shard should contribute its one pageslab");
+
+	/*
+	 * Every active page is either handed out, one per shard, or cached in
+	 * a shard's SEC, however many pages a SEC fill took.
+	 */
+	expect_zu_eq(walk.psset_stats.merged.nactive,
+	    STATS_NSHARDS + (walk.secstats.bytes >> LG_PAGE),
+	    "active pages should be the handed-out pages plus the SEC's");
+
+	/* The lock-free dirty walk counts the same pages as the merge. */
+	size_t ndirty = hpa_shard_sets_ndirty(sets);
+	assert_zu_ne(
+	    ndirty, 0, "the freed extents should have left dirty pages");
+	expect_zu_eq(ndirty, walk.psset_stats.merged.ndirty,
+	    "the dirty walk and the merge should agree");
+
+	/* The walk adds to its output rather than overwriting it. */
+	hpa_shard_stats_t twice, doubled;
+	memset(&twice, 0, sizeof(twice));
+	hpa_shard_sets_stats_merge(tsdn, sets, &twice);
+	hpa_shard_sets_stats_merge(tsdn, sets, &twice);
+	doubled = walk;
+	hpa_shard_stats_accum(&doubled, &walk);
+	expect_d_eq(memcmp(&twice, &doubled, sizeof(twice)), 0,
+	    "merging twice should double every statistic");
+
+	stats_env_fini(tsdn, &env);
+}
+TEST_END
+
+/* Reads the sets' mutex counters (mtx, grow_mtx, SEC bins) into zeroes. */
+static void
+stats_mtx_read(tsdn_t *tsdn, hpa_shard_sets_t *sets, mutex_prof_data_t *data) {
+	memset(data, 0, 3 * sizeof(*data));
+	hpa_shard_sets_mtx_stats_read(tsdn, sets, &data[0], &data[1], &data[2]);
+}
+
+/* A mutex's lock count, including the lock taken to read it. */
+static uint64_t
+stats_mtx_lock_ops(tsdn_t *tsdn, malloc_mutex_t *mtx) {
+	mutex_prof_data_t data;
+	malloc_mutex_lock(tsdn, mtx);
+	malloc_mutex_prof_read(tsdn, &data, mtx);
+	malloc_mutex_unlock(tsdn, mtx);
+	return data.n_lock_ops;
+}
+
+TEST_BEGIN(test_mtx_stats_walk) {
+	test_skip_if(!hpa_supported());
+	test_skip_if(!config_stats);
+
+	static const char *const names[3] = {"mtx", "grow_mtx", "SEC bins"};
+	tsdn_t     *tsdn = tsd_tsdn(tsd_fetch());
+	stats_env_t env;
+	stats_env_init(tsdn, &env);
+	hpa_shard_sets_t *sets = &env.rs->sets;
+
+	/*
+	 * A read locks each mutex it reads once.  The difference between two
+	 * reads gives that count without depending on how many bins a SEC has.
+	 */
+	mutex_prof_data_t r1[3], r2[3];
+	stats_mtx_read(tsdn, sets, r1);
+	stats_mtx_read(tsdn, sets, r2);
+	uint64_t per_read[3];
+	for (unsigned k = 0; k < 3; k++) {
+		per_read[k] = r2[k].n_lock_ops - r1[k].n_lock_ops;
+	}
+	expect_u64_eq(per_read[0], STATS_NSHARDS,
+	    "a read should lock each shard's mtx once");
+	expect_u64_eq(per_read[1], STATS_NSHARDS,
+	    "a read should lock each shard's grow_mtx once");
+
+	/* A read sums the shards' own counters. */
+	uint64_t oracle[3] = {0, 0, 0};
+	for (unsigned i = 0; i < STATS_NSHARDS; i++) {
+		hpa_shard_t *shard = env.shards[i];
+		oracle[0] += stats_mtx_lock_ops(tsdn, &shard->mtx);
+		oracle[1] += stats_mtx_lock_ops(tsdn, &shard->grow_mtx);
+		mutex_prof_data_t sec_data;
+		memset(&sec_data, 0, sizeof(sec_data));
+		sec_mutex_stats_read(tsdn, &shard->sec, &sec_data);
+		oracle[2] += sec_data.n_lock_ops;
+	}
+	mutex_prof_data_t r3[3];
+	stats_mtx_read(tsdn, sets, r3);
+	for (unsigned k = 0; k < 3; k++) {
+		expect_u64_eq(r3[k].n_lock_ops, oracle[k] + per_read[k],
+		    "%s: the read should sum the shards' counters", names[k]);
+	}
+
+	/*
+	 * A read accumulates into its outputs: counters add and maxima stay
+	 * maxima.  The test is single-threaded, so no lock waits between reads.
+	 */
+	mutex_prof_data_t pre;
+	memset(&pre, 0, sizeof(pre));
+	pre.n_lock_ops = 1000;
+	pre.n_wait_times = 100;
+	pre.n_spin_acquired = 10;
+	pre.max_n_thds = 1000;
+	nstime_init(&pre.tot_wait_time, 123456);
+	nstime_init(&pre.max_wait_time, 1000 * 1000 * 1000);
+	mutex_prof_data_t r4[3] = {pre, pre, pre};
+	hpa_shard_sets_mtx_stats_read(tsdn, sets, &r4[0], &r4[1], &r4[2]);
+	for (unsigned k = 0; k < 3; k++) {
+		expect_u64_eq(r4[k].n_lock_ops,
+		    pre.n_lock_ops + r3[k].n_lock_ops + per_read[k],
+		    "%s: lock counts should add", names[k]);
+		expect_u64_eq(r4[k].n_wait_times,
+		    pre.n_wait_times + r3[k].n_wait_times,
+		    "%s: wait counts should add", names[k]);
+		expect_u64_eq(r4[k].n_spin_acquired,
+		    pre.n_spin_acquired + r3[k].n_spin_acquired,
+		    "%s: spin counts should add", names[k]);
+		expect_u64_eq(nstime_ns(&r4[k].tot_wait_time),
+		    nstime_ns(&pre.tot_wait_time)
+		        + nstime_ns(&r3[k].tot_wait_time),
+		    "%s: total wait times should add", names[k]);
+		expect_u32_eq(r4[k].max_n_thds,
+		    pre.max_n_thds > r3[k].max_n_thds ? pre.max_n_thds
+		                                      : r3[k].max_n_thds,
+		    "%s: the maximum thread count should be the larger",
+		    names[k]);
+		uint64_t pre_max = nstime_ns(&pre.max_wait_time);
+		uint64_t r3_max = nstime_ns(&r3[k].max_wait_time);
+		expect_u64_eq(nstime_ns(&r4[k].max_wait_time),
+		    pre_max > r3_max ? pre_max : r3_max,
+		    "%s: the maximum wait time should be the larger", names[k]);
+	}
+
+	/*
+	 * A reset clears every counter, so a read then counts only its own
+	 * locks, and leaves the shards' statistics alone.
+	 */
+	hpa_shard_stats_t before, after;
+	memset(&before, 0, sizeof(before));
+	memset(&after, 0, sizeof(after));
+	hpa_shard_sets_stats_merge(tsdn, sets, &before);
+	hpa_shard_sets_mtx_stats_reset(tsdn, sets);
+	mutex_prof_data_t r5[3];
+	stats_mtx_read(tsdn, sets, r5);
+	for (unsigned k = 0; k < 3; k++) {
+		expect_u64_eq(r5[k].n_lock_ops, per_read[k],
+		    "%s: after a reset a read should count only its own locks",
+		    names[k]);
+		expect_u64_eq(r5[k].n_wait_times, 0, "%s not reset", names[k]);
+		expect_u64_eq(
+		    r5[k].n_spin_acquired, 0, "%s not reset", names[k]);
+		expect_u64_eq(nstime_ns(&r5[k].tot_wait_time), 0,
+		    "%s not reset", names[k]);
+		expect_u64_eq(nstime_ns(&r5[k].max_wait_time), 0,
+		    "%s not reset", names[k]);
+		expect_u32_eq(r5[k].max_n_thds, 0, "%s not reset", names[k]);
+	}
+	hpa_shard_sets_stats_merge(tsdn, sets, &after);
+	expect_d_eq(memcmp(&before, &after, sizeof(before)), 0,
+	    "a mutex reset should not change the shards' statistics");
+
+	stats_env_fini(tsdn, &env);
+}
+TEST_END
+
+TEST_BEGIN(test_stats_walks_without_shards) {
+	test_skip_if(!hpa_supported());
+
+	/*
+	 * Booted sets whose slots are all still empty, and a zeroed container
+	 * like the process-wide sets before boot: the walks find no shard and
+	 * leave their outputs untouched.
+	 */
+	tsdn_t     *tsdn = tsd_tsdn(tsd_fetch());
+	real_sets_t     *rs = real_sets_create(tsdn);
+	hpa_shard_sets_t unbooted;
+	memset(&unbooted, 0, sizeof(unbooted));
+	hpa_shard_sets_t *cases[] = {&rs->sets, &unbooted};
+
+	for (unsigned c = 0; c < sizeof(cases) / sizeof(cases[0]); c++) {
+		hpa_shard_stats_t stats, stats_before;
+		memset(&stats, 0x5a, sizeof(stats));
+		stats_before = stats;
+		hpa_shard_sets_stats_merge(tsdn, cases[c], &stats);
+		expect_d_eq(memcmp(&stats, &stats_before, sizeof(stats)), 0,
+		    "case %u: the merge should leave its output alone", c);
+
+		mutex_prof_data_t data[3], data_before[3];
+		memset(data, 0x5a, sizeof(data));
+		memcpy(data_before, data, sizeof(data));
+		hpa_shard_sets_mtx_stats_read(
+		    tsdn, cases[c], &data[0], &data[1], &data[2]);
+		expect_d_eq(memcmp(data, data_before, sizeof(data)), 0,
+		    "case %u: the read should leave its outputs alone", c);
+
+		expect_zu_eq(hpa_shard_sets_ndirty(cases[c]), 0,
+		    "case %u: no shard, no dirty pages", c);
+		hpa_shard_sets_mtx_stats_reset(tsdn, cases[c]);
+	}
+	real_sets_destroy(tsdn, rs);
+}
+TEST_END
+
 int
 main(void) {
 	return test_no_reentrancy(test_route_coverage,
 	    test_lazy_init_uses_slot_as_owner_id, test_fork_hooks,
 	    test_pick_arena_uses_affinity, test_pick_roundrobin_spreads,
-	    test_config_validate, test_config_add, test_pick_from_name);
+	    test_config_validate, test_config_add, test_pick_from_name,
+	    test_stats_merge_walk, test_mtx_stats_walk,
+	    test_stats_walks_without_shards);
 }

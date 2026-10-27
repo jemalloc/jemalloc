@@ -6,6 +6,7 @@
 #include "jemalloc/internal/base.h"
 #include "jemalloc/internal/edata.h"
 #include "jemalloc/internal/hpa.h"
+#include "jemalloc/internal/mutex_prof.h"
 #include "jemalloc/internal/psset.h"
 #include "jemalloc/internal/sz.h"
 
@@ -114,6 +115,12 @@ struct hpa_shard_sets_s {
 };
 
 /*
+ * The process-wide shard sets.  They have no sets until booted, so the walks
+ * below see no shards until then.
+ */
+extern hpa_shard_sets_t hpa_shard_sets_global;
+
+/*
  * Resolves an owner id recorded on a pageslab.  Ids are unique only within a
  * shard set, so the caller supplies the set pointer.
  */
@@ -184,6 +191,24 @@ void hpa_shard_sets_prefork3(tsdn_t *tsdn, hpa_shard_sets_t *sets);
 void hpa_shard_sets_prefork4(tsdn_t *tsdn, hpa_shard_sets_t *sets);
 void hpa_shard_sets_postfork_parent(tsdn_t *tsdn, hpa_shard_sets_t *sets);
 void hpa_shard_sets_postfork_child(tsdn_t *tsdn, hpa_shard_sets_t *sets);
+
+/*
+ * Statistics walks over every initialized shard of the sets.  stats_merge and
+ * mtx_stats_read accumulate into their outputs; mtx_stats_reset clears the
+ * shards' mutex statistics.
+ */
+void hpa_shard_sets_stats_merge(
+    tsdn_t *tsdn, hpa_shard_sets_t *sets, hpa_shard_stats_t *dst);
+void hpa_shard_sets_mtx_stats_read(tsdn_t *tsdn, hpa_shard_sets_t *sets,
+    mutex_prof_data_t *shard_data, mutex_prof_data_t *grow_data,
+    mutex_prof_data_t *sec_data);
+void hpa_shard_sets_mtx_stats_reset(tsdn_t *tsdn, hpa_shard_sets_t *sets);
+
+/*
+ * The shards' dirty pages, read without their locks as pa_shard_ndirty() does
+ * for an arena's own shard.  Works without stats: purging keeps these counts.
+ */
+size_t hpa_shard_sets_ndirty(hpa_shard_sets_t *sets);
 
 /*
  * The two composed: the whole of the allocation-side routing decision.  See
