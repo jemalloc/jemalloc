@@ -1335,7 +1335,9 @@ TEST_BEGIN(test_nonhuge_purge_threshold) {
 TEST_END
 
 TEST_BEGIN(test_nonhuge_purge_hugify) {
-	test_skip_if(!hpa_supported() || (opt_process_madvise_max_batch != 0));
+	/* HUGEPAGE - PAGE is not a valid request with large size classes. */
+	test_skip_if(!hpa_supported() || (opt_process_madvise_max_batch != 0)
+	    || !sz_large_size_classes_disabled());
 
 	hpa_hooks_t hooks;
 	hooks.map = &defer_test_map;
