@@ -253,6 +253,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/hpa_shard_set.c \
 	$(srcroot)test/unit/hpa_shard_set_conf.c \
 	$(srcroot)test/unit/hpa_shard_set_route.c \
+	$(srcroot)test/unit/hpa_shard_set_stats.c \
 	$(srcroot)test/unit/hpa_sec_integration.c \
 	$(srcroot)test/unit/hpa_sec_stats.c \
 	$(srcroot)test/unit/hpa_thp_always.c \
@@ -270,6 +271,7 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/junk_alloc.c \
 	$(srcroot)test/unit/junk_free.c \
 	$(srcroot)test/unit/json_stats.c \
+	$(srcroot)test/unit/json_stats_sets.c \
 	$(srcroot)test/unit/large_ralloc.c \
 	$(srcroot)test/unit/log.c \
 	$(srcroot)test/unit/mallctl.c \

@@ -278,3 +278,67 @@ void
 hpa_shard_sets_flush(tsdn_t *tsdn, hpa_shard_sets_t *sets) {
 	hpa_shard_sets_for_each_shard(tsdn, sets, hpa_shard_flush);
 }
+
+size_t
+hpa_shard_sets_ndirty(hpa_shard_sets_t *sets) {
+	size_t      ndirty = 0;
+	sec_stats_t sec_stats = {0};
+	for (unsigned i = 0; i < sets->nsets; i++) {
+		hpa_shard_set_t *shard_set = &sets->sets[i];
+		for (unsigned j = 0; j < shard_set->nshards; j++) {
+			hpa_shard_t *shard = (hpa_shard_t *)atomic_load_p(
+			    &shard_set->shards[j], ATOMIC_ACQUIRE);
+			if (shard != NULL) {
+				ndirty += psset_ndirty(&shard->psset);
+				sec_stats_merge(
+				    TSDN_NULL, &shard->sec, &sec_stats);
+			}
+		}
+	}
+	return ndirty + (sec_stats.bytes >> LG_PAGE);
+}
+
+static void
+hpa_shard_sets_mtx_stats_accum(
+    tsdn_t *tsdn, mutex_prof_data_t *data, malloc_mutex_t *mtx) {
+	malloc_mutex_lock(tsdn, mtx);
+	malloc_mutex_prof_accum(tsdn, data, mtx);
+	malloc_mutex_unlock(tsdn, mtx);
+}
+
+bool
+hpa_shard_set_shard_stats_merge(tsdn_t *tsdn, hpa_shard_set_t *shard_set,
+    unsigned slot, hpa_shard_stats_t *stats,
+    mutex_prof_data_t mutex_data[mutex_prof_num_hpa_shard_mutexes]) {
+	assert(slot < shard_set->nshards);
+	hpa_shard_t *shard = (hpa_shard_t *)atomic_load_p(
+	    &shard_set->shards[slot], ATOMIC_ACQUIRE);
+	if (shard == NULL) {
+		return true;
+	}
+	hpa_shard_stats_merge(tsdn, shard, stats);
+	hpa_shard_sets_mtx_stats_accum(
+	    tsdn, &mutex_data[hpa_shard_prof_mutex_hpa_shard], &shard->mtx);
+	hpa_shard_sets_mtx_stats_accum(tsdn,
+	    &mutex_data[hpa_shard_prof_mutex_hpa_shard_grow], &shard->grow_mtx);
+	sec_mutex_stats_read(
+	    tsdn, &shard->sec, &mutex_data[hpa_shard_prof_mutex_hpa_sec]);
+	return false;
+}
+
+static void
+hpa_shard_sets_mtx_stats_reset_shard(tsdn_t *tsdn, hpa_shard_t *shard) {
+	malloc_mutex_lock(tsdn, &shard->mtx);
+	malloc_mutex_prof_data_reset(tsdn, &shard->mtx);
+	malloc_mutex_unlock(tsdn, &shard->mtx);
+	malloc_mutex_lock(tsdn, &shard->grow_mtx);
+	malloc_mutex_prof_data_reset(tsdn, &shard->grow_mtx);
+	malloc_mutex_unlock(tsdn, &shard->grow_mtx);
+	sec_mutex_stats_reset(tsdn, &shard->sec);
+}
+
+void
+hpa_shard_sets_mtx_stats_reset(tsdn_t *tsdn, hpa_shard_sets_t *sets) {
+	hpa_shard_sets_for_each_shard(
+	    tsdn, sets, hpa_shard_sets_mtx_stats_reset_shard);
+}

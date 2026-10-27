@@ -348,8 +348,77 @@ TEST_BEGIN(test_config_validate) {
 }
 TEST_END
 
+#define STATS_NMUTEXES mutex_prof_num_hpa_shard_mutexes
+
+TEST_BEGIN(test_stats_without_shards) {
+	test_skip_if(!hpa_supported());
+
+	/*
+	 * Booted sets whose slots are all still empty, and a zeroed container
+	 * like the process-wide sets before boot: no slot has a shard to read,
+	 * to count dirty pages of, or to reset.
+	 */
+	tsdn_t      *tsdn = tsd_tsdn(tsd_fetch());
+	real_sets_t *rs = real_sets_create(tsdn);
+	for (unsigned i = 0; i < rs->sets.nsets; i++) {
+		for (unsigned j = 0; j < rs->sets.sets[i].nshards; j++) {
+			hpa_shard_stats_t stats, stats_before;
+			mutex_prof_data_t data[STATS_NMUTEXES];
+			mutex_prof_data_t data_before[STATS_NMUTEXES];
+			memset(&stats, 0x5a, sizeof(stats));
+			stats_before = stats;
+			memset(data, 0x5a, sizeof(data));
+			memcpy(data_before, data, sizeof(data));
+			expect_true(hpa_shard_set_shard_stats_merge(tsdn,
+			                &rs->sets.sets[i], j, &stats, data),
+			    "set %u, slot %u should have no shard", i, j);
+			expect_d_eq(
+			    memcmp(&stats, &stats_before, sizeof(stats)), 0,
+			    "set %u, slot %u: stats changed", i, j);
+			expect_d_eq(memcmp(data, data_before, sizeof(data)), 0,
+			    "set %u, slot %u: mutex data changed", i, j);
+		}
+	}
+
+	hpa_shard_sets_t unbooted;
+	memset(&unbooted, 0, sizeof(unbooted));
+	hpa_shard_sets_t *cases[] = {&rs->sets, &unbooted};
+	for (unsigned c = 0; c < sizeof(cases) / sizeof(cases[0]); c++) {
+		expect_zu_eq(hpa_shard_sets_ndirty(cases[c]), 0,
+		    "case %u: no shard, no dirty pages", c);
+		hpa_shard_sets_mtx_stats_reset(tsdn, cases[c]);
+	}
+	real_sets_destroy(tsdn, rs);
+}
+TEST_END
+
+/*
+ * hpa_shard_sets is off here, so malloc_init boots no process-wide sets, and
+ * ctl, which records them when it initializes, reports none.
+ */
+TEST_BEGIN(test_stats_unbooted) {
+	test_skip_if(!config_stats);
+	test_skip_if(hpa_shard_sets_global.initialized);
+
+	uint64_t epoch = 1;
+	expect_d_eq(mallctl("epoch", NULL, NULL, &epoch, sizeof(epoch)), 0,
+	    "Unexpected mallctl() failure");
+	unsigned nsets;
+	size_t   sz = sizeof(nsets);
+	expect_d_eq(mallctl("stats.nhpa_shard_sets", &nsets, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	expect_u_eq(nsets, 0, "no sets should be reported");
+	unsigned nshards;
+	sz = sizeof(nshards);
+	expect_d_eq(
+	    mallctl("stats.hpa_shard_sets.0.nshards", &nshards, &sz, NULL, 0),
+	    ENOENT, "set 0 should not exist");
+}
+TEST_END
+
 int
 main(void) {
 	return test_no_reentrancy(test_boot_layout, test_lazy_init,
-	    test_fork_hooks, test_pick_by_affinity, test_config_validate);
+	    test_fork_hooks, test_pick_by_affinity, test_config_validate,
+	    test_stats_without_shards, test_stats_unbooted);
 }

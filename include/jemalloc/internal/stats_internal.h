@@ -213,6 +213,24 @@ typedef struct stats_arena_hpa_slab_s {
 	size_t nretained_nonhuge;
 } stats_arena_hpa_slab_t;
 
+/*
+ * One row of the HPA shard set tables: a set (stats.hpa_shard_sets.<i>.*) or
+ * one of its shards (stats.hpa_shard_sets.<i>.shards.<j>.*).
+ */
+typedef struct stats_hpa_set_row_s {
+	unsigned ind;
+	/* Sets only: the usable sizes the set serves, and its shards. */
+	const char *size;
+	unsigned    nshards;
+	unsigned    ninitialized;
+
+	stats_arena_hpa_counters_t counters;
+	stats_arena_hpa_sec_t      sec;
+	/* The hpa_shard mutex's, if mutex stats are printed. */
+	uint64_t num_ops;
+	uint64_t num_wait;
+} stats_hpa_set_row_t;
+
 /* Arena configuration / size-class scalars (arenas.*). */
 typedef struct stats_arena_config_s {
 	unsigned narenas;

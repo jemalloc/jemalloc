@@ -1,4 +1,5 @@
 #include "test/jemalloc_test.h"
+#include "test/hpa_shard_sets.h"
 #include "jemalloc/internal/prof_stats.h"
 
 typedef struct {
@@ -819,6 +820,7 @@ TEST_BEGIN(test_json_stats_arenas_and_options) {
 	    {"Jx", option_parent_stats, "mutexes"},
 	    {"Je", option_parent_merged, "extents"},
 	    {"Jh", option_parent_merged, "hpa_shard"},
+	    {"Jh", option_parent_stats, "hpa_shard_sets"},
 	    {"Jmda", option_parent_jemalloc, "stats.arenas"},
 	};
 	for (size_t i = 0; i < ARRAY_COUNT(cases); i++) {
@@ -845,7 +847,7 @@ TEST_BEGIN(test_json_stats_global_and_arena) {
 	const char *const stats_keys[] = {"allocated", "active", "metadata",
 	    "metadata_edata", "metadata_rtree", "metadata_thp", "resident",
 	    "mapped", "retained", "pinned", "zero_reallocs",
-	    "background_thread", "mutexes"};
+	    "background_thread", "mutexes", "hpa_shard_sets"};
 	expect_json_object_keys(
 	    stats, stats_keys, ARRAY_COUNT(stats_keys), "stats");
 	expect_json_ctl_fields(
@@ -1024,22 +1026,12 @@ static const ctl_field_t hpa_alloc_fields[] = {
 static const char *const hpa_alloc_keys[] = {"min_extents", "max_extents",
 	"extents", "ps", "pages_per_ps", "extents_per_ps"};
 
-TEST_BEGIN(test_json_stats_hpa) {
-	test_skip_if(!config_stats);
-	test_skip_if(!hpa_supported());
-
-	stats_buf_t sbuf;
-	json_fragment_t stats, merged;
-	bool malformed = stats_json_print(&sbuf, &stats, &merged);
-	expect_false(malformed, "Could not find runtime stats in JSON output");
-	if (malformed) {
-		stats_buf_fini(&sbuf);
-		return;
-	}
-
-	json_fragment_t hpa;
-	expect_false(json_object_member(merged, "hpa_shard", &hpa),
-	    "merged arena stats are missing hpa_shard");
+/*
+ * Checks an "hpa_shard" JSON object against the mallctls under src_prefix,
+ * which is "stats.arenas.<i>" or "stats.hpa_shard_sets.<i>".
+ */
+static void
+expect_hpa_shard_object(json_fragment_t hpa, const char *src_prefix) {
 	const char *const hpa_keys[] = {"sec_bytes", "sec_hits", "sec_misses",
 	    "sec_dalloc_noflush", "sec_dalloc_flush", "sec_overfills",
 	    "npageslabs", "nactive", "ndirty", "npurge_passes", "npurges",
@@ -1049,14 +1041,11 @@ TEST_BEGIN(test_json_stats_hpa) {
 	expect_json_object_keys(
 	    hpa, hpa_keys, ARRAY_COUNT(hpa_keys), "hpa_shard");
 
-	char arena_prefix[64];
-	malloc_snprintf(arena_prefix, sizeof(arena_prefix), "stats.arenas.%u",
-	    MALLCTL_ARENAS_ALL);
-	expect_json_ctl_fields(hpa, arena_prefix, hpa_sec_fields,
+	expect_json_ctl_fields(hpa, src_prefix, hpa_sec_fields,
 	    ARRAY_COUNT(hpa_sec_fields));
 	char hpa_prefix[96];
 	malloc_snprintf(
-	    hpa_prefix, sizeof(hpa_prefix), "%s.hpa_shard", arena_prefix);
+	    hpa_prefix, sizeof(hpa_prefix), "%s.hpa_shard", src_prefix);
 	expect_json_ctl_fields(
 	    hpa, hpa_prefix, hpa_fields, ARRAY_COUNT(hpa_fields));
 
@@ -1125,6 +1114,436 @@ TEST_BEGIN(test_json_stats_hpa) {
 		    ARRAY_COUNT(hpa_alloc_fields));
 	}
 
+}
+
+TEST_BEGIN(test_json_stats_hpa) {
+	test_skip_if(!config_stats);
+	test_skip_if(!hpa_supported());
+
+	stats_buf_t sbuf;
+	json_fragment_t stats, merged;
+	bool malformed = stats_json_print(&sbuf, &stats, &merged);
+	expect_false(malformed, "Could not find runtime stats in JSON output");
+	if (malformed) {
+		stats_buf_fini(&sbuf);
+		return;
+	}
+
+	json_fragment_t hpa;
+	expect_false(json_object_member(merged, "hpa_shard", &hpa),
+	    "merged arena stats are missing hpa_shard");
+	char arena_prefix[64];
+	malloc_snprintf(arena_prefix, sizeof(arena_prefix), "stats.arenas.%u",
+	    MALLCTL_ARENAS_ALL);
+	expect_hpa_shard_object(hpa, arena_prefix);
+
+	stats_buf_fini(&sbuf);
+}
+TEST_END
+
+static const ctl_field_t hpa_set_fields[] = {
+	{"size_max", "size_max", ctl_field_size},
+	{"nshards", "nshards", ctl_field_unsigned},
+};
+
+static const ctl_field_t hpa_set_shard_fields[] = {
+	{"npageslabs", "hpa_shard.npageslabs", ctl_field_size},
+	{"nactive", "hpa_shard.nactive", ctl_field_size},
+	{"ndirty", "hpa_shard.ndirty", ctl_field_size},
+	{"npageslabs_huge", "hpa_shard.slabs.npageslabs_huge", ctl_field_size},
+	{"nactive_huge", "hpa_shard.slabs.nactive_huge", ctl_field_size},
+	{"ndirty_huge", "hpa_shard.slabs.ndirty_huge", ctl_field_size},
+	{"npurge_passes", "hpa_shard.npurge_passes", ctl_field_uint64},
+	{"npurges", "hpa_shard.npurges", ctl_field_uint64},
+	{"nhugifies", "hpa_shard.nhugifies", ctl_field_uint64},
+	{"nhugify_failures", "hpa_shard.nhugify_failures", ctl_field_uint64},
+	{"ndehugifies", "hpa_shard.ndehugifies", ctl_field_uint64},
+	{"sec_bytes", "hpa_sec_bytes", ctl_field_size},
+	{"sec_hits", "hpa_sec_hits", ctl_field_size},
+	{"sec_misses", "hpa_sec_misses", ctl_field_size},
+};
+
+/* Checks the "mutexes" of a set or shard: the HPA shard's mutexes. */
+static void
+expect_hpa_set_mutexes(json_fragment_t object, const char *ctl_prefix) {
+	static const char *const names[] = {
+	    "hpa_shard", "hpa_shard_grow", "hpa_sec"};
+	json_fragment_t mutexes;
+	expect_false(json_object_member(object, "mutexes", &mutexes),
+	    "%s is missing mutexes", ctl_prefix);
+	expect_json_object_keys(mutexes, names, ARRAY_COUNT(names), ctl_prefix);
+	for (size_t i = 0; i < ARRAY_COUNT(names); i++) {
+		json_fragment_t mutex;
+		expect_false(json_object_member(mutexes, names[i], &mutex),
+		    "%s.mutexes is missing %s", ctl_prefix, names[i]);
+		char prefix[160];
+		malloc_snprintf(prefix, sizeof(prefix), "%s.mutexes.%s",
+		    ctl_prefix, names[i]);
+		expect_mutex_object(mutex, prefix);
+	}
+}
+
+/*
+ * Checks the shards of the set under set_prefix: a row for each slot with a
+ * shard, in slot order.
+ */
+static void
+expect_hpa_set_shards(json_fragment_t set, const char *set_prefix, bool mutex) {
+	const char *const shard_keys[] = {"ind", "npageslabs", "nactive",
+	    "ndirty", "npageslabs_huge", "nactive_huge", "ndirty_huge",
+	    "npurge_passes", "npurges", "nhugifies", "nhugify_failures",
+	    "ndehugifies", "sec_bytes", "sec_hits", "sec_misses", "mutexes"};
+	size_t nshard_keys = ARRAY_COUNT(shard_keys) - (mutex ? 0 : 1);
+
+	json_fragment_t shards;
+	expect_false(json_object_member(set, "shards", &shards),
+	    "%s is missing shards", set_prefix);
+	unsigned nshards;
+	size_t   sz = sizeof(nshards);
+	char     name[160];
+	malloc_snprintf(name, sizeof(name), "%s.nshards", set_prefix);
+	assert_d_eq(mallctl(name, &nshards, &sz, NULL, 0), 0,
+	    "mallctl failed for %s", name);
+	size_t nrows = 0;
+	for (unsigned j = 0; j < nshards; j++) {
+		char shard_prefix[128];
+		malloc_snprintf(shard_prefix, sizeof(shard_prefix),
+		    "%s.shards.%u", set_prefix, j);
+		bool initialized;
+		sz = sizeof(initialized);
+		malloc_snprintf(
+		    name, sizeof(name), "%s.initialized", shard_prefix);
+		assert_d_eq(mallctl(name, &initialized, &sz, NULL, 0), 0,
+		    "mallctl failed for %s", name);
+		if (!initialized) {
+			continue;
+		}
+		json_fragment_t shard;
+		expect_false(json_array_element(shards, nrows, &shard),
+		    "%s has no row for slot %u", set_prefix, j);
+		nrows++;
+		expect_json_object_keys(
+		    shard, shard_keys, nshard_keys, shard_prefix);
+		expect_json_uint_eq(shard, "ind", j, shard_prefix);
+		expect_json_ctl_fields(shard, shard_prefix,
+		    hpa_set_shard_fields, ARRAY_COUNT(hpa_set_shard_fields));
+		if (mutex) {
+			expect_hpa_set_mutexes(shard, shard_prefix);
+		}
+	}
+	expect_zu_gt(nrows, 0, "%s should have shards", set_prefix);
+	expect_zu_eq(json_array_size(shards), nrows,
+	    "%s should have a row per shard", set_prefix);
+}
+
+/* Checks stats.hpa_shard_sets, printed with mutex stats if mutex. */
+static void
+expect_hpa_shard_sets(json_fragment_t stats, bool mutex) {
+	const char *const set_keys[] = {
+	    "ind", "size_max", "nshards", "hpa_shard", "shards", "mutexes"};
+	size_t nset_keys = ARRAY_COUNT(set_keys) - (mutex ? 0 : 1);
+
+	json_fragment_t sets;
+	expect_false(json_object_member(stats, "hpa_shard_sets", &sets),
+	    "stats is missing hpa_shard_sets");
+	unsigned nsets;
+	size_t   sz = sizeof(nsets);
+	assert_d_eq(mallctl("stats.nhpa_shard_sets", &nsets, &sz, NULL, 0), 0,
+	    "mallctl failed for stats.nhpa_shard_sets");
+	expect_u_gt(nsets, 0, "the sets should be reported");
+	expect_zu_eq(json_array_size(sets), nsets,
+	    "stats.hpa_shard_sets should have an element per set");
+	for (unsigned i = 0; i < nsets; i++) {
+		json_fragment_t set;
+		expect_false(json_array_element(sets, i, &set),
+		    "stats.hpa_shard_sets is missing set %u", i);
+		char prefix[64];
+		malloc_snprintf(
+		    prefix, sizeof(prefix), "stats.hpa_shard_sets.%u", i);
+		expect_json_object_keys(set, set_keys, nset_keys, prefix);
+		expect_json_uint_eq(set, "ind", i, prefix);
+		expect_json_ctl_fields(
+		    set, prefix, hpa_set_fields, ARRAY_COUNT(hpa_set_fields));
+		json_fragment_t hpa;
+		expect_false(json_object_member(set, "hpa_shard", &hpa),
+		    "%s is missing hpa_shard", prefix);
+		expect_hpa_shard_object(hpa, prefix);
+		if (mutex) {
+			expect_hpa_set_mutexes(set, prefix);
+		}
+		expect_hpa_set_shards(set, prefix, mutex);
+	}
+}
+
+/*
+ * Checks stats.hpa_shard_sets under opts: an array of nsets sets, or with h,
+ * absent.
+ */
+static void
+expect_hpa_shard_sets_count(const char *opts, unsigned nsets) {
+	stats_buf_t     sbuf;
+	json_fragment_t jemalloc, stats, sets;
+	bool malformed = stats_json_print_opts(&sbuf, opts, &jemalloc)
+	    || json_object_member(jemalloc, "stats", &stats);
+	expect_false(malformed, "Malformed JSON for opts=%s", opts);
+	if (!malformed) {
+		bool missing = json_object_member(stats, "hpa_shard_sets", &sets);
+		if (strchr(opts, 'h') != NULL) {
+			expect_true(missing, "opts=%s: hpa_shard_sets", opts);
+		} else {
+			expect_false(missing, "opts=%s: hpa_shard_sets", opts);
+			expect_zu_eq(json_array_size(sets), nsets,
+			    "opts=%s: sets in hpa_shard_sets", opts);
+		}
+	}
+	stats_buf_fini(&sbuf);
+}
+
+/*
+ * Without the sets, which json_stats_sets turns on, an empty array, and with h,
+ * none at all.
+ */
+TEST_BEGIN(test_json_stats_no_hpa_shard_sets) {
+	test_skip_if(!config_stats);
+	test_skip_if(hpa_shard_sets_global.initialized);
+
+	expect_hpa_shard_sets_count("J", 0);
+	expect_hpa_shard_sets_count("Jh", 0);
+}
+TEST_END
+
+/*
+ * Creates a shard once in the last slot of each set, and puts a page in each;
+ * they stay for the tests after.  The slots before have shards from the test
+ * thread's arena or none: with json_stats_sets.sh's layout, slot 1 of set 1
+ * has none.
+ */
+static void
+hpa_shard_sets_setup(void) {
+	static bool done = false;
+	if (done) {
+		return;
+	}
+	done = true;
+
+	for (unsigned i = 0; i < hpa_shard_sets_global.nsets; i++) {
+		unsigned last = hpa_shard_sets_global.sets[i].nshards - 1;
+		test_hpa_shard_alloc(test_hpa_shard_sets_shard(i, last), PAGE);
+	}
+}
+
+TEST_BEGIN(test_json_stats_hpa_shard_sets) {
+	test_skip_if(!config_stats);
+	test_skip_if(!hpa_shard_sets_global.initialized);
+
+	hpa_shard_sets_setup();
+	static const char *const opts[] = {"J", "Jx"};
+	for (size_t o = 0; o < ARRAY_COUNT(opts); o++) {
+		stats_buf_t     sbuf;
+		json_fragment_t jemalloc, stats;
+
+		bool malformed = stats_json_print_opts(
+		    &sbuf, opts[o], &jemalloc);
+		if (!malformed) {
+			malformed = json_object_member(
+			    jemalloc, "stats", &stats);
+		}
+		expect_false(malformed, "Malformed JSON for opts=%s", opts[o]);
+		if (!malformed) {
+			expect_hpa_shard_sets(stats, /* mutex */ o == 0);
+		}
+		stats_buf_fini(&sbuf);
+	}
+	expect_hpa_shard_sets_count("Jh", 0);
+}
+TEST_END
+
+/* Counts the lines in [begin, end) that are s, or that start with it. */
+static unsigned
+count_lines(const char *begin, const char *end, const char *s, bool whole) {
+	size_t   len = strlen(s);
+	unsigned n = 0;
+	for (const char *line = begin; line < end;) {
+		const char *nl = memchr(line, '\n', (size_t)(end - line));
+		const char *line_end = nl != NULL ? nl : end;
+		size_t      line_len = (size_t)(line_end - line);
+		if ((whole ? line_len == len : line_len >= len)
+		    && memcmp(line, s, len) == 0) {
+			n++;
+		}
+		line = line_end + 1;
+	}
+	return n;
+}
+
+/*
+ * Formats the figures that end the table row of the set or shard under
+ * prefix, from npageslabs to sec_misses, as the stats output prints them:
+ * a shard's row has its huge pageslabs and purge and hugify counters too.
+ */
+static size_t
+hpa_row_figures(char *buf, size_t len, const char *prefix, bool shard) {
+	size_t n = malloc_snprintf(buf, len, "%12zu%12zu%12zu",
+	    read_size_field(prefix, "hpa_shard.npageslabs"),
+	    read_size_field(prefix, "hpa_shard.nactive"),
+	    read_size_field(prefix, "hpa_shard.ndirty"));
+	if (shard) {
+		n += malloc_snprintf(buf + n, len - n,
+		    "%16zu%14zu%13zu%15" FMTu64 "%12" FMTu64 "%12" FMTu64
+		    "%18" FMTu64 "%13" FMTu64,
+		    read_size_field(prefix, "hpa_shard.slabs.npageslabs_huge"),
+		    read_size_field(prefix, "hpa_shard.slabs.nactive_huge"),
+		    read_size_field(prefix, "hpa_shard.slabs.ndirty_huge"),
+		    read_uint64_field(prefix, "hpa_shard.npurge_passes"),
+		    read_uint64_field(prefix, "hpa_shard.npurges"),
+		    read_uint64_field(prefix, "hpa_shard.nhugifies"),
+		    read_uint64_field(prefix, "hpa_shard.nhugify_failures"),
+		    read_uint64_field(prefix, "hpa_shard.ndehugifies"));
+	}
+	return n
+	    + malloc_snprintf(buf + n, len - n, "%14zu%14zu%14zu",
+	        read_size_field(prefix, "hpa_sec_bytes"),
+	        read_size_field(prefix, "hpa_sec_hits"),
+	        read_size_field(prefix, "hpa_sec_misses"));
+}
+
+/*
+ * Checks set i in the table output buf: its row in the table of the sets,
+ * which ends at summary_end, and in its own section a row in the table of
+ * shards for each shard, with mutex stats a row per mutex of each shard in
+ * the table of shard mutexes, and nothing for slots without a shard.  The
+ * set serves the sizes above size_min.  Returns its size_max.
+ */
+static size_t
+expect_hpa_set_table(const char *buf, const char *summary_end,
+    const char *end, unsigned i, size_t size_min, bool mutex) {
+	static const char *const mutex_names[] = {
+	    "hpa_shard", "hpa_shard_grow", "hpa_sec"};
+	char set_prefix[64], header[64];
+	malloc_snprintf(
+	    set_prefix, sizeof(set_prefix), "stats.hpa_shard_sets.%u", i);
+	malloc_snprintf(header, sizeof(header), "hpa_shard_sets[%u]: ", i);
+	const char *begin = strstr(buf, header);
+	assert_ptr_not_null(begin, "no section for set %u", i);
+	malloc_snprintf(header, sizeof(header), "hpa_shard_sets[%u]: ", i + 1);
+	const char *next = strstr(begin, header);
+	const char *section_end = next != NULL ? next : end;
+	expect_u_eq(count_lines(begin, section_end, "shard mutexes:", true),
+	    mutex ? 1 : 0, "set %u: table of shard mutexes", i);
+
+	unsigned nshards;
+	size_t   sz = sizeof(nshards);
+	char     name[128];
+	malloc_snprintf(name, sizeof(name), "%s.nshards", set_prefix);
+	assert_d_eq(mallctl(name, &nshards, &sz, NULL, 0), 0,
+	    "mallctl failed for %s", name);
+	size_t size_max = read_size_field(set_prefix, "size_max");
+	char   line[256];
+	malloc_snprintf(line, sizeof(line),
+	    "hpa_shard_sets[%u]: sizes (%zu,%zu], nshards: %u", i, size_min,
+	    size_max, nshards);
+	expect_u_eq(count_lines(begin, section_end, line, true), 1,
+	    "set %u: header", i);
+
+	/* The set's mutex table: a row per mutex, starting with its name. */
+	for (size_t m = 0; m < ARRAY_COUNT(mutex_names); m++) {
+		malloc_snprintf(name, sizeof(name), "mutexes.%s.num_ops",
+		    mutex_names[m]);
+		malloc_snprintf(line, sizeof(line), "%-21s%16" FMTu64,
+		    mutex_names[m], read_uint64_field(set_prefix, name));
+		expect_u_eq(count_lines(begin, section_end, line, false),
+		    mutex ? 1 : 0, "set %u: %s row", i, mutex_names[m]);
+	}
+	unsigned ninitialized = 0;
+	for (unsigned j = 0; j < nshards; j++) {
+		char shard_prefix[96];
+		malloc_snprintf(shard_prefix, sizeof(shard_prefix),
+		    "%s.shards.%u", set_prefix, j);
+		bool initialized;
+		sz = sizeof(initialized);
+		malloc_snprintf(
+		    name, sizeof(name), "%s.initialized", shard_prefix);
+		assert_d_eq(mallctl(name, &initialized, &sz, NULL, 0), 0,
+		    "mallctl failed for %s", name);
+		ninitialized += initialized;
+
+		char   row[256];
+		size_t n = malloc_snprintf(row, sizeof(row), "%5u", j);
+		hpa_row_figures(row + n, sizeof(row) - n, shard_prefix, true);
+		expect_u_eq(count_lines(begin, section_end, row, true),
+		    initialized ? 1 : 0, "set %u, slot %u: shards row", i, j);
+		for (size_t m = 0; m < ARRAY_COUNT(mutex_names); m++) {
+			malloc_snprintf(name, sizeof(name), "mutexes.%s.num_ops",
+			    mutex_names[m]);
+			malloc_snprintf(row, sizeof(row), "%5u %-21s%16" FMTu64, j,
+			    mutex_names[m], read_uint64_field(shard_prefix, name));
+			expect_u_eq(count_lines(begin, section_end, row, false),
+			    mutex && initialized ? 1 : 0,
+			    "set %u, slot %u: %s row", i, j, mutex_names[m]);
+		}
+	}
+
+	char size[48], row[256];
+	malloc_snprintf(size, sizeof(size), "(%zu,%zu]", size_min, size_max);
+	size_t n = malloc_snprintf(row, sizeof(row), "%5u%20s%8u%13u", i, size,
+	    nshards, ninitialized);
+	n += hpa_row_figures(row + n, sizeof(row) - n, set_prefix, false);
+	if (mutex) {
+		malloc_snprintf(row + n, sizeof(row) - n,
+		    "%16" FMTu64 "%16" FMTu64,
+		    read_uint64_field(set_prefix, "mutexes.hpa_shard.num_ops"),
+		    read_uint64_field(set_prefix, "mutexes.hpa_shard.num_wait"));
+	}
+	expect_u_eq(count_lines(buf, summary_end, row, true), 1,
+	    "set %u: row in the table of the sets", i);
+	return size_max;
+}
+
+/*
+ * Checks that the table output shows what JSON does for the sets: every
+ * column of the table of the sets and of each set's table of shards, against
+ * ctl, and the shards in the table of shard mutexes.
+ */
+TEST_BEGIN(test_table_stats_hpa_shard_sets) {
+	test_skip_if(!config_stats);
+	test_skip_if(!hpa_shard_sets_global.initialized);
+
+	hpa_shard_sets_setup();
+	static const char *const opts[] = {"gmda", "gmdax"};
+	for (size_t o = 0; o < ARRAY_COUNT(opts); o++) {
+		stats_buf_t sbuf;
+		stats_buf_init(&sbuf);
+		/* The ctl reads below see the epoch this refreshes. */
+		malloc_stats_print(stats_buf_write_cb, &sbuf, opts[o]);
+		const char *end = sbuf.buf + sbuf.len;
+		const char *summary = strstr(sbuf.buf, "HPA shard sets:\n");
+		assert_ptr_not_null(summary, "opts=%s: no table of the sets",
+		    opts[o]);
+		const char *summary_end = strstr(summary, "hpa_shard_sets[0]: ");
+		assert_ptr_not_null(summary_end, "opts=%s: no set 0", opts[o]);
+
+		unsigned nsets;
+		size_t   sz = sizeof(nsets);
+		assert_d_eq(
+		    mallctl("stats.nhpa_shard_sets", &nsets, &sz, NULL, 0), 0,
+		    "mallctl failed for stats.nhpa_shard_sets");
+		expect_u_gt(nsets, 0, "the sets should be reported");
+		size_t size_min = 0;
+		for (unsigned i = 0; i < nsets; i++) {
+			size_min = expect_hpa_set_table(sbuf.buf, summary_end,
+			    end, i, size_min, /* mutex */ o == 0);
+		}
+		stats_buf_fini(&sbuf);
+	}
+
+	/* With h, nothing about the sets. */
+	stats_buf_t sbuf;
+	stats_buf_init(&sbuf);
+	malloc_stats_print(stats_buf_write_cb, &sbuf, "gmdah");
+	expect_ptr_null(strstr(sbuf.buf, "HPA shard sets:"),
+	    "no table of the sets with h");
+	expect_ptr_null(
+	    strstr(sbuf.buf, "hpa_shard_sets["), "no set sections with h");
 	stats_buf_fini(&sbuf);
 }
 TEST_END
@@ -1403,7 +1822,17 @@ TEST_END
 
 int
 main(void) {
+#ifdef JSON_STATS_WITH_HPA
+	/*
+	 * hpa:true in the .sh would fail jemalloc's initialization where the
+	 * HPA is not supported, so turn the HPA on here with guards.
+	 */
+	if (hpa_supported()) {
+		opt_hpa = true;
+	}
+#endif
 	return test_no_reentrancy(test_json_stats_global_and_arena,
 	    test_json_stats_arena_tables, test_json_stats_hpa,
-	    test_json_stats_arenas_and_options);
+	    test_json_stats_arenas_and_options, test_json_stats_no_hpa_shard_sets,
+	    test_json_stats_hpa_shard_sets, test_table_stats_hpa_shard_sets);
 }

@@ -552,7 +552,8 @@ malloc_init_hard(void) {
 		 * need it to set correct value for deferral_allowed.  The HPA
 		 * shard sets boot here too, before any automatic arena but
 		 * arena 0 exists, since arena_new() decides whether an arena
-		 * allocates from them.
+		 * allocates from them, and before any mallctl() can initialize
+		 * ctl, which records them in the shape they were booted with.
 		 */
 		bool use_hpa_shard_sets = opt_hpa_shard_sets;
 		if (use_hpa_shard_sets

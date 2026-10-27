@@ -6,6 +6,7 @@
 #include "jemalloc/internal/base.h"
 #include "jemalloc/internal/edata.h"
 #include "jemalloc/internal/hpa.h"
+#include "jemalloc/internal/mutex_prof.h"
 #include "jemalloc/internal/psset.h"
 #include "jemalloc/internal/sz.h"
 
@@ -177,6 +178,25 @@ void     hpa_shard_sets_do_deferred_work(tsdn_t *tsdn, hpa_shard_sets_t *sets);
 uint64_t hpa_shard_sets_time_until_deferred_work(
     tsdn_t *tsdn, hpa_shard_sets_t *sets);
 void hpa_shard_sets_flush(tsdn_t *tsdn, hpa_shard_sets_t *sets);
+
+/*
+ * Adds the statistics of the given shard of shard_set to stats, and those of
+ * its mutexes to mutex_data, indexed by mutex_prof_hpa_shard_ind_t.  Returns
+ * true, adding nothing, if that shard has not been created yet.
+ */
+bool hpa_shard_set_shard_stats_merge(tsdn_t *tsdn, hpa_shard_set_t *shard_set,
+    unsigned slot, hpa_shard_stats_t *stats,
+    mutex_prof_data_t mutex_data[mutex_prof_num_hpa_shard_mutexes]);
+
+/* Clears the mutex statistics of every initialized shard of the sets. */
+void hpa_shard_sets_mtx_stats_reset(tsdn_t *tsdn, hpa_shard_sets_t *sets);
+
+/*
+ * The shards' dirty pages, with the pages their SECs hold, read without their
+ * locks as pa_shard_ndirty() does for an arena's own shard.  Works without
+ * stats: purging keeps these counts.
+ */
+size_t hpa_shard_sets_ndirty(hpa_shard_sets_t *sets);
 
 /*
  * The two composed: the whole of the allocation-side routing decision.  See

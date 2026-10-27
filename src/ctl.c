@@ -349,6 +349,59 @@ CTL_PROTO(stats_arenas_i_hpa_shard_alloc_j_pages_per_ps)
 CTL_PROTO(stats_arenas_i_hpa_shard_alloc_j_extents_per_ps)
 INDEX_PROTO(stats_arenas_i_hpa_shard_alloc_j)
 
+/*
+ * The global HPA shard sets: stats.hpa_shard_sets.<i> for a set's shards added
+ * up, and stats.hpa_shard_sets.<i>.shards.<j> for one of them.  Both repeat the
+ * HPA leaves of an arena, hpa_sec_*, hpa_shard.* and (with the other mutexes
+ * below) the HPA shard's mutexes, so their leaves are generated from one list.
+ */
+#define CTL_HPA_SLABS_PROTO_GEN(n)                                             \
+	CTL_PROTO(n##_npageslabs_nonhuge)                                      \
+	CTL_PROTO(n##_npageslabs_huge)                                         \
+	CTL_PROTO(n##_nactive_nonhuge)                                         \
+	CTL_PROTO(n##_nactive_huge)                                            \
+	CTL_PROTO(n##_ndirty_nonhuge)                                          \
+	CTL_PROTO(n##_ndirty_huge)
+
+#define CTL_HPA_PROTO_GEN(n)                                                   \
+	CTL_PROTO(stats_##n##_hpa_sec_bytes)                                   \
+	CTL_PROTO(stats_##n##_hpa_sec_hits)                                    \
+	CTL_PROTO(stats_##n##_hpa_sec_misses)                                  \
+	CTL_PROTO(stats_##n##_hpa_sec_dalloc_flush)                            \
+	CTL_PROTO(stats_##n##_hpa_sec_dalloc_noflush)                          \
+	CTL_PROTO(stats_##n##_hpa_sec_overfills)                               \
+	CTL_PROTO(stats_##n##_hpa_shard_npageslabs)                            \
+	CTL_PROTO(stats_##n##_hpa_shard_nactive)                               \
+	CTL_PROTO(stats_##n##_hpa_shard_ndirty)                                \
+	CTL_PROTO(stats_##n##_hpa_shard_npurge_passes)                         \
+	CTL_PROTO(stats_##n##_hpa_shard_npurges)                               \
+	CTL_PROTO(stats_##n##_hpa_shard_nhugifies)                             \
+	CTL_PROTO(stats_##n##_hpa_shard_nhugify_failures)                      \
+	CTL_PROTO(stats_##n##_hpa_shard_ndehugifies)                           \
+	CTL_HPA_SLABS_PROTO_GEN(stats_##n##_hpa_shard_slabs)                   \
+	CTL_HPA_SLABS_PROTO_GEN(stats_##n##_hpa_shard_full_slabs)              \
+	CTL_HPA_SLABS_PROTO_GEN(stats_##n##_hpa_shard_empty_slabs)             \
+	CTL_HPA_SLABS_PROTO_GEN(stats_##n##_hpa_shard_nonfull_slabs_j)         \
+	INDEX_PROTO(stats_##n##_hpa_shard_nonfull_slabs_j)                     \
+	CTL_PROTO(stats_##n##_hpa_shard_alloc_j_min_extents)                   \
+	CTL_PROTO(stats_##n##_hpa_shard_alloc_j_max_extents)                   \
+	CTL_PROTO(stats_##n##_hpa_shard_alloc_j_extents)                       \
+	CTL_PROTO(stats_##n##_hpa_shard_alloc_j_ps)                            \
+	CTL_PROTO(stats_##n##_hpa_shard_alloc_j_pages_per_ps)                  \
+	CTL_PROTO(stats_##n##_hpa_shard_alloc_j_extents_per_ps)                \
+	INDEX_PROTO(stats_##n##_hpa_shard_alloc_j)
+
+CTL_PROTO(stats_nhpa_shard_sets)
+CTL_PROTO(stats_hpa_shard_sets_i_size_max)
+CTL_PROTO(stats_hpa_shard_sets_i_nshards)
+CTL_HPA_PROTO_GEN(hpa_shard_sets_i)
+CTL_PROTO(stats_hpa_shard_sets_i_shards_j_initialized)
+CTL_HPA_PROTO_GEN(hpa_shard_sets_i_shards_j)
+INDEX_PROTO(stats_hpa_shard_sets_i_shards_j)
+INDEX_PROTO(stats_hpa_shard_sets_i)
+#undef CTL_HPA_PROTO_GEN
+#undef CTL_HPA_SLABS_PROTO_GEN
+
 CTL_PROTO(stats_arenas_i_nthreads)
 CTL_PROTO(stats_arenas_i_uptime)
 CTL_PROTO(stats_arenas_i_dss)
@@ -434,6 +487,15 @@ MUTEX_PROF_ARENA_MUTEXES
 
 /* Arena bin mutexes. */
 MUTEX_STATS_CTL_PROTO_GEN(arenas_i_bins_j_mutex)
+
+/* HPA shard set and shard mutexes. */
+#define OP(mtx) MUTEX_STATS_CTL_PROTO_GEN(hpa_shard_sets_i_mutexes_##mtx)
+MUTEX_PROF_HPA_SHARD_MUTEXES
+#undef OP
+#define OP(mtx)                                                                \
+	MUTEX_STATS_CTL_PROTO_GEN(hpa_shard_sets_i_shards_j_mutexes_##mtx)
+MUTEX_PROF_HPA_SHARD_MUTEXES
+#undef OP
 #undef MUTEX_STATS_CTL_PROTO_GEN
 
 CTL_PROTO(stats_mutexes_reset)
@@ -904,6 +966,128 @@ static const ctl_named_node_t super_stats_arenas_i_node[] = {
 
 static const ctl_indexed_node_t stats_arenas_node[] = {{INDEX(stats_arenas_i)}};
 
+#define CTL_HPA_SLABS_NODE_GEN(n)                                              \
+	static const ctl_named_node_t n##_node[] = {                           \
+	    {NAME("npageslabs_nonhuge"), CTL(n##_npageslabs_nonhuge)},         \
+	    {NAME("npageslabs_huge"), CTL(n##_npageslabs_huge)},               \
+	    {NAME("nactive_nonhuge"), CTL(n##_nactive_nonhuge)},               \
+	    {NAME("nactive_huge"), CTL(n##_nactive_huge)},                     \
+	    {NAME("ndirty_nonhuge"), CTL(n##_ndirty_nonhuge)},                 \
+	    {NAME("ndirty_huge"), CTL(n##_ndirty_huge)}};
+
+/* The hpa_shard subtree under n, laid out as under stats.arenas.<i>. */
+#define CTL_HPA_SHARD_NODE_GEN(n)                                              \
+	CTL_HPA_SLABS_NODE_GEN(stats_##n##_hpa_shard_slabs)                    \
+	CTL_HPA_SLABS_NODE_GEN(stats_##n##_hpa_shard_full_slabs)               \
+	CTL_HPA_SLABS_NODE_GEN(stats_##n##_hpa_shard_empty_slabs)              \
+	CTL_HPA_SLABS_NODE_GEN(stats_##n##_hpa_shard_nonfull_slabs_j)          \
+	static const ctl_named_node_t                                          \
+	    super_stats_##n##_hpa_shard_nonfull_slabs_j_node[] = {{NAME(""),   \
+	        CHILD(named, stats_##n##_hpa_shard_nonfull_slabs_j)}};         \
+	static const ctl_indexed_node_t                                        \
+	    stats_##n##_hpa_shard_nonfull_slabs_node[] = {                     \
+	        {INDEX(stats_##n##_hpa_shard_nonfull_slabs_j)}};               \
+	static const ctl_named_node_t stats_##n##_hpa_shard_alloc_j_node[] = { \
+	    {NAME("min_extents"),                                              \
+	        CTL(stats_##n##_hpa_shard_alloc_j_min_extents)},               \
+	    {NAME("max_extents"),                                              \
+	        CTL(stats_##n##_hpa_shard_alloc_j_max_extents)},               \
+	    {NAME("extents"), CTL(stats_##n##_hpa_shard_alloc_j_extents)},     \
+	    {NAME("ps"), CTL(stats_##n##_hpa_shard_alloc_j_ps)},               \
+	    {NAME("pages_per_ps"),                                             \
+	        CTL(stats_##n##_hpa_shard_alloc_j_pages_per_ps)},              \
+	    {NAME("extents_per_ps"),                                           \
+	        CTL(stats_##n##_hpa_shard_alloc_j_extents_per_ps)}};           \
+	static const ctl_named_node_t                                          \
+	    super_stats_##n##_hpa_shard_alloc_j_node[] = {                     \
+	        {NAME(""), CHILD(named, stats_##n##_hpa_shard_alloc_j)}};      \
+	static const ctl_indexed_node_t stats_##n##_hpa_shard_alloc_node[] = { \
+	    {INDEX(stats_##n##_hpa_shard_alloc_j)}};                           \
+	static const ctl_named_node_t stats_##n##_hpa_shard_node[] = {         \
+	    {NAME("npageslabs"), CTL(stats_##n##_hpa_shard_npageslabs)},       \
+	    {NAME("nactive"), CTL(stats_##n##_hpa_shard_nactive)},             \
+	    {NAME("ndirty"), CTL(stats_##n##_hpa_shard_ndirty)},               \
+	    {NAME("slabs"), CHILD(named, stats_##n##_hpa_shard_slabs)},        \
+	    {NAME("npurge_passes"), CTL(stats_##n##_hpa_shard_npurge_passes)}, \
+	    {NAME("npurges"), CTL(stats_##n##_hpa_shard_npurges)},             \
+	    {NAME("nhugifies"), CTL(stats_##n##_hpa_shard_nhugifies)},         \
+	    {NAME("nhugify_failures"),                                         \
+	        CTL(stats_##n##_hpa_shard_nhugify_failures)},                  \
+	    {NAME("ndehugifies"), CTL(stats_##n##_hpa_shard_ndehugifies)},     \
+	    {NAME("alloc"), CHILD(indexed, stats_##n##_hpa_shard_alloc)},      \
+	    {NAME("full_slabs"),                                               \
+	        CHILD(named, stats_##n##_hpa_shard_full_slabs)},               \
+	    {NAME("empty_slabs"),                                              \
+	        CHILD(named, stats_##n##_hpa_shard_empty_slabs)},              \
+	    {NAME("nonfull_slabs"),                                            \
+	        CHILD(indexed, stats_##n##_hpa_shard_nonfull_slabs)}};
+
+/*
+ * The entries of n's node that an arena's node has too: hpa_sec_*, hpa_shard
+ * and mutexes, which here has only the HPA shard's mutexes.
+ */
+#define CTL_HPA_NODES(n)                                                       \
+	{NAME("hpa_sec_bytes"), CTL(stats_##n##_hpa_sec_bytes)},               \
+	    {NAME("hpa_sec_hits"), CTL(stats_##n##_hpa_sec_hits)},             \
+	    {NAME("hpa_sec_misses"), CTL(stats_##n##_hpa_sec_misses)},         \
+	    {NAME("hpa_sec_dalloc_noflush"),                                   \
+	        CTL(stats_##n##_hpa_sec_dalloc_noflush)},                      \
+	    {NAME("hpa_sec_dalloc_flush"),                                     \
+	        CTL(stats_##n##_hpa_sec_dalloc_flush)},                        \
+	    {NAME("hpa_sec_overfills"), CTL(stats_##n##_hpa_sec_overfills)},   \
+	    {NAME("hpa_shard"), CHILD(named, stats_##n##_hpa_shard)},          \
+	    {NAME("mutexes"), CHILD(named, stats_##n##_mutexes)}
+
+#define OP(mtx) MUTEX_PROF_DATA_NODE(hpa_shard_sets_i_shards_j_mutexes_##mtx)
+MUTEX_PROF_HPA_SHARD_MUTEXES
+#undef OP
+
+static const ctl_named_node_t stats_hpa_shard_sets_i_shards_j_mutexes_node[] = {
+#define OP(mtx)                                                                \
+	{NAME(#mtx),                                                           \
+	    CHILD(named, stats_hpa_shard_sets_i_shards_j_mutexes_##mtx)},
+    MUTEX_PROF_HPA_SHARD_MUTEXES
+#undef OP
+};
+
+CTL_HPA_SHARD_NODE_GEN(hpa_shard_sets_i_shards_j)
+
+static const ctl_named_node_t stats_hpa_shard_sets_i_shards_j_node[] = {
+    {NAME("initialized"), CTL(stats_hpa_shard_sets_i_shards_j_initialized)},
+    CTL_HPA_NODES(hpa_shard_sets_i_shards_j)};
+static const ctl_named_node_t super_stats_hpa_shard_sets_i_shards_j_node[] = {
+    {NAME(""), CHILD(named, stats_hpa_shard_sets_i_shards_j)}};
+
+static const ctl_indexed_node_t stats_hpa_shard_sets_i_shards_node[] = {
+    {INDEX(stats_hpa_shard_sets_i_shards_j)}};
+
+#define OP(mtx) MUTEX_PROF_DATA_NODE(hpa_shard_sets_i_mutexes_##mtx)
+MUTEX_PROF_HPA_SHARD_MUTEXES
+#undef OP
+
+static const ctl_named_node_t stats_hpa_shard_sets_i_mutexes_node[] = {
+#define OP(mtx)                                                                \
+	{NAME(#mtx), CHILD(named, stats_hpa_shard_sets_i_mutexes_##mtx)},
+    MUTEX_PROF_HPA_SHARD_MUTEXES
+#undef OP
+};
+
+CTL_HPA_SHARD_NODE_GEN(hpa_shard_sets_i)
+
+static const ctl_named_node_t stats_hpa_shard_sets_i_node[] = {
+    {NAME("size_max"), CTL(stats_hpa_shard_sets_i_size_max)},
+    {NAME("nshards"), CTL(stats_hpa_shard_sets_i_nshards)},
+    CTL_HPA_NODES(hpa_shard_sets_i),
+    {NAME("shards"), CHILD(indexed, stats_hpa_shard_sets_i_shards)}};
+static const ctl_named_node_t super_stats_hpa_shard_sets_i_node[] = {
+    {NAME(""), CHILD(named, stats_hpa_shard_sets_i)}};
+
+static const ctl_indexed_node_t stats_hpa_shard_sets_node[] = {
+    {INDEX(stats_hpa_shard_sets_i)}};
+#undef CTL_HPA_NODES
+#undef CTL_HPA_SHARD_NODE_GEN
+#undef CTL_HPA_SLABS_NODE_GEN
+
 static const ctl_named_node_t stats_background_thread_node[] = {
     {NAME("num_threads"), CTL(stats_background_thread_num_threads)},
     {NAME("num_runs"), CTL(stats_background_thread_num_runs)},
@@ -938,6 +1122,8 @@ static const ctl_named_node_t stats_node[] = {
     {NAME("background_thread"), CHILD(named, stats_background_thread)},
     {NAME("mutexes"), CHILD(named, stats_mutexes)},
     {NAME("arenas"), CHILD(indexed, stats_arenas)},
+    {NAME("nhpa_shard_sets"), CTL(stats_nhpa_shard_sets)},
+    {NAME("hpa_shard_sets"), CHILD(indexed, stats_hpa_shard_sets)},
     {NAME("zero_reallocs"), CTL(stats_zero_reallocs)},
 };
 
@@ -1415,6 +1601,125 @@ ctl_background_thread_stats_read(tsdn_t *tsdn) {
 	    &stats->max_counter_per_bg_thd);
 }
 
+/*
+ * Records the global HPA shard sets, if booted, in the shape they were booted
+ * with: a record per set and one per shard, created or not, so that
+ * refreshing them allocates nothing.  Returns true on OOM.
+ */
+static bool
+ctl_hpa_shard_sets_init(tsdn_t *tsdn, const hpa_shard_sets_t *sets) {
+	if (ctl_stats->hpa_shard_sets != NULL || sets->nsets == 0) {
+		return false;
+	}
+	size_t nslots = 0;
+	for (unsigned i = 0; i < sets->nsets; i++) {
+		nslots += sets->sets[i].nshards;
+	}
+	/* The records of the sets, followed by those of their shards. */
+	ctl_hpa_shard_set_t *csets = (ctl_hpa_shard_set_t *)base_alloc(tsdn,
+	    b0get(),
+	    sets->nsets * sizeof(ctl_hpa_shard_set_t)
+	        + nslots * sizeof(ctl_hpa_shard_t),
+	    QUANTUM);
+	if (csets == NULL) {
+		return true;
+	}
+	ctl_hpa_shard_t *slots = (ctl_hpa_shard_t *)&csets[sets->nsets];
+	for (unsigned i = 0; i < sets->nsets; i++) {
+		csets[i].size_max = sets->sets[i].size_max;
+		csets[i].nshards = sets->sets[i].nshards;
+		csets[i].shards = slots;
+		slots += sets->sets[i].nshards;
+	}
+	ctl_stats->hpa_shard_sets = csets;
+	ctl_stats->nhpa_shard_sets = sets->nsets;
+	return false;
+}
+
+static void
+ctl_hpa_stats_accum(ctl_hpa_stats_t *dst, ctl_hpa_stats_t *src) {
+	hpa_shard_stats_accum(&dst->hpastats, &src->hpastats);
+	for (unsigned i = 0; i < mutex_prof_num_hpa_shard_mutexes; i++) {
+		malloc_mutex_prof_merge(
+		    &dst->mutex_prof_data[i], &src->mutex_prof_data[i]);
+	}
+}
+
+/*
+ * Reads shard j of shard_set into its record, and adds it to the total of cset,
+ * the shard set's record.  A shard that has not been created is skipped:
+ * created shards are never destroyed, so its record has never been written and
+ * still reads as zeroes, as ctl_hpa_shard_sets_init() allocated it.
+ */
+static void
+ctl_hpa_shard_refresh(tsdn_t *tsdn, hpa_shard_set_t *shard_set, unsigned j,
+    ctl_hpa_shard_set_t *cset) {
+	if (atomic_load_p(&shard_set->shards[j], ATOMIC_ACQUIRE) == NULL) {
+		return;
+	}
+	ctl_hpa_shard_t *cshard = &cset->shards[j];
+	memset(&cshard->stats, 0, sizeof(cshard->stats));
+	cshard->initialized = !hpa_shard_set_shard_stats_merge(tsdn, shard_set,
+	    j, &cshard->stats.hpastats, cshard->stats.mutex_prof_data);
+	assert(cshard->initialized);
+	ctl_hpa_stats_accum(&cset->stats, &cshard->stats);
+}
+
+/*
+ * The global HPA shard sets belong to no arena.  They are reported on their
+ * own, and added to the merged arena.
+ */
+static void
+ctl_hpa_shard_sets_refresh(tsdn_t *tsdn, ctl_arena_t *ctl_sarena) {
+	hpa_shard_sets_t *sets = &hpa_shard_sets_global;
+
+	/*
+	 * Like an arena's own shard, the sets' dirty pages count in the merged
+	 * arena's dirty pages regardless of stats, and with stats in its
+	 * resident bytes.
+	 */
+	size_t ndirty = hpa_shard_sets_ndirty(sets);
+	ctl_sarena->pdirty += ndirty;
+	if (!config_stats) {
+		return;
+	}
+	ctl_sarena->astats->astats.resident += ndirty << LG_PAGE;
+
+	/* The sets boot before ctl_init(), which recorded them. */
+	assert(ctl_stats->nhpa_shard_sets == sets->nsets);
+	for (unsigned i = 0; i < ctl_stats->nhpa_shard_sets; i++) {
+		ctl_hpa_shard_set_t *cset = &ctl_stats->hpa_shard_sets[i];
+		memset(&cset->stats, 0, sizeof(cset->stats));
+		for (unsigned j = 0; j < cset->nshards; j++) {
+			ctl_hpa_shard_refresh(tsdn, &sets->sets[i], j, cset);
+		}
+		/* The shard set's total, once, into the merged arena. */
+		ctl_arena_stats_t *sastats = ctl_sarena->astats;
+		hpa_shard_stats_accum(
+		    &sastats->hpastats, &cset->stats.hpastats);
+#define OP(mtx)                                                                \
+	malloc_mutex_prof_merge(                                               \
+	    &sastats->astats.mutex_prof_data[arena_prof_mutex_##mtx],          \
+	    &cset->stats.mutex_prof_data[hpa_shard_prof_mutex_##mtx]);
+		MUTEX_PROF_HPA_SHARD_MUTEXES
+#undef OP
+	}
+}
+
+static ctl_hpa_shard_set_t *
+ctl_hpa_shard_set(size_t i) {
+	assert(i < ctl_stats->nhpa_shard_sets);
+	return &ctl_stats->hpa_shard_sets[i];
+}
+
+/* Shard j of set i, whose statistics are zeroes if not created yet. */
+static ctl_hpa_shard_t *
+ctl_hpa_shard(size_t i, size_t j) {
+	ctl_hpa_shard_set_t *cset = ctl_hpa_shard_set(i);
+	assert(j < cset->nshards);
+	return &cset->shards[j];
+}
+
 static void
 ctl_refresh(tsdn_t *tsdn) {
 	malloc_mutex_assert_owner(tsdn, &ctl_mtx);
@@ -1450,6 +1755,8 @@ ctl_refresh(tsdn_t *tsdn) {
 			    tsdn, tarenas[i], ctl_sarena, i, false);
 		}
 	}
+
+	ctl_hpa_shard_sets_refresh(tsdn, ctl_sarena);
 
 	if (config_stats) {
 		ctl_stats->allocated = ctl_sarena->astats->allocated_small
@@ -1544,6 +1851,12 @@ ctl_init(tsd_t *tsd) {
 			}
 		}
 
+		if (config_stats
+		    && ctl_hpa_shard_sets_init(tsdn, &hpa_shard_sets_global)) {
+			ret = true;
+			goto label_return;
+		}
+
 		/*
 		 * Allocate space for the current full range of arenas
 		 * here rather than doing it lazily elsewhere, in order
@@ -1590,10 +1903,15 @@ label_return:
 	return ret;
 }
 
+/*
+ * Looks up name below starting_node, which the first miblen components of mib
+ * lead to, and appends the components of name to mib.  *miblenp is the room in
+ * mib on entry, and its length on success.
+ */
 static int
 ctl_lookup(tsdn_t *tsdn, const ctl_named_node_t *starting_node,
-    const char *name, const ctl_named_node_t **ending_nodep, size_t *mibp,
-    size_t *depthp) {
+    const char *name, const ctl_named_node_t **ending_nodep, size_t *mib,
+    size_t miblen, size_t *miblenp) {
 	int                     ret;
 	const char             *elm, *tdot, *dot;
 	size_t                  elen, i, j;
@@ -1608,7 +1926,7 @@ ctl_lookup(tsdn_t *tsdn, const ctl_named_node_t *starting_node,
 		goto label_return;
 	}
 	node = starting_node;
-	for (i = 0; i < *depthp; i++) {
+	for (i = miblen; i < *miblenp; i++) {
 		assert(node);
 		assert(node->nchildren > 0);
 		if (ctl_named_node(node->children) != NULL) {
@@ -1621,7 +1939,7 @@ ctl_lookup(tsdn_t *tsdn, const ctl_named_node_t *starting_node,
 				if (strlen(child->name) == elen
 				    && strncmp(elm, child->name, elen) == 0) {
 					node = child;
-					mibp[i] = j;
+					mib[i] = j;
 					break;
 				}
 			}
@@ -1641,13 +1959,13 @@ ctl_lookup(tsdn_t *tsdn, const ctl_named_node_t *starting_node,
 			}
 
 			inode = ctl_indexed_node(node->children);
-			node = inode->index(tsdn, mibp, *depthp, (size_t)index);
+			node = inode->index(tsdn, mib, i, (size_t)index);
 			if (node == NULL) {
 				ret = ENOENT;
 				goto label_return;
 			}
 
-			mibp[i] = (size_t)index;
+			mib[i] = (size_t)index;
 		}
 
 		/* Reached the end? */
@@ -1662,7 +1980,7 @@ ctl_lookup(tsdn_t *tsdn, const ctl_named_node_t *starting_node,
 				goto label_return;
 			}
 			/* Complete lookup successful. */
-			*depthp = i + 1;
+			*miblenp = i + 1;
 			break;
 		}
 
@@ -1696,7 +2014,7 @@ ctl_byname(tsd_t *tsd, const char *name, void *oldp, size_t *oldlenp,
 
 	depth = CTL_MAX_DEPTH;
 	ret = ctl_lookup(
-	    tsd_tsdn(tsd), super_root_node, name, &node, mib, &depth);
+	    tsd_tsdn(tsd), super_root_node, name, &node, mib, 0, &depth);
 	if (ret != 0) {
 		goto label_return;
 	}
@@ -1722,7 +2040,7 @@ ctl_nametomib(tsd_t *tsd, const char *name, size_t *mibp, size_t *miblenp) {
 	}
 
 	ret = ctl_lookup(
-	    tsd_tsdn(tsd), super_root_node, name, NULL, mibp, miblenp);
+	    tsd_tsdn(tsd), super_root_node, name, NULL, mibp, 0, miblenp);
 label_return:
 	return (ret);
 }
@@ -1748,7 +2066,7 @@ ctl_lookupbymib(tsdn_t *tsdn, const ctl_named_node_t **ending_nodep,
 
 			/* Indexed element. */
 			inode = ctl_indexed_node(node->children);
-			node = inode->index(tsdn, mib, miblen, mib[i]);
+			node = inode->index(tsdn, mib, i, mib[i]);
 			if (node == NULL) {
 				ret = ENOENT;
 				goto label_return;
@@ -1813,10 +2131,7 @@ ctl_mibnametomib(
 
 	assert(miblenp != NULL);
 	assert(*miblenp >= miblen);
-	*miblenp -= miblen;
-	ret = ctl_lookup(
-	    tsd_tsdn(tsd), node, name, NULL, mib + miblen, miblenp);
-	*miblenp += miblen;
+	ret = ctl_lookup(tsd_tsdn(tsd), node, name, NULL, mib, miblen, miblenp);
 label_return:
 	return (ret);
 }
@@ -1843,13 +2158,11 @@ ctl_bymibname(tsd_t *tsd, size_t *mib, size_t miblen, const char *name,
 
 	assert(miblenp != NULL);
 	assert(*miblenp >= miblen);
-	*miblenp -= miblen;
 	/*
 	 * The same node supplies the starting node and stores the ending node.
 	 */
 	ret = ctl_lookup(
-	    tsd_tsdn(tsd), node, name, &node, mib + miblen, miblenp);
-	*miblenp += miblen;
+	    tsd_tsdn(tsd), node, name, &node, mib, miblen, miblenp);
 	if (ret != 0) {
 		goto label_return;
 	}
@@ -3954,6 +4267,20 @@ MUTEX_PROF_ARENA_MUTEXES
 /* tcache bin mutex */
 RO_MUTEX_CTL_GEN(
     arenas_i_bins_j_mutex, arenas_i(mib[2])->astats->bstats[mib[4]].mutex_data)
+
+/* HPA shard set and shard mutexes */
+#define OP(mtx)                                                                \
+	RO_MUTEX_CTL_GEN(hpa_shard_sets_i_mutexes_##mtx,                       \
+	    ctl_hpa_shard_set(mib[2])                                          \
+	        ->stats.mutex_prof_data[hpa_shard_prof_mutex_##mtx])
+MUTEX_PROF_HPA_SHARD_MUTEXES
+#undef OP
+#define OP(mtx)                                                                \
+	RO_MUTEX_CTL_GEN(hpa_shard_sets_i_shards_j_mutexes_##mtx,              \
+	    ctl_hpa_shard(mib[2], mib[4])                                      \
+	        ->stats.mutex_prof_data[hpa_shard_prof_mutex_##mtx])
+MUTEX_PROF_HPA_SHARD_MUTEXES
+#undef OP
 #undef RO_MUTEX_CTL_GEN
 
 /* Resets all mutex stats, including global, arena and bin mutexes. */
@@ -3984,6 +4311,8 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 		MUTEX_PROF_RESET(prof_recent_dump_mtx);
 		MUTEX_PROF_RESET(prof_stats_mtx);
 	}
+
+	hpa_shard_sets_mtx_stats_reset(tsdn, &hpa_shard_sets_global);
 
 	/* Per arena mutexes. */
 	unsigned n = narenas_total_get();
@@ -4261,6 +4590,128 @@ stats_arenas_i_hpa_shard_alloc_j_index(
 		return NULL;
 	}
 	return super_stats_arenas_i_hpa_shard_alloc_j_node;
+}
+
+#define CTL_HPA_SLABS_GEN(n, slabs)                                            \
+	CTL_RO_CGEN(config_stats, n##_npageslabs_nonhuge,                      \
+	    (slabs)[0].npageslabs, size_t)                                     \
+	CTL_RO_CGEN(                                                           \
+	    config_stats, n##_npageslabs_huge, (slabs)[1].npageslabs, size_t)  \
+	CTL_RO_CGEN(                                                           \
+	    config_stats, n##_nactive_nonhuge, (slabs)[0].nactive, size_t)     \
+	CTL_RO_CGEN(                                                           \
+	    config_stats, n##_nactive_huge, (slabs)[1].nactive, size_t)        \
+	CTL_RO_CGEN(                                                           \
+	    config_stats, n##_ndirty_nonhuge, (slabs)[0].ndirty, size_t)       \
+	CTL_RO_CGEN(config_stats, n##_ndirty_huge, (slabs)[1].ndirty, size_t)
+
+/*
+ * The HPA leaves under n, which read the hpa_shard_stats_t s, and the index
+ * callbacks of their alloc and nonfull_slabs buckets, whose index is at bucket
+ * in the mib.
+ */
+#define CTL_HPA_GEN(n, s, bucket)                                              \
+	CTL_RO_CGEN(config_stats, stats_##n##_hpa_sec_bytes,                   \
+	    (s).secstats.bytes, size_t)                                        \
+	CTL_RO_CGEN(config_stats, stats_##n##_hpa_sec_hits,                    \
+	    (s).secstats.total.nhits, size_t)                                  \
+	CTL_RO_CGEN(config_stats, stats_##n##_hpa_sec_misses,                  \
+	    (s).secstats.total.nmisses, size_t)                                \
+	CTL_RO_CGEN(config_stats, stats_##n##_hpa_sec_dalloc_flush,            \
+	    (s).secstats.total.ndalloc_flush, size_t)                          \
+	CTL_RO_CGEN(config_stats, stats_##n##_hpa_sec_dalloc_noflush,          \
+	    (s).secstats.total.ndalloc_noflush, size_t)                        \
+	CTL_RO_CGEN(config_stats, stats_##n##_hpa_sec_overfills,               \
+	    (s).secstats.total.noverfills, size_t)                             \
+	CTL_RO_CGEN(config_stats, stats_##n##_hpa_shard_npageslabs,            \
+	    (s).psset_stats.merged.npageslabs, size_t)                         \
+	CTL_RO_CGEN(config_stats, stats_##n##_hpa_shard_nactive,               \
+	    (s).psset_stats.merged.nactive, size_t)                            \
+	CTL_RO_CGEN(config_stats, stats_##n##_hpa_shard_ndirty,                \
+	    (s).psset_stats.merged.ndirty, size_t)                             \
+	CTL_RO_CGEN(config_stats, stats_##n##_hpa_shard_npurge_passes,         \
+	    (s).nonderived_stats.npurge_passes, uint64_t)                      \
+	CTL_RO_CGEN(config_stats, stats_##n##_hpa_shard_npurges,               \
+	    (s).nonderived_stats.npurges, uint64_t)                            \
+	CTL_RO_CGEN(config_stats, stats_##n##_hpa_shard_nhugifies,             \
+	    (s).nonderived_stats.nhugifies, uint64_t)                          \
+	CTL_RO_CGEN(config_stats, stats_##n##_hpa_shard_nhugify_failures,      \
+	    (s).nonderived_stats.nhugify_failures, uint64_t)                   \
+	CTL_RO_CGEN(config_stats, stats_##n##_hpa_shard_ndehugifies,           \
+	    (s).nonderived_stats.ndehugifies, uint64_t)                        \
+	CTL_HPA_SLABS_GEN(stats_##n##_hpa_shard_slabs, (s).psset_stats.slabs)  \
+	CTL_HPA_SLABS_GEN(                                                     \
+	    stats_##n##_hpa_shard_full_slabs, (s).psset_stats.full_slabs)      \
+	CTL_HPA_SLABS_GEN(                                                     \
+	    stats_##n##_hpa_shard_empty_slabs, (s).psset_stats.empty_slabs)    \
+	CTL_HPA_SLABS_GEN(stats_##n##_hpa_shard_nonfull_slabs_j,               \
+	    (s).psset_stats.nonfull_slabs[bucket])                             \
+	CTL_RO_CGEN(config_stats, stats_##n##_hpa_shard_alloc_j_min_extents,   \
+	    (s).nonderived_stats.hpa_alloc_min_extents[bucket], uint64_t)      \
+	CTL_RO_CGEN(config_stats, stats_##n##_hpa_shard_alloc_j_max_extents,   \
+	    (s).nonderived_stats.hpa_alloc_max_extents[bucket], uint64_t)      \
+	CTL_RO_CGEN(config_stats, stats_##n##_hpa_shard_alloc_j_extents,       \
+	    (s).nonderived_stats.hpa_alloc_extents[bucket], uint64_t)          \
+	CTL_RO_CGEN(config_stats, stats_##n##_hpa_shard_alloc_j_ps,            \
+	    (s).nonderived_stats.hpa_alloc_ps[bucket], uint64_t)               \
+	CTL_RO_CGEN(config_stats, stats_##n##_hpa_shard_alloc_j_pages_per_ps,  \
+	    (s).nonderived_stats.hpa_alloc_pages_per_ps[bucket], uint64_t)     \
+	CTL_RO_CGEN(config_stats,                                              \
+	    stats_##n##_hpa_shard_alloc_j_extents_per_ps,                      \
+	    (s).nonderived_stats.hpa_alloc_extents_per_ps[bucket], uint64_t)   \
+	static const ctl_named_node_t *                                        \
+	stats_##n##_hpa_shard_nonfull_slabs_j_index(                           \
+	    tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t i) {        \
+		if (i >= PSSET_NPSIZES) {                                      \
+			return NULL;                                           \
+		}                                                              \
+		return super_stats_##n##_hpa_shard_nonfull_slabs_j_node;       \
+	}                                                                      \
+	static const ctl_named_node_t *stats_##n##_hpa_shard_alloc_j_index(    \
+	    tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t i) {        \
+		if (i > SEC_MAX_NALLOCS) {                                     \
+			return NULL;                                           \
+		}                                                              \
+		return super_stats_##n##_hpa_shard_alloc_j_node;               \
+	}
+
+CTL_RO_CGEN(
+    config_stats, stats_nhpa_shard_sets, ctl_stats->nhpa_shard_sets, unsigned)
+
+CTL_RO_CGEN(config_stats, stats_hpa_shard_sets_i_size_max,
+    ctl_hpa_shard_set(mib[2])->size_max, size_t)
+CTL_RO_CGEN(config_stats, stats_hpa_shard_sets_i_nshards,
+    ctl_hpa_shard_set(mib[2])->nshards, unsigned)
+CTL_HPA_GEN(hpa_shard_sets_i, ctl_hpa_shard_set(mib[2])->stats.hpastats, mib[5])
+
+CTL_RO_CGEN(config_stats, stats_hpa_shard_sets_i_shards_j_initialized,
+    ctl_hpa_shard(mib[2], mib[4])->initialized, bool)
+CTL_HPA_GEN(hpa_shard_sets_i_shards_j,
+    ctl_hpa_shard(mib[2], mib[4])->stats.hpastats, mib[7])
+#undef CTL_HPA_GEN
+#undef CTL_HPA_SLABS_GEN
+
+static const ctl_named_node_t *
+stats_hpa_shard_sets_i_shards_j_index(
+    tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t j) {
+	/* mib[2] is the set, which stats_hpa_shard_sets_i_index() checked. */
+	assert(miblen == 4);
+	malloc_mutex_lock(tsdn, &ctl_mtx);
+	bool in_set = j < ctl_hpa_shard_set(mib[2])->nshards;
+	malloc_mutex_unlock(tsdn, &ctl_mtx);
+	return in_set ? super_stats_hpa_shard_sets_i_shards_j_node : NULL;
+}
+
+static const ctl_named_node_t *
+stats_hpa_shard_sets_i_index(
+    tsdn_t *tsdn, const size_t *mib, size_t miblen, size_t i) {
+	if (!config_stats) {
+		return NULL;
+	}
+	malloc_mutex_lock(tsdn, &ctl_mtx);
+	bool recorded = i < ctl_stats->nhpa_shard_sets;
+	malloc_mutex_unlock(tsdn, &ctl_mtx);
+	return recorded ? super_stats_hpa_shard_sets_i_node : NULL;
 }
 
 static bool
