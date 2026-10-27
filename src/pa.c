@@ -122,12 +122,13 @@ pa_shard_destroy(tsdn_t *tsdn, pa_shard_t *shard) {
 }
 
 edata_t *
-pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
-    bool slab, szind_t szind, bool zero, bool guarded,
+pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t usize,
+    size_t alignment, bool slab, bool zero, bool guarded,
     bool *deferred_work_generated) {
 	witness_assert_depth_to_rank(
 	    tsdn_witness_tsdp_get(tsdn), WITNESS_RANK_CORE, 0);
 	assert(!guarded || alignment <= PAGE);
+	assert(usize > 0 && usize <= size);
 
 	edata_t *edata = NULL;
 	if (!guarded && pa_shard_uses_hpa(shard)) {
@@ -155,6 +156,7 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 		}
 		assert(edata_arena_ind_get(edata) == shard->ind);
 		pa_nactive_add(shard, size >> LG_PAGE);
+		szind_t szind = sz_size2index(usize);
 		emap_remap(tsdn, shard->emap, edata, szind, slab);
 		edata_szind_set(edata, szind);
 		edata_slab_set(edata, slab);

@@ -92,7 +92,7 @@ do_alloc_free_purge(void *arg) {
 	for (int i = 0; i < 10 * 1000; i++) {
 		bool     deferred_work_generated = false;
 		edata_t *edata = pa_alloc(TSDN_NULL, &test_data->shard, PAGE,
-		    PAGE, /* slab */ false, /* szind */ 0, /* zero */ false,
+		    /* usize */ PAGE, PAGE, /* slab */ false, /* zero */ false,
 		    /* guarded */ false, &deferred_work_generated);
 		assert_ptr_not_null(edata, "");
 		pa_dalloc(TSDN_NULL, &test_data->shard, edata,
@@ -132,8 +132,8 @@ TEST_BEGIN(test_failed_coalesce_releases_neighbor) {
 	size_t   unit = SC_LARGE_MINCLASS;
 	size_t   alloc_size = 4 * unit;
 	edata_t *edata = pa_alloc(TSDN_NULL, &test_data->shard, alloc_size,
-	    PAGE,
-	    /* slab */ false, sz_size2index(alloc_size), /* zero */ false,
+	    /* usize */ alloc_size, PAGE,
+	    /* slab */ false, /* zero */ false,
 	    /* guarded */ false, &deferred_work_generated);
 	expect_ptr_not_null(edata, "Unexpected pa_alloc() failure");
 
