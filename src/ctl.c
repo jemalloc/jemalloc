@@ -3996,6 +3996,12 @@ stats_mutexes_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen,
 		MUTEX_PROF_RESET(arena->pa_shard.pac.decay_muzzy.mtx);
 		MUTEX_PROF_RESET(arena->cache_bin_array_descriptor_ql_mtx);
 		MUTEX_PROF_RESET(arena->base->mtx);
+		sec_mutex_stats_reset(tsdn, &arena->pa_shard.pac.sec);
+		if (arena->pa_shard.ever_used_hpa) {
+			MUTEX_PROF_RESET(arena->pa_shard.hpa.mtx);
+			MUTEX_PROF_RESET(arena->pa_shard.hpa.grow_mtx);
+			sec_mutex_stats_reset(tsdn, &arena->pa_shard.hpa.sec);
+		}
 
 		for (szind_t j = 0; j < SC_NBINS; j++) {
 			for (unsigned k = 0; k < bin_infos[j].n_shards; k++) {
