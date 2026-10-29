@@ -2140,6 +2140,7 @@ stats_general_opts(emitter_t *emitter) {
 	OPT_WRITE_SIZE_T("hpa_sec_nshards")
 	OPT_WRITE_SIZE_T("hpa_sec_max_alloc")
 	OPT_WRITE_SIZE_T("hpa_sec_max_bytes")
+	OPT_WRITE_BOOL("hpa_shard_sets")
 	OPT_WRITE_SIZE_T("experimental_pac_sec_nshards")
 	OPT_WRITE_SIZE_T("experimental_pac_sec_max_alloc")
 	OPT_WRITE_SIZE_T("experimental_pac_sec_max_bytes")

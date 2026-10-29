@@ -75,6 +75,14 @@ struct hpa_shard_sets_config_s {
 	unsigned nshards[HPA_SHARD_SET_NBANDS];
 };
 
+/*
+ * Options for size-routed HPA shard sets.  opt_hpa_shard_sets selects the
+ * layout configured by opt_hpa_shard_sets_nshards, a shard count per band;
+ * otherwise every arena has its own hpa shard.
+ */
+extern bool                    opt_hpa_shard_sets;
+extern hpa_shard_sets_config_t opt_hpa_shard_sets_nshards;
+
 struct hpa_shard_sets_s {
 	bool initialized;
 	unsigned nsets;
