@@ -67,13 +67,19 @@ eset_stats_sub(eset_t *eset, pszind_t pind, size_t sz) {
 	    &eset->bin_stats[pind].nbytes, cur - sz, ATOMIC_RELAXED);
 }
 
+static inline pszind_t
+eset_size_pind(size_t size) {
+	assert(size > 0 && (size & PAGE_MASK) == 0);
+	/* PAGE padding advances the floored size to the next bucket. */
+	return sz_psz2ind(size - sz_large_pad + 1) - (sz_large_pad == 0);
+}
+
 void
 eset_insert(eset_t *eset, edata_t *edata) {
 	assert(edata_state_get(edata) == eset->state);
 
 	size_t   size = edata_size_get(edata);
-	size_t   psz = sz_psz_quantize_floor(size);
-	pszind_t pind = sz_psz2ind(psz);
+	pszind_t pind = eset_size_pind(size);
 
 	edata_cmp_summary_t edata_cmp_summary = edata_cmp_summary_get(edata);
 	if (edata_heap_empty(&eset->bins[pind].heap)) {
@@ -118,8 +124,7 @@ eset_remove(eset_t *eset, edata_t *edata) {
 	    || edata_state_in_transition(edata_state_get(edata)));
 
 	size_t   size = edata_size_get(edata);
-	size_t   psz = sz_psz_quantize_floor(size);
-	pszind_t pind = sz_psz2ind(psz);
+	pszind_t pind = eset_size_pind(size);
 	if (config_stats) {
 		eset_stats_sub(eset, pind, size);
 	}
