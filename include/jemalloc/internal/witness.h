@@ -46,6 +46,11 @@ enum witness_rank_e {
 	WITNESS_RANK_DECAY = WITNESS_RANK_CORE,
 	WITNESS_RANK_CACHE_BIN_ARRAY_DESCRIPTOR_QL,
 
+	/*
+	 * Taken before any lock of the shards in its set: prefork holds it
+	 * while locking those shards, so no shard is created mid-fork.
+	 */
+	WITNESS_RANK_HPA_SHARD_SET,
 	WITNESS_RANK_SEC_BIN,
 
 	WITNESS_RANK_EXTENT_GROW,

@@ -121,6 +121,14 @@ struct hpdata_s {
 	bool h_purged_when_empty_and_huge;
 
 	/*
+	 * Which HPA shard this pageslab belongs to, or HPDATA_SHARD_NONE while
+	 * it is held by the hpa central and owned by nobody.  Ownership is
+	 * set before insertion into a shard's psset and remains immutable
+	 * because we do not return a pageslab back to hpa central.
+	 */
+	unsigned h_shard;
+
+	/*
 	 * Linkage for the psset to track candidates for purging and hugifying.
 	 */
 	ql_elm(hpdata_t) ql_link_purge;
@@ -135,6 +143,23 @@ TYPED_LIST(hpdata_purge_list, hpdata_t, ql_link_purge)
 TYPED_LIST(hpdata_hugify_list, hpdata_t, ql_link_hugify)
 
 ph_proto(, hpdata_age_heap, hpdata_t)
+
+/* h_shard while the pageslab has no owner.  No real shard may use this id. */
+#define HPDATA_SHARD_NONE UINT_MAX
+
+static inline unsigned
+hpdata_shard_get(const hpdata_t *hpdata) {
+	assert(hpdata->h_shard != HPDATA_SHARD_NONE);
+	return hpdata->h_shard;
+}
+
+static inline void
+hpdata_shard_set(hpdata_t *hpdata, unsigned shard) {
+	assert(shard != HPDATA_SHARD_NONE);
+	/* Pageslab ownership is immutable once set. */
+	assert(hpdata->h_shard == HPDATA_SHARD_NONE);
+	hpdata->h_shard = shard;
+}
 
 static inline void *
 hpdata_addr_get(const hpdata_t *hpdata) {

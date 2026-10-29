@@ -134,6 +134,7 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 	$(srcroot)src/hpa.c \
 	$(srcroot)src/hpa_central.c \
 	$(srcroot)src/hpa_hooks.c \
+	$(srcroot)src/hpa_shard_set.c \
 	$(srcroot)src/hpa_utils.c \
 	$(srcroot)src/hpdata.c \
 	$(srcroot)src/inspect.c \
@@ -249,6 +250,8 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/hash.c \
 	$(srcroot)test/unit/hpa.c \
 	$(srcroot)test/unit/hpa_central.c \
+	$(srcroot)test/unit/hpa_shard_set.c \
+	$(srcroot)test/unit/hpa_shard_set_conf.c \
 	$(srcroot)test/unit/hpa_sec_integration.c \
 	$(srcroot)test/unit/hpa_thp_always.c \
 	$(srcroot)test/unit/hpa_vectorized_madvise.c \

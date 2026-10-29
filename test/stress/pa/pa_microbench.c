@@ -451,7 +451,6 @@ simulate_trace(
 
 			/* Get tsdn and calculate parameters for PA */
 			tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
-			szind_t szind = sz_size2index(size);
 			bool    slab =
 			    event
 			        ->is_frequent; /* Use frequent_reuse for slab */
@@ -460,8 +459,9 @@ simulate_trace(
 			/* Allocate using PA allocator */
 			edata_t *edata = pa_alloc(tsdn,
 			    &g_shard_infra[shard_ind].pa_shard, size,
-			    PAGE /* alignment */, slab, szind, false /* zero */,
-			    false /* guarded */, &deferred_work_generated);
+			    size /* usize */, PAGE /* alignment */, slab,
+			    false /* zero */, false /* guarded */,
+			    &deferred_work_generated);
 
 			if (edata != NULL) {
 				/* Store allocation record */

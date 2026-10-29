@@ -159,9 +159,12 @@ void pa_shard_destroy(tsdn_t *tsdn, pa_shard_t *shard);
  */
 void pa_shard_flush(tsdn_t *tsdn, pa_shard_t *shard, bool all);
 
-/* Gets an edata for the given allocation. */
-edata_t *pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size,
-    size_t alignment, bool slab, szind_t szind, bool zero, bool guarded,
+/*
+ * Gets an edata for the given allocation.  size is the extent size; usize is
+ * the usable size of the allocation it backs.
+ */
+edata_t *pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t usize,
+    size_t alignment, bool slab, bool zero, bool guarded,
     bool *deferred_work_generated);
 /* Returns true on error, in which case nothing changed. */
 bool pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,

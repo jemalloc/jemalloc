@@ -673,7 +673,9 @@ hpa_try_alloc_one_offset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 	void *addr = hpdata_reserve_alloc_offset(ps, size, alloc_offset);
 	JE_USDT(jemalloc, hpa_alloc, 5, shard->ind, addr, size,
 	    hpdata_nactive_get(ps), hpdata_age_get(ps));
-	edata_init(edata, shard->ind, addr, size, /* slab */ false, SC_NSIZES,
+	/* pa_alloc() assigns an arena later when it reaches arena bins. */
+	edata_init(edata, EDATA_ARENA_IND_UNASSOCIATED, addr, size,
+	    /* slab */ false, SC_NSIZES,
 	    /* sn */ hpdata_age_get(ps), extent_state_active,
 	    /* zeroed */ false, /* committed */ true, EXTENT_PAI_HPA,
 	    EXTENT_NOT_HEAD);
@@ -880,6 +882,8 @@ hpa_alloc_batch_psset(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 	 * simplicity is worth it.
 	 */
 	malloc_mutex_lock(tsdn, &shard->mtx);
+	/* Publish the owner before the pageslab is reachable in the psset. */
+	hpdata_shard_set(ps, shard->ind);
 	psset_insert(&shard->psset, ps);
 	assert(nsuccess < min_nallocs);
 	assert(min_nallocs <= max_nallocs);
@@ -908,7 +912,11 @@ hpa_assert_results(
 			emap_assert_mapped(tsdn, shard->emap, edata);
 			assert(edata_pai_get(edata) == EXTENT_PAI_HPA);
 			assert(edata_state_get(edata) == extent_state_active);
-			assert(edata_arena_ind_get(edata) == shard->ind);
+			assert(hpdata_shard_get(edata_ps_get(edata))
+			    == shard->ind);
+			/* pa_alloc() assigns the requesting arena later. */
+			assert(edata_arena_ind_get_maybe_unassociated(edata)
+			    == EDATA_ARENA_IND_UNASSOCIATED);
 			assert(
 			    edata_szind_get_maybe_invalid(edata) == SC_NSIZES);
 			assert(!edata_slab_get(edata));
@@ -991,7 +999,8 @@ hpa_dalloc_prepare_unlocked(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata) {
 
 	assert(edata_pai_get(edata) == EXTENT_PAI_HPA);
 	assert(edata_state_get(edata) == extent_state_active);
-	assert(edata_arena_ind_get(edata) == shard->ind);
+	/* The pageslab owner, rather than the arena, identifies this shard. */
+	assert(hpdata_shard_get(edata_ps_get(edata)) == shard->ind);
 	assert(edata_szind_get_maybe_invalid(edata) == SC_NSIZES);
 	assert(edata_committed_get(edata));
 	assert(edata_base_get(edata) != NULL);
