@@ -24,6 +24,9 @@ bool conf_handle_bool(const char *v, size_t vlen, bool *result);
 bool conf_handle_signed(const char *v, size_t vlen, intmax_t min, intmax_t max,
     bool check_min, bool check_max, bool clip, intmax_t *result);
 bool conf_handle_char_p(const char *v, size_t vlen, char *dest, size_t dest_sz);
+struct hpa_shard_sets_config_s;
+bool conf_parse_hpa_shard_sets_configs(
+    const char *v, size_t vlen, struct hpa_shard_sets_config_s *config);
 #endif
 
 #endif /* JEMALLOC_INTERNAL_CONF_H */

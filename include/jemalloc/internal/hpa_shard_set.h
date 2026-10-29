@@ -92,6 +92,14 @@ struct hpa_shard_sets_config_s {
 	hpa_shard_set_config_t sets[HPA_MAX_SHARD_SETS];
 };
 
+/*
+ * Options for size-routed HPA shard sets.  opt_hpa_shard_sets selects the
+ * configured layout, defined by opt_hpa_shard_sets_configs; otherwise every
+ * arena has its own hpa shard.
+ */
+extern bool                    opt_hpa_shard_sets;
+extern hpa_shard_sets_config_t opt_hpa_shard_sets_configs;
+
 struct hpa_shard_sets_s {
 	bool initialized;
 	unsigned nsets;
