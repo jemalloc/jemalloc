@@ -123,6 +123,42 @@ edata_expect(edata_t *edata, size_t page_offset, size_t page_cnt) {
 	expect_false(edata_is_head_get(edata), "");
 }
 
+TEST_BEGIN(test_allocation_heap_bound) {
+	test_skip_if(hpa_hugepage_size_exceeds_limit());
+
+	bool saved_disabled = opt_disable_large_size_classes;
+	size_t saved_pad = sz_large_pad;
+	opt_disable_large_size_classes = true;
+
+	/* Exercise ceil indices at the upper bound, with and without padding. */
+	for (size_t pad = 0; pad <= PAGE; pad += PAGE) {
+		sz_large_pad = pad;
+		psset_t psset;
+		psset_init(&psset);
+		hpdata_t slab, empty;
+		hpdata_init(&slab, PAGESLAB_ADDR, PAGESLAB_AGE, false);
+		void *addr = hpdata_reserve_alloc(&slab, HUGEPAGE);
+		hpdata_unreserve(&slab, addr, HUGEPAGE - PAGE);
+		hpdata_init(&empty, (void *)((uintptr_t)PAGESLAB_ADDR + HUGEPAGE),
+		    PAGESLAB_AGE + 1, false);
+		psset_insert(&psset, &slab);
+		psset_insert(&psset, &empty);
+
+		expect_ptr_eq(psset_pick_alloc(&psset, HUGEPAGE - PAGE), &slab,
+		    "Largest free range should remain searchable");
+		expect_ptr_eq(psset_pick_alloc(&psset, HUGEPAGE), &empty,
+		    "A full hugepage request should use the empty slab");
+		psset_remove(&psset, &empty);
+		expect_ptr_null(psset_pick_alloc(&psset, HUGEPAGE),
+		    "A full hugepage request cannot fit in a nonempty slab");
+		psset_remove(&psset, &slab);
+	}
+
+	sz_large_pad = saved_pad;
+	opt_disable_large_size_classes = saved_disabled;
+}
+TEST_END
+
 TEST_BEGIN(test_empty) {
 	test_skip_if(hpa_hugepage_size_exceeds_limit());
 	bool     err;
@@ -953,7 +989,7 @@ TEST_END
 
 int
 main(void) {
-	return test_no_reentrancy(test_empty, test_fill, test_reuse, test_evict,
+	return test_no_reentrancy(test_allocation_heap_bound, test_empty, test_fill, test_reuse, test_evict,
 	    test_multi_pageslab, test_stats_merged, test_stats_huge,
 	    test_stats_fullness, test_oldest_fit, test_insert_remove,
 	    test_purge_prefers_nonhuge, test_purge_prefers_empty,

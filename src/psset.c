@@ -6,10 +6,10 @@
 
 void
 psset_init(psset_t *psset) {
-	for (unsigned i = 0; i < PSSET_NPSIZES; i++) {
+	for (unsigned i = 0; i < PSSET_NALLOC_BINS; i++) {
 		hpdata_age_heap_new(&psset->pageslabs[i]);
 	}
-	fb_init(psset->pageslab_bitmap, PSSET_NPSIZES);
+	fb_init(psset->pageslab_bitmap, PSSET_NALLOC_BINS);
 	memset(&psset->stats, 0, sizeof(psset->stats));
 	hpdata_empty_list_init(&psset->empty);
 	for (int i = 0; i < PSSET_NPURGE_LISTS; i++) {
@@ -129,7 +129,7 @@ psset_hpdata_heap_index(const hpdata_t *ps) {
 	size_t   longest_free_range = hpdata_longest_free_range_get(ps);
 	pszind_t pind = sz_psz2ind(
 	    sz_psz_quantize_floor(longest_free_range << LG_PAGE));
-	assert(pind < PSSET_NPSIZES);
+	assert(pind < PSSET_NALLOC_BINS);
 	return pind;
 }
 
@@ -138,7 +138,7 @@ psset_hpdata_heap_remove(psset_t *psset, hpdata_t *ps) {
 	pszind_t pind = psset_hpdata_heap_index(ps);
 	hpdata_age_heap_remove(&psset->pageslabs[pind], ps);
 	if (hpdata_age_heap_empty(&psset->pageslabs[pind])) {
-		fb_unset(psset->pageslab_bitmap, PSSET_NPSIZES, (size_t)pind);
+		fb_unset(psset->pageslab_bitmap, PSSET_NALLOC_BINS, (size_t)pind);
 	}
 }
 
@@ -146,7 +146,7 @@ static void
 psset_hpdata_heap_insert(psset_t *psset, hpdata_t *ps) {
 	pszind_t pind = psset_hpdata_heap_index(ps);
 	if (hpdata_age_heap_empty(&psset->pageslabs[pind])) {
-		fb_set(psset->pageslab_bitmap, PSSET_NPSIZES, (size_t)pind);
+		fb_set(psset->pageslab_bitmap, PSSET_NALLOC_BINS, (size_t)pind);
 	}
 	hpdata_age_heap_insert(&psset->pageslabs[pind], ps);
 }
@@ -337,6 +337,9 @@ psset_update_end(psset_t *psset, hpdata_t *ps) {
 
 static hpdata_t *
 psset_enumerate_search(psset_t *psset, pszind_t pind, size_t size) {
+	if (pind >= PSSET_NALLOC_BINS) {
+		return NULL;
+	}
 	if (hpdata_age_heap_empty(&psset->pageslabs[pind])) {
 		return NULL;
 	}
@@ -373,9 +376,13 @@ psset_pick_alloc(psset_t *psset, size_t size) {
 		}
 	}
 
+	if (min_pind >= PSSET_NALLOC_BINS) {
+		return hpdata_empty_list_first(&psset->empty);
+	}
+
 	pszind_t pind = (pszind_t)fb_ffs(
-	    psset->pageslab_bitmap, PSSET_NPSIZES, (size_t)min_pind);
-	if (pind == PSSET_NPSIZES) {
+	    psset->pageslab_bitmap, PSSET_NALLOC_BINS, (size_t)min_pind);
+	if (pind == PSSET_NALLOC_BINS) {
 		return hpdata_empty_list_first(&psset->empty);
 	}
 	ps = hpdata_age_heap_first(&psset->pageslabs[pind]);
