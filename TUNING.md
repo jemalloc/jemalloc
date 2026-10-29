@@ -63,7 +63,7 @@ Runtime options can be set via
     the potential to improve locality, e.g. when thread to CPU affinity is
     present.
     
-    Suggested: try `percpu_arena:percpu` or `percpu_arena:phycpu` if
+    Suggested: try `percpu_arena:percpu` if
     thread migration between processors is expected to be infrequent.
 
 Examples:
