@@ -130,6 +130,23 @@ void psset_stats_accum(psset_stats_t *dst, psset_stats_t *src);
 void psset_update_begin(psset_t *psset, hpdata_t *ps);
 void psset_update_end(psset_t *psset, hpdata_t *ps);
 
+typedef struct {
+	uint64_t age;
+	unsigned heap_index;
+	bool retained;
+} psset_alloc_update_t;
+
+/*
+ * Allocation/free updates may retain their allocation heap link.  The caller
+ * must hold the shard lock throughout and must not select another allocation
+ * candidate between begin and end.  General updates above remove the pageslab
+ * while its metadata is being changed.
+ */
+void psset_alloc_update_begin(
+    psset_t *psset, hpdata_t *ps, psset_alloc_update_t *update);
+void psset_alloc_update_end(
+    psset_t *psset, hpdata_t *ps, psset_alloc_update_t *update);
+
 /* Analogous to the eset_fit; pick a hpdata to serve the request. */
 hpdata_t *psset_pick_alloc(psset_t *psset, size_t size);
 /* Pick the pageslab to purge, or NULL if none is available for purging. */
