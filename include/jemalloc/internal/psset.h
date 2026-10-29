@@ -3,6 +3,7 @@
 
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/hpdata.h"
+#include "jemalloc/internal/sc.h"
 
 /*
  * A page-slab set.  What the eset is to PAC, the psset is to HPA.  It maintains
@@ -11,15 +12,25 @@
  * requests.
  */
 
-/*
- * One more than the maximum pszind_t we will serve out of the HPA.
- * Practically, we expect only the first few to be actually used.  This
- * corresponds to a maximum size of of 512MB on systems with 4k pages and
- * SC_NGROUP == 4, which is already an unreasonably large maximum.  Morally, you
- * can think of this as being SC_NPSIZES, but there's no sense in wasting that
- * much space in the arena, making bitmaps that much larger, etc.
- */
+/* Number of page size classes tracked for statistics and purging. */
 #define PSSET_NPSIZES 64
+
+/*
+ * Allocation heaps only need page size classes through HUGEPAGE.  Use the
+ * minimum page size for dynamic builds, and retain the existing upper limit.
+ */
+#define PSSET_LG_HUGEPAGE_PAGES (LG_HUGEPAGE - LG_PAGE_OR_MIN)
+#if PSSET_LG_HUGEPAGE_PAGES < SC_LG_NGROUP
+#define PSSET_HUGEPAGE_NPSIZES (1U << PSSET_LG_HUGEPAGE_PAGES)
+#else
+#define PSSET_HUGEPAGE_NPSIZES \
+    (SC_NGROUP * (PSSET_LG_HUGEPAGE_PAGES - SC_LG_NGROUP + 1))
+#endif
+#if PSSET_HUGEPAGE_NPSIZES < PSSET_NPSIZES
+#define PSSET_NALLOC_BINS PSSET_HUGEPAGE_NPSIZES
+#else
+#define PSSET_NALLOC_BINS PSSET_NPSIZES
+#endif
 
 /*
  * We store non-hugefied and hugified pageslabs metadata separately.
@@ -88,9 +99,9 @@ struct psset_s {
 	 * The pageslabs, quantized by the size class of the largest contiguous
 	 * free run of pages in a pageslab.
 	 */
-	hpdata_age_heap_t pageslabs[PSSET_NPSIZES];
+	hpdata_age_heap_t pageslabs[PSSET_NALLOC_BINS];
 	/* Bitmap for which set bits correspond to non-empty heaps. */
-	fb_group_t    pageslab_bitmap[FB_NGROUPS(PSSET_NPSIZES)];
+	fb_group_t    pageslab_bitmap[FB_NGROUPS(PSSET_NALLOC_BINS)];
 	psset_stats_t stats;
 	/*
 	 * Slabs with no active allocations, but which are allowed to serve new
