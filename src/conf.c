@@ -1,5 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 
+#include "jemalloc/internal/hpa_shard_set.h"
+
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/atomic.h"
@@ -416,6 +418,68 @@ validate_hpa_settings(void) {
 		    "time.");
 	}
 #endif
+}
+
+/*
+ * Parses the optional ";picker" that may follow a hpa_shard_sets_configs
+ * segment, up to the next '|' or the end of the value, and sets *pick to it,
+ * or to the arena picker if absent.  Advances past the picker and the '|'.
+ * Returns true on error.
+ */
+static bool
+conf_parse_hpa_shard_set_pick(
+    const char **cur, size_t *len_left, hpa_shard_set_pick_t *pick) {
+	*pick = hpa_shard_set_pick_arena;
+	if (*len_left == 0 || **cur != ';') {
+		return false;
+	}
+	const char *name = *cur + 1;
+	const char *bar = memchr(name, '|', *len_left - 1);
+	size_t name_len = (bar != NULL) ? (size_t)(bar - name) : *len_left - 1;
+	if (hpa_shard_set_pick_from_name(name, name_len, pick)) {
+		return true;
+	}
+	/* Skip ";name" and the '|' ending the segment, if any. */
+	size_t consumed = 1 + name_len + (bar != NULL ? 1 : 0);
+	*cur += consumed;
+	*len_left -= consumed;
+	return false;
+}
+
+/*
+ * Parses a hpa_shard_sets_configs value into config: the bin_shards grammar
+ * with an optional picker per set (arena if omitted),
+ * size_start-size_end:nshards[;picker]|...  Sets must be contiguous from 1.
+ * The rest of the validation needs the size classes and slab_max_alloc, so it
+ * is done at boot.  A malformed segment rejects the whole value: sets already
+ * parsed from it are cleared and the rest is not parsed, so no layout is
+ * configured.  Returns true if the value is malformed.
+ */
+JET_EXTERN bool
+conf_parse_hpa_shard_sets_configs(
+    const char *v, size_t vlen, hpa_shard_sets_config_t *config) {
+	const char *seg_cur = v;
+	size_t      vlen_left = vlen;
+	memset(config, 0, sizeof(*config));
+	do {
+		size_t size_start;
+		size_t size_end;
+		size_t nshards;
+		hpa_shard_set_pick_t pick;
+		bool err = multi_setting_parse_next(&seg_cur, &vlen_left,
+		    &size_start, &size_end, &nshards);
+		if (err
+		    || conf_parse_hpa_shard_set_pick(
+		        &seg_cur, &vlen_left, &pick)
+		    || nshards == 0
+		    || nshards > HPA_MAX_SHARDS_PER_SET
+		    || hpa_shard_sets_config_add(config, size_start,
+		        size_end, (unsigned)nshards, pick)) {
+			memset(config, 0, sizeof(*config));
+			return true;
+		}
+	} while (vlen_left > 0);
+	return false;
 }
 
 static void
@@ -904,6 +968,17 @@ malloc_conf_init_helper(sc_data_t *sc_data,
 				if (!match) {
 					CONF_ERROR("Invalid conf value", k,
 					    klen, v, vlen);
+				}
+				CONF_CONTINUE;
+			}
+
+			CONF_HANDLE_BOOL(opt_hpa_shard_sets, "hpa_shard_sets")
+			if (CONF_MATCH("hpa_shard_sets_configs")) {
+				if (conf_parse_hpa_shard_sets_configs(v, vlen,
+				        &opt_hpa_shard_sets_configs)) {
+					CONF_ERROR("Invalid settings for "
+					    "hpa_shard_sets_configs",
+					    k, klen, v, vlen);
 				}
 				CONF_CONTINUE;
 			}

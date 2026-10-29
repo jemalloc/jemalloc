@@ -1,5 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 
+#include "jemalloc/internal/hpa_shard_set.h"
+
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/arena_inlines.h"
 #include "jemalloc/internal/arenas_management.h"
@@ -149,6 +151,7 @@ CTL_PROTO(opt_hpa_dirty_mult)
 CTL_PROTO(opt_hpa_sec_nshards)
 CTL_PROTO(opt_hpa_sec_max_alloc)
 CTL_PROTO(opt_hpa_sec_max_bytes)
+CTL_PROTO(opt_hpa_shard_sets)
 CTL_PROTO(opt_experimental_pac_sec_nshards)
 CTL_PROTO(opt_experimental_pac_sec_max_alloc)
 CTL_PROTO(opt_experimental_pac_sec_max_bytes)
@@ -522,6 +525,7 @@ static const ctl_named_node_t opt_node[] = {{NAME("abort"), CTL(opt_abort)},
     {NAME("hpa_sec_nshards"), CTL(opt_hpa_sec_nshards)},
     {NAME("hpa_sec_max_alloc"), CTL(opt_hpa_sec_max_alloc)},
     {NAME("hpa_sec_max_bytes"), CTL(opt_hpa_sec_max_bytes)},
+    {NAME("hpa_shard_sets"), CTL(opt_hpa_shard_sets)},
     {NAME("experimental_pac_sec_nshards"),
         CTL(opt_experimental_pac_sec_nshards)},
     {NAME("experimental_pac_sec_max_alloc"),
@@ -2282,6 +2286,7 @@ CTL_RO_NL_GEN(opt_hpa_slab_max_alloc, opt_hpa_opts.slab_max_alloc, size_t)
 CTL_RO_NL_GEN(opt_hpa_sec_nshards, opt_hpa_sec_opts.nshards, size_t)
 CTL_RO_NL_GEN(opt_hpa_sec_max_alloc, opt_hpa_sec_opts.max_alloc, size_t)
 CTL_RO_NL_GEN(opt_hpa_sec_max_bytes, opt_hpa_sec_opts.max_bytes, size_t)
+CTL_RO_NL_GEN(opt_hpa_shard_sets, opt_hpa_shard_sets, bool)
 CTL_RO_NL_GEN(opt_experimental_pac_sec_nshards,
     opt_pac_sec_opts.nshards, size_t)
 CTL_RO_NL_GEN(opt_experimental_pac_sec_max_alloc,

@@ -543,6 +543,7 @@ TEST_BEGIN(test_mallctl_opt) {
 	TEST_MALLCTL_OPT(size_t, experimental_pac_sec_max_bytes, always);
 	TEST_MALLCTL_OPT(size_t, hpa_purge_threshold, always);
 	TEST_MALLCTL_OPT(const char *, hpa_hugify_style, always);
+	TEST_MALLCTL_OPT(bool, hpa_shard_sets, always);
 	TEST_MALLCTL_OPT(unsigned, narenas, always);
 	TEST_MALLCTL_OPT(const char *, percpu_arena, always);
 	TEST_MALLCTL_OPT(size_t, oversize_threshold, always);
