@@ -906,6 +906,9 @@ case "${host}" in
 	  LD_PRELOAD_VAR="LDR_PRELOAD"
 	fi
 	abi="xcoff"
+	dnl AIX nm only reads 32-bit objects by default.  GNU nm also accepts
+	dnl -X32_64 (and nothing else) for compatibility.
+	DUMP_SYMS="${NM} -X32_64 -P -t d"
 	;;
   *-*-mingw* | *-*-cygwin*)
 	abi="pecoff"
