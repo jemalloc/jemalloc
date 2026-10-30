@@ -731,7 +731,8 @@ hpa_try_alloc_from_one_ps(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 	const size_t          nallocs = hpdata_find_alloc_offsets(
             ps, size, alloc_offsets, max_nallocs);
 
-	psset_update_begin(&shard->psset, ps);
+	psset_alloc_update_t update;
+	psset_alloc_update_begin(&shard->psset, ps, &update);
 
 	if (hpdata_empty(ps)) {
 		/*
@@ -757,7 +758,7 @@ hpa_try_alloc_from_one_ps(tsdn_t *tsdn, hpa_shard_t *shard, size_t size,
 
 	hpdata_post_reserve_alloc_offsets(ps, size, alloc_offsets, nsuccess);
 	hpa_update_purge_hugify_eligibility(tsdn, shard, ps);
-	psset_update_end(&shard->psset, ps);
+	psset_alloc_update_end(&shard->psset, ps, &update);
 
 	assert(nsuccess <= SEC_MAX_NALLOCS);
 	shard->stats.hpa_alloc_pages_per_ps[nsuccess] += nsuccess
@@ -1029,12 +1030,13 @@ hpa_dalloc_locked(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata) {
 	size_t unreserve_size = edata_size_get(edata);
 	edata_cache_fast_put(tsdn, &shard->ecf, edata);
 
-	psset_update_begin(&shard->psset, ps);
+	psset_alloc_update_t update;
+	psset_alloc_update_begin(&shard->psset, ps, &update);
 	hpdata_unreserve(ps, unreserve_addr, unreserve_size);
 	JE_USDT(jemalloc, hpa_dalloc, 5, shard->ind, unreserve_addr,
 	    unreserve_size, hpdata_nactive_get(ps), hpdata_age_get(ps));
 	hpa_update_purge_hugify_eligibility(tsdn, shard, ps);
-	psset_update_end(&shard->psset, ps);
+	psset_alloc_update_end(&shard->psset, ps, &update);
 }
 
 static void

@@ -5,6 +5,36 @@
 #define HPDATA_ADDR ((void *)(10 * HUGEPAGE))
 #define HPDATA_AGE 123
 
+TEST_BEGIN(test_alloc_lfr_one_page) {
+	test_skip_if(HUGEPAGE_PAGES < 4);
+
+	/* Commit none, part, or all of a batch into isolated one-page holes. */
+	for (size_t committed = 0; committed <= 2; committed++) {
+		hpdata_t hpdata;
+		hpdata_init(&hpdata, HPDATA_ADDR, HPDATA_AGE, false);
+		void *addr = hpdata_reserve_alloc(&hpdata, HUGEPAGE);
+		hpdata_unreserve(&hpdata, addr, PAGE);
+		hpdata_unreserve(&hpdata, (char *)addr + 2 * PAGE, PAGE);
+		expect_zu_eq(hpdata_longest_free_range_get(&hpdata), 1, "");
+
+		hpdata_alloc_offset_t offsets[2];
+		expect_zu_eq(hpdata_find_alloc_offsets(&hpdata, PAGE, offsets, 2),
+		    2, "Both holes should be available");
+		for (size_t i = 0; i < committed; i++) {
+			hpdata_reserve_alloc_offset(&hpdata, PAGE, &offsets[i]);
+		}
+		hpdata_post_reserve_alloc_offsets(&hpdata, PAGE, offsets, committed);
+
+		expect_zu_eq(hpdata_longest_free_range_get(&hpdata),
+		    committed == 2 ? 0 : 1, "LFR depends on whether any hole remains");
+		expect_zu_eq(hpdata_nactive_get(&hpdata),
+		    HUGEPAGE_PAGES - 2 + committed, "Committed pages must be counted");
+		expect_true(hpdata_consistent(&hpdata),
+		    "Cached LFR must agree with the bitmap");
+	}
+}
+TEST_END
+
 TEST_BEGIN(test_reserve_alloc) {
 	hpdata_t hpdata;
 	hpdata_init(&hpdata, HPDATA_ADDR, HPDATA_AGE, /* is_huge */ false);
@@ -286,7 +316,8 @@ TEST_END
 
 int
 main(void) {
-	return test_no_reentrancy(test_reserve_alloc, test_purge_simple,
+	return test_no_reentrancy(test_alloc_lfr_one_page, test_reserve_alloc,
+	    test_purge_simple,
 	    test_purge_intervening_dalloc, test_purge_over_retained,
 	    test_hugify, test_layout);
 }

@@ -123,6 +123,142 @@ edata_expect(edata_t *edata, size_t page_offset, size_t page_cnt) {
 	expect_false(edata_is_head_get(edata), "");
 }
 
+static void
+test_psset_init_heap_pair(psset_t *psset, hpdata_t slabs[2]) {
+	psset_init(psset);
+	for (size_t i = 0; i < 2; i++) {
+		hpdata_init(&slabs[i],
+		    (void *)((uintptr_t)PAGESLAB_ADDR + i * HUGEPAGE),
+		    PAGESLAB_AGE + i, false);
+		void *addr = hpdata_reserve_alloc(&slabs[i], HUGEPAGE);
+		hpdata_unreserve(&slabs[i], addr, 70 * PAGE);
+		psset_insert(psset, &slabs[i]);
+	}
+}
+
+TEST_BEGIN(test_alloc_update_retained) {
+	test_skip_if(hpa_hugepage_size_exceeds_limit() || HUGEPAGE_PAGES <= 70);
+	psset_t psset;
+	hpdata_t slabs[2];
+	test_psset_init_heap_pair(&psset, slabs);
+	hpdata_t *ps = &slabs[0];
+	psset_alloc_update_t update;
+
+	psset_alloc_update_begin(&psset, ps, &update);
+	expect_true(hpdata_in_psset_alloc_container_get(ps),
+	    "A nonempty slab should remain in its heap during the update");
+	void *addr = hpdata_reserve_alloc(ps, PAGE);
+	psset_alloc_update_end(&psset, ps, &update);
+	expect_true(update.retained, "Same bucket and age should retain the link");
+	expect_zu_eq(hpdata_longest_free_range_get(ps), 69, "LFR changed");
+	expect_ptr_eq(psset_pick_alloc(&psset, PAGE), ps,
+	    "Oldest slab should still be selected");
+
+	psset_alloc_update_begin(&psset, ps, &update);
+	hpdata_unreserve(ps, addr, PAGE);
+	psset_alloc_update_end(&psset, ps, &update);
+	expect_true(update.retained, "Free into the same bucket should retain");
+
+	psset_alloc_update_begin(&psset, ps, &update);
+	hpdata_age_set(ps, PAGESLAB_AGE + 2);
+	psset_alloc_update_end(&psset, ps, &update);
+	expect_false(update.retained, "An age change must restore heap ordering");
+	expect_ptr_eq(psset_pick_alloc(&psset, PAGE), &slabs[1],
+	    "The other slab is now older");
+
+	psset_alloc_update_begin(&psset, ps, &update);
+	hpdata_alloc_allowed_set(ps, false);
+	psset_alloc_update_end(&psset, ps, &update);
+	expect_false(hpdata_in_psset_alloc_container_get(ps),
+	    "An ineligible slab must leave its heap");
+	psset_update_begin(&psset, ps);
+	hpdata_alloc_allowed_set(ps, true);
+	psset_update_end(&psset, ps);
+
+	psset_alloc_update_begin(&psset, ps, &update);
+	hpdata_reserve_alloc(ps, 70 * PAGE);
+	psset_alloc_update_end(&psset, ps, &update);
+	expect_true(hpdata_full(ps), "Slab should now be full");
+	expect_ptr_eq(psset_pick_alloc(&psset, PAGE), &slabs[1],
+	    "A full slab must leave its old heap");
+
+	psset_alloc_update_begin(&psset, ps, &update);
+	hpdata_unreserve(ps, hpdata_addr_get(ps), HUGEPAGE);
+	psset_alloc_update_end(&psset, ps, &update);
+	expect_ptr_eq(psset_pick_alloc(&psset, HUGEPAGE), ps,
+	    "An emptied slab must enter the empty list");
+
+	/* General updates must still make the updating slab unavailable. */
+	psset_update_begin(&psset, &slabs[1]);
+	expect_ptr_eq(psset_pick_alloc(&psset, PAGE), ps,
+	    "General begin must remove the other allocation candidate");
+	psset_update_end(&psset, &slabs[1]);
+	psset_remove(&psset, &slabs[0]);
+	psset_remove(&psset, &slabs[1]);
+}
+TEST_END
+
+TEST_BEGIN(test_alloc_update_bucket_change) {
+	test_skip_if(hpa_hugepage_size_exceeds_limit() || HUGEPAGE_PAGES <= 70);
+	psset_t psset;
+	hpdata_t slabs[2];
+	test_psset_init_heap_pair(&psset, slabs);
+	psset_alloc_update_t update;
+
+	psset_alloc_update_begin(&psset, &slabs[0], &update);
+	void *addr = hpdata_reserve_alloc(&slabs[0], 10 * PAGE);
+	psset_alloc_update_end(&psset, &slabs[0], &update);
+	expect_false(update.retained, "A changed bucket must move the slab");
+	expect_ptr_eq(psset_pick_alloc(&psset, 64 * PAGE), &slabs[1],
+	    "The first slab no longer has a large enough hole");
+
+	psset_alloc_update_begin(&psset, &slabs[0], &update);
+	hpdata_unreserve(&slabs[0], addr, 10 * PAGE);
+	psset_alloc_update_end(&psset, &slabs[0], &update);
+	expect_false(update.retained, "Free must move the slab back to its bucket");
+	expect_ptr_eq(psset_pick_alloc(&psset, 64 * PAGE), &slabs[0],
+	    "The oldest slab should again serve this request");
+	psset_remove(&psset, &slabs[0]);
+	psset_remove(&psset, &slabs[1]);
+}
+TEST_END
+
+TEST_BEGIN(test_allocation_heap_bound) {
+	test_skip_if(hpa_hugepage_size_exceeds_limit());
+
+	bool saved_disabled = opt_disable_large_size_classes;
+	size_t saved_pad = sz_large_pad;
+	opt_disable_large_size_classes = true;
+
+	/* Exercise ceil indices at the upper bound, with and without padding. */
+	for (size_t pad = 0; pad <= PAGE; pad += PAGE) {
+		sz_large_pad = pad;
+		psset_t psset;
+		psset_init(&psset);
+		hpdata_t slab, empty;
+		hpdata_init(&slab, PAGESLAB_ADDR, PAGESLAB_AGE, false);
+		void *addr = hpdata_reserve_alloc(&slab, HUGEPAGE);
+		hpdata_unreserve(&slab, addr, HUGEPAGE - PAGE);
+		hpdata_init(&empty, (void *)((uintptr_t)PAGESLAB_ADDR + HUGEPAGE),
+		    PAGESLAB_AGE + 1, false);
+		psset_insert(&psset, &slab);
+		psset_insert(&psset, &empty);
+
+		expect_ptr_eq(psset_pick_alloc(&psset, HUGEPAGE - PAGE), &slab,
+		    "Largest free range should remain searchable");
+		expect_ptr_eq(psset_pick_alloc(&psset, HUGEPAGE), &empty,
+		    "A full hugepage request should use the empty slab");
+		psset_remove(&psset, &empty);
+		expect_ptr_null(psset_pick_alloc(&psset, HUGEPAGE),
+		    "A full hugepage request cannot fit in a nonempty slab");
+		psset_remove(&psset, &slab);
+	}
+
+	sz_large_pad = saved_pad;
+	opt_disable_large_size_classes = saved_disabled;
+}
+TEST_END
+
 TEST_BEGIN(test_empty) {
 	test_skip_if(hpa_hugepage_size_exceeds_limit());
 	bool     err;
@@ -953,7 +1089,8 @@ TEST_END
 
 int
 main(void) {
-	return test_no_reentrancy(test_empty, test_fill, test_reuse, test_evict,
+	return test_no_reentrancy(test_alloc_update_retained,
+	    test_alloc_update_bucket_change, test_allocation_heap_bound, test_empty, test_fill, test_reuse, test_evict,
 	    test_multi_pageslab, test_stats_merged, test_stats_huge,
 	    test_stats_fullness, test_oldest_fit, test_insert_remove,
 	    test_purge_prefers_nonhuge, test_purge_prefers_empty,

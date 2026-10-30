@@ -6,10 +6,10 @@
 
 void
 psset_init(psset_t *psset) {
-	for (unsigned i = 0; i < PSSET_NPSIZES; i++) {
+	for (unsigned i = 0; i < PSSET_NALLOC_BINS; i++) {
 		hpdata_age_heap_new(&psset->pageslabs[i]);
 	}
-	fb_init(psset->pageslab_bitmap, PSSET_NPSIZES);
+	fb_init(psset->pageslab_bitmap, PSSET_NALLOC_BINS);
 	memset(&psset->stats, 0, sizeof(psset->stats));
 	hpdata_empty_list_init(&psset->empty);
 	for (int i = 0; i < PSSET_NPURGE_LISTS; i++) {
@@ -129,24 +129,29 @@ psset_hpdata_heap_index(const hpdata_t *ps) {
 	size_t   longest_free_range = hpdata_longest_free_range_get(ps);
 	pszind_t pind = sz_psz2ind(
 	    sz_psz_quantize_floor(longest_free_range << LG_PAGE));
-	assert(pind < PSSET_NPSIZES);
+	assert(pind < PSSET_NALLOC_BINS);
 	return pind;
 }
 
 static void
-psset_hpdata_heap_remove(psset_t *psset, hpdata_t *ps) {
-	pszind_t pind = psset_hpdata_heap_index(ps);
+psset_hpdata_heap_remove_at(psset_t *psset, hpdata_t *ps, pszind_t pind) {
+	assert(pind < PSSET_NALLOC_BINS);
 	hpdata_age_heap_remove(&psset->pageslabs[pind], ps);
 	if (hpdata_age_heap_empty(&psset->pageslabs[pind])) {
-		fb_unset(psset->pageslab_bitmap, PSSET_NPSIZES, (size_t)pind);
+		fb_unset(psset->pageslab_bitmap, PSSET_NALLOC_BINS, (size_t)pind);
 	}
+}
+
+static void
+psset_hpdata_heap_remove(psset_t *psset, hpdata_t *ps) {
+	psset_hpdata_heap_remove_at(psset, ps, psset_hpdata_heap_index(ps));
 }
 
 static void
 psset_hpdata_heap_insert(psset_t *psset, hpdata_t *ps) {
 	pszind_t pind = psset_hpdata_heap_index(ps);
 	if (hpdata_age_heap_empty(&psset->pageslabs[pind])) {
-		fb_set(psset->pageslab_bitmap, PSSET_NPSIZES, (size_t)pind);
+		fb_set(psset->pageslab_bitmap, PSSET_NALLOC_BINS, (size_t)pind);
 	}
 	hpdata_age_heap_insert(&psset->pageslabs[pind], ps);
 }
@@ -284,13 +289,13 @@ psset_maybe_insert_purge_list(psset_t *psset, hpdata_t *ps) {
 	}
 }
 
-void
-psset_update_begin(psset_t *psset, hpdata_t *ps) {
+static void
+psset_update_begin_impl(psset_t *psset, hpdata_t *ps, bool retained) {
 	hpdata_assert_consistent(ps);
 	assert(hpdata_in_psset_get(ps));
 	hpdata_updating_set(ps, true);
 	psset_stats_remove(psset, ps);
-	if (hpdata_in_psset_alloc_container_get(ps)) {
+	if (hpdata_in_psset_alloc_container_get(ps) && !retained) {
 		/*
 		 * Some metadata updates can break alloc container invariants
 		 * (e.g. the longest free range determines the hpdata_heap_t the
@@ -307,18 +312,18 @@ psset_update_begin(psset_t *psset, hpdata_t *ps) {
 	 */
 }
 
-void
-psset_update_end(psset_t *psset, hpdata_t *ps) {
+static void
+psset_update_end_impl(psset_t *psset, hpdata_t *ps, bool retained) {
 	assert(hpdata_in_psset_get(ps));
 	hpdata_updating_set(ps, false);
 	psset_stats_insert(psset, ps);
 
 	/*
-	 * The update begin should have removed ps from whatever alloc container
-	 * it was in.
+	 * General updates remove ps; allocation/free updates can retain its heap
+	 * link if the bucket and ordering key are unchanged.
 	 */
-	assert(!hpdata_in_psset_alloc_container_get(ps));
-	if (hpdata_alloc_allowed_get(ps)) {
+	assert(hpdata_in_psset_alloc_container_get(ps) == retained);
+	if (hpdata_alloc_allowed_get(ps) && !retained) {
 		psset_alloc_container_insert(psset, ps);
 	}
 	psset_maybe_insert_purge_list(psset, ps);
@@ -335,8 +340,48 @@ psset_update_end(psset_t *psset, hpdata_t *ps) {
 	hpdata_assert_consistent(ps);
 }
 
+void
+psset_update_begin(psset_t *psset, hpdata_t *ps) {
+	psset_update_begin_impl(psset, ps, false);
+}
+
+void
+psset_update_end(psset_t *psset, hpdata_t *ps) {
+	psset_update_end_impl(psset, ps, false);
+}
+
+void
+psset_alloc_update_begin(
+    psset_t *psset, hpdata_t *ps, psset_alloc_update_t *update) {
+	update->retained = hpdata_in_psset_alloc_container_get(ps)
+	    && !hpdata_empty(ps) && !hpdata_full(ps);
+	if (update->retained) {
+		update->age = hpdata_age_get(ps);
+		update->heap_index = psset_hpdata_heap_index(ps);
+	}
+	psset_update_begin_impl(psset, ps, update->retained);
+}
+
+void
+psset_alloc_update_end(
+    psset_t *psset, hpdata_t *ps, psset_alloc_update_t *update) {
+	if (update->retained
+	    && (!hpdata_alloc_allowed_get(ps) || hpdata_empty(ps) || hpdata_full(ps)
+	        || hpdata_age_get(ps) != update->age
+	        || psset_hpdata_heap_index(ps) != update->heap_index)) {
+		/* Remove using the old bucket: the current metadata may differ. */
+		psset_hpdata_heap_remove_at(psset, ps, update->heap_index);
+		hpdata_in_psset_alloc_container_set(ps, false);
+		update->retained = false;
+	}
+	psset_update_end_impl(psset, ps, update->retained);
+}
+
 static hpdata_t *
 psset_enumerate_search(psset_t *psset, pszind_t pind, size_t size) {
+	if (pind >= PSSET_NALLOC_BINS) {
+		return NULL;
+	}
 	if (hpdata_age_heap_empty(&psset->pageslabs[pind])) {
 		return NULL;
 	}
@@ -373,9 +418,13 @@ psset_pick_alloc(psset_t *psset, size_t size) {
 		}
 	}
 
+	if (min_pind >= PSSET_NALLOC_BINS) {
+		return hpdata_empty_list_first(&psset->empty);
+	}
+
 	pszind_t pind = (pszind_t)fb_ffs(
-	    psset->pageslab_bitmap, PSSET_NPSIZES, (size_t)min_pind);
-	if (pind == PSSET_NPSIZES) {
+	    psset->pageslab_bitmap, PSSET_NALLOC_BINS, (size_t)min_pind);
+	if (pind == PSSET_NALLOC_BINS) {
 		return hpdata_empty_list_first(&psset->empty);
 	}
 	ps = hpdata_age_heap_first(&psset->pageslabs[pind]);

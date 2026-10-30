@@ -268,12 +268,19 @@ hpdata_post_reserve_alloc_offsets(hpdata_t *hpdata, size_t sz,
 		return;
 	}
 
+	const size_t prev_longest = hpdata_longest_free_range_get(hpdata);
+	if (prev_longest == 1) {
+		/* Allocation cannot create a free run longer than one page. */
+		hpdata_longest_free_range_set(hpdata, hpdata_full(hpdata) ? 0 : 1);
+		hpdata_assert_consistent(hpdata);
+		return;
+	}
+
 	size_t max_len = offsets[0].len_before;
 	for (size_t i = 1; i < nallocs; i += 1) {
 		max_len = max_zu(max_len, offsets[i].len_before);
 	}
 
-	const size_t prev_longest = hpdata_longest_free_range_get(hpdata);
 	assert(max_len <= prev_longest);
 	if (max_len < prev_longest) {
 		/* no need to update the hpdata longest range */
