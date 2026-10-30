@@ -14,21 +14,17 @@ cat <<EOF
 
 BEGIN {
   sym_prefix = "${sym_prefix}"
-  split("\\
+  # Store exported symbol names as keys in exported_symbols, one statement per
+  # name: POSIX awk doesn't allow a string literal to continue onto another line.
 EOF
 
 for public_sym in "$@" ; do
   cat <<EOF
-        ${sym_prefix}${public_sym} \\
+  exported_symbols["${sym_prefix}${public_sym}"] = 1
 EOF
 done
 
 cat <<"EOF"
-        ", exported_symbol_names)
-  # Store exported symbol names as keys in exported_symbols.
-  for (i in exported_symbol_names) {
-    exported_symbols[exported_symbol_names[i]] = 1
-  }
 }
 
 # Process 'nm -P -t d <c_source.o>' output.  GNU nm omits a trailing size
