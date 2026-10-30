@@ -7,6 +7,15 @@
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/witness.h"
 
+/*
+ * SVE batch extraction relies on 64-bit bitmap groups; see
+ * bin_slab_reg_extract_sve().
+ */
+#if defined(__ARM_FEATURE_SVE) && LG_SIZEOF_BITMAP == 3
+#	include <arm_sve.h>
+#	define BIN_SLAB_REG_EXTRACT_SVE
+#endif
+
 bool
 bin_update_shard_size(unsigned bin_shard_sizes[SC_NBINS_MAX], size_t start_size,
     size_t end_size, size_t nshards) {
@@ -85,6 +94,73 @@ bin_slab_reg_alloc(edata_t *slab, const bin_info_t *bin_info) {
 	return ret;
 }
 
+#ifdef BIN_SLAB_REG_EXTRACT_SVE
+/*
+ * Store the addresses of up to nmax regions, taken in ascending order from the
+ * set bits of *gp, to ptrs, clear the taken bits from *gp, and return the
+ * number taken.
+ *
+ * Each 32-bit lane tests one bit of the group, svcompact packs the indices of
+ * the set bits to the front of the vector, and the addresses are computed and
+ * stored from the vector registers, so there is no loop-carried dependency
+ * from one region to the next.  The group is scanned in chunks of at most 32
+ * bits, so that the per-lane mask 1 << lane stays below the element width and
+ * (uint32_t)(g >> chunk) holds exactly the bits being tested, for any vector
+ * length (including 2048 bits, where svcntw() == 64).  A chunk yields at most
+ * 32 indices, which fit in the two 64-bit halves of the vector.
+ */
+static inline size_t
+bin_slab_reg_extract_sve(bitmap_t *gp, size_t shift, uintptr_t base,
+    uintptr_t regsize, size_t nmax, void **ptrs) {
+	bitmap_t       g = *gp;
+	const uint32_t nw = (uint32_t)svcntw();
+	const uint32_t stride = nw < 32 ? nw : 32;
+	const uint64_t nd = svcntd();
+	const svbool_t pg = svwhilelt_b32_u32(0, stride);
+	const svuint32_t lane = svindex_u32(0, 1);
+	const svuint32_t lane_bit = svlsl_u32_x(pg, svdup_n_u32(1), lane);
+	const svuint64_t vbase = svdup_n_u64((uint64_t)base);
+	size_t   n = 0;
+	unsigned last = 0;
+
+	assert(g != 0 && nmax > 0);
+	for (unsigned chunk = 0; chunk < BITMAP_GROUP_NBITS && n < nmax;
+	    chunk += stride) {
+		svbool_t set = svcmpne_n_u32(pg,
+		    svand_n_u32_x(pg, lane_bit, (uint32_t)(g >> chunk)), 0);
+		uint64_t take = svcntp_b32(pg, set);
+		if (take == 0) {
+			continue;
+		}
+		if (take > nmax - n) {
+			take = nmax - n;
+		}
+		svuint32_t pos = svcompact_u32(
+		    set, svadd_n_u32_x(pg, lane, chunk));
+		last = svlastb_u32(svwhilelt_b32_u64(0, take), pos);
+
+		uint64_t nlo = take < nd ? take : nd;
+		svbool_t pglo = svwhilelt_b64_u64(0, nlo);
+		svuint64_t ind = svadd_n_u64_x(
+		    pglo, svunpklo_u64(pos), (uint64_t)shift);
+		svst1_u64(pglo, (uint64_t *)(ptrs + n),
+		    svmla_n_u64_x(pglo, vbase, ind, (uint64_t)regsize));
+		if (take > nd) {
+			svbool_t pghi = svwhilelt_b64_u64(0, take - nd);
+			ind = svadd_n_u64_x(
+			    pghi, svunpkhi_u64(pos), (uint64_t)shift);
+			svst1_u64(pghi, (uint64_t *)(ptrs + n + nd),
+			    svmla_n_u64_x(pghi, vbase, ind, (uint64_t)regsize));
+		}
+		n += take;
+	}
+	assert(n > 0);
+	/* Every set bit at or below the last one taken has been taken. */
+	*gp = g & ((~(bitmap_t)0 << last) << 1);
+	return n;
+}
+#endif
+
 void
 bin_slab_reg_alloc_batch(
     edata_t *slab, const bin_info_t *bin_info, unsigned cnt, void **ptrs) {
@@ -108,6 +184,10 @@ bin_slab_reg_alloc_batch(
 		    slab_data->bitmap, &bin_info->bitmap_info, group);
 		bitmap_t g = slab_data->bitmap[group];
 		size_t shift = group << LG_BITMAP_GROUP_NBITS;
+#ifdef BIN_SLAB_REG_EXTRACT_SVE
+		i += (unsigned)bin_slab_reg_extract_sve(
+		    &g, shift, base, regsize, cnt - i, ptrs + i);
+#else
 #if (!defined JEMALLOC_INTERNAL_POPCOUNTL) || (defined BITMAP_USE_TREE)
 		size_t nalloc = cnt - i;
 #else
@@ -128,6 +208,7 @@ bin_slab_reg_alloc_batch(
 			}
 #endif
 		}
+#endif
 		bitmap_group_set(
 		    slab_data->bitmap, &bin_info->bitmap_info, group, g);
 		/*
