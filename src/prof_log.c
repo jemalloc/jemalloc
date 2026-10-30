@@ -683,6 +683,33 @@ prof_log_stop(tsdn_t *tsdn) {
 		ckh_delete(tsd, &log_thr_node_set);
 	}
 	log_tables_initialized = false;
+
+	/* Free linked list nodes to prevent memory leaks. */
+	{
+		prof_bt_node_t *bt = log_bt_first;
+		while (bt) {
+			prof_bt_node_t *next = bt->next;
+			idalloctm(tsd_tsdn(tsd), bt, NULL, NULL, true, true);
+			bt = next;
+		}
+	}
+	{
+		prof_thr_node_t *thr = log_thr_first;
+		while (thr) {
+			prof_thr_node_t *next = thr->next;
+			idalloctm(tsd_tsdn(tsd), thr, NULL, NULL, true, true);
+			thr = next;
+		}
+	}
+	{
+		prof_alloc_node_t *alloc = log_alloc_first;
+		while (alloc) {
+			prof_alloc_node_t *next = alloc->next;
+			idalloctm(tsd_tsdn(tsd), alloc, NULL, NULL, true, true);
+			alloc = next;
+		}
+	}
+
 	log_bt_index = 0;
 	log_thr_index = 0;
 	log_bt_first = NULL;
