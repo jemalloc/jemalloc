@@ -21,6 +21,49 @@ test_eset_init(eset_t *eset, extent_state_t state) {
 	eset_init(eset, state);
 }
 
+static void
+test_eset_size(eset_t *eset, size_t size) {
+	pszind_t pind = sz_psz2ind(sz_psz_quantize_floor(size));
+	edata_t edata;
+	test_edata_init(&edata, ESET_TEST_ADDR_BASE, size, 0,
+	    extent_state_dirty, false);
+	eset_insert(eset, &edata);
+	expect_ptr_eq(&edata, edata_heap_first(&eset->bins[pind].heap),
+	    "Wrong bucket for size %zu", size);
+	expect_zu_eq(size >> LG_PAGE, eset_npages_get(eset),
+	    "Wrong page count for size %zu", size);
+	if (config_stats) {
+		expect_zu_eq(1, eset_nextents_get(eset, pind),
+		    "Wrong extent count for size %zu", size);
+		expect_zu_eq(size, eset_nbytes_get(eset, pind),
+		    "Wrong byte count for size %zu", size);
+	}
+	eset_remove(eset, &edata);
+	expect_true(edata_heap_empty(&eset->bins[pind].heap),
+	    "Bucket should be empty after removing size %zu", size);
+	expect_zu_eq(0, eset_npages_get(eset),
+	    "Page count should be zero after removing size %zu", size);
+}
+
+TEST_BEGIN(test_eset_size_classes) {
+	eset_t eset;
+	test_eset_init(&eset, extent_state_dirty);
+	for (size_t size = PAGE; size <= 128 * PAGE; size += PAGE) {
+		test_eset_size(&eset, size);
+	}
+	/* Include both sides of every padded class and the overflow bucket. */
+	for (pszind_t i = 0; i <= SC_NPSIZES; i++) {
+		size_t size = sz_pind2sz(i) + sz_large_pad;
+		if (size > PAGE) {
+			test_eset_size(&eset, size - PAGE);
+		}
+		test_eset_size(&eset, size);
+		test_eset_size(&eset, size + PAGE);
+	}
+	test_eset_size(&eset, PAGE_FLOOR(SIZE_MAX));
+}
+TEST_END
+
 TEST_BEGIN(test_eset_insert_remove_fit) {
 	eset_t eset;
 	test_eset_init(&eset, extent_state_dirty);
@@ -170,7 +213,8 @@ TEST_END
 
 int
 main(void) {
-	return test_no_reentrancy(test_eset_insert_remove_fit,
+	return test_no_reentrancy(test_eset_size_classes,
+	    test_eset_insert_remove_fit,
 	    test_eset_alignment_and_large_class_fallback,
 	    test_eset_exact_fit_large_class_disabled);
 }

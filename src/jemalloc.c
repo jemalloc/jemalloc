@@ -1196,7 +1196,8 @@ je_free_aligned_sized(void *ptr, size_t alignment, size_t size) {
 				goto label_done;
 			}
 		}
-		je_sdallocx_impl(ptr, size, /* flags */ MALLOCX_ALIGN(alignment));
+		je_sdallocx_impl(ptr, size, /* flags */
+		    MALLOCX_LG_ALIGN(lg_floor(alignment)));
 	}
 label_done:
 	LOG("core.free_aligned_sized.exit", "");
