@@ -5,6 +5,7 @@
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/background_thread.h"
+#include "jemalloc/internal/bit_util.h"
 #include "jemalloc/internal/buf_writer.h"
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/emap.h"
@@ -1052,6 +1053,7 @@ dealloc_no_tsd(void *ptr) {
 		return false;
 	}
 
+	ptr = lam_unmask(ptr);
 	idalloctm(TSDN_NULL, ptr, /* tcache */ NULL, /* alloc_ctx */ NULL,
 	    /* is_internal */ false, /* slow_path */ true);
 	return true;
@@ -1620,6 +1622,7 @@ JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
 JEMALLOC_ALLOC_SIZE(2) je_rallocx(void *ptr, size_t size, int flags) {
 	LOG("core.rallocx.entry", "ptr: %p, size: %zu, flags: %d", ptr, size,
 	    flags);
+	ptr = lam_unmask(ptr);
 	void *ret = do_rallocx(ptr, size, flags, false);
 	LOG("core.rallocx.exit", "result: %p", ret);
 	return ret;
@@ -1670,6 +1673,7 @@ JEMALLOC_EXPORT
 JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN void JEMALLOC_NOTHROW *
 JEMALLOC_ALLOC_SIZE(2) je_realloc(void *ptr, size_t size) {
 	LOG("core.realloc.entry", "ptr: %p, size: %zu\n", ptr, size);
+	ptr = lam_unmask(ptr);
 
 	if (likely(ptr != NULL && size != 0)) {
 		void *ret = do_rallocx(ptr, size, 0, true);
@@ -1815,6 +1819,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 	    "flags: %d",
 	    ptr, size, extra, flags);
 
+	ptr = lam_unmask(ptr);
 	assert(ptr != NULL);
 	assert(size != 0);
 	assert(SIZE_T_MAX - size >= extra);
@@ -1918,6 +1923,7 @@ JEMALLOC_NOINLINE
 static void
 dallocx_default(void *ptr, int flags) {
 	UTRACE(ptr, 0, 0);
+	ptr = lam_unmask(ptr);
 	if (unlikely(dealloc_no_tsd(ptr))) {
 		return;
 	}
@@ -2129,7 +2135,10 @@ je_malloc_usable_size_impl(JEMALLOC_USABLE_SIZE_CONST void *ptr) {
 	check_entry_exit_locking(tsdn);
 
 	size_t ret;
-	if (unlikely(ptr == NULL)) {
+	unsigned szind = (uintptr_t)ptr >> LAM_SHIFT;
+	if (szind) {
+		ret = sz_index2size(szind - 1);
+	} else if (unlikely(ptr == NULL)) {
 		ret = 0;
 	} else {
 		if (config_debug || force_ivsalloc) {
