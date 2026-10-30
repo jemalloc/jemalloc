@@ -20,14 +20,18 @@
 #	include <sys/param.h>
 #	include <sys/mman.h>
 #	if !defined(__pnacl__) && !defined(__native_client__)
-#		include <sys/syscall.h>
-#		if !defined(SYS_write) && defined(__NR_write)
-#			define SYS_write __NR_write
-#		endif
-#		if defined(SYS_open) && defined(__aarch64__)
+/* Only syscall(2) users need <sys/syscall.h>, and some platforms (e.g. AIX)
+ * don't have it. */
+#		ifdef JEMALLOC_USE_SYSCALL
+#			include <sys/syscall.h>
+#			if !defined(SYS_write) && defined(__NR_write)
+#				define SYS_write __NR_write
+#			endif
+#			if defined(SYS_open) && defined(__aarch64__)
 /* Android headers may define SYS_open to __NR_open even though
         * __NR_open may not exist on AArch64 (superseded by __NR_openat). */
-#			undef SYS_open
+#				undef SYS_open
+#			endif
 #		endif
 #		include <sys/uio.h>
 #	endif
