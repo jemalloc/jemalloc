@@ -260,6 +260,8 @@ if test "x${je_cv_cray}" = "xyes" ; then
                               [je_cv_cray_84=no])])
 fi
 
+dnl The compiler flags below depend on the host.
+AC_CANONICAL_HOST
 if test "x$GCC" = "xyes" ; then
   JE_CFLAGS_ADD([-std=gnu11])
   if test "x$je_cv_cflags_added" = "x-std=gnu11" ; then
@@ -287,7 +289,17 @@ if test "x$GCC" = "xyes" ; then
   JE_CFLAGS_ADD([-Wno-missing-field-initializers])
   JE_CFLAGS_ADD([-Wno-missing-attributes])
   JE_CFLAGS_ADD([-pipe])
-  JE_CFLAGS_ADD([-g3])
+  case "${host}" in
+    *-ibm-aix*)
+      dnl Some AIX linker levels write executables that can't be loaded when
+      dnl objects carry DWARF macro information, which -g3 adds (IBM APAR
+      dnl IJ51412).
+      JE_CFLAGS_ADD([-g])
+      ;;
+    *)
+      JE_CFLAGS_ADD([-g3])
+      ;;
+  esac
 elif test "x$je_cv_msvc" = "xyes" ; then
   CC="$CC -nologo"
   JE_CFLAGS_ADD([-Zi])
@@ -496,7 +508,6 @@ else
 fi
 AC_DEFINE_UNQUOTED([LG_SIZEOF_INTMAX_T], [$LG_SIZEOF_INTMAX_T], [ ])
 
-AC_CANONICAL_HOST
 dnl CPU-specific settings.
 CPU_SPINWAIT=""
 case "${host_cpu}" in
