@@ -4,6 +4,13 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/os.h"
 
+#ifdef JEMALLOC_HAVE_HWCAP_SB
+#	include <sys/auxv.h>
+
+/* Whether the CPU implements sb; set by spin_boot(). */
+extern bool spin_use_sb;
+#endif
+
 #define SPIN_INITIALIZER                                                       \
 	{ 0U }
 
@@ -12,7 +19,29 @@ typedef struct {
 } spin_t;
 
 static inline void
+spin_boot(void) {
+#ifdef JEMALLOC_HAVE_HWCAP_SB
+	spin_use_sb = (getauxval(AT_HWCAP) & HWCAP_SB) != 0;
+#endif
+}
+
+static inline void
 spin_cpu_spinwait(void) {
+#ifdef JEMALLOC_HAVE_HWCAP_SB
+	/*
+	 * sb (speculation barrier, FEAT_SB) does not flush the pipeline the
+	 * way isb does, but it also delays less.  On the CPU this was measured
+	 * on, four back-to-back sb take about as long as one isb, so issue four
+	 * to keep the duration of spin loops roughly unchanged.  Encoded with
+	 * .inst so that older assemblers accept it.
+	 */
+	if (spin_use_sb) {
+		/* sb; sb; sb; sb */
+		__asm__ volatile(".inst 0xd50330ff\n\t.inst 0xd50330ff\n\t"
+		    ".inst 0xd50330ff\n\t.inst 0xd50330ff");
+		return;
+	}
+#endif
 #if HAVE_CPU_SPINWAIT
 	CPU_SPINWAIT;
 #else

@@ -38,6 +38,11 @@
 #undef CPU_SPINWAIT
 /* 1 if CPU_SPINWAIT is defined, 0 otherwise. */
 #undef HAVE_CPU_SPINWAIT
+/*
+ * Defined if getauxval(AT_HWCAP) can report HWCAP_SB (AArch64 Linux), in which
+ * case spin loops use sb instead of CPU_SPINWAIT on CPUs that implement it.
+ */
+#undef JEMALLOC_HAVE_HWCAP_SB
 
 /*
  * Number of significant bits in virtual addresses.  This may be less than the
