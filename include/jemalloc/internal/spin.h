@@ -4,6 +4,13 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/os.h"
 
+#ifdef JEMALLOC_HAVE_HWCAP_SB
+#	include <sys/auxv.h>
+
+/* Whether the CPU implements sb; set by spin_boot(). */
+extern bool spin_use_sb;
+#endif
+
 #define SPIN_INITIALIZER                                                       \
 	{ 0U }
 
@@ -12,7 +19,38 @@ typedef struct {
 } spin_t;
 
 static inline void
+spin_boot(void) {
+#ifdef JEMALLOC_HAVE_HWCAP_SB
+	spin_use_sb = (getauxval(AT_HWCAP) & HWCAP_SB) != 0;
+#endif
+}
+
+static inline void
 spin_cpu_spinwait(void) {
+#ifdef JEMALLOC_HAVE_HWCAP_SB
+	/*
+	 * sb (speculation barrier, FEAT_SB) does not flush the pipeline the
+	 * way isb does, but it also delays less.  How long back-to-back sb take
+	 * compared with one isb differs between CPUs; of the CPUs measured so
+	 * far, three come closest to one isb overall, so issue three to keep
+	 * the duration of spin loops roughly unchanged.  Encoded with .inst so
+	 * that older assemblers accept it.
+	 *
+	 * spin_use_sb is a plain bool that spin_boot() sets once during
+	 * initialization without synchronization, so this read may race with
+	 * that write, e.g. in a thread that busy-waits in
+	 * malloc_init_hard_needed() while another thread initializes.  The race
+	 * is benign: such a thread reads either false or true, and that only
+	 * selects which barrier this spin-wait uses.  If a race detector ever
+	 * flags it, a relaxed atomic load would do.
+	 */
+	if (spin_use_sb) {
+		/* sb; sb; sb */
+		__asm__ volatile(".inst 0xd50330ff\n\t.inst 0xd50330ff\n\t"
+		    ".inst 0xd50330ff");
+		return;
+	}
+#endif
 #if HAVE_CPU_SPINWAIT
 	CPU_SPINWAIT;
 #else
