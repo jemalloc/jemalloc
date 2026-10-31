@@ -541,6 +541,17 @@ case "${host_cpu}" in
 	if test "x${je_cv_isb}" = "xyes" ; then
 	    CPU_SPINWAIT='__asm__ volatile("isb")'
 	fi
+	dnl sb is cheaper still; use it at run time on CPUs that implement it.
+	if test "x${host_cpu}" = "xaarch64" ; then
+	    JE_COMPILABLE([HWCAP_SB], [
+#include <sys/auxv.h>
+], [[
+	return (getauxval(AT_HWCAP) & HWCAP_SB) != 0;
+]], [je_cv_hwcap_sb])
+	    if test "x${je_cv_hwcap_sb}" = "xyes" ; then
+		AC_DEFINE([JEMALLOC_HAVE_HWCAP_SB], [ ], [ ])
+	    fi
+	fi
 	;;
   *)
 	HAVE_CPU_SPINWAIT=0
