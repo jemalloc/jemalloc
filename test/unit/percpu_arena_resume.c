@@ -1,7 +1,12 @@
 #include "test/jemalloc_test.h"
 
 #ifdef JEMALLOC_PERCPU_ARENA
-const char *malloc_conf = "percpu_arena:percpu";
+/*
+ * Per-CPU arenas are disabled at init when the CPU count is not deterministic
+ * (e.g. under a restricted CPU affinity), which aborts by default in debug
+ * builds.  Turn the aborts off so that the test is skipped instead.
+ */
+const char *malloc_conf = "percpu_arena:percpu,abort:false,abort_conf:false";
 #endif
 
 /*
