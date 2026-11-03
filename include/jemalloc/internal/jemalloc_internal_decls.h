@@ -1,7 +1,6 @@
 #ifndef JEMALLOC_INTERNAL_DECLS_H
 #define JEMALLOC_INTERNAL_DECLS_H
 
-#include <math.h>
 #ifdef _WIN32
 #	include <windows.h>
 #	include "msvc_compat/windows_extra.h"
@@ -65,7 +64,6 @@
 #endif
 #include <stdarg.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stddef.h>

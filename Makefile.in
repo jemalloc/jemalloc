@@ -593,7 +593,7 @@ else
 endif
 
 $(objroot)lib/$(LIBJEMALLOC)_pic.$(A) : $(C_PIC_OBJS) $(CPP_PIC_OBJS)
-$(objroot)lib/$(LIBJEMALLOC).$(A) : $(C_OBJS) $(CPP_OBJS)
+$(objroot)lib/$(LIBJEMALLOC).$(A) : $(if $(PIC_CFLAGS),$(C_PIC_OBJS),$(C_OBJS)) $(if $(PIC_CFLAGS),$(CPP_PIC_OBJS),$(CPP_OBJS))
 $(objroot)lib/$(LIBJEMALLOC)_s.$(A) : $(C_OBJS) $(CPP_OBJS)
 
 $(STATIC_LIBS):

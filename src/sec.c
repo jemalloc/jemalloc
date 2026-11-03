@@ -1,5 +1,6 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 
+#include "jemalloc/internal/base.h"
 #include "jemalloc/internal/sec.h"
 #include "jemalloc/internal/witness.h"
 

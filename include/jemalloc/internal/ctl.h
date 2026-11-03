@@ -10,7 +10,6 @@
 #include "jemalloc/internal/mutex_prof.h"
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/sc.h"
-#include "jemalloc/internal/stats.h"
 
 /* Maximum ctl tree depth. */
 #define CTL_MAX_DEPTH 7
