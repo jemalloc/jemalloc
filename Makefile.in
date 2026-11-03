@@ -64,6 +64,7 @@ enable_autogen := @enable_autogen@
 enable_doc := @enable_doc@
 enable_shared := @enable_shared@
 enable_static := @enable_static@
+enable_pic_only := @enable_pic_only@
 have_ucontext := @have_ucontext@
 enable_prof := @enable_prof@
 enable_zone_allocator := @enable_zone_allocator@
@@ -174,6 +175,9 @@ C_SRCS := $(srcroot)src/jemalloc.c \
 ifeq ($(enable_zone_allocator), 1)
 C_SRCS += $(srcroot)src/zone.c
 endif
+ifeq ($(enable_pic_only), 1)
+STATIC_LIBS := $(objroot)lib/$(LIBJEMALLOC)_pic.$(A)
+else
 ifeq ($(IMPORTLIB),$(SO))
 STATIC_LIBS := $(objroot)lib/$(LIBJEMALLOC).$(A)
 endif
@@ -181,6 +185,7 @@ ifdef PIC_CFLAGS
 STATIC_LIBS += $(objroot)lib/$(LIBJEMALLOC)_pic.$(A)
 else
 STATIC_LIBS += $(objroot)lib/$(LIBJEMALLOC)_s.$(A)
+endif
 endif
 DSOS := $(objroot)lib/$(LIBJEMALLOC).$(SOREV)
 ifneq ($(SOREV),$(SO))
@@ -593,7 +598,13 @@ else
 endif
 
 $(objroot)lib/$(LIBJEMALLOC)_pic.$(A) : $(C_PIC_OBJS) $(CPP_PIC_OBJS)
+ifeq ($(enable_pic_only), 1)
+$(objroot)lib/$(LIBJEMALLOC).$(A) : $(objroot)lib/$(LIBJEMALLOC)_pic.$(A)
+	@mkdir -p $(@D)
+	ln -sf $(<F) $@
+else
 $(objroot)lib/$(LIBJEMALLOC).$(A) : $(C_OBJS) $(CPP_OBJS)
+endif
 $(objroot)lib/$(LIBJEMALLOC)_s.$(A) : $(C_OBJS) $(CPP_OBJS)
 
 $(STATIC_LIBS):
@@ -651,6 +662,9 @@ endif
 
 build_lib_shared: $(DSOS)
 build_lib_static: $(STATIC_LIBS)
+ifeq ($(enable_pic_only), 1)
+build_lib_static: $(objroot)lib/$(LIBJEMALLOC).$(A)
+endif
 ifeq ($(enable_shared), 1)
 build_lib: build_lib_shared
 endif
@@ -685,6 +699,9 @@ install_lib_static: $(STATIC_LIBS)
 	echo "$(INSTALL) -m 644 $$l '$(LIBDIR)'"; \
 	$(INSTALL) -m 644 $$l '$(LIBDIR)'; \
 done
+ifeq ($(enable_pic_only), 1)
+	ln -sf $(LIBJEMALLOC)_pic.$(A) '$(LIBDIR)/$(LIBJEMALLOC).$(A)'
+endif
 
 install_lib_pc: $(PC)
 	$(INSTALL) -d '$(LIBDIR)/pkgconfig'
@@ -738,6 +755,9 @@ endif
 
 uninstall_lib_static:
 	$(RM) -v $(foreach l,$(notdir $(STATIC_LIBS)),'$(LIBDIR)/$(l)')
+ifeq ($(enable_pic_only), 1)
+	$(RM) -v '$(LIBDIR)/$(LIBJEMALLOC).$(A)'
+endif
 
 uninstall_lib_pc:
 	$(RM) -v $(foreach p,$(notdir $(PC)),'$(LIBDIR)/pkgconfig/$(p)')
@@ -834,7 +854,7 @@ clean:
 	rm -f $(TESTS_CPP_OBJS)
 	rm -f $(TESTS_CPP_OBJS:%.$(O)=%.d)
 	rm -f $(TESTS_CPP_OBJS:%.$(O)=%.out)
-	rm -f $(DSOS) $(STATIC_LIBS)
+	rm -f $(DSOS) $(STATIC_LIBS) $(objroot)lib/$(LIBJEMALLOC).$(A)
 
 distclean: clean
 	rm -f $(objroot)bin/jemalloc-config
