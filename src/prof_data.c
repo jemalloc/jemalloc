@@ -524,38 +524,39 @@ prof_double_uint64_cast(double d) {
 #endif
 
 void
+prof_unbias(size_t sz, size_t *unbiased_sz, size_t *shifted_unbiased_cnt) {
+#ifdef JEMALLOC_PROF
+	double rate = (double)(ZU(1) << lg_prof_sample);
+	double dsz = (double)sz;
+	double div_val = 1.0 - exp(-dsz / rate);
+	*unbiased_sz = (size_t)round(dsz / div_val);
+	/*
+	 * The "true" right value for the unbiased count is
+	 * 1.0/(1 - exp(-sz/rate)).  The problem is, we keep the counts
+	 * as integers (for a variety of reasons -- rounding errors
+	 * could trigger asserts, and not all libcs can properly handle
+	 * floating point arithmetic during malloc calls inside libc).
+	 * Rounding to an integer, though, can lead to rounding errors
+	 * of over 30% for sizes close to the sampling rate.  So
+	 * instead, we multiply by a constant, dividing the maximum
+	 * possible roundoff error by that constant.  To avoid overflow
+	 * in summing up size_t values, the largest safe constant we can
+	 * pick is the size of the smallest allocation.
+	 */
+	double cnt_shift = (double)(ZU(1) << SC_LG_TINY_MIN);
+	*shifted_unbiased_cnt = (size_t)round(cnt_shift / div_val);
+#else
+	unreachable();
+#endif
+}
+
+void
 prof_unbias_map_init(void) {
 	/* See the comment in prof_sample_new_event_wait */
 #ifdef JEMALLOC_PROF
 	for (szind_t i = 0; i < SC_NSIZES; i++) {
-		/*
-		 * With large size classes disabled, the unbiased calculation
-		 * here is not as accurate as it was because usize now changes
-		 * in a finer grain while the unbiased_sz is still calculated
-		 * using the old way.
-		 */
-		double sz = (double)sz_index2size_unsafe(i);
-		double rate = (double)(ZU(1) << lg_prof_sample);
-		double div_val = 1.0 - exp(-sz / rate);
-		double unbiased_sz = sz / div_val;
-		/*
-		 * The "true" right value for the unbiased count is
-		 * 1.0/(1 - exp(-sz/rate)).  The problem is, we keep the counts
-		 * as integers (for a variety of reasons -- rounding errors
-		 * could trigger asserts, and not all libcs can properly handle
-		 * floating point arithmetic during malloc calls inside libc).
-		 * Rounding to an integer, though, can lead to rounding errors
-		 * of over 30% for sizes close to the sampling rate.  So
-		 * instead, we multiply by a constant, dividing the maximum
-		 * possible roundoff error by that constant.  To avoid overflow
-		 * in summing up size_t values, the largest safe constant we can
-		 * pick is the size of the smallest allocation.
-		 */
-		double cnt_shift = (double)(ZU(1) << SC_LG_TINY_MIN);
-		double shifted_unbiased_cnt = cnt_shift / div_val;
-		prof_unbiased_sz[i] = (size_t)round(unbiased_sz);
-		prof_shifted_unbiased_cnt[i] = (size_t)round(
-		    shifted_unbiased_cnt);
+		prof_unbias(sz_index2size_unsafe(i), &prof_unbiased_sz[i],
+		    &prof_shifted_unbiased_cnt[i]);
 	}
 #else
 	unreachable();
@@ -614,7 +615,7 @@ prof_do_unbias(uint64_t c_out_shifted_i, uint64_t s_out_i, uint64_t *r_c_in,
 		return;
 	}
 	/*
-	 * See the note in prof_unbias_map_init() to see why we take c_out in a
+	 * See the note in prof_unbias() to see why we take c_out in a
 	 * shifted form.
 	 */
 	double c_out = (double)c_out_shifted_i
