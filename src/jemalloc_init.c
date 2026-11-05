@@ -340,11 +340,16 @@ malloc_init_hard_recursible(void) {
 		    os_cpu_count_is_deterministic();
 		if (!cpu_count_is_deterministic) {
 			/*
-			 * If # of CPU is not deterministic, and narenas not
-			 * specified, disables per cpu arena since it may not
-			 * detect CPU IDs properly.
+			 * In percpu mode a non-deterministic CPU count (e.g. a
+			 * restricted affinity mask) is harmless: the CPU id ->
+			 * arena map is built from the affinity mask, and ids
+			 * outside it stay bounded by construction.  phycpu
+			 * keeps the conservative disable: its rank-based
+			 * hyperthread pairing assumes the mask covers the full
+			 * topology.
 			 */
-			if (opt_narenas == 0) {
+			if (opt_narenas == 0
+			    && opt_percpu_arena == per_phycpu_arena_uninit) {
 				opt_percpu_arena = percpu_arena_disabled;
 				malloc_write(
 				    "<jemalloc>: Number of CPUs "
