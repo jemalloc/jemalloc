@@ -152,6 +152,33 @@ prof_sample_weighted_size(size_t size, size_t usize, size_t unbiased_size) {
 #endif
 }
 
+static void
+prof_unbias_sample(szind_t szind, size_t usize, size_t *unbiased_bytes,
+    size_t *shifted_unbiased_cnt) {
+	if (unlikely(!sz_large_size_classes_disabled())
+	    || sz_index2size_unsafe(szind) == usize) {
+		/*
+		 * We do not need synchronization when reading from the unbias
+		 * map in the face of racing map writes from prof_reset().  The
+		 * current tdata is either created before prof_reset() acquires
+		 * the tdatas_mtx, or after prof_reset() releases the mutex.  In
+		 * the first case, a data race is possible, but the tdata will
+		 * expire and not be included in the dump.  In the second case,
+		 * the new tdata creation synchronizes with the tdatas_mtx release
+		 * in prof_reset().  Hence, we are guaranteed to read the updated
+		 * map values.
+		 */
+		*unbiased_bytes = prof_unbiased_sz[szind];
+		*shifted_unbiased_cnt = prof_shifted_unbiased_cnt[szind];
+	} else {
+		/*
+		 * We need to perform unbias computation in situ since we cannot
+		 * use pre-computed unbiased results.
+		 */
+		prof_unbias(usize, unbiased_bytes, shifted_unbiased_cnt);
+	}
+}
+
 void
 prof_malloc_sample_object(
     tsd_t *tsd, const void *ptr, size_t size, size_t usize, prof_tctx_t *tctx) {
@@ -161,25 +188,17 @@ prof_malloc_sample_object(
 		prof_sys_thread_name_fetch(tsd);
 	}
 
+	szind_t szind = sz_size2index(usize);
+	size_t  unbiased_bytes, shifted_unbiased_cnt;
+	prof_unbias_sample(
+	    szind, usize, &unbiased_bytes, &shifted_unbiased_cnt);
+
 	edata_t *edata = emap_edata_lookup(
 	    tsd_tsdn(tsd), &arena_emap_global, ptr);
-	prof_info_set(tsd, edata, tctx, size);
-
-	szind_t szind = sz_size2index(usize);
+	prof_info_set(
+	    tsd, edata, tctx, size, unbiased_bytes, shifted_unbiased_cnt);
 
 	malloc_mutex_lock(tsd_tsdn(tsd), tctx->tdata->lock);
-	/*
-	 * We need to do these map lookups while holding the lock, to avoid the
-	 * possibility of races with prof_reset calls, which update the map and
-	 * then acquire the lock.  This actually still leaves a data race on the
-	 * contents of the unbias map, but we have not yet gone through and
-	 * atomic-ified the prof module, and compilers are not yet causing us
-	 * issues.  The key thing is to make sure that, if we read garbage data,
-	 * the prof_reset call is about to mark our tctx as expired before any
-	 * dumping of our corrupted output is attempted.
-	 */
-	size_t shifted_unbiased_cnt = prof_shifted_unbiased_cnt[szind];
-	size_t unbiased_bytes = prof_unbiased_sz[szind];
 	uint64_t weighted_size = prof_sample_weighted_size(
 	    size, usize, unbiased_bytes);
 	tctx->cnts.curobjs++;
@@ -230,8 +249,6 @@ prof_free_sampled_object(
 	prof_tctx_t *tctx = prof_info->alloc_tctx;
 	assert(prof_tctx_is_valid(tctx));
 
-	szind_t szind = sz_size2index(usize);
-
 	/* Unsample hook. */
 	prof_sample_free_hook_t prof_sample_free_hook =
 	    prof_sample_free_hook_get();
@@ -252,15 +269,16 @@ prof_free_sampled_object(
 	 * yet.
 	 */
 	tctx->cnts.curobjs--;
-	tctx->cnts.curobjs_shifted_unbiased -= prof_shifted_unbiased_cnt[szind];
+	tctx->cnts.curobjs_shifted_unbiased -= prof_info->shifted_unbiased_cnt;
 	tctx->cnts.curbytes -= usize;
-	tctx->cnts.curbytes_unbiased -= prof_unbiased_sz[szind];
+	tctx->cnts.curbytes_unbiased -= prof_info->unbiased_size;
 
 	prof_try_log(tsd, usize, prof_info);
 
 	prof_tctx_try_destroy(tsd, tctx);
 
 	if (opt_prof_stats) {
+		szind_t szind = sz_size2index(usize);
 		prof_stats_dec(tsd, szind, prof_info->alloc_size);
 	}
 }

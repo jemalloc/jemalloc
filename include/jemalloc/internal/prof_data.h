@@ -23,6 +23,7 @@ int          prof_thread_name_set_impl(tsd_t *tsd, const char *thread_name);
 void         prof_thread_name_write_tdata(
             tsd_t *tsd, prof_tdata_t *tdata, const char *thread_name);
 void         prof_unbias_map_init(void);
+void prof_unbias(size_t sz, size_t *unbiased_sz, size_t *shifted_unbiased_cnt);
 void prof_dump_impl(tsd_t *tsd, write_cb_t *prof_dump_write, void *cbopaque,
     prof_tdata_t *tdata, bool leakcheck);
 prof_tdata_t *prof_tdata_init_impl(tsd_t *tsd, uint64_t thr_uid,
