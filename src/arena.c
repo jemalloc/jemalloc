@@ -1034,6 +1034,7 @@ arena_ptr_array_flush_impl_small(tsdn_t *tsdn, szind_t binind,
 		unsigned prev_flush_start = flush_start;
 
 		edata_t *cur_edata = item_edata[flush_start].edata;
+		uint64_t cur_owner = edata_bin_owner_get(cur_edata);
 		unsigned cur_arena_ind = edata_arena_ind_get(cur_edata);
 		arena_t *cur_arena = arena_get(tsdn, cur_arena_ind, false);
 
@@ -1053,8 +1054,7 @@ arena_ptr_array_flush_impl_small(tsdn_t *tsdn, szind_t binind,
 			    (uintptr_t)ptr >= (uintptr_t)edata_addr_get(edata));
 			assert(
 			    (uintptr_t)ptr < (uintptr_t)edata_past_get(edata));
-			if (edata_arena_ind_get(edata) == cur_arena_ind
-			    && edata_binshard_get(edata) == cur_binshard) {
+			if (edata_bin_owner_get(edata) == cur_owner) {
 				/* Swap the edatas. */
 				emap_batch_lookup_result_t temp_edata =
 				    item_edata[flush_start];
