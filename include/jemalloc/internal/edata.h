@@ -433,6 +433,13 @@ edata_binshard_get(const edata_t *edata) {
 	return binshard;
 }
 
+/* The arena and bin shard identify a bin within a single size class. */
+static inline uint64_t
+edata_bin_owner_get(const edata_t *edata) {
+	return edata->e_bits
+	    & (EDATA_BITS_ARENA_MASK | EDATA_BITS_BINSHARD_MASK);
+}
+
 static inline uint64_t
 edata_sn_get(const edata_t *edata) {
 	return edata->e_sn;
