@@ -1042,10 +1042,14 @@ arena_ptr_array_flush_impl_small(tsdn_t *tsdn, szind_t binind,
 		bin_t *cur_bin = arena_get_bin(cur_arena, binind, cur_binshard);
 		assert(cur_binshard < bin_infos[binind].n_shards);
 		/*
-		 * Start off the partition; item_edata[i] always matches itself
-		 * of course.
+		 * Skip the already partitioned owner prefix to avoid swapping
+		 * entries with themselves.
 		 */
-		flush_start++;
+		do {
+			flush_start++;
+		} while (flush_start < nflush
+		    && edata_bin_owner_get(item_edata[flush_start].edata)
+		        == cur_owner);
 		for (unsigned i = flush_start; i < nflush; i++) {
 			void    *ptr = arr->ptr[i];
 			edata_t *edata = item_edata[i].edata;
