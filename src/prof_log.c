@@ -141,6 +141,9 @@ prof_log_bt_index(tsd_t *tsd, prof_bt_t *bt) {
 		prof_bt_node_t *new_node = (prof_bt_node_t *)iallocztm(
 		    tsd_tsdn(tsd), sz, sz_size2index(sz), false, NULL, true,
 		    arena_get(TSDN_NULL, 0, true), true);
+		if (new_node == NULL) {
+			return 0;
+		}
 		if (log_bt_first == NULL) {
 			log_bt_first = new_node;
 			log_bt_last = new_node;
@@ -183,6 +186,9 @@ prof_log_thr_index(tsd_t *tsd, uint64_t thr_uid, const char *name) {
 		prof_thr_node_t *new_node = (prof_thr_node_t *)iallocztm(
 		    tsd_tsdn(tsd), sz, sz_size2index(sz), false, NULL, true,
 		    arena_get(TSDN_NULL, 0, true), true);
+		if (new_node == NULL) {
+			return 0;
+		}
 		if (log_thr_first == NULL) {
 			log_thr_first = new_node;
 			log_thr_last = new_node;
@@ -246,6 +252,9 @@ prof_try_log(tsd_t *tsd, size_t usize, prof_info_t *prof_info) {
 	prof_alloc_node_t *new_node = (prof_alloc_node_t *)iallocztm(
 	    tsd_tsdn(tsd), sz, sz_size2index(sz), false, NULL, true,
 	    arena_get(TSDN_NULL, 0, true), true);
+	if (new_node == NULL) {
+		return;
+	}
 
 	const char *prod_thr_name = tctx->tdata->thread_name;
 	const char *cons_thr_name = prof_thread_name_get(tsd);
