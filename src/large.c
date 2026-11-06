@@ -281,6 +281,9 @@ large_prof_info_get(
 		nstime_copy(
 		    &prof_info->alloc_time, edata_prof_alloc_time_get(edata));
 		prof_info->alloc_size = edata_prof_alloc_size_get(edata);
+		prof_info->unbiased_size = edata_prof_unbiased_size_get(edata);
+		prof_info->shifted_unbiased_cnt =
+		    edata_prof_shifted_unbiased_cnt_get(edata);
 		if (reset_recent) {
 			/*
 			 * Reset the pointer on the recent allocation record,
@@ -302,11 +305,14 @@ large_prof_tctx_reset(edata_t *edata) {
 }
 
 void
-large_prof_info_set(edata_t *edata, prof_tctx_t *tctx, size_t size) {
+large_prof_info_set(edata_t *edata, prof_tctx_t *tctx, size_t size,
+    size_t unbiased_size, size_t shifted_unbiased_cnt) {
 	nstime_t t;
 	nstime_prof_init_update(&t);
 	edata_prof_alloc_time_set(edata, &t);
 	edata_prof_alloc_size_set(edata, size);
 	edata_prof_recent_alloc_init(edata);
+	edata_prof_unbiased_size_set(edata, unbiased_size);
+	edata_prof_shifted_unbiased_cnt_set(edata, shifted_unbiased_cnt);
 	large_prof_tctx_set(edata, tctx);
 }

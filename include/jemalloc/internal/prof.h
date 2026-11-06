@@ -214,6 +214,10 @@ struct prof_info_s {
 	prof_tctx_t *alloc_tctx;
 	/* Allocation request size. */
 	size_t alloc_size;
+	/* Unbiased size. */
+	size_t unbiased_size;
+	/* Shifted unbiased count. */
+	size_t shifted_unbiased_cnt;
 };
 
 struct prof_gctx_s {

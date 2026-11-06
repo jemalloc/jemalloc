@@ -70,6 +70,10 @@ struct e_prof_info_s {
 	 * Protected by prof_recent_alloc_mtx.
 	 */
 	atomic_p_t e_prof_recent_alloc;
+	/* Unbiased size. */
+	size_t e_prof_unbiased_size;
+	/* Shifted unbiased count. */
+	size_t e_prof_shifted_unbiased_cnt;
 };
 typedef struct e_prof_info_s e_prof_info_t;
 
@@ -556,6 +560,16 @@ edata_prof_alloc_size_get(const edata_t *edata) {
 	return edata->e_prof_info.e_prof_alloc_size;
 }
 
+static inline size_t
+edata_prof_unbiased_size_get(const edata_t *edata) {
+	return edata->e_prof_info.e_prof_unbiased_size;
+}
+
+static inline size_t
+edata_prof_shifted_unbiased_cnt_get(const edata_t *edata) {
+	return edata->e_prof_info.e_prof_shifted_unbiased_cnt;
+}
+
 static inline prof_recent_t *
 edata_prof_recent_alloc_get_dont_call_directly(const edata_t *edata) {
 	return (prof_recent_t *)atomic_load_p(
@@ -724,6 +738,17 @@ edata_prof_alloc_time_set(edata_t *edata, nstime_t *t) {
 static inline void
 edata_prof_alloc_size_set(edata_t *edata, size_t size) {
 	edata->e_prof_info.e_prof_alloc_size = size;
+}
+
+static inline void
+edata_prof_unbiased_size_set(edata_t *edata, size_t unbiased_size) {
+	edata->e_prof_info.e_prof_unbiased_size = unbiased_size;
+}
+
+static inline void
+edata_prof_shifted_unbiased_cnt_set(
+    edata_t *edata, size_t shifted_unbiased_cnt) {
+	edata->e_prof_info.e_prof_shifted_unbiased_cnt = shifted_unbiased_cnt;
 }
 
 static inline void

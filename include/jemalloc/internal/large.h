@@ -22,6 +22,7 @@ void   large_dalloc(tsdn_t *tsdn, edata_t *edata);
 void   large_prof_info_get(
       tsd_t *tsd, edata_t *edata, prof_info_t *prof_info, bool reset_recent);
 void large_prof_tctx_reset(edata_t *edata);
-void large_prof_info_set(edata_t *edata, prof_tctx_t *tctx, size_t size);
+void large_prof_info_set(edata_t *edata, prof_tctx_t *tctx, size_t size,
+    size_t unbiased_size, size_t shifted_unbiased_cnt);
 
 #endif /* JEMALLOC_INTERNAL_LARGE_H */
