@@ -2,6 +2,9 @@
 #define JEMALLOC_INTERNAL_OS_POSIX_CPU_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
+#ifdef __linux__
+#	include "jemalloc/internal/malloc_io.h"
+#endif
 
 JEMALLOC_ALWAYS_INLINE unsigned
 os_cpu_ncpus(void) {
@@ -84,43 +87,6 @@ os_cpu_affinity_cpus(unsigned *cpus, unsigned max_cpus) {
 #endif
 }
 
-/*
- * Ensure that number of CPUs is determistinc, i.e. it is the same based on:
- * - sched_getaffinity()
- * - _SC_NPROCESSORS_ONLN
- * - _SC_NPROCESSORS_CONF
- * Since otherwise tricky things is possible with percpu arenas in use.
- */
-JEMALLOC_ALWAYS_INLINE bool
-os_cpu_count_is_deterministic(void) {
-	long cpu_onln = sysconf(_SC_NPROCESSORS_ONLN);
-	long cpu_conf = sysconf(_SC_NPROCESSORS_CONF);
-	if (cpu_onln <= 0 || cpu_conf <= 0 || cpu_onln != cpu_conf) {
-		return false;
-	}
-#	if defined(CPU_COUNT)
-#		if defined(__FreeBSD__) || defined(__DragonFly__)
-	cpuset_t set;
-#		else
-	cpu_set_t set;
-#		endif /* __FreeBSD__ */
-	int err;
-#		if defined(JEMALLOC_HAVE_SCHED_SETAFFINITY)
-	err = sched_getaffinity(0, sizeof(set), &set);
-#		else  /* !JEMALLOC_HAVE_SCHED_SETAFFINITY */
-	err = pthread_getaffinity_np(pthread_self(), sizeof(set), &set);
-#		endif /* JEMALLOC_HAVE_SCHED_SETAFFINITY */
-	if (err != 0) {
-		return false;
-	}
-	long cpu_affinity = CPU_COUNT(&set);
-	if (cpu_affinity <= 0 || cpu_affinity != cpu_conf) {
-		return false;
-	}
-#	endif         /* CPU_COUNT */
-	return true;
-}
-
 JEMALLOC_ALWAYS_INLINE int
 os_cpu_current(void) {
 #if defined(JEMALLOC_HAVE_SCHED_GETCPU)
@@ -132,6 +98,41 @@ os_cpu_current(void) {
 #else
 	not_reached();
 	return -1;
+#endif
+}
+
+JEMALLOC_ALWAYS_INLINE bool
+os_cpu_core_key(unsigned cpu, unsigned *key) {
+#ifdef __linux__
+	/*
+	 * The kernel prints the list in ascending order ("0,88", "0-3", "8"),
+	 * so its leading number is the smallest CPU id on the core.
+	 */
+	char path[80];
+	malloc_snprintf(path, sizeof(path),
+	    "/sys/devices/system/cpu/cpu%u/topology/thread_siblings_list", cpu);
+	int fd = malloc_open(path, O_RDONLY | O_CLOEXEC);
+	if (fd == -1) {
+		return true;
+	}
+	char    buf[16];
+	ssize_t nread = malloc_read_fd(fd, buf, sizeof(buf) - 1);
+	malloc_close(fd);
+	if (nread <= 0) {
+		return true;
+	}
+	buf[nread] = '\0';
+	char     *end;
+	uintmax_t first = malloc_strtoumax(buf, &end, 10);
+	if (end == buf || first > UINT_MAX) {
+		return true;
+	}
+	*key = (unsigned)first;
+	return false;
+#else
+	(void)cpu;
+	(void)key;
+	return true;
 #endif
 }
 

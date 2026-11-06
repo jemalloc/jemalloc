@@ -18,14 +18,16 @@ os_cpu_affinity_cpus(unsigned *cpus, unsigned max_cpus) {
 	return 0;
 }
 
-JEMALLOC_ALWAYS_INLINE bool
-os_cpu_count_is_deterministic(void) {
-	return true;
-}
-
 JEMALLOC_ALWAYS_INLINE int
 os_cpu_current(void) {
 	return (int)GetCurrentProcessorNumber();
+}
+
+JEMALLOC_ALWAYS_INLINE bool
+os_cpu_core_key(unsigned cpu, unsigned *key) {
+	(void)cpu;
+	(void)key;
+	return true;
 }
 
 JEMALLOC_ALWAYS_INLINE bool
