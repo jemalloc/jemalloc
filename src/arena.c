@@ -773,6 +773,7 @@ arena_ptr_array_fill_small(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 	cache_bin_sz_t filled = 0;
 	unsigned       binshard;
 	bin_t         *bin = bin_choose(tsdn, arena, binind, &binshard);
+	uintptr_t      tag = (binind + 1ULL) << LAM_SHIFT;
 
 label_refill:
 	malloc_mutex_lock(tsdn, &bin->lock);
@@ -796,8 +797,8 @@ label_refill:
 				}
 			}
 
-			bin_slab_reg_alloc_batch(
-			    slabcur, bin_info, cnt, &arr->ptr[filled]);
+			bin_slab_reg_alloc_batch_tagged(
+			    slabcur, bin_info, cnt, &arr->ptr[filled], tag);
 			made_progress = true;
 			filled += cnt;
 			continue;
@@ -970,7 +971,7 @@ arena_dalloc_small(tsdn_t *tsdn, void *ptr) {
 static const void *
 arena_ptr_array_flush_ptr_getter(void *arr_ctx, size_t ind) {
 	cache_bin_ptr_array_t *arr = (cache_bin_ptr_array_t *)arr_ctx;
-	return arr->ptr[ind];
+	return lam_unmask(arr->ptr[ind]);
 }
 
 static void
@@ -1046,7 +1047,7 @@ arena_ptr_array_flush_impl_small(tsdn_t *tsdn, szind_t binind,
 		 */
 		flush_start++;
 		for (unsigned i = flush_start; i < nflush; i++) {
-			void    *ptr = arr->ptr[i];
+			void    *ptr = lam_unmask(arr->ptr[i]);
 			edata_t *edata = item_edata[i].edata;
 			assert(ptr != NULL && edata != NULL);
 			assert(
@@ -1108,7 +1109,7 @@ arena_ptr_array_flush_impl_small(tsdn_t *tsdn, szind_t binind,
 		bin_dalloc_locked_info_t dalloc_bin_info = {0};
 		bin_dalloc_locked_begin(&dalloc_bin_info, binind);
 		for (unsigned i = prev_flush_start; i < flush_start; i++) {
-			void    *ptr = arr->ptr[i];
+			void    *ptr = lam_unmask(arr->ptr[i]);
 			edata_t *edata = item_edata[i].edata;
 			if (bin_dalloc_locked_step(tsdn,
 			        arena_is_auto(cur_arena),

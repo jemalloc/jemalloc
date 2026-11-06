@@ -71,6 +71,9 @@ void bin_postfork_child(tsdn_t *tsdn, bin_t *bin);
 /* Slab region allocation. */
 void  bin_slab_reg_alloc_batch(
      edata_t *slab, const bin_info_t *bin_info, unsigned cnt, void **ptrs);
+void  bin_slab_reg_alloc_batch_tagged(
+     edata_t *slab, const bin_info_t *bin_info, unsigned cnt, void **ptrs,
+     uintptr_t tag);
 
 /* Slab list management. */
 void     bin_slabs_full_remove(bool is_auto, bin_t *bin, edata_t *slab);

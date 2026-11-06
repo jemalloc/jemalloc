@@ -568,6 +568,16 @@ pages_boot(void) {
 		return true;
 	}
 
+	/*
+	 * Turn on LAM. The dormant Linux upstream support only
+	 * supports six masked bits, so this is what we use.
+	 */
+	_Static_assert(SC_NBINS <= 63, "too many tcache bins for 6-bit LAM");
+	extern int arch_prctl(int, ...);
+	if (arch_prctl(0x4002 /* ARCH_ENABLE_TAGGED_ADDR */, 6) != 0) {
+		abort();
+	}
+
 	init_thp_state();
 
 #ifdef __FreeBSD__

@@ -44,14 +44,14 @@ JEMALLOC_ALWAYS_INLINE arena_t *
 iaalloc(tsdn_t *tsdn, const void *ptr) {
 	assert(ptr != NULL);
 
-	return arena_aalloc(tsdn, ptr);
+	return arena_aalloc(tsdn, lam_unmask((void *)ptr));
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
 isalloc(tsdn_t *tsdn, const void *ptr) {
 	assert(ptr != NULL);
 
-	return arena_salloc(tsdn, ptr);
+	return arena_salloc(tsdn, lam_unmask((void *)ptr));
 }
 
 JEMALLOC_ALWAYS_INLINE void *
@@ -478,43 +478,12 @@ free_fastpath(void *ptr, size_t size, bool size_hint) {
 	assert(tsd_fast(tsd)
 	    || *tsd_thread_deallocated_next_event_fastp_get_unsafe(tsd) == 0);
 
-	emap_alloc_ctx_t alloc_ctx JEMALLOC_CC_SILENCE_INIT({0, 0, false});
-	size_t                     usize;
-	if (!size_hint) {
-		bool err = emap_alloc_ctx_try_lookup_fast(
-		    tsd, &arena_emap_global, ptr, &alloc_ctx);
-
-		/* Note: profiled objects will have alloc_ctx.slab set */
-		if (unlikely(err || !alloc_ctx.slab
-		        || free_fastpath_nonfast_aligned(ptr,
-		            /* check_prof */ false))) {
-			return false;
-		}
-		assert(alloc_ctx.szind != SC_NSIZES);
-		usize = sz_index2size(alloc_ctx.szind);
-	} else {
-		/*
-                 * Check for both sizes that are too large, and for sampled /
-                 * special aligned objects.  The alignment check will also check
-                 * for null ptr.
-                 */
-		if (unlikely(size > SC_LOOKUP_MAXCLASS
-		        || free_fastpath_nonfast_aligned(ptr,
-		            /* check_prof */ true))) {
-			return false;
-		}
-		sz_size2index_usize_fastpath(size, &alloc_ctx.szind, &usize);
-		/* Max lookup class must be small. */
-		assert(alloc_ctx.szind < SC_NBINS);
-		/* This is a dead store, except when opt size checking is on. */
-		alloc_ctx.slab = true;
+	unsigned szind = (uintptr_t)ptr >> LAM_SHIFT;
+	if (!szind) {
+		return false;
 	}
-	/*
-         * Currently the fastpath only handles small sizes.  The branch on
-         * SC_LOOKUP_MAXCLASS makes sure of it.  This lets us avoid checking
-         * tcache szind upper limit (i.e. tcache_max) as well.
-         */
-	assert(alloc_ctx.slab);
+	--szind;
+	size_t usize = sz_index2size(szind);
 
 	uint64_t deallocated, threshold;
 	te_free_fastpath_ctx(tsd, &deallocated, &threshold);
@@ -531,16 +500,22 @@ free_fastpath(void *ptr, size_t size, bool size_hint) {
 		return false;
 	}
 	assert(tsd_fast(tsd));
-	bool fail = maybe_check_alloc_ctx(tsd, ptr, &alloc_ctx);
-	if (fail) {
-		/* See the comment in isfree. */
-		return true;
+	if (config_debug) {
+		emap_alloc_ctx_t alloc_ctx = {
+			.szind = szind, .slab = (szind < SC_NBINS)
+		};
+		bool fail = maybe_check_alloc_ctx(
+		    tsd, lam_unmask(ptr), &alloc_ctx);
+		if (fail) {
+			/* See the comment in isfree. */
+			return true;
+		}
 	}
 
 	tcache_t    *tcache = tsd_tcachep_get(tsd);
 	assert(tcache == tcache_get(tsd));
 	assert(tcache != NULL);
-	cache_bin_t *bin = &tcache->bins[alloc_ctx.szind];
+	cache_bin_t *bin = &tcache->bins[szind];
 	assert(bin != NULL);
 
 	/*
@@ -562,7 +537,7 @@ free_fastpath(void *ptr, size_t size, bool size_hint) {
 JEMALLOC_ALWAYS_INLINE void JEMALLOC_NOTHROW
 je_sdallocx_noflags(void *ptr, size_t size) {
 	if (!free_fastpath(ptr, size, true)) {
-		sdallocx_default(ptr, size, 0);
+		sdallocx_default(lam_unmask(ptr), size, 0);
 	}
 }
 
@@ -573,13 +548,13 @@ je_sdallocx_impl(void *ptr, size_t size, int flags) {
 			return;
 		}
 	}
-	sdallocx_default(ptr, size, flags);
+	sdallocx_default(lam_unmask(ptr), size, flags);
 }
 
 JEMALLOC_ALWAYS_INLINE void JEMALLOC_NOTHROW
 je_free_impl(void *ptr) {
 	if (!free_fastpath(ptr, 0, false)) {
-		free_default(ptr);
+		free_default(lam_unmask(ptr));
 	}
 }
 

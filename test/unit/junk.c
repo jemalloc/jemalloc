@@ -92,7 +92,8 @@ TEST_BEGIN(test_junk_alloc_free) {
 			void *ptr = ptrs[n];                                   \
 			__VA_ARGS__;                                           \
 			if (opt_junk_free) {                                   \
-				assert_ptr_eq(ptr, last_junked_ptr, "");       \
+				assert_ptr_eq(lam_unmask(ptr),                 \
+				    last_junked_ptr, "");                      \
 				assert_zu_eq(usize, last_junked_usize, "");    \
 			}                                                      \
 			reset();                                               \
