@@ -6,22 +6,17 @@
 #include "jemalloc/internal/arena_stats.h"
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bin.h"
-#include "jemalloc/internal/bitmap.h"
 #include "jemalloc/internal/counter.h"
 #include "jemalloc/internal/div.h"
-#include "jemalloc/internal/ecache.h"
-#include "jemalloc/internal/edata_cache.h"
 #include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/jemalloc_internal_types.h"
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/nstime.h"
 #include "jemalloc/internal/pa.h"
-#include "jemalloc/internal/pages.h"
 #include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/stats.h"
-#include "jemalloc/internal/ticker.h"
 
 /******************************************************************************/
 /* TYPES */

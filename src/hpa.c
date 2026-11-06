@@ -2,7 +2,9 @@
 
 #include "jemalloc/internal/background_thread.h"
 #include "jemalloc/internal/deferral.h"
+#include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/hpa.h"
+#include "jemalloc/internal/hpa_central.h"
 #include "jemalloc/internal/hpa_utils.h"
 #include "jemalloc/internal/jemalloc_probe.h"
 #include "jemalloc/internal/witness.h"

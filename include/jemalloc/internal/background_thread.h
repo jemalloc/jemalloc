@@ -2,7 +2,7 @@
 #define JEMALLOC_INTERNAL_BACKGROUND_THREAD_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/base.h"
+typedef struct base_s base_t;
 #include "jemalloc/internal/mutex.h"
 #include "jemalloc/internal/nstime.h"
 #include "jemalloc/internal/os.h"

@@ -2,10 +2,10 @@
 #define JEMALLOC_INTERNAL_EXTENT_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/ecache.h"
-#include "jemalloc/internal/ehooks.h"
-#include "jemalloc/internal/pac.h"
-#include "jemalloc/internal/ph.h"
+typedef struct ecache_s ecache_t;
+typedef struct ehooks_s ehooks_t;
+typedef struct pac_s pac_t;
+#include "jemalloc/internal/edata.h"
 #include "jemalloc/internal/rtree.h"
 
 /*

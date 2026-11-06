@@ -2,7 +2,7 @@
 #define JEMALLOC_INTERNAL_BIN_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/bin_info.h"
+typedef struct bin_info_s bin_info_t;
 #include "jemalloc/internal/bin_stats.h"
 #include "jemalloc/internal/div.h"
 #include "jemalloc/internal/edata.h"

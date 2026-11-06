@@ -2,7 +2,7 @@
 #define JEMALLOC_INTERNAL_EMAP_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
-#include "jemalloc/internal/base.h"
+typedef struct base_s base_t;
 #include "jemalloc/internal/rtree.h"
 
 /*
