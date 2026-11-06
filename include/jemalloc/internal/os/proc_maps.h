@@ -54,10 +54,11 @@ JEMALLOC_ALWAYS_INLINE int os_prof_open_maps(void);
  * Takes the caller's current prof_dump_open_maps hook as a parameter instead
  * of reaching for prof_sys.h's JET_MUTABLE global directly: prof_sys.h pulls
  * in prof.h -> mutex.h -> os.h, which would re-enter this file mid-expansion.
- * Darwin ignores the parameter (no fd-based maps to open there).
+ * Darwin ignores open_maps (no fd-based maps to open there) and emits the
+ * maps snapshot instead; the fd-based backends ignore maps.
  */
 JEMALLOC_ALWAYS_INLINE void os_prof_dump_maps(
-    buf_writer_t *buf_writer, int (*open_maps)(void));
+    buf_writer_t *buf_writer, int (*open_maps)(void), const char *maps);
 
 #if defined(_WIN32)
 #  include "jemalloc/internal/os/windows/proc_maps.h"
@@ -69,6 +70,29 @@ JEMALLOC_ALWAYS_INLINE void os_prof_dump_maps(
 #  include "jemalloc/internal/os/posix/proc_maps.h"
 #else
 #  error "OS layer: no proc_maps backend for this platform; add os/<os>/proc_maps.h"
+#endif
+
+/*
+ * Backends that read maps from an fd at dump time need no snapshot; only
+ * Darwin, which must call dyld before prof_dump_mtx is taken, defines
+ * JEMALLOC_OS_PROF_MAPS_SNAPSHOT and provides its own.
+ *
+ * os_prof_maps_snapshot_size() returns the byte count to hand to
+ * os_prof_maps_snapshot(), which fills buf with the NUL-terminated maps text
+ * later passed to os_prof_dump_maps(), or 0 when no snapshot is needed.
+ */
+#ifndef JEMALLOC_OS_PROF_MAPS_SNAPSHOT
+JEMALLOC_ALWAYS_INLINE size_t
+os_prof_maps_snapshot_size(void) {
+	return 0;
+}
+
+JEMALLOC_ALWAYS_INLINE size_t
+os_prof_maps_snapshot(char *buf, size_t size) {
+	(void)buf;
+	(void)size;
+	return 0;
+}
 #endif
 
 #endif /* JEMALLOC_INTERNAL_OS_PROC_MAPS_H */
