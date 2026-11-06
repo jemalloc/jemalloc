@@ -531,6 +531,9 @@ pac_retain_grow_limit_get_set(
 	}
 	if (new_limit != NULL) {
 		pac->exp_grow.limit = new_ind;
+		if (pac->exp_grow.next > new_ind) {
+			pac->exp_grow.next = new_ind;
+		}
 	}
 	malloc_mutex_unlock(tsdn, &pac->grow_mtx);
 
