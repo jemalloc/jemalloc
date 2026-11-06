@@ -1649,10 +1649,22 @@ TEST_BEGIN(test_arena_i_retain_grow_limit) {
 	    "Unexpected mallctl() failure");
 	test_skip_if(!retain_enabled);
 
+	unsigned arena_ind;
+	sz = sizeof(arena_ind);
+	assert_d_eq(mallctl("arenas.create", &arena_ind, &sz, NULL, 0), 0,
+	    "Unexpected arena creation failure");
+	tsdn_t *tsdn = tsdn_fetch();
+	pac_t  *pac = &arena_get(tsdn, arena_ind, false)->pa_shard.pac;
+	/* Start above both test limits so lowering must clamp immediately. */
+	malloc_mutex_lock(tsdn, &pac->grow_mtx);
+	pac->exp_grow.next = 10;
+	malloc_mutex_unlock(tsdn, &pac->grow_mtx);
+
 	sz = sizeof(default_limit);
 	miblen = sizeof(mib) / sizeof(size_t);
 	expect_d_eq(mallctlnametomib("arena.0.retain_grow_limit", mib, &miblen),
 	    0, "Unexpected mallctlnametomib() error");
+	mib[1] = arena_ind;
 
 	expect_d_eq(mallctlbymib(mib, miblen, &default_limit, &sz, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
@@ -1668,6 +1680,11 @@ TEST_BEGIN(test_arena_i_retain_grow_limit) {
 	expect_d_eq(mallctlbymib(
 	                mib, miblen, NULL, NULL, &new_limit, sizeof(new_limit)),
 	    0, "Unexpected mallctl() failure");
+	malloc_mutex_lock(tsdn, &pac->grow_mtx);
+	pszind_t next_after_lower = pac->exp_grow.next;
+	malloc_mutex_unlock(tsdn, &pac->grow_mtx);
+	expect_u_eq(next_after_lower, sz_psz2ind(PAGE),
+	    "Lowering the limit should clamp the next growth size immediately");
 	expect_d_eq(mallctlbymib(mib, miblen, &old_limit, &sz, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
 	expect_zu_eq(old_limit, PAGE, "Unexpected value for retain_grow_limit");
@@ -1677,6 +1694,11 @@ TEST_BEGIN(test_arena_i_retain_grow_limit) {
 	expect_d_eq(mallctlbymib(
 	                mib, miblen, NULL, NULL, &new_limit, sizeof(new_limit)),
 	    0, "Unexpected mallctl() failure");
+	malloc_mutex_lock(tsdn, &pac->grow_mtx);
+	pszind_t next_after_raise = pac->exp_grow.next;
+	malloc_mutex_unlock(tsdn, &pac->grow_mtx);
+	expect_u_eq(next_after_raise, next_after_lower,
+	    "Raising the limit should not increase the next growth size");
 	expect_d_eq(mallctlbymib(mib, miblen, &old_limit, &sz, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
 	expect_zu_eq(
