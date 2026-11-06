@@ -73,6 +73,9 @@
     <ClCompile Include="..\..\..\..\src\hpa_hooks.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\src\hpa_shard_set.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\src\hpa_utils.c">
       <Filter>Source Files</Filter>
     </ClCompile>

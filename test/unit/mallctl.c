@@ -543,6 +543,7 @@ TEST_BEGIN(test_mallctl_opt) {
 	TEST_MALLCTL_OPT(size_t, experimental_pac_sec_max_bytes, always);
 	TEST_MALLCTL_OPT(size_t, hpa_purge_threshold, always);
 	TEST_MALLCTL_OPT(const char *, hpa_hugify_style, always);
+	TEST_MALLCTL_OPT(bool, hpa_shard_sets, always);
 	TEST_MALLCTL_OPT(unsigned, narenas, always);
 	TEST_MALLCTL_OPT(const char *, percpu_arena, always);
 	TEST_MALLCTL_OPT(size_t, oversize_threshold, always);
@@ -2131,6 +2132,82 @@ TEST_BEGIN(test_stats_arenas) {
 }
 TEST_END
 
+static uint64_t
+arena_mutex_num_ops(unsigned arena_ind, const char *mutex) {
+	uint64_t epoch = 1;
+	expect_d_eq(mallctl("epoch", NULL, NULL, &epoch, sizeof(epoch)), 0,
+	    "Unexpected mallctl() failure");
+	char name[128];
+	malloc_snprintf(name, sizeof(name),
+	    "stats.arenas.%u.mutexes.%s.num_ops", arena_ind, mutex);
+	uint64_t num_ops;
+	size_t   sz = sizeof(num_ops);
+	expect_d_eq(mallctl(name, &num_ops, &sz, NULL, 0), 0, "%s unreadable",
+	    name);
+	return num_ops;
+}
+
+TEST_BEGIN(test_stats_mutexes_reset_hpa) {
+	test_skip_if(!config_stats);
+	test_skip_if(!opt_hpa);
+
+	/*
+	 * Background threads would add their own lock traffic on the shard
+	 * between reads; turn them off while measuring, keeping the previous
+	 * setting to restore after.
+	 */
+	bool background_thread = false;
+	if (have_background_thread) {
+		bool   off = false;
+		size_t bsz = sizeof(background_thread);
+		expect_d_eq(mallctl("background_thread", &background_thread,
+		                &bsz, &off, sizeof(off)),
+		    0, "Unexpected mallctl() failure");
+	}
+
+	/* Give a fresh arena's HPA shard some lock traffic. */
+	unsigned arena_ind;
+	size_t   sz = sizeof(arena_ind);
+	expect_d_eq(mallctl("arenas.create", &arena_ind, &sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+	int   flags = MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE;
+	void *ptrs[64];
+	for (unsigned i = 0; i < sizeof(ptrs) / sizeof(ptrs[0]); i++) {
+		ptrs[i] = mallocx(PAGE, flags);
+		expect_ptr_not_null(ptrs[i], "Unexpected mallocx() failure");
+	}
+	for (unsigned i = 0; i < sizeof(ptrs) / sizeof(ptrs[0]); i++) {
+		dallocx(ptrs[i], flags);
+	}
+
+	/*
+	 * After a reset, only the locks taken by the stats refresh itself are
+	 * counted: fewer than before, and the same after every reset.
+	 */
+	const char *mutexes[] = {"hpa_shard", "hpa_shard_grow", "hpa_sec"};
+	for (unsigned m = 0; m < sizeof(mutexes) / sizeof(mutexes[0]); m++) {
+		uint64_t before = arena_mutex_num_ops(arena_ind, mutexes[m]);
+		expect_d_eq(mallctl("stats.mutexes.reset", NULL, NULL, NULL, 0),
+		    0, "Unexpected mallctl() failure");
+		uint64_t after = arena_mutex_num_ops(arena_ind, mutexes[m]);
+		expect_d_eq(mallctl("stats.mutexes.reset", NULL, NULL, NULL, 0),
+		    0, "Unexpected mallctl() failure");
+		uint64_t again = arena_mutex_num_ops(arena_ind, mutexes[m]);
+		expect_u64_lt(after, before, "%s was not reset", mutexes[m]);
+		expect_u64_eq(again, after,
+		    "%s should count only the refresh after a reset",
+		    mutexes[m]);
+	}
+
+	if (background_thread) {
+		bool on = true;
+		expect_d_eq(mallctl("background_thread", NULL, NULL, &on,
+		                sizeof(on)),
+		    0, "Unexpected mallctl() failure");
+	}
+}
+TEST_END
+
 TEST_BEGIN(test_stats_arenas_hpa_shard_counters) {
 	test_skip_if(!config_stats);
 
@@ -2403,7 +2480,7 @@ main(void) {
 	    test_arenas_lextent_constants, test_arenas_create,
 	    test_experimental_arenas_create_ext_errors, test_arenas_lookup,
 	    test_prof_active, test_stats_arenas,
-	    test_stats_arenas_hpa_shard_counters,
+	    test_stats_mutexes_reset_hpa, test_stats_arenas_hpa_shard_counters,
 	    test_stats_arenas_hpa_shard_slabs, test_thread_idle, test_thread_peak,
 	    test_thread_event_hook);
 }
