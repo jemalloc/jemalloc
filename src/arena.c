@@ -1387,7 +1387,15 @@ arena_set_extent_hooks(
 	background_thread_serialize_lock(tsd, arena_ind);
 	/* No using the HPA now that we have the custom hooks. */
 	pa_shard_disable_hpa(tsd_tsdn(tsd), &arena->pa_shard);
+	pac_t *pac = &arena->pa_shard.pac;
+	malloc_mutex_lock(tsd_tsdn(tsd), &pac->grow_mtx);
 	extent_hooks_t *ret = base_extent_hooks_set(arena->base, extent_hooks);
+	if (extent_hooks != &ehooks_default_extent_hooks) {
+		pszind_t next = sz_psz2ind((size_t)8 << 20);
+		pac->exp_grow.next = next < pac->exp_grow.limit
+		    ? next : pac->exp_grow.limit;
+	}
+	malloc_mutex_unlock(tsd_tsdn(tsd), &pac->grow_mtx);
 	background_thread_serialize_unlock(tsd, arena_ind);
 
 	return ret;
