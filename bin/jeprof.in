@@ -5398,7 +5398,7 @@ sub ShellEscape {
   foreach my $word (@_) {
     my $escaped_word = $word;
     if ($word =~ m![^a-zA-Z0-9/.,_=-]!) {  # check for anything not in whitelist
-      $escaped_word =~ s/'/'\\''/;
+      $escaped_word =~ s/'/'\\''/g;
       $escaped_word = "'$escaped_word'";
     }
     push(@escaped_words, $escaped_word);
