@@ -973,12 +973,27 @@ arena_ptr_array_flush_ptr_getter(void *arr_ctx, size_t ind) {
 	return arr->ptr[ind];
 }
 
+typedef struct arena_ptr_array_flush_visitor_ctx_s {
+	size_t   szind_sum;
+	edata_t *prefetched;
+} arena_ptr_array_flush_visitor_ctx_t;
+
 static void
 arena_ptr_array_flush_metadata_visitor(
-    void *szind_sum_ctx, emap_full_alloc_ctx_t *alloc_ctx) {
-	size_t *szind_sum = (size_t *)szind_sum_ctx;
-	*szind_sum -= alloc_ctx->szind;
-	util_prefetch_write_range(alloc_ctx->edata, EDATA_ALLOC_SIZE);
+    void *visitor_ctx, emap_full_alloc_ctx_t *alloc_ctx) {
+	arena_ptr_array_flush_visitor_ctx_t *ctx =
+	    (arena_ptr_array_flush_visitor_ctx_t *)visitor_ctx;
+	ctx->szind_sum -= alloc_ctx->szind;
+	/*
+	 * Objects flushed together are usually on the same slab, so prefetch
+	 * each edata once rather than once per object.  This matters with
+	 * large pages, where the slab bitmap makes an edata span many cache
+	 * lines (18 with 64 KiB pages).
+	 */
+	if (alloc_ctx->edata != ctx->prefetched) {
+		ctx->prefetched = alloc_ctx->edata;
+		util_prefetch_write_range(alloc_ctx->edata, EDATA_ALLOC_SIZE);
+	}
 }
 
 JEMALLOC_NOINLINE static void
@@ -1257,12 +1272,13 @@ arena_ptr_array_flush_impl(tsd_t *tsd, szind_t binind,
 	 * Checks for sized deallocation bugs, failing early rather than
 	 * corrupting metadata.
 	 */
-	size_t szind_sum = binind * nflush;
+	arena_ptr_array_flush_visitor_ctx_t visitor_ctx = {
+	    .szind_sum = binind * nflush, .prefetched = NULL};
 	emap_edata_lookup_batch(tsd, &arena_emap_global, nflush,
 	    &arena_ptr_array_flush_ptr_getter, (void *)arr,
-	    &arena_ptr_array_flush_metadata_visitor, (void *)&szind_sum,
+	    &arena_ptr_array_flush_metadata_visitor, (void *)&visitor_ctx,
 	    item_edata);
-	if (config_opt_safety_checks && unlikely(szind_sum != 0)) {
+	if (config_opt_safety_checks && unlikely(visitor_ctx.szind_sum != 0)) {
 		arena_ptr_array_flush_size_check_fail(
 		    arr, binind, nflush, item_edata);
 	}
