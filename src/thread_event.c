@@ -35,7 +35,7 @@ te_next_event_compute(tsd_t *tsd, bool is_alloc) {
 	                                   : te_dalloc_handlers;
 	uint64_t *waits = is_alloc ? tsd_te_datap_get_unsafe(tsd)->alloc_wait
 	                           : tsd_te_datap_get_unsafe(tsd)->dalloc_wait;
-	int       count = is_alloc ? te_alloc_count : te_dalloc_count;
+	int       count = is_alloc ? (int)te_alloc_count : (int)te_dalloc_count;
 
 	uint64_t wait = TE_MAX_START_WAIT;
 
@@ -152,7 +152,7 @@ te_init_waits(tsd_t *tsd, uint64_t *wait, bool is_alloc) {
 	                                   : te_dalloc_handlers;
 	uint64_t *waits = is_alloc ? tsd_te_datap_get_unsafe(tsd)->alloc_wait
 	                           : tsd_te_datap_get_unsafe(tsd)->dalloc_wait;
-	int       count = is_alloc ? te_alloc_count : te_dalloc_count;
+	int       count = is_alloc ? (int)te_alloc_count : (int)te_dalloc_count;
 	for (int i = 0; i < count; i++) {
 		if (te_enabled_yes == handlers[i]->enabled()) {
 			uint64_t ev_wait = handlers[i]->new_event_wait(tsd);
