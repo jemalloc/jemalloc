@@ -252,10 +252,9 @@ eset_fit_alignment(
 		}
 	}
 
-	for (pszind_t i =
-	         (pszind_t)fb_ffs(eset->bitmap, ESET_NPSIZES, (size_t)pind);
+	for (size_t i = fb_ffs(eset->bitmap, ESET_NPSIZES, (size_t)pind);
 	     i < pind_max;
-	     i = (pszind_t)fb_ffs(eset->bitmap, ESET_NPSIZES, (size_t)i + 1)) {
+	     i = fb_ffs(eset->bitmap, ESET_NPSIZES, i + 1)) {
 		assert(i < SC_NPSIZES);
 		assert(!edata_heap_empty(&eset->bins[i].heap));
 		edata_t  *edata = edata_heap_first(&eset->bins[i].heap);
@@ -346,10 +345,9 @@ eset_first_fit(
 		}
 	}
 
-	for (pszind_t i =
-	         (pszind_t)fb_ffs(eset->bitmap, ESET_NPSIZES, (size_t)pind);
+	for (size_t i = fb_ffs(eset->bitmap, ESET_NPSIZES, (size_t)pind);
 	     i < ESET_NPSIZES;
-	     i = (pszind_t)fb_ffs(eset->bitmap, ESET_NPSIZES, (size_t)i + 1)) {
+	     i = fb_ffs(eset->bitmap, ESET_NPSIZES, i + 1)) {
 		assert(!edata_heap_empty(&eset->bins[i].heap));
 		if (lg_max_fit == SC_PTR_BITS) {
 			/*
