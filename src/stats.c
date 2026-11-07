@@ -1557,7 +1557,9 @@ stats_arena_hpa_shard_slabs_print(emitter_t *emitter, unsigned i) {
 
 	emitter_json_array_kv_begin(emitter, "nonfull_slabs");
 	emitter_table_sparse_begin(emitter);
-	for (pszind_t j = 0; j < PSSET_NPSIZES && j < SC_NPSIZES; j++) {
+	pszind_t max_psizes = PSSET_NPSIZES < SC_NPSIZES ? PSSET_NPSIZES
+	    : SC_NPSIZES;
+	for (pszind_t j = 0; j < max_psizes; j++) {
 		stats_arena_hpa_slab_t s;
 		stats_gather_arena_hpa_nonfull(stats_arenas_mib, j, &s);
 

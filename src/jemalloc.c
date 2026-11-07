@@ -938,7 +938,7 @@ ifree(tsd_t *tsd, void *ptr, tcache_t *tcache, bool slow_path) {
 	if (likely(!slow_path)) {
 		idalloctm(tsd_tsdn(tsd), ptr, tcache, &alloc_ctx, false, false);
 	} else {
-		if (config_fill && slow_path && opt_junk_free) {
+		if (config_fill && opt_junk_free) {
 			junk_free_callback(ptr, usize);
 		}
 		idalloctm(tsd_tsdn(tsd), ptr, tcache, &alloc_ctx, false, true);
@@ -1014,7 +1014,7 @@ isfree(tsd_t *tsd, void *ptr, size_t usize, tcache_t *tcache, bool slow_path) {
 	if (likely(!slow_path)) {
 		isdalloct(tsd_tsdn(tsd), ptr, usize, tcache, &alloc_ctx, false);
 	} else {
-		if (config_fill && slow_path && opt_junk_free) {
+		if (config_fill && opt_junk_free) {
 			junk_free_callback(ptr, usize);
 		}
 		isdalloct(tsd_tsdn(tsd), ptr, usize, tcache, &alloc_ctx, true);
