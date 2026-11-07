@@ -58,7 +58,7 @@ sec_init(tsdn_t *tsdn, sec_t *sec, base_t *base, const sec_opts_t *opts) {
 		return true;
 	}
 	sec->bins = (sec_bin_t *)dynalloc;
-	for (pszind_t j = 0; j < ntotal_bins; j++) {
+	for (size_t j = 0; j < ntotal_bins; j++) {
 		if (sec_bin_init(&sec->bins[j])) {
 			sec->opts.nshards = 0;
 			sec->opts.max_alloc = 0;
@@ -401,7 +401,7 @@ sec_flush(tsdn_t *tsdn, sec_t *sec, edata_list_active_t *to_flush) {
 		return;
 	}
 	size_t ntotal_bins = sec->opts.nshards * sec->npsizes;
-	for (pszind_t i = 0; i < ntotal_bins; i++) {
+	for (size_t i = 0; i < ntotal_bins; i++) {
 		sec_bin_t *bin = &sec->bins[i];
 		malloc_mutex_lock(tsdn, &bin->mtx);
 		atomic_store_zu(&bin->bytes_cur, 0, ATOMIC_RELAXED);
@@ -474,7 +474,7 @@ sec_stats_merge(tsdn_t *tsdn, const sec_t *sec, sec_stats_t *stats) {
 		return;
 	}
 	size_t ntotal_bins = sec->opts.nshards * sec->npsizes;
-	for (pszind_t i = 0; i < ntotal_bins; i++) {
+	for (size_t i = 0; i < ntotal_bins; i++) {
 		sec_bin_t *bin = &sec->bins[i];
 		size_t bytes;
 		size_t bytes_pinned;
@@ -515,7 +515,7 @@ sec_mutex_stats_read(
 		return;
 	}
 	size_t ntotal_bins = sec->opts.nshards * sec->npsizes;
-	for (pszind_t i = 0; i < ntotal_bins; i++) {
+	for (size_t i = 0; i < ntotal_bins; i++) {
 		sec_bin_t *bin = &sec->bins[i];
 		malloc_mutex_lock(tsdn, &bin->mtx);
 		malloc_mutex_prof_accum(tsdn, mutex_prof_data, &bin->mtx);
@@ -529,7 +529,7 @@ sec_prefork2(tsdn_t *tsdn, sec_t *sec) {
 		return;
 	}
 	size_t ntotal_bins = sec->opts.nshards * sec->npsizes;
-	for (pszind_t i = 0; i < ntotal_bins; i++) {
+	for (size_t i = 0; i < ntotal_bins; i++) {
 		sec_bin_t *bin = &sec->bins[i];
 		malloc_mutex_prefork(tsdn, &bin->mtx);
 	}
@@ -541,7 +541,7 @@ sec_postfork_parent(tsdn_t *tsdn, sec_t *sec) {
 		return;
 	}
 	size_t ntotal_bins = sec->opts.nshards * sec->npsizes;
-	for (pszind_t i = 0; i < ntotal_bins; i++) {
+	for (size_t i = 0; i < ntotal_bins; i++) {
 		sec_bin_t *bin = &sec->bins[i];
 		malloc_mutex_postfork_parent(tsdn, &bin->mtx);
 	}
@@ -553,7 +553,7 @@ sec_postfork_child(tsdn_t *tsdn, sec_t *sec) {
 		return;
 	}
 	size_t ntotal_bins = sec->opts.nshards * sec->npsizes;
-	for (pszind_t i = 0; i < ntotal_bins; i++) {
+	for (size_t i = 0; i < ntotal_bins; i++) {
 		sec_bin_t *bin = &sec->bins[i];
 		malloc_mutex_postfork_child(tsdn, &bin->mtx);
 	}

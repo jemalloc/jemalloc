@@ -308,7 +308,8 @@ background_work_sleep_once(
 	unsigned narenas = narenas_total_get();
 	bool     slept_indefinitely = background_thread_indefinite_sleep(info);
 
-	for (unsigned i = ind; i < narenas; i += max_background_threads) {
+	for (unsigned i = ind; i < narenas;
+	    i += (unsigned)max_background_threads) {
 		arena_t *arena = arena_get(tsdn, i, false);
 		if (!arena) {
 			continue;
