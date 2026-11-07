@@ -556,7 +556,7 @@ background_work(tsd_t *tsd, unsigned ind) {
 
 static void *
 background_thread_entry(void *ind_arg) {
-	unsigned thread_ind = (unsigned)(uintptr_t)ind_arg;
+	size_t thread_ind = (uintptr_t)ind_arg;
 	assert(thread_ind < max_background_threads);
 #	ifdef JEMALLOC_HAVE_PTHREAD_SETNAME_NP
 	pthread_setname_np(pthread_self(), "jemalloc_bg_thd");
@@ -571,7 +571,7 @@ background_thread_entry(void *ind_arg) {
 	 * side effects, for example triggering new arena creation (which in
 	 * turn triggers another background thread creation).
 	 */
-	background_work(tsd_internal_fetch(), thread_ind);
+	background_work(tsd_internal_fetch(), (unsigned)thread_ind);
 	assert(pthread_equal(
 	    pthread_self(), background_thread_info[thread_ind].thread));
 
@@ -628,7 +628,7 @@ background_thread_create_locked(tsd_t *tsd, unsigned arena_ind) {
 	 */
 	int err = background_thread_create_signals_masked(&info->thread, NULL,
 	    /* NOLINTNEXTLINE(performance-no-int-to-ptr) */
-	    background_thread_entry, (void *)thread_ind);
+	    background_thread_entry, (void *)(uintptr_t)thread_ind);
 	post_reentrancy(tsd);
 
 	if (err != 0) {
