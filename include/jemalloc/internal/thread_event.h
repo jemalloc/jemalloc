@@ -45,6 +45,9 @@ typedef struct te_ctx_s {
 } te_ctx_t;
 
 void te_assert_invariants_debug(tsd_t *tsd);
+#ifdef JEMALLOC_DEBUG_FAST
+void te_assert_invariants_ctx_debug(tsd_t *tsd, bool is_alloc);
+#endif
 void te_event_trigger(tsd_t *tsd, te_ctx_t *ctx);
 void te_recompute_fast_threshold(tsd_t *tsd);
 void tsd_te_init(tsd_t *tsd);
@@ -197,9 +200,16 @@ te_ctx_get(tsd_t *tsd, te_ctx_t *ctx, bool is_alloc) {
 	}
 }
 
+/*
+ * With JEMALLOC_DEBUG_FAST only the context being advanced is checked, and
+ * only after advancing: the other context is unchanged, and the previous
+ * advance or trigger on this thread already ended with a check.
+ */
 JEMALLOC_ALWAYS_INLINE void
 te_event_advance(tsd_t *tsd, size_t usize, bool is_alloc) {
+#ifndef JEMALLOC_DEBUG_FAST
 	te_assert_invariants(tsd);
+#endif
 
 	te_ctx_t ctx;
 	te_ctx_get(tsd, &ctx, is_alloc);
@@ -209,7 +219,13 @@ te_event_advance(tsd_t *tsd, size_t usize, bool is_alloc) {
 
 	/* The subtraction is intentionally susceptible to underflow. */
 	if (likely(usize < te_ctx_next_event_get(&ctx) - bytes_before)) {
+#ifdef JEMALLOC_DEBUG_FAST
+		if (config_debug) {
+			te_assert_invariants_ctx_debug(tsd, is_alloc);
+		}
+#else
 		te_assert_invariants(tsd);
+#endif
 	} else {
 		te_event_trigger(tsd, &ctx);
 	}

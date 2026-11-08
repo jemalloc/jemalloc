@@ -105,6 +105,15 @@ te_assert_invariants_debug(tsd_t *tsd) {
 	te_assert_invariants_impl(tsd, &ctx);
 }
 
+#ifdef JEMALLOC_DEBUG_FAST
+void
+te_assert_invariants_ctx_debug(tsd_t *tsd, bool is_alloc) {
+	te_ctx_t ctx;
+	te_ctx_get(tsd, &ctx, is_alloc);
+	te_assert_invariants_impl(tsd, &ctx);
+}
+#endif
+
 static void
 te_ctx_next_event_fast_update(te_ctx_t *ctx) {
 	uint64_t next_event = te_ctx_next_event_get(ctx);
