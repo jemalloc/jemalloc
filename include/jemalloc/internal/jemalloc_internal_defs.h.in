@@ -165,6 +165,13 @@
  */
 #undef JEMALLOC_DEBUG
 
+/*
+ * JEMALLOC_DEBUG_FAST keeps the JEMALLOC_DEBUG assertions and sanity checks,
+ * but cuts debug-only costs that don't check anything, such as disabling
+ * inline functions.
+ */
+#undef JEMALLOC_DEBUG_FAST
+
 /* JEMALLOC_STATS enables statistics calculation. */
 #undef JEMALLOC_STATS
 
