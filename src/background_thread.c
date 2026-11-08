@@ -211,11 +211,21 @@ background_thread_cond_wait(
 	 * through our wrapper.  Update the locked state explicitly.
 	 */
 	atomic_store_b(&info->mtx.locked, false, ATOMIC_RELAXED);
+#ifdef JEMALLOC_DEBUG_FAST
+	/*
+	 * Other threads may lock and unlock the mutex while we wait, which
+	 * leaves its witness without an owner.
+	 */
+	void *owner = atomic_load_p(&info->mtx.witness.owner, ATOMIC_RELAXED);
+#endif
 	if (ts == NULL) {
 		ret = os_cond_wait(&info->cond, &info->mtx.lock);
 	} else {
 		ret = os_cond_timedwait(&info->cond, &info->mtx.lock, ts);
 	}
+#ifdef JEMALLOC_DEBUG_FAST
+	atomic_store_p(&info->mtx.witness.owner, owner, ATOMIC_RELAXED);
+#endif
 	atomic_store_b(&info->mtx.locked, true, ATOMIC_RELAXED);
 
 	return ret;
