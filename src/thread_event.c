@@ -12,6 +12,9 @@
 static bool
 te_ctx_has_active_events(te_ctx_t *ctx) {
 	assert(config_debug);
+#ifdef JEMALLOC_DEBUG_FAST
+	return te_enabled_mask(ctx->is_alloc) != 0;
+#else
 	if (ctx->is_alloc) {
 		for (int i = 0; i < te_alloc_count; ++i) {
 			if (te_enabled_yes == te_alloc_handlers[i]->enabled()) {
@@ -27,12 +30,17 @@ te_ctx_has_active_events(te_ctx_t *ctx) {
 		}
 	}
 	return false;
+#endif
 }
 
 static uint64_t
 te_next_event_compute(tsd_t *tsd, bool is_alloc) {
+#ifdef JEMALLOC_DEBUG_FAST
+	uint32_t enabled = te_enabled_mask(is_alloc);
+#else
 	te_base_cb_t **handlers = is_alloc ? te_alloc_handlers
 	                                   : te_dalloc_handlers;
+#endif
 	uint64_t *waits = is_alloc ? tsd_te_datap_get_unsafe(tsd)->alloc_wait
 	                           : tsd_te_datap_get_unsafe(tsd)->dalloc_wait;
 	int       count = is_alloc ? te_alloc_count : te_dalloc_count;
@@ -40,7 +48,11 @@ te_next_event_compute(tsd_t *tsd, bool is_alloc) {
 	uint64_t wait = TE_MAX_START_WAIT;
 
 	for (int i = 0; i < count; i++) {
+#ifdef JEMALLOC_DEBUG_FAST
+		if (enabled & (1U << i)) {
+#else
 		if (te_enabled_yes == handlers[i]->enabled()) {
+#endif
 			uint64_t ev_wait = waits[i];
 			assert(ev_wait <= TE_MAX_START_WAIT);
 			if (ev_wait > 0U && ev_wait < wait) {
