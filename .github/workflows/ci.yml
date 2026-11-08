@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, ubuntu-24.04, macos-14, macos-15]
+        os: [ubuntu-22.04, ubuntu-24.04, macos-15]
         bazel_version: ["7.x", "8.x", "9.x"]
         include:
           - bazel_version: "8.x"
@@ -133,7 +133,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, ubuntu-24.04, macos-14, macos-15]
+        os: [ubuntu-22.04, ubuntu-24.04, macos-15]
         bazel_version: ["7.x", "8.x", "9.x"]
         include:
           - bazel_version: "8.x"
