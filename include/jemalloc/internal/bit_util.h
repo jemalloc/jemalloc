@@ -432,4 +432,11 @@ lg_ceil(size_t x) {
 
 #define LG_CEIL(x) (LG_FLOOR(x) + (((x) & ((x) - 1)) == 0 ? 0 : 1))
 
+#define LAM_SHIFT 57
+
+static inline void *
+lam_unmask(void *ptr) {
+	return (void *)((uintptr_t)ptr & 0x01FFFFFFFFFFFFFFULL);
+}
+
 #endif /* JEMALLOC_INTERNAL_BIT_UTIL_H */

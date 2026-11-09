@@ -16,8 +16,8 @@ static edata_t *
 test_edata_alloc(uintptr_t addr, size_t size, bool slab, szind_t szind,
     uint64_t sn, extent_state_t state, extent_pai_t pai,
     extent_head_state_t is_head) {
-	edata_t *edata = (edata_t *)mallocx(sizeof(edata_t),
-	    MALLOCX_ALIGN(EDATA_ALIGNMENT));
+	edata_t *edata = (edata_t *)lam_unmask(mallocx(sizeof(edata_t),
+	    MALLOCX_ALIGN(EDATA_ALIGNMENT)));
 	assert_ptr_not_null(edata, "Unexpected edata allocation failure");
 	memset(edata, 0, sizeof(*edata));
 	edata_init(edata, EMAP_TEST_ARENA_IND, (void *)addr, size, slab,
