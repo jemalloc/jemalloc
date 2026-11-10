@@ -54,7 +54,7 @@ main(void) {
 	do_allocs(16, 32 * 1024 * 1024, /* do_frees */ true);
 	do_allocs(32 * 1024 * 1024, 16, /* do_frees */ true);
 	do_allocs(16, 32 * 1024 * 1024, /* do_frees */ false);
-	do_allocs(32 * 1024 * 1024, 16, /* do_frees */ false);
+	do_allocs(33 * 1024 * 1024, 16, /* do_frees */ false);
 
 	return 0;
 }
