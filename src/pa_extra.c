@@ -85,17 +85,17 @@ pa_shard_nactive(const pa_shard_t *shard) {
 }
 
 static size_t
-pac_sec_pinned_bytes_get(const sec_stats_t *stats) {
+sec_pinned_bytes_get(const sec_stats_t *stats) {
 	return min_zu(stats->bytes_pinned, stats->bytes);
 }
 
 static size_t
-pac_sec_dirty_npages_get(const sec_stats_t *stats) {
-	return (stats->bytes - pac_sec_pinned_bytes_get(stats)) >> LG_PAGE;
+sec_dirty_npages_get(const sec_stats_t *stats) {
+	return (stats->bytes - sec_pinned_bytes_get(stats)) >> LG_PAGE;
 }
 
 static size_t
-pa_shard_ndirty_no_pac_sec(const pa_shard_t *shard) {
+pa_shard_ndirty_no_sec(const pa_shard_t *shard) {
 	size_t ndirty = ecache_npages_get(&shard->pac.ecache_dirty);
 	if (shard->ever_used_hpa) {
 		ndirty += psset_ndirty(&shard->hpa.psset);
@@ -105,10 +105,12 @@ pa_shard_ndirty_no_pac_sec(const pa_shard_t *shard) {
 
 static size_t
 pa_shard_ndirty(const pa_shard_t *shard) {
-	sec_stats_t pac_sec_stats = {0};
-	sec_stats_merge(TSDN_NULL, &shard->pac.sec, &pac_sec_stats);
-	return pa_shard_ndirty_no_pac_sec(shard)
-	    + pac_sec_dirty_npages_get(&pac_sec_stats);
+	sec_stats_t sec_stats = {0};
+	sec_stats_merge(TSDN_NULL, &shard->pac.sec, &sec_stats);
+	if (shard->ever_used_hpa) {
+		sec_stats_merge(TSDN_NULL, &shard->hpa.sec, &sec_stats);
+	}
+	return pa_shard_ndirty_no_sec(shard) + sec_dirty_npages_get(&sec_stats);
 }
 
 static size_t
@@ -132,12 +134,9 @@ pa_shard_stats_merge(tsdn_t *tsdn, pa_shard_t *shard,
 
 	sec_stats_t pac_sec_stats = {0};
 	sec_stats_merge(tsdn, &shard->pac.sec, &pac_sec_stats);
-	sec_stats_accum(&pa_shard_stats_out->pac_stats.pac_sec_stats,
-	    &pac_sec_stats);
-	size_t pac_sec_pinned_bytes = pac_sec_pinned_bytes_get(&pac_sec_stats);
-	size_t pac_sec_pinned_npages = pac_sec_pinned_bytes >> LG_PAGE;
-	size_t pac_sec_dirty_npages =
-	    pac_sec_dirty_npages_get(&pac_sec_stats);
+	sec_stats_accum(
+	    &pa_shard_stats_out->pac_stats.pac_sec_stats, &pac_sec_stats);
+	size_t pac_sec_pinned_bytes = sec_pinned_bytes_get(&pac_sec_stats);
 
 	pa_shard_stats_out->pac_stats.retained +=
 	    ecache_npages_get(&shard->pac.ecache_retained) << LG_PAGE;
@@ -149,10 +148,14 @@ pa_shard_stats_merge(tsdn_t *tsdn, pa_shard_t *shard,
 
 	size_t resident_pgs = 0;
 	resident_pgs += pa_shard_nactive(shard);
-	resident_pgs += pa_shard_ndirty_no_pac_sec(shard);
-	resident_pgs += pac_sec_dirty_npages;
+	resident_pgs += pa_shard_ndirty_no_sec(shard);
 	resident_pgs += ecache_npages_get(&shard->pac.ecache_pinned);
-	resident_pgs += pac_sec_pinned_npages;
+	resident_pgs += pac_sec_stats.bytes >> LG_PAGE;
+	if (shard->ever_used_hpa) {
+		sec_stats_t hpa_sec_stats = {0};
+		sec_stats_merge(tsdn, &shard->hpa.sec, &hpa_sec_stats);
+		resident_pgs += hpa_sec_stats.bytes >> LG_PAGE;
+	}
 	*resident += (resident_pgs << LG_PAGE);
 
 	/* Dirty decay stats */
