@@ -46,7 +46,7 @@ extern const uintptr_t disabled_bin;
  * bytes spread across pointer sized objects to get the maximum.
  */
 #define CACHE_BIN_NCACHED_MAX                                                  \
-	(((size_t)1 << sizeof(cache_bin_sz_t) * 8) / sizeof(void *) - 1)
+	(((size_t)1 << (sizeof(cache_bin_sz_t) * 8)) / sizeof(void *) - 1)
 
 /*
  * This lives inside the cache_bin (for locality reasons), and is initialized
