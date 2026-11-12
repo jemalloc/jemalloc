@@ -12,6 +12,10 @@
  */
 int64_t opt_mutex_max_spin = 600;
 
+#ifdef JEMALLOC_HAVE_HWCAP_SB
+bool spin_use_sb = false;
+#endif
+
 /******************************************************************************/
 /* Data. */
 

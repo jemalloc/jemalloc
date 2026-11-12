@@ -174,6 +174,7 @@ malloc_init_hard_a0_locked(void) {
 	if (pages_pre_boot()) {
 		return true;
 	}
+	spin_boot();
 
 	/*
 	 * Ordering here is somewhat tricky; we need sc_boot() first, since that
