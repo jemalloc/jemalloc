@@ -1474,6 +1474,23 @@ fi
 ],
 [enable_debug="0"]
 )
+
+dnl Do not cut debugging costs by default.
+AC_ARG_ENABLE([debug-fast],
+  [AS_HELP_STRING([--enable-debug-fast],
+                  [Build debugging code without the debug-only costs that don't check anything (implies --enable-debug)])],
+[if test "x$enable_debug_fast" = "xno" ; then
+  enable_debug_fast="0"
+else
+  enable_debug_fast="1"
+fi
+],
+[enable_debug_fast="0"]
+)
+if test "x$enable_debug_fast" = "x1" ; then
+  enable_debug="1"
+  AC_DEFINE([JEMALLOC_DEBUG_FAST], [ ], [ ])
+fi
 if test "x$enable_debug" = "x1" ; then
   AC_DEFINE([JEMALLOC_DEBUG], [ ], [ ])
 fi
@@ -3292,6 +3309,7 @@ AC_MSG_RESULT([shared libs        : ${enable_shared}])
 AC_MSG_RESULT([static libs        : ${enable_static}])
 AC_MSG_RESULT([autogen            : ${enable_autogen}])
 AC_MSG_RESULT([debug              : ${enable_debug}])
+AC_MSG_RESULT([debug-fast         : ${enable_debug_fast}])
 AC_MSG_RESULT([stats              : ${enable_stats}])
 AC_MSG_RESULT([user_config        : ${enable_user_config}])
 AC_MSG_RESULT([experimental_smallocx : ${enable_experimental_smallocx}])

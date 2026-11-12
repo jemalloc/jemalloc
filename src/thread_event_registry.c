@@ -13,8 +13,57 @@
 
 static malloc_mutex_t uevents_mu;
 
+#ifdef JEMALLOC_DEBUG_FAST
+/*
+ * The dalloc ([0]) and alloc ([1]) enabled masks, with TE_ENABLED_MASK_VALID
+ * set. The built-in handlers' enabled() only read options that are final by
+ * experimental_thread_events_boot(), and the user handlers' only depend on
+ * which slots are registered, so the masks are computed at boot and again
+ * whenever a user handler is registered. Before boot they are 0 and
+ * te_enabled_mask() asks the handlers directly.
+ */
+#	define TE_ENABLED_MASK_VALID (1U << 31)
+static atomic_u32_t te_enabled_masks[2];
+
+static uint32_t
+te_enabled_mask_compute(bool is_alloc) {
+	te_base_cb_t **handlers = is_alloc ? te_alloc_handlers
+	                                   : te_dalloc_handlers;
+	int      count = is_alloc ? te_alloc_count : te_dalloc_count;
+	uint32_t mask = TE_ENABLED_MASK_VALID;
+	assert(count < 31);
+	for (int i = 0; i < count; i++) {
+		if (te_enabled_yes == handlers[i]->enabled()) {
+			mask |= 1U << i;
+		}
+	}
+	return mask;
+}
+
+static void
+te_enabled_masks_update(void) {
+	atomic_store_u32(
+	    &te_enabled_masks[0], te_enabled_mask_compute(false), ATOMIC_RELEASE);
+	atomic_store_u32(
+	    &te_enabled_masks[1], te_enabled_mask_compute(true), ATOMIC_RELEASE);
+}
+
+uint32_t
+te_enabled_mask(bool is_alloc) {
+	uint32_t mask = atomic_load_u32(
+	    &te_enabled_masks[is_alloc], ATOMIC_ACQUIRE);
+	if (unlikely(mask == 0)) {
+		mask = te_enabled_mask_compute(is_alloc);
+	}
+	return mask & ~TE_ENABLED_MASK_VALID;
+}
+#endif
+
 bool
 experimental_thread_events_boot(void) {
+#ifdef JEMALLOC_DEBUG_FAST
+	te_enabled_masks_update();
+#endif
 	return malloc_mutex_init(&uevents_mu, "thread_events",
 	    WITNESS_RANK_THREAD_EVENTS_USER, malloc_mutex_rank_exclusive);
 }
@@ -59,6 +108,9 @@ te_register_user_handler_locked(user_hook_object_t *new_obj) {
 			atomic_fence(ATOMIC_SEQ_CST);
 			atomic_store_p(&uevent_obj_p[i], &uevents_storage[i],
 			    ATOMIC_RELEASE);
+#ifdef JEMALLOC_DEBUG_FAST
+			te_enabled_masks_update();
+#endif
 			return i;
 		}
 	}

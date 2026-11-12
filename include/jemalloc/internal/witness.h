@@ -3,6 +3,9 @@
 
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/assert.h"
+#ifdef JEMALLOC_DEBUG_FAST
+#	include "jemalloc/internal/atomic.h"
+#endif
 #include "jemalloc/internal/ql.h"
 
 /******************************************************************************/
@@ -85,11 +88,16 @@ typedef enum witness_rank_e witness_rank_t;
 /* PER-WITNESS DATA */
 /******************************************************************************/
 #if defined(JEMALLOC_DEBUG)
+#	ifdef JEMALLOC_DEBUG_FAST
+#		define WITNESS_OWNER_INITIALIZER , ATOMIC_INIT(NULL)
+#	else
+#		define WITNESS_OWNER_INITIALIZER
+#	endif
 #	define WITNESS_INITIALIZER(name, rank)                                \
 		{                                                              \
 			name, rank, NULL, NULL, {                              \
 				NULL, NULL                                     \
-			}                                                      \
+			} WITNESS_OWNER_INITIALIZER                            \
 		}
 #else
 #	define WITNESS_INITIALIZER(name, rank)
@@ -122,6 +130,16 @@ struct witness_s {
 
 	/* Linkage for thread's currently owned locks. */
 	ql_elm(witness_t) link;
+
+#ifdef JEMALLOC_DEBUG_FAST
+	/*
+	 * The witness_tsd_t whose list of owned locks holds this witness, or
+	 * NULL, so checking ownership doesn't have to search that list. Other
+	 * threads may read it while the owner updates it, but a thread only
+	 * ever sees its own pointer while the witness is in its list.
+	 */
+	atomic_p_t owner;
+#endif
 };
 
 /******************************************************************************/
@@ -188,10 +206,13 @@ void witness_postfork_child(witness_tsd_t *witness_tsd);
 /* Helper, not intended for direct use. */
 static inline bool
 witness_owner(witness_tsd_t *witness_tsd, const witness_t *witness) {
+	cassert(config_debug);
+
+#ifdef JEMALLOC_DEBUG_FAST
+	return atomic_load_p(&witness->owner, ATOMIC_RELAXED) == witness_tsd;
+#else
 	witness_list_t *witnesses;
 	witness_t      *w;
-
-	cassert(config_debug);
 
 	witnesses = &witness_tsd->witnesses;
 	ql_foreach (w, witnesses, link) {
@@ -201,6 +222,7 @@ witness_owner(witness_tsd_t *witness_tsd, const witness_t *witness) {
 	}
 
 	return false;
+#endif
 }
 
 static inline void
@@ -228,9 +250,7 @@ witness_assert_owner(witness_tsdn_t *witness_tsdn, const witness_t *witness) {
 static inline void
 witness_assert_not_owner(
     witness_tsdn_t *witness_tsdn, const witness_t *witness) {
-	witness_tsd_t  *witness_tsd;
-	witness_list_t *witnesses;
-	witness_t      *w;
+	witness_tsd_t *witness_tsd;
 
 	if (!config_debug) {
 		return;
@@ -244,12 +264,21 @@ witness_assert_not_owner(
 		return;
 	}
 
+#ifdef JEMALLOC_DEBUG_FAST
+	if (witness_owner(witness_tsd, witness)) {
+		witness_not_owner_error(witness);
+	}
+#else
+	witness_list_t *witnesses;
+	witness_t      *w;
+
 	witnesses = &witness_tsd->witnesses;
 	ql_foreach (w, witnesses, link) {
 		if (w == witness) {
 			witness_not_owner_error(witness);
 		}
 	}
+#endif
 }
 
 /* Returns depth.  Not intended for direct use. */
@@ -355,6 +384,9 @@ witness_lock(witness_tsdn_t *witness_tsdn, witness_t *witness) {
 	    ql_empty(witnesses) || qr_prev(ql_first(witnesses), link) != NULL);
 	ql_elm_new(witness, link);
 	ql_tail_insert(witnesses, witness, link);
+#ifdef JEMALLOC_DEBUG_FAST
+	atomic_store_p(&witness->owner, witness_tsd, ATOMIC_RELAXED);
+#endif
 }
 
 static inline void
@@ -382,6 +414,9 @@ witness_unlock(witness_tsdn_t *witness_tsdn, witness_t *witness) {
 	if (witness_owner(witness_tsd, witness)) {
 		witnesses = &witness_tsd->witnesses;
 		ql_remove(witnesses, witness, link);
+#ifdef JEMALLOC_DEBUG_FAST
+		atomic_store_p(&witness->owner, NULL, ATOMIC_RELAXED);
+#endif
 	} else {
 		witness_assert_owner(witness_tsdn, witness);
 	}

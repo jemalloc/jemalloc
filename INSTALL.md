@@ -126,6 +126,12 @@ any of the following arguments (not a definitive list) to 'configure':
     Enable assertions and validation code.  This incurs a substantial
     performance hit, but is very useful during application development.
 
+* `--enable-debug-fast`
+
+    Like `--enable-debug`, with its assertions and validation code, but
+    without the debug-only costs that don't check anything, such as disabling
+    inline functions.  Implies `--enable-debug`.
+
 * `--disable-stats`
 
     Disable statistics gathering functionality.  See the "opt.stats_print"
