@@ -66,7 +66,7 @@ typedef void(write_cb_t)(void *, const char *);
 /* Return the smallest long multiple that is >= a. */
 #define LONG_CEILING(a) (((a) + LONG_MASK) & ~LONG_MASK)
 
-#define SIZEOF_PTR (1U << LG_SIZEOF_PTR)
+#define SIZEOF_PTR ((size_t)(1U << LG_SIZEOF_PTR))
 #define PTR_MASK (SIZEOF_PTR - 1)
 
 /* Return the smallest (void *) multiple that is >= a. */

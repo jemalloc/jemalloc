@@ -25,7 +25,7 @@
 
 #ifdef JEMALLOC_THREADED_INIT
 /* Used to let the initializing thread recursively allocate. */
-#	define NO_INITIALIZER ((unsigned long)0)
+#	define NO_INITIALIZER ((pthread_t)0)
 #	define INITIALIZER pthread_self()
 static pthread_t malloc_initializer = NO_INITIALIZER;
 #else
