@@ -23,7 +23,29 @@ TEST_BEGIN(test_pages_huge) {
 }
 TEST_END
 
+TEST_BEGIN(test_pages_page_id_errno) {
+#ifndef JEMALLOC_PAGEID
+	test_skip_if(true);
+#else
+	bool  commit = true;
+	void *pages = pages_map(NULL, PAGE * 2, PAGE, &commit);
+	expect_ptr_not_null(pages, "Unexpected pages_map() error");
+
+	/*
+	 * A misaligned address makes the naming prctl() fail with EINVAL on
+	 * every Linux kernel, as all calls do on kernels without
+	 * CONFIG_ANON_VMA_NAME.
+	 */
+	set_errno(EAGAIN);
+	os_page_id((void *)((uintptr_t)pages + 1), PAGE, "jemalloc_test");
+	expect_d_eq(get_errno(), EAGAIN, "os_page_id() changed errno");
+
+	pages_unmap(pages, PAGE * 2);
+#endif
+}
+TEST_END
+
 int
 main(void) {
-	return test(test_pages_huge);
+	return test(test_pages_huge, test_pages_page_id_errno);
 }

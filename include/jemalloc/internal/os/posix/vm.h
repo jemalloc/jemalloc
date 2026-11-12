@@ -36,10 +36,13 @@ os_page_id(void *addr, size_t size, const char *name) {
 	 * 7f4836000000-7f4836800000 rw-p 00000000 00:00 0 [anon:jemalloc_pg_overcommit]`
 	 */
 	int n;
+	int saved_errno = get_errno();
 	assert(addr != NULL);
 	n = prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, (uintptr_t)addr, size,
 	    (uintptr_t)name);
 	assert(n == 0 || (n == -1 && get_errno() == EINVAL));
+	/* Naming is best effort; it must not change errno. */
+	set_errno(saved_errno);
 	return n;
 #  else
 	return 0;
