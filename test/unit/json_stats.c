@@ -819,6 +819,7 @@ TEST_BEGIN(test_json_stats_arenas_and_options) {
 	    {"Jx", option_parent_stats, "mutexes"},
 	    {"Je", option_parent_merged, "extents"},
 	    {"Jh", option_parent_merged, "hpa_shard"},
+	    {"Jh", option_parent_stats, "hpa_shard_sets"},
 	    {"Jmda", option_parent_jemalloc, "stats.arenas"},
 	};
 	for (size_t i = 0; i < ARRAY_COUNT(cases); i++) {
@@ -845,7 +846,7 @@ TEST_BEGIN(test_json_stats_global_and_arena) {
 	const char *const stats_keys[] = {"allocated", "active", "metadata",
 	    "metadata_edata", "metadata_rtree", "metadata_thp", "resident",
 	    "mapped", "retained", "pinned", "zero_reallocs",
-	    "background_thread", "mutexes"};
+	    "background_thread", "mutexes", "hpa_shard_sets"};
 	expect_json_object_keys(
 	    stats, stats_keys, ARRAY_COUNT(stats_keys), "stats");
 	expect_json_ctl_fields(
@@ -1024,22 +1025,12 @@ static const ctl_field_t hpa_alloc_fields[] = {
 static const char *const hpa_alloc_keys[] = {"min_extents", "max_extents",
 	"extents", "ps", "pages_per_ps", "extents_per_ps"};
 
-TEST_BEGIN(test_json_stats_hpa) {
-	test_skip_if(!config_stats);
-	test_skip_if(!hpa_supported());
-
-	stats_buf_t sbuf;
-	json_fragment_t stats, merged;
-	bool malformed = stats_json_print(&sbuf, &stats, &merged);
-	expect_false(malformed, "Could not find runtime stats in JSON output");
-	if (malformed) {
-		stats_buf_fini(&sbuf);
-		return;
-	}
-
-	json_fragment_t hpa;
-	expect_false(json_object_member(merged, "hpa_shard", &hpa),
-	    "merged arena stats are missing hpa_shard");
+/*
+ * Checks an "hpa_shard" JSON object against the mallctls under src_prefix,
+ * which is "stats.arenas.<i>" or "stats.hpa_shard_sets".
+ */
+static void
+expect_hpa_shard_object(json_fragment_t hpa, const char *src_prefix) {
 	const char *const hpa_keys[] = {"sec_bytes", "sec_hits", "sec_misses",
 	    "sec_dalloc_noflush", "sec_dalloc_flush", "sec_overfills",
 	    "npageslabs", "nactive", "ndirty", "npurge_passes", "npurges",
@@ -1049,14 +1040,11 @@ TEST_BEGIN(test_json_stats_hpa) {
 	expect_json_object_keys(
 	    hpa, hpa_keys, ARRAY_COUNT(hpa_keys), "hpa_shard");
 
-	char arena_prefix[64];
-	malloc_snprintf(arena_prefix, sizeof(arena_prefix), "stats.arenas.%u",
-	    MALLCTL_ARENAS_ALL);
-	expect_json_ctl_fields(hpa, arena_prefix, hpa_sec_fields,
+	expect_json_ctl_fields(hpa, src_prefix, hpa_sec_fields,
 	    ARRAY_COUNT(hpa_sec_fields));
 	char hpa_prefix[96];
 	malloc_snprintf(
-	    hpa_prefix, sizeof(hpa_prefix), "%s.hpa_shard", arena_prefix);
+	    hpa_prefix, sizeof(hpa_prefix), "%s.hpa_shard", src_prefix);
 	expect_json_ctl_fields(
 	    hpa, hpa_prefix, hpa_fields, ARRAY_COUNT(hpa_fields));
 
@@ -1124,6 +1112,40 @@ TEST_BEGIN(test_json_stats_hpa) {
 		expect_json_ctl_fields(row, ctl_prefix, hpa_alloc_fields,
 		    ARRAY_COUNT(hpa_alloc_fields));
 	}
+
+}
+
+TEST_BEGIN(test_json_stats_hpa) {
+	test_skip_if(!config_stats);
+	test_skip_if(!hpa_supported());
+
+	stats_buf_t sbuf;
+	json_fragment_t stats, merged;
+	bool malformed = stats_json_print(&sbuf, &stats, &merged);
+	expect_false(malformed, "Could not find runtime stats in JSON output");
+	if (malformed) {
+		stats_buf_fini(&sbuf);
+		return;
+	}
+
+	json_fragment_t hpa;
+	expect_false(json_object_member(merged, "hpa_shard", &hpa),
+	    "merged arena stats are missing hpa_shard");
+	char arena_prefix[64];
+	malloc_snprintf(arena_prefix, sizeof(arena_prefix), "stats.arenas.%u",
+	    MALLCTL_ARENAS_ALL);
+	expect_hpa_shard_object(hpa, arena_prefix);
+
+	/* The global shard sets: same layout, under stats.hpa_shard_sets. */
+	json_fragment_t sets;
+	expect_false(json_object_member(stats, "hpa_shard_sets", &sets),
+	    "stats is missing hpa_shard_sets");
+	const char *const sets_keys[] = {"hpa_shard"};
+	expect_json_object_keys(
+	    sets, sets_keys, ARRAY_COUNT(sets_keys), "stats.hpa_shard_sets");
+	expect_false(json_object_member(sets, "hpa_shard", &hpa),
+	    "stats.hpa_shard_sets is missing hpa_shard");
+	expect_hpa_shard_object(hpa, "stats.hpa_shard_sets");
 
 	stats_buf_fini(&sbuf);
 }

@@ -122,12 +122,13 @@ pa_shard_destroy(tsdn_t *tsdn, pa_shard_t *shard) {
 }
 
 edata_t *
-pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
-    bool slab, szind_t szind, bool zero, bool guarded,
+pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t usize,
+    size_t alignment, bool slab, bool zero, bool guarded,
     bool *deferred_work_generated) {
 	witness_assert_depth_to_rank(
 	    tsdn_witness_tsdp_get(tsdn), WITNESS_RANK_CORE, 0);
 	assert(!guarded || alignment <= PAGE);
+	assert(usize > 0 && usize <= size);
 
 	edata_t *edata = NULL;
 	if (!guarded && pa_shard_uses_hpa(shard)) {
@@ -144,14 +145,24 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 	}
 	if (edata != NULL) {
 		assert(edata_size_get(edata) == size);
+		/* HPA extents get the requesting arena before publication. */
+		if (edata_pai_get(edata) == EXTENT_PAI_HPA) {
+			assert(edata_arena_ind_get_maybe_unassociated(edata)
+			    == EDATA_ARENA_IND_UNASSOCIATED);
+			edata_arena_ind_set(edata, shard->ind);
+			/* Each arena has one HPA shard in this topology. */
+			assert(hpdata_shard_get(edata_ps_get(edata))
+			    == shard->ind);
+		}
+		assert(edata_arena_ind_get(edata) == shard->ind);
 		pa_nactive_add(shard, size >> LG_PAGE);
+		szind_t szind = sz_size2index(usize);
 		emap_remap(tsdn, shard->emap, edata, szind, slab);
 		edata_szind_set(edata, szind);
 		edata_slab_set(edata, slab);
 		if (slab && (size > 2 * PAGE)) {
 			emap_register_interior(tsdn, shard->emap, edata, szind);
 		}
-		assert(edata_arena_ind_get(edata) == shard->ind);
 	}
 	return edata;
 }
@@ -231,6 +242,8 @@ pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
 	edata_szind_set(edata, SC_NSIZES);
 	pa_nactive_sub(shard, edata_size_get(edata) >> LG_PAGE);
 	if (edata_pai_get(edata) == EXTENT_PAI_HPA) {
+		/* An extent cached by the HPA or SEC has no arena owner. */
+		edata_arena_ind_set(edata, EDATA_ARENA_IND_UNASSOCIATED);
 		hpa_dalloc(tsdn, &shard->hpa, edata, deferred_work_generated);
 	} else {
 		pac_dalloc(tsdn, &shard->pac, edata, deferred_work_generated);

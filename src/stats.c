@@ -321,17 +321,43 @@ stats_gather_arena_lextent(size_t *stats_mib, size_t *arenas_lextent_mib,
 	}
 }
 
+/*
+ * Where a set of HPA figures lives: the mib of "stats.arenas.<i>" (an arena's
+ * own shard) or of "stats.hpa_shard_sets" (the global shard sets, merged).
+ * Both lay out their leaves the same way, as hpa_sec_* and hpa_shard.*.
+ */
+typedef struct stats_hpa_src_s {
+	size_t mib[CTL_MAX_DEPTH];
+	size_t miblen;
+} stats_hpa_src_t;
+
 static void
-stats_gather_arena_hpa_sec(unsigned i, stats_arena_hpa_sec_t *sec) {
-	CTL_M2_GET("stats.arenas.0.hpa_sec_bytes", i, &sec->sec_bytes, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_sec_hits", i, &sec->sec_hits, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_sec_misses", i, &sec->sec_misses, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_sec_dalloc_noflush", i,
-	    &sec->sec_dalloc_noflush, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_sec_dalloc_flush", i,
-	    &sec->sec_dalloc_flush, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_sec_overfills", i, &sec->sec_overfills,
+stats_hpa_src_arena(stats_hpa_src_t *src, unsigned i) {
+	CTL_LEAF_PREPARE(src->mib, 0, "stats.arenas");
+	src->mib[2] = i;
+	src->miblen = 3;
+}
+
+static void
+stats_hpa_src_shard_sets(stats_hpa_src_t *src) {
+	CTL_LEAF_PREPARE(src->mib, 0, "stats.hpa_shard_sets");
+	src->miblen = 2;
+}
+
+static void
+stats_gather_arena_hpa_sec(
+    const stats_hpa_src_t *src, stats_arena_hpa_sec_t *sec) {
+	size_t mib[CTL_MAX_DEPTH];
+	size_t n = src->miblen;
+	memcpy(mib, src->mib, sizeof(mib));
+	CTL_LEAF(mib, n, "hpa_sec_bytes", &sec->sec_bytes, size_t);
+	CTL_LEAF(mib, n, "hpa_sec_hits", &sec->sec_hits, size_t);
+	CTL_LEAF(mib, n, "hpa_sec_misses", &sec->sec_misses, size_t);
+	CTL_LEAF(mib, n, "hpa_sec_dalloc_noflush", &sec->sec_dalloc_noflush,
 	    size_t);
+	CTL_LEAF(
+	    mib, n, "hpa_sec_dalloc_flush", &sec->sec_dalloc_flush, size_t);
+	CTL_LEAF(mib, n, "hpa_sec_overfills", &sec->sec_overfills, size_t);
 }
 
 static void
@@ -346,69 +372,64 @@ stats_gather_arena_pac_sec(unsigned i, stats_arena_pac_sec_t *sec) {
 }
 
 static void
-stats_gather_arena_hpa_counters(unsigned i, stats_arena_hpa_counters_t *c) {
-	CTL_M2_GET(
-	    "stats.arenas.0.hpa_shard.npageslabs", i, &c->npageslabs, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_shard.nactive", i, &c->nactive, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_shard.ndirty", i, &c->ndirty, size_t);
+stats_gather_arena_hpa_counters(
+    const stats_hpa_src_t *src, stats_arena_hpa_counters_t *c) {
+	size_t mib[CTL_MAX_DEPTH];
+	size_t n = src->miblen + 1;
+	memcpy(mib, src->mib, sizeof(mib));
+	CTL_LEAF_PREPARE(mib, src->miblen, "hpa_shard");
+	CTL_LEAF(mib, n, "npageslabs", &c->npageslabs, size_t);
+	CTL_LEAF(mib, n, "nactive", &c->nactive, size_t);
+	CTL_LEAF(mib, n, "ndirty", &c->ndirty, size_t);
+	CTL_LEAF(mib, n, "npurge_passes", &c->npurge_passes, uint64_t);
+	CTL_LEAF(mib, n, "npurges", &c->npurges, uint64_t);
+	CTL_LEAF(mib, n, "nhugifies", &c->nhugifies, uint64_t);
+	CTL_LEAF(mib, n, "nhugify_failures", &c->nhugify_failures, uint64_t);
+	CTL_LEAF(mib, n, "ndehugifies", &c->ndehugifies, uint64_t);
 
-	CTL_M2_GET("stats.arenas.0.hpa_shard.slabs.npageslabs_nonhuge", i,
-	    &c->npageslabs_nonhuge, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_shard.slabs.nactive_nonhuge", i,
-	    &c->nactive_nonhuge, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_shard.slabs.ndirty_nonhuge", i,
-	    &c->ndirty_nonhuge, size_t);
+	CTL_LEAF_PREPARE(mib, n, "slabs");
+	CTL_LEAF(mib, n + 1, "npageslabs_nonhuge", &c->npageslabs_nonhuge,
+	    size_t);
+	CTL_LEAF(mib, n + 1, "nactive_nonhuge", &c->nactive_nonhuge, size_t);
+	CTL_LEAF(mib, n + 1, "ndirty_nonhuge", &c->ndirty_nonhuge, size_t);
 	c->nretained_nonhuge = c->npageslabs_nonhuge * HUGEPAGE_PAGES
 	    - c->nactive_nonhuge - c->ndirty_nonhuge;
-
-	CTL_M2_GET("stats.arenas.0.hpa_shard.slabs.npageslabs_huge", i,
-	    &c->npageslabs_huge, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_shard.slabs.nactive_huge", i,
-	    &c->nactive_huge, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_shard.slabs.ndirty_huge", i,
-	    &c->ndirty_huge, size_t);
-
-	CTL_M2_GET("stats.arenas.0.hpa_shard.npurge_passes", i,
-	    &c->npurge_passes, uint64_t);
-	CTL_M2_GET("stats.arenas.0.hpa_shard.npurges", i, &c->npurges, uint64_t);
-	CTL_M2_GET(
-	    "stats.arenas.0.hpa_shard.nhugifies", i, &c->nhugifies, uint64_t);
-	CTL_M2_GET("stats.arenas.0.hpa_shard.nhugify_failures", i,
-	    &c->nhugify_failures, uint64_t);
-	CTL_M2_GET("stats.arenas.0.hpa_shard.ndehugifies", i, &c->ndehugifies,
-	    uint64_t);
+	CTL_LEAF(mib, n + 1, "npageslabs_huge", &c->npageslabs_huge, size_t);
+	CTL_LEAF(mib, n + 1, "nactive_huge", &c->nactive_huge, size_t);
+	CTL_LEAF(mib, n + 1, "ndirty_huge", &c->ndirty_huge, size_t);
 }
 
 /* kind is "full_slabs" or "empty_slabs". */
 static void
-stats_gather_arena_hpa_slab(unsigned i, const char *kind,
+stats_gather_arena_hpa_slab(const stats_hpa_src_t *src, const char *kind,
     stats_arena_hpa_slab_t *s) {
 	size_t mib[CTL_MAX_DEPTH];
-	CTL_LEAF_PREPARE(mib, 0, "stats.arenas");
-	mib[2] = i;
-	CTL_LEAF_PREPARE(mib, 3, "hpa_shard");
-	CTL_LEAF_PREPARE(mib, 4, kind);
-	CTL_LEAF(mib, 5, "npageslabs_huge", &s->npageslabs_huge, size_t);
-	CTL_LEAF(mib, 5, "nactive_huge", &s->nactive_huge, size_t);
-	CTL_LEAF(mib, 5, "ndirty_huge", &s->ndirty_huge, size_t);
-	CTL_LEAF(mib, 5, "npageslabs_nonhuge", &s->npageslabs_nonhuge, size_t);
-	CTL_LEAF(mib, 5, "nactive_nonhuge", &s->nactive_nonhuge, size_t);
-	CTL_LEAF(mib, 5, "ndirty_nonhuge", &s->ndirty_nonhuge, size_t);
+	size_t n = src->miblen + 2;
+	memcpy(mib, src->mib, sizeof(mib));
+	CTL_LEAF_PREPARE(mib, src->miblen, "hpa_shard");
+	CTL_LEAF_PREPARE(mib, src->miblen + 1, kind);
+	CTL_LEAF(mib, n, "npageslabs_huge", &s->npageslabs_huge, size_t);
+	CTL_LEAF(mib, n, "nactive_huge", &s->nactive_huge, size_t);
+	CTL_LEAF(mib, n, "ndirty_huge", &s->ndirty_huge, size_t);
+	CTL_LEAF(mib, n, "npageslabs_nonhuge", &s->npageslabs_nonhuge, size_t);
+	CTL_LEAF(mib, n, "nactive_nonhuge", &s->nactive_nonhuge, size_t);
+	CTL_LEAF(mib, n, "ndirty_nonhuge", &s->ndirty_nonhuge, size_t);
 	s->nretained_nonhuge = s->npageslabs_nonhuge * HUGEPAGE_PAGES
 	    - s->nactive_nonhuge - s->ndirty_nonhuge;
 }
 
-/* mib prepared through "stats.arenas.<i>.hpa_shard.nonfull_slabs" (depth 5). */
+/* mib prepared through "<src>.hpa_shard.nonfull_slabs", which is depth long. */
 static void
-stats_gather_arena_hpa_nonfull(size_t *mib, unsigned j,
+stats_gather_arena_hpa_nonfull(size_t *mib, size_t depth, unsigned j,
     stats_arena_hpa_slab_t *s) {
-	mib[5] = j;
-	CTL_LEAF(mib, 6, "npageslabs_huge", &s->npageslabs_huge, size_t);
-	CTL_LEAF(mib, 6, "nactive_huge", &s->nactive_huge, size_t);
-	CTL_LEAF(mib, 6, "ndirty_huge", &s->ndirty_huge, size_t);
-	CTL_LEAF(mib, 6, "npageslabs_nonhuge", &s->npageslabs_nonhuge, size_t);
-	CTL_LEAF(mib, 6, "nactive_nonhuge", &s->nactive_nonhuge, size_t);
-	CTL_LEAF(mib, 6, "ndirty_nonhuge", &s->ndirty_nonhuge, size_t);
+	size_t n = depth + 1;
+	mib[depth] = j;
+	CTL_LEAF(mib, n, "npageslabs_huge", &s->npageslabs_huge, size_t);
+	CTL_LEAF(mib, n, "nactive_huge", &s->nactive_huge, size_t);
+	CTL_LEAF(mib, n, "ndirty_huge", &s->ndirty_huge, size_t);
+	CTL_LEAF(mib, n, "npageslabs_nonhuge", &s->npageslabs_nonhuge, size_t);
+	CTL_LEAF(mib, n, "nactive_nonhuge", &s->nactive_nonhuge, size_t);
+	CTL_LEAF(mib, n, "ndirty_nonhuge", &s->ndirty_nonhuge, size_t);
 	s->nretained_nonhuge = s->npageslabs_nonhuge * HUGEPAGE_PAGES
 	    - s->nactive_nonhuge - s->ndirty_nonhuge;
 }
@@ -1272,9 +1293,10 @@ stats_emit_arena_hpa_sec(emitter_t *emitter, const stats_arena_hpa_sec_t *sec) {
 }
 
 static void
-stats_arena_hpa_shard_sec_print(emitter_t *emitter, unsigned i) {
+stats_arena_hpa_shard_sec_print(
+    emitter_t *emitter, const stats_hpa_src_t *src) {
 	stats_arena_hpa_sec_t sec;
-	stats_gather_arena_hpa_sec(i, &sec);
+	stats_gather_arena_hpa_sec(src, &sec);
 	stats_emit_arena_hpa_sec(emitter, &sec);
 }
 
@@ -1352,9 +1374,9 @@ stats_emit_arena_hpa_counters(emitter_t *emitter,
 
 static void
 stats_arena_hpa_shard_counters_print(
-    emitter_t *emitter, unsigned i, uint64_t uptime) {
+    emitter_t *emitter, const stats_hpa_src_t *src, uint64_t uptime) {
 	stats_arena_hpa_counters_t c;
-	stats_gather_arena_hpa_counters(i, &c);
+	stats_gather_arena_hpa_counters(src, &c);
 	stats_emit_arena_hpa_counters(emitter, &c, uptime);
 
 	/*
@@ -1371,22 +1393,24 @@ stats_arena_hpa_shard_counters_print(
 	uint64_t hpa_alloc_extents_per_ps[SEC_MAX_NALLOCS + 1];
 
 	size_t alloc_mib[CTL_MAX_DEPTH];
-	CTL_LEAF_PREPARE(alloc_mib, 0, "stats.arenas");
-	alloc_mib[2] = i;
-	CTL_LEAF_PREPARE(alloc_mib, 3, "hpa_shard.alloc");
+	memcpy(alloc_mib, src->mib, sizeof(alloc_mib));
+	CTL_LEAF_PREPARE(alloc_mib, src->miblen, "hpa_shard.alloc");
+	/* alloc_mib is now src->miblen + 2 long; the bucket index goes last. */
+	size_t alloc_depth = src->miblen + 2;
+	size_t n = alloc_depth + 1;
 
 	for (size_t j = 0; j <= SEC_MAX_NALLOCS; j += 1) {
-		alloc_mib[5] = j;
-		CTL_LEAF(alloc_mib, 6, "min_extents", &hpa_alloc_min_extents[j],
+		alloc_mib[alloc_depth] = j;
+		CTL_LEAF(alloc_mib, n, "min_extents", &hpa_alloc_min_extents[j],
 		    uint64_t);
-		CTL_LEAF(alloc_mib, 6, "max_extents", &hpa_alloc_max_extents[j],
+		CTL_LEAF(alloc_mib, n, "max_extents", &hpa_alloc_max_extents[j],
 		    uint64_t);
 		CTL_LEAF(
-		    alloc_mib, 6, "extents", &hpa_alloc_extents[j], uint64_t);
-		CTL_LEAF(alloc_mib, 6, "ps", &hpa_alloc_ps[j], uint64_t);
-		CTL_LEAF(alloc_mib, 6, "pages_per_ps",
+		    alloc_mib, n, "extents", &hpa_alloc_extents[j], uint64_t);
+		CTL_LEAF(alloc_mib, n, "ps", &hpa_alloc_ps[j], uint64_t);
+		CTL_LEAF(alloc_mib, n, "pages_per_ps",
 		    &hpa_alloc_pages_per_ps[j], uint64_t);
-		CTL_LEAF(alloc_mib, 6, "extents_per_ps",
+		CTL_LEAF(alloc_mib, n, "extents_per_ps",
 		    &hpa_alloc_extents_per_ps[j], uint64_t);
 	}
 
@@ -1520,7 +1544,8 @@ stats_emit_arena_hpa_slab_row(emitter_t *emitter,
 }
 
 static void
-stats_arena_hpa_shard_slabs_print(emitter_t *emitter, unsigned i) {
+stats_arena_hpa_shard_slabs_print(
+    emitter_t *emitter, const stats_hpa_src_t *src) {
 	emitter_row_t row, header_row;
 	emitter_col_t cols[HPA_SLAB_COL_COUNT];
 	emitter_col_t header_cols[HPA_SLAB_COL_COUNT];
@@ -1537,29 +1562,30 @@ stats_arena_hpa_shard_slabs_print(emitter_t *emitter, unsigned i) {
 	 * JSON stays in the separate full_slabs / empty_slabs objects.
 	 */
 	stats_arena_hpa_slab_t sfull;
-	stats_gather_arena_hpa_slab(i, "full_slabs", &sfull);
+	stats_gather_arena_hpa_slab(src, "full_slabs", &sfull);
 	stats_arena_hpa_slab_emit_row_t full_row = {
 	    &sfull, "full", 0, 0, 0};
 	stats_emit_arena_hpa_slab_row(emitter, &row, cols, &full_row,
 	    "full_slabs", size_buf, sizeof(size_buf), false, false);
 
 	stats_arena_hpa_slab_t sempty;
-	stats_gather_arena_hpa_slab(i, "empty_slabs", &sempty);
+	stats_gather_arena_hpa_slab(src, "empty_slabs", &sempty);
 	stats_arena_hpa_slab_emit_row_t empty_row = {
 	    &sempty, "empty", 0, 0, 0};
 	stats_emit_arena_hpa_slab_row(emitter, &row, cols, &empty_row,
 	    "empty_slabs", size_buf, sizeof(size_buf), false, false);
 
-	size_t stats_arenas_mib[CTL_MAX_DEPTH];
-	CTL_LEAF_PREPARE(stats_arenas_mib, 0, "stats.arenas");
-	stats_arenas_mib[2] = i;
-	CTL_LEAF_PREPARE(stats_arenas_mib, 3, "hpa_shard.nonfull_slabs");
+	size_t nonfull_mib[CTL_MAX_DEPTH];
+	memcpy(nonfull_mib, src->mib, sizeof(nonfull_mib));
+	CTL_LEAF_PREPARE(nonfull_mib, src->miblen, "hpa_shard.nonfull_slabs");
+	size_t nonfull_depth = src->miblen + 2;
 
 	emitter_json_array_kv_begin(emitter, "nonfull_slabs");
 	emitter_table_sparse_begin(emitter);
 	for (pszind_t j = 0; j < PSSET_NPSIZES && j < SC_NPSIZES; j++) {
 		stats_arena_hpa_slab_t s;
-		stats_gather_arena_hpa_nonfull(stats_arenas_mib, j, &s);
+		stats_gather_arena_hpa_nonfull(
+		    nonfull_mib, nonfull_depth, j, &s);
 
 		bool is_gap = (s.npageslabs_huge == 0 && s.npageslabs_nonhuge == 0);
 
@@ -1574,12 +1600,24 @@ stats_arena_hpa_shard_slabs_print(emitter_t *emitter, unsigned i) {
 }
 
 static void
-stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
+stats_arena_hpa_shard_print(
+    emitter_t *emitter, const stats_hpa_src_t *src, uint64_t uptime) {
 	emitter_json_object_kv_begin(emitter, "hpa_shard");
-	stats_arena_hpa_shard_sec_print(emitter, i);
-	stats_arena_hpa_shard_counters_print(emitter, i, uptime);
-	stats_arena_hpa_shard_slabs_print(emitter, i);
+	stats_arena_hpa_shard_sec_print(emitter, src);
+	stats_arena_hpa_shard_counters_print(emitter, src, uptime);
+	stats_arena_hpa_shard_slabs_print(emitter, src);
 	emitter_json_object_end(emitter); /* End "hpa_shard" */
+}
+
+/* The global HPA shard sets, merged; printed once, with the global stats. */
+static void
+stats_hpa_shard_sets_print(emitter_t *emitter, uint64_t uptime) {
+	stats_hpa_src_t src;
+	stats_hpa_src_shard_sets(&src);
+	emitter_table_printf(emitter, "HPA shard sets (merged):\n");
+	emitter_json_object_kv_begin(emitter, "hpa_shard_sets");
+	stats_arena_hpa_shard_print(emitter, &src, uptime);
+	emitter_json_object_end(emitter); /* End "hpa_shard_sets" */
 }
 
 static void
@@ -1979,7 +2017,9 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 		stats_arena_extents_print(emitter, i);
 	}
 	if (hpa) {
-		stats_arena_hpa_shard_print(emitter, i, uptime);
+		stats_hpa_src_t src;
+		stats_hpa_src_arena(&src, i);
+		stats_arena_hpa_shard_print(emitter, &src, uptime);
 	}
 }
 
@@ -2140,6 +2180,7 @@ stats_general_opts(emitter_t *emitter) {
 	OPT_WRITE_SIZE_T("hpa_sec_nshards")
 	OPT_WRITE_SIZE_T("hpa_sec_max_alloc")
 	OPT_WRITE_SIZE_T("hpa_sec_max_bytes")
+	OPT_WRITE_BOOL("hpa_shard_sets")
 	OPT_WRITE_SIZE_T("experimental_pac_sec_nshards")
 	OPT_WRITE_SIZE_T("experimental_pac_sec_max_alloc")
 	OPT_WRITE_SIZE_T("experimental_pac_sec_max_bytes")
@@ -2405,7 +2446,7 @@ stats_global_mutexes_print(emitter_t *emitter) {
 }
 
 static void
-stats_print_globals(emitter_t *emitter, bool mutex) {
+stats_print_globals(emitter_t *emitter, bool mutex, bool hpa) {
 	stats_global_t g;
 	stats_gather_global(&g);
 
@@ -2413,6 +2454,11 @@ stats_print_globals(emitter_t *emitter, bool mutex) {
 	stats_emit_global(emitter, &g);
 	if (mutex) {
 		stats_global_mutexes_print(emitter);
+	}
+	if (hpa) {
+		uint64_t uptime;
+		CTL_M2_GET("stats.arenas.0.uptime", 0, &uptime, uint64_t);
+		stats_hpa_shard_sets_print(emitter, uptime);
 	}
 	emitter_json_object_end(emitter); /* Close "stats". */
 }
@@ -2431,7 +2477,7 @@ JEMALLOC_COLD
 static void
 stats_print_runtime_stats(emitter_t *emitter, bool merged, bool destroyed,
     bool unmerged, bool bins, bool large, bool mutex, bool extents, bool hpa) {
-	stats_print_globals(emitter, mutex);
+	stats_print_globals(emitter, mutex, hpa);
 
 	if (!merged && !destroyed && !unmerged) {
 		return;
