@@ -3,14 +3,13 @@
 
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/base.h"
-#include "jemalloc/internal/decay.h"
-#include "jemalloc/internal/ecache.h"
 #include "jemalloc/internal/edata_cache.h"
-#include "jemalloc/internal/emap.h"
+typedef struct emap_s emap_t;
 #include "jemalloc/internal/hpa.h"
-#include "jemalloc/internal/lockedint.h"
+#include "jemalloc/internal/hpa_central.h"
+#include "jemalloc/internal/hpa_hooks.h"
 #include "jemalloc/internal/pac.h"
-#include "jemalloc/internal/sec.h"
+typedef struct sec_opts_s sec_opts_t;
 
 /*
  * The page allocator; responsible for acquiring pages of memory for

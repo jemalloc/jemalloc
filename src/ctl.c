@@ -6,6 +6,7 @@
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/background_thread.h"
 #include "jemalloc/internal/background_thread_inlines.h"
+#include "jemalloc/internal/counter.h"
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"

@@ -3,11 +3,9 @@
 
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/cache_bin.h"
-#include "jemalloc/internal/ql.h"
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/sz.h"
 #include "jemalloc/internal/thread_event_registry.h"
-#include "jemalloc/internal/ticker.h"
 
 /* Forward decls; only used as pointer types below. */
 typedef struct arena_s arena_t;

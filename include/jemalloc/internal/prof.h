@@ -2,9 +2,10 @@
 #define JEMALLOC_INTERNAL_PROF_H
 
 #include "jemalloc/internal/jemalloc_preamble.h"
+#include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/ckh.h"
-#include "jemalloc/internal/mutex.h"
-#include "jemalloc/internal/prng.h"
+#include "jemalloc/internal/nstime.h"
+typedef struct malloc_mutex_s malloc_mutex_t;
 #include "jemalloc/internal/prof_hook.h"
 #include "jemalloc/internal/rb.h"
 #include "jemalloc/internal/thread_event_registry.h"

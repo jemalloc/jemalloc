@@ -5,7 +5,7 @@
 #include "jemalloc/internal/atomic.h"
 #include "jemalloc/internal/bin_info.h"
 #include "jemalloc/internal/bit_util.h"
-#include "jemalloc/internal/hpdata.h"
+typedef struct hpdata_s hpdata_t;
 #include "jemalloc/internal/nstime.h"
 #include "jemalloc/internal/ph.h"
 #include "jemalloc/internal/ql.h"

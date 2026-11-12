@@ -2,6 +2,7 @@
 #define JEMALLOC_INTERNAL_HPA_UTILS_H
 
 #include "jemalloc/internal/hpa.h"
+#include "jemalloc/internal/hpa_hooks.h"
 #include "jemalloc/internal/extent.h"
 
 #define HPA_MIN_VAR_VEC_SIZE 8

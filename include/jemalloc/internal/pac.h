@@ -5,12 +5,14 @@
 #include "jemalloc/internal/decay.h"
 #include "jemalloc/internal/ecache.h"
 #include "jemalloc/internal/edata.h"
-#include "jemalloc/internal/edata_cache.h"
+typedef struct edata_cache_s edata_cache_t;
 #include "jemalloc/internal/exp_grow.h"
 #include "jemalloc/internal/lockedint.h"
 #include "jemalloc/internal/sec.h"
 #include "jemalloc/internal/tsd_types.h"
 #include "san_bump.h"
+typedef struct base_s base_t;
+typedef struct emap_s emap_t;
 
 /*
  * Page allocator classic (PAC), a page-level allocator that:

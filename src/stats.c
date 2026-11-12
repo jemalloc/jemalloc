@@ -3,6 +3,7 @@
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/background_thread.h"
+#include "jemalloc/internal/counter.h"
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/emitter.h"
 #include "jemalloc/internal/fxp.h"
