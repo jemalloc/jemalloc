@@ -10,6 +10,7 @@
 #include "jemalloc/internal/ehooks.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
+#include "jemalloc/internal/hpa_shard_set.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_a.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_c.h"
 #include "jemalloc/internal/large.h"
@@ -1554,6 +1555,15 @@ arena_new(tsdn_t *tsdn, unsigned ind, const arena_config_t *config) {
 	        arena_muzzy_decay_ms_default_get())) {
 		goto label_error;
 	}
+	/*
+	 * Automatic arenas allocate from the global HPA shard sets, if booted,
+	 * which has to be turned on before the arena is published.
+	 */
+	bool use_hpa_sets = pa_shard_on_hpa_sets(&arena->pa_shard)
+	    && ehooks_are_default(base_ehooks_get(base));
+	if (use_hpa_sets) {
+		pa_shard_enable_hpa_sets(&arena->pa_shard);
+	}
 
 	/* Initialize bins. */
 	atomic_store_u(&arena->binshard_next, 0, ATOMIC_RELEASE);
@@ -1578,13 +1588,15 @@ arena_new(tsdn_t *tsdn, unsigned ind, const arena_config_t *config) {
 	nstime_init_update(&arena->create_time);
 
 	/*
-	 * We turn on the HPA if set to.  There are two exceptions:
+	 * We turn on the HPA if set to.  There are three exceptions:
 	 * - Custom extent hooks (we should only return memory allocated from
 	 *   them in that case).
 	 * - Arena 0 initialization.  In this case, we're mid-bootstrapping,
 	 *   and so background_thread_enabled is not yet initialized.
+	 * - Arenas on the HPA shard sets, set up above.
 	 */
-	if (opt_hpa && ehooks_are_default(base_ehooks_get(base)) && ind != 0) {
+	if (opt_hpa && ehooks_are_default(base_ehooks_get(base)) && ind != 0
+	    && !use_hpa_sets) {
 		hpa_shard_opts_t hpa_shard_opts = opt_hpa_opts;
 		hpa_shard_opts.deferral_allowed = background_thread_enabled();
 		if (pa_shard_enable_hpa(tsdn, &arena->pa_shard, &hpa_shard_opts,
@@ -1665,6 +1677,30 @@ arena_choose_huge(tsd_t *tsd) {
 	}
 
 	return huge_arena;
+}
+
+bool
+arena_hpa_boot(tsdn_t *tsdn, bool use_hpa_shard_sets) {
+	arena_t         *a0 = arena_get(tsdn, 0, false);
+	hpa_shard_opts_t hpa_shard_opts = opt_hpa_opts;
+	hpa_shard_opts.deferral_allowed = background_thread_enabled();
+	if (!use_hpa_shard_sets) {
+		return pa_shard_enable_hpa(
+		    tsdn, &a0->pa_shard, &hpa_shard_opts, &opt_hpa_sec_opts);
+	}
+	/*
+	 * The sets take edata_t from arena 0's cache, which is on b0, so it
+	 * outlives every arena, and forked with arena 0.  Should its mutex
+	 * prove to be a bottleneck, the sets could have separate edata caches.
+	 */
+	if (hpa_shard_sets_boot(tsdn, &hpa_shard_sets_global, b0get(),
+	        &arena_pa_central_global.hpa, &arena_emap_global,
+	        &a0->pa_shard.edata_cache, &opt_hpa_shard_sets_nshards,
+	        &hpa_shard_opts, &opt_hpa_sec_opts)) {
+		return true;
+	}
+	pa_shard_enable_hpa_sets(&a0->pa_shard);
+	return false;
 }
 
 bool

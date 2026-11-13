@@ -76,18 +76,21 @@ struct pa_shard_s {
 	atomic_zu_t nactive;
 
 	/*
-	 * Whether or not we should prefer the hugepage allocator.  Atomic since
-	 * it may be concurrently modified by a thread setting extent hooks.
-	 * Note that we still may do HPA operations in this arena; if use_hpa is
-	 * changed from true to false, we'll free back to the hugepage allocator
-	 * for those allocations.
+	 * Whether or not we use the HPA allocator, either the global HPA
+	 * shard sets or hpa, the shard's own HPA shard
+	 * (pa_shard_on_hpa_sets() tells which).  Atomic since it may be
+	 * concurrently modified by a thread setting extent hooks.  Note that we
+	 * may still do HPA operations even when use_hpa is changed from true
+	 * to false, we'll free back to the HPA allocator for allocations
+	 * allocated from them.
 	 */
 	atomic_b_t use_hpa;
 
 	/*
-	 * If we never used the HPA to begin with, it wasn't initialized, and so
-	 * we shouldn't try to e.g. acquire its mutexes during fork.  This
-	 * tracks that knowledge.
+	 * Whether the shard's own HPA shard was ever used; it stays false
+	 * for a shard on the global HPA shard sets.  If we never used it to
+	 * begin with, it wasn't initialized, and so we shouldn't try to
+	 * acquire its mutexes during fork.
 	 */
 	bool ever_used_hpa;
 
@@ -132,6 +135,19 @@ bool pa_shard_init(tsdn_t *tsdn, pa_shard_t *shard, pa_central_t *central,
  */
 bool pa_shard_enable_hpa(tsdn_t *tsdn, pa_shard_t *shard,
     const hpa_shard_opts_t *hpa_opts, const sec_opts_t *hpa_sec_opts);
+
+/*
+ * Whether the shard's HPA is the global HPA shard sets rather than its own
+ * hpa: true for an automatic arena's shard once the sets are booted.
+ * Whether the shard uses the HPA at all is use_hpa.
+ */
+bool pa_shard_on_hpa_sets(pa_shard_t *shard);
+
+/*
+ * Like pa_shard_enable_hpa(), but for a shard on the global HPA shard sets,
+ * which allocates from them instead of from a shard of its own.
+ */
+void pa_shard_enable_hpa_sets(pa_shard_t *shard);
 
 /*
  * We stop using the HPA when custom extent hooks are installed, but still
@@ -191,11 +207,12 @@ ssize_t pa_decay_ms_get(pa_shard_t *shard, extent_state_t state);
 void pa_shard_set_deferral_allowed(
     tsdn_t *tsdn, pa_shard_t *shard, bool deferral_allowed);
 /*
- * Do deferred work on this PA shard: dispatch to PAC (decay-purge) then HPA.
- * Each allocator owns its own policy -- PAC decides eagerness from
- * is_background_thread and, on the application path, notifies the background
- * thread; the bg-thread driver passes is_background_thread=true and is never
- * self-notified.
+ * Do deferred work on this PA shard: dispatch to PAC (decay-purge) then HPA,
+ * if the shard has an HPA shard of its own in use.  HPA shard sets deferred
+ * work is handled elsewhere.  Each allocator owns its own policy -- PAC
+ * decides eagerness from is_background_thread and, on the application path,
+ * notifies the background thread; the bg-thread driver passes
+ * is_background_thread=true and is never self-notified.
  */
 void     pa_shard_do_deferred_work(
     tsdn_t *tsdn, pa_shard_t *shard, bool is_background_thread);
@@ -208,7 +225,8 @@ uint64_t pa_shard_time_until_deferred_work(tsdn_t *tsdn, pa_shard_t *shard);
  * HPA work (hugify/dehugify/purge) pending.  If PAC dirty decay is immediate
  * (dirty_decay_ms == 0), purge dirty synchronously; then, if a background
  * thread is enabled but idle (sleeping indefinitely), wake it early so the
- * pending work runs promptly rather than at the next scheduled wakeup.
+ * pending work runs promptly rather than at the next scheduled wakeup; for a
+ * shard on the HPA shard sets, wake background thread 0 likewise.
  *
  * Application thread only; must never be called on the background thread.
  */

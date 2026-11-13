@@ -1,10 +1,13 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 
+#include "jemalloc/internal/deferral.h"
 #include "jemalloc/internal/hpa_shard_set.h"
 
 const size_t hpa_shard_set_band_max[HPA_SHARD_SET_NBANDS] = {4 * 1024, 8 * 1024,
     16 * 1024, 32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 512 * 1024,
     HUGEPAGE};
+
+hpa_shard_sets_t hpa_shard_sets_global;
 
 /*
  * The largest possible usable size the HPA serves, inclusive.  Small sizes
@@ -217,5 +220,61 @@ hpa_shard_sets_postfork_child(tsdn_t *tsdn, hpa_shard_sets_t *sets) {
 	hpa_shard_sets_for_each_shard(tsdn, sets, hpa_shard_postfork_child);
 	for (unsigned i = sets->nsets; i-- > 0;) {
 		malloc_mutex_postfork_child(tsdn, &sets->sets[i].init_mtx);
+		/* The child has no background threads to defer work to. */
+		sets->sets[i].opts.deferral_allowed = false;
 	}
+}
+
+void
+hpa_shard_sets_set_deferral_allowed(
+    tsdn_t *tsdn, hpa_shard_sets_t *sets, bool deferral_allowed) {
+	for (unsigned i = 0; i < sets->nsets; i++) {
+		hpa_shard_set_t *shard_set = &sets->sets[i];
+		/* Under init_mtx, so that no shard is created with the old one. */
+		malloc_mutex_lock(tsdn, &shard_set->init_mtx);
+		shard_set->opts.deferral_allowed = deferral_allowed;
+		for (unsigned j = 0; j < shard_set->nshards; j++) {
+			hpa_shard_t *shard = (hpa_shard_t *)atomic_load_p(
+			    &shard_set->shards[j], ATOMIC_ACQUIRE);
+			if (shard != NULL) {
+				hpa_shard_set_deferral_allowed(
+				    tsdn, shard, deferral_allowed);
+			}
+		}
+		malloc_mutex_unlock(tsdn, &shard_set->init_mtx);
+	}
+}
+
+void
+hpa_shard_sets_do_deferred_work(tsdn_t *tsdn, hpa_shard_sets_t *sets) {
+	hpa_shard_sets_for_each_shard(tsdn, sets, hpa_shard_do_deferred_work);
+}
+
+uint64_t
+hpa_shard_sets_time_until_deferred_work(tsdn_t *tsdn, hpa_shard_sets_t *sets) {
+	uint64_t time = DEFERRED_WORK_MAX;
+	for (unsigned i = 0; i < sets->nsets; i++) {
+		hpa_shard_set_t *shard_set = &sets->sets[i];
+		for (unsigned j = 0; j < shard_set->nshards; j++) {
+			hpa_shard_t *shard = (hpa_shard_t *)atomic_load_p(
+			    &shard_set->shards[j], ATOMIC_ACQUIRE);
+			if (shard == NULL) {
+				continue;
+			}
+			uint64_t shard_time = hpa_time_until_deferred_work(
+			    tsdn, shard);
+			if (shard_time == DEFERRED_WORK_MIN) {
+				return shard_time;
+			}
+			if (shard_time < time) {
+				time = shard_time;
+			}
+		}
+	}
+	return time;
+}
+
+void
+hpa_shard_sets_flush(tsdn_t *tsdn, hpa_shard_sets_t *sets) {
+	hpa_shard_sets_for_each_shard(tsdn, sets, hpa_shard_flush);
 }

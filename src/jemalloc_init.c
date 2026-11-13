@@ -12,6 +12,7 @@
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/emap.h"
 #include "jemalloc/internal/extent_dss.h"
+#include "jemalloc/internal/hpa_shard_set.h"
 #include "jemalloc/internal/jemalloc_fork.h"
 #include "jemalloc/internal/jemalloc_init.h"
 #include "jemalloc/internal/malloc_io.h"
@@ -548,13 +549,27 @@ malloc_init_hard(void) {
 		/*
 		 * We didn't initialize arena 0 hpa_shard in arena_new, because
 		 * background_thread_enabled wasn't initialized yet, but we
-		 * need it to set correct value for deferral_allowed.
+		 * need it to set correct value for deferral_allowed.  The HPA
+		 * shard sets boot here too, before any automatic arena but
+		 * arena 0 exists, since arena_new() decides whether an arena
+		 * allocates from them.
 		 */
-		arena_t         *a0 = arena_get(tsd_tsdn(tsd), 0, false);
-		hpa_shard_opts_t hpa_shard_opts = opt_hpa_opts;
-		hpa_shard_opts.deferral_allowed = background_thread_enabled();
-		if (pa_shard_enable_hpa(tsd_tsdn(tsd), &a0->pa_shard,
-		        &hpa_shard_opts, &opt_hpa_sec_opts)) {
+		bool use_hpa_shard_sets = opt_hpa_shard_sets;
+		if (use_hpa_shard_sets
+		    && hpa_shard_sets_config_validate(
+		        &opt_hpa_shard_sets_nshards,
+		        opt_hpa_opts.slab_max_alloc)) {
+			malloc_printf(
+			    "<jemalloc>: Invalid or missing "
+			    "hpa_shard_sets_nshards; %s.\n",
+			    opt_abort_conf ? "aborting"
+			                   : "using an HPA shard per arena");
+			if (opt_abort_conf) {
+				malloc_abort_invalid_conf();
+			}
+			use_hpa_shard_sets = false;
+		}
+		if (arena_hpa_boot(tsd_tsdn(tsd), use_hpa_shard_sets)) {
 			UNLOCK_RETURN(tsd_tsdn(tsd), true, true)
 		}
 	}

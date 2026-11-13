@@ -252,12 +252,14 @@ TESTS_UNIT := \
 	$(srcroot)test/unit/hpa_central.c \
 	$(srcroot)test/unit/hpa_shard_set.c \
 	$(srcroot)test/unit/hpa_shard_set_conf.c \
+	$(srcroot)test/unit/hpa_shard_set_route.c \
 	$(srcroot)test/unit/hpa_sec_integration.c \
 	$(srcroot)test/unit/hpa_sec_stats.c \
 	$(srcroot)test/unit/hpa_thp_always.c \
 	$(srcroot)test/unit/hpa_vectorized_madvise.c \
 	$(srcroot)test/unit/hpa_vectorized_madvise_large_batch.c \
 	$(srcroot)test/unit/hpa_background_thread.c \
+	$(srcroot)test/unit/hpa_background_thread_sets.c \
 	$(srcroot)test/unit/hpa_pageslab_packing.c \
 	$(srcroot)test/unit/hpdata.c \
 	$(srcroot)test/unit/extent_alloc_flags.c \

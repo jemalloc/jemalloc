@@ -4,6 +4,7 @@
 #include "jemalloc/internal/arenas_management.h"
 #include "jemalloc/internal/background_thread.h"
 #include "jemalloc/internal/ctl.h"
+#include "jemalloc/internal/hpa_shard_set.h"
 #include "jemalloc/internal/jemalloc_fork.h"
 #include "jemalloc/internal/jemalloc_init.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_a.h"
@@ -70,8 +71,28 @@ _malloc_prefork(void)
 	if (have_background_thread) {
 		background_thread_prefork1(tsd_tsdn(tsd));
 	}
-	/* Break arena prefork into stages to preserve lock order. */
+	/*
+	 * Break arena prefork into stages to preserve lock order.  The HPA
+	 * shard sets, which belong to no arena, go first in their stages: a
+	 * set's init_mtx ranks below the SEC locks that stage 2 takes.
+	 */
 	for (i = 0; i < 9; i++) {
+		switch (i) {
+		case 2:
+			hpa_shard_sets_prefork2(
+			    tsd_tsdn(tsd), &hpa_shard_sets_global);
+			break;
+		case 3:
+			hpa_shard_sets_prefork3(
+			    tsd_tsdn(tsd), &hpa_shard_sets_global);
+			break;
+		case 4:
+			hpa_shard_sets_prefork4(
+			    tsd_tsdn(tsd), &hpa_shard_sets_global);
+			break;
+		default:
+			break;
+		}
 		for (j = 0; j < narenas; j++) {
 			if ((arena = arena_get(tsd_tsdn(tsd), j, false))
 			    != NULL) {
@@ -147,6 +168,7 @@ _malloc_postfork(void)
 			arena_postfork_parent(tsd_tsdn(tsd), arena);
 		}
 	}
+	hpa_shard_sets_postfork_parent(tsd_tsdn(tsd), &hpa_shard_sets_global);
 	prof_postfork_parent(tsd_tsdn(tsd));
 	if (have_background_thread) {
 		background_thread_postfork_parent(tsd_tsdn(tsd));
@@ -178,6 +200,7 @@ jemalloc_postfork_child(void) {
 			arena_postfork_child(tsd_tsdn(tsd), arena, desc);
 		}
 	}
+	hpa_shard_sets_postfork_child(tsd_tsdn(tsd), &hpa_shard_sets_global);
 	prof_postfork_child(tsd_tsdn(tsd));
 	if (have_background_thread) {
 		background_thread_postfork_child(tsd_tsdn(tsd));

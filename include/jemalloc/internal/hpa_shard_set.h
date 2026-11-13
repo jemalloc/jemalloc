@@ -96,6 +96,12 @@ struct hpa_shard_sets_s {
 	hpa_shard_set_t sets[HPA_SHARD_SET_NBANDS];
 };
 
+/*
+ * The process-wide shard sets, which malloc_init boots if hpa_shard_sets is
+ * on.  They have no sets until booted.
+ */
+extern hpa_shard_sets_t hpa_shard_sets_global;
+
 bool hpa_shard_sets_config_validate(
     const hpa_shard_sets_config_t *config, size_t slab_max_alloc);
 
@@ -149,13 +155,28 @@ hpa_shard_choose(tsdn_t *tsdn, hpa_shard_set_t *shard_set, unsigned affinity) {
  * lock ranks interleave correctly.  prefork2 takes every set's init_mtx before
  * locking any shard, which freezes the set of initialized shards for the rest
  * of the fork.  The base, central, emap and edata_cache passed to boot are
- * the caller's to fork.
+ * the caller's to fork.  In the child, which has no background threads, the
+ * shards created later do not defer their work, like the shard of a manual
+ * arena created in the child; the shards that existed at the fork keep their
+ * deferral_allowed, as the manual arenas' shards do.
  */
 void hpa_shard_sets_prefork2(tsdn_t *tsdn, hpa_shard_sets_t *sets);
 void hpa_shard_sets_prefork3(tsdn_t *tsdn, hpa_shard_sets_t *sets);
 void hpa_shard_sets_prefork4(tsdn_t *tsdn, hpa_shard_sets_t *sets);
 void hpa_shard_sets_postfork_parent(tsdn_t *tsdn, hpa_shard_sets_t *sets);
 void hpa_shard_sets_postfork_child(tsdn_t *tsdn, hpa_shard_sets_t *sets);
+
+/*
+ * The maintenance an arena does on a shard of its own, done on every shard
+ * of the sets.  set_deferral_allowed also sets it for the shards created
+ * later, and time_until_deferred_work returns the soonest of the shards'.
+ */
+void hpa_shard_sets_set_deferral_allowed(
+    tsdn_t *tsdn, hpa_shard_sets_t *sets, bool deferral_allowed);
+void     hpa_shard_sets_do_deferred_work(tsdn_t *tsdn, hpa_shard_sets_t *sets);
+uint64_t hpa_shard_sets_time_until_deferred_work(
+    tsdn_t *tsdn, hpa_shard_sets_t *sets);
+void hpa_shard_sets_flush(tsdn_t *tsdn, hpa_shard_sets_t *sets);
 
 /*
  * The two composed: the whole of the allocation-side routing decision.  See

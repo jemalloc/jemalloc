@@ -7,6 +7,7 @@
 #include "jemalloc/internal/background_thread_inlines.h"
 #include "jemalloc/internal/ctl.h"
 #include "jemalloc/internal/deferral.h"
+#include "jemalloc/internal/hpa_shard_set.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_a.h"
 #include "jemalloc/internal/malloc_io.h"
 #include "jemalloc/internal/mutex.h"
@@ -330,6 +331,24 @@ background_work_sleep_once(
 		    tsdn, &arena->pa_shard);
 		if (ns_arena_deferred < ns_until_deferred) {
 			ns_until_deferred = ns_arena_deferred;
+		}
+	}
+	/*
+	 * The HPA shard sets belong to no arena.  Thread 0, which runs whenever
+	 * background threads do, drives all of their shards.
+	 */
+	if (ind == 0) {
+		if (!slept_indefinitely) {
+			hpa_shard_sets_do_deferred_work(
+			    tsdn, &hpa_shard_sets_global);
+		}
+		if (ns_until_deferred > min_interval_ns) {
+			uint64_t ns_sets_deferred =
+			    hpa_shard_sets_time_until_deferred_work(
+			        tsdn, &hpa_shard_sets_global);
+			if (ns_sets_deferred < ns_until_deferred) {
+				ns_until_deferred = ns_sets_deferred;
+			}
 		}
 	}
 
@@ -718,6 +737,8 @@ background_threads_enable(tsd_t *tsd) {
 			    tsd_tsdn(tsd), &arena->pa_shard, true);
 		}
 	}
+	hpa_shard_sets_set_deferral_allowed(
+	    tsd_tsdn(tsd), &hpa_shard_sets_global, true);
 	return false;
 }
 
@@ -740,6 +761,8 @@ background_threads_disable(tsd_t *tsd) {
 			    tsd_tsdn(tsd), &arena->pa_shard, false);
 		}
 	}
+	hpa_shard_sets_set_deferral_allowed(
+	    tsd_tsdn(tsd), &hpa_shard_sets_global, false);
 
 	return false;
 }

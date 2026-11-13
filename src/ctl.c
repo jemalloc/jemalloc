@@ -2780,6 +2780,13 @@ arena_i_decay(tsdn_t *tsdn, unsigned arena_ind, bool all) {
 			}
 		}
 	}
+	/*
+	 * An arena's purge leaves alone the HPA shard sets, which other arenas
+	 * share; purging all arenas flushes them as it does arenas' own shards.
+	 */
+	if (decay_all && all) {
+		hpa_shard_sets_flush(tsdn, &hpa_shard_sets_global);
+	}
 }
 
 static int
