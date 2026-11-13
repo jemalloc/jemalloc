@@ -744,6 +744,7 @@ imalloc_init_check(static_opts_t *sopts, dynamic_opts_t *dopts) {
 /* Returns the errno-style error code of the allocation. */
 JEMALLOC_ALWAYS_INLINE int
 imalloc(static_opts_t *sopts, dynamic_opts_t *dopts) {
+	int saved_errno = get_errno();
 	if (tsd_get_allocates() && !imalloc_init_check(sopts, dopts)) {
 		return ENOMEM;
 	}
@@ -751,19 +752,24 @@ imalloc(static_opts_t *sopts, dynamic_opts_t *dopts) {
 	/* We always need the tsd.  Let's grab it right away. */
 	tsd_t *tsd = tsd_fetch();
 	assert(tsd);
+	int err;
 	if (likely(tsd_fast(tsd))) {
 		/* Fast and common path. */
 		tsd_assert_fast(tsd);
 		sopts->slow = false;
-		return imalloc_body(sopts, dopts, tsd);
+		err = imalloc_body(sopts, dopts, tsd);
 	} else {
 		if (!tsd_get_allocates() && !imalloc_init_check(sopts, dopts)) {
 			return ENOMEM;
 		}
 
 		sopts->slow = true;
-		return imalloc_body(sopts, dopts, tsd);
+		err = imalloc_body(sopts, dopts, tsd);
 	}
+	if (likely(err == 0)) {
+		set_errno(saved_errno);
+	}
+	return err;
 }
 
 JEMALLOC_NOINLINE
@@ -1635,6 +1641,7 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 	size_t   old_usize;
 	size_t   alignment = MALLOCX_ALIGN_GET(flags);
 	arena_t *arena;
+	int      saved_errno = get_errno();
 
 	assert(ptr != NULL);
 	assert(size != 0);
@@ -1662,6 +1669,7 @@ do_rallocx(void *ptr, size_t size, int flags, bool is_realloc) {
 
 			UTRACE(ptr, size, ptr);
 			check_entry_exit_locking(tsd_tsdn(tsd));
+			set_errno(saved_errno);
 
 			return ptr;
 		}
@@ -1706,6 +1714,7 @@ label_slow: ;
 		void  *excess_start = (void *)((byte_t *)p + old_usize);
 		junk_alloc_callback(excess_start, excess_len);
 	}
+	set_errno(saved_errno);
 
 	return p;
 label_oom:
