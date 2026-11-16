@@ -434,11 +434,18 @@ def generate_linux_job(arch):
         lscpu | grep -E "Architecture|CPU op-mode|Byte Order|CPU\\(s\\):" || true
 
     - name: Install dependencies
+      timeout-minutes: 15
       run: |
+        if [ "$(dpkg --print-architecture)" = amd64 ] &&
+            [ -f /etc/apt/apt-mirrors.txt ]; then
+          echo 'https://archive.ubuntu.com/ubuntu' |
+            sudo tee /etc/apt/apt-mirrors.txt > /dev/null
+        fi
         sudo apt-get update
         sudo apt-get install -y libunwind-dev ${{{{ matrix.env.EXTRA_PACKAGES }}}}
 
     - name: Install dependencies (32-bit)
+      timeout-minutes: 15
       if: matrix.env.CROSS_COMPILE_32BIT == 'yes'
       run: |
         sudo dpkg --add-architecture i386
@@ -973,7 +980,13 @@ def generate_linux_lto_job():
     - uses: actions/checkout@v7
 
     - name: Install clang, lld and llvm
+      timeout-minutes: 15
       run: |
+        if [ "$(dpkg --print-architecture)" = amd64 ] &&
+            [ -f /etc/apt/apt-mirrors.txt ]; then
+          echo 'https://archive.ubuntu.com/ubuntu' |
+            sudo tee /etc/apt/apt-mirrors.txt > /dev/null
+        fi
         sudo apt-get update
         sudo apt-get install -y clang lld llvm
 
