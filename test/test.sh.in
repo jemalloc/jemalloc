@@ -71,6 +71,7 @@ for t in $@; do
     # is then used to set @JEMALLOC_CPREFIX@MALLOC_CONF (thus allowing the
     # per test shell script to ignore the @JEMALLOC_CPREFIX@ detail).
     enable_fill=@enable_fill@ \
+    enable_xmalloc=@enable_xmalloc@ \
     enable_prof=@enable_prof@ \
     disable_large_size_classes=@disable_large_size_classes@ \
     . @srcroot@${t}.sh && \
