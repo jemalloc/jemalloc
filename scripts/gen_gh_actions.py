@@ -689,7 +689,7 @@ def generate_windows_job(arch):
         pacboy: >-
           ${{{{ matrix.env.CROSS_COMPILE_32BIT == 'yes' && 'binutils:p' || 'make:p gcc:p binutils:p' }}}}
 
-    - name: Install archived MINGW32 compiler and make
+    - name: Install archived MINGW32 toolchains
       if: matrix.env.CROSS_COMPILE_32BIT == 'yes'
       shell: msys2 {{0}}
       run: |
@@ -697,7 +697,7 @@ def generate_windows_job(arch):
         # the last versions used successfully by this workflow from its
         # signed package archive.
         pacman --noconfirm --needed -U \\
-          https://repo.msys2.org/mingw/mingw32/mingw-w64-i686-gcc-16.2.0-6-any.pkg.tar.zst \\
+          https://repo.msys2.org/mingw/mingw32/mingw-w64-i686-gcc-16.2.0-7-any.pkg.tar.zst \\
           https://repo.msys2.org/mingw/mingw32/mingw-w64-i686-make-4.4.1-5-any.pkg.tar.zst
 
     - name: Build and test (MinGW-GCC)
