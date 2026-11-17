@@ -1426,15 +1426,18 @@ arena_dss_prec_set(arena_t *arena, dss_prec_t dss_prec) {
 	return false;
 }
 
+/*
+ * Copy the arena name into caller-provided buffer.
+ * Caller must ensure name buffer is at least ARENA_NAME_LEN bytes,
+ * or at least the length of the name when it was set (see ctl.c
+ * arena_i_name_ctl comment for the documented API contract).
+ * The result is always NUL-terminated.
+ */
 void
 arena_name_get(const arena_t *arena, char *name) {
-	const char *end = (const char *)memchr(
-	    arena->name, '\0', ARENA_NAME_LEN);
+	const char *end = memchr(arena->name, '\0', ARENA_NAME_LEN);
 	assert(end != NULL);
-	size_t len = (uintptr_t)end - (uintptr_t)arena->name + 1;
-	assert(len > 0 && len <= ARENA_NAME_LEN);
-
-	strncpy(name, arena->name, len);
+	memcpy(name, arena->name, (size_t)(end - arena->name) + 1);
 }
 
 void
