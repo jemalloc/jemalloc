@@ -1711,8 +1711,19 @@ arena_boot(sc_data_t *sc_data, base_t *base, bool hpa) {
 	    uint32_t cur_offset = (uint32_t)offsetof(arena_t, all_bins);)
 	for (szind_t i = 0; i < SC_NBINS; i++) {
 		arena_bin_offsets[i] = cur_offset;
+		assert(nbins_total <= UINT_MAX - bin_infos[i].n_shards);
 		nbins_total += bin_infos[i].n_shards;
-		cur_offset += (uint32_t)(bin_infos[i].n_shards * sizeof(bin_t));
+		/*
+		 * Use uint64_t for the intermediate to prevent wraparound
+		 * on 32-bit platforms where size_t is only 32 bits.
+		 * In practice the offset is well within the uint32_t range
+		 * (typically a few KB), so this fires only on structural
+		 * misconfiguration.
+		 */
+		uint64_t next_offset = (uint64_t)cur_offset
+		    + (uint64_t)bin_infos[i].n_shards * sizeof(bin_t);
+		assert(next_offset <= UINT32_MAX);
+		cur_offset = (uint32_t)next_offset;
 	}
 	return pa_central_init(
 	    &arena_pa_central_global, base, hpa, &hpa_hooks_default);
