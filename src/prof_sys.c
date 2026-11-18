@@ -82,7 +82,7 @@ prof_unwind_callback(struct _Unwind_Context *context, void *arg) {
 
 	cassert(config_prof);
 
-	ip = (void *)_Unwind_GetIP(context);
+	ip = (void *)(uintptr_t)_Unwind_GetIP(context);
 	if (ip == NULL) {
 		return _URC_END_OF_STACK;
 	}
