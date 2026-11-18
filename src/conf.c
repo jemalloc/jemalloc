@@ -716,6 +716,8 @@ malloc_conf_init_helper(sc_data_t *sc_data,
 				    v, vlen, opt_stats_interval_opts);
 				CONF_CONTINUE;
 			}
+			CONF_HANDLE_CHAR_P(
+			    opt_stats_prefix, "stats_prefix", "")
 			if (config_fill) {
 				if (CONF_MATCH("junk")) {
 					if (CONF_MATCH_VALUE("true")) {

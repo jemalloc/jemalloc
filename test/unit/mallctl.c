@@ -553,6 +553,7 @@ TEST_BEGIN(test_mallctl_opt) {
 	TEST_MALLCTL_OPT(const char *, stats_print_opts, always);
 	TEST_MALLCTL_OPT(int64_t, stats_interval, always);
 	TEST_MALLCTL_OPT(const char *, stats_interval_opts, always);
+	TEST_MALLCTL_OPT(const char *, stats_prefix, always);
 	TEST_MALLCTL_OPT(const char *, junk, fill);
 	TEST_MALLCTL_OPT(bool, zero, fill);
 	TEST_MALLCTL_OPT(bool, utrace, utrace);

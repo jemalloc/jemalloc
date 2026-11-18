@@ -327,7 +327,7 @@ stats_print_atexit(void) {
 			}
 		}
 	}
-	je_malloc_stats_print(NULL, NULL, opt_stats_print_opts);
+	stats_dump(opt_stats_print_opts);
 }
 
 /* Initialize data structures which may trigger recursive allocation. */
