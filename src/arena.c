@@ -398,8 +398,8 @@ arena_extent_alloc_large(
 	 * if cache_oblivious is enabled.
 	 */
 	if (zero && !zero_override && !edata_zeroed_get(edata)) {
-		void  *addr = edata_addr_get(edata);
-		size_t usize = edata_usize_get(edata);
+		void *addr = edata_addr_get(edata);
+		assert(usize == edata_usize_get(edata));
 		memset(addr, 0, usize);
 	}
 
