@@ -409,6 +409,8 @@ CTL_PROTO(experimental_utilization_batch_query)
 CTL_PROTO(experimental_prof_recent_alloc_max)
 CTL_PROTO(experimental_prof_recent_alloc_dump)
 CTL_PROTO(experimental_arenas_create_ext)
+CTL_PROTO(experimental_prof_nmissed)
+CTL_PROTO(experimental_prof_bytes_missed)
 
 #define MUTEX_STATS_CTL_PROTO_GEN(n)                                           \
 	CTL_PROTO(stats_##n##_num_ops)                                         \
@@ -957,7 +959,9 @@ static const ctl_named_node_t experimental_node[] = {
     {NAME("hooks"), CHILD(named, experimental_hooks)},
     {NAME("utilization"), CHILD(named, experimental_utilization)},
     {NAME("arenas_create_ext"), CTL(experimental_arenas_create_ext)},
-    {NAME("prof_recent"), CHILD(named, experimental_prof_recent)}};
+    {NAME("prof_recent"), CHILD(named, experimental_prof_recent)},
+    {NAME("prof_nmissed"), CTL(experimental_prof_nmissed)},
+    {NAME("prof_bytes_missed"), CTL(experimental_prof_bytes_missed)}};
 
 static const ctl_named_node_t root_node[] = {{NAME("version"), CTL(version)},
     {NAME("epoch"), CTL(epoch)},
@@ -3543,6 +3547,10 @@ prof_reset_ctl(tsd_t *tsd, const size_t *mib, size_t miblen, void *oldp,
 }
 
 CTL_RO_NL_CGEN(config_prof, prof_interval, prof_interval, uint64_t)
+CTL_RO_NL_CGEN(config_prof && config_stats, experimental_prof_nmissed,
+    prof_sample_nmissed_get(), size_t)
+CTL_RO_NL_CGEN(config_prof && config_stats, experimental_prof_bytes_missed,
+    prof_sample_bytes_missed_get(), size_t)
 CTL_RO_NL_CGEN(config_prof, lg_prof_sample, lg_prof_sample, size_t)
 
 static int

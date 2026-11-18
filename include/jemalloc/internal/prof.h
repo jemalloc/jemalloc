@@ -433,6 +433,9 @@ void        prof_postfork_parent(tsdn_t *tsdn);
 void        prof_postfork_child(tsdn_t *tsdn);
 
 uint64_t tsd_prof_sample_event_wait_get(tsd_t *tsd);
+size_t prof_sample_nmissed_get(void);
+size_t prof_sample_bytes_missed_get(void);
+void prof_sample_missed_check(tsd_t *tsd, size_t usize);
 
 extern te_base_cb_t prof_sample_te_handler;
 

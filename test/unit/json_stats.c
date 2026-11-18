@@ -846,8 +846,17 @@ TEST_BEGIN(test_json_stats_global_and_arena) {
 	    "metadata_edata", "metadata_rtree", "metadata_thp", "resident",
 	    "mapped", "retained", "pinned", "zero_reallocs",
 	    "background_thread", "mutexes"};
-	expect_json_object_keys(
+	expect_zu_eq(json_object_size(stats),
+	    ARRAY_COUNT(stats_keys) + (config_prof ? 2 : 0),
+	    "Unexpected stats key count");
+	expect_json_object_has_keys(
 	    stats, stats_keys, ARRAY_COUNT(stats_keys), "stats");
+	if (config_prof) {
+		expect_json_uint_eq(stats, "prof_nmissed",
+		    read_size_ctl("experimental.prof_nmissed"), "stats");
+		expect_json_uint_eq(stats, "prof_bytes_missed",
+		    read_size_ctl("experimental.prof_bytes_missed"), "stats");
+	}
 	expect_json_ctl_fields(
 	    stats, "stats", global_fields, ARRAY_COUNT(global_fields));
 
