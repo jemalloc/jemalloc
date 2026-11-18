@@ -253,7 +253,7 @@ prof_try_log(tsd_t *tsd, size_t usize, prof_info_t *prof_info) {
 	    tsd_tsdn(tsd), sz, sz_size2index(sz), false, NULL, true,
 	    arena_get(TSDN_NULL, 0, true), true);
 	if (new_node == NULL) {
-		return;
+		goto label_done;
 	}
 
 	const char *prod_thr_name = tctx->tdata->thread_name;
