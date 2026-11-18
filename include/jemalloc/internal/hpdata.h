@@ -418,6 +418,13 @@ void hpdata_init(hpdata_t *hpdata, void *addr, uint64_t age, bool is_huge);
 void  hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz);
 
 /*
+ * hpdata_range_free() returns whether [addr, addr + sz) is within the hugepage
+ * and has no active pages; hpdata_reserve_range() marks such a range active.
+ */
+bool hpdata_range_free(const hpdata_t *hpdata, const void *addr, size_t sz);
+void hpdata_reserve_range(hpdata_t *hpdata, void *addr, size_t sz);
+
+/*
  * For buffering extent allocations we will perform out of
  * a single ps.
  */

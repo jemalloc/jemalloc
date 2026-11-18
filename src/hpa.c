@@ -1012,6 +1012,17 @@ hpa_dalloc_prepare_unlocked(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata) {
 }
 
 static void
+hpa_unreserve_locked(
+    tsdn_t *tsdn, hpa_shard_t *shard, hpdata_t *ps, void *addr, size_t size) {
+	malloc_mutex_assert_owner(tsdn, &shard->mtx);
+	psset_alloc_update_t update;
+	psset_alloc_update_begin(&shard->psset, ps, &update);
+	hpdata_unreserve(ps, addr, size);
+	hpa_update_purge_hugify_eligibility(tsdn, shard, ps);
+	psset_alloc_update_end(&shard->psset, ps, &update);
+}
+
+static void
 hpa_dalloc_locked(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata) {
 	malloc_mutex_assert_owner(tsdn, &shard->mtx);
 
@@ -1030,13 +1041,9 @@ hpa_dalloc_locked(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata) {
 	size_t unreserve_size = edata_size_get(edata);
 	edata_cache_fast_put(tsdn, &shard->ecf, edata);
 
-	psset_alloc_update_t update;
-	psset_alloc_update_begin(&shard->psset, ps, &update);
-	hpdata_unreserve(ps, unreserve_addr, unreserve_size);
+	hpa_unreserve_locked(tsdn, shard, ps, unreserve_addr, unreserve_size);
 	JE_USDT(jemalloc, hpa_dalloc, 5, shard->ind, unreserve_addr,
 	    unreserve_size, hpdata_nactive_get(ps), hpdata_age_get(ps));
-	hpa_update_purge_hugify_eligibility(tsdn, shard, ps);
-	psset_alloc_update_end(&shard->psset, ps, &update);
 }
 
 static void
@@ -1079,6 +1086,64 @@ hpa_dalloc(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata,
 	}
 	/* We may have more than one pointer to flush now */
 	hpa_dalloc_batch(tsdn, shard, &dalloc_list, deferred_work_generated);
+}
+
+bool
+hpa_expand(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata, size_t old_size,
+    size_t new_size, bool zero, bool *deferred_work_generated) {
+	/* Same limits as hpa_alloc(). */
+	if (zero || new_size > shard->opts.slab_max_alloc) {
+		return true;
+	}
+
+	hpdata_t *ps = edata_ps_get(edata);
+	void     *past = edata_past_get(edata);
+	size_t    expand_amount = new_size - old_size;
+	/*
+	 * Fail without taking the shard lock if another extent (live or cached
+	 * in the SEC) starts right after this one.
+	 */
+	emap_full_alloc_ctx_t neighbor;
+	if (!emap_full_alloc_ctx_try_lookup(tsdn, shard->emap, past, &neighbor)
+	    && neighbor.edata != NULL) {
+		return true;
+	}
+
+	malloc_mutex_lock(tsdn, &shard->mtx);
+	if (!hpdata_alloc_allowed_get(ps)
+	    || !hpdata_range_free(ps, past, expand_amount)) {
+		malloc_mutex_unlock(tsdn, &shard->mtx);
+		return true;
+	}
+	psset_alloc_update_t update;
+	psset_alloc_update_begin(&shard->psset, ps, &update);
+	hpdata_reserve_range(ps, past, expand_amount);
+	JE_USDT(jemalloc, hpa_expand, 5, shard->ind, edata_base_get(edata),
+	    new_size, hpdata_nactive_get(ps), hpdata_age_get(ps));
+	hpa_update_purge_hugify_eligibility(tsdn, shard, ps);
+	psset_alloc_update_end(&shard->psset, ps, &update);
+
+	emap_resize(tsdn, shard->emap, edata, new_size);
+	hpa_shard_maybe_do_deferred_work(tsdn, shard, /* forced */ false);
+	*deferred_work_generated = hpa_shard_has_deferred_work(tsdn, shard);
+	malloc_mutex_unlock(tsdn, &shard->mtx);
+	return false;
+}
+
+void
+hpa_shrink(tsdn_t *tsdn, hpa_shard_t *shard, edata_t *edata, size_t old_size,
+    size_t new_size, bool *deferred_work_generated) {
+	/* Move the end mapping before another thread can allocate the tail. */
+	emap_resize(tsdn, shard->emap, edata, new_size);
+	hpdata_t *ps = edata_ps_get(edata);
+	malloc_mutex_lock(tsdn, &shard->mtx);
+	hpa_unreserve_locked(
+	    tsdn, shard, ps, edata_past_get(edata), old_size - new_size);
+	JE_USDT(jemalloc, hpa_shrink, 5, shard->ind, edata_base_get(edata),
+	    new_size, hpdata_nactive_get(ps), hpdata_age_get(ps));
+	hpa_shard_maybe_do_deferred_work(tsdn, shard, /* forced */ false);
+	*deferred_work_generated = hpa_shard_has_deferred_work(tsdn, shard);
+	malloc_mutex_unlock(tsdn, &shard->mtx);
 }
 
 /*
