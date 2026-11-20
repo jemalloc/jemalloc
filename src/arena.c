@@ -591,7 +591,22 @@ arena_prepare_base_deletion_sync_finish(
 	}
 }
 
-#define ARENA_DESTROY_MAX_DELAYED_MTX 32
+/*
+ * Batch size for deferred lock acquisition during arena base deletion.
+ *
+ * When destroying an arena (without opt_retain), we must serialize with all
+ * other arenas' ecache locks to ensure no pending cross-arena metadata
+ * access remains.  Each arena contributes 4 ecache mutexes (dirty, muzzy,
+ * retained, pinned), so the worst-case contended count is 4 * (narenas - 1).
+ *
+ * Rather than bounding the array by the worst case, we use a fixed-size
+ * batch that flushes (lock + unlock each deferred mutex) whenever full,
+ * then resets to 0.  This correctly handles any number of arenas.
+ *
+ * 64 was chosen to reduce flush frequency on systems with many arenas
+ * (up to 16 arenas can be processed without an intermediate flush).
+ */
+#define ARENA_DESTROY_MAX_DELAYED_MTX 64
 static void
 arena_prepare_base_deletion_sync(tsd_t *tsd, malloc_mutex_t *mtx,
     malloc_mutex_t **delayed_mtx, unsigned *n_delayed) {
@@ -601,6 +616,7 @@ arena_prepare_base_deletion_sync(tsd_t *tsd, malloc_mutex_t *mtx,
 		return;
 	}
 	unsigned n = *n_delayed;
+	/* Batch invariant: n is always in [0, ARENA_DESTROY_MAX_DELAYED_MTX). */
 	assert(n < ARENA_DESTROY_MAX_DELAYED_MTX);
 	/* Add another to the batch. */
 	delayed_mtx[n++] = mtx;
