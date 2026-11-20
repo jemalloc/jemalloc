@@ -1265,6 +1265,7 @@ JEMALLOC_ATTR(malloc) je_valloc(size_t size) {
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
 
+	sopts.bump_empty_aligned_alloc = true;
 	sopts.null_out_result_on_error = true;
 	sopts.min_alignment = PAGE;
 	sopts.oom_string =
@@ -1298,6 +1299,7 @@ JEMALLOC_ATTR(malloc) je_pvalloc(size_t size) {
 	static_opts_init(&sopts);
 	dynamic_opts_init(&dopts);
 
+	sopts.bump_empty_aligned_alloc = true;
 	sopts.null_out_result_on_error = true;
 	sopts.min_alignment = PAGE;
 	sopts.oom_string =
@@ -2103,11 +2105,12 @@ je_dallocx(void *ptr, int flags) {
 }
 
 JEMALLOC_ALWAYS_INLINE size_t
-inallocx(tsdn_t *tsdn, size_t size, int flags) {
+inallocx(tsdn_t *tsdn, size_t size, int flags, bool bump_empty_aligned_alloc) {
 	check_entry_exit_locking(tsdn);
 	size_t usize;
 	/* In case of out of range, let the user see it rather than fail. */
-	aligned_usize_get(size, MALLOCX_ALIGN_GET(flags), &usize, NULL, false);
+	aligned_usize_get(size, MALLOCX_ALIGN_GET(flags), &usize, NULL,
+	    bump_empty_aligned_alloc);
 	check_entry_exit_locking(tsdn);
 	return usize;
 }
@@ -2126,7 +2129,9 @@ sdallocx_default(void *ptr, size_t size, int flags) {
 
 	tsd_t *tsd = tsd_fetch_min();
 	bool   fast = tsd_fast(tsd);
-	size_t usize = inallocx(tsd_tsdn(tsd), size, flags);
+	/* Match the zero-to-one normalization used by aligned allocation APIs. */
+	size_t usize = inallocx(tsd_tsdn(tsd), size, flags,
+	    /* bump_empty_aligned_alloc */ true);
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
 	unsigned  tcache_ind = mallocx_tcache_get(flags);
@@ -2164,7 +2169,8 @@ nallocx_slow(size_t size, int flags) {
 	tsdn_t *tsdn = tsdn_fetch();
 	check_entry_exit_locking(tsdn);
 
-	size_t usize = inallocx(tsdn, size, flags);
+	size_t usize = inallocx(
+	    tsdn, size, flags, /* bump_empty_aligned_alloc */ false);
 	if (unlikely(usize > SC_LARGE_MAXCLASS)) {
 		LOG("core.nallocx.exit", "result: %zu", ZU(0));
 		return 0;
