@@ -3100,7 +3100,16 @@ fi
 
 JE_CFLAGS_SAVE()
 JE_CFLAGS_ADD([-D_GNU_SOURCE])
-JE_CFLAGS_ADD([-Werror])
+dnl Only the diagnostics a wrong strerror_r produces are made errors: with a
+dnl blanket -Werror, an unrelated warning from the system headers (such as
+dnl glibc's "_FORTIFY_SOURCE requires compiling with optimization" under -O0)
+dnl fails both checks below, and configure stops. A compiler that lacks
+dnl -Werror=int-conversion keeps -Werror.
+JE_CFLAGS_ADD([-Werror=int-conversion])
+if test "x${je_cv_cflags_added}" = "x" ; then
+  JE_CFLAGS_ADD([-Werror])
+fi
+JE_CFLAGS_ADD([-Werror=implicit-function-declaration])
 if test "x${je_cv_cray}" = "xyes" ; then
   JE_CFLAGS_ADD([-herror_on_warning])
 fi
