@@ -400,13 +400,6 @@ validate_hpa_settings(void) {
 	if (!hpa_supported() || !opt_hpa) {
 		return;
 	}
-	if (HUGEPAGE > HUGEPAGE_MAX_EXPECTED_SIZE) {
-		had_conf_error = true;
-		malloc_printf(
-		    "<jemalloc>: huge page size (%zu) greater than expected."
-		    "May not be supported or behave as expected.",
-		    HUGEPAGE);
-	}
 #ifndef JEMALLOC_HAVE_MADVISE_COLLAPSE
 	if (opt_hpa_opts.hugify_sync) {
 		had_conf_error = true;
