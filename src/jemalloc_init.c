@@ -268,18 +268,6 @@ malloc_init_hard_a0_locked(void) {
 		return true;
 	}
 
-	if (opt_hpa && !hpa_supported()) {
-		malloc_printf(
-		    "<jemalloc>: HPA not supported in the current "
-		    "configuration; %s.",
-		    opt_abort_conf ? "aborting" : "disabling");
-		if (opt_abort_conf) {
-			malloc_abort_invalid_conf();
-		} else {
-			opt_hpa = false;
-		}
-	}
-
 	malloc_init_state = malloc_init_a0_initialized;
 
 	size_t buf_len = strlen(readlink_buf);
