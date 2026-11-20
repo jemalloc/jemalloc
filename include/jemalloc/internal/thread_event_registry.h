@@ -104,4 +104,13 @@ int te_register_user_handler(tsdn_t *tsdn, user_hook_object_t *te_uobj);
 
 te_enabled_t te_user_event_enabled(size_t ue_idx, bool is_alloc);
 
+#ifdef JEMALLOC_DEBUG_FAST
+/*
+ * Bit i is set when te_alloc_handlers[i] (or te_dalloc_handlers[i]) is
+ * enabled, so the debug invariant checks can test bits instead of calling
+ * every handler's enabled().
+ */
+uint32_t te_enabled_mask(bool is_alloc);
+#endif
+
 #endif /* JEMALLOC_INTERNAL_THREAD_EVENT_REGISTRY_H */

@@ -1,7 +1,7 @@
 #ifndef JEMALLOC_INTERNAL_MACROS_H
 #define JEMALLOC_INTERNAL_MACROS_H
 
-#ifdef JEMALLOC_DEBUG
+#if defined(JEMALLOC_DEBUG) && !defined(JEMALLOC_DEBUG_FAST)
 #	define JEMALLOC_ALWAYS_INLINE static inline
 #else
 #	ifdef _MSC_VER

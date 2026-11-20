@@ -11,6 +11,9 @@ witness_init(witness_t *witness, const char *name, witness_rank_t rank,
 	witness->rank = rank;
 	witness->comp = comp;
 	witness->opaque = opaque;
+#ifdef JEMALLOC_DEBUG_FAST
+	atomic_store_p(&witness->owner, NULL, ATOMIC_RELAXED);
+#endif
 }
 
 static void
