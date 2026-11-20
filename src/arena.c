@@ -985,13 +985,18 @@ arena_ptr_array_flush_metadata_visitor(
 	ctx->szind_sum -= alloc_ctx->szind;
 	/*
 	 * Objects flushed together are usually on the same slab, so prefetch
-	 * each edata once rather than once per object.  This matters with
-	 * large pages, where the slab bitmap makes an edata span many cache
-	 * lines (18 with 64 KiB pages).
+	 * each edata once rather than once per object.  Only the first two
+	 * cache lines are prefetched: the header, and the start of the slab
+	 * bitmap, which is the whole bitmap for slabs of up to 512 regions
+	 * (all of them with 4 KiB pages).  With large pages the bitmap makes
+	 * an edata span many more lines (18 with 64 KiB pages), of which a
+	 * free touches one; prefetching all of them evicts more than it saves.
 	 */
 	if (alloc_ctx->edata != ctx->prefetched) {
 		ctx->prefetched = alloc_ctx->edata;
-		util_prefetch_write_range(alloc_ctx->edata, EDATA_ALLOC_SIZE);
+		util_prefetch_write_range(alloc_ctx->edata,
+		    EDATA_ALLOC_SIZE < 2 * CACHELINE ? EDATA_ALLOC_SIZE
+		                                     : 2 * CACHELINE);
 	}
 }
 
