@@ -10,6 +10,7 @@
 #include "jemalloc/internal/ehooks.h"
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/extent_mmap.h"
+#include "jemalloc/internal/hpa_shard_set.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_a.h"
 #include "jemalloc/internal/jemalloc_internal_inlines_c.h"
 #include "jemalloc/internal/large.h"
@@ -363,9 +364,8 @@ arena_large_ralloc_stats_update(
 edata_t *
 arena_extent_alloc_large(
     tsdn_t *tsdn, arena_t *arena, size_t usize, size_t alignment, bool zero) {
-	bool    deferred_work_generated = false;
-	szind_t szind = sz_size2index(usize);
-	size_t  esize = usize + sz_large_pad;
+	bool   deferred_work_generated = false;
+	size_t esize = usize + sz_large_pad;
 
 	bool guarded = san_large_extent_decide_guard(
 	    tsdn, arena_get_ehooks(arena), esize, alignment);
@@ -378,8 +378,8 @@ arena_extent_alloc_large(
 	 *     - use memset() to zero out memory if zero == true.
 	 */
 	bool zero_override = zero && (usize >= opt_calloc_madvise_threshold);
-	edata_t *edata = pa_alloc(tsdn, &arena->pa_shard, esize, alignment,
-	    /* slab */ false, szind, zero_override, guarded,
+	edata_t *edata = pa_alloc(tsdn, &arena->pa_shard, esize, usize,
+	    alignment, /* slab */ false, zero_override, guarded,
 	    &deferred_work_generated);
 
 	if (edata == NULL) {
@@ -704,8 +704,8 @@ arena_destroy(tsd_t *tsd, arena_t *arena) {
 }
 
 static edata_t *
-arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind,
-    unsigned binshard, const bin_info_t *bin_info) {
+arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, unsigned binshard,
+    const bin_info_t *bin_info) {
 	bool deferred_work_generated = false;
 	witness_assert_depth_to_rank(
 	    tsdn_witness_tsdp_get(tsdn), WITNESS_RANK_CORE, 0);
@@ -713,8 +713,8 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind,
 	bool guarded = san_slab_extent_decide_guard(
 	    tsdn, arena_get_ehooks(arena));
 	edata_t *slab = pa_alloc(tsdn, &arena->pa_shard, bin_info->slab_size,
-	    /* alignment */ PAGE, /* slab */ true, /* szind */ binind,
-	    /* zero */ false, guarded, &deferred_work_generated);
+	    /* usize */ bin_info->reg_size, /* alignment */ PAGE,
+	    /* slab */ true, /* zero */ false, guarded, &deferred_work_generated);
 
 	if (deferred_work_generated) {
 		pa_shard_handle_deferred_work(tsdn, &arena->pa_shard);
@@ -847,8 +847,7 @@ label_refill:
 		assert(filled < nfill_min);
 		assert(made_progress);
 
-		fresh_slab = arena_slab_alloc(
-		    tsdn, arena, binind, binshard, bin_info);
+		fresh_slab = arena_slab_alloc(tsdn, arena, binshard, bin_info);
 		/* fresh_slab NULL case handled in the for loop. */
 
 		alloc_and_retry = false;
@@ -884,8 +883,7 @@ arena_malloc_small(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero) {
 	if (ret == NULL) {
 		malloc_mutex_unlock(tsdn, &bin->lock);
 		/******************************/
-		fresh_slab = arena_slab_alloc(
-		    tsdn, arena, binind, binshard, bin_info);
+		fresh_slab = arena_slab_alloc(tsdn, arena, binshard, bin_info);
 		/********************************/
 		malloc_mutex_lock(tsdn, &bin->lock);
 		/* Retry since the lock was dropped. */
@@ -1557,6 +1555,15 @@ arena_new(tsdn_t *tsdn, unsigned ind, const arena_config_t *config) {
 	        arena_muzzy_decay_ms_default_get())) {
 		goto label_error;
 	}
+	/*
+	 * Automatic arenas allocate from the global HPA shard sets, if booted,
+	 * which has to be turned on before the arena is published.
+	 */
+	bool use_hpa_sets = pa_shard_on_hpa_sets(&arena->pa_shard)
+	    && ehooks_are_default(base_ehooks_get(base));
+	if (use_hpa_sets) {
+		pa_shard_enable_hpa_sets(&arena->pa_shard);
+	}
 
 	/* Initialize bins. */
 	atomic_store_u(&arena->binshard_next, 0, ATOMIC_RELEASE);
@@ -1581,13 +1588,15 @@ arena_new(tsdn_t *tsdn, unsigned ind, const arena_config_t *config) {
 	nstime_init_update(&arena->create_time);
 
 	/*
-	 * We turn on the HPA if set to.  There are two exceptions:
+	 * We turn on the HPA if set to.  There are three exceptions:
 	 * - Custom extent hooks (we should only return memory allocated from
 	 *   them in that case).
 	 * - Arena 0 initialization.  In this case, we're mid-bootstrapping,
 	 *   and so background_thread_enabled is not yet initialized.
+	 * - Arenas on the HPA shard sets, set up above.
 	 */
-	if (opt_hpa && ehooks_are_default(base_ehooks_get(base)) && ind != 0) {
+	if (opt_hpa && ehooks_are_default(base_ehooks_get(base)) && ind != 0
+	    && !use_hpa_sets) {
 		hpa_shard_opts_t hpa_shard_opts = opt_hpa_opts;
 		hpa_shard_opts.deferral_allowed = background_thread_enabled();
 		if (pa_shard_enable_hpa(tsdn, &arena->pa_shard, &hpa_shard_opts,
@@ -1668,6 +1677,30 @@ arena_choose_huge(tsd_t *tsd) {
 	}
 
 	return huge_arena;
+}
+
+bool
+arena_hpa_boot(tsdn_t *tsdn, bool use_hpa_shard_sets) {
+	arena_t         *a0 = arena_get(tsdn, 0, false);
+	hpa_shard_opts_t hpa_shard_opts = opt_hpa_opts;
+	hpa_shard_opts.deferral_allowed = background_thread_enabled();
+	if (!use_hpa_shard_sets) {
+		return pa_shard_enable_hpa(
+		    tsdn, &a0->pa_shard, &hpa_shard_opts, &opt_hpa_sec_opts);
+	}
+	/*
+	 * The sets take edata_t from arena 0's cache, which is on b0, so it
+	 * outlives every arena, and forked with arena 0.  Should its mutex
+	 * prove to be a bottleneck, the sets could have separate edata caches.
+	 */
+	if (hpa_shard_sets_boot(tsdn, &hpa_shard_sets_global, b0get(),
+	        &arena_pa_central_global.hpa, &arena_emap_global,
+	        &a0->pa_shard.edata_cache, &opt_hpa_shard_sets_nshards,
+	        &hpa_shard_opts, &opt_hpa_sec_opts)) {
+		return true;
+	}
+	pa_shard_enable_hpa_sets(&a0->pa_shard);
+	return false;
 }
 
 bool

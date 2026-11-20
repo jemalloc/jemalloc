@@ -1,5 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 
+#include "jemalloc/internal/hpa_shard_set.h"
+
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/arenas_management.h"
 #include "jemalloc/internal/assert.h"
@@ -195,6 +197,9 @@ size_t opt_calloc_madvise_threshold = CALLOC_MADVISE_THRESHOLD_DEFAULT;
 
 /* The global hpa, and whether it's on. */
 bool             opt_hpa = false;
+/* Off by default: every arena keeps its own HPA shard. */
+bool                    opt_hpa_shard_sets = false;
+hpa_shard_sets_config_t opt_hpa_shard_sets_nshards;
 hpa_shard_opts_t opt_hpa_opts;
 sec_opts_t       opt_hpa_sec_opts;
 sec_opts_t       opt_pac_sec_opts;

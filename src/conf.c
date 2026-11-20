@@ -1,5 +1,7 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 
+#include "jemalloc/internal/hpa_shard_set.h"
+
 #include "jemalloc/internal/arena.h"
 #include "jemalloc/internal/assert.h"
 #include "jemalloc/internal/atomic.h"
@@ -416,6 +418,45 @@ validate_hpa_settings(void) {
 		    "time.");
 	}
 #endif
+}
+
+/*
+ * Parses a hpa_shard_sets_nshards value into config: up to
+ * HPA_SHARD_SET_NBANDS shard counts separated by '|', one per band from the
+ * smallest.  Bands without a count get 0, joining the set of the band below.
+ * The first count must not be 0, and none may exceed HPA_MAX_SHARDS_PER_SET.
+ * A malformed value configures nothing.  Returns true if the value is
+ * malformed.
+ */
+JET_EXTERN bool
+conf_parse_hpa_shard_sets_nshards(
+    const char *v, size_t vlen, hpa_shard_sets_config_t *config) {
+	const char *cur = v;
+	const char *end = v + vlen;
+	memset(config, 0, sizeof(*config));
+	for (unsigned i = 0; i < HPA_SHARD_SET_NBANDS; i++) {
+		char *num_end;
+		set_errno(0);
+		uintmax_t nshards = malloc_strtoumax(cur, &num_end, 0);
+		/*
+		 * A count is a number in range, followed by '|' or the end of
+		 * the value.  The first band has no band below it to join.
+		 */
+		if (get_errno() != 0 || num_end > end
+		    || nshards > HPA_MAX_SHARDS_PER_SET
+		    || (i == 0 && nshards == 0)
+		    || (num_end < end && *num_end != '|')) {
+			break;
+		}
+		config->nshards[i] = (unsigned)nshards;
+		if (num_end == end) {
+			return false;
+		}
+		cur = num_end + 1;
+	}
+	/* A malformed count, or more counts than bands. */
+	memset(config, 0, sizeof(*config));
+	return true;
 }
 
 static void
@@ -904,6 +945,17 @@ malloc_conf_init_helper(sc_data_t *sc_data,
 				if (!match) {
 					CONF_ERROR("Invalid conf value", k,
 					    klen, v, vlen);
+				}
+				CONF_CONTINUE;
+			}
+
+			CONF_HANDLE_BOOL(opt_hpa_shard_sets, "hpa_shard_sets")
+			if (CONF_MATCH("hpa_shard_sets_nshards")) {
+				if (conf_parse_hpa_shard_sets_nshards(v, vlen,
+				        &opt_hpa_shard_sets_nshards)) {
+					CONF_ERROR("Invalid settings for "
+					    "hpa_shard_sets_nshards",
+					    k, klen, v, vlen);
 				}
 				CONF_CONTINUE;
 			}
