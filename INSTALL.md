@@ -238,6 +238,11 @@ any of the following arguments (not a definitive list) to 'configure':
     This is a partial mitigation, not a whole-program fix: only TLS accesses
     made by jemalloc itself are protected.
 
+* `--enable-pic-only`
+
+    Only build PIC objects and library, and create libjemalloc.a as a symbolic
+    link to libjemalloc_pic.a.
+
 * `--with-xslroot=<path>`
 
     Specify where to find DocBook XSL stylesheets when building the
