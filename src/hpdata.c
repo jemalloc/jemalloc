@@ -170,6 +170,35 @@ hpdata_unreserve(hpdata_t *hpdata, void *addr, size_t sz) {
 	hpdata_assert_consistent(hpdata);
 }
 
+bool
+hpdata_range_free(const hpdata_t *hpdata, const void *addr, size_t sz) {
+	assert(((uintptr_t)addr & PAGE_MASK) == 0);
+	assert((sz & PAGE_MASK) == 0);
+	assert(sz > 0);
+	uintptr_t offset = (uintptr_t)addr - (uintptr_t)hpdata_addr_get(hpdata);
+	if (offset >= HUGEPAGE) {
+		return false;
+	}
+	size_t begin = offset >> LG_PAGE;
+	size_t npages = sz >> LG_PAGE;
+	/* No active page in range, and the range ends within the hugepage. */
+	return fb_ffs(hpdata->active_pages, HUGEPAGE_PAGES, begin)
+	    >= begin + npages;
+}
+
+void
+hpdata_reserve_range(hpdata_t *hpdata, void *addr, size_t sz) {
+	hpdata_assert_consistent(hpdata);
+	assert(hpdata_range_free(hpdata, addr, sz));
+	hpdata_alloc_offset_t offset = {
+	    .index = ((uintptr_t)addr - (uintptr_t)hpdata_addr_get(hpdata))
+	        >> LG_PAGE};
+	hpdata_reserve_alloc_offset(hpdata, sz, &offset);
+	hpdata_longest_free_range_set(
+	    hpdata, fb_urange_longest(hpdata->active_pages, HUGEPAGE_PAGES));
+	hpdata_assert_consistent(hpdata);
+}
+
 size_t
 hpdata_find_alloc_offsets(hpdata_t *hpdata, size_t sz,
     hpdata_alloc_offset_t *offsets, size_t max_nallocs) {

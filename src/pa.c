@@ -167,15 +167,16 @@ pa_expand(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 	}
 	size_t expand_amount = new_size - old_size;
 
-	/*
-	 * HPA expand always fails (it's a stub); skip the call entirely for
-	 * HPA-owned extents.
-	 */
+	bool error;
 	if (edata_pai_get(edata) == EXTENT_PAI_HPA) {
-		return true;
+		/* No new HPA pages once the HPA is disabled. */
+		error = !pa_shard_uses_hpa(shard)
+		    || hpa_expand(tsdn, &shard->hpa, edata, old_size, new_size,
+		        zero, deferred_work_generated);
+	} else {
+		error = pac_expand(tsdn, &shard->pac, edata, old_size, new_size,
+		    zero, deferred_work_generated);
 	}
-	bool error = pac_expand(tsdn, &shard->pac, edata, old_size, new_size,
-	    zero, deferred_work_generated);
 	if (error) {
 		return true;
 	}
@@ -197,16 +198,11 @@ pa_shrink(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata, size_t old_size,
 	}
 	size_t shrink_amount = old_size - new_size;
 
-	/*
-	 * HPA shrink always fails (it's a stub); skip the call entirely for
-	 * HPA-owned extents.
-	 */
 	if (edata_pai_get(edata) == EXTENT_PAI_HPA) {
-		return true;
-	}
-	bool error = pac_shrink(tsdn, &shard->pac, edata, old_size, new_size,
-	    deferred_work_generated);
-	if (error) {
+		hpa_shrink(tsdn, &shard->hpa, edata, old_size, new_size,
+		    deferred_work_generated);
+	} else if (pac_shrink(tsdn, &shard->pac, edata, old_size, new_size,
+	               deferred_work_generated)) {
 		return true;
 	}
 	pa_nactive_sub(shard, shrink_amount >> LG_PAGE);

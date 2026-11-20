@@ -284,9 +284,32 @@ TEST_BEGIN(test_layout) {
 }
 TEST_END
 
+TEST_BEGIN(test_reserve_range) {
+	hpdata_t hpdata;
+	hpdata_init(&hpdata, HPDATA_ADDR, HPDATA_AGE, /* is_huge */ false);
+	char *base = (char *)HPDATA_ADDR;
+
+	/* Pages [0, 4) and [12, 16) active. */
+	expect_ptr_eq(base, hpdata_reserve_alloc(&hpdata, 16 * PAGE), "");
+	hpdata_unreserve(&hpdata, base + 4 * PAGE, 8 * PAGE);
+
+	expect_true(hpdata_range_free(&hpdata, base + 4 * PAGE, 8 * PAGE), "");
+	expect_false(hpdata_range_free(&hpdata, base + 4 * PAGE, 9 * PAGE), "");
+	expect_false(hpdata_range_free(
+	                 &hpdata, base + (HUGEPAGE_PAGES - 1) * PAGE, 2 * PAGE),
+	    "Past the hugepage");
+	expect_false(hpdata_range_free(&hpdata, base + HUGEPAGE, PAGE),
+	    "Past the hugepage");
+
+	hpdata_reserve_range(&hpdata, base + 16 * PAGE, 4 * PAGE);
+	expect_true(hpdata_consistent(&hpdata), "");
+	expect_zu_eq(12, hpdata_nactive_get(&hpdata), "");
+}
+TEST_END
+
 int
 main(void) {
 	return test_no_reentrancy(test_reserve_alloc, test_purge_simple,
 	    test_purge_intervening_dalloc, test_purge_over_retained,
-	    test_hugify, test_layout);
+	    test_hugify, test_layout, test_reserve_range);
 }
