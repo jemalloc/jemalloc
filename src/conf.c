@@ -827,7 +827,7 @@ malloc_conf_init_helper(sc_data_t *sc_data,
 			    opt_background_thread, "background_thread");
 			CONF_HANDLE_SIZE_T(opt_max_background_threads,
 			    "max_background_threads", 1,
-			    opt_max_background_threads, CONF_CHECK_MIN,
+			    MAX_BACKGROUND_THREAD_LIMIT, CONF_CHECK_MIN,
 			    CONF_CHECK_MAX, true);
 			CONF_HANDLE_BOOL(opt_hpa, "hpa")
 			CONF_HANDLE_SIZE_T(opt_hpa_opts.slab_max_alloc,
