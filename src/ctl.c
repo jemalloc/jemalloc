@@ -168,6 +168,7 @@ CTL_PROTO(opt_stats_print)
 CTL_PROTO(opt_stats_print_opts)
 CTL_PROTO(opt_stats_interval)
 CTL_PROTO(opt_stats_interval_opts)
+CTL_PROTO(opt_stats_prefix)
 CTL_PROTO(opt_junk)
 CTL_PROTO(opt_zero)
 CTL_PROTO(opt_utrace)
@@ -543,6 +544,7 @@ static const ctl_named_node_t opt_node[] = {{NAME("abort"), CTL(opt_abort)},
     {NAME("stats_print_opts"), CTL(opt_stats_print_opts)},
     {NAME("stats_interval"), CTL(opt_stats_interval)},
     {NAME("stats_interval_opts"), CTL(opt_stats_interval_opts)},
+    {NAME("stats_prefix"), CTL(opt_stats_prefix)},
     {NAME("junk"), CTL(opt_junk)}, {NAME("zero"), CTL(opt_zero)},
     {NAME("utrace"), CTL(opt_utrace)}, {NAME("xmalloc"), CTL(opt_xmalloc)},
     {NAME("tcache"), CTL(opt_tcache)},
@@ -2306,6 +2308,7 @@ CTL_RO_NL_GEN(opt_stats_print, opt_stats_print, bool)
 CTL_RO_NL_GEN(opt_stats_print_opts, opt_stats_print_opts, const char *)
 CTL_RO_NL_GEN(opt_stats_interval, opt_stats_interval, int64_t)
 CTL_RO_NL_GEN(opt_stats_interval_opts, opt_stats_interval_opts, const char *)
+CTL_RO_NL_GEN(opt_stats_prefix, opt_stats_prefix, const char *)
 CTL_RO_NL_CGEN(config_fill, opt_junk, opt_junk, const char *)
 CTL_RO_NL_CGEN(config_fill, opt_zero, opt_zero, bool)
 CTL_RO_NL_CGEN(config_utrace, opt_utrace, opt_utrace, bool)
