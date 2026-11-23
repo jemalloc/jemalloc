@@ -43,6 +43,11 @@ Runtime options can be set via
     between CPU and memory usage.  Shorter decay time purges unused pages faster
     to reduces memory usage (usually at the cost of more CPU cycles spent on
     purging), and vice versa.
+    Be aware that decay times `> 0` will not be honored until the next relevant call
+    into jemalloc, unless you also enable `background_thread:true`.
+    Without `background_thread:true`, processes that are sleeping
+    (e.g. because they call `sleep()`, block on user input, network/file activity,
+    or run subprocesses) will not purge memory.
 
     Suggested: tune the values based on the desired trade-offs.
 
