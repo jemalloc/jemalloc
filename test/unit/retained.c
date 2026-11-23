@@ -3,23 +3,57 @@
 #include "jemalloc/internal/san.h"
 #include "jemalloc/internal/spin.h"
 
+/*
+ * With opt_retain, an arena grows by mapping extents whose sizes follow an
+ * exponential series of page size classes (exp_grow).  The series starts at
+ * the same class on every platform.
+ */
+
 static unsigned arena_ind;
 static size_t   sz;
-static size_t   esz;
 #define NEPOCHS 8
-#define PER_THD_NALLOCS 1
 static atomic_u_t epoch;
 static atomic_u_t nfinished;
 
 static unsigned
-do_arena_create(extent_hooks_t *h) {
-	unsigned new_arena_ind;
-	size_t   ind_sz = sizeof(unsigned);
+do_arena_create(void) {
+	unsigned ind;
+	size_t   ind_sz = sizeof(ind);
+	expect_d_eq(mallctl("arenas.create", (void *)&ind, &ind_sz, NULL, 0), 0,
+	    "Unexpected mallctl() failure");
+
+	/*
+	 * The tests check PAC, so keep HPA off for this arena.  Setting its
+	 * extent hooks turns HPA off; set them to the default ones it has.
+	 */
+	size_t mib[3];
+	size_t miblen = sizeof(mib) / sizeof(size_t);
+	expect_d_eq(mallctlnametomib("arena.0.extent_hooks", mib, &miblen), 0,
+	    "Unexpected mallctlnametomib() failure");
+	mib[1] = (size_t)ind;
+	extent_hooks_t *hooks;
+	size_t          hooks_sz = sizeof(hooks);
 	expect_d_eq(
-	    mallctl("arenas.create", (void *)&new_arena_ind, &ind_sz,
-	        (void *)(h != NULL ? &h : NULL), (h != NULL ? sizeof(h) : 0)),
-	    0, "Unexpected mallctl() failure");
-	return new_arena_ind;
+	    mallctlbymib(mib, miblen, (void *)&hooks, &hooks_sz, NULL, 0), 0,
+	    "Unexpected mallctlbymib() failure");
+	expect_d_eq(mallctlbymib(
+	                mib, miblen, NULL, NULL, (void *)&hooks, sizeof(hooks)),
+	    0, "Unexpected mallctlbymib() failure");
+
+	/*
+	 * Disable purging: it moves dirty pages to retained whenever decay
+	 * runs, e.g. on a background thread, which would make retained memory
+	 * depend on timing.
+	 */
+	miblen = sizeof(mib) / sizeof(size_t);
+	expect_d_eq(mallctlnametomib("arena.0.dirty_decay_ms", mib, &miblen), 0,
+	    "Unexpected mallctlnametomib() failure");
+	mib[1] = (size_t)ind;
+	ssize_t decay_ms = -1;
+	expect_d_eq(mallctlbymib(mib, miblen, NULL, NULL, (void *)&decay_ms,
+	                sizeof(decay_ms)),
+	    0, "Unexpected mallctlbymib() failure");
+	return ind;
 }
 
 static void
@@ -69,6 +103,87 @@ do_get_mapped(unsigned ind) {
 	return do_get_size_impl("stats.arenas.0.mapped", ind);
 }
 
+static size_t
+do_get_retained(unsigned ind) {
+	return do_get_size_impl("stats.arenas.0.retained", ind);
+}
+
+/*
+ * The arena's growth index: its next growth maps this size class, or a later
+ * one if the extent does not fit.
+ */
+static pszind_t
+do_get_grow_next(unsigned ind) {
+	tsdn_t *tsdn = tsdn_fetch();
+	pac_t  *pac = &arena_get(tsdn, ind, false)->pa_shard.pac;
+	malloc_mutex_lock(tsdn, &pac->grow_mtx);
+	pszind_t next = pac->exp_grow.next;
+	malloc_mutex_unlock(tsdn, &pac->grow_mtx);
+	return next;
+}
+
+/* Returns the allocation's extent size: its usable size plus the large pad. */
+static size_t
+do_alloc(size_t size) {
+	void *p = mallocx(size, MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE);
+	expect_ptr_not_null(p, "Unexpected mallocx() failure");
+	return nallocx(size, 0) + sz_large_pad;
+}
+
+/* allocated <= active <= mapped must hold at all times. */
+static void
+expect_usage(unsigned ind, size_t allocated) {
+	size_t active = do_get_active(ind);
+	expect_zu_le(allocated, active, "Unexpected active memory");
+	expect_zu_le(active, do_get_mapped(ind), "Unexpected mapped memory");
+}
+
+TEST_BEGIN(test_retained_grow_series) {
+	test_skip_if(!config_stats);
+	test_skip_if(!opt_retain);
+
+	arena_ind = do_arena_create();
+	pszind_t start = do_get_grow_next(arena_ind);
+	size_t   allocated = 0;
+
+	/*
+	 * The first growth maps the first class of the series.  A request of a
+	 * quarter of that class leaves room for another one.
+	 */
+	size_t small = sz_pind2sz(start) / 4;
+	allocated += do_alloc(small);
+	pszind_t next = do_get_grow_next(arena_ind);
+	expect_u_eq(next, start + 1, "First growth should map class %u", start);
+
+	/* The leftover is retained and serves the next request. */
+	allocated += do_alloc(small);
+	expect_u_eq(do_get_grow_next(arena_ind), next,
+	    "A request that fits in retained memory should not grow");
+
+	/* A request larger than the next class skips to a class that fits. */
+	size_t big = 2 * sz_pind2sz(next);
+	allocated += do_alloc(big);
+	pszind_t skipped_from = next;
+	next = do_get_grow_next(arena_ind);
+	expect_u_gt(next, skipped_from + 1,
+	    "A request larger than class %u should skip it", skipped_from);
+	expect_zu_ge(sz_pind2sz(next - 1), big,
+	    "The class skipped to should fit the request");
+
+	/*
+	 * The class skipped to was the first one that fit, so no leftover fits
+	 * the same request again; it grows into the very next class.
+	 */
+	allocated += do_alloc(big);
+	expect_u_eq(do_get_grow_next(arena_ind), next + 1,
+	    "Growth should continue after the class skipped to");
+
+	do_refresh();
+	expect_usage(arena_ind, allocated);
+	do_arena_destroy(arena_ind);
+}
+TEST_END
+
 static void *
 thd_start(void *arg) {
 	for (unsigned next_epoch = 1; next_epoch < NEPOCHS; next_epoch++) {
@@ -81,16 +196,8 @@ thd_start(void *arg) {
 		}
 		expect_u_eq(cur_epoch, next_epoch, "Unexpected epoch");
 
-		/*
-		 * Allocate.  The main thread will reset the arena, so there's
-		 * no need to deallocate.
-		 */
-		for (unsigned i = 0; i < PER_THD_NALLOCS; i++) {
-			void *p = mallocx(
-			    sz, MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE);
-			expect_ptr_not_null(
-			    p, "Unexpected mallocx() failure\n");
-		}
+		/* The main thread destroys the arena; no need to free. */
+		do_alloc(sz);
 
 		/* Let the main thread know we've finished this iteration. */
 		atomic_fetch_add_u(&nfinished, 1, ATOMIC_RELEASE);
@@ -99,14 +206,18 @@ thd_start(void *arg) {
 	return NULL;
 }
 
-TEST_BEGIN(test_retained) {
+TEST_BEGIN(test_retained_grow_concurrent) {
 	test_skip_if(!config_stats);
-	test_skip_if(opt_hpa);
+	test_skip_if(!opt_retain);
+	/*
+	 * Guard decisions are made per thread, so one thread cannot reproduce
+	 * what many threads get.
+	 */
+	test_skip_if(san_guard_enabled());
 
-	arena_ind = do_arena_create(NULL);
-	sz = nallocx(HUGEPAGE, 0);
-	size_t guard_sz = san_guard_enabled() ? SAN_PAGE_GUARDS_SIZE : 0;
-	esz = sz + sz_large_pad + guard_sz;
+	arena_ind = do_arena_create();
+	pszind_t start = do_get_grow_next(arena_ind);
+	sz = sz_pind2sz(start);
 
 	atomic_store_u(&epoch, 0, ATOMIC_RELAXED);
 
@@ -121,6 +232,26 @@ TEST_BEGIN(test_retained) {
 		 */
 		nthreads = 16;
 	}
+
+	/*
+	 * Reference run: the same requests, made one at a time on a fresh
+	 * arena.  Growth is serialized, so the racing requests below must end
+	 * with the same growth index and retained memory.  Requests the size
+	 * of the first class make most of them grow, so the threads race on
+	 * growth.
+	 */
+	size_t allocated = 0;
+	for (unsigned i = 0; i < nthreads; i++) {
+		allocated += do_alloc(sz);
+	}
+	do_refresh();
+	expect_usage(arena_ind, allocated);
+	pszind_t ref_next = do_get_grow_next(arena_ind);
+	size_t   ref_retained = do_get_retained(arena_ind);
+	expect_u_ge(ref_next, start + 2, "Requests should grow more than once");
+	do_arena_destroy(arena_ind);
+	expect_u_eq(do_arena_create(), arena_ind, "Unexpected arena index");
+
 	VARIABLE_ARRAY(thd_t, threads, nthreads);
 	for (unsigned i = 0; i < nthreads; i++) {
 		thd_create(&threads[i], thd_start, NULL);
@@ -137,46 +268,24 @@ TEST_BEGIN(test_retained) {
 		}
 
 		/*
-		 * Assert that retained is no more than the sum of size classes
-		 * that should have been used to satisfy the worker threads'
-		 * requests, discounting per growth fragmentation.
+		 * Matching the index alone could miss two threads growing the
+		 * same class; the retained memory would differ.
 		 */
 		do_refresh();
-
-		size_t allocated = (esz - guard_sz) * nthreads
-		    * PER_THD_NALLOCS;
-		size_t active = do_get_active(arena_ind);
-		expect_zu_le(allocated, active, "Unexpected active memory");
-		size_t mapped = do_get_mapped(arena_ind);
-		expect_zu_le(active, mapped, "Unexpected mapped memory");
-
-		arena_t *arena = arena_get(tsdn_fetch(), arena_ind, false);
-		size_t   usable = 0;
-		for (pszind_t pind = sz_psz2ind(HUGEPAGE);
-		     pind < arena->pa_shard.pac.exp_grow.next; pind++) {
-			size_t psz = sz_pind2sz(pind);
-			size_t psz_fragmented = psz % esz;
-			size_t psz_usable = psz - psz_fragmented;
-			/*
-			 * Only consider size classes that wouldn't be skipped.
-			 */
-			if (psz_usable > 0) {
-				expect_zu_lt(usable, allocated,
-				    "Excessive retained memory "
-				    "(%#zx[+%#zx] > %#zx)",
-				    usable, psz_usable, allocated);
-				usable += psz_usable;
-			}
-		}
+		expect_usage(arena_ind, allocated);
+		expect_u_eq(do_get_grow_next(arena_ind), ref_next,
+		    "Concurrent requests should reach the same growth index");
+		expect_zu_eq(do_get_retained(arena_ind), ref_retained,
+		    "Concurrent requests should retain the same memory");
 
 		/*
 		 * Clean up arena.  Destroying and recreating the arena
-		 * is simpler that specifying extent hooks that deallocate
+		 * is simpler than specifying extent hooks that deallocate
 		 * (rather than retaining) during reset.
 		 */
 		do_arena_destroy(arena_ind);
 		expect_u_eq(
-		    do_arena_create(NULL), arena_ind, "Unexpected arena index");
+		    do_arena_create(), arena_ind, "Unexpected arena index");
 	}
 
 	for (unsigned i = 0; i < nthreads; i++) {
@@ -189,5 +298,5 @@ TEST_END
 
 int
 main(void) {
-	return test(test_retained);
+	return test(test_retained_grow_series, test_retained_grow_concurrent);
 }
