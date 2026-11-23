@@ -365,18 +365,11 @@ tcache_gc_event(tsd_t *tsd) {
 	tcache_slow_t *tcache_slow = tsd_tcache_slowp_get(tsd);
 	assert(tcache_slow != NULL);
 
-	nstime_t now;
-	nstime_copy(&now, &tcache_slow->last_gc_time);
-	nstime_update(&now);
-	assert(nstime_compare(&now, &tcache_slow->last_gc_time) >= 0);
-
-	if (nstime_ns(&now) - nstime_ns(&tcache_slow->last_gc_time)
-	    < timer_scale_apply(TCACHE_GC_INTERVAL_NS)) {
-		// time interval is too short, skip this event.
+	uint64_t elapsed = nstime_ns_since(&tcache_slow->last_gc_time);
+	if (elapsed < timer_scale_apply(TCACHE_GC_INTERVAL_NS)) {
 		return;
 	}
-	/* Update last_gc_time to now. */
-	nstime_copy(&tcache_slow->last_gc_time, &now);
+	nstime_iadd(&tcache_slow->last_gc_time, elapsed);
 
 	unsigned gc_small_nbins = 0, gc_large_nbins = 0;
 	unsigned tcache_nbins = tcache_nbins_get(tcache_slow);
