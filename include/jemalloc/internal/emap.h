@@ -137,6 +137,13 @@ void emap_merge_prepare(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
 void emap_merge_commit(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
     edata_t *lead, edata_t *trail);
 
+/*
+ * Changes the size of an active, non-slab extent and moves its boundary
+ * mappings.  The rtree leaf for the new last page must already exist, as it
+ * does within an HPA pageslab, so this cannot fail.
+ */
+void emap_resize(tsdn_t *tsdn, emap_t *emap, edata_t *edata, size_t size);
+
 /* Assert that the emap's view of the given edata matches the edata's view. */
 void emap_do_assert_mapped(tsdn_t *tsdn, emap_t *emap, edata_t *edata);
 static inline void

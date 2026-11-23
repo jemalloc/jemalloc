@@ -368,6 +368,15 @@ emap_merge_commit(tsdn_t *tsdn, emap_t *emap, emap_prepare_t *prepare,
 }
 
 void
+emap_resize(tsdn_t *tsdn, emap_t *emap, edata_t *edata, size_t size) {
+	emap_deregister_boundary(tsdn, emap, edata);
+	edata_size_set(edata, size);
+	UNUSED bool err = emap_register_boundary(
+	    tsdn, emap, edata, SC_NSIZES, /* slab */ false);
+	assert(!err);
+}
+
+void
 emap_do_assert_mapped(tsdn_t *tsdn, emap_t *emap, edata_t *edata) {
 	EMAP_DECLARE_RTREE_CTX;
 

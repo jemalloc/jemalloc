@@ -1741,6 +1741,174 @@ TEST_BEGIN(test_experimental_hpa_enforce_hugify) {
 }
 TEST_END
 
+static void
+expect_boundaries(hpa_shard_t *shard, edata_t *edata, size_t old_size) {
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+	void   *head = edata_base_get(edata);
+	void   *old_last = (byte_t *)head + old_size - PAGE;
+	expect_ptr_eq(edata, emap_edata_lookup(tsdn, shard->emap, head),
+	    "Head mapping lost");
+	expect_ptr_eq(edata,
+	    emap_edata_lookup(tsdn, shard->emap, edata_last_get(edata)),
+	    "End mapping not moved");
+	expect_ptr_null(emap_edata_lookup(tsdn, shard->emap, old_last),
+	    "Stale end mapping");
+}
+
+TEST_BEGIN(test_expand_shrink) {
+	test_skip_if(!hpa_supported());
+
+	hpa_shard_opts_t opts = test_hpa_shard_opts_default;
+
+	/* Keep released pages dirty so that they can be counted. */
+	opts.dirty_mult = (fxp_t)-1;
+
+	hpa_shard_t *shard = create_test_data(&hpa_hooks_default, &opts);
+	tsdn_t      *tsdn = tsd_tsdn(tsd_fetch());
+	bool         deferred_work_generated = false;
+
+	edata_t *a = hpa_alloc(tsdn, shard, 4 * PAGE, PAGE, false, false, false,
+	    &deferred_work_generated);
+	assert_ptr_not_null(a, "Unexpected alloc failure");
+
+	/* Simple successful expansion. */
+	expect_false(hpa_expand(tsdn, shard, a, 4 * PAGE, 8 * PAGE, false,
+	                 &deferred_work_generated),
+	    "Expand into free pages failed");
+	expect_boundaries(shard, a, 4 * PAGE);
+	expect_zu_eq(8, psset_nactive(&shard->psset), "Wrong nactive");
+
+	/* Reject expansion over an active neighbor. */
+	edata_t *b = hpa_alloc(tsdn, shard, 4 * PAGE, PAGE, false, false, false,
+	    &deferred_work_generated);
+	assert_ptr_not_null(b, "Unexpected alloc failure");
+	expect_ptr_eq(
+	    edata_past_get(a), edata_base_get(b), "Unexpected placement");
+	expect_true(hpa_expand(tsdn, shard, a, 8 * PAGE, 12 * PAGE, false,
+	                &deferred_work_generated),
+	    "Expand over an active neighbor succeeded unexpectedly");
+	expect_zu_eq(8 * PAGE, edata_size_get(a), "Failed expand changed size");
+
+	/*
+	 * Shrinking releases the tail as dirty pages; growing reuses them
+	 * again.
+	 */
+	hpa_shrink(
+	    tsdn, shard, a, 8 * PAGE, 2 * PAGE, &deferred_work_generated);
+	expect_boundaries(shard, a, 8 * PAGE);
+	expect_zu_eq(6, psset_nactive(&shard->psset), "Wrong nactive");
+	expect_zu_eq(6, psset_ndirty(&shard->psset), "Wrong ndirty");
+	expect_false(hpa_expand(tsdn, shard, a, 2 * PAGE, 8 * PAGE, false,
+	                 &deferred_work_generated),
+	    "Expand into dirty pages failed");
+	expect_zu_eq(12, psset_nactive(&shard->psset), "Wrong nactive");
+	expect_zu_eq(0, psset_ndirty(&shard->psset), "Wrong ndirty");
+
+	hpa_dalloc(tsdn, shard, a, &deferred_work_generated);
+	hpa_dalloc(tsdn, shard, b, &deferred_work_generated);
+	destroy_test_data(shard);
+}
+TEST_END
+
+TEST_BEGIN(test_expand_shrink_edges) {
+	test_skip_if(!hpa_supported());
+
+	hpa_shard_opts_t opts = test_hpa_shard_opts_default;
+	hpa_shard_t     *shard = create_test_data(&hpa_hooks_default, &opts);
+	tsdn_t          *tsdn = tsd_tsdn(tsd_fetch());
+	bool             deferred_work_generated = false;
+
+	edata_t *a = hpa_alloc(tsdn, shard, PAGE, PAGE, false, false, false,
+	    &deferred_work_generated);
+	assert_ptr_not_null(a, "Unexpected alloc failure");
+	void *base = edata_base_get(a);
+
+	expect_true(hpa_expand(tsdn, shard, a, PAGE, 4 * PAGE, /* zero */ true,
+	                &deferred_work_generated),
+	    "Zeroed expand succeeded");
+	shard->opts.slab_max_alloc = 2 * PAGE;
+	expect_true(hpa_expand(tsdn, shard, a, PAGE, 4 * PAGE, false,
+	                &deferred_work_generated),
+	    "Expand past slab_max_alloc succeeded");
+	shard->opts.slab_max_alloc = opts.slab_max_alloc;
+
+	/* A purge disallows allocation from the pageslab, and so growth. */
+	hpdata_alloc_allowed_set(edata_ps_get(a), false);
+	expect_true(hpa_expand(tsdn, shard, a, PAGE, 4 * PAGE, false,
+	                &deferred_work_generated),
+	    "Expand during purge succeeded");
+	hpdata_alloc_allowed_set(edata_ps_get(a), true);
+
+	/* The page after a is free but a later one is not. */
+	edata_t *b = hpa_alloc(tsdn, shard, 2 * PAGE, PAGE, false, false, false,
+	    &deferred_work_generated);
+	edata_t *c = hpa_alloc(tsdn, shard, 2 * PAGE, PAGE, false, false, false,
+	    &deferred_work_generated);
+	assert_ptr_not_null(b, "Unexpected alloc failure");
+	assert_ptr_not_null(c, "Unexpected alloc failure");
+	expect_ptr_eq(
+	    edata_past_get(b), edata_base_get(c), "Unexpected placement");
+	hpa_dalloc(tsdn, shard, b, &deferred_work_generated);
+	expect_true(hpa_expand(tsdn, shard, a, PAGE, 4 * PAGE, false,
+	                &deferred_work_generated),
+	    "Expand over a live extent succeeded");
+	expect_zu_eq(PAGE, edata_size_get(a), "Failed expand changed size");
+	hpa_dalloc(tsdn, shard, c, &deferred_work_generated);
+
+	/* Extents grow up to the end of the hugepage, but not past it. */
+	expect_false(hpa_expand(tsdn, shard, a, PAGE, HUGEPAGE - 4 * PAGE,
+	                 false, &deferred_work_generated),
+	    "Unexpected expand failure");
+	edata_t *last = hpa_alloc(tsdn, shard, 4 * PAGE, PAGE, false, false,
+	    false, &deferred_work_generated);
+	assert_ptr_not_null(last, "Unexpected alloc failure");
+	expect_ptr_eq(edata_past_get(last), (byte_t *)base + HUGEPAGE,
+	    "Unexpected placement");
+	expect_true(hpa_expand(tsdn, shard, last, 4 * PAGE, 8 * PAGE, false,
+	                &deferred_work_generated),
+	    "Expand across the hugepage boundary succeeded");
+	hpa_dalloc(tsdn, shard, last, &deferred_work_generated);
+	expect_false(hpa_expand(tsdn, shard, a, HUGEPAGE - 4 * PAGE, HUGEPAGE,
+	                 false, &deferred_work_generated),
+	    "Expand to the hugepage end failed");
+	expect_zu_eq(
+	    HUGEPAGE_PAGES, psset_nactive(&shard->psset), "Wrong nactive");
+	hpa_shrink(tsdn, shard, a, HUGEPAGE, PAGE, &deferred_work_generated);
+	expect_zu_eq(1, psset_nactive(&shard->psset), "Wrong nactive");
+
+	hpa_dalloc(tsdn, shard, a, &deferred_work_generated);
+	destroy_test_data(shard);
+}
+TEST_END
+
+TEST_BEGIN(test_expand_blocked_by_sec) {
+	test_skip_if(!hpa_supported());
+
+	hpa_shard_opts_t opts = test_hpa_shard_opts_default;
+	sec_opts_t       sec_opts = {1, 8 * PAGE, 64 * PAGE, false};
+	hpa_shard_t     *shard = create_test_data_with_sec(
+            &hpa_hooks_default, &opts, &sec_opts);
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+	bool    deferred_work_generated = false;
+
+	/* A SEC miss caches the rest of its batch right after a. */
+	edata_t *a = hpa_alloc(tsdn, shard, 2 * PAGE, PAGE, false, false, false,
+	    &deferred_work_generated);
+	assert_ptr_not_null(a, "Unexpected alloc failure");
+	expect_true(hpa_expand(tsdn, shard, a, 2 * PAGE, 4 * PAGE, false,
+	                &deferred_work_generated),
+	    "Expand over a SEC-cached extent succeeded");
+	hpa_shard_flush(tsdn, shard);
+	expect_false(hpa_expand(tsdn, shard, a, 2 * PAGE, 4 * PAGE, false,
+	                 &deferred_work_generated),
+	    "Expand after flushing the SEC failed");
+
+	hpa_dalloc(tsdn, shard, a, &deferred_work_generated);
+	hpa_shard_flush(tsdn, shard);
+	destroy_test_data(shard);
+}
+TEST_END
+
 int
 main(void) {
 	/*
@@ -1767,5 +1935,6 @@ main(void) {
 	    test_purge_without_deferral, test_deferred_until_time,
 	    test_eager_no_hugify_on_threshold,
 	    test_hpa_hugify_style_none_huge_no_syscall,
-	    test_experimental_hpa_enforce_hugify);
+	    test_experimental_hpa_enforce_hugify, test_expand_shrink,
+	    test_expand_shrink_edges, test_expand_blocked_by_sec);
 }
