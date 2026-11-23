@@ -521,7 +521,10 @@ $(C_TESTLIB_ANALYZE_OBJS): $(objroot)test/src/%.analyze.$(O): $(srcroot)test/src
 $(C_TESTLIB_ANALYZE_OBJS): CPPFLAGS += -DJEMALLOC_ANALYZE_TEST
 $(C_TESTLIB_STRESS_OBJS): $(objroot)test/src/%.stress.$(O): $(srcroot)test/src/%.c
 $(C_TESTLIB_STRESS_OBJS): CPPFLAGS += -DJEMALLOC_STRESS_TEST -DJEMALLOC_STRESS_TESTLIB
-$(C_TESTLIB_OBJS): CPPFLAGS += -I$(srcroot)test/include -I$(objroot)test/include
+# Generated test headers in $(objroot) must come first: an in-tree
+# configure can leave stale copies in the source tree, which must
+# not shadow the headers generated for this build.
+$(C_TESTLIB_OBJS): CPPFLAGS += -I$(objroot)test/include -I$(srcroot)test/include
 $(TESTS_UNIT_OBJS): CPPFLAGS += -DJEMALLOC_UNIT_TEST
 $(TESTS_INTEGRATION_OBJS): CPPFLAGS += -DJEMALLOC_INTEGRATION_TEST
 $(TESTS_INTEGRATION_CPP_OBJS): CPPFLAGS += -DJEMALLOC_INTEGRATION_CPP_TEST
@@ -530,8 +533,8 @@ $(TESTS_STRESS_OBJS): CPPFLAGS += -DJEMALLOC_STRESS_TEST
 $(TESTS_STRESS_CPP_OBJS): CPPFLAGS += -DJEMALLOC_STRESS_CPP_TEST
 $(TESTS_OBJS): $(objroot)test/%.$(O): $(srcroot)test/%.c
 $(TESTS_CPP_OBJS): $(objroot)test/%.$(O): $(srcroot)test/%.cpp
-$(TESTS_OBJS): CPPFLAGS += -I$(srcroot)test/include -I$(objroot)test/include
-$(TESTS_CPP_OBJS): CPPFLAGS += -I$(srcroot)test/include -I$(objroot)test/include
+$(TESTS_OBJS): CPPFLAGS += -I$(objroot)test/include -I$(srcroot)test/include
+$(TESTS_CPP_OBJS): CPPFLAGS += -I$(objroot)test/include -I$(srcroot)test/include
 $(TESTS_OBJS): CFLAGS += -fno-builtin
 $(TESTS_CPP_OBJS): CPPFLAGS += -fno-builtin
 ifneq ($(IMPORTLIB),$(SO))
@@ -640,16 +643,16 @@ $(objroot)test/stress/pa/pa_microbench$(EXE): $(objroot)test/stress/pa/pa_microb
 
 $(objroot)test/stress/pa/%.$(O): $(srcroot)test/stress/pa/%.c
 	@mkdir -p $(@D)
-	$(CC) $(INTERNAL_CPPFLAGS) $(CFLAGS) -c $(CPPFLAGS) -DJEMALLOC_STRESS_TEST -I$(srcroot)test/include -I$(objroot)test/include $(CTARGET) $<
+	$(CC) $(INTERNAL_CPPFLAGS) $(CFLAGS) -c $(CPPFLAGS) -DJEMALLOC_STRESS_TEST -I$(objroot)test/include -I$(srcroot)test/include $(CTARGET) $<
 ifdef CC_MM
-	@$(CC) $(INTERNAL_CPPFLAGS) -MM $(CPPFLAGS) -DJEMALLOC_STRESS_TEST -I$(srcroot)test/include -I$(objroot)test/include -MT $@ -o $(@:%.$(O)=%.d) $<
+	@$(CC) $(INTERNAL_CPPFLAGS) -MM $(CPPFLAGS) -DJEMALLOC_STRESS_TEST -I$(objroot)test/include -I$(srcroot)test/include -MT $@ -o $(@:%.$(O)=%.d) $<
 endif
 
 $(objroot)test/stress/pa/%.$(O): $(srcroot)test/stress/pa/%.cpp
 	@mkdir -p $(@D)
-	$(CXX) $(INTERNAL_CPPFLAGS) $(CXXFLAGS) -c $(CPPFLAGS) -I$(srcroot)test/include -I$(objroot)test/include $(CTARGET) $<
+	$(CXX) $(INTERNAL_CPPFLAGS) $(CXXFLAGS) -c $(CPPFLAGS) -I$(objroot)test/include -I$(srcroot)test/include $(CTARGET) $<
 ifdef CC_MM
-	@$(CXX) $(INTERNAL_CPPFLAGS) -MM $(CPPFLAGS) -I$(srcroot)test/include -I$(objroot)test/include -MT $@ -o $(@:%.$(O)=%.d) $<
+	@$(CXX) $(INTERNAL_CPPFLAGS) -MM $(CPPFLAGS) -I$(objroot)test/include -I$(srcroot)test/include -MT $@ -o $(@:%.$(O)=%.d) $<
 endif
 
 build_lib_shared: $(DSOS)
