@@ -34,6 +34,8 @@ char opt_stats_print_opts[stats_print_tot_num_options + 1] = "";
 int64_t opt_stats_interval = STATS_INTERVAL_DEFAULT;
 char    opt_stats_interval_opts[stats_print_tot_num_options + 1] = "";
 
+char opt_stats_prefix[STATS_PREFIX_LEN] = "";
+
 static counter_accum_t stats_interval_accumulated;
 /* Per thread batch accum size for stats_interval. */
 uint64_t stats_interval_accum_batch;
@@ -2177,6 +2179,7 @@ stats_general_opts(emitter_t *emitter) {
 	OPT_WRITE_CHAR_P("stats_print_opts")
 	OPT_WRITE_INT64("stats_interval")
 	OPT_WRITE_CHAR_P("stats_interval_opts")
+	OPT_WRITE_CHAR_P("stats_prefix")
 	OPT_WRITE_CHAR_P("zero_realloc")
 	OPT_WRITE_SIZE_T("process_madvise_max_batch")
 	OPT_WRITE_BOOL("disable_large_size_classes")
@@ -2489,6 +2492,58 @@ stats_interval_postponed_event_wait(tsd_t *tsd) {
 	return TE_MIN_START_WAIT;
 }
 
+static int
+stats_open_file_impl(const char *filename, int mode) {
+#ifdef _WIN32
+	(void)filename;
+	(void)mode;
+	return -1;
+#else
+	int flags = O_WRONLY | O_CREAT | O_TRUNC;
+#	ifdef O_CLOEXEC
+	flags |= O_CLOEXEC;
+#	endif
+	return open(filename, flags, mode);
+#endif
+}
+stats_open_file_t *JET_MUTABLE stats_open_file = stats_open_file_impl;
+
+#ifndef _WIN32
+static atomic_zu_t stats_dump_seq = ATOMIC_INIT(0);
+
+static void
+stats_dump_write_cb(void *opaque, const char *s) {
+	/* Best effort, like output through malloc_message(). */
+	UNUSED ssize_t err = malloc_write_fd(*(int *)opaque, s, strlen(s));
+}
+#endif
+
+void
+stats_dump(const char *opts) {
+	if (opt_stats_prefix[0] == '\0') {
+		je_malloc_stats_print(NULL, NULL, opts);
+		return;
+	}
+#ifndef _WIN32
+	char   filename[STATS_PREFIX_LEN + 64];
+	size_t seq = atomic_fetch_add_zu(&stats_dump_seq, 1, ATOMIC_RELAXED);
+	malloc_snprintf(filename, sizeof(filename), "%s.%d.%zu.stats",
+	    opt_stats_prefix, (int)getpid(), seq);
+	int fd = stats_open_file(filename, 0644);
+	if (fd == -1) {
+		malloc_printf(
+		    "<jemalloc>: failed to open \"%s\" for stats output\n",
+		    filename);
+		if (opt_abort) {
+			abort();
+		}
+		return;
+	}
+	je_malloc_stats_print(stats_dump_write_cb, &fd, opts);
+	close(fd);
+#endif
+}
+
 static void
 stats_interval_event_handler(tsd_t *tsd) {
 	uint64_t last_event = thread_allocated_last_event_get(tsd);
@@ -2499,7 +2554,7 @@ stats_interval_event_handler(tsd_t *tsd) {
 	assert(elapsed > 0 && elapsed != TE_INVALID_ELAPSED);
 	if (counter_accum(
 	        tsd_tsdn(tsd), &stats_interval_accumulated, elapsed)) {
-		je_malloc_stats_print(NULL, NULL, opt_stats_interval_opts);
+		stats_dump(opt_stats_interval_opts);
 	}
 }
 

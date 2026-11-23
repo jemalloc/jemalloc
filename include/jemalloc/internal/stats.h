@@ -34,6 +34,20 @@ extern char opt_stats_print_opts[stats_print_tot_num_options + 1];
 extern int64_t opt_stats_interval;
 extern char    opt_stats_interval_opts[stats_print_tot_num_options + 1];
 
+/*
+ * If set, stats_print and stats_interval output goes to files named
+ * "<prefix>.<pid>.<seq>.stats" instead of through malloc_message().
+ */
+#ifdef _WIN32
+#	define STATS_PREFIX_LEN 1
+#else
+#	define STATS_PREFIX_LEN (PATH_MAX + 1)
+#endif
+extern char opt_stats_prefix[STATS_PREFIX_LEN];
+
+typedef int(stats_open_file_t)(const char *, int);
+extern stats_open_file_t *JET_MUTABLE stats_open_file;
+
 #define STATS_INTERVAL_DEFAULT -1
 /*
  * Batch-increment the counter to reduce synchronization overhead.  Each thread
@@ -51,6 +65,8 @@ extern te_base_cb_t stats_interval_te_handler;
 
 /* Implements je_malloc_stats_print. */
 void stats_print(write_cb_t *write_cb, void *cbopaque, const char *opts);
+/* Print for opt.stats_print and opt.stats_interval, honoring stats_prefix. */
+void stats_dump(const char *opts);
 
 bool stats_boot(void);
 void stats_prefork(tsdn_t *tsdn);

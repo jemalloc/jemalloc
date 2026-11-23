@@ -1349,6 +1349,26 @@ mallctl("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".decay",
         enabled.  The default is <quote></quote>.</para></listitem>
       </varlistentry>
 
+      <varlistentry id="opt.stats_prefix">
+        <term>
+          <mallctl>opt.stats_prefix</mallctl>
+          (<type>const char *</type>)
+          <literal>r-</literal>
+        </term>
+        <listitem><para>Filename prefix for the output of <link
+        linkend="opt.stats_print"><mallctl>opt.stats_print</mallctl></link> and
+        <link
+        linkend="opt.stats_interval"><mallctl>opt.stats_interval</mallctl></link>.
+        If set, each print goes to its own file named
+        <filename>&lt;prefix&gt;.&lt;pid&gt;.&lt;seq&gt;.stats</filename>,
+        where <literal>&lt;seq&gt;</literal> counts the prints of the process,
+        instead of through <function>malloc_message()</function>.  This keeps
+        the statistics of a process that has no usable standard error, or whose
+        standard error carries other output, in one place per print.  Not
+        supported on Windows.  The default is <quote></quote>, which writes
+        through <function>malloc_message()</function>.</para></listitem>
+      </varlistentry>
+
       <varlistentry id="opt.junk">
         <term>
           <mallctl>opt.junk</mallctl>
