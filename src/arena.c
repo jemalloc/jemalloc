@@ -1015,12 +1015,10 @@ arena_ptr_array_flush_impl_small(tsdn_t *tsdn, szind_t binind,
     cache_bin_sz_t nflush, arena_t *stats_arena,
     cache_bin_stats_t **merge_stats) {
 	/*
-	 * The slabs where we freed the last remaining object in the slab (and
-	 * so need to free the slab itself).
-	 * Used only if small == true.
+	 * Each object can empty at most one slab. Save empty slabs in the
+	 * processed prefix of item_edata for deallocation after unlocking.
 	 */
 	unsigned dalloc_count = 0;
-	VARIABLE_ARRAY(edata_t *, dalloc_slabs, nflush + 1);
 	/*
 	 * We're about to grab a bunch of locks.  If one of them happens to be
 	 * the one guarding the arena-level stats counters we flush our
@@ -1028,13 +1026,14 @@ arena_ptr_array_flush_impl_small(tsdn_t *tsdn, szind_t binind,
 	 */
 	/*
 	 * We maintain the invariant that all edatas yet to be flushed are
-	 * contained in the half-open range [flush_start, flush_end).  We'll
+	 * contained in the half-open range [flush_start, nflush).  We'll
 	 * repeatedly partition the array so that the unflushed items are at the
 	 * end.
 	 */
 	unsigned flush_start = 0;
 
 	while (flush_start < nflush) {
+		assert(dalloc_count <= flush_start);
 		/*
 		 * After our partitioning step, all objects to flush will be in
 		 * the half-open range [prev_flush_start, flush_start), and
@@ -1128,8 +1127,10 @@ arena_ptr_array_flush_impl_small(tsdn_t *tsdn, szind_t binind,
 			        arena_is_auto(cur_arena),
 			        cur_bin, &dalloc_bin_info, binind, edata,
 			        ptr)) {
-				dalloc_slabs[dalloc_count] = edata;
-				dalloc_count++;
+				/* Slot i has already been read. */
+				assert(dalloc_count <= i);
+				assert(dalloc_count < nflush);
+				item_edata[dalloc_count++].edata = edata;
 			}
 		}
 
@@ -1143,7 +1144,7 @@ arena_ptr_array_flush_impl_small(tsdn_t *tsdn, szind_t binind,
 
 	/* Handle all deferred slab dalloc. */
 	for (unsigned i = 0; i < dalloc_count; i++) {
-		edata_t *slab = dalloc_slabs[i];
+		edata_t *slab = item_edata[i].edata;
 		arena_slab_dalloc(tsdn, arena_get_from_edata(slab), slab);
 	}
 
