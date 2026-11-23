@@ -170,6 +170,8 @@ void sec_stats_merge_pszind(
     sec_pszind_stats_t *stats);
 void sec_mutex_stats_read(
     tsdn_t *tsdn, sec_t *sec, mutex_prof_data_t *mutex_prof_data);
+/* Resets the mutex statistics of every bin. */
+void sec_mutex_stats_reset(tsdn_t *tsdn, sec_t *sec);
 
 /*
  * We use the arena lock ordering; these are acquired in phase 2 of forking, but

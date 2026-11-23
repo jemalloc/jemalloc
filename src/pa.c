@@ -1,9 +1,11 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 
+#include "jemalloc/internal/arenas_management.h"
 #include "jemalloc/internal/background_thread.h"
 #include "jemalloc/internal/background_thread_inlines.h"
 #include "jemalloc/internal/deferral.h"
 #include "jemalloc/internal/hpa.h"
+#include "jemalloc/internal/hpa_shard_set.h"
 #include "jemalloc/internal/pa.h"
 
 static void
@@ -75,9 +77,41 @@ pa_shard_enable_hpa(tsdn_t *tsdn, pa_shard_t *shard,
 		return true;
 	}
 	shard->ever_used_hpa = true;
-	atomic_store_b(&shard->use_hpa, true, ATOMIC_RELAXED);
+	/*
+	 * ATOMIC_RELEASE: hpa must be initialized before use_hpa is seen on,
+	 * as for arena 0 without the HPA shard sets, enabled while other
+	 * threads may already allocate from it.
+	 */
+	atomic_store_b(&shard->use_hpa, true, ATOMIC_RELEASE);
 
 	return false;
+}
+
+/*
+ * The non-atomic hpa_shard_sets_global.initialized is safe to read: every
+ * caller either sees use_hpa on first (pa_alloc(), pa_shard_uses_own_hpa()),
+ * whose ATOMIC_ACQUIRE pairs with the ATOMIC_RELEASE store that turned it on
+ * after the boot; or creates an arena after the boot (arena_new(), except for
+ * arena 0, created before it by the booting thread); or tolerates either
+ * value (the background thread wake in pa_shard_handle_deferred_work()).
+ */
+bool
+pa_shard_on_hpa_sets(pa_shard_t *shard) {
+	return hpa_shard_sets_global.initialized
+	    && shard->ind < manual_arena_base;
+}
+
+void
+pa_shard_enable_hpa_sets(pa_shard_t *shard) {
+	assert(pa_shard_on_hpa_sets(shard));
+	assert(!shard->ever_used_hpa);
+	/*
+	 * ATOMIC_RELEASE: the sets must be booted before use_hpa is seen on.
+	 * Else a thread allocating from arena 0 before malloc_init is done
+	 * could see use_hpa but not the booted sets, and wrongly use arena 0's
+	 * own HPA shard, which is never initialized.
+	 */
+	atomic_store_b(&shard->use_hpa, true, ATOMIC_RELEASE);
 }
 
 void
@@ -108,9 +142,20 @@ pa_shard_flush(tsdn_t *tsdn, pa_shard_t *shard, bool all) {
 	}
 }
 
+/*
+ * ATOMIC_ACQUIRE: pairs with the ATOMIC_RELEASE stores that turn use_hpa on,
+ * so that seeing it on also shows the HPA state they published.
+ */
 static bool
 pa_shard_uses_hpa(pa_shard_t *shard) {
-	return atomic_load_b(&shard->use_hpa, ATOMIC_RELAXED);
+	return atomic_load_b(&shard->use_hpa, ATOMIC_ACQUIRE);
+}
+
+/* Whether the shard uses the HPA through its own hpa. */
+static bool
+pa_shard_uses_own_hpa(pa_shard_t *shard) {
+	return pa_shard_uses_hpa(shard) && shard->ever_used_hpa
+	    && !pa_shard_on_hpa_sets(shard);
 }
 
 void
@@ -122,17 +167,34 @@ pa_shard_destroy(tsdn_t *tsdn, pa_shard_t *shard) {
 }
 
 edata_t *
-pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
-    bool slab, szind_t szind, bool zero, bool guarded,
+pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t usize,
+    size_t alignment, bool slab, bool zero, bool guarded,
     bool *deferred_work_generated) {
 	witness_assert_depth_to_rank(
 	    tsdn_witness_tsdp_get(tsdn), WITNESS_RANK_CORE, 0);
+	/* Suppress spurious warning from static analysis */
+	assert(shard != NULL);
 	assert(!guarded || alignment <= PAGE);
+	assert(usize > 0 && usize <= size);
 
-	edata_t *edata = NULL;
+	edata_t     *edata = NULL;
+	hpa_shard_t *hpa = NULL;
 	if (!guarded && pa_shard_uses_hpa(shard)) {
-		edata = hpa_alloc(tsdn, &shard->hpa, size, alignment,
-		    zero, /* guarded */ false, slab, deferred_work_generated);
+		/*
+		 * On the global HPA shard sets, usize picks the set and the
+		 * shard's index picks the set's shard; NULL if no set serves
+		 * usize.
+		 */
+		if (pa_shard_on_hpa_sets(shard)) {
+			hpa = hpa_route(
+			    tsdn, &hpa_shard_sets_global, usize, shard->ind);
+		} else {
+			hpa = &shard->hpa;
+		}
+		if (hpa != NULL) {
+			edata = hpa_alloc(tsdn, hpa, size, alignment, zero,
+			    /* guarded */ false, slab, deferred_work_generated);
+		}
 	}
 	/*
 	 * Fall back to the PAC if the HPA is off or couldn't serve the given
@@ -144,14 +206,22 @@ pa_alloc(tsdn_t *tsdn, pa_shard_t *shard, size_t size, size_t alignment,
 	}
 	if (edata != NULL) {
 		assert(edata_size_get(edata) == size);
+		/* HPA extents get the requesting arena before publication. */
+		if (edata_pai_get(edata) == EXTENT_PAI_HPA) {
+			assert(edata_arena_ind_get_maybe_unassociated(edata)
+			    == EDATA_ARENA_IND_UNASSOCIATED);
+			edata_arena_ind_set(edata, shard->ind);
+			assert(hpdata_shard_get(edata_ps_get(edata)) == hpa);
+		}
+		assert(edata_arena_ind_get(edata) == shard->ind);
 		pa_nactive_add(shard, size >> LG_PAGE);
+		szind_t szind = sz_size2index(usize);
 		emap_remap(tsdn, shard->emap, edata, szind, slab);
 		edata_szind_set(edata, szind);
 		edata_slab_set(edata, slab);
 		if (slab && (size > 2 * PAGE)) {
 			emap_register_interior(tsdn, shard->emap, edata, szind);
 		}
-		assert(edata_arena_ind_get(edata) == shard->ind);
 	}
 	return edata;
 }
@@ -231,7 +301,11 @@ pa_dalloc(tsdn_t *tsdn, pa_shard_t *shard, edata_t *edata,
 	edata_szind_set(edata, SC_NSIZES);
 	pa_nactive_sub(shard, edata_size_get(edata) >> LG_PAGE);
 	if (edata_pai_get(edata) == EXTENT_PAI_HPA) {
-		hpa_dalloc(tsdn, &shard->hpa, edata, deferred_work_generated);
+		/* An extent cached by the HPA or SEC has no arena owner. */
+		edata_arena_ind_set(edata, EDATA_ARENA_IND_UNASSOCIATED);
+		/* Back to the HPA shard it came from. */
+		hpa_dalloc(tsdn, hpdata_shard_get(edata_ps_get(edata)), edata,
+		    deferred_work_generated);
 	} else {
 		pac_dalloc(tsdn, &shard->pac, edata, deferred_work_generated);
 	}
@@ -251,10 +325,28 @@ pa_decay_ms_get(pa_shard_t *shard, extent_state_t state) {
 void
 pa_shard_set_deferral_allowed(
     tsdn_t *tsdn, pa_shard_t *shard, bool deferral_allowed) {
-	if (pa_shard_uses_hpa(shard)) {
+	if (pa_shard_uses_own_hpa(shard)) {
 		hpa_shard_set_deferral_allowed(
 		    tsdn, &shard->hpa, deferral_allowed);
 	}
+}
+
+/*
+ * Background thread 0, which drives the shard sets' deferred work, if it
+ * sleeps with no deadline: like pac_wake_bg_on_deferred() for the arena's.
+ */
+static void
+pa_wake_bg_on_hpa_sets_deferred(tsdn_t *tsdn) {
+	background_thread_info_t *info = background_thread_info_get(0);
+	if (!background_thread_indefinite_sleep(info)
+	    || malloc_mutex_trylock(tsdn, &info->mtx)) {
+		return;
+	}
+	if (background_thread_is_started(info)
+	    && background_thread_indefinite_sleep(info)) {
+		background_thread_wakeup_early(info, NULL);
+	}
+	malloc_mutex_unlock(tsdn, &info->mtx);
 }
 
 void
@@ -267,6 +359,16 @@ pa_shard_handle_deferred_work(tsdn_t *tsdn, pa_shard_t *shard) {
 	}
 	if (background_thread_enabled()) {
 		pac_wake_bg_on_deferred(tsdn, &shard->pac);
+		/*
+		 * We cannot tell whether the PAC or the HPA generated the work,
+		 * so PAC work also wakes thread 0, as does an automatic arena
+		 * with custom extent hooks, which never uses the HPA.  Each
+		 * costs a trylock and an extra pass of thread 0; revisit if
+		 * that shows up.
+		 */
+		if (pa_shard_on_hpa_sets(shard)) {
+			pa_wake_bg_on_hpa_sets_deferred(tsdn);
+		}
 	}
 }
 
@@ -279,7 +381,7 @@ pa_shard_do_deferred_work(
 	 * own alloc/dalloc path (hpa_shard_maybe_do_deferred_work, capped), so
 	 * only drive it (forced, uncapped) from here on the background thread.
 	 */
-	if (is_background_thread && pa_shard_uses_hpa(shard)) {
+	if (is_background_thread && pa_shard_uses_own_hpa(shard)) {
 		hpa_shard_do_deferred_work(tsdn, &shard->hpa);
 	}
 }
@@ -296,7 +398,7 @@ pa_shard_time_until_deferred_work(tsdn_t *tsdn, pa_shard_t *shard) {
 		return time;
 	}
 
-	if (pa_shard_uses_hpa(shard)) {
+	if (pa_shard_uses_own_hpa(shard)) {
 		uint64_t hpa = hpa_time_until_deferred_work(
 		    tsdn, &shard->hpa);
 		if (hpa < time) {

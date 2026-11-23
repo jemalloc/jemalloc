@@ -25,6 +25,13 @@ static const char *const arena_mutex_names[mutex_prof_num_arena_mutexes] = {
 #undef OP
 };
 
+static const char *const
+    hpa_shard_mutex_names[mutex_prof_num_hpa_shard_mutexes] = {
+#define OP(mtx) #mtx,
+        MUTEX_PROF_HPA_SHARD_MUTEXES
+#undef OP
+};
+
 /******************************************************************************/
 /* Data. */
 
@@ -68,6 +75,14 @@ static void stats_print_runtime_stats(emitter_t *emitter, bool merged,
  *       global totals           -> stats_print_globals              ("stats")
  *       background_thread       -> stats_print_globals
  *       mutexes [x]             -> stats_global_mutexes_print
+ *       hpa shard sets [h]      -> stats_hpa_shard_sets_print (.hpa_shard_sets)
+ *         summary (table only)  -> stats_hpa_shard_sets_table_print
+ *         per set               -> stats_hpa_shard_set_print   ([i])
+ *           hpa shard           -> stats_arena_hpa_shard_print (.hpa_shard)
+ *           mutexes [x]         -> stats_hpa_mutexes_print     (.mutexes)
+ *           shards              -> stats_hpa_shard_set_shards_print (.shards)
+ *           shard mutexes [x]   -> stats_hpa_shard_set_shard_mutexes_print
+ *                                  (table; JSON in .shards[k].mutexes)
  *       per arena [m]/[d]/[a]   -> stats_arena_print          ("stats.arenas")
  *         basics                -> stats_arena_basics_print
  *         decay                 -> stats_arena_decay_print
@@ -321,17 +336,55 @@ stats_gather_arena_lextent(size_t *stats_mib, size_t *arenas_lextent_mib,
 	}
 }
 
+/*
+ * Where a set of HPA figures lives: the mib of "stats.arenas.<i>" (an arena's
+ * own shard), "stats.hpa_shard_sets.<i>" (a global shard set's shards added
+ * up) or "stats.hpa_shard_sets.<i>.shards.<j>" (one of them).  All lay out
+ * their leaves the same way, as hpa_sec_* and hpa_shard.*; the sets and shards
+ * also have mutexes.* for the HPA shard's mutexes, which an arena lists with
+ * its others.
+ */
+typedef struct stats_hpa_src_s {
+	size_t mib[CTL_MAX_DEPTH];
+	size_t miblen;
+} stats_hpa_src_t;
+
 static void
-stats_gather_arena_hpa_sec(unsigned i, stats_arena_hpa_sec_t *sec) {
-	CTL_M2_GET("stats.arenas.0.hpa_sec_bytes", i, &sec->sec_bytes, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_sec_hits", i, &sec->sec_hits, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_sec_misses", i, &sec->sec_misses, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_sec_dalloc_noflush", i,
-	    &sec->sec_dalloc_noflush, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_sec_dalloc_flush", i,
-	    &sec->sec_dalloc_flush, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_sec_overfills", i, &sec->sec_overfills,
+stats_hpa_src_arena(stats_hpa_src_t *src, unsigned i) {
+	CTL_LEAF_PREPARE(src->mib, 0, "stats.arenas");
+	src->mib[2] = i;
+	src->miblen = 3;
+}
+
+static void
+stats_hpa_src_set(stats_hpa_src_t *src, unsigned i) {
+	CTL_LEAF_PREPARE(src->mib, 0, "stats.hpa_shard_sets");
+	src->mib[2] = i;
+	src->miblen = 3;
+}
+
+static void
+stats_hpa_src_shard(stats_hpa_src_t *src, unsigned i, unsigned j) {
+	stats_hpa_src_set(src, i);
+	CTL_LEAF_PREPARE(src->mib, 3, "shards");
+	src->mib[4] = j;
+	src->miblen = 5;
+}
+
+static void
+stats_gather_arena_hpa_sec(
+    const stats_hpa_src_t *src, stats_arena_hpa_sec_t *sec) {
+	size_t mib[CTL_MAX_DEPTH];
+	size_t n = src->miblen;
+	memcpy(mib, src->mib, sizeof(mib));
+	CTL_LEAF(mib, n, "hpa_sec_bytes", &sec->sec_bytes, size_t);
+	CTL_LEAF(mib, n, "hpa_sec_hits", &sec->sec_hits, size_t);
+	CTL_LEAF(mib, n, "hpa_sec_misses", &sec->sec_misses, size_t);
+	CTL_LEAF(mib, n, "hpa_sec_dalloc_noflush", &sec->sec_dalloc_noflush,
 	    size_t);
+	CTL_LEAF(
+	    mib, n, "hpa_sec_dalloc_flush", &sec->sec_dalloc_flush, size_t);
+	CTL_LEAF(mib, n, "hpa_sec_overfills", &sec->sec_overfills, size_t);
 }
 
 static void
@@ -346,71 +399,83 @@ stats_gather_arena_pac_sec(unsigned i, stats_arena_pac_sec_t *sec) {
 }
 
 static void
-stats_gather_arena_hpa_counters(unsigned i, stats_arena_hpa_counters_t *c) {
-	CTL_M2_GET(
-	    "stats.arenas.0.hpa_shard.npageslabs", i, &c->npageslabs, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_shard.nactive", i, &c->nactive, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_shard.ndirty", i, &c->ndirty, size_t);
+stats_gather_arena_hpa_counters(
+    const stats_hpa_src_t *src, stats_arena_hpa_counters_t *c) {
+	size_t mib[CTL_MAX_DEPTH];
+	size_t n = src->miblen + 1;
+	memcpy(mib, src->mib, sizeof(mib));
+	CTL_LEAF_PREPARE(mib, src->miblen, "hpa_shard");
+	CTL_LEAF(mib, n, "npageslabs", &c->npageslabs, size_t);
+	CTL_LEAF(mib, n, "nactive", &c->nactive, size_t);
+	CTL_LEAF(mib, n, "ndirty", &c->ndirty, size_t);
+	CTL_LEAF(mib, n, "npurge_passes", &c->npurge_passes, uint64_t);
+	CTL_LEAF(mib, n, "npurges", &c->npurges, uint64_t);
+	CTL_LEAF(mib, n, "nhugifies", &c->nhugifies, uint64_t);
+	CTL_LEAF(mib, n, "nhugify_failures", &c->nhugify_failures, uint64_t);
+	CTL_LEAF(mib, n, "ndehugifies", &c->ndehugifies, uint64_t);
 
-	CTL_M2_GET("stats.arenas.0.hpa_shard.slabs.npageslabs_nonhuge", i,
-	    &c->npageslabs_nonhuge, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_shard.slabs.nactive_nonhuge", i,
-	    &c->nactive_nonhuge, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_shard.slabs.ndirty_nonhuge", i,
-	    &c->ndirty_nonhuge, size_t);
+	CTL_LEAF_PREPARE(mib, n, "slabs");
+	CTL_LEAF(mib, n + 1, "npageslabs_nonhuge", &c->npageslabs_nonhuge,
+	    size_t);
+	CTL_LEAF(mib, n + 1, "nactive_nonhuge", &c->nactive_nonhuge, size_t);
+	CTL_LEAF(mib, n + 1, "ndirty_nonhuge", &c->ndirty_nonhuge, size_t);
 	c->nretained_nonhuge = c->npageslabs_nonhuge * HUGEPAGE_PAGES
 	    - c->nactive_nonhuge - c->ndirty_nonhuge;
-
-	CTL_M2_GET("stats.arenas.0.hpa_shard.slabs.npageslabs_huge", i,
-	    &c->npageslabs_huge, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_shard.slabs.nactive_huge", i,
-	    &c->nactive_huge, size_t);
-	CTL_M2_GET("stats.arenas.0.hpa_shard.slabs.ndirty_huge", i,
-	    &c->ndirty_huge, size_t);
-
-	CTL_M2_GET("stats.arenas.0.hpa_shard.npurge_passes", i,
-	    &c->npurge_passes, uint64_t);
-	CTL_M2_GET("stats.arenas.0.hpa_shard.npurges", i, &c->npurges, uint64_t);
-	CTL_M2_GET(
-	    "stats.arenas.0.hpa_shard.nhugifies", i, &c->nhugifies, uint64_t);
-	CTL_M2_GET("stats.arenas.0.hpa_shard.nhugify_failures", i,
-	    &c->nhugify_failures, uint64_t);
-	CTL_M2_GET("stats.arenas.0.hpa_shard.ndehugifies", i, &c->ndehugifies,
-	    uint64_t);
+	CTL_LEAF(mib, n + 1, "npageslabs_huge", &c->npageslabs_huge, size_t);
+	CTL_LEAF(mib, n + 1, "nactive_huge", &c->nactive_huge, size_t);
+	CTL_LEAF(mib, n + 1, "ndirty_huge", &c->ndirty_huge, size_t);
 }
 
 /* kind is "full_slabs" or "empty_slabs". */
 static void
-stats_gather_arena_hpa_slab(unsigned i, const char *kind,
+stats_gather_arena_hpa_slab(const stats_hpa_src_t *src, const char *kind,
     stats_arena_hpa_slab_t *s) {
 	size_t mib[CTL_MAX_DEPTH];
-	CTL_LEAF_PREPARE(mib, 0, "stats.arenas");
-	mib[2] = i;
-	CTL_LEAF_PREPARE(mib, 3, "hpa_shard");
-	CTL_LEAF_PREPARE(mib, 4, kind);
-	CTL_LEAF(mib, 5, "npageslabs_huge", &s->npageslabs_huge, size_t);
-	CTL_LEAF(mib, 5, "nactive_huge", &s->nactive_huge, size_t);
-	CTL_LEAF(mib, 5, "ndirty_huge", &s->ndirty_huge, size_t);
-	CTL_LEAF(mib, 5, "npageslabs_nonhuge", &s->npageslabs_nonhuge, size_t);
-	CTL_LEAF(mib, 5, "nactive_nonhuge", &s->nactive_nonhuge, size_t);
-	CTL_LEAF(mib, 5, "ndirty_nonhuge", &s->ndirty_nonhuge, size_t);
+	size_t n = src->miblen + 2;
+	memcpy(mib, src->mib, sizeof(mib));
+	CTL_LEAF_PREPARE(mib, src->miblen, "hpa_shard");
+	CTL_LEAF_PREPARE(mib, src->miblen + 1, kind);
+	CTL_LEAF(mib, n, "npageslabs_huge", &s->npageslabs_huge, size_t);
+	CTL_LEAF(mib, n, "nactive_huge", &s->nactive_huge, size_t);
+	CTL_LEAF(mib, n, "ndirty_huge", &s->ndirty_huge, size_t);
+	CTL_LEAF(mib, n, "npageslabs_nonhuge", &s->npageslabs_nonhuge, size_t);
+	CTL_LEAF(mib, n, "nactive_nonhuge", &s->nactive_nonhuge, size_t);
+	CTL_LEAF(mib, n, "ndirty_nonhuge", &s->ndirty_nonhuge, size_t);
 	s->nretained_nonhuge = s->npageslabs_nonhuge * HUGEPAGE_PAGES
 	    - s->nactive_nonhuge - s->ndirty_nonhuge;
 }
 
-/* mib prepared through "stats.arenas.<i>.hpa_shard.nonfull_slabs" (depth 5). */
+/* mib prepared through "<src>.hpa_shard.nonfull_slabs", which is depth long. */
 static void
-stats_gather_arena_hpa_nonfull(size_t *mib, unsigned j,
+stats_gather_arena_hpa_nonfull(size_t *mib, size_t depth, unsigned j,
     stats_arena_hpa_slab_t *s) {
-	mib[5] = j;
-	CTL_LEAF(mib, 6, "npageslabs_huge", &s->npageslabs_huge, size_t);
-	CTL_LEAF(mib, 6, "nactive_huge", &s->nactive_huge, size_t);
-	CTL_LEAF(mib, 6, "ndirty_huge", &s->ndirty_huge, size_t);
-	CTL_LEAF(mib, 6, "npageslabs_nonhuge", &s->npageslabs_nonhuge, size_t);
-	CTL_LEAF(mib, 6, "nactive_nonhuge", &s->nactive_nonhuge, size_t);
-	CTL_LEAF(mib, 6, "ndirty_nonhuge", &s->ndirty_nonhuge, size_t);
+	size_t n = depth + 1;
+	mib[depth] = j;
+	CTL_LEAF(mib, n, "npageslabs_huge", &s->npageslabs_huge, size_t);
+	CTL_LEAF(mib, n, "nactive_huge", &s->nactive_huge, size_t);
+	CTL_LEAF(mib, n, "ndirty_huge", &s->ndirty_huge, size_t);
+	CTL_LEAF(mib, n, "npageslabs_nonhuge", &s->npageslabs_nonhuge, size_t);
+	CTL_LEAF(mib, n, "nactive_nonhuge", &s->nactive_nonhuge, size_t);
+	CTL_LEAF(mib, n, "ndirty_nonhuge", &s->ndirty_nonhuge, size_t);
 	s->nretained_nonhuge = s->npageslabs_nonhuge * HUGEPAGE_PAGES
 	    - s->nactive_nonhuge - s->ndirty_nonhuge;
+}
+
+/* src is a set or a shard; mutex selects the hpa_shard mutex's counters. */
+static void
+stats_gather_hpa_set_row(
+    const stats_hpa_src_t *src, bool mutex, stats_hpa_set_row_t *row) {
+	stats_gather_arena_hpa_counters(src, &row->counters);
+	stats_gather_arena_hpa_sec(src, &row->sec);
+	if (mutex) {
+		size_t mib[CTL_MAX_DEPTH];
+		memcpy(mib, src->mib, sizeof(mib));
+		CTL_LEAF_PREPARE(mib, src->miblen, "mutexes.hpa_shard");
+		CTL_LEAF(
+		    mib, src->miblen + 2, "num_ops", &row->num_ops, uint64_t);
+		CTL_LEAF(
+		    mib, src->miblen + 2, "num_wait", &row->num_wait, uint64_t);
+	}
 }
 
 static void
@@ -698,6 +763,9 @@ stats_size_col_set(emitter_col_t *col, size_t size, size_t prev_size, char *buf,
 enum {
 	STATS_COL_FLAG_NONE = 0,
 	STATS_COL_FLAG_PROF = 1U << 0,
+	STATS_COL_FLAG_MUTEX = 1U << 1,
+	STATS_COL_FLAG_HPA_SET = 1U << 2,
+	STATS_COL_FLAG_HPA_SHARD = 1U << 3,
 };
 
 static unsigned
@@ -1272,9 +1340,10 @@ stats_emit_arena_hpa_sec(emitter_t *emitter, const stats_arena_hpa_sec_t *sec) {
 }
 
 static void
-stats_arena_hpa_shard_sec_print(emitter_t *emitter, unsigned i) {
+stats_arena_hpa_shard_sec_print(
+    emitter_t *emitter, const stats_hpa_src_t *src) {
 	stats_arena_hpa_sec_t sec;
-	stats_gather_arena_hpa_sec(i, &sec);
+	stats_gather_arena_hpa_sec(src, &sec);
 	stats_emit_arena_hpa_sec(emitter, &sec);
 }
 
@@ -1352,9 +1421,9 @@ stats_emit_arena_hpa_counters(emitter_t *emitter,
 
 static void
 stats_arena_hpa_shard_counters_print(
-    emitter_t *emitter, unsigned i, uint64_t uptime) {
+    emitter_t *emitter, const stats_hpa_src_t *src, uint64_t uptime) {
 	stats_arena_hpa_counters_t c;
-	stats_gather_arena_hpa_counters(i, &c);
+	stats_gather_arena_hpa_counters(src, &c);
 	stats_emit_arena_hpa_counters(emitter, &c, uptime);
 
 	/*
@@ -1371,22 +1440,24 @@ stats_arena_hpa_shard_counters_print(
 	uint64_t hpa_alloc_extents_per_ps[SEC_MAX_NALLOCS + 1];
 
 	size_t alloc_mib[CTL_MAX_DEPTH];
-	CTL_LEAF_PREPARE(alloc_mib, 0, "stats.arenas");
-	alloc_mib[2] = i;
-	CTL_LEAF_PREPARE(alloc_mib, 3, "hpa_shard.alloc");
+	memcpy(alloc_mib, src->mib, sizeof(alloc_mib));
+	CTL_LEAF_PREPARE(alloc_mib, src->miblen, "hpa_shard.alloc");
+	/* alloc_mib is now src->miblen + 2 long; the bucket index goes last. */
+	size_t alloc_depth = src->miblen + 2;
+	size_t n = alloc_depth + 1;
 
 	for (size_t j = 0; j <= SEC_MAX_NALLOCS; j += 1) {
-		alloc_mib[5] = j;
-		CTL_LEAF(alloc_mib, 6, "min_extents", &hpa_alloc_min_extents[j],
+		alloc_mib[alloc_depth] = j;
+		CTL_LEAF(alloc_mib, n, "min_extents", &hpa_alloc_min_extents[j],
 		    uint64_t);
-		CTL_LEAF(alloc_mib, 6, "max_extents", &hpa_alloc_max_extents[j],
+		CTL_LEAF(alloc_mib, n, "max_extents", &hpa_alloc_max_extents[j],
 		    uint64_t);
 		CTL_LEAF(
-		    alloc_mib, 6, "extents", &hpa_alloc_extents[j], uint64_t);
-		CTL_LEAF(alloc_mib, 6, "ps", &hpa_alloc_ps[j], uint64_t);
-		CTL_LEAF(alloc_mib, 6, "pages_per_ps",
+		    alloc_mib, n, "extents", &hpa_alloc_extents[j], uint64_t);
+		CTL_LEAF(alloc_mib, n, "ps", &hpa_alloc_ps[j], uint64_t);
+		CTL_LEAF(alloc_mib, n, "pages_per_ps",
 		    &hpa_alloc_pages_per_ps[j], uint64_t);
-		CTL_LEAF(alloc_mib, 6, "extents_per_ps",
+		CTL_LEAF(alloc_mib, n, "extents_per_ps",
 		    &hpa_alloc_extents_per_ps[j], uint64_t);
 	}
 
@@ -1520,7 +1591,8 @@ stats_emit_arena_hpa_slab_row(emitter_t *emitter,
 }
 
 static void
-stats_arena_hpa_shard_slabs_print(emitter_t *emitter, unsigned i) {
+stats_arena_hpa_shard_slabs_print(
+    emitter_t *emitter, const stats_hpa_src_t *src) {
 	emitter_row_t row, header_row;
 	emitter_col_t cols[HPA_SLAB_COL_COUNT];
 	emitter_col_t header_cols[HPA_SLAB_COL_COUNT];
@@ -1537,29 +1609,30 @@ stats_arena_hpa_shard_slabs_print(emitter_t *emitter, unsigned i) {
 	 * JSON stays in the separate full_slabs / empty_slabs objects.
 	 */
 	stats_arena_hpa_slab_t sfull;
-	stats_gather_arena_hpa_slab(i, "full_slabs", &sfull);
+	stats_gather_arena_hpa_slab(src, "full_slabs", &sfull);
 	stats_arena_hpa_slab_emit_row_t full_row = {
 	    &sfull, "full", 0, 0, 0};
 	stats_emit_arena_hpa_slab_row(emitter, &row, cols, &full_row,
 	    "full_slabs", size_buf, sizeof(size_buf), false, false);
 
 	stats_arena_hpa_slab_t sempty;
-	stats_gather_arena_hpa_slab(i, "empty_slabs", &sempty);
+	stats_gather_arena_hpa_slab(src, "empty_slabs", &sempty);
 	stats_arena_hpa_slab_emit_row_t empty_row = {
 	    &sempty, "empty", 0, 0, 0};
 	stats_emit_arena_hpa_slab_row(emitter, &row, cols, &empty_row,
 	    "empty_slabs", size_buf, sizeof(size_buf), false, false);
 
-	size_t stats_arenas_mib[CTL_MAX_DEPTH];
-	CTL_LEAF_PREPARE(stats_arenas_mib, 0, "stats.arenas");
-	stats_arenas_mib[2] = i;
-	CTL_LEAF_PREPARE(stats_arenas_mib, 3, "hpa_shard.nonfull_slabs");
+	size_t nonfull_mib[CTL_MAX_DEPTH];
+	memcpy(nonfull_mib, src->mib, sizeof(nonfull_mib));
+	CTL_LEAF_PREPARE(nonfull_mib, src->miblen, "hpa_shard.nonfull_slabs");
+	size_t nonfull_depth = src->miblen + 2;
 
 	emitter_json_array_kv_begin(emitter, "nonfull_slabs");
 	emitter_table_sparse_begin(emitter);
 	for (pszind_t j = 0; j < PSSET_NPSIZES && j < SC_NPSIZES; j++) {
 		stats_arena_hpa_slab_t s;
-		stats_gather_arena_hpa_nonfull(stats_arenas_mib, j, &s);
+		stats_gather_arena_hpa_nonfull(
+		    nonfull_mib, nonfull_depth, j, &s);
 
 		bool is_gap = (s.npageslabs_huge == 0 && s.npageslabs_nonhuge == 0);
 
@@ -1574,17 +1647,23 @@ stats_arena_hpa_shard_slabs_print(emitter_t *emitter, unsigned i) {
 }
 
 static void
-stats_arena_hpa_shard_print(emitter_t *emitter, unsigned i, uint64_t uptime) {
+stats_arena_hpa_shard_print(
+    emitter_t *emitter, const stats_hpa_src_t *src, uint64_t uptime) {
 	emitter_json_object_kv_begin(emitter, "hpa_shard");
-	stats_arena_hpa_shard_sec_print(emitter, i);
-	stats_arena_hpa_shard_counters_print(emitter, i, uptime);
-	stats_arena_hpa_shard_slabs_print(emitter, i);
+	stats_arena_hpa_shard_sec_print(emitter, src);
+	stats_arena_hpa_shard_counters_print(emitter, src, uptime);
+	stats_arena_hpa_shard_slabs_print(emitter, src);
 	emitter_json_object_end(emitter); /* End "hpa_shard" */
 }
 
+/*
+ * The "mutexes" of an arena, or of a global HPA shard set or shard: those in
+ * names, read below mib (prepared through "mutexes"), and printed as a table
+ * too if table.
+ */
 static void
-stats_arena_mutexes_print(
-    emitter_t *emitter, unsigned arena_ind, uint64_t uptime) {
+stats_mutexes_print(emitter_t *emitter, size_t *mib, size_t miblen,
+    const char *const *names, unsigned nmutexes, bool table, uint64_t uptime) {
 	/*
 	 * Mutex readers gather counters directly into emitter columns, coupling
 	 * collection to the output representation.  Emission remains a separate
@@ -1599,23 +1678,332 @@ stats_arena_mutexes_print(
 	mutex_stats_init_cols(&row, "", &col_name, col64, col32);
 
 	emitter_json_object_kv_begin(emitter, "mutexes");
-	emitter_table_row(emitter, &row);
+	if (table) {
+		emitter_table_row(emitter, &row);
+	}
 
+	for (unsigned i = 0; i < nmutexes; i++) {
+		const char *name = names[i];
+		emitter_json_object_kv_begin(emitter, name);
+		mutex_stats_read(
+		    mib, miblen, name, &col_name, col64, col32, uptime);
+		mutex_stats_emit(emitter, table ? &row : NULL, col64, col32);
+		emitter_json_object_end(emitter); /* Close the mutex dict. */
+	}
+	emitter_json_object_end(emitter); /* End "mutexes". */
+}
+
+static void
+stats_arena_mutexes_print(
+    emitter_t *emitter, unsigned arena_ind, uint64_t uptime) {
 	size_t stats_arenas_mib[CTL_MAX_DEPTH];
 	CTL_LEAF_PREPARE(stats_arenas_mib, 0, "stats.arenas");
 	stats_arenas_mib[2] = arena_ind;
 	CTL_LEAF_PREPARE(stats_arenas_mib, 3, "mutexes");
+	stats_mutexes_print(emitter, stats_arenas_mib, 4, arena_mutex_names,
+	    mutex_prof_num_arena_mutexes, true, uptime);
+}
 
-	for (mutex_prof_arena_ind_t i = 0; i < mutex_prof_num_arena_mutexes;
-	    i++) {
-		const char *name = arena_mutex_names[i];
-		emitter_json_object_kv_begin(emitter, name);
-		mutex_stats_read(
-		    stats_arenas_mib, 4, name, &col_name, col64, col32, uptime);
-		mutex_stats_emit(emitter, &row, col64, col32);
-		emitter_json_object_end(emitter); /* Close the mutex dict. */
+#define HPA_SET_COL_GET(name, field, member)                                  \
+	static void                                                            \
+	stats_hpa_set_col_get_##name(const void *vrow, emitter_col_t *col) {   \
+		const stats_hpa_set_row_t *row = vrow;                         \
+		col->member = row->field;                                      \
 	}
-	emitter_json_object_end(emitter); /* End "mutexes". */
+HPA_SET_COL_GET(ind, ind, unsigned_val)
+HPA_SET_COL_GET(size, size, str_val)
+HPA_SET_COL_GET(nshards, nshards, unsigned_val)
+HPA_SET_COL_GET(ninitialized, ninitialized, unsigned_val)
+HPA_SET_COL_GET(npageslabs, counters.npageslabs, size_val)
+HPA_SET_COL_GET(nactive, counters.nactive, size_val)
+HPA_SET_COL_GET(ndirty, counters.ndirty, size_val)
+HPA_SET_COL_GET(npageslabs_huge, counters.npageslabs_huge, size_val)
+HPA_SET_COL_GET(nactive_huge, counters.nactive_huge, size_val)
+HPA_SET_COL_GET(ndirty_huge, counters.ndirty_huge, size_val)
+HPA_SET_COL_GET(npurge_passes, counters.npurge_passes, uint64_val)
+HPA_SET_COL_GET(npurges, counters.npurges, uint64_val)
+HPA_SET_COL_GET(nhugifies, counters.nhugifies, uint64_val)
+HPA_SET_COL_GET(nhugify_failures, counters.nhugify_failures, uint64_val)
+HPA_SET_COL_GET(ndehugifies, counters.ndehugifies, uint64_val)
+HPA_SET_COL_GET(sec_bytes, sec.sec_bytes, size_val)
+HPA_SET_COL_GET(sec_hits, sec.sec_hits, size_val)
+HPA_SET_COL_GET(sec_misses, sec.sec_misses, size_val)
+HPA_SET_COL_GET(num_ops, num_ops, uint64_val)
+HPA_SET_COL_GET(num_wait, num_wait, uint64_val)
+#undef HPA_SET_COL_GET
+
+/*
+ * The columns of the table of the sets and of each set's table of its shards.
+ * A shard's row adds the huge part of its pageslabs (the rest is nonhuge) and
+ * its purge and hugify counters, which a set has in its own section.  Only
+ * the shard rows go to JSON: a set's row repeats figures from the set's JSON
+ * object, or derives them (its sizes from size_max, ninitialized from the
+ * shards).
+ */
+#define HPA_SET_DESC(key, label, width, type, flags, name)                    \
+	{key, label, emitter_justify_right, width, emitter_type_##type, flags,   \
+	    stats_hpa_set_col_get_##name}
+static const emitter_col_desc_t stats_hpa_set_cols[] = {
+	HPA_SET_DESC("ind", "ind", 5, unsigned, STATS_COL_FLAG_NONE, ind),
+	HPA_SET_DESC(NULL, "size", 20, title, STATS_COL_FLAG_HPA_SET, size),
+	HPA_SET_DESC(
+	    NULL, "nshards", 8, unsigned, STATS_COL_FLAG_HPA_SET, nshards),
+	HPA_SET_DESC(NULL, "ninitialized", 13, unsigned, STATS_COL_FLAG_HPA_SET,
+	    ninitialized),
+	HPA_SET_DESC("npageslabs", "npageslabs", 12, size, STATS_COL_FLAG_NONE,
+	    npageslabs),
+	HPA_SET_DESC(
+	    "nactive", "nactive", 12, size, STATS_COL_FLAG_NONE, nactive),
+	HPA_SET_DESC("ndirty", "ndirty", 12, size, STATS_COL_FLAG_NONE, ndirty),
+	HPA_SET_DESC("npageslabs_huge", "npageslabs_huge", 16, size,
+	    STATS_COL_FLAG_HPA_SHARD, npageslabs_huge),
+	HPA_SET_DESC("nactive_huge", "nactive_huge", 14, size,
+	    STATS_COL_FLAG_HPA_SHARD, nactive_huge),
+	HPA_SET_DESC("ndirty_huge", "ndirty_huge", 13, size,
+	    STATS_COL_FLAG_HPA_SHARD, ndirty_huge),
+	HPA_SET_DESC("npurge_passes", "npurge_passes", 15, uint64,
+	    STATS_COL_FLAG_HPA_SHARD, npurge_passes),
+	HPA_SET_DESC("npurges", "npurges", 12, uint64, STATS_COL_FLAG_HPA_SHARD,
+	    npurges),
+	HPA_SET_DESC("nhugifies", "nhugifies", 12, uint64,
+	    STATS_COL_FLAG_HPA_SHARD, nhugifies),
+	HPA_SET_DESC("nhugify_failures", "nhugify_failures", 18, uint64,
+	    STATS_COL_FLAG_HPA_SHARD, nhugify_failures),
+	HPA_SET_DESC("ndehugifies", "ndehugifies", 13, uint64,
+	    STATS_COL_FLAG_HPA_SHARD, ndehugifies),
+	HPA_SET_DESC("sec_bytes", "sec_bytes", 14, size, STATS_COL_FLAG_NONE,
+	    sec_bytes),
+	HPA_SET_DESC(
+	    "sec_hits", "sec_hits", 14, size, STATS_COL_FLAG_NONE, sec_hits),
+	HPA_SET_DESC("sec_misses", "sec_misses", 14, size, STATS_COL_FLAG_NONE,
+	    sec_misses),
+	HPA_SET_DESC(NULL, "n_lock_ops", 16, uint64,
+	    STATS_COL_FLAG_HPA_SET | STATS_COL_FLAG_MUTEX, num_ops),
+	HPA_SET_DESC(NULL, "n_waiting", 16, uint64,
+	    STATS_COL_FLAG_HPA_SET | STATS_COL_FLAG_MUTEX, num_wait),
+};
+#undef HPA_SET_DESC
+#define HPA_SET_COL_COUNT                                                      \
+	(sizeof(stats_hpa_set_cols) / sizeof(stats_hpa_set_cols[0]))
+
+/* How many of the nshards shards of set i have been created. */
+static unsigned
+stats_hpa_shard_set_ninitialized(unsigned i, unsigned nshards) {
+	stats_hpa_src_t src;
+	stats_hpa_src_shard(&src, i, 0);
+	unsigned ninitialized = 0;
+	for (unsigned j = 0; j < nshards; j++) {
+		/* src.mib[4] is the shard index. */
+		src.mib[4] = j;
+		bool initialized;
+		CTL_LEAF(
+		    src.mib, src.miblen, "initialized", &initialized, bool);
+		ninitialized += initialized;
+	}
+	return ninitialized;
+}
+
+/* One row per set: the sizes it serves after 0-folding, and its totals. */
+static void
+stats_hpa_shard_sets_table_print(
+    emitter_t *emitter, unsigned nsets, bool mutex) {
+	emitter_row_t row, header_row;
+	emitter_col_t cols[HPA_SET_COL_COUNT];
+	emitter_col_t header_cols[HPA_SET_COL_COUNT];
+	unsigned      flags = STATS_COL_FLAG_HPA_SET
+	    | (mutex ? STATS_COL_FLAG_MUTEX : STATS_COL_FLAG_NONE);
+	emitter_col_table_build(stats_hpa_set_cols, HPA_SET_COL_COUNT, flags,
+	    &row, cols, &header_row, header_cols);
+
+	emitter_table_printf(emitter, "HPA shard sets:\n");
+	emitter_table_row(emitter, &header_row);
+	size_t size_min = 0;
+	for (unsigned i = 0; i < nsets; i++) {
+		stats_hpa_src_t src;
+		stats_hpa_src_set(&src, i);
+		stats_hpa_set_row_t set_row = {0};
+		size_t              size_max;
+		char                size[48];
+		CTL_LEAF(src.mib, src.miblen, "size_max", &size_max, size_t);
+		CTL_LEAF(
+		    src.mib, src.miblen, "nshards", &set_row.nshards, unsigned);
+		malloc_snprintf(
+		    size, sizeof(size), "(%zu,%zu]", size_min, size_max);
+		size_min = size_max;
+		set_row.ind = i;
+		set_row.size = size;
+		set_row.ninitialized = stats_hpa_shard_set_ninitialized(
+		    i, set_row.nshards);
+		stats_gather_hpa_set_row(&src, mutex, &set_row);
+		emitter_col_table_fill(stats_hpa_set_cols, HPA_SET_COL_COUNT,
+		    flags, cols, &set_row);
+		emitter_table_row(emitter, &row);
+	}
+}
+
+/* The HPA shard's mutexes of src, a set or a shard; see stats_mutexes_print. */
+static void
+stats_hpa_mutexes_print(emitter_t *emitter, const stats_hpa_src_t *src,
+    bool table, uint64_t uptime) {
+	size_t mib[CTL_MAX_DEPTH];
+	memcpy(mib, src->mib, sizeof(mib));
+	CTL_LEAF_PREPARE(mib, src->miblen, "mutexes");
+	stats_mutexes_print(emitter, mib, src->miblen + 1, hpa_shard_mutex_names,
+	    mutex_prof_num_hpa_shard_mutexes, table, uptime);
+}
+
+/*
+ * The mutexes of the shards of set i that have been created, a row for each
+ * shard and mutex.  Table only: in JSON, each shard's object has its mutexes.
+ */
+static void
+stats_hpa_shard_set_shard_mutexes_print(
+    emitter_t *emitter, unsigned i, unsigned nshards, uint64_t uptime) {
+	emitter_row_t row;
+	emitter_col_t col_ind, col_space, col_name;
+	emitter_col_t col64[mutex_prof_num_uint64_t_counters];
+	emitter_col_t col32[mutex_prof_num_uint32_t_counters];
+
+	/* The columns start as the header's titles. */
+	emitter_row_init(&row);
+	emitter_col_init(&col_ind, &row);
+	col_ind.justify = emitter_justify_right;
+	col_ind.width = 5;
+	col_ind.type = emitter_type_title;
+	col_ind.str_val = "ind";
+	emitter_col_init(&col_space, &row);
+	col_space.justify = emitter_justify_right;
+	col_space.width = 1;
+	col_space.type = emitter_type_title;
+	col_space.str_val = " ";
+	mutex_stats_init_cols(&row, "", &col_name, col64, col32);
+	emitter_table_printf(emitter, "shard mutexes:\n");
+	emitter_table_row(emitter, &row);
+
+	col_ind.type = emitter_type_unsigned;
+	stats_hpa_src_t src;
+	stats_hpa_src_shard(&src, i, 0);
+	for (unsigned j = 0; j < nshards; j++) {
+		/* src.mib[4] is the shard index. */
+		src.mib[4] = j;
+		bool initialized;
+		CTL_LEAF(
+		    src.mib, src.miblen, "initialized", &initialized, bool);
+		if (!initialized) {
+			continue;
+		}
+		col_ind.unsigned_val = j;
+		size_t mib[CTL_MAX_DEPTH];
+		memcpy(mib, src.mib, sizeof(mib));
+		CTL_LEAF_PREPARE(mib, src.miblen, "mutexes");
+		for (unsigned k = 0; k < mutex_prof_num_hpa_shard_mutexes; k++) {
+			mutex_stats_read(mib, src.miblen + 1,
+			    hpa_shard_mutex_names[k], &col_name, col64, col32,
+			    uptime);
+			emitter_table_row(emitter, &row);
+		}
+	}
+}
+
+/*
+ * The shards of set i that have been created: a table, then one of their
+ * mutexes if mutex, and in JSON an object each, with its mutexes if mutex.
+ */
+static void
+stats_hpa_shard_set_shards_print(emitter_t *emitter, unsigned i,
+    unsigned nshards, bool mutex, uint64_t uptime) {
+	emitter_row_t row, header_row;
+	emitter_col_t cols[HPA_SET_COL_COUNT];
+	emitter_col_t header_cols[HPA_SET_COL_COUNT];
+	emitter_col_table_build(stats_hpa_set_cols, HPA_SET_COL_COUNT,
+	    STATS_COL_FLAG_HPA_SHARD, &row, cols, &header_row, header_cols);
+
+	emitter_table_printf(emitter, "shards:\n");
+	emitter_table_row(emitter, &header_row);
+	emitter_json_array_kv_begin(emitter, "shards");
+	stats_hpa_src_t src;
+	stats_hpa_src_shard(&src, i, 0);
+	for (unsigned j = 0; j < nshards; j++) {
+		/* src.mib[4] is the shard index. */
+		src.mib[4] = j;
+		bool initialized;
+		CTL_LEAF(
+		    src.mib, src.miblen, "initialized", &initialized, bool);
+		if (!initialized) {
+			continue;
+		}
+		stats_hpa_set_row_t shard_row = {0};
+		shard_row.ind = j;
+		stats_gather_hpa_set_row(&src, false, &shard_row);
+		emitter_col_table_fill(stats_hpa_set_cols, HPA_SET_COL_COUNT,
+		    STATS_COL_FLAG_HPA_SHARD, cols, &shard_row);
+		emitter_table_row(emitter, &row);
+
+		emitter_json_object_begin(emitter);
+		emitter_col_table_emit_json(emitter, stats_hpa_set_cols,
+		    HPA_SET_COL_COUNT, STATS_COL_FLAG_HPA_SHARD, cols);
+		if (mutex) {
+			stats_hpa_mutexes_print(emitter, &src, false, uptime);
+		}
+		emitter_json_object_end(emitter);
+	}
+	emitter_json_array_end(emitter); /* End "shards". */
+	if (mutex) {
+		stats_hpa_shard_set_shard_mutexes_print(
+		    emitter, i, nshards, uptime);
+	}
+}
+
+/*
+ * Set i, which serves usable sizes above size_min, laid out like an arena's
+ * HPA shard, then its mutexes and shards.  Returns the set's size_max.
+ */
+static size_t
+stats_hpa_shard_set_print(emitter_t *emitter, unsigned i, size_t size_min,
+    bool mutex, uint64_t uptime) {
+	stats_hpa_src_t src;
+	stats_hpa_src_set(&src, i);
+	size_t   size_max;
+	unsigned nshards;
+	CTL_LEAF(src.mib, src.miblen, "size_max", &size_max, size_t);
+	CTL_LEAF(src.mib, src.miblen, "nshards", &nshards, unsigned);
+
+	emitter_json_object_begin(emitter);
+	emitter_json_kv(emitter, "ind", emitter_type_unsigned, &i);
+	emitter_json_kv(emitter, "size_max", emitter_type_size, &size_max);
+	emitter_json_kv(emitter, "nshards", emitter_type_unsigned, &nshards);
+	emitter_table_printf(emitter,
+	    "hpa_shard_sets[%u]: sizes (%zu,%zu], nshards: %u\n", i, size_min,
+	    size_max, nshards);
+
+	stats_arena_hpa_shard_print(emitter, &src, uptime);
+	if (mutex) {
+		stats_hpa_mutexes_print(emitter, &src, true, uptime);
+	}
+	stats_hpa_shard_set_shards_print(emitter, i, nshards, mutex, uptime);
+	emitter_json_object_end(emitter);
+	return size_max;
+}
+
+/*
+ * The global HPA shard sets, printed once, with the global stats: a table of
+ * the sets, then each set.  Without sets, only an empty JSON array.
+ */
+static void
+stats_hpa_shard_sets_print(emitter_t *emitter, bool mutex, uint64_t uptime) {
+	unsigned nsets;
+	CTL_GET("stats.nhpa_shard_sets", &nsets, unsigned);
+
+	emitter_json_array_kv_begin(emitter, "hpa_shard_sets");
+	if (nsets > 0) {
+		stats_hpa_shard_sets_table_print(emitter, nsets, mutex);
+	}
+	size_t size_min = 0;
+	for (unsigned i = 0; i < nsets; i++) {
+		size_min = stats_hpa_shard_set_print(
+		    emitter, i, size_min, mutex, uptime);
+	}
+	emitter_json_array_end(emitter); /* End "hpa_shard_sets". */
 }
 
 static void
@@ -1979,7 +2367,9 @@ stats_arena_print(emitter_t *emitter, unsigned i, bool bins, bool large,
 		stats_arena_extents_print(emitter, i);
 	}
 	if (hpa) {
-		stats_arena_hpa_shard_print(emitter, i, uptime);
+		stats_hpa_src_t src;
+		stats_hpa_src_arena(&src, i);
+		stats_arena_hpa_shard_print(emitter, &src, uptime);
 	}
 }
 
@@ -2140,6 +2530,7 @@ stats_general_opts(emitter_t *emitter) {
 	OPT_WRITE_SIZE_T("hpa_sec_nshards")
 	OPT_WRITE_SIZE_T("hpa_sec_max_alloc")
 	OPT_WRITE_SIZE_T("hpa_sec_max_bytes")
+	OPT_WRITE_BOOL("hpa_shard_sets")
 	OPT_WRITE_SIZE_T("experimental_pac_sec_nshards")
 	OPT_WRITE_SIZE_T("experimental_pac_sec_max_alloc")
 	OPT_WRITE_SIZE_T("experimental_pac_sec_max_bytes")
@@ -2405,7 +2796,7 @@ stats_global_mutexes_print(emitter_t *emitter) {
 }
 
 static void
-stats_print_globals(emitter_t *emitter, bool mutex) {
+stats_print_globals(emitter_t *emitter, bool mutex, bool hpa) {
 	stats_global_t g;
 	stats_gather_global(&g);
 
@@ -2413,6 +2804,11 @@ stats_print_globals(emitter_t *emitter, bool mutex) {
 	stats_emit_global(emitter, &g);
 	if (mutex) {
 		stats_global_mutexes_print(emitter);
+	}
+	if (hpa) {
+		uint64_t uptime;
+		CTL_M2_GET("stats.arenas.0.uptime", 0, &uptime, uint64_t);
+		stats_hpa_shard_sets_print(emitter, mutex, uptime);
 	}
 	emitter_json_object_end(emitter); /* Close "stats". */
 }
@@ -2431,7 +2827,7 @@ JEMALLOC_COLD
 static void
 stats_print_runtime_stats(emitter_t *emitter, bool merged, bool destroyed,
     bool unmerged, bool bins, bool large, bool mutex, bool extents, bool hpa) {
-	stats_print_globals(emitter, mutex);
+	stats_print_globals(emitter, mutex, hpa);
 
 	if (!merged && !destroyed && !unmerged) {
 		return;

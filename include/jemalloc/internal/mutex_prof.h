@@ -47,6 +47,19 @@ typedef enum {
 	    mutex_prof_num_arena_mutexes
 } mutex_prof_arena_ind_t;
 
+/* An HPA shard's mutexes, named as among the arena mutexes. */
+#define MUTEX_PROF_HPA_SHARD_MUTEXES                                           \
+	OP(hpa_shard)                                                          \
+	OP(hpa_shard_grow)                                                     \
+	OP(hpa_sec)
+
+typedef enum {
+#define OP(mtx) hpa_shard_prof_mutex_##mtx,
+	MUTEX_PROF_HPA_SHARD_MUTEXES
+#undef OP
+	    mutex_prof_num_hpa_shard_mutexes
+} mutex_prof_hpa_shard_ind_t;
+
 /*
  * The forth parameter is a boolean value that is true for derived rate counters
  * and false for real ones.

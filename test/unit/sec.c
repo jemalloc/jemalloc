@@ -938,6 +938,41 @@ TEST_BEGIN(test_sec_concurrent_trim_fill) {
 }
 TEST_END
 
+TEST_BEGIN(test_sec_mutex_stats_reset) {
+	test_skip_if(!config_stats);
+
+	test_data_t tdata;
+	sec_opts_t  opts = {0};
+	opts.nshards = 1;
+	opts.max_alloc = PAGE;
+	opts.max_bytes = 2 * PAGE;
+	tsdn_t *tsdn = tsd_tsdn(tsd_fetch());
+	test_data_init(tsdn, &tdata, &opts);
+
+	/* Every miss locks a bin. */
+	for (int i = 0; i < 10; i++) {
+		expect_ptr_null(sec_test_alloc(tsdn, &tdata.sec, PAGE),
+		    "SEC should be empty");
+	}
+	size_t ntotal_bins = tdata.sec.opts.nshards * tdata.sec.npsizes;
+	mutex_prof_data_t before;
+	memset(&before, 0, sizeof(before));
+	sec_mutex_stats_read(tsdn, &tdata.sec, &before);
+
+	/* After a reset, only the read's own lock of each bin is counted. */
+	sec_mutex_stats_reset(tsdn, &tdata.sec);
+	mutex_prof_data_t after;
+	memset(&after, 0, sizeof(after));
+	sec_mutex_stats_read(tsdn, &tdata.sec, &after);
+	expect_u64_eq(after.n_lock_ops, ntotal_bins,
+	    "a reset should clear every bin's counters");
+	expect_u64_gt(before.n_lock_ops, after.n_lock_ops,
+	    "the misses should have been counted before the reset");
+
+	destroy_test_data(tsdn, &tdata);
+}
+TEST_END
+
 int
 main(void) {
 	return test(test_max_nshards_option_zero,
@@ -948,5 +983,5 @@ main(void) {
 	    test_sec_trim_low_water,
 	    test_sec_trim_half_low_water_rounding,
 	    test_sec_trim_return_only_and_flush, test_sec_trim_contended_bin,
-	    test_sec_concurrent_trim_fill);
+	    test_sec_concurrent_trim_fill, test_sec_mutex_stats_reset);
 }

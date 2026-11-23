@@ -12,8 +12,11 @@
 #include "jemalloc/internal/sc.h"
 #include "jemalloc/internal/stats.h"
 
-/* Maximum ctl tree depth. */
-#define CTL_MAX_DEPTH 7
+/*
+ * Maximum ctl tree depth, that of
+ * stats.hpa_shard_sets.<i>.shards.<j>.hpa_shard.nonfull_slabs.<k>.<leaf>.
+ */
+#define CTL_MAX_DEPTH 9
 #define CTL_MULTI_SETTING_MAX_LEN 1000
 
 typedef struct ctl_node_s {
@@ -32,6 +35,10 @@ typedef struct ctl_named_node_s {
 
 typedef struct ctl_indexed_node_s {
 	struct ctl_node_s node;
+	/*
+	 * Returns the node of the index, the last argument, or NULL if there is
+	 * none.  The first miblen components of mib lead to it from the root.
+	 */
 	const ctl_named_node_t *(*index)(
 	    tsdn_t *, const size_t *, size_t, size_t);
 } ctl_indexed_node_t;
@@ -53,6 +60,33 @@ typedef struct ctl_arena_stats_s {
 	hpa_shard_stats_t   hpastats;
 } ctl_arena_stats_t;
 
+/*
+ * The statistics of a shard of the global HPA shard sets, or of a set's shards
+ * added up.
+ */
+typedef struct ctl_hpa_stats_s {
+	hpa_shard_stats_t hpastats;
+	mutex_prof_data_t mutex_prof_data[mutex_prof_num_hpa_shard_mutexes];
+} ctl_hpa_stats_t;
+
+/* A shard of a global HPA shard set (stats.hpa_shard_sets.<i>.shards.<j>). */
+typedef struct ctl_hpa_shard_s {
+	/* Whether the shard had been created by the last refresh. */
+	bool            initialized;
+	ctl_hpa_stats_t stats;
+} ctl_hpa_shard_t;
+
+/* ctl stats of a global HPA shard sets (stats.hpa_shard_sets.<i>). */
+typedef struct ctl_hpa_shard_set_s {
+	/* The largest usable size the set serves, inclusive. */
+	size_t   size_max;
+	unsigned nshards;
+	/* The set's shards added up. */
+	ctl_hpa_stats_t stats;
+	/* The set's nshards shards, created or not. */
+	ctl_hpa_shard_t *shards;
+} ctl_hpa_shard_set_t;
+
 typedef struct ctl_stats_s {
 	size_t allocated;
 	size_t active;
@@ -67,6 +101,14 @@ typedef struct ctl_stats_s {
 
 	background_thread_stats_t background_thread;
 	mutex_prof_data_t mutex_prof_data[mutex_prof_num_global_mutexes];
+
+	/*
+	 * The global HPA shard sets, recorded by ctl_init() in the shape they
+	 * were booted with, or 0/NULL if they were not booted.  Arenas' own
+	 * HPA shards are reported per arena; the merged arena adds both.
+	 */
+	unsigned             nhpa_shard_sets;
+	ctl_hpa_shard_set_t *hpa_shard_sets;
 } ctl_stats_t;
 
 typedef struct ctl_arena_s ctl_arena_t;

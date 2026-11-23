@@ -217,6 +217,13 @@ unsigned arena_nthreads_get(const arena_t *arena, bool internal);
 void     arena_nthreads_inc(arena_t *arena, bool internal);
 void     arena_nthreads_dec(arena_t *arena, bool internal);
 arena_t *arena_new(tsdn_t *tsdn, unsigned ind, const arena_config_t *config);
+/*
+ * Turns on the HPA in arena 0, which arena_new() does not call.  With
+ * use_hpa_shard_sets, first boots the global HPA shard sets, which arena 0
+ * and the automatic arenas created later then allocate from.  Returns true
+ * on error.
+ */
+bool     arena_hpa_boot(tsdn_t *tsdn, bool use_hpa_shard_sets);
 bool     arena_init_huge(tsdn_t *tsdn, arena_t *a0);
 bool     arena_ind_is_huge(unsigned ind);
 arena_t *arena_choose_huge(tsd_t *tsd);

@@ -1,6 +1,8 @@
 #include "test/jemalloc_test.h"
 #include "test/sleep.h"
 
+#include "jemalloc/internal/hpa_shard_set.h"
+
 TEST_BEGIN(test_hpa_background_thread_a0_initialized) {
 	/*
 	 * Arena 0 has dedicated initialization path.  We'd like to make sure
@@ -20,9 +22,28 @@ TEST_BEGIN(test_hpa_background_thread_a0_initialized) {
 
 	arena_t *a0 = arena_get(TSDN_NULL, 0, false);
 	expect_ptr_ne(a0, NULL, "");
-	bool deferral_allowed = a0->pa_shard.hpa.opts.deferral_allowed;
-	expect_true(deferral_allowed,
-	    "Should have deferral_allowed option enabled for arena #0");
+	/*
+	 * With the HPA shard sets, arena 0 allocates from their shards instead
+	 * of its own HPA shard.
+	 */
+	hpa_shard_sets_t *sets = &hpa_shard_sets_global;
+	bool              on_sets = pa_shard_on_hpa_sets(&a0->pa_shard);
+	expect_b_eq(on_sets, opt_hpa_shard_sets,
+	    "Arena 0 should be on the HPA shard sets if they are on");
+	expect_true(atomic_load_b(&a0->pa_shard.use_hpa, ATOMIC_RELAXED),
+	    "Arena 0 should use the HPA");
+	expect_b_eq(a0->pa_shard.ever_used_hpa, !on_sets,
+	    "Arena 0 should have an HPA shard of its own unless on the sets");
+	if (!on_sets) {
+		bool deferral_allowed = a0->pa_shard.hpa.opts.deferral_allowed;
+		expect_true(deferral_allowed,
+		    "Should have deferral_allowed option enabled for arena #0");
+	}
+	for (unsigned i = 0; i < sets->nsets; i++) {
+		expect_true(sets->sets[i].opts.deferral_allowed,
+		    "Should have deferral_allowed option enabled for set #%u",
+		    i);
+	}
 }
 TEST_END
 
