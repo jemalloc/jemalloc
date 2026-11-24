@@ -1251,6 +1251,30 @@ enable_static="1"
 )
 AC_SUBST([enable_static])
 
+dnl Only build PIC objects and make libjemalloc.a a link to libjemalloc_pic.a
+AC_ARG_ENABLE([pic-only],
+  [AS_HELP_STRING([--enable-pic-only], [Only build PIC objects and library])],
+[if test "x$enable_pic_only" = "xno" ; then
+  enable_pic_only="0"
+else
+  enable_pic_only="1"
+fi
+],
+[enable_pic_only="0"]
+)
+AC_ARG_ENABLE([pic],
+  [AS_HELP_STRING([--enable-pic], [Alias for --enable-pic-only])],
+[if test "x$enable_pic" = "xyes" ; then
+  enable_pic_only="1"
+fi]
+)
+if test "x$enable_pic_only" = "x1" ; then
+  if test "x$PIC_CFLAGS" = "x" ; then
+    AC_MSG_ERROR([--enable-pic-only requires PIC support (PIC_CFLAGS)])
+  fi
+fi
+AC_SUBST([enable_pic_only])
+
 if test "$enable_shared$enable_static" = "00" ; then
   AC_MSG_ERROR([Please enable one of shared or static builds])
 fi
