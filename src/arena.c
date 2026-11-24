@@ -537,7 +537,25 @@ arena_reset(tsd_t *tsd, arena_t *arena) {
 	 *   stats refreshes would impose an inconvenient burden.
 	 */
 
-	/* Large allocations. */
+	/*
+	 * Large allocations.
+	 *
+	 * The lock is released during emap lookup and deallocation to avoid
+	 * lock-order reversal (emap and prof have their own lock hierarchies).
+	 * This is safe because:
+	 *
+	 * 1. The caller guarantees no concurrent alloc/free on this arena,
+	 *    so the large list is only modified by this loop (via dalloc).
+	 * 2. mallctl("epoch") may concurrently refresh stats, but reads
+	 *    aggregated counters only (under stats.mtx) — it does not
+	 *    traverse or modify the large list, so the held edata pointer
+	 *    remains valid across the unlock window.
+	 * 3. large_dalloc internally re-acquires large_mtx to unlink the
+	 *    current edata via edata_list_active_remove, then releases it.
+	 *    After re-acquiring the lock, the for-loop increment calls
+	 *    edata_list_active_first, which returns the new head (i.e. the
+	 *    successor of the removed edata).
+	 */
 	malloc_mutex_lock(tsd_tsdn(tsd), &arena->large_mtx);
 
 	for (edata_t *edata = edata_list_active_first(&arena->large);
