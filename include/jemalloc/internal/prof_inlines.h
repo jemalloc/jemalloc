@@ -186,6 +186,15 @@ prof_malloc(tsd_t *tsd, const void *ptr, size_t size, size_t usize,
 		prof_malloc_sample_object(tsd, ptr, size, usize, tctx);
 	} else {
 		prof_tctx_reset(tsd, ptr, alloc_ctx);
+		/*
+		 * prof_sample_lookahead() never samples reentrant threads.
+		 * A non-nominal thread that allocates is reincarnated, and
+		 * tsd_data_init_nocleanup() sets its reentrancy level to 1.
+		 */
+		if (config_stats
+		    && unlikely(tsd_reentrancy_level_get(tsd) > 0)) {
+			prof_sample_missed_check(tsd, usize);
+		}
 	}
 }
 
@@ -216,6 +225,10 @@ prof_realloc(tsd_t *tsd, const void *ptr, size_t size, size_t usize,
 	sampled = prof_tctx_is_valid(tctx);
 	old_sampled = prof_tctx_is_valid(old_prof_info->alloc_tctx);
 	moved = (ptr != old_ptr);
+	if (config_stats && !sampled && ptr != NULL
+	    && unlikely(tsd_reentrancy_level_get(tsd) > 0)) {
+		prof_sample_missed_check(tsd, usize);
+	}
 
 	if (unlikely(sampled)) {
 		prof_malloc_sample_object(tsd, ptr, size, usize, tctx);

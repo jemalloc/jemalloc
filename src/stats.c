@@ -2411,6 +2411,19 @@ stats_print_globals(emitter_t *emitter, bool mutex) {
 
 	emitter_json_object_kv_begin(emitter, "stats");
 	stats_emit_global(emitter, &g);
+	if (config_prof) {
+		size_t nmissed;
+		CTL_GET("experimental.prof_nmissed", &nmissed, size_t);
+		emitter_kv(emitter, "prof_nmissed",
+		    "Allocations escaped from profiling", emitter_type_size,
+		    &nmissed);
+		size_t bytes_missed;
+		CTL_GET("experimental.prof_bytes_missed", &bytes_missed,
+		    size_t);
+		emitter_kv(emitter, "prof_bytes_missed",
+		    "Usable bytes escaped from profiling", emitter_type_size,
+		    &bytes_missed);
+	}
 	if (mutex) {
 		stats_global_mutexes_print(emitter);
 	}
