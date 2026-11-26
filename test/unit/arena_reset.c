@@ -351,8 +351,67 @@ TEST_BEGIN(test_arena_destroy_hooks_unmap) {
 }
 TEST_END
 
+static size_t
+get_bin0_nonfull_slabs(unsigned arena_ind) {
+	uint64_t epoch = 1;
+	size_t   nonfull_slabs;
+	size_t   mib[6];
+	size_t   miblen, sz;
+
+	expect_d_eq(mallctl("epoch", NULL, NULL, (void *)&epoch, sizeof(epoch)),
+	    0, "Unexpected mallctl() failure");
+
+	miblen = sizeof(mib) / sizeof(size_t);
+	expect_d_eq(mallctlnametomib(
+	                "stats.arenas.0.bins.0.nonfull_slabs", mib, &miblen),
+	    0, "Unexpected mallctlnametomib() failure");
+	mib[2] = (size_t)arena_ind;
+	sz = sizeof(nonfull_slabs);
+	expect_d_eq(
+	    mallctlbymib(mib, miblen, (void *)&nonfull_slabs, &sz, NULL, 0), 0,
+	    "Unexpected mallctlbymib() failure");
+
+	return nonfull_slabs;
+}
+
+TEST_BEGIN(test_arena_reset_nonfull_slabs) {
+	unsigned arena_ind, i;
+	int      flags;
+	void    *p;
+
+	test_skip_if(!config_stats);
+	/* Sampled small allocations are promoted and do not use slabs. */
+	test_skip_if(opt_prof);
+
+	arena_ind = do_arena_create(NULL);
+	flags = MALLOCX_ARENA(arena_ind) | MALLOCX_TCACHE_NONE;
+
+	/*
+	 * Fill one slab and start a second one, then free a region of the
+	 * first.  That leaves one of the two slabs in slabs_nonfull.
+	 */
+	p = mallocx(bin_infos[0].reg_size, flags);
+	expect_ptr_not_null(p, "Unexpected mallocx() failure");
+	for (i = 0; i < bin_infos[0].nregs; i++) {
+		expect_ptr_not_null(mallocx(bin_infos[0].reg_size, flags),
+		    "Unexpected mallocx() failure");
+	}
+	dallocx(p, flags);
+	expect_zu_eq(get_bin0_nonfull_slabs(arena_ind), 1,
+	    "Expected one slab in slabs_nonfull");
+
+	do_arena_reset(arena_ind);
+	expect_zu_eq(get_bin0_nonfull_slabs(arena_ind), 0,
+	    "Reset arena should have no nonfull slabs");
+
+	/* Destroying merges bin stats and asserts nonfull_slabs == 0. */
+	do_arena_destroy(arena_ind);
+}
+TEST_END
+
 int
 main(void) {
 	return test(test_arena_reset, test_arena_destroy_initial,
-	    test_arena_destroy_hooks_default, test_arena_destroy_hooks_unmap);
+	    test_arena_destroy_hooks_default, test_arena_destroy_hooks_unmap,
+	    test_arena_reset_nonfull_slabs);
 }

@@ -468,6 +468,7 @@ arena_bin_reset(tsd_t *tsd, arena_t *arena, bin_t *bin) {
 	if (config_stats) {
 		bin->stats.curregs = 0;
 		bin->stats.curslabs = 0;
+		bin->stats.nonfull_slabs = 0;
 	}
 	malloc_mutex_unlock(tsd_tsdn(tsd), &bin->lock);
 }
